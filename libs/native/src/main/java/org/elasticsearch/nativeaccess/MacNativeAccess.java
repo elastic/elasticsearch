@@ -106,6 +106,7 @@ public class MacNativeAccess extends PosixNativeAccess {
         return Files.createTempFile("es", "sb");
     }
 
+    @SuppressWarnings("restricted") // MemorySegment.reinterpret is a restricted method; needed to size the native error buffer.
     private void initMacSandbox() {
         // macOS PIDs are 32-bit (pid_t); Math.toIntExact guards the implicit assumption
         int pid = Math.toIntExact(ProcessHandle.current().pid());

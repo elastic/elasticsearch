@@ -161,6 +161,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
      * file to populate the {@link SharedBlobCacheService} mmap cache, then checks both the root
      * input and a slice, comparing returned bytes against the known file content.
      */
+    @SuppressWarnings("restricted") // MemorySegment.reinterpret is a restricted method; used to read back mapped cache contents.
     public void testDirectAccessWithSliceOffsetAdjustment() throws IOException {
         assumeFalse("no mmap on Windows", WINDOWS);
 

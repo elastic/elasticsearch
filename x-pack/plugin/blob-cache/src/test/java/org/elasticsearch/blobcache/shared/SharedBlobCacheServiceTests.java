@@ -4083,6 +4083,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
     // Verifies that withMemorySegmentSlices resolves multiple ranges within a single region
     // and across regions, returning the correct data for each slice.
+    @SuppressWarnings("restricted") // MemorySegment.reinterpret is a restricted method; used to read back cache slice contents.
     public void testWithByteBufferSlices() throws Exception {
         final int regionSize = (int) size(10);
         final long fileLength = size(25); // spans 3 regions
@@ -4159,6 +4160,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
     // Verifies that withMemorySegmentSlices correctly handles multiple slices from the same region,
     // only acquiring one ref-count for deduplication.
+    @SuppressWarnings("restricted") // MemorySegment.reinterpret is a restricted method; used to read back cache slice contents.
     public void testWithByteBufferSlicesSameRegion() throws Exception {
         final int regionSize = (int) size(10);
         final long fileLength = size(8); // fits in a single region
@@ -4523,6 +4525,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("restricted") // MemorySegment.reinterpret is a restricted method; used to read back cache slice contents.
     public void testGetIfPresentFindsPopulatedEntry() throws Exception {
         final long regionSize = size(10);
         final long fileLength = size(randomIntBetween(5, 19));

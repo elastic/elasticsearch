@@ -345,7 +345,7 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Write a possibly-null {@link String}, represented as a {@link boolean} which is {@code false} if the string is null, or else
+     * Write a possibly-null {@link String}, represented as a {@code boolean} which is {@code false} if the string is null, or else
      * {@code true} if it is not null, and in this latter case it is followed by the string itself written as if with {@link #writeString}.
      * <p>
      * May be performance-critical, so subclasses must specify an explicit implementation. If performance is unimportant, consider using

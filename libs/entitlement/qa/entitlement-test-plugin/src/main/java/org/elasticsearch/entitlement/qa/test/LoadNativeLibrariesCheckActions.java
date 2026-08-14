@@ -11,7 +11,8 @@ package org.elasticsearch.entitlement.qa.test;
 
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 
-@SuppressWarnings({ "unused" /* called via reflection */ })
+// Each action intentionally calls a restricted native-access method to verify the entitlement check fires.
+@SuppressWarnings({ "unused" /* called via reflection */, "restricted" })
 class LoadNativeLibrariesCheckActions {
 
     @EntitlementTest(expectedAccess = PLUGINS)

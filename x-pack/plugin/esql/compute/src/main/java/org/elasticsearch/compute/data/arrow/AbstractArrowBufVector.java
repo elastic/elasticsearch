@@ -84,6 +84,7 @@ public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> 
      * underlying {@link ArrowBuf}) is alive; treat as read-only. Uses the restricted
      * {@link MemorySegment#reinterpret(long)}, so the calling module must be granted native access.
      */
+    @SuppressWarnings("restricted") // MemorySegment.reinterpret is a restricted method; needed to view the off-heap Arrow buffer.
     public MemorySegment valuesSegment() {
         return MemorySegment.ofAddress(valueBuffer.memoryAddress()).reinterpret((long) positionCount * byteSize());
     }

@@ -31,7 +31,10 @@ import java.util.Properties;
 import java.util.function.Consumer;
 
 public class SystemInstrumentation implements InstrumentationConfig {
+    // This config instruments restricted native-access methods (Runtime/System load, Linker, AddressLayout,
+    // Controller.enableNativeAccess). Referencing them is the point of the class, so restricted is suppressed here.
     @Override
+    @SuppressWarnings("restricted")
     public void init(InternalInstrumentationRegistry registry) {
         EntitlementRulesBuilder builder = new EntitlementRulesBuilder(registry);
 

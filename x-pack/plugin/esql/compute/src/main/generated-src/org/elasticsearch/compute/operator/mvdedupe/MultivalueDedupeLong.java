@@ -244,7 +244,7 @@ public class MultivalueDedupeLong {
 
     /**
      * Build a {@link BatchEncoder} which deduplicates values at each position
-     * and then encodes the results into a {@link byte[]} which can be used for
+     * and then encodes the results into a {@code byte[]} which can be used for
      * things like hashing many fields together.
      */
     public BatchEncoder batchEncoder(int batchSize) {

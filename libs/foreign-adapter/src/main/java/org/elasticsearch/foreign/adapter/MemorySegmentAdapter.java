@@ -12,6 +12,7 @@ package org.elasticsearch.foreign.adapter;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
+import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 
 /**
@@ -20,51 +21,35 @@ import java.lang.invoke.VarHandle;
 public final class MemorySegmentAdapter {
 
     public static String getString(MemorySegment segment, long offset) {
-        return segment.getUtf8String(offset);
+        return segment.getString(offset);
     }
 
     public static void setString(MemorySegment segment, long offset, String value) {
-        segment.setUtf8String(offset, value);
+        segment.setString(offset, value);
     }
 
     public static MemorySegment allocateString(Arena arena, String s) {
-        return arena.allocateUtf8String(s);
+        return arena.allocateFrom(s);
     }
 
-    /**
-     * Return a {@link VarHandle} to access an element within the given memory layout.
-     *
-     * Returns the VarHandle directly; in Java 21, a single-element path VarHandle does not need an
-     * offset coordinate inserted (unlike the Java 22 variant, which inserts a fixed {@code 0L} at
-     * coordinate position 1).
-     *
-     * @param layout The layout of a struct to access
-     * @param element The element within the struct to access
-     * @return A {@link VarHandle} that accesses the element with a fixed offset of 0
-     */
+    // MemoryLayout.varHandle changed between Java 21 and 22 to require a new offset
+    // parameter for the returned VarHandle. This function exists to remove the need for that offset.
     public static VarHandle varHandleWithoutOffset(MemoryLayout layout, MemoryLayout.PathElement element) {
-        return layout.varHandle(element);
+        return MethodHandles.insertCoordinates(layout.varHandle(element), 1, 0L);
     }
 
     /**
-     * Return a {@link VarHandle} to access a sequence element within the given memory layout,
-     * using a two-element path: {@code groupElement(name)} then {@code sequenceElement()}.
-     *
-     * Returns the VarHandle directly; in Java 21, group+sequence path VarHandles do not need an
-     * offset coordinate inserted (unlike the Java 22 variant, which inserts a fixed {@code 0L} at
-     * coordinate position 1).
-     *
-     * @param layout The layout of a struct to access
-     * @param group The group element path element (e.g. {@code groupElement("fieldName")})
-     * @param seq The sequence element path element (i.e. {@code sequenceElement()})
-     * @return A {@link VarHandle} that accesses indexed sequence elements with a fixed offset of 0
+     * Return a {@link VarHandle} for indexed sequence element access within the given memory layout.
+     * The Java 22 variant inserts a fixed offset coordinate at position 1 so callers pass
+     * {@code (segment, 0L, (long) index)} for reads and {@code (segment, 0L, (long) index, value)}
+     * for writes — matching the Java 21 two-path-element VarHandle shape.
      */
     public static VarHandle varHandleSequenceWithoutOffset(
         MemoryLayout layout,
         MemoryLayout.PathElement group,
         MemoryLayout.PathElement seq
     ) {
-        return layout.varHandle(group, seq);
+        return MethodHandles.insertCoordinates(layout.varHandle(group, seq), 1, 0L);
     }
 
     private MemorySegmentAdapter() {}

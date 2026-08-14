@@ -14,17 +14,23 @@ import org.elasticsearch.entitlement.rules.Policies;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
 import java.util.concurrent.StructuredTaskScope;
-import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.StructuredTaskScope.Joiner;
+import java.util.function.Function;
 
-@SuppressWarnings("rawtypes")
+// StructuredTaskScope is generic; the open(...) factory references are used raw here and the generic
+// Joiner/Function arguments produce unchecked warnings that are inherent to instrumenting the raw type.
+@SuppressWarnings({ "rawtypes", "unchecked" })
 public class StructuredTaskScopeInstrumentation implements InstrumentationConfig {
     @Override
     public void init(InternalInstrumentationRegistry registry) {
         EntitlementRulesBuilder builder = new EntitlementRulesBuilder(registry);
 
+        // A StructuredTaskScope is created through the static open(...) factories, each of which starts
+        // threads, so entering any of them requires the manage-threads entitlement.
         builder.on(StructuredTaskScope.class, rule -> {
-            rule.callingStatic(StructuredTaskScope::new).enforce(Policies::manageThreads).elseThrowNotEntitled();
-            rule.callingStatic(StructuredTaskScope::new, String.class, ThreadFactory.class)
+            rule.callingStatic(StructuredTaskScope::open).enforce(Policies::manageThreads).elseThrowNotEntitled();
+            rule.callingStatic(StructuredTaskScope::open, Joiner.class).enforce(Policies::manageThreads).elseThrowNotEntitled();
+            rule.callingStatic(StructuredTaskScope::open, Joiner.class, Function.class)
                 .enforce(Policies::manageThreads)
                 .elseThrowNotEntitled();
         });

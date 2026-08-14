@@ -52,6 +52,7 @@ public class LoaderHelper {
         return platformDir.resolve(os + "-" + arch);
     }
 
+    @SuppressWarnings("restricted") // System.load is a restricted native-access method; this loader exists to call it.
     public static void loadLibrary(String libname) {
         Path libpath = platformLibDir.resolve(System.mapLibraryName(libname));
         if (Files.exists(libpath) == false) {

@@ -637,6 +637,18 @@ public class KnnSearcher {
         }
     }
 
+    // ForkJoinPool no longer overrides invokeAll without throwing InterruptedException (a JDK 22+ source change),
+    // so it now inherits the interruptible ExecutorService.invokeAll. These callers cannot propagate a checked
+    // exception (some are interface overrides), so we restore the interrupt flag and fail fast instead.
+    private static void runAll(List<Callable<Void>> tasks) {
+        try {
+            ForkJoinPool.commonPool().invokeAll(tasks);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("interrupted while computing exact nearest neighbors", e);
+        }
+    }
+
     private int[][] getOrComputePartitionedNN(
         int totalSearches,
         DataGenerator dataGenerator,
@@ -707,7 +719,7 @@ public class KnnSearcher {
                     }
                 }
             }
-            ForkJoinPool.commonPool().invokeAll(tasks);
+            runAll(tasks);
         }
         long nnElapsedMS = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - nnStartNS);
         logger.info("computed {} exact partitioned NN matches in {} ms", numQueryVectors, nnElapsedMS);
@@ -1029,7 +1041,7 @@ public class KnnSearcher {
                 float[] queryVector = queryReader.nextFloatVector().vector();
                 tasks.add(new ComputeNNFloatTask(i, topK, queryVector, result, reader, filterQuery, similarityFunction));
             }
-            ForkJoinPool.commonPool().invokeAll(tasks);
+            runAll(tasks);
             return result;
         }
     }
@@ -1043,7 +1055,7 @@ public class KnnSearcher {
                 byte[] queryVector = queryReader.nextByteVector().vector();
                 tasks.add(new ComputeNNByteTask(i, topK, queryVector, result, reader, filterQuery, similarityFunction));
             }
-            ForkJoinPool.commonPool().invokeAll(tasks);
+            runAll(tasks);
             return result;
         }
     }

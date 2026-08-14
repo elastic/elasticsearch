@@ -114,6 +114,12 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             if (compilerMajor >= 22) {
                 xlintExclusions += ",-incubating";
             }
+            if (compilerMajor >= 25) {
+                // JDK 25 enables dangling-doc-comments under -Xlint:all. It fires on the many section-separator
+                // comments (e.g. "/////") and stray block comments across the codebase, which are stylistic and
+                // not defects. Exclude the category rather than rewriting comments repo-wide.
+                xlintExclusions += ",-dangling-doc-comments";
+            }
             compilerArgs.add("-Xlint:" + xlintExclusions);
             compilerArgs.add("-Xdoclint:all");
             compilerArgs.add("-Xdoclint:-missing");

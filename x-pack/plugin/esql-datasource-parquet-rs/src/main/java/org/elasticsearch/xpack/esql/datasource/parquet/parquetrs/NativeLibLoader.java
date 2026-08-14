@@ -63,6 +63,7 @@ final class NativeLibLoader {
         }
     }
 
+    @SuppressWarnings("restricted") // System.load is a restricted native-access method; this loader exists to call it.
     private static void doLoad() {
         String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
         String arch = System.getProperty("os.arch", "").toLowerCase(Locale.ROOT);

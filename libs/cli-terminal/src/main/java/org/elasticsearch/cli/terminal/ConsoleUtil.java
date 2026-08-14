@@ -15,7 +15,12 @@ final class ConsoleUtil {
 
     private ConsoleUtil() {}
 
+    /**
+     * JDK >= 22 returns a console even if the terminal is redirected unless using -Djdk.console=java.base
+     * https://bugs.openjdk.org/browse/JDK-8308591
+     */
     static Console detectTerminal() {
-        return System.console();
+        Console console = System.console();
+        return console != null && console.isTerminal() ? console : null;
     }
 }

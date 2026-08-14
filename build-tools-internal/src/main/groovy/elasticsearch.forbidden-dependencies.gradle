@@ -13,9 +13,9 @@ List<String> FORBIDDEN_DEPENDENCY_GROUPS = [
   'com.google.guava'
 ]
 
-Closure checkDeps = { Configuration configuration ->
+Closure checkDeps = { Configuration configuration, List<String> forbiddenGroups ->
   configuration.resolutionStrategy.eachDependency {
-    if (FORBIDDEN_DEPENDENCY_GROUPS.contains(it.target.group)) {
+    if (forbiddenGroups.contains(it.target.group)) {
       throw new GradleException("Dependency '${it.target.group}:${it.target.name}' on configuration '${configuration.name}' is not allowed. " +
         "If it is needed as a transitive dependency, try adding it to the runtime classpath")
     }
@@ -28,7 +28,14 @@ subprojects {
     return
   }
   pluginManager.withPlugin('java') {
-    checkDeps(configurations.compileClasspath)
-    checkDeps(configurations.testCompileClasspath)
+    List<String> forbiddenGroups = FORBIDDEN_DEPENDENCY_GROUPS
+    if (project.path in [':modules:repository-gcs', ':x-pack:plugin:esql-datasource-gcs', ':qa:vector']) {
+      // google-cloud-storage signatures carry checker-framework @NonNull type annotations on Guava types.
+      // JDK 25 javac requires those classes on the compile classpath to attach the annotations, so Guava is
+      // allowed at compile time here. These modules still must not use Guava directly.
+      forbiddenGroups = forbiddenGroups - 'com.google.guava'
+    }
+    checkDeps(configurations.compileClasspath, forbiddenGroups)
+    checkDeps(configurations.testCompileClasspath, forbiddenGroups)
   }
 }

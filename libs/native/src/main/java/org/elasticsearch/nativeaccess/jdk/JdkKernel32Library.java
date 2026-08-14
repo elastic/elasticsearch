@@ -37,6 +37,9 @@ import static org.elasticsearch.foreign.LinkerHelper.upcallHandle;
 import static org.elasticsearch.foreign.LinkerHelper.upcallStub;
 import static org.elasticsearch.foreign.adapter.MemorySegmentAdapter.varHandleWithoutOffset;
 
+// System.loadLibrary in the static initializer is a restricted native-access method; suppressed at class level
+// because it cannot be annotated on the static block itself.
+@SuppressWarnings("restricted")
 class JdkKernel32Library implements Kernel32Library {
     static {
         System.loadLibrary("kernel32");

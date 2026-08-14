@@ -11,12 +11,12 @@ package org.elasticsearch.foreign.adapter;
 
 import org.elasticsearch.core.CheckedFunction;
 
-import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
-import java.lang.foreign.ValueLayout;
 
 /**
- * {@link MemorySegment} operations whose behavior differs between JDK 21 and 22+.
+ * {@link MemorySegment} operations whose behaviour differs between JDK 21 and 22+.
+ *
+ * <p>This is the JDK 22+ implementation of this multi-release jar.
  */
 public final class MemorySegmentUtils {
 
@@ -26,9 +26,7 @@ public final class MemorySegmentUtils {
      * Applies {@code action} to a memory segment holding {@code array[0, length)} that is valid as
      * an argument to a native downcall.
      *
-     * <p>On JDK 21 heap segments are rejected by critical native function handles, so the bytes are copied
-     * into a confined {@link Arena} that is closed when the action returns. The JDK 22+ variant
-     * wraps the array directly and performs no copy.
+     * <p>On JDK 22+ the array is wrapped in place and no copy is made.
      *
      * <p>The segment is valid only for the duration of the call; callers must not retain it.
      *
@@ -40,10 +38,6 @@ public final class MemorySegmentUtils {
      */
     public static <R, E extends Exception> R withDowncallSegment(byte[] array, int length, CheckedFunction<MemorySegment, R, E> action)
         throws E {
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment segment = arena.allocate(length);
-            MemorySegment.copy(array, 0, segment, ValueLayout.JAVA_BYTE, 0, length);
-            return action.apply(segment);
-        }
+        return action.apply(MemorySegment.ofArray(array).asSlice(0, length));
     }
 }

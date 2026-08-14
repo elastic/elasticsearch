@@ -49,10 +49,12 @@ public class LinkerHelper {
         return SYMBOL_LOOKUP.find(function).orElse(null);
     }
 
+    @SuppressWarnings("restricted") // Linker.downcallHandle is a restricted native-access method; this helper exists to call it.
     public static MethodHandle downcallHandle(String function, FunctionDescriptor functionDescriptor, Linker.Option... options) {
         return LINKER.downcallHandle(functionAddress(function), functionDescriptor, options);
     }
 
+    @SuppressWarnings("restricted") // Linker.downcallHandle is a restricted native-access method; this helper exists to call it.
     public static MethodHandle downcallHandle(
         MemorySegment functionAddress,
         FunctionDescriptor functionDescriptor,
@@ -78,6 +80,7 @@ public class LinkerHelper {
         return (int) ERRNO_VH.get(ERRNO_STATE);
     }
 
+    @SuppressWarnings("restricted") // Linker.downcallHandle is a restricted native-access method; this helper exists to call it.
     public static MethodHandle downcallHandleWithErrno(String function, FunctionDescriptor functionDescriptor, Linker.Option... options) {
         Linker.Option[] allOptions = new Linker.Option[options.length + 1];
         allOptions[0] = Linker.Option.captureCallState("errno");
@@ -98,6 +101,7 @@ public class LinkerHelper {
         }
     }
 
+    @SuppressWarnings("restricted") // Linker.upcallStub is a restricted native-access method; this helper exists to call it.
     public static <T> MemorySegment upcallStub(MethodHandle mh, T instance, FunctionDescriptor functionDescriptor, Arena arena) {
         try {
             mh = mh.bindTo(instance);

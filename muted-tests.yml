@@ -697,9 +697,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregatorTests
   method: testSpike
   issue: https://github.com/elastic/elasticsearch/issues/156516
-- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
-  method: testRelocatingTaskIsNotCancelledOnShutdownTimeout
-  issue: https://github.com/elastic/elasticsearch/issues/155593
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testTargetRecoversAfterMasterRestartDuringHandoff
   issue: https://github.com/elastic/elasticsearch/issues/156561
@@ -743,3 +740,24 @@ tests:
 - class: org.elasticsearch.reindex.RethrottleTests
   method: testDeleteByQuery
   issue: https://github.com/elastic/elasticsearch/issues/156709
+- class: org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationActionRequestTests
+  method: testBwcSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/156714
+- class: org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationActionRequestTests
+  method: testConcurrentEquals
+  issue: https://github.com/elastic/elasticsearch/issues/156715
+- class: org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenTests
+  method: testBearerString
+  issue: https://github.com/elastic/elasticsearch/issues/156716
+- class: org.elasticsearch.xpack.core.watcher.crypto.CryptoServiceTests
+  method: testEncryptionAndDecryptionChars
+  issue: https://github.com/elastic/elasticsearch/issues/156717
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormatTests
+  method: testAshEuclideanScoreCorrectness
+  issue: https://github.com/elastic/elasticsearch/issues/156719
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/160_union_types/CASE}
+  issue: https://github.com/elastic/elasticsearch/issues/156729
+- class: org.elasticsearch.xpack.stateless.objectstore.ObjectStoreServiceTests
+  method: testTranslogUploadTimesLogLevels
+  issue: https://github.com/elastic/elasticsearch/issues/156747

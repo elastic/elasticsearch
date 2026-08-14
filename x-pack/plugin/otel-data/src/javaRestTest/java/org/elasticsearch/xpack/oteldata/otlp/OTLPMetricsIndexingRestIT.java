@@ -31,9 +31,11 @@ import io.opentelemetry.sdk.resources.Resource;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -58,6 +60,14 @@ import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.not;
 
 public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = buildCluster(false);
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     private OtlpHttpMetricExporter exporter;
     private SdkMeterProvider meterProvider;

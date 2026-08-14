@@ -19,11 +19,11 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.Before;
-import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Map;
@@ -39,21 +39,19 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
     protected static final Resource TEST_RESOURCE = Resource.create(Attributes.of(stringKey("service.name"), "elasticsearch"));
     protected static final InstrumentationScopeInfo TEST_SCOPE = InstrumentationScopeInfo.create("io.opentelemetry.example.metrics");
 
-    @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .user(USER, PASS, "superuser", false)
-        .setting("xpack.security.enabled", "true")
-        .setting("xpack.security.autoconfiguration.enabled", "false")
-        .setting("xpack.license.self_generated.type", "trial")
-        .setting("xpack.ml.enabled", "false")
-        .setting("xpack.watcher.enabled", "false")
-        .setting("indices.batch_indexing", Boolean.toString(randomBoolean()))
-        .build();
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+    protected static ElasticsearchCluster buildCluster(boolean batchIndexing) {
+        LocalClusterSpecBuilder<ElasticsearchCluster> builder = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
+            .user(USER, PASS, "superuser", false)
+            .setting("xpack.security.enabled", "true")
+            .setting("xpack.security.autoconfiguration.enabled", "false")
+            .setting("xpack.license.self_generated.type", "trial")
+            .setting("xpack.ml.enabled", "false")
+            .setting("xpack.watcher.enabled", "false");
+        if (batchIndexing) {
+            builder = builder.setting("indices.batch_indexing", "true");
+        }
+        return builder.build();
     }
 
     protected Settings restClientSettings() {
@@ -73,7 +71,7 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
 
     /**
      * A request body exceeding the default {@code http.max_protobuf_content_length} (8MiB) must be rejected with 413.
-     * Uses the main {@link #cluster} where the coordinating limit is not tight, so the upfront reservation
+     * Uses the main cluster where the coordinating limit is not tight, so the upfront reservation
      * of 8MiB succeeds and the body size check is what triggers the rejection.
      */
     public void testOversizedRequestReturns413() throws Exception {

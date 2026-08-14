@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.TaskType;
@@ -242,15 +243,15 @@ public class InferenceIndicesIT extends ESIntegTestCase {
      * Verifies the end-to-end behaviour of {@link InferenceIndexMappingManager#withUpToDateMappings} for the
      * stale-mapping upgrade scenario that arises during a rolling upgrade.
      *
-     * <p>{@code SystemIndexMappingUpdateService} monitors {@code .inference} and upgrades it to the
-     * current mapping version immediately when it is created, making it impossible to capture a live
-     * outdated cluster state reliably. Instead, a synthetic {@link ClusterState} is built that reports
-     * the index as having outdated mappings while the real cluster index is already up to date. This
-     * lets us exercise the upgrade code path in {@code withUpToDateMappings} without a timing dependency:
+     * <p>A live outdated cluster state cannot be captured reliably: in a single-version test cluster
+     * the index is created with current mappings right away. Instead, a synthetic {@link ClusterState}
+     * is built that reports the index as having outdated mappings while the real cluster index is
+     * already up to date. This lets us exercise the upgrade code path in {@code withUpToDateMappings}
+     * without a timing dependency:
      *
      * <ol>
-     *   <li>Wait for {@code SystemIndexMappingUpdateService} to auto-create {@code .inference} with
-     *       current mappings.</li>
+     *   <li>Create {@code .inference} on demand through {@code withUpToDateMappings} (the index is
+     *       not created automatically).</li>
      *   <li>Build a synthetic cluster state that reports {@code .inference} with outdated mappings.</li>
      *   <li>{@code withUpToDateMappings} detects the outdated version in the provided state and issues
      *       a {@code PutMapping} request. The {@code PutMapping} is idempotent because the real index
@@ -260,22 +261,7 @@ public class InferenceIndicesIT extends ESIntegTestCase {
      * </ol>
      */
     public void testWithUpToDateMappings_upgradesStaleMappingsAndAllowsV4Fields() throws Exception {
-        // The InferencePlugin in this test class requires index.routing.allocation.require.index_router=config
-        // for .inference. Start nodes with that attribute so shards can be allocated when the index is created.
-        final var configAttr = Settings.builder().put(INDEX_ROUTER_ATTRIBUTE, CONFIG_ROUTER).build();
-        internalCluster().startMasterOnlyNode(configAttr);
-        internalCluster().startDataOnlyNode(configAttr);
-
-        ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-        InferenceIndexMappingManager manager = internalCluster().getCurrentMasterNodeInstance(InferenceIndexMappingManager.class);
-
-        // .inference is not created automatically; it is created on demand via withUpToDateMappings.
-        // Use the live cluster state (which shows .inference as absent) to trigger index creation.
-        // With nodes having the correct routing attribute the shards are allocated immediately and
-        // the request completes within the timeout.
-        var createFuture = new PlainActionFuture<Void>();
-        manager.withUpToDateMappings(clusterService.state(), createFuture);
-        createFuture.actionGet(30, TimeUnit.SECONDS);
+        var setup = startNodesAndCreateInferenceIndex();
 
         // Build a synthetic cluster state that reports .inference at outdated mappings. This simulates
         // the cluster state a node would see during a rolling upgrade before migration completes.
@@ -287,19 +273,22 @@ public class InferenceIndicesIT extends ESIntegTestCase {
         // below the current version, and issues a PutMapping to upgrade the index. The PutMapping is
         // idempotent because the real index is already up to date; it succeeds and the listener is called.
         var upgradeFuture = new PlainActionFuture<Void>();
-        manager.withUpToDateMappings(syntheticOutdatedState, upgradeFuture);
+        setup.manager().withUpToDateMappings(syntheticOutdatedState, upgradeFuture);
         upgradeFuture.actionGet(30, TimeUnit.SECONDS);
 
         // The real cluster must report the current mapping version after the upgrade call completes.
-        var indexMeta = clusterService.state().metadata().getProject().index(InferenceIndex.INDEX_NAME);
+        var indexMeta = setup.clusterService().state().metadata().getProject().index(InferenceIndex.INDEX_NAME);
         assertNotNull("Expected .inference to exist in cluster state", indexMeta);
         @SuppressWarnings("unchecked")
         var meta = (Map<String, Object>) indexMeta.mapping().sourceAsMap().get("_meta");
-        var currentMappingsVersion = InferencePlugin.createInferenceIndexDescriptor(InferenceIndex.settings()).getMappingsVersion();
+        // Compare against the descriptor actually registered with the node rather than rebuilding one:
+        // this test's plugin overrides the index settings, so a rebuilt descriptor would not match it.
+        var registeredDescriptor = internalCluster().getCurrentMasterNodeInstance(SystemIndices.class)
+            .findMatchingDescriptor(InferenceIndex.INDEX_NAME);
         assertThat(
             "Expected managed_index_mappings_version to be current after withUpToDateMappings completed",
             meta.get(SystemIndexDescriptor.VERSION_META_KEY),
-            equalTo(currentMappingsVersion.version())
+            equalTo(registeredDescriptor.getMappingsVersion().version())
         );
 
         // Verify that a document containing the doc_type field can be indexed without a
@@ -313,30 +302,20 @@ public class InferenceIndicesIT extends ESIntegTestCase {
     }
 
     /**
-     * Verifies that {@link InferenceIndexMappingManager#withUpToDateMappings} takes the fast path and calls
-     * the listener immediately (without issuing any I/O) when the provided cluster state already shows
-     * {@code .inference} with current mappings, and that documents containing the {@code doc_type}
-     * field can be indexed afterwards.
+     * Verifies that {@link InferenceIndexMappingManager#withUpToDateMappings} completes when the
+     * provided cluster state already shows {@code .inference} with current mappings, and that
+     * documents containing the {@code doc_type} field can be indexed afterwards. (That the fast path
+     * issues no I/O is asserted by the unit test
+     * {@code InferenceIndexMappingManagerTests#testIndexAtCurrentVersion_immediateCallbackNoIO}.)
      */
     public void testWithUpToDateMappings_immediateCallbackWhenCurrentAndAllowsV4Fields() throws Exception {
-        // Start nodes with index_router=config so .inference shards can be allocated.
-        final var configAttr = Settings.builder().put(INDEX_ROUTER_ATTRIBUTE, CONFIG_ROUTER).build();
-        internalCluster().startMasterOnlyNode(configAttr);
-        internalCluster().startDataOnlyNode(configAttr);
+        var setup = startNodesAndCreateInferenceIndex();
 
-        ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-        InferenceIndexMappingManager manager = internalCluster().getCurrentMasterNodeInstance(InferenceIndexMappingManager.class);
-
-        // Create .inference with current mappings using the live cluster state (index absent). With nodes having the
-        // correct routing attribute the shards are allocated immediately.
-        var createFuture = new PlainActionFuture<Void>();
-        manager.withUpToDateMappings(clusterService.state(), createFuture);
-        createFuture.actionGet(30, TimeUnit.SECONDS);
-
-        // Re-read the live state now that .inference exists with current mappings. Pass it to withUpToDateMappings.
-        // The manager should detect that mappings are already current and call the listener immediately without I/O.
+        // Re-read the live state now that .inference exists with current mappings. Pass it to
+        // withUpToDateMappings; the manager should detect that mappings are already current and
+        // complete the listener.
         var future = new PlainActionFuture<Void>();
-        manager.withUpToDateMappings(clusterService.state(), future);
+        setup.manager().withUpToDateMappings(setup.clusterService().state(), future);
         future.actionGet(10, TimeUnit.SECONDS);
 
         // Verify that the doc_type field can be indexed — confirms current mappings are active.
@@ -345,6 +324,28 @@ public class InferenceIndicesIT extends ESIntegTestCase {
                 Map.of("doc_type", "model", "model_id", "test-noop-model", "task_type", "text_embedding", "service", "test-service")
             )
         ).actionGet();
+    }
+
+    private record InferenceIndexSetup(InferenceIndexMappingManager manager, ClusterService clusterService) {}
+
+    /**
+     * Starts a master and a data node carrying the routing attribute this test class's plugin
+     * requires for {@code .inference} shards to allocate, then creates the index on demand through
+     * {@code withUpToDateMappings} using the live cluster state — the index is not created
+     * automatically.
+     */
+    private InferenceIndexSetup startNodesAndCreateInferenceIndex() {
+        final var configAttr = Settings.builder().put(INDEX_ROUTER_ATTRIBUTE, CONFIG_ROUTER).build();
+        internalCluster().startMasterOnlyNode(configAttr);
+        internalCluster().startDataOnlyNode(configAttr);
+
+        ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        InferenceIndexMappingManager manager = internalCluster().getCurrentMasterNodeInstance(InferenceIndexMappingManager.class);
+
+        var createFuture = new PlainActionFuture<Void>();
+        manager.withUpToDateMappings(clusterService.state(), createFuture);
+        createFuture.actionGet(30, TimeUnit.SECONDS);
+        return new InferenceIndexSetup(manager, clusterService);
     }
 
     /**

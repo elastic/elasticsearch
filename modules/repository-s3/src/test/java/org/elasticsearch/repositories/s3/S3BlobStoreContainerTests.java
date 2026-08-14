@@ -456,13 +456,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         new PropagatesErrorWhenAbortFailsTestCase() {
             @Override
             protected void doMultipartUpload() throws IOException {
-                container.executeMultipartUpload(
-                    randomPurpose(),
-                    blobStore,
-                    blobName,
-                    new ByteArrayInputStream(new byte[0]),
-                    blobSize
-                );
+                container.executeMultipartUpload(randomPurpose(), blobStore, blobName, new ByteArrayInputStream(new byte[0]), blobSize);
             }
         }.run();
     }

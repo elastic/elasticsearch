@@ -55,19 +55,19 @@ public class ConcurrentMultipartHelper {
         final long lastPartSize = blobSize - (long) (nbParts - 1) * partSize;
         final AtomicInteger nextPartNum = new AtomicInteger(0);
         final CountDownLatch latch = new CountDownLatch(nbParts);
-        final ConcurrentLinkedQueue<Throwable> errors = new ConcurrentLinkedQueue<>();
+        final ConcurrentLinkedQueue<Exception> exceptions = new ConcurrentLinkedQueue<>();
 
         final Runnable worker = () -> {
             int partNum;
             while ((partNum = nextPartNum.getAndIncrement()) < nbParts) {
-                if (errors.isEmpty()) {
+                if (exceptions.isEmpty()) {
                     final boolean lastPart = partNum == nbParts - 1;
                     final long curPartSize = lastPart ? lastPartSize : partSize;
                     final long offset = (long) partNum * partSize;
                     try {
                         partConsumer.accept(partNum, offset, curPartSize, lastPart);
-                    } catch (Throwable t) {
-                        errors.add(t);
+                    } catch (Exception e) {
+                        exceptions.add(e);
                     }
                 }
                 latch.countDown();
@@ -88,16 +88,16 @@ public class ConcurrentMultipartHelper {
             latch.await();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            errors.add(e);
+            exceptions.add(e);
         }
 
-        if (errors.isEmpty() == false) {
-            final Iterator<Throwable> it = errors.iterator();
-            final IOException error = new IOException("Failed to upload parts", it.next());
+        if (exceptions.isEmpty() == false) {
+            final Iterator<Exception> it = exceptions.iterator();
+            final IOException exception = new IOException("Failed to upload parts", it.next());
             while (it.hasNext()) {
-                error.addSuppressed(it.next());
+                exception.addSuppressed(it.next());
             }
-            throw error;
+            throw exception;
         }
     }
 }

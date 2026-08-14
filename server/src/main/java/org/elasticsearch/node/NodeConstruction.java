@@ -1765,7 +1765,16 @@ class NodeConstruction {
                 pluginBreakers.stream().map(Tuple::v2).toList(),
                 clusterSettings
             );
-            case "none" -> new NoneCircuitBreakerService();
+            case "none" -> {
+                // Names of all heap-managed breakers: the four built-ins plus any plugin-registered ones.
+                // Allows NoneCircuitBreakerService.getBreaker() to return null rather than a noop on
+                // undeclared breakers, allowing CompositeCircuitBreakerService to route it to nativeService.
+                List<String> heapBreakerNames = new ArrayList<>(
+                    List.of(CircuitBreaker.FIELDDATA, CircuitBreaker.IN_FLIGHT_REQUESTS, CircuitBreaker.REQUEST, CircuitBreaker.PARENT)
+                );
+                pluginBreakers.stream().map(t -> t.v2().getName()).forEach(heapBreakerNames::add);
+                yield new NoneCircuitBreakerService(heapBreakerNames);
+            }
             default -> throw new IllegalArgumentException("Unknown circuit breaker type [" + type + "]");
         };
 

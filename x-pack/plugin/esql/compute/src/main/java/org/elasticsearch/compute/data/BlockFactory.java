@@ -87,7 +87,16 @@ public class BlockFactory {
             // NATIVE_MEMORY registered (minimal test circuit breaker services).
             CircuitBreakerService bs = bigArrays.breakerService();
             CircuitBreaker fromService = bs != null ? bs.getBreaker(CircuitBreaker.NATIVE_MEMORY) : null;
-            this.nativeMemoryBreaker = fromService != null ? fromService : new NoopCircuitBreaker(CircuitBreaker.NATIVE_MEMORY);
+            if (fromService != null) {
+                this.nativeMemoryBreaker = fromService;
+            } else {
+                log.warn(
+                    "No [{}] circuit breaker available from [{}]; Arrow allocations will be unbounded",
+                    CircuitBreaker.NATIVE_MEMORY,
+                    bs != null ? bs.getClass().getSimpleName() : "null"
+                );
+                this.nativeMemoryBreaker = new NoopCircuitBreaker(CircuitBreaker.NATIVE_MEMORY);
+            }
         }
         this.maxPrimitiveArrayBytes = builder.maxPrimitiveArraySize;
         this.bytesRefRamOverestimateThreshold = builder.bytesRefRamOverestimateThreshold;

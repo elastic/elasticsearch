@@ -147,7 +147,17 @@ public class CsvTestsDataLoader {
             "partial_message_types_lookup.csv",
             "lookup-settings.json"
         ),
+        new TestDataset(
+            "message_language_code_lookup",
+            "mapping-message_language_code_lookup.json",
+            "message_language_code_lookup.csv",
+            "lookup-settings.json"
+        ),
         new TestDataset("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv"),
+        new TestDataset("unmapped_array_data", "mapping-unmapped_array_data.json", "unmapped_array_data.csv"),
+        new TestDataset("unmapped_object_data", "mapping-unmapped_object_data.json", "unmapped_object_data.csv"),
+        new TestDataset("cross_mapping_a", "mapping-cross_mapping_a.json", "cross_mapping_a.csv"),
+        new TestDataset("cross_mapping_b", "mapping-cross_mapping_b.json", "cross_mapping_b.csv"),
         new TestDataset("no_message_sample_data", "mapping-sample_data.json", "sample_data.csv").withTypeMapping(removeFields("message"))
             .withDynamic("false"),
         new TestDataset(
@@ -159,6 +169,12 @@ public class CsvTestsDataLoader {
             "partial_mapping_excluded_source_sample_data",
             "mapping-partial_mapping_excluded_source_sample_data.json",
             "partial_mapping_sample_data.csv"
+        ),
+        new TestDataset(
+            "synthetic_source_partial_mapping",
+            "mapping-partial_mapping_sample_data.json",
+            "partial_mapping_sample_data.csv",
+            "synthetic-source-settings.json"
         ),
         new TestDataset("mv_sample_data"),
         new TestDataset("event_alerts"),
@@ -221,6 +237,7 @@ public class CsvTestsDataLoader {
         new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv", "k8s-settings.json"),
         new TestDataset("k8s-downsampled", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json"),
         new TestDataset("k8s_stored_source", "k8s-mappings.json", "k8s.csv").withSetting("k8s-stored-source-settings.json"),
+        new TestDataset("empty-k8s", "k8s-extra-mappings.json", "k8s-empty.csv").withSetting("k8s-settings.json"),
         new TestDataset(
             "promql_classic_histogram",
             "mapping-promql-classic-histogram-passthrough.json",
@@ -325,6 +342,7 @@ public class CsvTestsDataLoader {
         new TestDataset("many_numbers").withSetting("many_numbers-settings.json"),
         new TestDataset("mmr_text_vector_keyword"),
         new TestDataset("json_logs"),
+        new TestDataset("network_direction_networks"),
         new TestDataset("flattened_otel_logs"),
         new TestDataset("flattened_many"),
         new TestDataset("flattened_keyed"),
@@ -408,7 +426,9 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_in_subquery_stats_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
         new ViewConfig("employees_in_subquery_conjunction_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
         new ViewConfig("employees_in_subquery_disjunction_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
-        new ViewConfig("employees_in_subquery_nested_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW))
+        new ViewConfig("employees_in_subquery_nested_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("view_partial_mapping_sample_data"),
+        new ViewConfig("view_sample_data")
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**

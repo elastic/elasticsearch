@@ -400,20 +400,13 @@ public class OperationRoutingTests extends ESTestCase {
         collector.addNodeStatistics("node_0", 1, TimeValue.timeValueMillis(50).nanos(), TimeValue.timeValueMillis(40).nanos());
         collector.addNodeStatistics("node_1", 2, TimeValue.timeValueMillis(100).nanos(), TimeValue.timeValueMillis(60).nanos());
 
-        // Check the first node is usually selected, if it's stats don't change much
+        // Check the first node is always selected if it's stats don't change.
         for (int i = 0; i < 10; i++) {
             groupIterator = opRouting.searchShards(project, indexNames, null, null, collector, new HashMap<>(), true);
             ShardRouting shardChoice = groupIterator.get(0).nextOrNull();
             assertThat(shardChoice.currentNodeId(), equalTo("node_0"));
 
-            int responseTime = 50 + randomInt(5);
-            int serviceTime = 40 + randomInt(5);
-            collector.addNodeStatistics(
-                "node_0",
-                1,
-                TimeValue.timeValueMillis(responseTime).nanos(),
-                TimeValue.timeValueMillis(serviceTime).nanos()
-            );
+            collector.addNodeStatistics("node_0", 1, TimeValue.timeValueMillis(50).nanos(), TimeValue.timeValueMillis(40).nanos());
         }
 
         // Check that we try the second when the first node slows down more

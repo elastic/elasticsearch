@@ -721,9 +721,8 @@ public class AuthorizationService {
      * {@code SearchRequest} that carries the {@code project_routing} value and is authorized
      * independently). Detected via {@code instanceof} rather than action name, which is robust to
      * action-name changes and covers all of those endpoints in one check. Note: {@code _eql} uses
-     * {@link org.elasticsearch.xpack.eql.action.EqlSearchRequest} (not a SearchRequest) so
-     * it is excluded; searches using a Point-in-Time are also excluded because SearchRequest
-     * validation rejects combining project_routing with a PIT.
+     * EqlSearchRequest (not a SearchRequest) so it is excluded; searches using a Point-in-Time
+     * are also excluded because SearchRequest validation rejects combining project_routing with a PIT.
      *
      * <p>The {@code esql} counter covers ES|QL field-resolution requests
      * ({@code indices:data/read/esql/resolve_fields}), which implement

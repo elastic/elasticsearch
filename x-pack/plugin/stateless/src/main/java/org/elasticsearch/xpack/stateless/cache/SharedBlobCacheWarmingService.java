@@ -88,7 +88,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.PriorityBlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
@@ -2027,10 +2026,7 @@ public class SharedBlobCacheWarmingService {
                 this.timestampMillis = timestampMillis;
                 this.bccSizeAttributes = Map.of(BCC_SIZE_ATTRIBUTE_KEY, bccSizeBucket(blobSize));
                 enqueuedBccBlobsMetric.add(1, bccSizeAttributes);
-                this.listener = ActionListener.runBefore(listener, () -> {
-                    runningBccBlobsMetric.add(-1, bccSizeAttributes);
-                    doneBccBlobsMetric.incrementBy(1, bccSizeAttributes);
-                });
+                this.listener = listener;
                 logger.trace("{} {}: scheduled {} {}", warmingRun.shardId(), warmingRun.type(), blobFile, byteRangeToWarm);
             }
 
@@ -2038,13 +2034,15 @@ public class SharedBlobCacheWarmingService {
             public void onResponse(Releasable releasable) {
                 runningBccBlobsMetric.add(1, bccSizeAttributes);
                 enqueuedBccBlobsMetric.add(-1, bccSizeAttributes);
+                var releasedListener = ActionListener.releaseAfter(ActionListener.runBefore(listener, () -> {
+                    runningBccBlobsMetric.add(-1, bccSizeAttributes);
+                    doneBccBlobsMetric.incrementBy(1, bccSizeAttributes);
+                }), releasable);
                 if (isCancelled()) {
-                    listener.onResponse(null);
-                    Releasables.close(releasable);
+                    releasedListener.onResponse(null);
                     return;
                 }
                 var cacheKey = new FileCacheKey(warmingRun.shardId(), blobFile.primaryTerm(), blobFile.blobName());
-                var releasedListener = ActionListener.releaseAfter(listener, releasable);
                 var cacheBlobReader = directory.getCacheBlobReaderForWarming(blobFile);
                 fetchRange(cacheKey, cacheBlobReader, releasedListener.delegateResponse((l, e) -> {
                     if (ExceptionsHelper.unwrap(e, ResourceAlreadyUploadedException.class) != null) {
@@ -2087,6 +2085,7 @@ public class SharedBlobCacheWarmingService {
                     () -> format("%s %s failed to warm blob %s %s", warmingRun.shardId(), warmingRun.type(), blobFile, byteRangeToWarm),
                     e
                 );
+                listener.onFailure(e);
             }
         }
 

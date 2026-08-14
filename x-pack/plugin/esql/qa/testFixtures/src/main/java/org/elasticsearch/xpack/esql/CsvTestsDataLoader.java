@@ -682,7 +682,7 @@ public class CsvTestsDataLoader {
             return;
         }
         if (indicesToLoad != null) {
-            loadDatasetsIntoEs(client, indicesToLoad);
+            loadDatasetsIntoEs(client, indicesToLoad, capabilityCheck);
             if (timeSeriesOnly == false) {
                 loadEnrichPoliciesForLoadedSourceIndices(client, indicesToLoad);
             }
@@ -729,11 +729,24 @@ public class CsvTestsDataLoader {
      * Used by external source tests that need lookup indices (e.g. languages_lookup) for LOOKUP JOIN.
      */
     public static void loadDatasetsIntoEs(RestClient client, List<String> indexNames) throws IOException {
+        loadDatasetsIntoEs(client, indexNames, cap -> true);
+    }
+
+    /**
+     * Load only the specified indices from CSV_DATASET into the cluster, skipping datasets whose
+     * required capabilities are not all satisfied by {@code capabilityCheck}.
+     */
+    private static void loadDatasetsIntoEs(RestClient client, List<String> indexNames, Predicate<EsqlCapabilities.Cap> capabilityCheck)
+        throws IOException {
         Set<String> loadedDatasets = new HashSet<>();
         for (String indexName : indexNames) {
             TestDataset dataset = CSV_DATASET.get(indexName);
             if (dataset == null) {
                 throw new IllegalArgumentException("Dataset [" + indexName + "] not found in CSV_DATASET");
+            }
+            if (dataset.requiredCapabilities.stream().allMatch(capabilityCheck) == false) {
+                logger.debug("Skipping dataset [{}], missing required capabilities {}", indexName, dataset.requiredCapabilities);
+                continue;
             }
             load(client, dataset, INDEX_CREATOR);
             loadedDatasets.add(dataset.indexName());

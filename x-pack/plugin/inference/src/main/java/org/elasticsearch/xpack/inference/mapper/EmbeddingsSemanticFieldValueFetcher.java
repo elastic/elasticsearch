@@ -70,11 +70,19 @@ class EmbeddingsSemanticFieldValueFetcher extends ChildDocIteratingValueFetcher 
     @Override
     protected List<Object> doFetchValues(Source source, int doc, DocIdSetIterator it) throws IOException {
         List<Object> embeddings = new ArrayList<>();
-        iterateChildDocs(doc, it, () -> embeddings.add(parsedEmbeddings(embeddingsFieldLoader::write, source.sourceContentType())));
+        iterateChildDocs(
+            doc,
+            it,
+            () -> embeddings.add(readParsedEmbeddings(embeddingsFieldLoader::write, source.sourceContentType(), fieldType))
+        );
         return embeddings;
     }
 
-    protected Object parsedEmbeddings(CheckedConsumer<XContentBuilder, IOException> writer, XContentType xContentType) throws IOException {
+    protected static Object readParsedEmbeddings(
+        CheckedConsumer<XContentBuilder, IOException> writer,
+        XContentType xContentType,
+        SemanticFieldMapper.SemanticFieldType fieldType
+    ) throws IOException {
         // fetchValues short-circuits on null model settings, so they are set by the time we get here
         EndpointClusterState modelSettings = fieldType.getModelSettings();
         return readEmbeddings(writer, xContentType, parser -> switch (modelSettings.taskType()) {
@@ -91,7 +99,7 @@ class EmbeddingsSemanticFieldValueFetcher extends ChildDocIteratingValueFetcher 
         });
     }
 
-    protected BytesReference rawEmbeddings(CheckedConsumer<XContentBuilder, IOException> writer, XContentType xContentType)
+    protected static BytesReference readRawEmbeddings(CheckedConsumer<XContentBuilder, IOException> writer, XContentType xContentType)
         throws IOException {
         return readEmbeddings(writer, xContentType, parser -> {
             try (var result = XContentFactory.contentBuilder(xContentType)) {

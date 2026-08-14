@@ -40,7 +40,7 @@ class FullFieldSemanticFieldValueFetcher extends EmbeddingsSemanticFieldValueFet
 
         iterateChildDocs(doc, it, offset -> {
             var fullChunks = chunkMap.computeIfAbsent(offset.field(), k -> new ArrayList<>());
-            var rawEmbeddings = rawEmbeddings(embeddingsFieldLoader::write, source.sourceContentType());
+            var rawEmbeddings = readRawEmbeddings(embeddingsFieldLoader::write, source.sourceContentType());
             fullChunks.add(
                 offset.inputIndex() != null
                     ? new SemanticTextField.Chunk(offset.inputIndex(), rawEmbeddings)

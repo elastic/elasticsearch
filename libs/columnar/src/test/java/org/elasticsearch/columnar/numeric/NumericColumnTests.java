@@ -219,7 +219,7 @@ public class NumericColumnTests extends ESTestCase {
             private int valueIndex;
 
             @Override
-            public int valueCount() {
+            public long valueCount() {
                 return docValues[doc].length;
             }
 

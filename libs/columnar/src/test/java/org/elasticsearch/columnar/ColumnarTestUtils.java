@@ -46,7 +46,7 @@ public final class ColumnarTestUtils {
             private int doc = -1;
 
             @Override
-            public int valueCount() {
+            public long valueCount() {
                 return 1;
             }
 

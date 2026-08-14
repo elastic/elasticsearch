@@ -113,9 +113,9 @@ public final class NumericColumnWriter {
                 if (multiValued) {
                     valueAddresses.add(ordinal);
                 }
-                int count = values.valueCount();
+                long count = values.valueCount();
                 if (skip != null) {
-                    skip.startDoc(doc, count);
+                    skip.startDoc(doc, (int) count);
                 }
                 for (int i = 0; i < count; i++) {
                     if (inBlock == 0) {

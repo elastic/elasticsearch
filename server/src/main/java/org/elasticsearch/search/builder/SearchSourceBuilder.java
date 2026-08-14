@@ -291,10 +291,14 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             throw new IllegalStateException("SearchSourceBuilder should be rewritten first");
         }
 
-        if (out.getTransportVersion().supports(SEARCH_SOURCE_EMBEDDINGS_FIELDS) == false) {
+        List<FieldAndFormat> fetchFieldsToWrite = fetchFields;
+        if (out.getTransportVersion().supports(SEARCH_SOURCE_EMBEDDINGS_FIELDS) == false && fetchEmbeddingsFields.isEmpty() == false) {
             // Write embeddings fields to fetch fields so we can attempt to get them, even if not in embeddings format. This is
             // essentially a "best effort" BwC approach, as we cannot control the format the fetched fields will use.
-            fetchEmbeddingsFields.forEach(embeddingsField -> fetchField(new FieldAndFormat(embeddingsField.field(), null)));
+            fetchFieldsToWrite = fetchFields == null ? new ArrayList<>() : new ArrayList<>(fetchFields);
+            for (EmbeddingsField embeddingsField : fetchEmbeddingsFields) {
+                fetchFieldsToWrite.add(new FieldAndFormat(embeddingsField.field(), null));
+            }
         }
 
         out.writeOptionalWriteable(aggregations);
@@ -344,9 +348,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalWriteable(sliceBuilder);
         out.writeOptionalWriteable(collapse);
         out.writeOptionalInt(trackTotalHitsUpTo);
-        out.writeBoolean(fetchFields != null);
-        if (fetchFields != null) {
-            out.writeCollection(fetchFields);
+        out.writeBoolean(fetchFieldsToWrite != null);
+        if (fetchFieldsToWrite != null) {
+            out.writeCollection(fetchFieldsToWrite);
         }
         out.writeOptionalWriteable(pointInTimeBuilder);
         out.writeGenericMap(runtimeMappings);

@@ -17,7 +17,7 @@ import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
 import java.io.IOException;
 
 /**
- * Describes a string column. Values live in one ordinal-indexed, block-encoded store in the order they were
+ * Describes a string column. Values live in one value-address-indexed, block-encoded store in the order they were
  * written (never reordered), addressed by a compact {@code DirectMonotonic} table of per-block byte offsets.
  *
  * <p>{@link #layout()} says how a block is encoded, and which of the trailing fields are meaningful:

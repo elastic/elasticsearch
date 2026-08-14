@@ -31,7 +31,7 @@ import java.io.IOException;
  * both address tables — the per-block byte offsets and, when the column is multi-valued, the
  * per-document value addresses — are written through {@link MonotonicWriter} to temporary files. The
  * value-address table is written only when {@code numValues > numDocsWithField}; otherwise a
- * document's ordinal is its iterator rank.
+ * document's value address is its iterator rank.
  */
 public final class NumericColumnWriter {
 
@@ -98,12 +98,12 @@ public final class NumericColumnWriter {
             int[] blockValueCount = new int[1];
             BlockBytesCodec.BlockEncoder blockEncoder = out -> encoder.encode(buffer, blockValueCount[0], out);
             int inBlock = 0;
-            int ordinal = 0;
+            int valueAddress = 0;
             SkipIndexCodec.Writer skip = skipCodec == null ? null : skipCodec.writer();
             NumericColumnValues values = cursors.get();
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                 if (multiValued) {
-                    valueAddresses.add(ordinal);
+                    valueAddresses.add(valueAddress);
                 }
                 int count = values.valueCount();
                 if (skip != null) {
@@ -118,7 +118,7 @@ public final class NumericColumnWriter {
                         skip.add(value);
                     }
                     buffer[inBlock++] = value;
-                    ordinal++;
+                    valueAddress++;
                     if (inBlock == blockSize) {
                         blockValueCount[0] = blockSize;
                         blockBytesCodec.write(blockEncoder, data);
@@ -133,7 +133,7 @@ public final class NumericColumnWriter {
                 blockBytesCodec.write(blockEncoder, data);
             }
             if (multiValued) {
-                valueAddresses.add(ordinal);
+                valueAddresses.add(valueAddress);
             }
             blockOffsets.add(data.getFilePointer() - valuesOffset);
 

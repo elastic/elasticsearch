@@ -18,14 +18,14 @@ import java.io.IOException;
 
 /**
  * Describes a numeric column — single- or multi-valued, in one format. Values live in one
- * ordinal-indexed, block-encoded store in the order they were written (never reordered). Two compact
+ * value-address-indexed, block-encoded store in the order they were written (never reordered). Two compact
  * {@code DirectMonotonic} tables address it:
  *
  * <ul>
  *   <li><b>block offsets</b> — the byte position of each value block; always present.</li>
- *   <li><b>value addresses</b> — the first value ordinal of each document, present only when the
+ *   <li><b>value addresses</b> — the first value address of each document, present only when the
  *       column is multi-valued ({@code numValues > numDocsWithField}). When every document has one
- *       value the table is dropped and a document's ordinal is its rank.</li>
+ *       value the table is dropped and a document's value address is its rank.</li>
  * </ul>
  *
  * Each table stores its data in the data file (read off-heap from the mapped input) and its small

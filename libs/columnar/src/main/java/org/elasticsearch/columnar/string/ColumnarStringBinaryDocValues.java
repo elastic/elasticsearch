@@ -40,21 +40,21 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
     @Override
     public BytesRef binaryValue() throws IOException {
         final int rank = iterator.rank();
-        final int first = reader.firstOrdinal(rank);
+        final int first = reader.firstValueAddress(rank);
         final int count = reader.valueCount(rank);
         if (values.length < count) {
             values = new BytesRef[ArrayUtil.oversize(count, Integer.BYTES)];
         }
-        // A PLAIN column hands back one reused BytesRef, so collecting several ordinals before encoding
+        // A PLAIN column hands back one reused BytesRef, so reading several value addresses before encoding
         // would alias them all onto the last value. Columns are single-valued today, which makes that
         // unreachable; this assert is the tripwire for whoever turns multi-valued columns on.
         assert count == 1
             : "multi-valued string column reached binaryValue with "
                 + count
                 + " values: copy each value out of the reader (a PLAIN column reuses one BytesRef across "
-                + "calls), or encode into the payload while walking the ordinals";
+                + "calls), or encode into the payload while walking the value addresses";
         for (int i = 0; i < count; i++) {
-            values[i] = reader.valueForOrdinal(first + i);
+            values[i] = reader.valueAt(first + i);
         }
         return StringBinaryPayload.encode(values, count, payload);
     }
@@ -106,7 +106,7 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
 
             @Override
             public BytesRef nextValue() throws IOException {
-                return reader.valueForOrdinal(first + upto++);
+                return reader.valueAt(first + upto++);
             }
 
             @Override
@@ -132,7 +132,7 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
             private int position(int doc) {
                 if (doc != DocIdSetIterator.NO_MORE_DOCS) {
                     int rank = iterator.rank();
-                    first = reader.firstOrdinal(rank);
+                    first = reader.firstValueAddress(rank);
                     count = reader.valueCount(rank);
                     upto = 0;
                 }

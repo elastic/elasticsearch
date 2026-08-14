@@ -25,10 +25,16 @@ import java.io.IOException;
 /**
  * Reads a string column written by {@link StringColumnWriter}, in either {@link StringColumnLayout}.
  *
- * <p>Values are addressed by ordinal within one block-encoded store. A document maps to its value ordinals
- * through {@link #iterator()}: a single-valued column maps a document's rank straight to its ordinal. A block
- * is decoded whole into a reusable buffer with a single-block cache; nothing column-proportional is held on
- * the heap, apart from the bounded terms dictionary a {@link StringColumnLayout#DICTIONARY} column carries.
+ * <p>Values are addressed by <b>value address</b> — a value's 0-based position in the column's block-encoded
+ * store, in {@code [0, numValues)}. A document maps to its value addresses through {@link #iterator()}: a
+ * single-valued column maps a document's rank straight to its value address. A block is decoded whole into a
+ * reusable buffer with a single-block cache; nothing column-proportional is held on the heap, apart from the
+ * bounded terms dictionary a {@link StringColumnLayout#DICTIONARY} column carries.
+ *
+ * <p>A value address is not a dictionary <em>ordinal</em>. Both are 0-based numbers over different things: a
+ * value address indexes the column's values and exists in both layouts, while an ordinal indexes the terms
+ * dictionary and exists only under {@link StringColumnLayout#DICTIONARY}. The dictionary path resolves one to
+ * the other internally — {@code blockOrdinals} holds ordinals — and neither escapes this class.
  */
 public final class StringColumnReader {
 
@@ -95,11 +101,11 @@ public final class StringColumnReader {
     }
 
     /**
-     * The ordinal of a document's first value, given its rank. String columns are single-valued for now, so a
-     * document's rank is its ordinal; the seam is kept so multi-valued support stays a localized change (the
-     * numeric column resolves this through a value-address table).
+     * The value address of a document's first value, given its rank. String columns are single-valued for now,
+     * so a document's rank is its value address; the seam is kept so multi-valued support stays a localized
+     * change (the numeric column resolves this through a value-address table).
      */
-    public int firstOrdinal(int rank) {
+    public int firstValueAddress(int rank) {
         return rank;
     }
 
@@ -109,13 +115,13 @@ public final class StringColumnReader {
     }
 
     /**
-     * The value at {@code ordinal} in {@code [0, numValues)}. The returned {@link BytesRef} points into a
+     * The value at {@code valueAddress} in {@code [0, numValues)}. The returned {@link BytesRef} points into a
      * buffer this reader reuses, so it is only valid until the next call.
      */
-    public BytesRef valueForOrdinal(int ordinal) throws IOException {
-        int block = ordinal / meta.blockSize();
+    public BytesRef valueAt(int valueAddress) throws IOException {
+        int block = valueAddress / meta.blockSize();
         ensureBlock(block);
-        int position = ordinal - block * meta.blockSize();
+        int position = valueAddress - block * meta.blockSize();
         return switch (meta.layout()) {
             case PLAIN -> {
                 value.bytes = blockValueBytes;

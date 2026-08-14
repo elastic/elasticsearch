@@ -36,7 +36,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
     private final NumericColumnReader reader;
     private final ColumnIterator iterator;
     private final int maxDoc;
-    /** Dense single-valued: a document id is its own value ordinal, so a value block maps onto a doc-id window. */
+    /** Dense single-valued: a document id is its own value address, so a value block maps onto a doc-id window. */
     private final boolean vectorizable;
     private final int blockShift;
     private final int blockMask;
@@ -67,13 +67,13 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
     @Override
     public BytesRef binaryValue() throws IOException {
         final int rank = iterator.rank();
-        final int first = reader.firstOrdinal(rank);
+        final int first = reader.firstValueAddress(rank);
         final int count = reader.valueCount(rank);
         if (values.length < count) {
             values = new long[ArrayUtil.oversize(count, Long.BYTES)];
         }
         for (int i = 0; i < count; i++) {
-            values[i] = reader.valueForOrdinal(first + i);
+            values[i] = reader.valueAt(first + i);
         }
         return NumericBinaryPayload.encode(values, count, payload);
     }
@@ -125,7 +125,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
 
             @Override
             public long nextValue() throws IOException {
-                return reader.valueForOrdinal(first + upto++);
+                return reader.valueAt(first + upto++);
             }
 
             @Override
@@ -151,7 +151,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
             private int position(int doc) {
                 if (doc != DocIdSetIterator.NO_MORE_DOCS) {
                     int rank = iterator.rank();
-                    first = reader.firstOrdinal(rank);
+                    first = reader.firstValueAddress(rank);
                     count = reader.valueCount(rank);
                     upto = 0;
                 }
@@ -173,14 +173,14 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
         }
         final int end = offset + count;
         for (int i = offset; i < end;) {
-            final int ordinal = docs[i]; // dense single-valued: doc id == value ordinal
-            final long[] block = reader.block(ordinal >>> blockShift);
-            final int inBlock = ordinal & blockMask;
+            final int valueAddress = docs[i]; // dense single-valued: doc id == value address
+            final long[] block = reader.block(valueAddress >>> blockShift);
+            final int inBlock = valueAddress & blockMask;
             final int remaining = Math.min(blockMask + 1 - inBlock, end - i);
             int length = 1;
             for (int candidate = remaining; candidate > 1; candidate >>= 1) {
                 // A run is dense when its last doc id is exactly candidate-1 above the first.
-                if (docs[i + candidate - 1] - ordinal == candidate - 1) {
+                if (docs[i + candidate - 1] - valueAddress == candidate - 1) {
                     length = candidate;
                     break;
                 }

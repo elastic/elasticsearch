@@ -22,11 +22,12 @@ import java.io.IOException;
 /**
  * Reads a numeric column written by {@link NumericColumnWriter}, single- or multi-valued.
  *
- * <p>Values are addressed by ordinal within one block-encoded store. A document maps to its value
- * ordinals through {@link #iterator()}: single-valued columns map a document's rank
- * straight to its ordinal, while multi-valued columns look the range up in the value-address table.
- * A block is decoded whole into a reusable buffer with a single-block cache; nothing
- * column-proportional is held on the heap (offset tables are read on demand from the mapped input).
+ * <p>Values are addressed by <b>value address</b> — a value's 0-based position in the column's
+ * block-encoded store, in {@code [0, numValues)}. A document maps to its value addresses through
+ * {@link #iterator()}: single-valued columns map a document's rank straight to its value address, while
+ * multi-valued columns look the range up in the value-address table. A block is decoded whole into a
+ * reusable buffer with a single-block cache; nothing column-proportional is held on the heap (offset
+ * tables are read on demand from the mapped input).
  */
 public final class NumericColumnReader {
 
@@ -82,8 +83,8 @@ public final class NumericColumnReader {
         return iteratorReader.iterator();
     }
 
-    /** The ordinal of a document's first value, given its rank. */
-    public int firstOrdinal(int rank) {
+    /** The value address of a document's first value, given its rank. */
+    public int firstValueAddress(int rank) {
         return valueAddresses == null ? rank : (int) valueAddresses.get(rank);
     }
 
@@ -92,11 +93,11 @@ public final class NumericColumnReader {
         return valueAddresses == null ? 1 : (int) (valueAddresses.get(rank + 1) - valueAddresses.get(rank));
     }
 
-    /** The value at {@code ordinal} in {@code [0, numValues)}. */
-    public long valueForOrdinal(int ordinal) throws IOException {
-        int block = ordinal / meta.blockSize();
+    /** The value at {@code valueAddress} in {@code [0, numValues)}. */
+    public long valueAt(int valueAddress) throws IOException {
+        int block = valueAddress / meta.blockSize();
         ensureBlock(block);
-        return blockBuffer[ordinal - block * meta.blockSize()];
+        return blockBuffer[valueAddress - block * meta.blockSize()];
     }
 
     /** Values per encoding block. */

@@ -8,7 +8,7 @@
  */
 
 /**
- * The adaptive string (keyword) column: an ordinal-indexed, block-encoded store of variable-length byte
+ * The adaptive string (keyword) column: a value-address-indexed, block-encoded store of variable-length byte
  * values on the shared binary substrate.
  *
  * <p>Each segment picks its own {@link org.elasticsearch.columnar.string.StringColumnLayout} from that

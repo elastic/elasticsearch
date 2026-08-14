@@ -18,11 +18,11 @@ import java.io.IOException;
 /**
  * Iterates the documents that have a value for a field, and for the current document exposes its
  * {@link #rank()} — the 0-based position among all documents that have a value. The value layer turns a
- * rank into the document's value ordinals to locate its bytes in the substrate.
+ * rank into the document's value addresses to locate its bytes in the substrate.
  *
- * <p>A rank is <b>not</b> a value ordinal. The two coincide only for a single-valued column; a
- * multi-valued one maps a rank to its first ordinal through a value-address table. Ranks also differ from
- * document ids as soon as a column is sparse.
+ * <p>A rank is <b>not</b> a value address. The two coincide only for a single-valued column; a
+ * multi-valued one maps a rank to its first value address through a value-address table. Ranks also differ
+ * from document ids as soon as a column is sparse.
  *
  * <p>This is a {@link DocIdSetIterator}, so range and dense-loading code paths (including
  * {@link #intoBitSet}) consume it directly. Concrete shapes are chosen by the reader from

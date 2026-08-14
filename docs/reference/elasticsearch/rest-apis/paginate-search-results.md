@@ -404,6 +404,8 @@ Additionally, if a segment contains deleted or updated documents then the search
 
 ::::{note}
 To prevent against issues caused by having too many scrolls open, the user is not allowed to open scrolls past a certain limit. By default, the maximum number of open scrolls is 500. This limit can be updated with the `search.max_open_scroll_context` cluster setting.
+
+In addition, a separate `search.max_open_contexts` limit caps the total number of open search contexts of all types (regular, scroll, and point in time) on a single node. Scroll contexts count against both caps; point-in-time contexts count only against `search.max_open_contexts`. See [Search settings](/reference/elasticsearch/configuration-reference/search-settings.md#search-settings-max-open-contexts).
 ::::
 
 

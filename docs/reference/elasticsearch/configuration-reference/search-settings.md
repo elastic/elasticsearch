@@ -32,6 +32,14 @@ $$$search-settings-max-buckets$$$
     Requests that attempt to return more than this limit will return an error.
 
 
+$$$search-settings-max-open-contexts$$$
+
+`search.max_open_contexts` {applies_to}`serverless: ga`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), integer) Maximum number of open search contexts (regular, [scroll](/reference/elasticsearch/rest-apis/paginate-search-results.md#scroll-search-results), and [point in time](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-open-point-in-time)) on a single node. Defaults to `1000 × node.processors`. When the limit is reached, new search requests return an HTTP 429 (Too Many Requests) error.
+
+    Nodes with high shard fan-out or heavy use of scroll or point-in-time contexts may need a higher limit. Scroll contexts count against this cap in addition to [`search.max_open_scroll_context`](/reference/elasticsearch/rest-apis/paginate-search-results.md#scroll-search-context).
+
+
 $$$search-settings-only-allowed-scripts$$$
 
 `search.aggs.only_allowed_metric_scripts`

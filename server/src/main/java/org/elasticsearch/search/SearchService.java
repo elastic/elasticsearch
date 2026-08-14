@@ -16,6 +16,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -86,6 +87,7 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
@@ -300,6 +302,27 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    /**
+     * Maximum number of open {@link ReaderContext}s (regular, scroll, and PIT) on this node.
+     * When the limit is reached, new search requests return HTTP 429 (Too Many Requests).
+     *
+     * <p>Defaults to {@code 1000 × node.processors} so that the cap scales with the free-context
+     * drain thread count (which is {@code allocatedProcessors / 2}). Nodes with high shard fan-out,
+     * heavy PIT usage, or many long-running scroll contexts may need a higher limit; the setting is
+     * dynamic and takes effect immediately.
+     *
+     * <p>Scroll contexts count against this cap <em>in addition to</em>
+     * {@link #MAX_OPEN_SCROLL_CONTEXT}.
+     */
+    public static final Setting<Integer> MAX_OPEN_CONTEXTS = Setting.intSetting(
+        "search.max_open_contexts",
+        s -> Integer.toString(1000 * EsExecutors.allocatedProcessors(s)),
+        0,
+        Integer.MAX_VALUE,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final Setting<Boolean> ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER = Setting.boolSetting(
         "search.aggs.rewrite_to_filter_by_filter",
         true,
@@ -405,6 +428,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private volatile int maxOpenScrollContext;
 
+    private volatile int maxOpenContexts;
+
     private volatile boolean enableRewriteAggsToFilterByFilter;
 
     private volatile long memoryAccountingBufferSize;
@@ -418,6 +443,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final MultiBucketConsumerService multiBucketConsumerService;
 
     private final AtomicInteger openScrollContexts = new AtomicInteger();
+    private final AtomicInteger openContexts = new AtomicInteger();
     private final String sessionId;
 
     private final Tracer tracer;
@@ -472,6 +498,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         maxOpenScrollContext = MAX_OPEN_SCROLL_CONTEXT.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_SCROLL_CONTEXT, this::setMaxOpenScrollContext);
+
+        maxOpenContexts = MAX_OPEN_CONTEXTS.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_CONTEXTS, this::setMaxOpenContexts);
 
         lowLevelCancellation = LOW_LEVEL_CANCELLATION_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
@@ -592,6 +621,34 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setMaxOpenScrollContext(int maxOpenScrollContext) {
         this.maxOpenScrollContext = maxOpenScrollContext;
+    }
+
+    private void setMaxOpenContexts(int maxOpenContexts) {
+        this.maxOpenContexts = maxOpenContexts;
+    }
+
+    // package-private for tests
+    int getOpenContextsCount() {
+        return openContexts.get();
+    }
+
+    /**
+     * Atomically increments the open-context counter and throws if the new count exceeds the cap.
+     * Callers must set up a {@code Releasable decreaseOpenContexts = openContexts::decrementAndGet}
+     * <em>before</em> calling this method so that a {@code finally} block can undo the increment on
+     * any failure path (including the exception thrown here).
+     */
+    private void ensureCanOpenContext() {
+        if (openContexts.incrementAndGet() > maxOpenContexts) {
+            throw new ElasticsearchStatusException(
+                "Trying to create too many search contexts. Must be less than or equal to: ["
+                    + maxOpenContexts
+                    + "]. This limit can be set by changing the ["
+                    + MAX_OPEN_CONTEXTS.getKey()
+                    + "] setting.",
+                RestStatus.TOO_MANY_REQUESTS
+            );
+        }
     }
 
     private void setLowLevelCancellation(Boolean lowLevelCancellation) {
@@ -1616,8 +1673,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Task task
     ) {
         ReaderContext readerContext = null;
+        Releasable decreaseOpenContexts = openContexts::decrementAndGet;
         Releasable decreaseScrollContexts = null;
         try {
+            ensureCanOpenContext();
             final long creatorTaskId = creatorTaskIdOf(task);
             if (request.scroll() != null) {
                 final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
@@ -1641,12 +1700,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 readerContext.addOnClose(() -> searchOperationListener.onFreeScrollContext(finalReaderContext));
             }
             readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(finalReaderContext));
+            readerContext.addOnClose(decreaseOpenContexts);
+            decreaseOpenContexts = null;
             putReaderContext(finalReaderContext);
             readerContext = null;
             logOpened(finalReaderContext);
             return finalReaderContext;
         } finally {
-            Releasables.close(reader, readerContext, decreaseScrollContexts);
+            Releasables.close(reader, readerContext, decreaseScrollContexts, decreaseOpenContexts);
         }
     }
 
@@ -1660,9 +1721,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         SplitShardCountSummary relocatedSplitShardCountSummary
     ) {
         PitReaderContext readerContext = null;
+        Releasable decreaseOpenContexts = openContexts::decrementAndGet;
         try {
             long newKey = idGenerator.incrementAndGet();
 
+            openContexts.incrementAndGet();
             readerContext = new PitReaderContext(
                 contextId,
                 indexService,
@@ -1674,6 +1737,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 0L
             );
             reader = null;
+            readerContext.addOnClose(decreaseOpenContexts);
+            decreaseOpenContexts = null;
             final ReaderContext finalReaderContext = readerContext;
             final SearchOperationListener searchOperationListener = shard.getSearchOperationListener();
             searchOperationListener.onNewReaderContext(finalReaderContext);
@@ -1684,6 +1749,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             final Long previous = activeReaders.generateRelocationMapping(contextId, newKey);
             if (previous != null) {
                 // another thread beat us creating the relocation mapping, clean up the context we just put and reuse the previous mapping
+                // The duplicate's addOnClose(decreaseOpenContexts) fires on close, so do not decrement again here.
                 ReaderContext removed = removeReaderContext(new ShardSearchContextId(sessionId, newKey));
                 removed.close();
                 readerContext = null;
@@ -1692,7 +1758,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             readerContext = null;
             return finalReaderContext;
         } finally {
-            Releasables.close(reader, readerContext);
+            Releasables.close(reader, readerContext, decreaseOpenContexts);
         }
     }
 
@@ -1735,7 +1801,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         shard.ensureShardSearchActive(threadPool.executor(Names.SEARCH), ignored -> {
             Engine.SearcherSupplier searcherSupplier = null;
             ReaderContext readerContext = null;
+            Releasable decreaseOpenContexts = openContexts::decrementAndGet;
             try {
+                ensureCanOpenContext();
                 // Note that resharding metadata obtained here is not necessarily identical
                 // to what will be used when deciding to apply search filters in `acquireExternalSearcherSupplier` just below.
                 // That is not a problem since it can only move "forward" and that is non-breaking.
@@ -1772,6 +1840,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 );
                 final ReaderContext finalReaderContext = readerContext;
                 searcherSupplier = null; // transfer ownership to reader context
+                readerContext.addOnClose(decreaseOpenContexts);
+                decreaseOpenContexts = null;
                 searchOperationListener.onNewReaderContext(readerContext);
                 readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(finalReaderContext));
                 if (logger.isDebugEnabled()) {
@@ -1787,7 +1857,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 readerContext = null;
                 listener.onResponse(finalReaderContext.id());
             } catch (Exception exc) {
-                Releasables.closeWhileHandlingException(searcherSupplier, readerContext);
+                Releasables.closeWhileHandlingException(searcherSupplier, readerContext, decreaseOpenContexts);
                 listener.onFailure(exc);
             }
         });

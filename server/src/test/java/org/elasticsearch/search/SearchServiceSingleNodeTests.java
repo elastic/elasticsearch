@@ -19,6 +19,7 @@ import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -1715,6 +1716,294 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         }
         assertThat(searchService.getActiveContexts(), equalTo(maxScrollContexts));
         searchService.freeAllScrollContexts();
+    }
+
+    public void testMaxOpenContexts() throws Exception {
+        createIndex("index");
+        prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+
+        final int cap = 5;
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setTransientSettings(Settings.builder().put(SearchService.MAX_OPEN_CONTEXTS.getKey(), cap).build())
+            .get();
+        ShardSearchContextId nonScrollContextId = null;
+        try {
+            // exercise the non-scroll (regular) path for one slot
+            nonScrollContextId = service.createAndPutReaderContext(
+                new ShardSearchRequest(
+                    OriginalIndices.NONE,
+                    new SearchRequest().allowPartialSearchResults(true),
+                    indexShard.shardId(),
+                    0,
+                    1,
+                    AliasFilter.EMPTY,
+                    1.0f,
+                    -1,
+                    null
+                ),
+                indexService,
+                indexShard,
+                indexShard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT),
+                SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis(),
+                null
+            ).id();
+            for (int i = 0; i < cap - 1; i++) {
+                service.createAndPutReaderContext(
+                    new ShardScrollRequestTest(indexShard.shardId()),
+                    indexService,
+                    indexShard,
+                    indexShard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT),
+                    SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis(),
+                    null
+                );
+            }
+            ElasticsearchStatusException ex = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> service.createAndPutReaderContext(
+                    new ShardScrollRequestTest(indexShard.shardId()),
+                    indexService,
+                    indexShard,
+                    indexShard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT),
+                    SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis(),
+                    null
+                )
+            );
+            assertThat(
+                ex.getMessage(),
+                equalTo(
+                    "Trying to create too many search contexts. Must be less than or equal to: ["
+                        + cap
+                        + "]. "
+                        + "This limit can be set by changing the ["
+                        + SearchService.MAX_OPEN_CONTEXTS.getKey()
+                        + "] setting."
+                )
+            );
+            assertThat(ex.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+            assertThat(service.getActiveContexts(), equalTo(cap));
+            assertThat(service.getOpenContextsCount(), equalTo(cap));
+
+            // raising the limit dynamically allows new contexts
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setTransientSettings(Settings.builder().put(SearchService.MAX_OPEN_CONTEXTS.getKey(), cap + 1).build())
+                .get();
+            service.createAndPutReaderContext(
+                new ShardScrollRequestTest(indexShard.shardId()),
+                indexService,
+                indexShard,
+                indexShard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT),
+                SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis(),
+                null
+            );
+            assertThat(service.getActiveContexts(), equalTo(cap + 1));
+        } finally {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setTransientSettings(Settings.builder().putNull(SearchService.MAX_OPEN_CONTEXTS.getKey()).build())
+                .get();
+            if (nonScrollContextId != null) {
+                service.freeReaderContext(nonScrollContextId);
+            }
+            service.freeAllScrollContexts();
+        }
+    }
+
+    public void testOpenContextsConcurrently() throws Exception {
+        createIndex("index");
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+
+        final int cap = 20;
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setTransientSettings(Settings.builder().put(SearchService.MAX_OPEN_CONTEXTS.getKey(), cap).build())
+            .get();
+        final SearchService searchService = getInstanceFromNode(SearchService.class);
+        ShardSearchContextId nonScrollContextId = null;
+        try {
+            // use one slot via the non-scroll path before concurrent scroll opens
+            nonScrollContextId = searchService.createAndPutReaderContext(
+                new ShardSearchRequest(
+                    OriginalIndices.NONE,
+                    new SearchRequest().allowPartialSearchResults(true),
+                    indexShard.shardId(),
+                    0,
+                    1,
+                    AliasFilter.EMPTY,
+                    1.0f,
+                    -1,
+                    null
+                ),
+                indexService,
+                indexShard,
+                indexShard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT),
+                SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis(),
+                null
+            ).id();
+            Thread[] threads = new Thread[randomIntBetween(2, 8)];
+            CountDownLatch latch = new CountDownLatch(threads.length);
+            for (int i = 0; i < threads.length; i++) {
+                threads[i] = new Thread(() -> {
+                    latch.countDown();
+                    try {
+                        latch.await();
+                        for (;;) {
+                            final Engine.SearcherSupplier reader = indexShard.acquireExternalSearcherSupplier(
+                                SplitShardCountSummary.IRRELEVANT
+                            );
+                            try {
+                                searchService.createAndPutReaderContext(
+                                    new ShardScrollRequestTest(indexShard.shardId()),
+                                    indexService,
+                                    indexShard,
+                                    reader,
+                                    SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis(),
+                                    null
+                                );
+                            } catch (ElasticsearchStatusException e) {
+                                assertThat(e.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+                                return;
+                            }
+                        }
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                });
+                threads[i].setName("elasticsearch[node_s_0][search]");
+                threads[i].start();
+            }
+            for (Thread thread : threads) {
+                thread.join();
+            }
+            assertThat(searchService.getActiveContexts(), equalTo(cap));
+            assertThat(searchService.getOpenContextsCount(), equalTo(cap));
+        } finally {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setTransientSettings(Settings.builder().putNull(SearchService.MAX_OPEN_CONTEXTS.getKey()).build())
+                .get();
+            if (nonScrollContextId != null) {
+                searchService.freeReaderContext(nonScrollContextId);
+            }
+            searchService.freeAllScrollContexts();
+        }
+    }
+
+    public void testOpenReaderContextCap() throws Exception {
+        createIndex("index");
+        final SearchService searchService = getInstanceFromNode(SearchService.class);
+        final ShardId shardId = new ShardId(resolveIndex("index"), 0);
+
+        final int cap = 3;
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setTransientSettings(Settings.builder().put(SearchService.MAX_OPEN_CONTEXTS.getKey(), cap).build())
+            .get();
+        List<ShardSearchContextId> openContextIds = new ArrayList<>();
+        try {
+            for (int i = 0; i < cap; i++) {
+                PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
+                searchService.openReaderContext(shardId, TimeValue.timeValueMinutes(5), null, SplitShardCountSummary.IRRELEVANT, future);
+                openContextIds.add(future.actionGet());
+            }
+            assertThat(searchService.getActiveContexts(), equalTo(cap));
+            assertThat(searchService.getOpenContextsCount(), equalTo(cap));
+
+            // the next PIT open must 429
+            PlainActionFuture<ShardSearchContextId> overflow = new PlainActionFuture<>();
+            searchService.openReaderContext(shardId, TimeValue.timeValueMinutes(5), null, SplitShardCountSummary.IRRELEVANT, overflow);
+            ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, overflow::actionGet);
+            assertThat(ex.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+            assertThat(ex.getMessage(), containsString(SearchService.MAX_OPEN_CONTEXTS.getKey()));
+
+            // existing PITs remain alive
+            assertThat(searchService.getActiveContexts(), equalTo(cap));
+            assertThat(searchService.getOpenContextsCount(), equalTo(cap));
+        } finally {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setTransientSettings(Settings.builder().putNull(SearchService.MAX_OPEN_CONTEXTS.getKey()).build())
+                .get();
+            for (ShardSearchContextId id : openContextIds) {
+                searchService.freeReaderContext(id);
+            }
+        }
+    }
+
+    public void testRelocatedPitContextCap() throws Exception {
+        final SearchService searchService = getInstanceFromNode(SearchService.class);
+        final IndexService indexService = createIndex("index");
+        final IndexShard shard = indexService.getShard(0);
+
+        // cap=0: any admission-checked open would 429, but relocation must still succeed
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setTransientSettings(Settings.builder().put(SearchService.MAX_OPEN_CONTEXTS.getKey(), 0).build())
+            .get();
+        Engine.SearcherSupplier searcherSupplier = null;
+        ReaderContext relocatedContext = null;
+        try {
+            searcherSupplier = shard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT);
+            final ShardSearchContextId id = new ShardSearchContextId(
+                "otherSessionId",
+                randomNonNegativeLong(),
+                searcherSupplier.getSearcherId()
+            );
+            relocatedContext = searchService.createAndPutRelocatedPitContext(
+                id,
+                indexService,
+                shard,
+                searcherSupplier,
+                TimeValue.timeValueMinutes(5).millis(),
+                null,
+                SplitShardCountSummary.IRRELEVANT
+            );
+            searcherSupplier = null; // transferred to context
+
+            // relocated context is counted even though no cap check ran
+            assertThat(searchService.getOpenContextsCount(), equalTo(1));
+            assertThat(searchService.getActiveContexts(), equalTo(1));
+
+            // a new admission on the same node must 429 (cap=0, count=1)
+            ElasticsearchStatusException ex = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> searchService.createAndPutReaderContext(
+                    new ShardScrollRequestTest(shard.shardId()),
+                    indexService,
+                    shard,
+                    shard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT),
+                    SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis(),
+                    null
+                )
+            );
+            assertThat(ex.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        } finally {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setTransientSettings(Settings.builder().putNull(SearchService.MAX_OPEN_CONTEXTS.getKey()).build())
+                .get();
+            Releasables.close(searcherSupplier);
+            if (relocatedContext != null) {
+                searchService.freeReaderContext(relocatedContext.id());
+            }
+        }
     }
 
     public static class FailOnRewriteQueryPlugin extends Plugin implements SearchPlugin {

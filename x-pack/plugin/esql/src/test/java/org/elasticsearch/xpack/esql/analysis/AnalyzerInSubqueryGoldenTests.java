@@ -1194,7 +1194,7 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
 
     public void testMultiColumnInSubqueryWithTsSource() {
         requireMultiColumnInSubquerySupport();
-        runGoldenTest("""
+        builder("""
             FROM employees
             | WHERE (first_name, last_name) IN (
                 TS k8s
@@ -1202,30 +1202,30 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
                 | KEEP cluster, pod
               )
             | KEEP first_name, last_name
-            """, STAGES, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testTsMainMultiColumnInSubqueryWithIndexSource() {
         requireMultiColumnInSubquerySupport();
-        runGoldenTest("""
+        builder("""
             TS k8s
             | WHERE (cluster, pod) IN (FROM employees | KEEP first_name, last_name)
             | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
-            """, STAGES, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testTsMainMultiColumnInSubqueryWithRowSource() {
         requireMultiColumnInSubquerySupport();
-        runGoldenTest("""
+        builder("""
             TS k8s
             | WHERE (cluster, pod) IN (ROW cluster = "my-cluster", pod = "my-pod")
             | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
-            """, STAGES, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testTsMainMultiColumnInSubqueryWithTsSource() {
         requireMultiColumnInSubquerySupport();
-        runGoldenTest("""
+        builder("""
             TS k8s
             | WHERE (cluster, pod) IN (
                 TS k8s
@@ -1233,19 +1233,19 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
                 | KEEP cluster, pod
               )
             | STATS total_bytes = sum(to_long(network.total_bytes_in)) BY cluster
-            """, STAGES, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testRowMainMultiColumnInSubqueryWithTsSource() {
         requireMultiColumnInSubquerySupport();
-        runGoldenTest("""
+        builder("""
             ROW cluster = "my-cluster", pod = "my-pod"
             | WHERE (cluster, pod) IN (
                 TS k8s
                 | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster, pod
                 | KEEP cluster, pod
               )
-            """, STAGES, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     /**

@@ -917,15 +917,3 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:PARQUET_DATASET}
   issue: https://github.com/elastic/elasticsearch/issues/156789
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerInSubqueryGoldenTests
-  method: testTsMainMultiColumnInSubqueryWithTsSource {historical}
-  issue: https://github.com/elastic/elasticsearch/issues/156810
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerInSubqueryGoldenTests
-  method: testTsMainMultiColumnInSubqueryWithTsSource {current}
-  issue: https://github.com/elastic/elasticsearch/issues/156811
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerInSubqueryGoldenTests
-  method: testTsMainMultiColumnInSubqueryWithIndexSource {current}
-  issue: https://github.com/elastic/elasticsearch/issues/156814
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerInSubqueryGoldenTests
-  method: testTsMainMultiColumnInSubqueryWithIndexSource {historical}
-  issue: https://github.com/elastic/elasticsearch/issues/156815

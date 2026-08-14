@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.common.v1.AnyValue;
 import io.opentelemetry.proto.common.v1.KeyValue;
+import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
 import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
@@ -662,7 +663,7 @@ public final class MetricEscfConverter {
         writeCountsAndValuesToRow(row, metricName, counts, values);
     }
 
-    private static void buildTDigestFromHistToRow(EscfRowBuffer row, String metricName, HistogramDataPoint dp) throws IOException {
+    private static void buildTDigestFromHistToRow(EscfRowBuffer row, String metricName, HistogramDataPoint dp) {
         LongAccumulator counts = new LongAccumulator();
         LongAccumulator values = new LongAccumulator();
         TDigestConverter.counts(dp, counts::addLong);
@@ -749,9 +750,9 @@ public final class MetricEscfConverter {
 
     /**
      * Writes an explicit-bucket {@link HistogramDataPoint} as a native exponential_histogram, mirroring
-     * {@link ExponentialHistogramConverter#buildExponentialHistogram(HistogramDataPoint, io.opentelemetry.proto.metrics.v1.AggregationTemporality, XContentBuilder, ExponentialHistogramConverter.BucketBuffer)}.
-     * The re-bucketing algorithm is shared via {@link ExponentialHistogramConverter#computeBuckets}; only
-     * the emit differs (columnar rows here vs. XContent there).
+     * {@link ExponentialHistogramConverter#buildExponentialHistogram(HistogramDataPoint, AggregationTemporality, XContentBuilder,
+     * ExponentialHistogramConverter.BucketBuffer)}. The re-bucketing algorithm is shared via
+     * {@link ExponentialHistogramConverter#computeBuckets}; only the emit differs (columnar rows here vs. XContent there).
      */
     private static void buildExponentialFromHistToRow(EscfRowBuffer row, String metricName, DataPoint.Histogram histogram) {
         HistogramDataPoint dp = histogram.dataPoint();

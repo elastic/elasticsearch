@@ -972,8 +972,12 @@ public class TransportMultiSearchActionTests extends ESTestCase {
     }
 
     public void testAccountFailureItemSubstitutesBoundedExceptionWhenTripped() throws Exception {
+        // The failure that actually reaches accountOrSubstituteFailureItem() is somewhat bigger than this,
+        // since it's thrown from deeper inside the real action execution chain than the one built here, which
+        // adds more stack trace frames. That's fine here: we only need the limit to sit below the real failure's
+        // size to trip the breaker, not to match it exactly.
         long largeFailureBytes = TransportMultiSearchAction.estimateFailureBytes(searchPhaseExecutionExceptionWithShardFailures(50));
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(largeFailureBytes - 1);
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(largeFailureBytes);
 
         MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[1];
         runMsearchWithBreaker(

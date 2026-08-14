@@ -278,3 +278,47 @@ FROM employees METADATA _source
 c:long
 2
 ;
+
+
+dedupBasicForDocs
+skip_flattened_rewrite: junk_injection_breaks_result_shape
+required_capability: dedup_command
+
+// tag::dedupBasicForDocs[]
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10005, 10006)
+| KEEP gender
+| DEDUP
+| SORT gender
+// end::dedupBasicForDocs[]
+;
+
+// tag::dedupBasicForDocs-result[]
+gender:keyword
+F
+M
+// end::dedupBasicForDocs-result[]
+;
+
+
+dedupMultipleColumnsForDocs
+skip_flattened_rewrite: junk_injection_breaks_result_shape
+required_capability: dedup_command
+
+// tag::dedupMultipleColumnsForDocs[]
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10010, 10011)
+| KEEP gender, languages
+| DEDUP
+| SORT gender NULLS LAST, languages
+// end::dedupMultipleColumnsForDocs[]
+;
+
+// tag::dedupMultipleColumnsForDocs-result[]
+gender:keyword | languages:integer
+F              | 5
+M              | 2
+null           | 4
+null           | 5
+// end::dedupMultipleColumnsForDocs-result[]
+;

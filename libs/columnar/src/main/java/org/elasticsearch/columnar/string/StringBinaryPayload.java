@@ -66,16 +66,24 @@ public final class StringBinaryPayload {
 
         private final ByteArrayDataInput in = new ByteArrayDataInput();
         private final BytesRef value = new BytesRef();
+        private int count;
+        private int consumed;
 
         /** Positions on {@code payload} and returns how many values it holds. */
         public int reset(BytesRef payload) {
             in.reset(payload.bytes, payload.offset, payload.length);
             value.bytes = payload.bytes;
-            return in.readVInt();
+            count = in.readVInt();
+            consumed = 0;
+            return count;
         }
 
-        /** The next value; call exactly as many times as {@link #reset} reported. */
+        /**
+         * The next value; call exactly as many times as {@link #reset} reported.
+         */
         public BytesRef next() {
+            assert consumed < count : "next() called " + (consumed + 1) + " time(s) on a payload holding " + count + " value(s)";
+            consumed++;
             int length = in.readVInt();
             value.offset = in.getPosition();
             value.length = length;

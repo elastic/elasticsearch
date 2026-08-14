@@ -13,6 +13,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.containsString;
+
 /**
  * The {@code BinaryDocValues} payload wire format. Beyond round-tripping, this pins the exact byte layout for
  * a known input, so a change to the payload shape has to be deliberate rather than incidental.
@@ -60,6 +62,40 @@ public class StringBinaryPayloadTests extends ESTestCase {
         for (int i = 0; i < count; i++) {
             assertEquals("value " + i, values[i], reader.next());
         }
+    }
+
+    /** Reading past the value count would run off the end of the payload, so it trips an assertion instead. */
+    public void testReadingPastCountTrips() {
+        BytesRef[] values = { new BytesRef("a"), new BytesRef("b") };
+        BytesRef payload = StringBinaryPayload.encode(values, 2, new BytesRefBuilder());
+
+        StringBinaryPayload.Reader reader = new StringBinaryPayload.Reader();
+        assertEquals(2, reader.reset(payload));
+        assertEquals(new BytesRef("a"), reader.next());
+        assertEquals(new BytesRef("b"), reader.next());
+        AssertionError error = expectThrows(AssertionError.class, reader::next);
+        assertThat(error.getMessage(), containsString("payload holding 2 value(s)"));
+    }
+
+    /** The reader is reused across documents, so the count has to be re-armed by each reset. */
+    public void testResetRearmsTheCount() {
+        StringBinaryPayload.Reader reader = new StringBinaryPayload.Reader();
+        BytesRefBuilder builder = new BytesRefBuilder();
+
+        assertEquals(2, reader.reset(StringBinaryPayload.encode(new BytesRef[] { new BytesRef("a"), new BytesRef("b") }, 2, builder)));
+        reader.next();
+
+        // A fresh payload mid-iteration: the second value of the previous one must not stay available.
+        assertEquals(1, reader.reset(StringBinaryPayload.encode(new BytesRef[] { new BytesRef("c") }, 1, builder)));
+        assertEquals(new BytesRef("c"), reader.next());
+        expectThrows(AssertionError.class, reader::next);
+    }
+
+    /** An empty payload hands out nothing at all. */
+    public void testEmptyPayloadYieldsNoValues() {
+        StringBinaryPayload.Reader reader = new StringBinaryPayload.Reader();
+        assertEquals(0, reader.reset(StringBinaryPayload.encode(new BytesRef[0], 0, new BytesRefBuilder())));
+        expectThrows(AssertionError.class, reader::next);
     }
 
     /** The builder is reused across documents on the hot path, so a second encode must not see the first's bytes. */

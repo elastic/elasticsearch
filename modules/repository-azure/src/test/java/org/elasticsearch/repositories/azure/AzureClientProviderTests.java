@@ -190,7 +190,7 @@ public class AzureClientProviderTests extends ESTestCase {
 
             final var sameClientName = new String(clientName);
             final var sameAccountName = new String(account);
-            final var sameStorageSettings = createStorageSettings(sameClientName, account, maxConnections);
+            final var sameStorageSettings = createStorageSettings(sameClientName, sameAccountName, maxConnections);
             final var sameKey = new AzureClientProvider.ConnectionProviderKey(null, sameClientName, sameAccountName);
             try (var client2 = createClient(sameClientName, sameStorageSettings)) {
                 ref = azureClientProvider.getConnectionProvidersCache().get(sameKey);
@@ -316,6 +316,54 @@ public class AzureClientProviderTests extends ESTestCase {
 
     private static String encodeKey(final String value) {
         return Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public void testConnectionProvidersToEvict() {
+        // clientName1: account unchanged (only `max_connections` changed) -> not evicted
+        // clientName2: account changed -> the key with the old account is evicted
+        // clientName3: removed from the current settings -> evicted
+        // clientName4: exists only in the current settings -> not evicted
+        final var previousSettings = Map.of(
+            "clientName1",
+            createStorageSettings("clientName1", "account1", randomIntBetween(1, 100)),
+            "clientName2",
+            createStorageSettings("clientName2", "account2", randomIntBetween(1, 200)),
+            "clientName3",
+            createStorageSettings("clientName3", "account3", randomIntBetween(1, 200))
+        );
+        final var currentSettings = Map.of(
+            "clientName1",
+            createStorageSettings("clientName1", "account1", randomIntBetween(101, 200)),
+            "clientName2",
+            createStorageSettings("clientName2", "newAccount2", randomIntBetween(1, 200)),
+            "clientName4",
+            createStorageSettings("clientName4", "account4", randomIntBetween(1, 200))
+        );
+
+        final var projectId = randomProjectIdOrDefault();
+        final var toEvict = AzureClientProvider.ConnectionProviderKey.connectionProvidersToEvict(
+            projectId,
+            previousSettings,
+            currentSettings
+        );
+        assertEquals(
+            Set.of(
+                new AzureClientProvider.ConnectionProviderKey(projectId, "clientName2", "account2"),
+                new AzureClientProvider.ConnectionProviderKey(projectId, "clientName3", "account3")
+            ),
+            toEvict
+        );
+
+        // when the current settings are null, all previous keys are evicted
+        final var toEvictAll = AzureClientProvider.ConnectionProviderKey.connectionProvidersToEvict(null, previousSettings, null);
+        assertEquals(
+            Set.of(
+                new AzureClientProvider.ConnectionProviderKey(null, "clientName1", "account1"),
+                new AzureClientProvider.ConnectionProviderKey(null, "clientName2", "account2"),
+                new AzureClientProvider.ConnectionProviderKey(null, "clientName3", "account3")
+            ),
+            toEvictAll
+        );
     }
 
     private AzureStorageSettings createStorageSettings(String clientName, String account, Settings.Builder builder) {

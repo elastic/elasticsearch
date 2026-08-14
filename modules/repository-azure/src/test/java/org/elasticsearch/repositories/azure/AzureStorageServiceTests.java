@@ -647,8 +647,8 @@ public class AzureStorageServiceTests extends ESTestCase {
                 assertNotNull(ref2);
                 assertEquals(2, ref2.refCount()); // 2 = (1 from being in the cache + 1 from the client)
 
-                // we change the cluster storage settings by changing the account name of client "azure1" and hence we'll end up with a new
-                // connection provider for this client
+                // we change the cluster storage settings by changing the account name of client "clientName1" and hence we'll end up with
+                // a new connection provider for this client
                 final var newSecureSettings = new MockSecureSettings();
                 newSecureSettings.setString("azure.client.clientName1.account", "newAccount");
                 newSecureSettings.setString("azure.client.clientName1.key", encodeKey("key"));
@@ -660,7 +660,7 @@ public class AzureStorageServiceTests extends ESTestCase {
                 assertEquals(1, ref1.refCount());  // 1 from the open client (it was removed from the cache)
 
                 assertSame(ref2, service.getConnectionProvidersCache().get(key2));
-                assertEquals(2, ref2.refCount()); // nothing changed for "azure2"
+                assertEquals(2, ref2.refCount()); // nothing changed for "clientName2"
             }
             assertEquals(0, ref1.refCount());  // 0 because the client closed
             assertEquals(1, ref2.refCount()); // 1 from being in the cache

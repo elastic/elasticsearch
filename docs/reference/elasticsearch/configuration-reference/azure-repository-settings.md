@@ -32,7 +32,7 @@ The following list describes the available client settings. Those that must be s
 `azure.client.CLIENT_NAME.key` ([Secure](docs-content://deploy-manage/security/secure-settings.md), [reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings))
 :   The Azure secret key, which is used by the repository's internal Azure client. Alternatively, use `sas_token`.
 
-`azure.client.CLIENT_NAME.max_connections`
+`azure.client.CLIENT_NAME.max_connections` {applies_to}`stack: ga 9.6+`
 :   The maximum number of concurrent connections to Azure. The default value is 50.
 
 `azure.client.CLIENT_NAME.max_retries`

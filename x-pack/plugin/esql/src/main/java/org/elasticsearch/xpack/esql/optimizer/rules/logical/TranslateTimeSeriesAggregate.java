@@ -55,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * Time-series aggregation is special because it must be computed per time series, regardless of the grouping keys.
@@ -374,6 +375,10 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                 mergeExpressions(secondPassAggs, secondPassGroupings)
             );
         } else {
+            // Drop second-pass aggs whose names collide with user groupings before building Aggregate/Project.
+            // Eval would otherwise emit Project[[alias, grouping]]; optimizer RemoveStatsOverride cannot fix that.
+            shadowAggsOverriddenByGroupings(aggregate, context, secondPassAggs);
+
             Eval packValues = new Eval(firstPhase.source(), firstPhase, packDimensions);
             Aggregate secondPhase = new Aggregate(
                 firstPhase.source(),
@@ -396,6 +401,28 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             }
             return new Project(newChild.source(), unpackValues, projects);
         }
+    }
+
+    private static void shadowAggsOverriddenByGroupings(
+        TimeSeriesAggregate inputAggregate,
+        AnalyzerContext context,
+        List<NamedExpression> secondPassAggs
+    ) {
+        var aggsThenGroupings = new ArrayList<NamedExpression>(secondPassAggs.size() + inputAggregate.groupings().size());
+        aggsThenGroupings.addAll(secondPassAggs);
+        for (var g : inputAggregate.groupings()) {
+            aggsThenGroupings.add(Expressions.attribute(g));
+        }
+
+        List<NamedExpression> unique = RemoveStatsOverride.keepLastNamedExpression(
+            aggsThenGroupings,
+            context.deferredHeaderWarnings()::add
+        );
+
+        Set<NameId> originalAggIds = secondPassAggs.stream().map(NamedExpression::id).collect(Collectors.toUnmodifiableSet());
+
+        secondPassAggs.clear();
+        secondPassAggs.addAll(unique.stream().filter(e -> originalAggIds.contains(e.id())).toList());
     }
 
     private TimeSeriesAggregate replaceSurrogateTimeseriesAggs(TimeSeriesAggregate aggregate) {

@@ -31,7 +31,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -40,7 +39,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -244,16 +242,13 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                 permits.acquire(ActionListener.wrap((release) -> {
                     completePendingOperation.await(3, TimeUnit.SECONDS);
                     release.close();
-                }, (ex) -> {
-                }), null, true);
+                }, (ex) -> {}), null, true);
             };
 
             final Runnable blockOperation = () -> {
                 permits.blockOperations(
                     ActionListener.releaseAfter(
-                        ActionListener.wrap(Releasable::close, (ex) -> {
-                            deadlock.set(true);
-                        }),
+                        ActionListener.wrap(Releasable::close, (ex) -> { deadlock.set(true); }),
                         blockOperationsRunning::countDown
                     ),
                     3,

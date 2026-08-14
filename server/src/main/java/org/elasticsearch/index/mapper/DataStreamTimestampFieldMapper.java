@@ -249,13 +249,17 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     }
 
     private static void validateTimestamp(TimestampBounds bounds, long originValue, DocumentParserContext context) {
-        long value = originValue;
-
-        Resolution resolution;
-        if (context.mappingLookup()
+        boolean isDateNanos = context.mappingLookup()
             .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH)
             .typeName()
-            .equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE)) {
+            .equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE);
+        validateTimestampValue(bounds, originValue, isDateNanos);
+    }
+
+    private static void validateTimestampValue(TimestampBounds bounds, long originValue, boolean isDateNanos) {
+        long value = originValue;
+        Resolution resolution;
+        if (isDateNanos) {
             resolution = Resolution.NANOSECONDS;
             value /= NSEC_PER_MSEC;
         } else {

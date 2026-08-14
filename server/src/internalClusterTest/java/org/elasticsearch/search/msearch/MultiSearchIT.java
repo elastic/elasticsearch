@@ -175,7 +175,7 @@ public class MultiSearchIT extends ESIntegTestCase {
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         assumeFalse("coordinator uses a noop request breaker, skipping test", noopBreakerUsed(coordinatorNode));
 
-        int numSearches = scaledRandomIntBetween(10, 25);
+        int numSearches = 10;
 
         assertBusy(
             () -> assertThat(

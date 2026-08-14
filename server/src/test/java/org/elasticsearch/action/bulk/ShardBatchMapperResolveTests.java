@@ -21,6 +21,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.ColumnGroupResolver;
 import org.elasticsearch.index.mapper.ColumnGroupResolver.ColumnGroupLookup;
 import org.elasticsearch.index.mapper.ColumnGroupResolver.ColumnGroupResolution;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -192,10 +193,11 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
         assertNull(resolution);
     }
 
-    public void testBooleanMapperNotSupported() throws IOException {
+    public void testBooleanMapperIsSupported() throws IOException {
         MapperService ms = mapper(mapping(b -> { b.startObject("b").field("type", "boolean").endObject(); }));
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("b"), ms.mappingLookup(), indexSettings);
-        assertNull(resolution);
+        assertNotNull(resolution);
+        assertTrue(resolution.columnMappers()[0] instanceof BooleanFieldMapper);
     }
 
     public void testIpMapperNotSupported() throws IOException {

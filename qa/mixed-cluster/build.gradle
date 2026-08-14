@@ -90,6 +90,7 @@ excludeList.add("cat.shards/10_basic/Help")
 excludeList.add('msearch/50_circuit_breaker/msearch circuit breaker trips and returns failure item without aborting the request')
 
 excludeList.add('search.highlight/70_number_of_fragments/number_of_fragments above the maximum should FAIL')
+excludeList.add('search.highlight/70_number_of_fragments/negative number_of_fragments should FAIL')
 excludeList.add('search.highlight/70_number_of_fragments/raising index.highlight.max_number_of_fragments should allow more fragments')
 excludeList.add(
   'search.highlight/70_number_of_fragments/lowering index.highlight.max_number_of_fragments should reject the default number of fragments'

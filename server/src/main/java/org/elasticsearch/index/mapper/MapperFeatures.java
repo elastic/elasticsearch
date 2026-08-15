@@ -240,12 +240,7 @@ public class MapperFeatures implements FeatureSpecification {
             )
         );
         if (Build.current().isSnapshot()) {
-            features.addAll(
-                Set.of(
-                    BBQ_DISK_BYTE_SUPPORT,
-                    ASH_QUANTIZATION_TYPE_SUPPORT
-                )
-            );
+            features.addAll(Set.of(BBQ_DISK_BYTE_SUPPORT, ASH_QUANTIZATION_TYPE_SUPPORT));
         }
         return Set.copyOf(features);
     }

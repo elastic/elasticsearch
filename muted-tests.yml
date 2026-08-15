@@ -944,3 +944,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerInSubqueryGoldenTests
   method: testMultiColumnInSubqueryWithTsSource {historical}
   issue: https://github.com/elastic/elasticsearch/issues/156845
+- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
+  method: testIndexTimeFieldData {p0=false p1=BASIC}
+  issue: https://github.com/elastic/elasticsearch/issues/156846

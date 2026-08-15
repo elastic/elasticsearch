@@ -1508,6 +1508,11 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_WITH_CASE_COALESCE_IS_NULL,
 
         /**
+         * Support multi-column IN subqueries in WHERE: WHERE (field1, field2) IN (FROM index | KEEP field1, field2).
+         */
+        WHERE_IN_MULTI_COLUMN_SUBQUERY(Build.current().isSnapshot()),
+
+        /**
          * Support for views in cluster state (and REST API).
          */
         VIEWS_IN_CLUSTER_STATE,

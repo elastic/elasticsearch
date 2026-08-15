@@ -814,6 +814,7 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testStatsWhereMultiColumnRowInSubquery() {
+        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | STATS cnt = COUNT(*) WHERE (emp_no, salary) IN (ROW a = 1, b = 2 | KEEP a, b)
@@ -821,6 +822,7 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testStatsWhereMultiColumnTsInSubquery() {
+        requireMultiColumnInSubquerySupport();
         builder("""
             FROM employees
             | STATS cnt = COUNT(*) WHERE (emp_no, gender) IN (TS k8s
@@ -831,6 +833,7 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testStatsWhereInSubqueryInComplexNesting() {
+        requireMultiColumnInSubquerySupport();
         builder("""
             FROM employees
             | STATS count = COUNT(*) WHERE COALESCE(

@@ -155,6 +155,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
   method: testGroupingAggregate {TestCase=<big positive doubles>}
   issue: https://github.com/elastic/elasticsearch/issues/156839
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
+  method: testGroupingAggregate {TestCase=<small positive doubles>}
+  issue: https://github.com/elastic/elasticsearch/issues/156840
 
 # Examples:
 #

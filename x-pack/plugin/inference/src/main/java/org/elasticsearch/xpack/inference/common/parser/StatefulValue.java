@@ -94,8 +94,8 @@ public final class StatefulValue<T> {
      * @param <V>          the update target type
      * @param <T>          the field value type
      */
-    public static <V, T> void declareNullable(
-        AbstractObjectParser<V, Void> parser,
+    public static <V, C, T> void declareNullable(
+        AbstractObjectParser<V, C> parser,
         BiConsumer<V, StatefulValue<T>> setter,
         CheckedFunction<XContentParser, T, IOException> reader,
         ParseField field,
@@ -145,6 +145,29 @@ public final class StatefulValue<T> {
      */
     public static <T> T applyUpdate(StatefulValue<T> update, T currentValue) {
         return applyUpdate(update, currentValue, null);
+    }
+
+    /**
+     * Applies a parsed {@code update} onto the existing value, honouring the tri-state update semantics. The argument order reads
+     * directionally — "apply this update to the current value, falling back to the cleared state":
+     * <ul>
+     *   <li>update {@link #isUndefined() absent} → keep {@code current};</li>
+     *   <li>update explicitly {@link #isNull() nulled} → use {@link #undefined()};</li>
+     *   <li>update {@link #isPresent() carries a value} → use that {@code value}.</li>
+     * </ul>
+
+     *
+     * @param update       the parsed update delta for the field (the only side that carries tri-state)
+     * @param current      the current stateful value
+     * @param <T>          the field value type
+     * @return the value to store on the updated settings
+     */
+    public static <T> StatefulValue<T> applyUpdate(StatefulValue<T> update, StatefulValue<T> current) {
+        if (update.isUndefined()) {
+            return current;
+        }
+
+        return update.isPresent() ? update : StatefulValue.undefined();
     }
 
     private final T value;

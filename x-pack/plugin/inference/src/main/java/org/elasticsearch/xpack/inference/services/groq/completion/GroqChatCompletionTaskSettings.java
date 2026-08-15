@@ -12,12 +12,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.inference.services.groq.GroqService;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiTaskSettings;
+import org.elasticsearch.xpack.inference.services.settings.UserAndHeadersTaskSettings;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class GroqChatCompletionTaskSettings extends OpenAiTaskSettings<GroqChatCompletionTaskSettings> {
+public class GroqChatCompletionTaskSettings extends UserAndHeadersTaskSettings<GroqChatCompletionTaskSettings> {
 
     public static final String NAME = "groq_completion_task_settings";
 

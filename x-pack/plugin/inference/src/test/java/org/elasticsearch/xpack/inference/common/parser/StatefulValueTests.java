@@ -26,6 +26,25 @@ public class StatefulValueTests extends ESTestCase {
 
     private static final String VALUE = "value";
 
+    public static StatefulValue<String> createRandomStatefulString() {
+        return randomFrom(StatefulValue.undefined(), StatefulValue.nullInstance(), StatefulValue.of(randomAlphaOfLength(15)));
+    }
+
+    /**
+     * Returns a value guaranteed not to equal {@code instance}, moving it to one of the other two tri-state
+     * states or, when present, to a modified string. Mirrors {@link HeadersTests#doMutateInstance} so the two
+     * tri-state fields on the OpenAI/Azure task settings mutate the same way.
+     */
+    public static StatefulValue<String> doMutateStatefulString(StatefulValue<String> instance) {
+        if (instance.isPresent()) {
+            return randomFrom(StatefulValue.of(instance.get() + "modified"), StatefulValue.nullInstance(), StatefulValue.undefined());
+        }
+        if (instance.isNull()) {
+            return randomFrom(StatefulValue.of(randomAlphaOfLength(15)), StatefulValue.undefined());
+        }
+        return randomFrom(StatefulValue.of(randomAlphaOfLength(15)), StatefulValue.nullInstance());
+    }
+
     public void testUndefined_ReturnsSingleton() {
         assertThat(StatefulValue.undefined(), sameInstance(StatefulValue.undefined()));
     }

@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.inference.services.fireworksai.completion;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiTaskSettingsTests;
+import org.elasticsearch.xpack.inference.services.settings.UserAndHeadersTaskSettingsTests;
 
 import java.util.Map;
 
-public class FireworksAiChatCompletionTaskSettingsTests extends OpenAiTaskSettingsTests<FireworksAiChatCompletionTaskSettings> {
+public class FireworksAiChatCompletionTaskSettingsTests extends UserAndHeadersTaskSettingsTests<FireworksAiChatCompletionTaskSettings> {
 
     @Override
     protected Writeable.Reader<FireworksAiChatCompletionTaskSettings> instanceReader() {

@@ -10,17 +10,30 @@ package org.elasticsearch.xpack.inference.services.openai.completion;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.inference.common.parser.Headers;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiTaskSettingsTests;
 
 import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.common.parser.Headers.UNDEFINED_INSTANCE;
 
 public class OpenAiChatCompletionTaskSettingsTests extends OpenAiTaskSettingsTests<OpenAiChatCompletionTaskSettings> {
 
     private static final TransportVersion INFERENCE_API_OPENAI_HEADERS = TransportVersion.fromName("inference_api_openai_headers");
 
+    public static OpenAiChatCompletionTaskSettings createWithUserString(@Nullable String user) {
+        return new OpenAiChatCompletionTaskSettings(
+            user != null ? StatefulValue.of(user) : StatefulValue.undefined(),
+            Headers.UNDEFINED_INSTANCE
+        );
+    }
+
     @Override
     protected Writeable.Reader<OpenAiChatCompletionTaskSettings> instanceReader() {
-        return OpenAiChatCompletionTaskSettings::new;
+        return OpenAiChatCompletionTaskSettings::read;
     }
 
     @Override
@@ -29,24 +42,33 @@ public class OpenAiChatCompletionTaskSettingsTests extends OpenAiTaskSettingsTes
     }
 
     @Override
-    protected OpenAiChatCompletionTaskSettings mutateInstanceForVersion(
-        OpenAiChatCompletionTaskSettings instance,
-        TransportVersion version
-    ) {
-        if (version.supports(INFERENCE_API_OPENAI_HEADERS)) {
-            return instance;
-        }
-
-        return create(instance.user(), null);
-    }
-
-    @Override
-    protected OpenAiChatCompletionTaskSettings create(@Nullable String user, @Nullable Map<String, String> headers) {
+    protected OpenAiChatCompletionTaskSettings create(StatefulValue<String> user, Headers headers) {
         return new OpenAiChatCompletionTaskSettings(user, headers);
     }
 
     @Override
-    protected OpenAiChatCompletionTaskSettings createFromMap(@Nullable Map<String, Object> map) {
-        return new OpenAiChatCompletionTaskSettings(map);
+    protected OpenAiChatCompletionTaskSettings createFromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        return OpenAiChatCompletionTaskSettings.fromMap(map, context);
+    }
+
+    @Override
+    protected OpenAiChatCompletionTaskSettings mutateInstanceForVersion(
+        OpenAiChatCompletionTaskSettings instance,
+        TransportVersion version
+    ) {
+        if (version.supports(OpenAiTaskSettings.INFERENCE_API_OPENAI_TASK_SETTINGS_TRI_STATE)) {
+            return instance;
+        }
+
+        // Collapse null → undefined for user (legacy format only preserves present/absent)
+        var user = instance.user().isPresent() ? instance.user() : StatefulValue.<String>undefined();
+
+        if (version.supports(INFERENCE_API_OPENAI_HEADERS)) {
+            // Collapse null → UNDEFINED_INSTANCE for headers
+            var headers = instance.headers().isPresent() ? instance.headers() : UNDEFINED_INSTANCE;
+            return new OpenAiChatCompletionTaskSettings(user, headers);
+        }
+
+        return new OpenAiChatCompletionTaskSettings(user, UNDEFINED_INSTANCE);
     }
 }

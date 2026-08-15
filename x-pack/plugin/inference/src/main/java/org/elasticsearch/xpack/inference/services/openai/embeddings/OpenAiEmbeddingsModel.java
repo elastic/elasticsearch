@@ -59,7 +59,7 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
             taskType,
             service,
             OpenAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
-            new OpenAiEmbeddingsTaskSettings(taskSettings),
+            OpenAiEmbeddingsTaskSettings.fromMap(taskSettings, context),
             chunkingSettings,
             OpenAiSecretSettings.fromMap(secrets),
             threadPool,

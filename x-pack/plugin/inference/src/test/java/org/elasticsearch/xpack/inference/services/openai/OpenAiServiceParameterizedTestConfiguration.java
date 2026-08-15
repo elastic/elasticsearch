@@ -129,8 +129,8 @@ public class OpenAiServiceParameterizedTestConfiguration {
             @Override
             protected TaskSettings getEmptyTaskSettings(TaskType taskType) {
                 return switch (taskType) {
-                    case TEXT_EMBEDDING -> new OpenAiEmbeddingsTaskSettings(Map.of());
-                    case COMPLETION, CHAT_COMPLETION -> new OpenAiChatCompletionTaskSettings(Map.of());
+                    case TEXT_EMBEDDING -> OpenAiEmbeddingsTaskSettings.EMPTY;
+                    case COMPLETION, CHAT_COMPLETION -> OpenAiChatCompletionTaskSettings.EMPTY;
                     default -> throw new IllegalStateException("Unexpected value: " + taskType);
                 };
             }
@@ -220,8 +220,8 @@ public class OpenAiServiceParameterizedTestConfiguration {
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(DIMENSIONS_VALUE));
             assertThat(embeddingsModel.getServiceSettings().similarity(), is(SIMILARITY_VALUE));
             assertThat(embeddingsModel.getServiceSettings().rateLimitSettings(), is(new RateLimitSettings(REQUESTS_PER_MINUTE)));
-            assertThat(embeddingsModel.getTaskSettings().user(), is(USER_VALUE));
-            assertThat(embeddingsModel.getTaskSettings().headers(), is(HEADERS_VALUE));
+            assertThat(embeddingsModel.getTaskSettings().user().orElse(null), is(USER_VALUE));
+            assertThat(embeddingsModel.getTaskSettings().headers().mapValue().orElse(null), is(HEADERS_VALUE));
         }
     }
 
@@ -247,8 +247,8 @@ public class OpenAiServiceParameterizedTestConfiguration {
             assertThat(completionModel.getServiceSettings().organizationId(), is(ORGANIZATION_VALUE));
             assertThat(completionModel.getServiceSettings().maxInputTokens(), is(MAX_INPUT_TOKENS_VALUE));
             assertThat(completionModel.getServiceSettings().rateLimitSettings(), is(new RateLimitSettings(REQUESTS_PER_MINUTE)));
-            assertThat(completionModel.getTaskSettings().user(), is(USER_VALUE));
-            assertThat(completionModel.getTaskSettings().headers(), is(HEADERS_VALUE));
+            assertThat(completionModel.getTaskSettings().user().orElse(null), is(USER_VALUE));
+            assertThat(completionModel.getTaskSettings().headers().mapValue().orElse(null), is(HEADERS_VALUE));
         }
     }
 

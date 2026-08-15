@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.common.oauth2.NoopTokenCache;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -51,7 +53,10 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
             TaskType.TEXT_EMBEDDING,
             "service",
             new OpenAiEmbeddingsServiceSettings("model", URI.create("www.elastic.co"), "org", null, null, null, false, null),
-            new OpenAiEmbeddingsTaskSettings("user", Map.of(headerKey, headerValue)),
+            OpenAiEmbeddingsTaskSettings.fromMap(
+                new HashMap<>(Map.of("user", "user", "headers", Map.of(headerKey, headerValue))),
+                ConfigurationParseContext.REQUEST
+            ),
             null,
             new DefaultSecretSettings(new SecureString("secret".toCharArray())),
             mock(ThreadPool.class),

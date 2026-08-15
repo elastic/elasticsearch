@@ -457,3 +457,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:unsigned_long.unsignedLongInWithNull}
   issue: https://github.com/elastic/elasticsearch/issues/156782
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test {feature:METRICS}
+  issue: https://github.com/elastic/elasticsearch/issues/156829

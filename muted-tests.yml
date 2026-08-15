@@ -947,3 +947,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
   method: testIndexTimeFieldData {p0=false p1=BASIC}
   issue: https://github.com/elastic/elasticsearch/issues/156846
+- class: org.elasticsearch.xpack.transform.integration.TransformGetAndGetStatsIT
+  method: testGetAndGetStatsForTransformWithoutConfig
+  issue: https://github.com/elastic/elasticsearch/issues/156847

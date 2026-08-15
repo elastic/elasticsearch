@@ -2150,8 +2150,10 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      */
     public void testComplexBooleanWithMultiColumnInSubqueryAndNullPredicates() {
         checkMultiColumnInSubquery();
-        String query =
-            "FROM main | WHERE (a > 0 AND (((b, c) IN (FROM sub1 | KEEP b, c)) IS NULL)) OR (((d, e) IN (FROM sub2 | KEEP d, e)) IS NOT NULL AND f < 0)";
+        String query = """
+            FROM main
+            | WHERE (a > 0 AND ((b, c) IN (FROM sub1 | KEEP b, c)) IS NULL)
+                OR (((d, e) IN (FROM sub2 | KEEP d, e)) IS NOT NULL AND f < 0)""";
         LogicalPlan plan = query(query);
         Filter filter = as(plan, Filter.class);
         Or topOr = as(filter.condition(), Or.class);

@@ -1981,7 +1981,8 @@ public class InSubqueryResolverTests extends ESTestCase {
         checkMultiColumnInSubquery();
         assertResolveError(
             "FROM main | WHERE filter(a, x -> COALESCE((x, f2) IN (FROM sub | KEEP x, f2), false))",
-            "line 1:43: IN subquery is not supported within other expressions [filter(a, x -> COALESCE((x, f2) IN (FROM sub | KEEP x, f2), false))]"
+            "line 1:43: IN subquery is not supported within other expressions "
+                + "[filter(a, x -> COALESCE((x, f2) IN (FROM sub | KEEP x, f2), false))]"
         );
     }
 

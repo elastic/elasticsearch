@@ -149,6 +149,7 @@ import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
@@ -1521,11 +1522,11 @@ public class LocalExecutionPlanner {
         // After enabling remote joins, we can have one of the two situations here:
         // 1. We've just got one entry - this should be the one relevant to the join, and it should be for this cluster
         // 2. We have got multiple entries - this means each cluster has its own one, and we should extract one relevant for this cluster
-        Map.Entry<String, IndexMode> entry;
-        if (esRelation.indexNameWithModes().size() == 1) {
-            entry = esRelation.indexNameWithModes().entrySet().iterator().next();
+        Map.Entry<String, IndexProperties> entry;
+        if (esRelation.indexProperties().size() == 1) {
+            entry = esRelation.indexProperties().entrySet().iterator().next();
         } else {
-            var maybeEntry = esRelation.indexNameWithModes()
+            var maybeEntry = esRelation.indexProperties()
                 .entrySet()
                 .stream()
                 .filter(e -> RemoteClusterAware.splitIndexName(e.getKey()).getClusterGroupingKey().equals(clusterAlias))
@@ -1537,8 +1538,8 @@ public class LocalExecutionPlanner {
             );
         }
 
-        if (entry.getValue() != IndexMode.LOOKUP) {
-            throw new IllegalStateException("can't plan [" + join + "], found index with mode [" + entry.getValue() + "]");
+        if (entry.getValue().indexMode() != IndexMode.LOOKUP) {
+            throw new IllegalStateException("can't plan [" + join + "], found index with mode [" + entry.getValue().indexMode() + "]");
         }
         var indexSplit = RemoteClusterAware.splitIndexName(entry.getKey());
         // No prefix is ok, prefix with this cluster is ok, something else is not
@@ -2122,7 +2123,19 @@ public class LocalExecutionPlanner {
 
             int scoreBlock = filterOperation.layout.get(scoreAttribute.id()).channel();
             filterOperation = filterOperation.with(
-                new ScoreOperator.ScoreOperatorFactory(ScoreMapper.toScorer(filter.condition(), context.shardContexts), scoreBlock),
+                new ScoreOperator.ScoreOperatorFactory(
+                    ScoreMapper.toScorer(
+                        filter.condition(),
+                        context.shardContexts,
+                        EvalMapper.toEvaluatorContext(
+                            context.foldCtx(),
+                            filterOperation.layout,
+                            context.shardContexts,
+                            context.analysisRegistry()
+                        )
+                    ),
+                    scoreBlock
+                ),
                 filterOperation.layout
             );
         }

@@ -3587,6 +3587,135 @@ public class FieldNameUtilsTests extends ESTestCase {
             """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "last_name", "last_name.*", "salary", "salary.*"));
     }
 
+    // Multi-column IN subquery tests
+
+    public void testMultiColumnInSubquery() {
+        checkMultiColumnInSubquery();
+        assertFieldNames(
+            "FROM employees | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, salary) | KEEP emp_no, first_name",
+            Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*")
+        );
+    }
+
+    public void testMultiColumnNotInSubquery() {
+        checkMultiColumnInSubquery();
+        assertFieldNames("""
+            FROM employees
+            | WHERE (emp_no, salary) NOT IN (FROM employees | WHERE languages == 4 | KEEP emp_no, salary)
+            | KEEP emp_no, first_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*", "languages", "languages.*"));
+    }
+
+    public void testMultiColumnInSubqueryNoFieldReduction() {
+        checkMultiColumnInSubquery();
+        assertFieldNames(
+            """
+                FROM employees
+                | WHERE (emp_no, languages) IN (
+                    FROM employees
+                    | WHERE hire_date >= "1989-01-01T00:00:00.000Z" AND hire_date < "1990-01-01T00:00:00.000Z"
+                    | KEEP emp_no, languages
+                  )
+                | KEEP emp_no, first_name
+                """,
+            Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "languages", "languages.*", "hire_date", "hire_date.*")
+        );
+    }
+
+    public void testForkBeforeMultiColumnInSubquery() {
+        checkMultiColumnInSubquery();
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no, first_name, salary, languages
+            | FORK (WHERE salary > 70000) (WHERE salary < 30000)
+            | WHERE (emp_no, salary) IN (FROM employees | WHERE languages == 4 | KEEP emp_no, salary)
+            | KEEP emp_no, first_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*", "languages", "languages.*"));
+    }
+
+    public void testFromSubqueryBeforeMultiColumnInSubquery() {
+        checkMultiColumnInSubquery();
+        assertFieldNames("""
+            FROM
+              (FROM employees | SORT emp_no | LIMIT 50 | KEEP emp_no, first_name, salary),
+              (FROM employees | SORT emp_no DESC | LIMIT 50 | KEEP emp_no, first_name, salary)
+            | WHERE (emp_no, salary) IN (FROM employees | WHERE languages == 4 | KEEP emp_no, salary)
+            | KEEP emp_no, first_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*", "languages", "languages.*"));
+    }
+
+    // Mixed single-column and multi-column IN subquery tests
+
+    public void testMixedSingleAndMultiColumnInSubqueryWithAnd() {
+        checkMultiColumnInSubquery();
+        assertFieldNames(
+            """
+                FROM employees
+                | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+                  AND (languages, gender) IN (FROM employees | KEEP languages, gender)
+                | KEEP emp_no, first_name
+                """,
+            Set.of(
+                "_index",
+                "emp_no",
+                "emp_no.*",
+                "first_name",
+                "first_name.*",
+                "salary",
+                "salary.*",
+                "languages",
+                "languages.*",
+                "gender",
+                "gender.*"
+            )
+        );
+    }
+
+    // Nested multi-column IN subquery tests
+
+    public void testNestedMultiColumnInSubqueryInsideMultiColumnInSubquery() {
+        checkMultiColumnInSubquery();
+        assertFieldNames("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (
+                FROM employees
+                | WHERE (languages, salary) IN (FROM employees | KEEP languages, salary)
+                | KEEP emp_no, salary
+              )
+            | KEEP emp_no, first_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*", "languages", "languages.*"));
+    }
+
+    public void testNestedSingleColumnInSubqueryInsideMultiColumnInSubquery() {
+        checkMultiColumnInSubquery();
+        assertFieldNames("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (
+                FROM employees
+                | WHERE languages IN (FROM employees | KEEP languages)
+                | KEEP emp_no, salary
+              )
+            | KEEP emp_no, first_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*", "languages", "languages.*"));
+    }
+
+    public void testNestedMultiColumnInSubqueryInsideSingleColumnInSubquery() {
+        checkMultiColumnInSubquery();
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no IN (
+                FROM employees
+                | WHERE (salary, languages) IN (FROM employees | WHERE languages > 2 | KEEP salary, languages)
+                | KEEP emp_no
+              )
+            | KEEP emp_no, first_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*", "languages", "languages.*"));
+    }
+
+    private static void checkMultiColumnInSubquery() {
+        assumeTrue("multi-column IN subquery", EsqlCapabilities.Cap.WHERE_IN_MULTI_COLUMN_SUBQUERY.isEnabled());
+    }
+
     // EVAL IN subquery tests
 
     public void testInSubqueryInEval() {
@@ -3764,6 +3893,52 @@ public class FieldNameUtilsTests extends ESTestCase {
                 "language_id",
                 "language_id.*"
             )
+        );
+    }
+
+    public void testInTsSubqueryInEval() {
+        assertFieldNames(
+            "FROM main | EVAL z = x IN (TS sub | KEEP x) | KEEP x",
+            Set.of("_index", "x", "x.*", "@timestamp", "@timestamp.*")
+        );
+    }
+
+    public void testMultiColumnInTsSubqueryInEval() {
+        assertFieldNames(
+            "FROM main | EVAL z = (f1, f2) IN (TS sub | KEEP f1, f2) | KEEP f1",
+            Set.of("_index", "f1", "f1.*", "f2", "f2.*", "@timestamp", "@timestamp.*")
+        );
+    }
+
+    public void testInRowSubqueryInEval() {
+        assertFieldNames("FROM main | EVAL z = x IN (ROW a = 1 | KEEP a) | KEEP x", Set.of("_index", "x", "x.*", "a", "a.*"));
+    }
+
+    public void testMultiColumnInRowSubqueryInEval() {
+        assertFieldNames(
+            "FROM main | EVAL z = (f1, f2) IN (ROW f1 = 1, f2 = 2 | KEEP f1, f2) | KEEP f1",
+            Set.of("_index", "f1", "f1.*", "f2", "f2.*")
+        );
+    }
+
+    public void testMultiColumnInSubqueryNestedInCaseInEval() {
+        assertFieldNames(
+            "FROM main | EVAL z = CASE((f1, f2) IN (FROM sub | KEEP f1, f2), true, false) | KEEP f1",
+            Set.of("_index", "f1", "f1.*", "f2", "f2.*")
+        );
+    }
+
+    public void testMultiColumnInSubqueryNestedInCoalesceInEval() {
+        assertFieldNames(
+            "FROM main | EVAL z = COALESCE((f1, f2) IN (TS sub | KEEP f1, f2), false) | KEEP f1",
+            Set.of("_index", "f1", "f1.*", "f2", "f2.*", "@timestamp", "@timestamp.*")
+        );
+    }
+
+    public void testMultiColumnInSubqueryNestedInIsNullInEval() {
+        assertFieldNames(
+            "FROM main | EVAL z = ((f1, f2) IN (FROM sub | KEEP f1, f2)) IS NULL | KEEP f1",
+            Set.of("_index", "f1", "f1.*", "f2", "f2.*")
         );
     }
 

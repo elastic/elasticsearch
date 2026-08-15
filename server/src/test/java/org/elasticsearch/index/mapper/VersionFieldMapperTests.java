@@ -24,6 +24,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -91,7 +92,12 @@ public class VersionFieldMapperTests extends MetadataMapperTestCase {
 
         IndexRequest[] requests = new IndexRequest[] { new IndexRequest("index").id("1"), new IndexRequest("index").id("2") };
         IndexOperationBatch batch = EngineTestCase.initFromRequests(requests);
-        BatchMappingContext context = new BatchMappingContext(batch, mapperService.mappingLookup(), mapperService.getIndexSettings());
+        BatchMappingContext context = new BatchMappingContext(
+            batch,
+            mapperService.mappingLookup(),
+            mapperService.getIndexSettings(),
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
 
         mapper.preColumnarParse(context);
 

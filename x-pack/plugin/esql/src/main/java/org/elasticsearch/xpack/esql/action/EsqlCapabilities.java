@@ -1513,6 +1513,11 @@ public class EsqlCapabilities {
         EVAL_IN_SUBQUERY,
 
         /**
+         * Support multi-column IN subqueries in WHERE: WHERE (field1, field2) IN (FROM index | KEEP field1, field2).
+         */
+        WHERE_IN_MULTI_COLUMN_SUBQUERY(Build.current().isSnapshot()),
+
+        /**
          * Support for views in cluster state (and REST API).
          */
         VIEWS_IN_CLUSTER_STATE,
@@ -2161,7 +2166,7 @@ public class EsqlCapabilities {
         /**
          * Support for the DOUBLE_RANGE field type.
          */
-        DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V9(Build.current().isSnapshot()),
+        DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V10(Build.current().isSnapshot()),
 
         /**
          * Network direction function.
@@ -3401,9 +3406,8 @@ public class EsqlCapabilities {
 
         /**
          * Support for the {@code DEDUP} command, which removes duplicate rows from the result set.
-         * Snapshot-only.
          */
-        DEDUP_COMMAND(Build.current().isSnapshot()),
+        DEDUP_COMMAND,
 
         /**
          * Support for VALUES with date_range type.
@@ -3428,7 +3432,7 @@ public class EsqlCapabilities {
         /**
          * Support for equality ({@code ==}, {@code !=}) and {@code IN} with the {@code double_range} type.
          */
-        EQUALITY_DOUBLE_RANGE(DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V9.isEnabled()),
+        EQUALITY_DOUBLE_RANGE(DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V10.isEnabled()),
 
         /**
          * Fix TopN encoding/decoding of {@code long_range} values.
@@ -3618,6 +3622,11 @@ public class EsqlCapabilities {
          * Support for the PromQL {@code limitk()} arbitrary-selection function.
          */
         PROMQL_LIMITK,
+
+        /**
+         * Support for PromQL {@code histogram_fraction()} on native histograms.
+         */
+        PROMQL_HISTOGRAM_FRACTION,
 
         /**
          * Fix PromQL {@code topk()} over an already-aggregated vector (e.g. {@code topk(k, sum by (...) (...))}).

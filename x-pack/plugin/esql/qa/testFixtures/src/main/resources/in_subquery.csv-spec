@@ -4348,3 +4348,60 @@ FROM employees
 c:long
 0
 ;
+
+rowSubqueryInEval
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+required_capability: subquery_with_row
+
+FROM employees
+| EVAL m = emp_no IN (ROW a = 10001)
+| WHERE m
+| KEEP emp_no
+;
+
+emp_no:integer
+10001
+;
+
+rowSubqueryWithNotInInEval
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+required_capability: subquery_with_row
+
+FROM employees
+| EVAL m = emp_no NOT IN (ROW a = 10001)
+| WHERE m == false
+| KEEP emp_no
+;
+
+emp_no:integer
+10001
+;
+
+rowSourceWithFromInSubqueryInEval
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+ROW a = 10001
+| EVAL m = a IN (FROM employees | KEEP emp_no)
+| KEEP a, m
+;
+
+a:integer | m:boolean
+10001     | true
+;
+
+rowSourceWithRowInSubqueryInEval
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+required_capability: subquery_with_row
+
+ROW a = 10001
+| EVAL m = a IN (ROW b = 10001)
+| KEEP a, m
+;
+
+a:integer | m:boolean
+10001     | true
+;

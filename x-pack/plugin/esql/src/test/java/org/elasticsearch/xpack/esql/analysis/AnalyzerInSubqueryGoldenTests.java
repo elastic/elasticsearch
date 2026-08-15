@@ -1232,7 +1232,7 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
                 | KEEP cluster, pod
               )
             | STATS total_bytes = sum(to_long(network.total_bytes_in)) BY cluster
-            """).stages(STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).expectationChangesAt(PACK_DIMS_AGG).run();
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testRowMainMultiColumnInSubqueryWithTsSource() {

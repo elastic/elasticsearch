@@ -466,3 +466,6 @@ tests:
 - class: org.elasticsearch.search.telemetry.SearchCoordinatorPhaseShardBytesMetricsIT
   method: testBatchedQueryPhaseShardErrorRecordsBothRequestAndResultBytes
   issue: https://github.com/elastic/elasticsearch/issues/156831
+- class: org.elasticsearch.xpack.esql.action.CrossClusterLoggingIT
+  method: testRemoteQueryLogging
+  issue: https://github.com/elastic/elasticsearch/issues/156834

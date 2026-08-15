@@ -969,3 +969,6 @@ tests:
 - class: org.elasticsearch.repositories.RepositoriesServiceTests
   method: testRegisterRepositorySuccessAfterCreationFailed
   issue: https://github.com/elastic/elasticsearch/issues/156855
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecChangePointIT
+  method: test {csv-spec:change_point.null keys}
+  issue: https://github.com/elastic/elasticsearch/issues/156856

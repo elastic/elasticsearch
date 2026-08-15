@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 156683
+summary: Count failed msearch sub-search responses against the circuit breaker
+type: bug

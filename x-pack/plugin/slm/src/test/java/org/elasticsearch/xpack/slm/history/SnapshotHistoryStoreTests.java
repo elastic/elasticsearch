@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.slm.history;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
@@ -69,11 +72,12 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
                 )
             );
         ClusterServiceUtils.setState(clusterService, ClusterState.builder(state).metadata(metadataBuilder).build());
-        historyStore = new SnapshotHistoryStore(client, clusterService);
+        historyStore = new SnapshotHistoryStore(client, clusterService, threadPool);
     }
 
     @After
     public void stopClusterServiceAndThreadPool() throws Exception {
+        historyStore.close();
         clusterService.stop();
         threadPool.shutdownNow();
     }
@@ -109,9 +113,11 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
             AtomicInteger calledTimes = new AtomicInteger(0);
             client.setVerifier((action, request, listener) -> {
                 calledTimes.incrementAndGet();
-                assertThat(action, sameInstance(TransportIndexAction.TYPE));
-                assertThat(request, instanceOf(IndexRequest.class));
-                IndexRequest indexRequest = (IndexRequest) request;
+                assertThat(action, sameInstance(TransportBulkAction.TYPE));
+                assertThat(request, instanceOf(BulkRequest.class));
+                BulkRequest bulkRequest = (BulkRequest) request;
+                assertEquals(1, bulkRequest.numberOfActions());
+                IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
                 assertEquals(SLM_HISTORY_DATA_STREAM, indexRequest.index());
                 final String indexedDocument = indexRequest.source().utf8ToString();
                 assertThat(indexedDocument, containsString(policy.getId()));
@@ -121,15 +127,8 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
                     assertContainsMap(indexedDocument, policy.getConfig());
                 }
                 assertNotNull(listener);
-                // The content of this IndexResponse doesn't matter, so just make it 100% random
-                return new IndexResponse(
-                    new ShardId(randomAlphaOfLength(5), randomAlphaOfLength(5), randomInt(100)),
-                    randomAlphaOfLength(5),
-                    randomLongBetween(1, 1000),
-                    randomLongBetween(1, 1000),
-                    randomLongBetween(1, 1000),
-                    randomBoolean()
-                );
+                // Return a successful bulk response
+                return new BulkResponse(new BulkItemResponse[0], 0L);
             });
 
             historyStore.putAsync(record);
@@ -147,9 +146,11 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
                     return new CreateIndexResponse(true, true, ((CreateIndexRequest) request).index());
                 }
                 calledTimes.incrementAndGet();
-                assertThat(action, sameInstance(TransportIndexAction.TYPE));
-                assertThat(request, instanceOf(IndexRequest.class));
-                IndexRequest indexRequest = (IndexRequest) request;
+                assertThat(action, sameInstance(TransportBulkAction.TYPE));
+                assertThat(request, instanceOf(BulkRequest.class));
+                BulkRequest bulkRequest = (BulkRequest) request;
+                assertEquals(1, bulkRequest.numberOfActions());
+                IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
                 assertEquals(SLM_HISTORY_DATA_STREAM, indexRequest.index());
                 final String indexedDocument = indexRequest.source().utf8ToString();
                 assertThat(indexedDocument, containsString(policy.getId()));
@@ -161,15 +162,8 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
                 assertThat(indexedDocument, containsString("runtime_exception"));
                 assertThat(indexedDocument, containsString(cause));
                 assertNotNull(listener);
-                // The content of this IndexResponse doesn't matter, so just make it 100% random
-                return new IndexResponse(
-                    new ShardId(randomAlphaOfLength(5), randomAlphaOfLength(5), randomInt(100)),
-                    randomAlphaOfLength(5),
-                    randomLongBetween(1, 1000),
-                    randomLongBetween(1, 1000),
-                    randomLongBetween(1, 1000),
-                    randomBoolean()
-                );
+                // Return a successful bulk response
+                return new BulkResponse(new BulkItemResponse[0], 0L);
             });
 
             historyStore.putAsync(record);

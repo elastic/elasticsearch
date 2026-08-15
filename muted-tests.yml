@@ -463,3 +463,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:METRICS}
   issue: https://github.com/elastic/elasticsearch/issues/156829
+- class: org.elasticsearch.search.telemetry.SearchCoordinatorPhaseShardBytesMetricsIT
+  method: testBatchedQueryPhaseShardErrorRecordsBothRequestAndResultBytes
+  issue: https://github.com/elastic/elasticsearch/issues/156831

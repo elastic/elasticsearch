@@ -961,3 +961,5 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/156851
 - class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/156852
+- class: org.elasticsearch.cluster.action.shard.ShardStartedTaskExecutorTests
+  issue: https://github.com/elastic/elasticsearch/issues/156853

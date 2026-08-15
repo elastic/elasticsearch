@@ -963,3 +963,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/156852
 - class: org.elasticsearch.cluster.action.shard.ShardStartedTaskExecutorTests
   issue: https://github.com/elastic/elasticsearch/issues/156853
+- class: org.elasticsearch.common.util.BigArraysTests
+  method: testEstimatedBytesSameAsActualBytes
+  issue: https://github.com/elastic/elasticsearch/issues/156854

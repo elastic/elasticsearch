@@ -142,11 +142,23 @@ abstract class AbstractVarColumn extends EscfColumn {
         private int pos;
 
         DenseBytesRefValuesCursor(int count, AbstractVarColumn column, boolean retainValues) {
+            this(count, column.offsets, column.data, retainValues);
+        }
+
+        /**
+         * Constructs a cursor directly from an offset vector and data buffer. Used by
+         * {@link EscfUnionColumn} to iterate union payloads without going through a
+         * var-width column instance (which would assert {@code validity == null}).
+         * The union's offset vector has one slot per row regardless of validity, so a
+         * dense one-entry-per-row walk is correct — and the {@code validity == null} guard
+         * in {@link AbstractVarColumn#bytesRefValuesCursor} must not apply here.
+         */
+        DenseBytesRefValuesCursor(int count, IntsRef offsets, BytesReference data, boolean retainValues) {
             super(count);
-            this.iter = sliceData(column.offsets, column.data, count).iterator();
-            this.offsets = column.offsets.ints;
-            this.nextOffsetIndex = column.offsets.offset + 1;
-            this.valueOffset = offsets[column.offsets.offset];
+            this.iter = sliceData(offsets, data, count).iterator();
+            this.offsets = offsets.ints;
+            this.nextOffsetIndex = offsets.offset + 1;
+            this.valueOffset = this.offsets[offsets.offset];
             this.retainValues = retainValues;
         }
 

@@ -112,6 +112,33 @@ final class EscfUnionColumn extends EscfColumn {
         return new KeyValueReader(ref.bytes, ref.offset, ref.length);
     }
 
+    /**
+     * Returns the raw type-byte vector for this column. Entry {@code i} is the
+     * {@link SourceValueType} byte for row {@code typeVec.offset + i}.
+     *
+     * <p>Used by {@link EscfBatchScatterer} to read the per-row type byte cheaply,
+     * in parallel with {@link #payloadCursor()} which yields the matching payload bytes.
+     */
+    BytesRef typeVec() {
+        return typeVec;
+    }
+
+    /**
+     * Returns a dense, forward-only cursor over the payload byte-ranges of all rows (including
+     * absent and null rows, which have zero-length ranges). Payload width is driven by
+     * {@link #offsets} — never by the type byte — so absent rows promoted from a numeric column
+     * (which occupy 8-byte payload slots) are read correctly.
+     *
+     * <p>Unlike {@link AbstractVarColumn#bytesRefValuesCursor}, this constructor overload is used
+     * directly rather than going through a var-width column, because the UNION offset vector has
+     * one entry per row regardless of validity (there is no skipping of absent rows).
+     *
+     * <p>Used by {@link EscfBatchScatterer}.
+     */
+    AbstractVarColumn.DenseBytesRefValuesCursor payloadCursor() {
+        return new AbstractVarColumn.DenseBytesRefValuesCursor(docCount, offsets, data, false);
+    }
+
     /** The contiguous bytes for document {@code row}'s value, sliced from the payload (zero-copy when contiguous). */
     private BytesRef value(int row) {
         int off0 = intAt(offsets, row);
@@ -135,4 +162,5 @@ final class EscfUnionColumn extends EscfColumn {
         int[] newOffsets = rebasedOffsets(offsets, docCount);
         return EscfColumnData.ofUnion(docCount, validity, typeVec, newOffsets, newData);
     }
+
 }

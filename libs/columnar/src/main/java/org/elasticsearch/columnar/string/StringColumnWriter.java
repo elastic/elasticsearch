@@ -93,6 +93,7 @@ public final class StringColumnWriter {
                 ? new DictionaryBlockWriter(dictionary, blockSize)
                 : new PlainBlockWriter(blockSize);
 
+            // count of values written to current block
             int inBlock = 0;
             StringColumnValues values = cursors.get();
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {

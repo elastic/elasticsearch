@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -148,7 +149,8 @@ public class InSubqueryResolver {
      */
     public static boolean hasInSubqueryInFilter(LogicalPlan plan) {
         return plan.anyMatch(
-            p -> (p instanceof Filter filter && filter.condition().anyMatch(e -> e instanceof InSubquery))
+            p -> (p instanceof Filter filter
+                && filter.condition().anyMatch(e -> e instanceof InSubquery || e instanceof MultiColumnInSubquery))
                 || (p instanceof Aggregate aggregate && hasInSubqueryInAggregateFilter(aggregate))
         );
     }
@@ -157,7 +159,7 @@ public class InSubqueryResolver {
         for (NamedExpression ne : aggregate.aggregates()) {
             if (ne instanceof Alias alias
                 && alias.child() instanceof FilteredExpression filteredExpression
-                && filteredExpression.filter().anyMatch(e -> e instanceof InSubquery)) {
+                && filteredExpression.filter().anyMatch(e -> e instanceof InSubquery || e instanceof MultiColumnInSubquery)) {
                 return true;
             }
         }
@@ -303,32 +305,28 @@ public class InSubqueryResolver {
             negated = !negated;
         }
 
+        Source source;
+        List<Attribute> leftFields;
+        LogicalPlan subqueryPlan;
         if (expr instanceof InSubquery inSubquery) {
-            Expression leftValue = inSubquery.value();
-            List<Attribute> leftFields;
-            if (leftValue instanceof Attribute leftAttr) {
-                leftFields = singletonList(leftAttr);
-            } else if (leftValue.foldable()) {
-                var syntheticAlias = new Alias(
-                    leftValue.source(),
-                    syntheticConstName(leftValue, inSubquery.subquery()),
-                    leftValue,
-                    null,
-                    true
-                );
-                syntheticEvals.add(syntheticAlias);
-                leftFields = singletonList(syntheticAlias.toAttribute());
-            } else {
-                // Non-attribute, non-foldable LHS — leave it for the verifier to surface a clear error.
-                return false;
-            }
-
-            LogicalPlan subquery = resolveNestedInSubqueries(inSubquery.subquery());
-            JoinConfig config = new JoinConfig(negated ? JoinTypes.ANTI : JoinTypes.SEMI, leftFields, emptyList(), null);
-            semiOrAntiJoins.add(new SemiOrAntiJoinSpec(inSubquery.source(), subquery, config, negated));
-            return true;
+            leftFields = resolveSingleColumn(inSubquery.value(), inSubquery.subquery(), syntheticEvals);
+            source = inSubquery.source();
+            subqueryPlan = inSubquery.subquery();
+        } else if (expr instanceof MultiColumnInSubquery mcs) {
+            leftFields = resolveMultiColumn(mcs.values(), mcs.subquery(), syntheticEvals);
+            source = mcs.source();
+            subqueryPlan = mcs.subquery();
+        } else {
+            return false;
         }
-        return false;
+        if (leftFields == null) {
+            // Non-attribute, non-foldable LHS — leave it for the verifier to surface a clear error.
+            return false;
+        }
+        LogicalPlan subquery = resolveNestedInSubqueries(subqueryPlan);
+        JoinConfig config = new JoinConfig(negated ? JoinTypes.ANTI : JoinTypes.SEMI, leftFields, emptyList(), null);
+        semiOrAntiJoins.add(new SemiOrAntiJoinSpec(source, subquery, config, negated));
+        return true;
     }
 
     /**
@@ -364,6 +362,9 @@ public class InSubqueryResolver {
         }
         if (expr instanceof InSubquery inSubquery) {
             return rewriteAsMarkJoin(inSubquery, joins, syntheticEvals);
+        }
+        if (expr instanceof MultiColumnInSubquery mcs) {
+            return rewriteAsMarkJoin(mcs, joins, syntheticEvals);
         }
         if (isEligibleFunctionForInSubqueryRewrite(expr)) {
             List<Expression> children = expr.children();
@@ -405,23 +406,15 @@ public class InSubqueryResolver {
      * nor foldable — those cases are surfaced as errors by {@link #verify}.
      */
     private static Expression rewriteAsMarkJoin(InSubquery inSubquery, List<MarkJoinSpec> joins, List<Alias> syntheticEvals) {
-        Expression leftValue = inSubquery.value();
-        List<Attribute> leftFields;
-        if (leftValue instanceof Attribute leftAttr) {
-            leftFields = singletonList(leftAttr);
-        } else if (leftValue.foldable()) {
-            var syntheticAlias = new Alias(leftValue.source(), syntheticConstName(leftValue, inSubquery.subquery()), leftValue, null, true);
-            syntheticEvals.add(syntheticAlias);
-            leftFields = singletonList(syntheticAlias.toAttribute());
-        } else {
+        List<Attribute> leftFields = resolveSingleColumn(inSubquery.value(), inSubquery.subquery(), syntheticEvals);
+        if (leftFields == null) {
             return inSubquery;
         }
-
         LogicalPlan subquery = resolveNestedInSubqueries(inSubquery.subquery());
         Attribute markAttribute = new ReferenceAttribute(
             inSubquery.source(),
             null,
-            syntheticMarkName(inSubquery),
+            syntheticMarkName(inSubquery, joins.size()),
             DataType.BOOLEAN,
             Nullability.TRUE,
             new NameId(),
@@ -433,26 +426,120 @@ public class InSubqueryResolver {
     }
 
     /**
-     * Recursively transforms any nested IN/NOT IN subquery expressions into SemiJoin/AntiJoin/MarkJoin nodes. This is needed because
-     * nested subquery plans are embedded inside InSubquery expressions and not reachable by the top-level traversal.
+     * Allocates a synthetic boolean mark attribute for {@code mcs}, records a
+     * {@link MarkJoinSpec}, and returns the mark attribute as the replacement expression.
+     * Returns the original {@link MultiColumnInSubquery} unchanged when any LHS value is neither
+     * an attribute nor foldable — those cases are surfaced as errors by {@link #verify}.
+     */
+    private static Expression rewriteAsMarkJoin(MultiColumnInSubquery mcs, List<MarkJoinSpec> joins, List<Alias> syntheticEvals) {
+        List<Attribute> leftFields = resolveMultiColumn(mcs.values(), mcs.subquery(), syntheticEvals);
+        if (leftFields == null) {
+            return mcs;
+        }
+        LogicalPlan subquery = resolveNestedInSubqueries(mcs.subquery());
+        Attribute markAttribute = new ReferenceAttribute(
+            mcs.source(),
+            null,
+            syntheticMarkName(mcs, joins.size()),
+            DataType.BOOLEAN,
+            Nullability.TRUE,
+            new NameId(),
+            true
+        );
+        JoinConfig config = new JoinConfig(JoinTypes.MARK, leftFields, emptyList(), null);
+        joins.add(new MarkJoinSpec(mcs.source(), subquery, config, markAttribute));
+        return markAttribute;
+    }
+
+    /**
+     * Recursively transforms a subquery plan, converting any nested IN/NOT IN subquery expressions
+     * into SemiJoin/AntiJoin/MarkJoin nodes. This is needed because nested subquery plans are
+     * embedded inside InSubquery expressions and not reachable by the top-level transformUp.
      */
     private static LogicalPlan resolveNestedInSubqueries(LogicalPlan subqueryPlan) {
         return resolveInSubqueries(subqueryPlan);
     }
 
     /**
-     * Generates a unique synthetic name for a constant on the left-hand side of an IN subquery.
+     * Resolves the left-hand side value of an {@link InSubquery} into a singleton {@link Attribute} list suitable for a join config.
+     * A foldable value is materialized as a synthetic {@link Alias} appended to {@code syntheticEvals}. Returns {@code null} if the value
+     * is neither an attribute nor foldable (i.e. unsupported — left for the verifier to reject).
      */
-    private static String syntheticConstName(Expression value, LogicalPlan subquery) {
-        return "$$in_subquery_const$" + value.hashCode() + "$" + subquery.hashCode();
+    private static List<Attribute> resolveSingleColumn(Expression value, LogicalPlan subquery, List<Alias> syntheticEvals) {
+        if (value instanceof Attribute attr) {
+            return singletonList(attr);
+        } else if (value.foldable()) {
+            var syntheticAlias = new Alias(value.source(), syntheticConstName(value, subquery, syntheticEvals.size()), value, null, true);
+            syntheticEvals.add(syntheticAlias);
+            return singletonList(syntheticAlias.toAttribute());
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Resolves the left-hand side values of a {@link MultiColumnInSubquery} into a list of {@link Attribute}s suitable for a join config.
+     * Foldable values are materialized as synthetic, {@link Alias}es appended to {@code syntheticEvals}. Returns {@code null} if any value
+     * is neither an attribute nor foldable (i.e. unsupported — left for the verifier to reject).
+     */
+    private static List<Attribute> resolveMultiColumn(List<Expression> values, LogicalPlan subquery, List<Alias> syntheticEvals) {
+        List<Attribute> leftFields = new ArrayList<>(values.size());
+        for (Expression value : values) {
+            if (value instanceof Attribute attr) {
+                leftFields.add(attr);
+            } else if (value.foldable()) {
+                var syntheticAlias = new Alias(
+                    value.source(),
+                    syntheticConstName(value, subquery, syntheticEvals.size()),
+                    value,
+                    null,
+                    true
+                );
+                syntheticEvals.add(syntheticAlias);
+                leftFields.add(syntheticAlias.toAttribute());
+            } else {
+                return null;
+            }
+        }
+        return leftFields;
+    }
+
+    /**
+     * Generates a unique synthetic name for a constant on the left-hand side of an IN subquery. The value and subquery hashes alone
+     * cannot guarantee uniqueness: equal constants compared against the same subquery hash identically (e.g. the repeated {@code 1}s
+     * in {@code WHERE (1, 1) IN (subquery)}, or the same {@code IN} predicate appearing twice in one {@code WHERE}). All synthetic
+     * aliases of one {@link Filter} rewrite are materialized in a single {@link Eval}, whose output merging silently drops earlier
+     * same-named fields — which would orphan the join key referencing the dropped alias — so {@code ordinal} (the alias's position in
+     * the per-rewrite {@code syntheticEvals} list) is appended to keep the names unique.
+     */
+    private static String syntheticConstName(Expression value, LogicalPlan subquery, int ordinal) {
+        return "$$in_subquery_const$" + value.hashCode() + "$" + subquery.hashCode() + "$" + ordinal;
+    }
+
+    /**
+     * Generates a unique synthetic name for the boolean mark attribute produced by a {@link MarkJoin} in place of an {@link InSubquery}.
+     * <p>
+     * Value and subquery hashes alone cannot guarantee uniqueness: the same {@link InSubquery} appearing twice in one expression
+     * (e.g. {@code x IN (sub) OR x IN (sub)}) produces two nodes with identical hashes. The {@code ordinal} (the join's position in the
+     * per-rewrite join list at the time of creation) makes each name unique, mirroring the pattern used by {@link #syntheticConstName}.
+     * TODO; consider a deduplication optimization as a future enhancement, so that {@code x IN (sub) OR x IN (sub)} produces only one
+     *  join and one mark attribute.
+     */
+    private static String syntheticMarkName(InSubquery inSubquery, int ordinal) {
+        return "$$in_subquery_mark$" + inSubquery.value().hashCode() + "$" + inSubquery.subquery().hashCode() + "$" + ordinal;
     }
 
     /**
      * Generates a unique synthetic name for the boolean mark attribute produced by a
-     * {@link MarkJoin} in place of an {@link InSubquery}.
+     * {@link MarkJoin} in place of a {@link MultiColumnInSubquery}.
+     * <p>
+     * The {@code ordinal} disambiguates the case where the same predicate appears twice in one expression, for the same reason as the
+     * single-column overload.
+     * TODO: consider a deduplication optimization as a future enhancement, so that {@code (x, y) IN (sub) OR (x, y) IN (sub)} produces
+     *  only one join and one mark attribute.
      */
-    private static String syntheticMarkName(InSubquery inSubquery) {
-        return "$$in_subquery_mark$" + inSubquery.value().hashCode() + "$" + inSubquery.subquery().hashCode();
+    private static String syntheticMarkName(MultiColumnInSubquery mcs, int ordinal) {
+        return "$$in_subquery_mark$" + mcs.hashCode() + "$" + ordinal;
     }
 
     public static void verify(LogicalPlan plan) {
@@ -472,13 +559,7 @@ public class InSubqueryResolver {
                 inlineStatsAggregates.add(inlineStats.aggregate());
             }
             if (p instanceof Filter filter) {
-                checkCondition(
-                    filter.condition(),
-                    null,
-                    failures,
-                    "Complicated IN subquery is not yet supported in the WHERE command [{}]",
-                    filter.sourceText()
-                );
+                checkInSubqueryExpression(filter, filter.condition(), null, failures);
             } else if (p instanceof Aggregate aggregate && inlineStatsAggregates.contains(aggregate) == false) {
                 checkInAggregate(aggregate, failures);
             } else {
@@ -486,15 +567,19 @@ public class InSubqueryResolver {
                     InSubquery.class,
                     inSub -> failures.add(fail(inSub, "IN subquery is not supported in [{}]", p.sourceText()))
                 );
+                p.forEachExpression(
+                    MultiColumnInSubquery.class,
+                    mcs -> failures.add(fail(mcs, "IN subquery is not supported in [{}]", p.sourceText()))
+                );
             }
         });
     }
 
     /**
      * Validates IN subquery usage inside a {@code STATS} {@link Aggregate}: only the {@link FilteredExpression} filters (the
-     * per-aggregate {@code WHERE} clauses) support IN subqueries — those are walked with {@link #checkCondition} to surface leftovers
-     * that {@link #resolveInSubqueryInAggregate} could not rewrite. {@link InSubquery} anywhere else (groupings, aggregate function
-     * arguments) keeps the blanket rejection.
+     * per-aggregate {@code WHERE} clauses) support IN subqueries — those are walked with {@link #checkInSubqueryExpression} to surface
+     * leftovers that {@link #resolveInSubqueryInAggregate} could not rewrite. {@link InSubquery} anywhere else (groupings, aggregate
+     * function arguments) keeps the blanket rejection.
      */
     private static void checkInAggregate(Aggregate aggregate, Failures failures) {
         for (Expression grouping : aggregate.groupings()) {
@@ -510,13 +595,7 @@ public class InSubqueryResolver {
                         InSubquery.class,
                         inSub -> failures.add(fail(inSub, "IN subquery is not supported in [{}]", aggregate.sourceText()))
                     );
-                checkCondition(
-                    filteredExpression.filter(),
-                    null,
-                    failures,
-                    "Complicated IN subquery is not yet supported in the aggregate WHERE clause [{}]",
-                    filteredExpression.sourceText()
-                );
+                checkInSubqueryExpression(aggregate, filteredExpression.filter(), null, failures);
             } else {
                 ne.forEachDown(
                     InSubquery.class,
@@ -527,29 +606,20 @@ public class InSubqueryResolver {
     }
 
     /**
-     * Walks a {@code WHERE} condition tree (a {@link Filter} condition or a {@code STATS} per-aggregate filter) to validate IN subquery
-     * usage that the {@link InSubqueryResolver} could not rewrite into a {@link SemiJoin}/{@link AntiJoin}/{@link MarkJoin}.
-     * <p>
-     * If the IN subquery sits at the top of the boolean condition (i.e. only {@link And}, {@link Or}, {@link Not}, {@link IsNull},
-     * {@link IsNotNull}, {@code CASE} or {@code COALESCE} above it) the resolver normally rewrites it; if one survives here it means
+     * If the IN subquery sits at the top of the boolean condition (i.e. only {@code And}, {@code Or}, {@code Not}, {@code IsNull},
+     * {@code IsNotNull}, {@code CASE} or {@code COALESCE} above it) the resolver normally rewrites it; if one survives here it means
      * the LHS of the subquery is not yet supported (e.g. a non-attribute, non-foldable expression like {@code abs(x)}). In that case we
      * report {@code complicatedMessage} with {@code sourceText} (the entire {@code WHERE} clause or the aggregate's filtered expression).
      * <p>
      * Otherwise (the IN subquery is nested inside an expression that is not in the supported allowlist), we report the immediately
      * enclosing expression.
      */
-    private static void checkCondition(
-        Expression expr,
-        Expression outerExpr,
-        Failures failures,
-        String complicatedMessage,
-        String sourceText
-    ) {
-        if (expr instanceof InSubquery in) {
+    private static void checkInSubqueryExpression(LogicalPlan plan, Expression expr, Expression outerExpr, Failures failures) {
+        if (expr instanceof InSubquery || expr instanceof MultiColumnInSubquery) {
             if (outerExpr == null) {
-                failures.add(fail(in, complicatedMessage, sourceText));
+                failures.add(fail(expr, "Complicated IN subquery is not yet supported in {} [{}]", plan.nodeName(), plan.sourceText()));
             } else {
-                failures.add(fail(in, "IN subquery is not supported within other expressions [{}]", outerExpr.sourceText()));
+                failures.add(fail(expr, "IN subquery is not supported within other expressions [{}]", outerExpr.sourceText()));
             }
         }
         Expression newOuterExpr = outerExpr == null
@@ -558,7 +628,7 @@ public class InSubqueryResolver {
             && expr instanceof Not == false
             && isEligibleFunctionForInSubqueryRewrite(expr) == false ? expr : outerExpr;
         for (Expression child : expr.children()) {
-            checkCondition(child, newOuterExpr, failures, complicatedMessage, sourceText);
+            checkInSubqueryExpression(plan, child, newOuterExpr, failures);
         }
     }
 }

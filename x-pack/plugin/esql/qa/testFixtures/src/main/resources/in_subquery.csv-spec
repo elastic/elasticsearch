@@ -4436,3 +4436,56 @@ c:long | total:long | _fork:keyword
 3      | 100        | fork1
 3      | 100        | fork2
 ;
+
+statsWhereInSubqueryWithRowAsSource
+required_capability: subquery_with_row
+required_capability: stats_where_in_subquery
+
+FROM employees
+| STATS c = COUNT(*) WHERE emp_no IN (ROW x = 10001 | KEEP x)
+;
+
+c:long
+1
+;
+
+rowOuterWithRowInSubqueryInStatsWhere
+required_capability: subquery_with_row
+required_capability: stats_where_in_subquery
+
+ROW x = 1
+| STATS c = COUNT(*) WHERE x IN (ROW y = 1 | KEEP y)
+;
+
+c:long
+1
+;
+
+statsWhereInSubqueryWithRowAsSourceNestedInFunctions
+required_capability: subquery_with_row
+required_capability: stats_where_in_subquery
+
+FROM employees
+| STATS c1 = COUNT(*) WHERE CASE(emp_no IN (ROW x = 10001 | KEEP x), true, false),
+        c2 = COUNT(*) WHERE COALESCE(emp_no IN (ROW x = 10002 | KEEP x), false),
+        c3 = COUNT(*) WHERE (emp_no IN (ROW x = 10003 | KEEP x)) IS NOT NULL,
+        c4 = COUNT(*) WHERE (emp_no IN (ROW x = 99999 | KEEP x)) IS NULL,
+        c5 = COUNT(*) WHERE (emp_no IN (ROW x = 10004 | KEEP x)) IS NULL
+;
+
+c1:long | c2:long | c3:long | c4:long | c5:long
+1       | 1       | 100     | 0       | 0
+;
+
+statsWhereInSubqueryWithRowAsSourceAndNull
+required_capability: subquery_with_row
+required_capability: stats_where_in_subquery
+
+ROW x = TO_INTEGER(null)
+| STATS c1 = COUNT(*) WHERE (x IN (ROW y = 1 | KEEP y)) IS NULL,
+        c2 = COUNT(*) WHERE (x IN (ROW y = 1 | KEEP y)) IS NOT NULL
+;
+
+c1:long | c2:long
+1       | 0
+;

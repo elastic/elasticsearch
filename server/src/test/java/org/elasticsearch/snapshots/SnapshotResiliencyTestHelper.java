@@ -659,7 +659,7 @@ public class SnapshotResiliencyTestHelper {
                     projectResolver,
                     clusterService,
                     RecoverySchedulingListener.NOOP,
-                    new RecoveryGateMonitor(List::of, threadPool)
+                    new RecoveryGateMonitor(List::of, threadPool, clusterService.getClusterSettings())
                 );
 
                 indicesService = new IndicesServiceBuilder().settings(settings)
@@ -909,7 +909,8 @@ public class SnapshotResiliencyTestHelper {
                     indexingMemoryLimits,
                     EmptySystemIndices.INSTANCE,
                     projectResolver,
-                    DocumentParsingProvider.EMPTY_INSTANCE
+                    DocumentParsingProvider.EMPTY_INSTANCE,
+                    bigArrays
                 );
                 actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
                 final RestoreService restoreService = new RestoreService(

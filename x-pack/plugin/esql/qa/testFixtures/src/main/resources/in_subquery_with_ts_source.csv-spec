@@ -1737,7 +1737,6 @@ qa
 ;
 
 inSubqueryInStatsWhereWithMainQueryTS
-skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -1761,7 +1760,6 @@ null           | staging
 ;
 
 notInSubqueryInStatsWhereWithMainQueryTS
-skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -1785,7 +1783,6 @@ null           | qa
 ;
 
 inSubqueryInStatsWhereWithMultipleAggsMainTS
-skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -1810,7 +1807,6 @@ null        | 7403       | staging
 ;
 
 inSubqueryAndEqualInStatsWhereWithMainQueryTS
-skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -1835,7 +1831,6 @@ null           | staging
 ;
 
 inSubqueryReferencingFromSubqueryInStatsWhereWithMainQueryTS
-skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: ts_command_v0
@@ -1889,7 +1884,6 @@ null           | prod
 ;
 
 inSubqueryInStatsWhereWithoutGroupingWithMainQueryTS
-skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -1909,7 +1903,6 @@ max_bytes:long
 ;
 
 inSubqueryInStatsWhereWithRateWithMainQueryTS
-skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -1951,7 +1944,6 @@ max_bytes:long | cluster:keyword
 ;
 
 disjunctiveInSubqueryInStatsWhereWithMainQueryTS
-skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -1981,7 +1973,6 @@ null           | prod
 ;
 
 disjunctiveInAndNotInSubqueryInStatsWhereWithMainQueryTS
-skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -2011,7 +2002,6 @@ null           | prod
 ;
 
 inSubqueryOREqualInSubqueryInStatsWhereWithMainQueryTS
-skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -2070,7 +2060,6 @@ null           | staging
 ;
 
 inSubqueryInStatsWhereBeforeInSubqueryOrGreaterThanWithMainQueryTS
-skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -2132,7 +2121,6 @@ null            | prod
 ;
 
 inSubqueryInStatsWhereWithRateBeforeInSubqueryOrGreaterThanWithMainQueryTS
-skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -2162,7 +2150,6 @@ max_rate:double | cluster:keyword
 ;
 
 whereInSubqueryReferencingTSSubqueryWithInSubqueryInStatsWhere
-skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -2192,7 +2179,6 @@ cnt:long
 ;
 
 inSubqueryWithTSSourceInStatsWhereWithMainQueryTS
-skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -2314,7 +2300,6 @@ c:long | total:long
 ;
 
 forkAfterStatsWhereInSubqueryMainTS
-skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: fork_v9
@@ -2339,4 +2324,95 @@ max_bytes:long | cluster:keyword | _fork:keyword
 10277          | prod            | fork1
 10797          | qa              | fork1
 null           | staging         | fork2
+;
+
+statsWhereInSubqueryWithTsSourceAndTimeSeriesAgg
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_ts
+required_capability: ts_command_v0
+required_capability: stats_where_in_subquery
+
+FROM employees
+| EVAL cluster = CASE(gender == "M", "prod", "qa")
+| STATS c = COUNT(*) WHERE cluster IN (TS k8s
+                                       | STATS max(rate(network.total_bytes_in)) BY cluster
+                                       | KEEP cluster)
+;
+
+c:long
+100
+;
+
+statsWhereInSubqueryWithTsSourceAndTimeSeriesAggNested
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_ts
+required_capability: ts_command_v0
+required_capability: stats_where_in_subquery
+
+FROM employees
+| EVAL cluster = CASE(gender == "M", "prod", "qa")
+| STATS c1 = COUNT(*) WHERE CASE(cluster IN (TS k8s | STATS max(rate(network.total_bytes_in)) BY cluster | KEEP cluster), true, false),
+        c2 = COUNT(*) WHERE COALESCE(cluster IN (TS k8s | STATS max(rate(network.total_bytes_in)) BY cluster | KEEP cluster), false),
+        c3 = COUNT(*) WHERE (cluster IN (TS k8s | STATS max(rate(network.total_bytes_in)) BY cluster | KEEP cluster)) IS NOT NULL,
+        c4 = COUNT(*) WHERE (cluster IN (TS k8s | STATS max(rate(network.total_bytes_in)) BY cluster | KEEP cluster)) IS NULL
+;
+
+c1:long | c2:long | c3:long | c4:long
+100     | 100     | 100     | 0
+;
+
+statsWhereWithTsMainAndTsSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_ts
+required_capability: ts_command_v0
+required_capability: stats_where_in_subquery
+
+TS k8s
+| STATS m = MAX(network.total_bytes_in) WHERE cluster IN (TS k8s
+                                                          | STATS max(rate(network.total_bytes_in)) BY cluster
+                                                          | KEEP cluster) 
+    BY cluster
+| SORT cluster
+| KEEP m, cluster
+;
+
+m:long | cluster:keyword
+10277  | prod
+10797  | qa
+7403   | staging
+;
+
+statsWhereWithTsMainAggAfterAndTsSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_ts
+required_capability: ts_command_v0
+required_capability: stats_where_in_subquery
+
+TS k8s
+| STATS m = MAX(network.total_bytes_in) WHERE cluster IN (TS k8s
+                                                          | STATS max(rate(network.total_bytes_in)) BY cluster
+                                                          | KEEP cluster)
+    BY cluster
+| STATS total_max = SUM(m)
+;
+
+total_max:long
+28477
+;
+
+statsWhereWithTsMainAggBeforeAndTsSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_ts
+required_capability: ts_command_v0
+required_capability: stats_where_in_subquery
+
+TS k8s
+| STATS m1 = MAX(network.total_bytes_in) BY cluster
+| STATS m2 = SUM(m1) WHERE cluster IN (TS k8s
+                                       | STATS max(rate(network.total_bytes_in)) BY cluster
+                                       | KEEP cluster)
+;
+
+m2:long
+28477
 ;

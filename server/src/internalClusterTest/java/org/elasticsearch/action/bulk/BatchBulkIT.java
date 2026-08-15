@@ -18,15 +18,19 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.sourcebatch.LeafSink;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -44,6 +48,7 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2, numClientNodes = 1)
@@ -1872,5 +1877,348 @@ public class BatchBulkIT extends ESIntegTestCase {
         var getResponse = client().get(new GetRequest(index).id("doc-1")).actionGet();
         assertTrue(getResponse.isExists());
         assertThat("first value must appear in source", getResponse.getSourceAsMap().get("field"), equalTo("val1"));
+    }
+
+    /**
+     * Verifies the pre-built-batch path end-to-end for a single-shard index. The test builds an
+     * {@link EscfEncoder} batch client-side, attaches it to the {@link BulkRequest} via
+     * {@link BulkRequest#setPreBuiltBatches}, sends sourceless {@link IndexRequest}s, and asserts
+     * that the batch path ran on the primary shard via the {@link ShardBatchIndexer} TRACE log.
+     */
+    public void testPreBuiltBatchSingleShard() throws IOException {
+        String index = "test-prebuilt-single-shard";
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("host").field("type", "keyword").endObject();
+                    mapping.startObject("value").field("type", "long").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        String coordinatingNode = findCoordinatingNode();
+        int numDocs = randomIntBetween(5, 20);
+
+        // Build the ESCF batch from JSON documents. One batch for all docs — the coordinator will
+        // scatter it (single shard means no actual scatter, just a passthrough).
+        SourceBatch batch;
+        try (EscfEncoder encoder = new EscfEncoder()) {
+            for (int i = 0; i < numDocs; i++) {
+                XContentBuilder doc = JsonXContent.contentBuilder();
+                doc.startObject();
+                doc.field("host", "host-" + (i % 3));
+                doc.field("value", (long) i);
+                doc.endObject();
+                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON, LeafSink.NO_OP);
+                encoder.commitScratchTo(0);
+            }
+            batch = encoder.buildPartition(0);
+        }
+
+        // Build sourceless IndexRequests carrying row references into the pre-built batch.
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            IndexRequest ir = new IndexRequest(index).id("doc-" + i).opType(DocWriteRequest.OpType.INDEX);
+            ir.indexSource().setSourceRow(batch, i, XContentType.JSON);
+            bulkRequest.add(ir);
+        }
+        bulkRequest.setPreBuiltBatches(Map.of(index, batch));
+
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "batch indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+            BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+            assertNoFailures(bulkResponse);
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        refresh(index);
+        assertResponse(prepareSearch(index).setTrackTotalHits(true), response -> {
+            assertNoFailures(response);
+            assertThat(response.getHits().getTotalHits().value(), equalTo((long) numDocs));
+        });
+        // Spot-check source reconstruction for one doc.
+        var getResponse = client().get(new GetRequest(index).id("doc-0")).actionGet();
+        assertTrue(getResponse.isExists());
+        assertThat(getResponse.getSourceAsMap().get("host"), equalTo("host-0"));
+        assertThat(getResponse.getSourceAsMap().get("value"), equalTo(0));
+    }
+
+    /**
+     * Verifies the pre-built-batch path for a multi-shard index. The test supplies one whole-index
+     * batch; the coordinator scatters it into per-shard sub-batches. The MockLog assertion confirms
+     * the batch path ran on at least one primary shard.
+     */
+    public void testPreBuiltBatchMultiShard() throws IOException {
+        String index = "test-prebuilt-multi-shard";
+        int numShards = 3;
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("host").field("type", "keyword").endObject();
+                    mapping.startObject("value").field("type", "long").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", numShards)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        String coordinatingNode = findCoordinatingNode();
+        int numDocs = 30;
+
+        // Build a single whole-index batch. Row indices are assigned sequentially.
+        SourceBatch batch;
+        try (EscfEncoder encoder = new EscfEncoder()) {
+            for (int i = 0; i < numDocs; i++) {
+                XContentBuilder doc = JsonXContent.contentBuilder();
+                doc.startObject();
+                doc.field("host", "host-" + (i % 5));
+                doc.field("value", (long) i);
+                doc.endObject();
+                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON, LeafSink.NO_OP);
+                encoder.commitScratchTo(0); // single whole-index partition
+            }
+            batch = encoder.buildPartition(0);
+        }
+
+        // Build sourceless IndexRequests referencing rows 0..numDocs-1 in the whole-index batch.
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            IndexRequest ir = new IndexRequest(index).id("doc-" + i).opType(DocWriteRequest.OpType.INDEX);
+            ir.indexSource().setSourceRow(batch, i, XContentType.JSON);
+            bulkRequest.add(ir);
+        }
+        bulkRequest.setPreBuiltBatches(Map.of(index, batch));
+
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "batch indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+            BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+            assertNoFailures(bulkResponse);
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        refresh(index);
+        assertResponse(prepareSearch(index).setTrackTotalHits(true), response -> {
+            assertNoFailures(response);
+            assertThat(response.getHits().getTotalHits().value(), equalTo((long) numDocs));
+        });
+    }
+
+    /**
+     * Verifies that a pre-built batch attached to a request targeting an index whose routing
+     * requires source parsing fails fast with a clear per-item error rather than blowing up inside
+     * the encoder on empty bytes.
+     *
+     * <p>The {@code IllegalArgumentException} thrown by {@link SourceBatchSharder#checkRoutable} is
+     * caught by the routing loop and converted into a per-item bulk failure (identical to how
+     * parse errors from inline source are handled). The bulk call itself succeeds; the caller must
+     * inspect {@link BulkResponse#hasFailures()} and the individual item errors.
+     */
+    public void testPreBuiltBatchRejectsSourceExtractedRouting() throws IOException {
+        String index = "test-prebuilt-routing-path";
+
+        // TIME_SERIES mode is required for routing_path (ForRoutingPath / ForIndexDimensions).
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_data_stream_timestamp").field("enabled", true).endObject();
+            mapping.startObject("properties");
+            {
+                mapping.startObject("@timestamp").field("type", "date").endObject();
+                mapping.startObject("service_name").field("type", "keyword").field("time_series_dimension", true).endObject();
+                mapping.startObject("value").field("type", "long").endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                        .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "service_name")
+                        .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2024-01-01T00:00:00Z")
+                        .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2030-01-01T00:00:00Z")
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        String coordinatingNode = findCoordinatingNode();
+        int numDocs = 3;
+
+        SourceBatch batch;
+        try (EscfEncoder encoder = new EscfEncoder()) {
+            for (int i = 0; i < numDocs; i++) {
+                XContentBuilder doc = JsonXContent.contentBuilder();
+                doc.startObject();
+                doc.field("@timestamp", "2025-01-01T00:00:00Z");
+                doc.field("service_name", "svc-" + i);
+                doc.field("value", (long) i);
+                doc.endObject();
+                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON, LeafSink.NO_OP);
+                encoder.commitScratchTo(0);
+            }
+            batch = encoder.buildPartition(0);
+        }
+
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            IndexRequest ir = new IndexRequest(index).opType(DocWriteRequest.OpType.CREATE);
+            ir.indexSource().setSourceRow(batch, i, XContentType.JSON);
+            bulkRequest.add(ir);
+        }
+        bulkRequest.setPreBuiltBatches(Map.of(index, batch));
+
+        // The IllegalArgumentException from checkRoutable is caught and turned into per-item failures;
+        // the bulk request itself does not throw.
+        BulkResponse response = client(coordinatingNode).bulk(bulkRequest).actionGet();
+        assertTrue("expected bulk failures for source-extracted routing", response.hasFailures());
+        for (BulkItemResponse item : response.getItems()) {
+            assertTrue("item " + item.getItemId() + " must fail", item.isFailed());
+            assertThat(item.getFailureMessage(), containsString("routes by extracting fields from _source"));
+        }
+    }
+
+    /**
+     * Verifies that an item in a pre-built-batch index without a source-row reference fails with a
+     * clear per-item error rather than routing to an empty batch position.
+     *
+     * <p>Like {@link #testPreBuiltBatchRejectsSourceExtractedRouting}, the error surfaces as a
+     * per-item bulk failure — not a top-level exception — because the routing loop converts
+     * {@code IllegalArgumentException} into item-level errors.
+     */
+    public void testPreBuiltBatchThrowsOnMissingRow() throws IOException {
+        String index = "test-prebuilt-missing-row";
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("host").field("type", "keyword").endObject();
+                    mapping.startObject("value").field("type", "long").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        String coordinatingNode = findCoordinatingNode();
+
+        SourceBatch batch;
+        try (EscfEncoder encoder = new EscfEncoder()) {
+            XContentBuilder doc = JsonXContent.contentBuilder();
+            doc.startObject();
+            doc.field("host", "host-0");
+            doc.field("value", 0L);
+            doc.endObject();
+            encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON, LeafSink.NO_OP);
+            encoder.commitScratchTo(0);
+            batch = encoder.buildPartition(0);
+        }
+
+        // Item has inline source bytes — no row reference — but we also set preBuiltBatches.
+        // The sharder should reject this item because it lacks a source-row reference.
+        // The error surfaces as a per-item failure in the BulkResponse.
+        BulkRequest bulkRequest = new BulkRequest();
+        XContentBuilder inlineDoc = JsonXContent.contentBuilder();
+        inlineDoc.startObject();
+        inlineDoc.field("host", "host-0");
+        inlineDoc.field("value", 0L);
+        inlineDoc.endObject();
+        bulkRequest.add(new IndexRequest(index).id("doc-0").opType(DocWriteRequest.OpType.INDEX).source(inlineDoc));
+        bulkRequest.setPreBuiltBatches(Map.of(index, batch));
+
+        BulkResponse response = client(coordinatingNode).bulk(bulkRequest).actionGet();
+        assertTrue("expected bulk failure for item with no source-row reference", response.hasFailures());
+        BulkItemResponse item = response.getItems()[0];
+        assertTrue(item.isFailed());
+        assertThat(item.getFailureMessage(), containsString("must carry a source-row reference"));
     }
 }

@@ -36,6 +36,7 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -95,6 +96,8 @@ public class BulkRequest extends UntypedActionRequest
     private Boolean globalRequireDatsStream;
     private boolean includeSourceOnError = true;
     private Set<String> paramsUsed = emptySet();
+    @Nullable
+    private Map<String, SourceBatch> preBuiltBatches;
 
     private long sizeInBytes = 0;
 
@@ -466,6 +469,26 @@ public class BulkRequest extends UntypedActionRequest
     public BulkRequest requireDataStream(Boolean globalRequireDatsStream) {
         this.globalRequireDatsStream = globalRequireDatsStream;
         return this;
+    }
+
+    /**
+     * Attaches pre-built ESCF batches to this request, keyed by the concrete index name each
+     * {@link IndexRequest} targets. One batch per index covers all rows for that index; the
+     * coordinator will scatter it into per-shard sub-batches. Coordinator-only — not serialized.
+     * The caller retains ownership and must close the batches after the bulk response is received.
+     *
+     * <p>TODO: implement serialization for ingest-node forwarding.
+     */
+    public void setPreBuiltBatches(Map<String, SourceBatch> batches) {
+        this.preBuiltBatches = batches;
+    }
+
+    /**
+     * Returns the pre-built ESCF batches set via {@link #setPreBuiltBatches}, or {@code null} if none were set.
+     */
+    @Nullable
+    public Map<String, SourceBatch> getPreBuiltBatches() {
+        return preBuiltBatches;
     }
 
     @Override

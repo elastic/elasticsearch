@@ -110,6 +110,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
     private final boolean clusterHasFailureStoreFeature;
     private final BulkBatchEncoders batchEncoders;
+    @Nullable
+    private final SourceBatchSharder sourceBatchSharder;
 
     BulkOperation(
         Task task,
@@ -192,13 +194,25 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         // item in this bulk is structurally batchable. Mixed bulks (UpdateRequest/DeleteRequest
         // interleaved with IndexRequests) take the inline-source path end-to-end — there is no
         // per-shard fallback that would batch the all-IndexRequest shards in a mixed bulk.
-        if (ShardBatchIndexer.BATCH_INDEXING.get(clusterService.getSettings())
-            && clusterService.state().getMinTransportVersion().supports(BulkShardRequest.BULK_SHARD_BATCH)
-            && ShardBatchIndexer.BATCH_INDEXING_FEATURE_FLAG.isEnabled()
-            && BulkBatchEncoders.isBulkBatchEligible(bulkRequest)) {
+        boolean batchIndexingSupported = ShardBatchIndexer.isBatchIndexingSupported(clusterService);
+        if (batchIndexingSupported && BulkBatchEncoders.isBulkBatchEligible(bulkRequest)) {
             batchEncoders = new BulkBatchEncoders();
         } else {
             batchEncoders = null;
+        }
+        // Pre-built batches (e.g. from an OTel producer): items carry row references rather than
+        // inline source bytes. The coordinator scatters the whole-index batch into per-shard
+        // sub-batches. If the gates are not open the batch cannot be used and there is no fallback.
+        if (bulkRequest.getPreBuiltBatches() != null) {
+            if (batchIndexingSupported == false) {
+                throw new IllegalStateException(
+                    "pre-built source batch submitted but batch indexing is not supported"
+                        + " (setting disabled, feature flag off, or mixed-version cluster)"
+                );
+            }
+            sourceBatchSharder = SourceBatchSharder.create(bulkRequest);
+        } else {
+            sourceBatchSharder = null;
         }
     }
 
@@ -353,6 +367,11 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 }
                 IndexRouting indexRouting = concreteIndices.routing(concreteIndex);
                 docWriteRequest.preRoutingProcess(indexRouting);
+                // For pre-built-batch items, verify routing can be decided without the source before
+                // we attempt to call route() (which would parse empty bytes and fail).
+                if (sourceBatchSharder != null && docWriteRequest instanceof IndexRequest ir) {
+                    sourceBatchSharder.checkRoutable(ir, concreteIndex.getName(), indexRouting);
+                }
                 int shardId;
                 if (encoders != null && encoders.disabled() == false) {
                     // The pre-scan in doRun() guarantees every item is an IndexRequest with inline
@@ -366,6 +385,11 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     shardId = docWriteRequest.route(indexRouting);
                 }
                 docWriteRequest.postRoutingProcess(indexRouting);
+                // Record routing for pre-built-batch items after postRoutingProcess so the tsid/hash
+                // side effects (if any) are visible before we store the request.
+                if (sourceBatchSharder != null && docWriteRequest instanceof IndexRequest ir) {
+                    sourceBatchSharder.recordRouting(ir, concreteIndex, shardId, project.getIndexSafe(concreteIndex).getNumberOfShards());
+                }
                 List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(
                     new ShardId(concreteIndex, shardId),
                     shard -> new ArrayList<>()
@@ -428,9 +452,33 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             return;
         }
 
-        // Build per-shard EIRF batches for shards that ended up batchable (initial-pass only). For
-        // shards marked non-batchable, no batch is produced and the items keep their inline source.
-        Map<ShardId, SourceBatch> shardBatches = batchEncoders == null ? Collections.emptyMap() : batchEncoders.finalizeBatches();
+        // Build per-shard source batches. For the inline-encoder path, batches are finalized here
+        // (rows were accumulated during routing). For the pre-built-batch path, the whole-index
+        // batch is scattered into per-shard sub-batches now. The two paths are mutually exclusive
+        // because BulkBatchEncoders.isItemBatchEligible returns false for row-bearing items.
+        Map<ShardId, SourceBatch> shardBatches;
+        if (batchEncoders != null) {
+            shardBatches = batchEncoders.finalizeBatches();
+        } else if (sourceBatchSharder != null) {
+            shardBatches = sourceBatchSharder.shardBatches();
+            // Validate that the scatter result aligns 1:1 with the items for each shard.
+            for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
+                SourceBatch shardBatch = shardBatches.get(entry.getKey());
+                if (shardBatch != null && BulkShardBatch.rowsAlignWithItems(shardBatch, entry.getValue()) == false) {
+                    throw new IllegalStateException(
+                        "scattered batch for shard ["
+                            + entry.getKey()
+                            + "] does not align with its items (batch rows: "
+                            + shardBatch.docCount()
+                            + ", items: "
+                            + entry.getValue().size()
+                            + "); this indicates a bug in the scatter logic"
+                    );
+                }
+            }
+        } else {
+            shardBatches = Collections.emptyMap();
+        }
 
         String nodeId = clusterService.localNode().getId();
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
@@ -478,6 +526,9 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             // unused partitions (those for shards that were marked non-batchable) get their pages
             // released here.
             batchEncoders.close();
+        }
+        if (sourceBatchSharder != null) {
+            sourceBatchSharder.close();
         }
     }
 
@@ -727,8 +778,14 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         // Convert the document into a failure document
         IndexRequest failureStoreRequest;
         try {
+            // If the original request carries only a row reference (no inline bytes), materialize
+            // the source now so that transformFailedRequest can read the document content.
+            IndexRequest writeRequest = TransportBulkAction.getIndexWriteRequest(request.request());
+            if (writeRequest != null && writeRequest.indexSource().hasSourceRow()) {
+                writeRequest.indexSource().ensureInlineSource();
+            }
             failureStoreRequest = failureStoreDocumentConverter.transformFailedRequest(
-                TransportBulkAction.getIndexWriteRequest(request.request()),
+                writeRequest,
                 cause,
                 failureStoreReference,
                 threadPool::absoluteTimeInMillis

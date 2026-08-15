@@ -953,3 +953,6 @@ tests:
 - class: org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponseTests
   method: testSerialization
   issue: https://github.com/elastic/elasticsearch/issues/156848
+- class: org.elasticsearch.xpack.core.transform.action.PreviewTransformActionRequestTests
+  method: testCloudCredentialRoundTripPreservesValue
+  issue: https://github.com/elastic/elasticsearch/issues/156850

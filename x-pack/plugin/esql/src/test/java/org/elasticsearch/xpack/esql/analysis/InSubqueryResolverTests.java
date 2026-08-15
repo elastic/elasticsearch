@@ -1840,6 +1840,25 @@ public class InSubqueryResolverTests extends ESTestCase {
         assertEquals(outer.config().leftFields().get(0).id(), eval.fields().get(1).id());
     }
 
+    /**
+     * {@code WHERE x IN (FROM sub) OR x IN (FROM sub)}: the same {@link InSubquery} predicate appearing twice in one OR
+     * produces two distinct mark attribute names. Without an ordinal in {@code syntheticMarkName} both marks would share
+     * a name (differing only by {@link NameId}), making EXPLAIN output misleading.
+     */
+    public void testDuplicateInSubqueryInOrGetsDistinctMarkNames() {
+        LogicalPlan plan = resolve("FROM main | WHERE x IN (FROM sub) OR x IN (FROM sub)");
+        Filter filter = as(plan, Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        Attribute leftMark = as(or.left(), Attribute.class);
+        Attribute rightMark = as(or.right(), Attribute.class);
+        assertNotSameValue(leftMark.name(), rightMark.name());
+        MarkJoin outer = as(filter.child(), MarkJoin.class);
+        assertEquals(rightMark.id(), outer.markAttribute().id());
+        MarkJoin inner = as(outer.left(), MarkJoin.class);
+        assertEquals(leftMark.id(), inner.markAttribute().id());
+        assertEquals("main", as(inner.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
     // ---- positive: EVAL IN subquery → MarkJoin ----
 
     /**
@@ -2085,6 +2104,25 @@ public class InSubqueryResolverTests extends ESTestCase {
 
         assertEquals(xMark.id(), as(or.left(), Attribute.class).id());
         assertEquals(yMark.id(), as(or.right(), Attribute.class).id());
+        assertEquals("main", as(innerJoin.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL z = x IN (FROM sub) OR x IN (FROM sub)}: the same {@link InSubquery} predicate appearing twice in one
+     * EVAL field produces two MarkJoins with distinct mark attribute names. Mirrors
+     * {@link #testDuplicateInSubqueryInOrGetsDistinctMarkNames} for the EVAL context.
+     */
+    public void testDuplicateInSubqueryInEvalGetsDistinctMarkNames() {
+        LogicalPlan plan = resolve("FROM main | EVAL z = x IN (FROM sub) OR x IN (FROM sub)");
+        Eval eval = as(plan, Eval.class);
+        Or or = as(eval.fields().get(0).child(), Or.class);
+        Attribute leftMark = as(or.left(), Attribute.class);
+        Attribute rightMark = as(or.right(), Attribute.class);
+        assertNotSameValue(leftMark.name(), rightMark.name());
+        MarkJoin outerJoin = as(eval.child(), MarkJoin.class);
+        assertEquals(rightMark.id(), outerJoin.markAttribute().id());
+        MarkJoin innerJoin = as(outerJoin.left(), MarkJoin.class);
+        assertEquals(leftMark.id(), innerJoin.markAttribute().id());
         assertEquals("main", as(innerJoin.left(), UnresolvedRelation.class).indexPattern().indexPattern());
     }
 

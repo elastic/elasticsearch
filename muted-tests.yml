@@ -966,3 +966,6 @@ tests:
 - class: org.elasticsearch.common.util.BigArraysTests
   method: testEstimatedBytesSameAsActualBytes
   issue: https://github.com/elastic/elasticsearch/issues/156854
+- class: org.elasticsearch.repositories.RepositoriesServiceTests
+  method: testRegisterRepositorySuccessAfterCreationFailed
+  issue: https://github.com/elastic/elasticsearch/issues/156855

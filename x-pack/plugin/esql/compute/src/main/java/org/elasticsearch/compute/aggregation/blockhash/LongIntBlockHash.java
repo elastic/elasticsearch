@@ -93,7 +93,7 @@ public final class LongIntBlockHash extends BlockHash {
             final int batchSize = Math.min(batchIds.length, position - offset);
             longVector.copyTo(offset, batchKeys1, 0, batchSize);
             for (int i = 0; i < batchSize; i++) {
-                batchKeys2[i] = intVector.getInt(offset + i);
+                batchKeys2[i] = intVector.getInt(offset + i) & WIDEN;
             }
             hash.bulkAdd(batchKeys1, batchKeys2, batchIds, batchSize);
             try (var groupIds = blockFactory.newIntArrayVector(batchIds, batchSize)) {
@@ -112,7 +112,7 @@ public final class LongIntBlockHash extends BlockHash {
             try (var groupIdsBuilder = blockFactory.newIntVectorFixedBuilder(batchSize)) {
                 for (int i = 0; i < batchSize; i++) {
                     long longKey = longVector.getLong(offset + i);
-                    int intValue = intVector.getInt(offset + i);
+                    long intValue = intVector.getInt(offset + i) & WIDEN;
                     long ord = hashOrdToGroup(hash.add(longKey, intValue));
                     groupIdsBuilder.appendInt(i, Math.toIntExact(ord));
                 }
@@ -126,6 +126,7 @@ public final class LongIntBlockHash extends BlockHash {
 
     static final long LONG_NULL_MASK = 0x00F0_0000_0000_0000L;
     static final long INT_NULL_MASK = 0x000F_0000_0000_0000L;
+    static final long WIDEN = 0xFFFFFFFFL;
 
     private class AddBlockWork extends AddPage {
         final LongBlock longBlock;
@@ -157,14 +158,14 @@ public final class LongIntBlockHash extends BlockHash {
             switch (intCount) {
                 case 0 -> appendOrdSv(p, (int) hashOrdToGroup(hash.add(0, LONG_NULL_MASK | INT_NULL_MASK)));
                 case 1 -> {
-                    final int intValue = intBlock.getInt(intBlock.getFirstValueIndex(p));
+                    final long intValue = intBlock.getInt(intBlock.getFirstValueIndex(p)) & WIDEN;
                     appendOrdSv(p, (int) hashOrdToGroup(hash.add(0, intValue | LONG_NULL_MASK)));
                 }
                 default -> {
                     int start = intBlock.getFirstValueIndex(p);
                     int end = start + intCount;
                     for (int v = start; v < end; v++) {
-                        final int intValue = intBlock.getInt(v);
+                        final long intValue = intBlock.getInt(v) & WIDEN;
                         appendOrdInMv(p, (int) hashOrdToGroup(hash.add(0, intValue | LONG_NULL_MASK)));
                     }
                     finishMv();
@@ -196,7 +197,7 @@ public final class LongIntBlockHash extends BlockHash {
             final int intStart = intBlock.getFirstValueIndex(p);
             if (longCount == 1 && intCount == 1) {
                 final long longValue = longBlock.getLong(longStart);
-                final int intValue = intBlock.getInt(intStart);
+                final long intValue = intBlock.getInt(intStart) & WIDEN;
                 appendOrdSv(p, (int) hashOrdToGroup(hash.add(longValue, intValue)));
                 return;
             }
@@ -205,7 +206,7 @@ public final class LongIntBlockHash extends BlockHash {
             for (int l = longStart; l < longEnd; l++) {
                 final long longValue = longBlock.getLong(l);
                 for (int i = intStart; i < intEnd; i++) {
-                    final int intValue = intBlock.getInt(i);
+                    final long intValue = intBlock.getInt(i) & WIDEN;
                     appendOrdInMv(p, (int) hashOrdToGroup(hash.add(longValue, intValue)));
                 }
             }
@@ -245,7 +246,7 @@ public final class LongIntBlockHash extends BlockHash {
                 try (var groupIdsBuilder = blockFactory.newIntBlockBuilder(batchSize)) {
                     for (int i = 0; i < batchSize; i++) {
                         long longKey = longVector.getLong(offset + i);
-                        int intKey = intVector.getInt(offset + i);
+                        long intKey = intVector.getInt(offset + i) & WIDEN;
                         long ord = hash.find(longKey, intKey);
                         if (ord < 0) {
                             groupIdsBuilder.appendNull();
@@ -315,7 +316,7 @@ public final class LongIntBlockHash extends BlockHash {
             if (intCount == 0) {
                 appendFound(ords, hash.find(0, LONG_NULL_MASK | INT_NULL_MASK));
             } else if (intCount == 1) {
-                int intValue = intBlock.getInt(intBlock.getFirstValueIndex(position));
+                long intValue = intBlock.getInt(intBlock.getFirstValueIndex(position)) & WIDEN;
                 appendFound(ords, hash.find(0, intValue | LONG_NULL_MASK));
             } else {
                 int start = intBlock.getFirstValueIndex(position);
@@ -324,7 +325,7 @@ public final class LongIntBlockHash extends BlockHash {
                 boolean began = false;
                 int count = 0;
                 for (int v = start; v < end; v++) {
-                    int intValue = intBlock.getInt(v);
+                    long intValue = intBlock.getInt(v) & WIDEN;
                     long found = hash.find(0, intValue | LONG_NULL_MASK);
                     if (found >= 0) {
                         if (firstFound < 0) {
@@ -388,7 +389,7 @@ public final class LongIntBlockHash extends BlockHash {
             int intStart = intBlock.getFirstValueIndex(position);
             if (longCount == 1 && intCount == 1) {
                 long longValue = longBlock.getLong(longStart);
-                int intValue = intBlock.getInt(intStart);
+                long intValue = intBlock.getInt(intStart) & WIDEN;
                 appendFound(ords, hash.find(longValue, intValue));
                 return;
             }
@@ -400,7 +401,7 @@ public final class LongIntBlockHash extends BlockHash {
             for (int l = longStart; l < longEnd; l++) {
                 long longValue = longBlock.getLong(l);
                 for (int i = intStart; i < intEnd; i++) {
-                    int intValue = intBlock.getInt(i);
+                    long intValue = intBlock.getInt(i) & WIDEN;
                     long found = hash.find(longValue, intValue);
                     if (found >= 0) {
                         if (firstFound < 0) {

@@ -946,9 +946,9 @@ public class BlockHashTests extends BlockHashTestCase {
             } else {
                 assertThat(
                     ordsAndKeys.description(),
-                    startsWith("Adaptive{LongIntBlockHash{keys=[LongKey[channel=1], IntKey[channel=0]], entries=4")
+                    startsWith("LongIntBlockHash{keys=[LongKey[channel=1], IntKey[channel=0]], entries=4")
                 );
-                assertThat(ordsAndKeys.description(), endsWith("b}}"));
+                assertThat(ordsAndKeys.description(), endsWith("b}"));
             }
             assertOrds(ordsAndKeys.ords(), 0, 1, 0, 2, 3, 2);
             assertKeys(ordsAndKeys.keys(), expectedKeys);
@@ -989,9 +989,9 @@ public class BlockHashTests extends BlockHashTestCase {
                 } else {
                     assertThat(
                         ordsAndKeys.description(),
-                        startsWith("Adaptive{PackedValuesBlockHash{groups=[0:LONG, 1:INT], entries=6, size=")
+                        startsWith("LongIntBlockHash{keys=[LongKey[channel=0], IntKey[channel=1]], entries=6, size=")
                     );
-                    assertThat(ordsAndKeys.description(), endsWith("b}}"));
+                    assertThat(ordsAndKeys.description(), endsWith("b}"));
                 }
                 assertOrds(ordsAndKeys.ords(), 0, 1, 2, 3, 4, 5, 2);
                 assertKeys(ordsAndKeys.keys(), expectedKeys);

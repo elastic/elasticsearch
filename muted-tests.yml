@@ -956,3 +956,6 @@ tests:
 - class: org.elasticsearch.xpack.core.transform.action.PreviewTransformActionRequestTests
   method: testCloudCredentialRoundTripPreservesValue
   issue: https://github.com/elastic/elasticsearch/issues/156850
+- class: org.elasticsearch.xpack.core.transform.action.ResetTransformActionRequestTests
+  method: testCloudCredentialRoundTripPreservesValue
+  issue: https://github.com/elastic/elasticsearch/issues/156851

@@ -1432,7 +1432,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
                 int[] docIdsArray = segmentDocIds.stream().mapToInt(Integer::intValue).toArray();
                 var leafStoredFieldLoader = storedFieldLoader.getLoader(leaf, docIdsArray);
-                var leafSourceLoader = sourceLoader.leaf(leafReader, docIdsArray);
+                var leafSourceLoader = sourceLoader.leaf(leafReader.getContext(), docIdsArray);
                 var leafIdLoader = idLoader.leaf(leafStoredFieldLoader, leafReader, docIdsArray);
 
                 primaryTermDocValues = leafReader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);

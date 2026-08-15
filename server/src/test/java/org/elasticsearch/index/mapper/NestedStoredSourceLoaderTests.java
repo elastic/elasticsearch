@@ -82,7 +82,7 @@ public class NestedStoredSourceLoaderTests extends MapperServiceTestCase {
         // doc 0 = nested child, doc 1 = root
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
             SourceLoader loader = nestedLoader(mapperService);
-            SourceLoader.Leaf leaf = loader.leaf(reader.leaves().get(0).reader(), null);
+            SourceLoader.Leaf leaf = loader.leaf(reader.leaves().get(0), null);
 
             LeafStoredFieldLoader leafLoader = storedFieldLoader(loader).getLoader(reader.leaves().get(0), null);
 
@@ -125,7 +125,7 @@ public class NestedStoredSourceLoaderTests extends MapperServiceTestCase {
             LeafReader countingReader = countingLeafReader(reader.leaves().get(0).reader(), storedFieldReads);
 
             SourceLoader loader = nestedLoader(mapperService);
-            SourceLoader.Leaf leaf = loader.leaf(countingReader, null);
+            SourceLoader.Leaf leaf = loader.leaf(countingReader.getContext(), null);
 
             LeafStoredFieldLoader leafLoader = storedFieldLoader(loader).getLoader(reader.leaves().get(0), null);
             List<String> expected = List.of("alpha", "beta", "gamma");
@@ -174,7 +174,7 @@ public class NestedStoredSourceLoaderTests extends MapperServiceTestCase {
             LeafReader countingReader = countingLeafReader(reader.leaves().get(0).reader(), storedFieldReads);
 
             SourceLoader loader = nestedLoader(mapperService);
-            SourceLoader.Leaf leaf = loader.leaf(countingReader, null);
+            SourceLoader.Leaf leaf = loader.leaf(countingReader.getContext(), null);
 
             LeafStoredFieldLoader leafLoader = storedFieldLoader(loader).getLoader(reader.leaves().get(0), null);
 

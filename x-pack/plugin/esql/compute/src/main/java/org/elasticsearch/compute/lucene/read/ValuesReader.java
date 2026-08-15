@@ -176,7 +176,7 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
             }
             storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
                 StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
-                sourceLoader != null ? sourceLoader.leaf(ctx.reader(), null) : null
+                sourceLoader != null ? sourceLoader.leaf(ctx, null) : null
             );
             if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
                 operator.trackStoredFields(storedFieldsSpec, false);

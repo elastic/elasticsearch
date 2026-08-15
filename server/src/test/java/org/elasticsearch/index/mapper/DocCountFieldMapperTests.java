@@ -101,7 +101,7 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
             SourceLoader loader = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
             for (LeafReaderContext leaf : reader.leaves()) {
                 int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
-                SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);
+                SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf, docIds);
                 LeafStoredFieldLoader storedFieldLoader = StoredFieldLoader.empty().getLoader(leaf, docIds);
                 for (int docId : docIds) {
                     String source = sourceLoaderLeaf.source(storedFieldLoader, docId).internalSourceRef().utf8ToString();
@@ -132,7 +132,7 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
             SourceLoader loader = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
             for (LeafReaderContext leaf : reader.leaves()) {
                 int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
-                SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);
+                SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf, docIds);
                 LeafStoredFieldLoader storedFieldLoader = StoredFieldLoader.empty().getLoader(leaf, docIds);
                 for (int docId : docIds) {
                     String source = sourceLoaderLeaf.source(storedFieldLoader, docId).internalSourceRef().utf8ToString();
@@ -161,15 +161,15 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
                     int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
 
                     LeafStoredFieldLoader sf1 = StoredFieldLoader.empty().getLoader(leaf, docIds);
-                    String unfilteredSource = withoutFilter.leaf(leaf.reader(), docIds).source(sf1, 0).internalSourceRef().utf8ToString();
+                    String unfilteredSource = withoutFilter.leaf(leaf, docIds).source(sf1, 0).internalSourceRef().utf8ToString();
                     assertThat(unfilteredSource, equalTo("{\"_doc_count\":" + count + ",\"count\":42}"));
 
                     LeafStoredFieldLoader sf2 = StoredFieldLoader.empty().getLoader(leaf, docIds);
-                    String filteredSource = withFilter.leaf(leaf.reader(), docIds).source(sf2, 0).internalSourceRef().utf8ToString();
+                    String filteredSource = withFilter.leaf(leaf, docIds).source(sf2, 0).internalSourceRef().utf8ToString();
                     assertThat(filteredSource, equalTo("{\"count\":42}"));
 
                     LeafStoredFieldLoader sf3 = StoredFieldLoader.empty().getLoader(leaf, docIds);
-                    String filteredSourceWithDocCount = withFilterAndDocCount.leaf(leaf.reader(), docIds)
+                    String filteredSourceWithDocCount = withFilterAndDocCount.leaf(leaf, docIds)
                         .source(sf3, 0)
                         .internalSourceRef()
                         .utf8ToString();

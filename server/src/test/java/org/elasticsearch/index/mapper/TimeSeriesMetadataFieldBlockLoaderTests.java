@@ -448,7 +448,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
                     ? new SourceFilter(loaderSpec.sourcePaths().toArray(new String[0]), null)
                     : null;
                 SourceLoader sourceLoader = mapperService.mappingLookup().newSourceLoader(filter, SourceFieldMetrics.NOOP, null);
-                SourceLoader.Leaf sourceLeaf = sourceLoader.leaf(ctx.reader(), null);
+                SourceLoader.Leaf sourceLeaf = sourceLoader.leaf(ctx, null);
                 StoredFieldsSpec storedFieldsSpec = loaderSpec.merge(
                     new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields())
                 );

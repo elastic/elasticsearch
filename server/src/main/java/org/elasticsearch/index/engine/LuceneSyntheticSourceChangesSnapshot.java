@@ -233,7 +233,7 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
                 // source loader, it is also used as a heuristic for bulk reading doc values (E.g. SingletonDocValuesLoader).
                 int[] nextDocIdArray = nextDocIds.toArray();
                 leafFieldLoader = storedFieldLoader.getLoader(leafReaderContext, nextDocIdArray);
-                leafSourceLoader = sourceLoader.leaf(leafReaderContext.reader(), nextDocIdArray);
+                leafSourceLoader = sourceLoader.leaf(leafReaderContext, nextDocIdArray);
                 if (routingDocValues) {
                     leafRoutingDocValues = leafReaderContext.reader().getSortedDocValues(RoutingFieldMapper.NAME);
                 }

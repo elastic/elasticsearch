@@ -367,7 +367,7 @@ public final class FetchPhase {
                     this.ctx = ctx;
                     this.leafNestedDocuments = nestedDocuments.getLeafNestedDocuments(ctx);
                     this.leafStoredFieldLoader = storedFieldLoader.getLoader(ctx, docsInLeaf);
-                    this.leafSourceLoader = sourceLoader.leaf(ctx.reader(), docsInLeaf);
+                    this.leafSourceLoader = sourceLoader.leaf(ctx, docsInLeaf);
                     this.leafIdLoader = idLoader.leaf(leafStoredFieldLoader, ctx.reader(), docsInLeaf);
 
                     fieldLookupProvider.setNextReader(ctx);

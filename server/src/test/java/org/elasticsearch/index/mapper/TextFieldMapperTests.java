@@ -2662,7 +2662,7 @@ public class TextFieldMapperTests extends MapperTestCase {
                             SourceLoader.Leaf leafSourceLoader = null;
                             if (storedFieldsSpec.requiresSource()) {
                                 var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
-                                leafSourceLoader = sourceLoader.leaf(ctx.reader(), null);
+                                leafSourceLoader = sourceLoader.leaf(ctx, null);
                                 storedFieldsSpec = storedFieldsSpec.merge(
                                     new StoredFieldsSpec(true, storedFieldsSpec.requiresMetadata(), sourceLoader.requiredStoredFields())
                                 );

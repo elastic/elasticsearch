@@ -492,7 +492,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
             );
         }
-        return mappingLookup.newSourceLoader(filter, mapperMetrics.sourceFieldMetrics(), getNestedDocuments());
+        return mappingLookup.newSourceLoader(filter, mapperMetrics.sourceFieldMetrics(), null);
     }
 
     /**

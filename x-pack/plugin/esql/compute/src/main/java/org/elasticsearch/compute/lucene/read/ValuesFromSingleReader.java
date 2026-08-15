@@ -219,7 +219,7 @@ class ValuesFromSingleReader extends ValuesReader {
         StoredFieldLoader storedFieldLoader = storedFieldLoader(storedFieldsSpec, shardContext, docs);
         BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
             storedFieldLoader.getLoader(ctx, null),
-            sourceLoader != null ? sourceLoader.leaf(ctx.reader(), null) : null
+            sourceLoader != null ? sourceLoader.leaf(ctx, null) : null
         );
         int sourceBackedFieldCount = 0;
         for (RowStrideReaderWork work : rowStrideReaders) {

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
@@ -65,8 +64,7 @@ class NestedStoredSourceLoader implements SourceLoader {
     }
 
     @Override
-    public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-        LeafReaderContext ctx = reader.getContext();
+    public Leaf leaf(LeafReaderContext ctx, int[] docIdsInLeaf) throws IOException {
         LeafNestedDocuments leafNestedDocuments = nestedDocuments.getLeafNestedDocuments(ctx);
 
         // Separate stored-field loader for root documents: nested child docs carry no _source,

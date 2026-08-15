@@ -500,7 +500,7 @@ public class NestedObjectMapper extends ObjectMapper {
                 this.columnar = true;
                 this.columnarChildren.clear();
                 this.columnarChildReader = new ColumnarSourceWriter.ReusableColumnarStoredLeafReader();
-                this.columnarChildLeaf = sourceLoader.leaf(columnarChildReader, ColumnarSourceWriter.DOC_IDS);
+                this.columnarChildLeaf = sourceLoader.leaf(columnarChildReader.getContext(), ColumnarSourceWriter.DOC_IDS);
                 return parentDoc -> {
                     columnarChildren.clear();
                     LuceneDocument parent = parentReader.currentDoc();
@@ -522,7 +522,7 @@ public class NestedObjectMapper extends ObjectMapper {
             this.columnar = false;
             this.children.clear();
             this.leafStoredFieldLoader = storedFieldLoader.getLoader(leafReader.getContext(), null);
-            this.leafSourceLoader = sourceLoader.leaf(leafReader, null);
+            this.leafSourceLoader = sourceLoader.leaf(leafReader.getContext(), null);
 
             IndexSearcher searcher = new IndexSearcher(leafReader);
             searcher.setQueryCache(null);

@@ -684,27 +684,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/156439
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecLookupJoinExpressionIT
   issue: https://github.com/elastic/elasticsearch/issues/156440
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecLookupJoinExpressionIT
-  method: test {csv-spec:lookup-join-expression.lookupJoinExpressionOnRightFieldNotAnywhereElse}
-  issue: https://github.com/elastic/elasticsearch/issues/156440
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecLookupJoinExpressionIT
-  method: test {csv-spec:lookup-join-expression.lookupJoinExpressionWithKqlAndTimezones}
-  issue: https://github.com/elastic/elasticsearch/issues/156440
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecLookupJoinExpressionIT
-  method: test {csv-spec:lookup-join-expression.lookupJoinExpressionWithMatchPhrase}
-  issue: https://github.com/elastic/elasticsearch/issues/156440
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecLookupJoinExpressionIT
-  method: test {csv-spec:lookup-join-expression.lookupJoinExpressionWithQstrAndTimezones}
-  issue: https://github.com/elastic/elasticsearch/issues/156440
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecLookupJoinExpressionIT
-  method: test {csv-spec:lookup-join-expression.lookupJoinExpressionWithStartsWith}
-  issue: https://github.com/elastic/elasticsearch/issues/156440
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecLookupJoinExpressionIT
-  method: test {csv-spec:lookup-join-expression.lookupJoinOnSameFieldWithPushableRightFilterAfter}
-  issue: https://github.com/elastic/elasticsearch/issues/156440
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecLookupJoinExpressionIT
-  method: test {csv-spec:lookup-join-expression.lookupJoinWithOrOfLikeGt}
-  issue: https://github.com/elastic/elasticsearch/issues/156440
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFieldExtractIT
   method: test {csv-spec:field_extract.multiValuedSubkeyDoesNotMatchScalarInequality}
   issue: https://github.com/elastic/elasticsearch/issues/156441

@@ -16,11 +16,6 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 
 import java.io.IOException;
 
-/**
- * Parity tests for {@link IpFieldMapper#mapColumnBatch} against the row path.
- * The {@link AbstractColumnarMapperCompatibilityTestCase} harness drives leaf mappers automatically
- * via {@code EscfEncoder}; no subclass override is needed.
- */
 public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMapperCompatibilityTestCase {
 
     private static final String FIELD = "f";
@@ -168,8 +163,6 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
             )
         );
     }
-
-    // --- multi_value: false tests ---
 
     public void testSingleValueMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {

@@ -828,12 +828,7 @@ public class IpFieldMapper extends FieldMapper {
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // Columnar support requires strict-columnar mode, binary doc values only (no SortedSet ordinals),
-        // and none of the features that pull in row-path behavior or cannot be expressed as LuceneColumns:
-        // points (no LuceneColumn type carries a points field), store, dimensions, scripts, copy_to,
-        // multi-fields, and legacy index versions.
-        // ignore_malformed is not rejected here: a malformed value throws UnsupportedOperationException in
-        // mapColumnBatch, causing ShardBatchMapper to fall back to the row path for the whole batch.
+        // Columnar support requires strict-columnar mode, binary doc values only (no SortedSet ordinals).
         return indexSettings.getMode().isStrictColumnar()
             && supportsColumnarDocValues()
             && fieldType().indexType.hasPoints() == false

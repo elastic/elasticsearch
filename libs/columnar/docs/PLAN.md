@@ -16,6 +16,12 @@ The direction, the decisions that constrain it, and the build order. Update as d
 - **Ordinals are internal and per-segment.** A string column decides plain vs. ordinal per segment
   from that segment's cardinality; ordinals never surface (the read API stays binary), and a segment
   carries a dictionary only if it chose ordinals. The upper layer sees bytes, never ordinal shapes.
+- **The terms dictionary is sorted.** Ordinals follow term byte order, so within a segment comparing
+  ordinals is a valid proxy for comparing term bytes. This is an internal representation and does not
+  weaken the decision above: the read API still takes and returns bytes, and a range query resolves its
+  byte bounds to ordinals inside the codec, per segment. Decided but not yet built — the shipped column
+  still writes first-seen order, and the switch is in Next. It changes a frozen layout, so it lands
+  before the format is depended on.
 - **Reuse native Zstd for block compression.** Zstd is planned as the last encoder in the block
   pipeline, backed by the existing `org.elasticsearch.nativeaccess.Zstd` binding rather than a Java
   LZ4/Zstd (the native codec is faster).
@@ -65,30 +71,80 @@ The direction, the decisions that constrain it, and the build order. Update as d
 - **Server-side selector wiring**: implement a concrete `NumericPipelineSelector` in server that
   inspects `FieldType`, `IndexMode`, and `MetricType` to route each field to the correct pipeline
   factory, and wire it into `PerFieldFormatSupplier`.
+- **Sort the string terms dictionary** — decided, not yet built, and wanted before the format ships
+  because it changes a frozen on-disk layout. Terms are currently stored in first-seen order (the POC's
+  `LinkedHashMap`), so an ordinal carries no ordering relative to the term bytes. Sorting the dictionary
+  makes ordinals order-preserving within a segment, which is what unlocks the rest: sort-by-ordinal
+  becomes sort-by-value, the dictionary supports binary search rather than a hash map (what makes
+  raising the cap viable), and a range or prefix query gains a fast path.
+
+  That fast path is worth stating precisely, because it is easy to read as a breach of the
+  ordinals-are-internal rule and is not one. A `ColumnarStringRangeQuery` takes byte bounds, like every
+  other read entry point. A `DICTIONARY` segment can then resolve those bounds against its sorted
+  dictionary *once per segment* — a binary search — and from there answer the range by comparing
+  ordinals, which is numeric-style min/max skipping over the ordinal stream. The ordinals never leave
+  the codec, exactly as `ColumnarNumericRangeQuery` keeps its block decoding internal. Note this is a
+  per-layout fast path, not a uniform mechanism: a `PLAIN` segment has no ordinals, so it needs byte
+  comparisons and a byte-oriented skip structure. A string range query is therefore two paths, and the
+  skip index a `DICTIONARY` column writes is not the one a `PLAIN` column needs.
+
+  Sorting is cheap at the current cap (256 entries, once per segment per field). The one structural
+  change is that `StringDictionary.Builder` can no longer assign an ordinal when it first sees a term —
+  a later term may sort ahead of an earlier one — so ordinals are assigned once the probe completes.
+  That fits the existing shape, since the probe already finishes before encoding starts.
+
+  **Measure before landing.** First-seen order assigns ordinals in the order value clusters first
+  appear, so clustered data yields a non-decreasing ordinal stream (`0,0,0,1,1,1,2,2,2`) that delta
+  collapses almost entirely. A sorted dictionary makes ordinals follow byte order, so the same column
+  yields a permutation (`5,5,5,2,2,2,9,9,9`) — runs survive, monotonicity does not. The two orders
+  coincide when the index is sorted by the field itself; they diverge for a keyword field that is
+  clustered by some *other* sort key, which is the common logs shape. Capture the ordinal-stream
+  footprint on that workload before and after; if the regression is material, the fix is a better
+  ordinal encoder (see the ordinal-pipeline item) rather than abandoning the sort.
+
+- **Remap ordinals on merge instead of rehashing values** — a merge currently rebuilds the destination
+  dictionary from scratch: `ColumNARDocValuesConsumer.writeStringColumn` runs a fresh
+  `StringDictionary.Builder` over every surviving value, and for a `DICTIONARY` source each value makes
+  a full round trip (source ordinal → `dictionary.term(ord)` → bytes → hash → destination ordinal).
+  That is O(numValues) hashing on the merge path.
+
+  A `DICTIONARY` → `DICTIONARY` merge can instead build the destination dictionary from the source
+  *dictionaries* (at most `MAX_SIZE` terms each) and derive one `int[]` remap per source segment, so
+  writing a value becomes an array index. A `PLAIN` source still has to be walked. Two caveats worth
+  recording: building from source dictionaries retains terms whose documents were all deleted, which
+  both carries dead terms into the merged segment and makes the cap decision pessimistic — a merge could
+  fall back to `PLAIN` when the live cardinality would have fit — so it needs a liveness pass or an
+  accepted approximation. And Lucene's `OrdinalMap` is the wrong tool at this cap: it builds
+  `PackedLongValues` with monotonic compression for millions of terms, where a plain `int[]` remap is
+  simpler and faster. Sorting the dictionary is not a prerequisite; it only replaces the union hash map
+  with a merge of sorted lists, which is a marginal gain at 256 terms. Measure before building — the
+  per-value saving is one byte-resolution plus a hash replaced by an array index, and block decode and
+  I/O may well dominate.
+
 - **String column follow-ups** — the initial column is a faithful port of the POC's dict-binary path;
   each of these was deliberately left out to keep that port reviewable, and each is an open question on
   the porting PR rather than a settled decision:
   1. **Multi-valued string columns**: single-valued only today (the writer rejects a document with more
      than one value). The substrate already supplies presence and a value-address table, so this mirrors
      what `NumericColumnWriter` does; note `ColumnarStringBinaryDocValues.binaryValue` currently relies
-     on one reused `BytesRef` per document and has to copy once several ordinals are collected.
-  2. **Sorted terms dictionary**: terms are stored in first-seen order, so an ordinal carries no
-     ordering. Sorting the (capped, therefore cheap to sort) dictionary would make ordinals
-     order-preserving, which is what a string range/prefix query and sort-by-ordinal would need to reuse
-     the existing min/max skip index. Changes the on-disk layout, so it wants deciding before the format
-     ships.
-  3. **Cardinality policy**: the probe accepts a dictionary purely on distinct count
+     on one reused `BytesRef` per document and has to copy once several values are collected.
+  2. **Cardinality policy**: the probe accepts a dictionary purely on distinct count
      (`StringDictionary.MAX_SIZE`, 256) with no ratio guard, so a small column whose values are nearly
      all distinct still pays for a dictionary that cannot pay for itself. A ratio guard
      (`distinct * 2 <= numValues`) and a larger cap are both worth measuring — the cap and the
-     dictionary layout are the tuning knobs.
-  4. **Skip index and a string range query**: the string column writes no skip index, so there is no
-     `ColumnarStringRangeQuery` counterpart yet. Depends on (2).
-  5. **Ordinal pipeline selection**: the ordinal stream is hardcoded to
+     dictionary layout are the tuning knobs. Raising the cap is also a heap decision, since the
+     dictionary is the column's one heap-resident structure.
+  3. **Skip index and a string range query**: the string column writes no skip index, so there is no
+     `ColumnarStringRangeQuery` counterpart yet. The `DICTIONARY` half depends on the sorted dictionary
+     above and can then reuse numeric-style min/max skipping over ordinals; the `PLAIN` half cannot, and
+     needs a byte-oriented structure (min/max term per interval) that does not exist yet. Worth deciding
+     whether `PLAIN` gets a skip index at all, or whether high-cardinality string columns simply scan.
+  4. **Ordinal pipeline selection**: the ordinal stream is hardcoded to
      `NumericPipeline.defaultPipeline`. Routing it through `NumericPipelineSelector`, or giving it a
      dedicated ordinal pipeline, is untested either way. `NumericBlockEncoder.encodeOrdinals` /
-     `decodeOrdinals` (the run / two-run / cycle / bit-packed codec) is present but unused and is the
-     obvious candidate to measure against.
+     `decodeOrdinals` (the run / two-run / cycle / bit-packed codec) is present but unused, is
+     insensitive to whether ordinals are monotonic, and is therefore both the obvious candidate to
+     measure against and the likely answer if sorting costs ordinal-stream footprint.
 - **Block compression via native Zstd**: add Zstd as the last encoder in the block pipeline (its own
   frozen id, applied after the terminal, so it stays additive and BWC), backed by
   `org.elasticsearch.nativeaccess.Zstd` rather than a Java LZ4. Most useful on the low-entropy stages

@@ -218,7 +218,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
     @Override
     public float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length) {
-        if (aOffset == 0 && bOffset == 0 && length == a.length) {
+        if (aOffset == 0 && bOffset == 0 && length == a.length && a.length == b.length) {
             return dotProduct(a, b);
         }
 
@@ -2649,42 +2649,46 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
-    public void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest) {
-        assert other.length == dest.length;
-
+    public void linearCombination(
+        float scaleOther,
+        float[] other,
+        int otherOffset,
+        float scaleDest,
+        float[] dest,
+        int destOffset,
+        int length
+    ) {
         final FloatVector scaleDestVec = FloatVector.broadcast(FLOAT_SPECIES, scaleDest);
-        final int limit = FLOAT_SPECIES.loopBound(dest.length);
+        final int limit = FLOAT_SPECIES.loopBound(length);
         int i = 0;
         for (; i < limit; i += FLOAT_SPECIES.length()) {
-            FloatVector destVec = FloatVector.fromArray(FLOAT_SPECIES, dest, i);
-            FloatVector otherVec = FloatVector.fromArray(FLOAT_SPECIES, other, i);
+            FloatVector destVec = FloatVector.fromArray(FLOAT_SPECIES, dest, destOffset + i);
+            FloatVector otherVec = FloatVector.fromArray(FLOAT_SPECIES, other, otherOffset + i);
             destVec = fma(destVec, scaleDestVec, otherVec.mul(scaleOther));
-            destVec.intoArray(dest, i);
+            destVec.intoArray(dest, destOffset + i);
         }
 
         // tail
-        for (; i < dest.length; i++) {
-            dest[i] = fma(scaleOther, other[i], scaleDest * dest[i]);
+        for (; i < length; i++) {
+            dest[destOffset + i] = fma(scaleOther, other[otherOffset + i], scaleDest * dest[destOffset + i]);
         }
     }
 
     @Override
-    public void linearCombination(float scaleOther, float[] other, float[] dest) {
-        assert other.length == dest.length;
-
+    public void linearCombination(float scaleOther, float[] other, int otherOffset, float[] dest, int destOffset, int length) {
         final FloatVector scaleOtherVec = FloatVector.broadcast(FLOAT_SPECIES, scaleOther);
-        final int limit = FLOAT_SPECIES.loopBound(dest.length);
+        final int limit = FLOAT_SPECIES.loopBound(length);
         int i = 0;
         for (; i < limit; i += FLOAT_SPECIES.length()) {
-            FloatVector destVec = FloatVector.fromArray(FLOAT_SPECIES, dest, i);
-            FloatVector otherVec = FloatVector.fromArray(FLOAT_SPECIES, other, i);
+            FloatVector destVec = FloatVector.fromArray(FLOAT_SPECIES, dest, destOffset + i);
+            FloatVector otherVec = FloatVector.fromArray(FLOAT_SPECIES, other, otherOffset + i);
             destVec = fma(otherVec, scaleOtherVec, destVec);
-            destVec.intoArray(dest, i);
+            destVec.intoArray(dest, destOffset + i);
         }
 
         // tail
-        for (; i < dest.length; i++) {
-            dest[i] = fma(other[i], scaleOther, dest[i]);
+        for (; i < length; i++) {
+            dest[destOffset + i] = fma(other[otherOffset + i], scaleOther, dest[destOffset + i]);
         }
     }
 

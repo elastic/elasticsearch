@@ -436,6 +436,49 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), equalTo("index [" + missingIndex + "] not found"));
     }
 
+    public void testAddLookupIndexAsBackingIndexFails() {
+        final long epochMillis = System.currentTimeMillis();
+        final int numBackingIndices = randomIntBetween(1, 4);
+        final String dataStreamName = randomAlphaOfLength(5);
+        IndexMetadata[] backingIndices = new IndexMetadata[numBackingIndices];
+        ProjectMetadata.Builder mb = ProjectMetadata.builder(randomProjectIdOrDefault());
+        for (int k = 0; k < numBackingIndices; k++) {
+            backingIndices[k] = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k + 1, epochMillis))
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putMapping(generateMapping("@timestamp"))
+                .build();
+            mb.put(backingIndices[k], false);
+        }
+        mb.put(DataStreamTestHelper.newInstance(dataStreamName, Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()));
+
+        final String lookupIndexName = randomAlphaOfLength(5);
+        IndexMetadata lookupIndex = IndexMetadata.builder(lookupIndexName)
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).put("index.mode", "lookup"))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping(generateMapping("@timestamp"))
+            .build();
+        mb.put(lookupIndex, false);
+
+        ProjectMetadata originalProject = mb.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(originalProject).build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataDataStreamsService.modifyDataStream(
+                clusterState.projectState(originalProject.id()),
+                List.of(DataStreamAction.addBackingIndex(dataStreamName, lookupIndexName)),
+                this::getMapperService,
+                Settings.EMPTY
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("index [" + lookupIndexName + "] specifies [index.mode=lookup], which is not supported for data streams")
+        );
+    }
+
     public void testRemoveBrokenBackingIndexReference() {
         var dataStreamName = "my-logs";
         var project = DataStreamTestHelper.getProjectWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), List.of());

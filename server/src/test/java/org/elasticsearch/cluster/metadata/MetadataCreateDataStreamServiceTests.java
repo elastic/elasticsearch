@@ -619,6 +619,42 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         );
     }
 
+    public void testCreateDataStreamWithLookupIndexModeFails() throws Exception {
+        final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
+        final String dataStreamName = "my-data-stream";
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName + "*"))
+            .template(new Template(Settings.builder().put("index.mode", "lookup").build(), null, null))
+            .dataStreamTemplate(new DataStreamTemplate())
+            .build();
+        final var projectId = randomProjectIdOrDefault();
+        // Insert directly into project metadata, bypassing template validation (simulating an upgraded cluster
+        // with a pre-existing lookup-mode data stream template).
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put("template", template).build())
+            .build();
+        CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(projectId, dataStreamName);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataCreateDataStreamService.createDataStream(
+                metadataCreateIndexService,
+                Settings.EMPTY,
+                cs,
+                randomBoolean(),
+                req,
+                RerouteBehavior.PERFORM_REROUTE,
+                ActionListener.noop(),
+                false
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("data stream [my-data-stream] specifies [index.mode=lookup], which is not supported for data streams")
+        );
+        // No backing index must have been created before the check fires
+        assertThat(cs.metadata().getProject(projectId).indices().size(), equalTo(0));
+    }
+
     public void testCreateDataStreamMatchingSystemIndexDescriptorFails() throws Exception {
         final String dataStreamName = ".my-system-idx";
         SystemIndices systemIndices = new SystemIndices(

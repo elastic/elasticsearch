@@ -291,6 +291,10 @@ public class MetadataCreateDataStreamService {
         final ComposableIndexTemplate template = isSystem
             ? systemDataStreamDescriptor.getComposableIndexTemplate()
             : lookupTemplateForDataStream(dataStreamName, currentProject);
+        IndexMode.validateSupportsDataStreams(
+            currentProject.retrieveIndexModeFromTemplate(template),
+            "data stream [" + dataStreamName + "]"
+        );
         // The initial backing index and the initial failure store index will have the same initial generation.
         // This is not a problem as both have different prefixes (`.ds-` vs `.fs-`) and both will be using the same `generation` field
         // when rolling over in the future.

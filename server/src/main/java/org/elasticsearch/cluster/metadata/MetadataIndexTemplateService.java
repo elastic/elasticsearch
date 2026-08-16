@@ -38,6 +38,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -800,13 +801,14 @@ public class MetadataIndexTemplateService {
         final var componentTemplates = projectMetadata.componentTemplates();
         final var combinedMappings = collectMappings(indexTemplate, componentTemplates, "tmp_idx");
         final var combinedSettings = resolveSettings(indexTemplate, componentTemplates);
+        final IndexMode templateIndexMode = projectMetadata.retrieveIndexModeFromTemplate(indexTemplate);
         var additionalSettingsBuilder = Settings.builder();
         for (var provider : indexSettingProviders) {
             Settings.Builder builder = Settings.builder();
             provider.provideAdditionalSettings(
                 VALIDATE_INDEX_NAME,
                 indexTemplate.getDataStreamTemplate() != null ? VALIDATE_DATA_STREAM_NAME : null,
-                projectMetadata.retrieveIndexModeFromTemplate(indexTemplate),
+                templateIndexMode,
                 projectMetadata,
                 now,
                 combinedSettings,
@@ -835,6 +837,7 @@ public class MetadataIndexTemplateService {
         maybeValidateDataStreamsStillReferenced(projectMetadata, name, templateToValidate);
         validateLifecycle(componentTemplates, name, templateToValidate, globalRetentionSettings.get(false));
         validateDataStreamOptions(componentTemplates, name, templateToValidate, globalRetentionSettings.get(true));
+        validateIndexMode(name, indexTemplate, templateIndexMode);
 
         if (templateToValidate.isDeprecated() == false) {
             validateUseOfDeprecatedComponentTemplates(name, templateToValidate, componentTemplates);
@@ -955,6 +958,13 @@ public class MetadataIndexTemplateService {
                         .addWarningHeaderIfDataRetentionNotEffective(globalRetention, isInternalDataStream);
                 }
             }
+        }
+    }
+
+    // Visible for testing
+    static void validateIndexMode(String indexTemplateName, ComposableIndexTemplate template, @Nullable IndexMode resolvedIndexMode) {
+        if (template.getDataStreamTemplate() != null) {
+            IndexMode.validateSupportsDataStreams(resolvedIndexMode, "index template [" + indexTemplateName + "]");
         }
     }
 

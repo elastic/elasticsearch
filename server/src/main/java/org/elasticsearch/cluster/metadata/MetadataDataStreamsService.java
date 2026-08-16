@@ -674,11 +674,13 @@ public class MetadataDataStreamsService {
     ) {
         var dataStream = validateDataStream(project, dataStreamName);
         var index = validateIndex(project, indexName);
+        var indexMetadata = project.index(index.getWriteIndex());
+        IndexMode.validateSupportsDataStreams(indexMetadata.getIndexMode(), "index [" + indexName + "]");
 
         try {
             MetadataMigrateToDataStreamService.prepareBackingIndex(
                 builder,
-                project.index(index.getWriteIndex()),
+                indexMetadata,
                 dataStreamName,
                 mapperSupplier,
                 false,

@@ -2257,12 +2257,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String transformIndex = "top_metrics_size_dest";
         setupDataAccessRole(DATA_ACCESS_ROLE, sourceIndex, transformIndex);
         createSessionSourceIndex(sourceIndex);
-        indexSessionDocs(
-            sourceIndex,
-            "s1",
-            List.of("/home", "/shop", "/checkout", "/confirm", "/thanks"),
-            "2026-08-16T10:00:00Z"
-        );
+        indexSessionDocs(sourceIndex, "s1", List.of("/home", "/shop", "/checkout", "/confirm", "/thanks"), "2026-08-16T10:00:00Z");
         indexSessionDocs(sourceIndex, "s2", List.of("/a", "/b"), "2026-08-16T11:00:00Z");
 
         putSessionTopMetricsTransform(transformId, sourceIndex, transformIndex, 3, null);
@@ -2438,13 +2433,8 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         doBulk(bulk.toString(), true);
     }
 
-    private void putSessionTopMetricsTransform(
-        String transformId,
-        String sourceIndex,
-        String transformIndex,
-        int size,
-        String extraConfig
-    ) throws IOException {
+    private void putSessionTopMetricsTransform(String transformId, String sourceIndex, String transformIndex, int size, String extraConfig)
+        throws IOException {
         final Request createTransformRequest = createRequestWithAuth(
             "PUT",
             getTransformEndpoint() + transformId,

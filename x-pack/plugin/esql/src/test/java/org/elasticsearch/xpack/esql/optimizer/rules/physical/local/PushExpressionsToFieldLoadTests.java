@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -762,7 +763,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         assertThat("field_extract feeding GROK should fuse", pushed, hasSize(1));
     }
 
-    // ---- field_extract into URI_PARTS / REGISTERED_DOMAIN / USER_AGENT input (CompoundOutputEvalExec) ----
+    // ---- field_extract into URI_PARTS / REGISTERED_DOMAIN / USER_AGENT / IP_LOCATION input (CompoundOutputEvalExec) ----
 
     public void testFieldExtractInUriParts() {
         assumeTrue("field_extract must be part of this build", FieldExtract.isFnFieldExtractCapabilityMet());
@@ -817,6 +818,32 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
 
         List<FieldAttribute> pushed = findPushedFields(plan, "data", BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD);
         assertThat("field_extract feeding USER_AGENT should fuse", pushed, hasSize(1));
+    }
+
+    public void testFieldExtractInIpLocation() {
+        assumeTrue("field_extract must be part of this build", FieldExtract.isFnFieldExtractCapabilityMet());
+        assumeTrue("IP_LOCATION must be enabled", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        // IP_LOCATION is an IpLocationExec, a subclass of CompoundOutputEvalExec, so it also carries its lookup key
+        // in input(); the field_extract there must fuse into a keyed sub-field load rather than survive as a per-row
+        // evaluator feeding the command.
+        PhysicalPlan plan = flattenedPlannerOptimizer.plan("""
+            FROM test
+            | IP_LOCATION g = field_extract(data, "host.name")
+            | SORT id
+            | LIMIT 10
+            | KEEP g.city_name
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "data", BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD);
+        assertThat("field_extract feeding IP_LOCATION should fuse", pushed, hasSize(1));
+
+        IpLocationExec command = findFirst(plan, IpLocationExec.class);
+        assertNotNull("Should find an IpLocationExec (IP_LOCATION)", command);
+        FieldAttribute input = as(command.input(), FieldAttribute.class);
+        assertThat(
+            as(input.field(), FunctionEsField.class).functionConfig().function(),
+            is(BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD)
+        );
     }
 
     // ---- Lookup join test (Primaries check) ----

@@ -279,7 +279,7 @@ public class RegexExpandTests extends ESTestCase {
 
     /**
      * An absent source label is coalesced to {@code ""} upstream (during translation), so at the evaluator it matches an
-     * empty regex. A genuinely {@code null} position is short-circuited by the generated evaluator and never reaches
+     * empty regex. A genuinely {@code null} position is short-circuited by the evaluator and never reaches
      * {@link RegexExpand#process}, which is why the coalesce is the caller's responsibility.
      */
     public void testEvaluatorEmptySourceMatchesEmptyRegex() {

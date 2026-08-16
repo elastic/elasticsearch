@@ -19,9 +19,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -38,7 +35,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
@@ -58,8 +54,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  *         (Prometheus never sets it to {@code src}).</li>
  * </ul>
  * The caller is responsible for materializing an absent {@code src} as the empty string (via {@code COALESCE(src, "")} during
- * translation): the generated evaluator short-circuits all-null positions to {@code null} before {@link #process} runs, so a
- * genuinely null {@code src} would otherwise become a spurious no-op instead of matching against {@code ""}.
+ * translation): the evaluator short-circuits all-null positions to {@code null}, so a genuinely null {@code src} would otherwise
+ * become a spurious no-op instead of matching against {@code ""}.
  * <p>
  * If the label is multivalue - the function would raise a {@code "single-value function encountered multi-value"} warning and emit
  * {@code null} (a no-op) for that row.
@@ -159,19 +155,11 @@ public final class RegexExpand extends EsqlScalarFunction implements VersionedNa
         // Bind the replacement template to the pattern's capture-group metadata once, holding it as UTF-8 bytes. Expansion then
         // walks the template per row exactly as Prometheus/Go's Regexp.Expand does (see Replacement), rather than pre-parsing it.
         Replacement template = Replacement.of(BytesRefs.toString(replacement.fold(toEvaluator.foldCtx())), pattern);
-        // Reuse per driver thread, rewinding onto each row via reset(): the Matcher (with its capture-group index array), the
-        // read-buffer BytesRef, and the output buffer the expansion is assembled into (with a BytesRef view over it). Matching a
-        // raw vector thus allocates none of these per row - only the exact-size input byte[] each row is copied into (see
-        // #process), which RE2/J's byte-oriented matching requires.
-        return new RegexExpandEvaluator.Factory(
-            source(),
-            toEvaluator.apply(src),
-            context -> pattern.matcher(""),
-            context -> new BytesRef(),
-            context -> new BytesRefBuilder(),
-            context -> new BytesRef(),
-            template
-        );
+        // A dictionary-aware evaluator: on a dense, single-valued OrdinalBytesRefBlock it matches and expands once per distinct
+        // dictionary entry rather than once per row (see RegexExpandOrdinalEvaluator); other blocks take the per-row path. The
+        // compiled pattern and bound template are shared across driver threads, while the per-thread Matcher and reused output
+        // buffers are created per DriverContext inside the evaluator.
+        return new RegexExpandOrdinalEvaluator.Factory(source(), toEvaluator.apply(src), pattern, template);
     }
 
     /**
@@ -202,51 +190,77 @@ public final class RegexExpand extends EsqlScalarFunction implements VersionedNa
         }
     }
 
-    @Evaluator(warnExceptions = { IllegalArgumentException.class })
+    /**
+     * Derives the destination value for a single position and appends it to {@code builder}: {@code null} on no match (the
+     * no-op sentinel), an empty {@link BytesRef} on a matched-but-empty expansion (the delete sentinel), or the expansion
+     * otherwise. Throws {@link IllegalArgumentException} on a multivalued position; the calling {@link RegexExpandOrdinalEvaluator}
+     * turns that into the ES|QL "single-value function encountered multi-value" warning and a {@code null} result. The
+     * {@code matcher} and the {@code out}/{@code outValue} buffers are caller-owned and reused across positions.
+     */
     static void process(
         BytesRefBlock.Builder builder,
-        @Position int p,
+        int p,
         BytesRefBlock srcBlock,
-        @Fixed(includeInToString = false, scope = THREAD_LOCAL) Matcher matcher,
-        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch,
-        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRefBuilder out,
-        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef outValue,
-        @Fixed Replacement template
+        Matcher matcher,
+        BytesRef scratch,
+        BytesRefBuilder out,
+        BytesRef outValue,
+        Replacement template
     ) {
         // A single label has a single value, so a multivalued source has no defined value to match. Follow the ES|QL
-        // single-value contract (the same one label_join inherits from Concat): the declared warnExceptions turns this into a
-        // "single-value function encountered multi-value" warning and a null (no-op) result, leaving the destination untouched.
+        // single-value contract (the same one label_join inherits from Concat): the calling evaluator turns this exception into
+        // a "single-value function encountered multi-value" warning and a null (no-op) result, leaving the destination untouched.
         if (srcBlock.getValueCount(p) > 1) {
             throw new IllegalArgumentException("single-value function encountered multi-value");
         }
-        // Match the raw UTF-8 bytes: RE2/J matches an identical rune stream in UTF-8 and UTF-16 mode, so staying in UTF-8
-        // avoids a decode-to-String/re-encode round-trip and lets the expansion slice capture groups straight out of the input
-        // bytes. Capture-group offsets are byte offsets in this mode.
-        byte[] input = inputBytes(srcBlock, p, scratch);
-        matcher.reset(input);
-        if (matcher.matches() == false) {
+        BytesRef result = matchAndExpand(inputBytes(srcBlock, p, scratch), matcher, out, outValue, template);
+        if (result == null) {
             // No match: leave the destination label untouched (never set it to src).
             builder.appendNull();
-            return;
+        } else {
+            // A match with an empty expansion is the delete sentinel (empty BytesRef); a non-empty expansion sets the label.
+            builder.appendBytesRef(result);
         }
-        // A match with an empty expansion is the delete sentinel (empty BytesRef); a non-empty expansion sets the label.
-        builder.appendBytesRef(template.expand(matcher, input, out, outValue));
     }
 
     /**
-     * The single-valued string value at position {@code p} as an exact-size UTF-8 {@code byte[]}, or {@link BytesRef#EMPTY_BYTES}
-     * when the position has no value. Null positions never reach here (the generated evaluator short-circuits them) and
-     * multivalued positions are rejected by {@link #process} before this is called, so this only guards the empty (zero-value)
-     * case; the caller coalesces an absent source label to {@code ""} upstream. A fresh copy is made because RE2/J's
-     * {@link Matcher#reset(byte[])} matches the whole array (it has no offset/length form) while the block hands back a view into
-     * shared storage with an arbitrary offset and an over-sized backing array. {@code scratch} is a caller-owned read buffer that
-     * holds nothing past this call and may be reused.
+     * Matches {@code input} - the exact-size UTF-8 bytes of a single source value - against the anchored pattern and expands the
+     * replacement template, returning the (possibly empty, i.e. delete-sentinel) expansion, or {@code null} for the no-op
+     * sentinel when the pattern does not match. Matching stays on the raw UTF-8 bytes because RE2/J matches an identical rune
+     * stream in UTF-8 and UTF-16 mode, which avoids a decode-to-String/re-encode round-trip and lets the expansion slice capture
+     * groups straight out of {@code input} (capture-group offsets are byte offsets in this mode). The returned {@link BytesRef}
+     * is a view over {@code out}, valid only until the next call, so callers copy it before reusing the buffer. Shared by the
+     * per-row {@link #process} and the dictionary fast path in {@link RegexExpandOrdinalEvaluator}.
+     */
+    static BytesRef matchAndExpand(byte[] input, Matcher matcher, BytesRefBuilder out, BytesRef outValue, Replacement template) {
+        matcher.reset(input);
+        if (matcher.matches() == false) {
+            return null;
+        }
+        return template.expand(matcher, input, out, outValue);
+    }
+
+    /**
+     * The single-valued string value at position {@code p} as an exact-size UTF-8 {@code byte[]} (see {@link #toExactBytes}), or
+     * {@link BytesRef#EMPTY_BYTES} when the position has no value. Null positions never reach here (the evaluator short-circuits
+     * them) and multivalued positions are rejected by {@link #process} before this is called, so this only guards the empty
+     * (zero-value) case; the caller coalesces an absent source label to {@code ""} upstream. {@code scratch} is a caller-owned
+     * read buffer that holds nothing past this call and may be reused.
      */
     private static byte[] inputBytes(BytesRefBlock block, int p, BytesRef scratch) {
         if (block.getValueCount(p) == 0) {
             return BytesRef.EMPTY_BYTES;
         }
-        BytesRef value = block.getBytesRef(block.getFirstValueIndex(p), scratch);
+        return toExactBytes(block.getBytesRef(block.getFirstValueIndex(p), scratch));
+    }
+
+    /**
+     * Copies {@code value}'s bytes into an exact-size array. RE2/J's {@link Matcher#reset(byte[])} matches the whole array (it
+     * has no offset/length form), while a block hands back a {@link BytesRef} view into shared storage with an arbitrary offset
+     * and an over-sized backing array, so a fresh copy is required before matching. Shared by the per-row path and the
+     * dictionary fast path.
+     */
+    static byte[] toExactBytes(BytesRef value) {
         return Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
     }
 

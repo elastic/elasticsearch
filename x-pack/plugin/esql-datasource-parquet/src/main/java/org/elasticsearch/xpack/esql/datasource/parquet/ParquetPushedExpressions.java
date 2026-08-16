@@ -2383,11 +2383,13 @@ final class ParquetPushedExpressions {
      * without compromising correctness — we are looking at the actual per-row-group
      * dictionary, not at file-level metadata.
      *
-     * <p>This relies on the ordinals block being <strong>single-valued</strong>: position
-     * {@code i} maps directly to value index {@code i}. The Parquet reader's dictionary
-     * path always satisfies this — see {@code PageColumnReader#buildOrdinalsBlock}, which
-     * constructs the ordinals block with {@code firstValueIndexes == null}. The assertion
-     * below documents and guards the invariant for any future producer.
+     * <p>The ordinals block must be <strong>single-valued per position</strong> (no MV):
+     * the assertion below guards this. It may, however, be a non-vector block (i.e.
+     * {@link IntBlock#asVector()} returns {@code null}): nullable Parquet columns produce
+     * null entries in the ordinals block, and null positions consume no slot in the values
+     * array, so {@code getFirstValueIndex(i) != i} for positions after a null. Each
+     * position is therefore looked up via {@link IntBlock#getFirstValueIndex} before
+     * calling {@link IntBlock#getInt}.
      */
     private static void applyDictionaryMatches(OrdinalBytesRefBlock block, boolean[] dictMatches, WordMask mask, int rowCount) {
         IntBlock ordinals = block.getOrdinalsBlock();

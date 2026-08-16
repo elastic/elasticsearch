@@ -2158,23 +2158,31 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
 
     public void testStartsWithOnMultivalueBytesRefBlock() {
         Block block = buildTagsMvBlock();
-        Map<String, Block> blocks = Map.of("tags", block);
-        WordMask reusable = new WordMask();
-        StartsWith startsWith = new StartsWith(Source.EMPTY, attr("tags", DataType.KEYWORD), lit(new BytesRef("Sen"), DataType.KEYWORD));
-        // pos0 (single-value "Senior Dev") starts with "Sen"; pos1 is MV (excluded even though "Senior X" matches)
-        assertSurvivors(new ParquetPushedExpressions(List.of(startsWith)), blocks, 3, reusable, new int[] { 0 });
+        try (block) {
+            Map<String, Block> blocks = Map.of("tags", block);
+            WordMask reusable = new WordMask();
+            StartsWith startsWith = new StartsWith(
+                Source.EMPTY,
+                attr("tags", DataType.KEYWORD),
+                lit(new BytesRef("Sen"), DataType.KEYWORD)
+            );
+            // pos0 (single-value "Senior Dev") starts with "Sen"; pos1 is MV (excluded even though "Senior X" matches)
+            assertSurvivors(new ParquetPushedExpressions(List.of(startsWith)), blocks, 3, reusable, new int[] { 0 });
+        }
     }
 
     public void testNotStartsWithOnMultivalueBytesRefBlock() {
         Block block = buildTagsMvBlock();
-        Map<String, Block> blocks = Map.of("tags", block);
-        WordMask reusable = new WordMask();
-        Not not = new Not(
-            Source.EMPTY,
-            new StartsWith(Source.EMPTY, attr("tags", DataType.KEYWORD), lit(new BytesRef("Sen"), DataType.KEYWORD))
-        );
-        // pos0 matches → excluded; pos1 is MV → excluded; pos2 ("Manager") doesn't match → survives
-        assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 3, reusable, new int[] { 2 });
+        try (block) {
+            Map<String, Block> blocks = Map.of("tags", block);
+            WordMask reusable = new WordMask();
+            Not not = new Not(
+                Source.EMPTY,
+                new StartsWith(Source.EMPTY, attr("tags", DataType.KEYWORD), lit(new BytesRef("Sen"), DataType.KEYWORD))
+            );
+            // pos0 matches → excluded; pos1 is MV → excluded; pos2 ("Manager") doesn't match → survives
+            assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 3, reusable, new int[] { 2 });
+        }
     }
 
     public void testWildcardLikeMatchesAllOnMultivalueBytesRefBlock() {
@@ -2194,20 +2202,24 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
 
     public void testWildcardLikeOnMultivalueBytesRefBlock() {
         Block block = buildTagsMvBlock();
-        Map<String, Block> blocks = Map.of("tags", block);
-        WordMask reusable = new WordMask();
-        WildcardLike wildcard = new WildcardLike(Source.EMPTY, attr("tags", DataType.KEYWORD), new WildcardPattern("Senior*"));
-        // pos0 (single-value "Senior Dev") matches; pos1 is MV (excluded even though "Senior X" matches)
-        assertSurvivors(new ParquetPushedExpressions(List.of(wildcard)), blocks, 3, reusable, new int[] { 0 });
+        try (block) {
+            Map<String, Block> blocks = Map.of("tags", block);
+            WordMask reusable = new WordMask();
+            WildcardLike wildcard = new WildcardLike(Source.EMPTY, attr("tags", DataType.KEYWORD), new WildcardPattern("Senior*"));
+            // pos0 (single-value "Senior Dev") matches; pos1 is MV (excluded even though "Senior X" matches)
+            assertSurvivors(new ParquetPushedExpressions(List.of(wildcard)), blocks, 3, reusable, new int[] { 0 });
+        }
     }
 
     public void testNotWildcardLikeOnMultivalueBytesRefBlock() {
         Block block = buildTagsMvBlock();
-        Map<String, Block> blocks = Map.of("tags", block);
-        WordMask reusable = new WordMask();
-        Not not = new Not(Source.EMPTY, new WildcardLike(Source.EMPTY, attr("tags", DataType.KEYWORD), new WildcardPattern("Senior*")));
-        // pos0 matches → excluded; pos1 is MV → excluded by MV semantics in NOT; pos2 ("Manager") → survives
-        assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 3, reusable, new int[] { 2 });
+        try (block) {
+            Map<String, Block> blocks = Map.of("tags", block);
+            WordMask reusable = new WordMask();
+            Not not = new Not(Source.EMPTY, new WildcardLike(Source.EMPTY, attr("tags", DataType.KEYWORD), new WildcardPattern("Senior*")));
+            // pos0 matches → excluded; pos1 is MV → excluded by MV semantics in NOT; pos2 ("Manager") → survives
+            assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 3, reusable, new int[] { 2 });
+        }
     }
 
     private static int[] positionsWithOrdinal(int[] ordinals, int target) {

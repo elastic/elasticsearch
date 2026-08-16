@@ -993,3 +993,6 @@ tests:
 - class: org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponseTests
   method: testConcurrentSerialization
   issue: https://github.com/elastic/elasticsearch/issues/156870
+- class: org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponseTests
+  method: testConcurrentEquals
+  issue: https://github.com/elastic/elasticsearch/issues/156871

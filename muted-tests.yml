@@ -953,3 +953,28 @@ tests:
 - class: org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponseTests
   method: testSerialization
   issue: https://github.com/elastic/elasticsearch/issues/156848
+- class: org.elasticsearch.xpack.core.transform.action.PreviewTransformActionRequestTests
+  method: testCloudCredentialRoundTripPreservesValue
+  issue: https://github.com/elastic/elasticsearch/issues/156850
+- class: org.elasticsearch.xpack.core.transform.action.ResetTransformActionRequestTests
+  method: testCloudCredentialRoundTripPreservesValue
+  issue: https://github.com/elastic/elasticsearch/issues/156851
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/156852
+- class: org.elasticsearch.cluster.action.shard.ShardStartedTaskExecutorTests
+  issue: https://github.com/elastic/elasticsearch/issues/156853
+- class: org.elasticsearch.common.util.BigArraysTests
+  method: testEstimatedBytesSameAsActualBytes
+  issue: https://github.com/elastic/elasticsearch/issues/156854
+- class: org.elasticsearch.repositories.RepositoriesServiceTests
+  method: testRegisterRepositorySuccessAfterCreationFailed
+  issue: https://github.com/elastic/elasticsearch/issues/156855
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecChangePointIT
+  method: test {csv-spec:change_point.null keys}
+  issue: https://github.com/elastic/elasticsearch/issues/156856
+- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=downsample/10_basic/Downsample a downsampled index}
+  issue: https://github.com/elastic/elasticsearch/issues/156862
+- class: org.elasticsearch.search.aggregations.metrics.TDigestPercentilesIT
+  method: testSingleValuedFieldPartiallyUnmapped
+  issue: https://github.com/elastic/elasticsearch/issues/156864

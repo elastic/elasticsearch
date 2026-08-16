@@ -1010,6 +1010,7 @@ public class IndicesService extends AbstractLifecycleComponent
             projectId,
             recoveryListener,
             recoveryState,
+            indexService.getMetadata(),
             shardRouting.allocationId().getId(),
             indexShard.recoveryStats(),
             listener -> indexShard.startRecovery(

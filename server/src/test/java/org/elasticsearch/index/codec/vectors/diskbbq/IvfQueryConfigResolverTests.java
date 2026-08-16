@@ -87,8 +87,8 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                     dir,
                     4,
                     64,
-                    new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, true, MAPPING_OVERSAMPLE),
-                    new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, true, MAPPING_OVERSAMPLE),
+                    IvfSegmentConfig.of(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, true, MAPPING_OVERSAMPLE),
+                    IvfSegmentConfig.of(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, true, MAPPING_OVERSAMPLE),
                     IvfMergeConfigResolver.useCodecDefault()
                 )
             ) {
@@ -165,8 +165,8 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                     dir,
                     4,
                     64,
-                    new IvfSegmentConfig(CentroidIndexFormat.FLAT, persistedEncoding, false, 2f),
-                    new IvfSegmentConfig(CentroidIndexFormat.FLAT, persistedEncoding, false, 2f),
+                    IvfSegmentConfig.of(CentroidIndexFormat.FLAT, persistedEncoding, false, 2f),
+                    IvfSegmentConfig.of(CentroidIndexFormat.FLAT, persistedEncoding, false, 2f),
                     IvfMergeConfigResolver.useCodecDefault()
                 )
             ) {
@@ -188,8 +188,8 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                     dir,
                     4,
                     64,
-                    new IvfSegmentConfig(CentroidIndexFormat.FLAT, persistedEncoding, false, 2f),
-                    new IvfSegmentConfig(CentroidIndexFormat.FLAT, persistedEncoding, false, 2f),
+                    IvfSegmentConfig.of(CentroidIndexFormat.FLAT, persistedEncoding, false, 2f),
+                    IvfSegmentConfig.of(CentroidIndexFormat.FLAT, persistedEncoding, false, 2f),
                     IvfMergeConfigResolver.useCodecDefault()
                 )
             ) {

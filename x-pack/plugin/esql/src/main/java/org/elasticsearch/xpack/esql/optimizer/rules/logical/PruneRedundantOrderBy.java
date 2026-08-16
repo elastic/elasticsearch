@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import java.util.ArrayDeque;
 import java.util.Collections;
@@ -39,7 +40,7 @@ import java.util.Set;
  * <p>
  * This rule finds and prunes redundant SORTs, attempting to make the plan executable.
  */
-public class PruneRedundantOrderBy extends OptimizerRules.OptimizerRule<LogicalPlan> {
+public class PruneRedundantOrderBy extends OptimizerRules.OptimizerRule<LogicalPlan> implements MandatoryRule {
 
     @Override
     protected LogicalPlan rule(LogicalPlan plan) {

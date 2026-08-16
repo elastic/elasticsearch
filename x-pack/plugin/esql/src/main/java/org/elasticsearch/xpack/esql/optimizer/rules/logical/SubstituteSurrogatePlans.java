@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
-public final class SubstituteSurrogatePlans extends OptimizerRules.OptimizerRule<LogicalPlan> {
+public final class SubstituteSurrogatePlans extends OptimizerRules.OptimizerRule<LogicalPlan> implements MandatoryRule {
 
     public SubstituteSurrogatePlans() {
         super(OptimizerRules.TransformDirection.UP);

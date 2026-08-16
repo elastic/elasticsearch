@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LeafExec;
 import org.elasticsearch.xpack.esql.plan.physical.ParameterizedQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,8 +31,11 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRule
  * <p>
  * Handles both {@link EsSourceExec} (data node path, replaced with {@link EsQueryExec}) and
  * {@link ParameterizedQueryExec} (lookup node path, output stripped to {@code [_doc, _positions]}).
+ *
+ * <p>Mandatory: without this rule {@link EsSourceExec} nodes are never converted to {@link EsQueryExec},
+ * and the execution engine throws {@code EsqlIllegalArgumentException: unknown physical plan node [EsSourceExec]}.
  */
-public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRule<LeafExec> {
+public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRule<LeafExec> implements MandatoryRule {
 
     public ReplaceSourceAttributes() {
         super(UP);

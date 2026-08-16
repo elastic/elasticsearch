@@ -14,13 +14,14 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporaryName;
 
-public final class ReplaceOrderByExpressionWithEval extends OptimizerRules.OptimizerRule<OrderBy> {
+public final class ReplaceOrderByExpressionWithEval extends OptimizerRules.OptimizerRule<OrderBy> implements MandatoryRule {
     private static int counter = 0;
 
     @Override

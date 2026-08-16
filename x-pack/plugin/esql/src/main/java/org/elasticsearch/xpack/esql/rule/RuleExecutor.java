@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
@@ -97,6 +98,23 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
     protected abstract Iterable<RuleExecutor.Batch<TreeType>> batches();
 
+    /**
+     * Returns the set of rule simple class names ({@link Class#getSimpleName()}) that should be skipped when
+     * iterating this executor's batches. The default implementation returns an empty set (no rules are skipped).
+     *
+     * <p>Subclasses that know their {@link org.elasticsearch.xpack.esql.optimizer.OptimizerStage} override this to
+     * delegate to
+     * {@link org.elasticsearch.xpack.esql.optimizer.OptimizerStage#disabledRuleNames(org.elasticsearch.xpack.esql.session.Configuration, org.elasticsearch.xpack.esql.optimizer.OptimizerStage)},
+     * which reads the {@code disable_optimizer_rules} pragma from the request's
+     * {@link org.elasticsearch.xpack.esql.plugin.QueryPragmas} and filters by stage. On release builds the method
+     * always returns empty.</p>
+     *
+     * <p>The result is read once at the start of {@link #execute} and cached for the duration of that call.</p>
+     */
+    protected Set<String> disabledRuleNames() {
+        return Set.of();
+    }
+
     protected final TreeType execute(TreeType plan) {
         TreeType currentPlan = plan;
 
@@ -105,6 +123,8 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
         if (batches == null) {
             batches = batches();
         }
+
+        Set<String> disabled = disabledRuleNames();
 
         for (Batch<TreeType> batch : batches) {
             int batchRuns = 0;
@@ -120,6 +140,11 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                 batchRuns++;
 
                 for (Rule<?, TreeType> rule : batch.rules) {
+                    if (disabled.isEmpty() == false && disabled.contains(rule.getClass().getSimpleName())) {
+                        log.trace("Skipping disabled rule {}", rule);
+                        continue;
+                    }
+
                     if (log.isTraceEnabled()) {
                         log.trace("About to apply rule {}", rule);
                     }

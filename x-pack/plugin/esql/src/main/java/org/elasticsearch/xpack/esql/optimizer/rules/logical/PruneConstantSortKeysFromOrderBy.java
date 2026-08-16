@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.List;
@@ -32,7 +33,9 @@ import java.util.List;
  * sorting by a constant conveys no order. Emptying the sort lets the surrounding {@link Limit}/{@link
  * LimitBy} stay a plain limit instead of becoming a {@code TopN}, which is what lets it push down to Lucene.
  */
-public final class PruneConstantSortKeysFromOrderBy extends ParameterizedRule<LogicalPlan, LogicalPlan, LogicalOptimizerContext> {
+public final class PruneConstantSortKeysFromOrderBy extends ParameterizedRule<LogicalPlan, LogicalPlan, LogicalOptimizerContext>
+    implements
+        MandatoryRule {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LogicalOptimizerContext ctx) {

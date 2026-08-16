@@ -10,12 +10,13 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 /**
  * Combine multiple Evals into one in order to reduce the number of nodes in a plan.
  * TODO: eliminate unnecessary fields inside the eval as well
  */
-public final class CombineEvals extends OptimizerRules.OptimizerRule<Eval> {
+public final class CombineEvals extends OptimizerRules.OptimizerRule<Eval> implements MandatoryRule {
 
     public CombineEvals() {
         super(OptimizerRules.TransformDirection.UP);

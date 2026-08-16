@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Streaming;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -41,7 +42,10 @@ import java.util.stream.Collectors;
  * we need to create aliases for the fields used by TopN, and then use those aliases in the copy TopN.
  * Then we need to add Project to remove the alias fields. Fortunately, PushDownUtils has the logic to do that.
  */
-public final class HoistRemoteEnrichTopN extends OptimizerRules.OptimizerRule<Enrich> implements OptimizerRules.CoordinatorOnly {
+public final class HoistRemoteEnrichTopN extends OptimizerRules.OptimizerRule<Enrich>
+    implements
+        OptimizerRules.CoordinatorOnly,
+        MandatoryRule {
     public HoistRemoteEnrichTopN() {
         super(OptimizerRules.TransformDirection.UP);
     }

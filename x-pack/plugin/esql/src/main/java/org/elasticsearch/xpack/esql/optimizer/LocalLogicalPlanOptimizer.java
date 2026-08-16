@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.rule.Rule;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.cleanup;
@@ -61,6 +62,11 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
 
     public LocalLogicalPlanOptimizer(LocalLogicalOptimizerContext localLogicalOptimizerContext) {
         super(localLogicalOptimizerContext);
+    }
+
+    @Override
+    protected Set<String> disabledRuleNames() {
+        return OptimizerStage.disabledRuleNames(context().configuration(), OptimizerStage.LOCAL_LOGICAL);
     }
 
     @Override

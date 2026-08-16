@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.SampledAggregateExec;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,7 +47,7 @@ import java.util.List;
  */
 public class ReplaceSampledStatsByExactStats extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
     SampledAggregateExec,
-    LocalPhysicalOptimizerContext> {
+    LocalPhysicalOptimizerContext> implements MandatoryRule {
 
     @Override
     protected PhysicalPlan rule(SampledAggregateExec plan, LocalPhysicalOptimizerContext context) {

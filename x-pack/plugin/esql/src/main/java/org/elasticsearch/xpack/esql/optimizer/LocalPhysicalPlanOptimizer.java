@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Manages field extraction and pushing parts of the query into Lucene. (Query elements that are not pushed into Lucene are executed via
@@ -52,6 +53,11 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     public LocalPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context) {
         super(context);
+    }
+
+    @Override
+    protected Set<String> disabledRuleNames() {
+        return OptimizerStage.disabledRuleNames(context().configuration(), OptimizerStage.LOCAL_PHYSICAL);
     }
 
     public PhysicalPlan localOptimize(PhysicalPlan plan) {

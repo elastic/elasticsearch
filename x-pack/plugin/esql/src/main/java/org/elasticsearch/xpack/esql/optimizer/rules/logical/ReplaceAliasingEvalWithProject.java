@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
@@ -36,7 +37,7 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryName
  * eval x = a + 1, z = a + 1 + 1, w = a + 1 + 1
  * project x, z, z as y, w
  */
-public final class ReplaceAliasingEvalWithProject extends Rule<LogicalPlan, LogicalPlan> {
+public final class ReplaceAliasingEvalWithProject extends Rule<LogicalPlan, LogicalPlan> implements MandatoryRule {
 
     @Override
     public LogicalPlan apply(LogicalPlan logicalPlan) {

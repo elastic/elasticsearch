@@ -990,3 +990,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformGetAndGetStatsIT
   method: testManyTransforms
   issue: https://github.com/elastic/elasticsearch/issues/156869
+- class: org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponseTests
+  method: testConcurrentSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/156870

@@ -4310,3 +4310,94 @@ FROM employees
 total:long
 57
 ;
+
+inlineStatsWhereInSubqueryWithRow
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: inline_stats_where_in_subquery
+
+FROM employees
+| INLINE STATS c = COUNT(*) WHERE emp_no IN (ROW x = 10001)
+| WHERE emp_no == 10001
+| KEEP emp_no, c
+;
+
+emp_no:integer | c:long
+10001          | 1
+;
+
+rowSourceInlineStatsWhereInSubqueryWithRow
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: inline_stats_where_in_subquery
+
+ROW a = [1, 2]
+| MV_EXPAND a
+| INLINE STATS c = COUNT(*) WHERE a IN (ROW x = 1)
+| SORT a
+| KEEP a, c
+;
+
+a:integer | c:long
+1         | 1
+2         | 1
+;
+
+inlineStatsWhereCaseInSubqueryWithRow
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: inline_stats_where_in_subquery
+
+FROM employees
+| INLINE STATS c = COUNT(*) WHERE CASE(emp_no IN (ROW x = 10001), true, false)
+| WHERE emp_no == 10001
+| KEEP emp_no, c
+;
+
+emp_no:integer | c:long
+10001          | 1
+;
+
+inlineStatsWhereCoalesceInSubqueryWithRow
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: inline_stats_where_in_subquery
+
+FROM employees
+| INLINE STATS c = COUNT(*) WHERE COALESCE(emp_no IN (ROW x = 10001), false)
+| WHERE emp_no == 10001
+| KEEP emp_no, c
+;
+
+emp_no:integer | c:long
+10001          | 1
+;
+
+inlineStatsWhereIsNullInSubqueryWithRow
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: inline_stats_where_in_subquery
+
+FROM employees
+| INLINE STATS c = COUNT(*) WHERE (emp_no IN (ROW x = null::integer)) IS NULL
+| STATS c1 = MAX(c)
+;
+
+c1:long
+100
+;
+
+inlineStatsWhereIsNotNullInSubqueryWithRow
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: inline_stats_where_in_subquery
+
+FROM employees
+| INLINE STATS c = COUNT(*) WHERE (emp_no IN (ROW x = 10001)) IS NOT NULL
+| WHERE emp_no == 10001
+| KEEP emp_no, c
+;
+
+emp_no:integer | c:long
+10001          | 100
+;

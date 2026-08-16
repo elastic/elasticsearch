@@ -999,3 +999,6 @@ tests:
 - class: org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponseTests
   method: testEqualsAndHashcode
   issue: https://github.com/elastic/elasticsearch/issues/156872
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.lookupJoin [lz4raw/GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/156877

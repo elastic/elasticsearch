@@ -981,3 +981,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettingsTests
   method: testEqualsAndHashcode
   issue: https://github.com/elastic/elasticsearch/issues/156866
+- class: org.elasticsearch.xpack.inference.common.oauth2.OAuth2SecretsTests
+  method: testConcurrentSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/156867

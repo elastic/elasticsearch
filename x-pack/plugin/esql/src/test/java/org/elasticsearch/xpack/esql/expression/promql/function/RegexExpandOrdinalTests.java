@@ -169,9 +169,7 @@ public class RegexExpandOrdinalTests extends ESTestCase {
         BytesRef scratch = new BytesRef();
         List<String> values = new ArrayList<>(positionCount);
         for (int p = 0; p < positionCount; p++) {
-            values.add(
-                block.isNull(p) ? null : bytesRefBlock.getBytesRef(bytesRefBlock.getFirstValueIndex(p), scratch).utf8ToString()
-            );
+            values.add(block.isNull(p) ? null : bytesRefBlock.getBytesRef(bytesRefBlock.getFirstValueIndex(p), scratch).utf8ToString());
         }
         return values;
     }

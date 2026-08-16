@@ -23,7 +23,11 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
+import java.util.AbstractMap;
+import java.util.AbstractSet;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -107,7 +111,7 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeGenericMap(ingestDocument.getSourceAndMetadata());
+        out.writeGenericMap(new SourceAndMetadataMap(ingestDocument.getSource(), ingestDocument.getMetadata().getMap()));
         out.writeGenericMap(ingestDocument.getIngestMetadata());
     }
 
@@ -138,5 +142,51 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
     @Override
     public String toString() {
         return ingestDocument.toString();
+    }
+
+    /**
+     * Read-only map view used to serialize source and document metadata as a generic map without copying fields into a new unified map.
+     * Source keys and document metadata keys don't overlap.
+     */
+    private static final class SourceAndMetadataMap extends AbstractMap<String, Object> {
+        private final Map<String, Object> source;
+        private final Map<String, Object> metadata;
+
+        private SourceAndMetadataMap(Map<String, Object> source, Map<String, Object> metadata) {
+            this.source = source;
+            this.metadata = metadata;
+        }
+
+        @Override
+        public Set<Entry<String, Object>> entrySet() {
+            return new AbstractSet<>() {
+                @Override
+                public Iterator<Entry<String, Object>> iterator() {
+                    Iterator<Entry<String, Object>> sourceIterator = source.entrySet().iterator();
+                    Iterator<Entry<String, Object>> metadataIterator = metadata.entrySet().iterator();
+                    return new Iterator<>() {
+                        @Override
+                        public boolean hasNext() {
+                            return sourceIterator.hasNext() || metadataIterator.hasNext();
+                        }
+
+                        @Override
+                        public Entry<String, Object> next() {
+                            return sourceIterator.hasNext() ? sourceIterator.next() : metadataIterator.next();
+                        }
+                    };
+                }
+
+                @Override
+                public int size() {
+                    return SourceAndMetadataMap.this.size();
+                }
+            };
+        }
+
+        @Override
+        public int size() {
+            return source.size() + metadata.size();
+        }
     }
 }

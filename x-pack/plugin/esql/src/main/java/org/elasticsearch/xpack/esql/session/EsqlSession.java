@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter;
+import org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -518,13 +519,24 @@ public class EsqlSession {
                     // would not be routed to the listener — catch it and fail the query explicitly.
                     final LogicalPlan plan;
                     try {
-                        plan = RequestFilterRewriter.rewrite(
+                        LogicalPlan afterDatasetFilter = RequestFilterRewriter.rewrite(
                             analyzedPlan.inner(),
                             request.filter(),
                             RequestFilterRewriter.REQUEST_FILTER_ON_DATASET_FEATURE_FLAG.isEnabled(),
                             finalConfiguration,
                             minimumVersion,
                             Boolean.TRUE.equals(request.allowPartialDslFilter())
+                        );
+                        // Apply the request filter to view subplan outputs: the filter is translated against each
+                        // view's output schema and inserted as an ordinary Filter above the view's subplan, so it
+                        // applies after the view's own processing (STATS, EVAL, RENAME, …) rather than being
+                        // pushed into the view's source indices as a Lucene query.
+                        plan = ViewRequestFilterRewriter.rewrite(
+                            afterDatasetFilter,
+                            request.filter(),
+                            ViewRequestFilterRewriter.REQUEST_FILTER_ON_VIEW_FEATURE_FLAG.isEnabled(),
+                            finalConfiguration,
+                            minimumVersion
                         );
                     } catch (Exception e) {
                         listener.onFailure(e);

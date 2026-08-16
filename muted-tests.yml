@@ -472,3 +472,6 @@ tests:
 - class: org.elasticsearch.index.mapper.BinaryFieldMapperTests
   method: testSyntheticSourceWithTranslogSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/156860
+- class: org.elasticsearch.xpack.transform.integration.TransformDestIndexIT
+  method: testUnattendedTransformDestIndexCreatedDuringUpdate_EmptySourceIndex_DeferValidation
+  issue: https://github.com/elastic/elasticsearch/issues/156861

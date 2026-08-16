@@ -314,7 +314,7 @@ public final class DimsPacker {
         }
     }
 
-    static BytesRefVector packSingleColumn(DriverContext driverContext, Block block) {
+    public static BytesRefVector packSingleColumn(DriverContext driverContext, Block block) {
         ElementType elementType = block.elementType();
         return switch (elementType) {
             case NULL -> packNulls(driverContext, block.getPositionCount());
@@ -326,7 +326,7 @@ public final class DimsPacker {
         };
     }
 
-    static Block unpackSingleColumn(DriverContext driverContext, BytesRefVector input, ElementType elementType) {
+    public static Block unpackSingleColumn(DriverContext driverContext, BytesRefVector input, ElementType elementType) {
         return switch (elementType) {
             case NULL -> driverContext.blockFactory().newConstantNullBlock(input.getPositionCount());
             case BYTES_REF -> unpackBytesValues(driverContext, input);

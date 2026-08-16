@@ -30,6 +30,7 @@ public class ReadDimsExec extends UnaryExec implements EstimatesRowSize {
     private final Attribute tsidAttribute;
     private final List<Attribute> dims;
     private final MappedFieldType.FieldExtractPreference fieldExtractPreference;
+    private final Attribute packed;
     private List<Attribute> lazyOutput;
 
     public ReadDimsExec(
@@ -38,12 +39,14 @@ public class ReadDimsExec extends UnaryExec implements EstimatesRowSize {
         Attribute docAttribute,
         Attribute tsidAttribute,
         List<Attribute> dims,
+        Attribute packed,
         MappedFieldType.FieldExtractPreference fieldExtractPreference
     ) {
         super(source, child);
         this.docAttribute = docAttribute;
         this.tsidAttribute = tsidAttribute;
         this.dims = dims;
+        this.packed = packed;
         this.fieldExtractPreference = fieldExtractPreference;
     }
 
@@ -59,6 +62,10 @@ public class ReadDimsExec extends UnaryExec implements EstimatesRowSize {
         return dims;
     }
 
+    public Attribute packed() {
+        return packed;
+    }
+
     public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
         return fieldExtractPreference;
     }
@@ -71,9 +78,13 @@ public class ReadDimsExec extends UnaryExec implements EstimatesRowSize {
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            lazyOutput = CollectionUtils.concatLists(child().output(), dims);
+            lazyOutput = CollectionUtils.concatLists(child().output(), newFields());
         }
         return lazyOutput;
+    }
+
+    public List<Attribute> newFields() {
+        return packed != null ? List.of(packed) : dims;
     }
 
     @Override
@@ -84,12 +95,12 @@ public class ReadDimsExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new ReadDimsExec(source(), newChild, docAttribute, tsidAttribute, dims, fieldExtractPreference);
+        return new ReadDimsExec(source(), newChild, docAttribute, tsidAttribute, dims, packed, fieldExtractPreference);
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, ReadDimsExec::new, child(), docAttribute, tsidAttribute, dims, fieldExtractPreference);
+        return NodeInfo.create(this, ReadDimsExec::new, child(), docAttribute, tsidAttribute, dims, packed, fieldExtractPreference);
     }
 
     @Override
@@ -104,7 +115,7 @@ public class ReadDimsExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(docAttribute, tsidAttribute, dims, fieldExtractPreference, child());
+        return Objects.hash(docAttribute, tsidAttribute, dims, packed, fieldExtractPreference, child());
     }
 
     @Override
@@ -119,6 +130,7 @@ public class ReadDimsExec extends UnaryExec implements EstimatesRowSize {
         return Objects.equals(docAttribute, other.docAttribute)
             && Objects.equals(tsidAttribute, other.tsidAttribute)
             && Objects.equals(dims, other.dims)
+            && Objects.equals(packed, other.packed)
             && fieldExtractPreference == other.fieldExtractPreference
             && Objects.equals(child(), other.child());
     }
@@ -127,6 +139,9 @@ public class ReadDimsExec extends UnaryExec implements EstimatesRowSize {
     public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         sb.append(nodeName());
         NodeUtils.toString(sb, dims, format, mapper);
+        sb.append("packed=");
+        sb.append(packed != null);
+        sb.append(",");
         sb.append("<tsid=");
         tsidAttribute.nodeString(sb, format, mapper);
         sb.append(">");

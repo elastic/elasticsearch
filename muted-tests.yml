@@ -1002,3 +1002,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetCompressedFormatSpecIT
   method: test {csv-spec:external-basic.lookupJoin [lz4raw/GCS]}
   issue: https://github.com/elastic/elasticsearch/issues/156877
+- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=ml/ml_standard_analyze/Test analyze API with the standard 7.16 ML analyzer}
+  issue: https://github.com/elastic/elasticsearch/issues/156878

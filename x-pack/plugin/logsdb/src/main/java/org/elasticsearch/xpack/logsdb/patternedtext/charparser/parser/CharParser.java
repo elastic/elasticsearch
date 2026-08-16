@@ -45,28 +45,44 @@ import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.Cha
 @SuppressWarnings("ExtractMethodRecommender")
 public final class CharParser implements Parser {
 
+    // used for the simple-decimal fast path: a table lookup replaces a per-decimal Math.pow(10, n) (10^i is exact
+    // as a double for i <= 22). Sized past MAX_FAST_DECIMAL_DIGITS so POW10[fractionalLength] is always in range.
+    private static final int MAX_FAST_DECIMAL_DIGITS = 9; // max digits that fit an int (10^9 < Integer.MAX_VALUE)
+    private static final double[] POW10 = new double[MAX_FAST_DECIMAL_DIGITS + 1];
+    static {
+        POW10[0] = 1.0;
+        for (int i = 1; i < POW10.length; i++) {
+            POW10[i] = POW10[i - 1] * 10.0;
+        }
+    }
+
     // this is the compiled schema information
+    // a fast lookup table for subToken bitmasks based on the character
+    // a fast lookup table for character types based on the character
+    // a fast lookup table for all valid multi-token bitmasks based on the length of the concatenated delimiter parts
+    // special bitmasks
+    // current subToken state
+    // current token state
+    // true when the previous scanned character was an exponent marker ('e'/'E'); a sign immediately after it is a
+    // valid exponent sign (e.g. "1e-5"), whereas any other interior sign means the token is not a double (e.g. "0-23").
     private final CompiledSchema compiledSchema;
+
 
     private final BitmaskRegistry<SubTokenType> subTokenBitmaskRegistry;
     private final BitmaskRegistry<TokenType> tokenBitmaskRegistry;
     private final BitmaskRegistry<MultiTokenType> multiTokenBitmaskRegistry;
 
-    // a fast lookup table for subToken bitmasks based on the character
     private final int[] charToSubTokenBitmask;
     private final int numUsedCharacters;
 
-    // a fast lookup table for character types based on the character
     private final byte[] charToCharType;
 
     private final CharSpecificParsingInfo[] charSpecificParsingInfos;
     private final boolean[] isSpecialSubTokenDelimiter;
     private final SubstringToIntegerMap subTokenNumericValueRepresentationMap;
 
-    // a fast lookup table for all valid multi-token bitmasks based on the length of the concatenated delimiter parts
     private final int[] delimiterPartsLengthToMultiTokenBitmask;
 
-    // special bitmasks
     private final int intSubTokenBitmask;
     private final int genericSubTokenTypesBitmask;
     private final int allSubTokenBitmask;
@@ -78,7 +94,6 @@ public final class CharParser implements Parser {
     private final int[] charLengthToAllowedSubTokenBitmask;
     private final int charLengthGateMaxIndex;
 
-    // current subToken state
     private int currentSubTokenStartIndex;
     private int currentSubTokenBitmask;
     private int currentSubTokenIntValue;
@@ -87,12 +102,14 @@ public final class CharParser implements Parser {
     private int currentSubTokenSuffixStartIndex;
     private Sign currentSubTokenSignPrefix;
 
-    // current token state
     private int currentTokenBitmask;
     private int currentTokenStartIndex;
     private int currentTokenSubTokenStartIndex;
     private int currentTokenSubTokenIndex;
     private boolean isPotentialDecimalNumber;
+    private boolean previousCharWasExponent;
+    private boolean currentTokenValidDouble;
+
 
     // current multi-token state
     private int currentMultiTokenStartIndex;
@@ -114,6 +131,7 @@ public final class CharParser implements Parser {
     private final int[] bufferedTokenStartIndexes;
     private final int[] bufferedTokenLengths;
     private final boolean[] isBufferedTokenDecimalNumber;
+    private final boolean[] bufferedTokenValidDouble;
     // the index of the first sub-token and number of sub-tokens for each buffered token
     private final int[] bufferedTokenSubTokenFirstIndexes;
     private final int[] bufferedTokenSubTokenLastIndexes;
@@ -152,6 +170,7 @@ public final class CharParser implements Parser {
         bufferedTokenStartIndexes = new int[maxTokensPerMultiToken];
         bufferedTokenLengths = new int[maxTokensPerMultiToken];
         isBufferedTokenDecimalNumber = new boolean[maxTokensPerMultiToken];
+        bufferedTokenValidDouble = new boolean[maxTokensPerMultiToken];
         bufferedTokenSubTokenFirstIndexes = new int[maxTokensPerMultiToken];
         bufferedTokenSubTokenLastIndexes = new int[maxTokensPerMultiToken];
     }
@@ -172,6 +191,7 @@ public final class CharParser implements Parser {
         currentTokenSubTokenStartIndex = -1;
         currentTokenSubTokenIndex = -1;
         isPotentialDecimalNumber = false;
+        currentTokenValidDouble = true;
     }
 
     private void resetMultiTokenState() {
@@ -267,6 +287,11 @@ public final class CharParser implements Parser {
                 charType = charToCharType[currentChar];
             }
 
+            // exponent-aware double validity: capture whether the PREVIOUS char was e/E before we may treat the current
+            // char as an interior sign below, then record the current char for the next iteration. O(1), no rescan.
+            boolean isPotentiallyExponent = previousCharWasExponent;
+            previousCharWasExponent = currentChar == 'e' || currentChar == 'E';
+
             if (currentSubTokenStartIndex < 0) {
                 currentSubTokenStartIndex = indexWithinRawMessage;
             }
@@ -338,11 +363,19 @@ public final class CharParser implements Parser {
                             // don't treat as a delimiter but as a sign prefix - continue parsing next character
                             break;
                         }
+                        // interior '-': valid in a double only as an exponent sign (right after e/E); otherwise the
+                        // token is not a double (e.g. a range "0-23") even though its chars are all in [0-9.\-+eE].
+                        if (isPotentiallyExponent == false) {
+                            currentTokenValidDouble = false;
+                        }
                     } else if (currentChar == '+') {
                         if (currentSubTokenStartIndex == indexWithinRawMessage) {
                             currentSubTokenSignPrefix = Sign.PLUS;
                             // don't treat as a delimiter but as a sign prefix - continue parsing next character
                             break;
+                        }
+                        if (isPotentiallyExponent == false) {
+                            currentTokenValidDouble = false;
                         }
                     } else if (currentChar == '.') {
                         isPotentialDecimalNumber = currentTokenSubTokenIndex < 0 && (currentSubTokenBitmask & intSubTokenBitmask) != 0;
@@ -440,9 +473,11 @@ public final class CharParser implements Parser {
                                 currentSubTokenIntValue = subTokenNumericValueRepresentationMap.applyAsInt(substringView);
                             }
                         } else {
-                            // no bitmask generator for this subToken, meaning no known token expects this delimiter character
-                            // at this position
-                            currentSubTokenBitmask = 0;
+                            // No structured format declares a specific sub-token after this delimiter at this position. Keep only the
+                            // generic sub-token types (int/double/hex) instead of clearing outright, so a double part can survive across a
+                            // double-class delimiter that no structured format uses as an interior delimiter (e.g. '+' in "1e+5"). Any
+                            // non-generic token candidate is still eliminated by the higher-level narrowing below.
+                            currentSubTokenBitmask &= genericSubTokenTypesBitmask;
                         }
 
                         // enforce exact character-length constraints ({n} on numeric subTokens): a length-constrained subToken type keeps
@@ -518,6 +553,7 @@ public final class CharParser implements Parser {
                                 && currentToken.encodingType() == EncodingType.DOUBLE
                                 && currentTokenSubTokenIndex == 1
                                 && (currentSubTokenBitmask & intSubTokenBitmask) != 0;
+                            bufferedTokenValidDouble[bufferedTokensIndex] = currentTokenValidDouble;
 
                             if (bufferedTokensIndex == 0) {
                                 currentMultiTokenStartIndex = currentTokenStartIndex;
@@ -694,21 +730,37 @@ public final class CharParser implements Parser {
                                     );
                                 }
                                 case DOUBLE -> {
-                                    if (isBufferedTokenDecimalNumber[i]) {
-                                        // an optimization for simple decimal numbers - if we are here, it means that
-                                        // this token contains a single decimal point and two integer sub-tokens
-                                        int firstSubTokenIndex = bufferedTokenSubTokenFirstIndexes[i];
+                                    int firstSubTokenIndex = bufferedTokenSubTokenFirstIndexes[i];
+                                    // Fast path for a simple decimal (int '.' int): compute from the pre-accumulated sub-token int
+                                    // values, but ONLY when both parts fit an int (<= MAX_FAST_DECIMAL_DIGITS). A longer decimal would
+                                    // overflow the int accumulators and produce a wrong value, so it falls through to parseDouble below
+                                    // (correct, and still %F - a long decimal is a real double, not a keyword).
+                                    if (isBufferedTokenDecimalNumber[i]
+                                        && bufferedSubTokenLengths[firstSubTokenIndex] <= MAX_FAST_DECIMAL_DIGITS
+                                        && bufferedSubTokenLengths[firstSubTokenIndex + 1] <= MAX_FAST_DECIMAL_DIGITS) {
                                         int fractionalSubTokenLength = bufferedSubTokenLengths[firstSubTokenIndex + 1];
                                         int fractionalSubTokenIntValue = bufferedSubTokenIntValues[firstSubTokenIndex + 1];
                                         if (bufferedSubTokenSigns[firstSubTokenIndex] == Sign.MINUS) {
                                             fractionalSubTokenIntValue = -fractionalSubTokenIntValue;
                                         }
+                                        // POW10 index is safe: fractionalSubTokenLength <= MAX_FAST_DECIMAL_DIGITS < POW10.length
                                         double doubleValue = bufferedSubTokenIntValues[firstSubTokenIndex] + fractionalSubTokenIntValue
-                                            / Math.pow(10, fractionalSubTokenLength);
+                                            / POW10[fractionalSubTokenLength];
                                         yield new DoubleArgument(bufferedTokenStartIndexes[i], bufferedTokenLengths[i], doubleValue);
+                                    } else if (isBufferedTokenDecimalNumber[i] || bufferedTokenValidDouble[i]) {
+                                        // General double: a valid non-simple double (e.g. an exponent form), OR a simple decimal too long
+                                        // for the fast path. Parse directly (correct value, consistent %F). The try/catch is a fallback for
+                                        // rarer malformed shapes the interior-sign state does not cover (e.g. "1.2.3", "1e") - yield null so
+                                        // the token's sub-tokens are emitted individually.
+                                        try {
+                                            yield new DoubleArgument(rawMessage, bufferedTokenStartIndexes[i], bufferedTokenLengths[i]);
+                                        } catch (NumberFormatException e) {
+                                            yield null;
+                                        }
                                     } else {
-                                        // parse as a general double argument
-                                        yield new DoubleArgument(rawMessage, bufferedTokenStartIndexes[i], bufferedTokenLengths[i]);
+                                        // interior non-exponent sign (e.g. a range "0-23"): not a double. Yield null so the token's
+                                        // sub-tokens are emitted individually ("0-23" -> %I-%I). Decided during the scan, no rescan here.
+                                        yield null;
                                     }
                                 }
                                 case HEX -> new HexadecimalArgument(rawMessage, bufferedTokenStartIndexes[i], bufferedTokenLengths[i]);

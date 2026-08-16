@@ -395,6 +395,16 @@ public class SchemaCompiler {
         fillListUpToIndex(dashBitmaskPerSubTokenCount, 1, () -> 0);
         dashBitmaskPerSubTokenCount.set(0, dashBitmaskPerSubTokenCount.get(0) | doubleSubTokenBitmask);
         dashBitmaskPerSubTokenCount.set(1, dashBitmaskPerSubTokenCount.get(1) | doubleSubTokenBitmask);
+        // '+' mirrors '-' for floating point: it may separate exponent sub-tokens (e.g. "1e+5", "-2.5e+10"). This only ADDS the
+        // double token bit to the '+' delimiter's (position 0,1) acceptance; non-exponent uses like "1+2" are still rejected at
+        // emit time by currentTokenValidDouble (interior sign not right after e/E).
+        ArrayList<Integer> plusBitmaskPerSubTokenCount = delimiterCharToTokenBitmaskPerSubTokenIndex.computeIfAbsent(
+            '+',
+            input -> new ArrayList<>()
+        );
+        fillListUpToIndex(plusBitmaskPerSubTokenCount, 1, () -> 0);
+        plusBitmaskPerSubTokenCount.set(0, plusBitmaskPerSubTokenCount.get(0) | doubleSubTokenBitmask);
+        plusBitmaskPerSubTokenCount.set(1, plusBitmaskPerSubTokenCount.get(1) | doubleSubTokenBitmask);
         ArrayList<Integer> dotBitmaskPerSubTokenCount = delimiterCharToTokenBitmaskPerSubTokenIndex.computeIfAbsent(
             '.',
             input -> new ArrayList<>()

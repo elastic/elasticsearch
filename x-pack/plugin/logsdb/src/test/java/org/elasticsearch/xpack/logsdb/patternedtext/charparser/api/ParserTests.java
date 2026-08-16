@@ -677,4 +677,81 @@ public class ParserTests extends ESTestCase {
         }
         assertFalse("a negative two-digit year must not form a timestamp", hasTimestamp);
     }
+
+    // ------------------------------------------------------------------------------------------------------------------
+    // Double / exponent coverage. Helpers assert the reconstructed pattern (and, for real doubles, the parsed value).
+    // ------------------------------------------------------------------------------------------------------------------
+
+    private List<Argument<?>> assertPattern(String message, String expectedPattern) throws ParseException {
+        patternedMessage.setLength(0);
+        List<Argument<?>> parsed = parser.parse(message);
+        Parser.constructPattern(message, parsed, patternedMessage, true);
+        assertEquals("pattern for [" + message + "]", expectedPattern, patternedMessage.toString());
+        return parsed;
+    }
+
+    private void assertSingleDouble(String message, String expectedPattern, double expectedValue) throws ParseException {
+        List<Argument<?>> parsed = assertPattern(message, expectedPattern);
+        assertEquals("exactly one argument for [" + message + "]", 1, parsed.size());
+        assertThat(parsed.getFirst(), instanceOf(DoubleArgument.class));
+        assertEquals(expectedValue, ((DoubleArgument) parsed.getFirst()).value(), 0);
+    }
+
+    public void testDecimalDoubles() throws ParseException {
+        assertSingleDouble("x 3.14 y", "x %F y", 3.14);
+        assertSingleDouble("x 0.5 y", "x %F y", 0.5);
+        assertSingleDouble("x -5.08 y", "x %F y", -5.08);
+    }
+
+    public void testSupportedExponentDoubles() throws ParseException {
+        // exponent forms char recognizes today (regression guard for the interior-sign double fix)
+        assertSingleDouble("x 1e-5 y", "x %F y", 1e-5);
+        assertSingleDouble("x 1.5E-3 y", "x %F y", 1.5E-3);
+        assertSingleDouble("x -1.09e-2 y", "x %F y", -1.09e-2);
+    }
+
+    public void testLongDecimalDoesNotOverflow() throws ParseException {
+        // integer/fractional parts beyond the int-safe fast path must fall back to parseDouble (correct value, still %F).
+        // regression guard for the decimal-overflow fix; before it, these produced a %F with a WRONG value.
+        assertSingleDouble("x 1234567890123.5 y", "x %F y", 1234567890123.5);
+        assertSingleDouble("x 1.123456789012345 y", "x %F y", 1.123456789012345);
+    }
+
+    public void testInteriorSignIsNotDouble() throws ParseException {
+        // an interior sign that is NOT an exponent sign means the token is not a double (the "0-23" range family);
+        // it must be emitted as its sub-tokens, never as a single %F.
+        assertPattern("x 0-23 y", "x %I-%I y");
+        assertPattern("x 1-2-3 y", "x %I-%I-%I y");
+        assertPattern("x 5-3 y", "x %I-%I y");
+        assertPattern("x 1+2 y", "x %I+%I y");
+        assertPattern("x 1e5-3 y", "x %H-%I y"); // interior '-' after digits (not right after e/E) -> not a double
+    }
+
+    public void testMalformedNumberIsNotDouble() throws ParseException {
+        assertPattern("x 1.2.3 y", "x %I.%I.%I y"); // two decimal points -> parseDouble fails -> sub-tokens
+        assertPattern("x 1e y", "x %H y"); // bare "1e" is a single sub-token that fits hex
+    }
+
+    public void testSingleSubTokenHexNotDouble() throws ParseException {
+        // a single sub-token that fits hex is a hex, even though "1e5" also reads as a double
+        assertPattern("x 1e5 y", "x %H y");
+    }
+
+    public void testMultiExponentIsNotSingleDouble() throws ParseException {
+        // two exponents are not a valid double; the token must never collapse to a single %F
+        List<Argument<?>> parsed = parser.parse("x 1e-6E+4 y");
+        boolean singleDouble = parsed.size() == 1 && parsed.getFirst() instanceof DoubleArgument;
+        assertFalse("a multi-exponent token must not be a single double", singleDouble);
+    }
+
+    // Scientific-notation doubles: plain ('e5'), signed ('e+5'/'e-5') and with a fractional mantissa ('1.5e3')
+    // exponents all parse to a single %F. (These required the exponent-classification rework: '+' wired like '-'
+    // for the double token, and a sub-token following a double-class delimiter with no structured generator keeps
+    // its generic types instead of being cleared.)
+    public void testScientificNotationDoubles() throws ParseException {
+        assertSingleDouble("x 1e+5 y", "x %F y", 1e+5);
+        assertSingleDouble("x 1.5e3 y", "x %F y", 1.5e3);
+        assertSingleDouble("x 6.022e23 y", "x %F y", 6.022e23);
+        assertSingleDouble("x -2.5e+10 y", "x %F y", -2.5e+10);
+    }
 }

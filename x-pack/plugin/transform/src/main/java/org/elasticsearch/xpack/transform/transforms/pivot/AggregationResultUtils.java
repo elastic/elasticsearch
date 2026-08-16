@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource
 import org.elasticsearch.xpack.transform.transforms.IDGenerator;
 import org.elasticsearch.xpack.transform.utils.OutputFieldNameConverter;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -297,11 +298,23 @@ public final class AggregationResultUtils {
         @Override
         public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             MultiValueAggregation aggregation = (MultiValueAggregation) agg;
+            // size: 1 keeps the historical flatten (first hit's metrics map). size > 1 writes a
+            // top array on this dest doc — never one dest doc per hit.
+            if (aggregation.getRankedHitSize() > 1) {
+                List<Map<String, Object>> top = new ArrayList<>(aggregation.getRankedHits().size());
+                for (MultiValueAggregation.RankedHit hit : aggregation.getRankedHits()) {
+                    Map<String, Object> entry = new LinkedHashMap<>();
+                    entry.put("sort", hit.sort());
+                    entry.put("metrics", hit.metrics());
+                    top.add(entry);
+                }
+                Map<String, Object> extracted = new LinkedHashMap<>();
+                extracted.put("top", top);
+                return extracted;
+            }
             Map<String, Object> extracted = new LinkedHashMap<>();
             for (String valueName : aggregation.valueNames()) {
                 List<String> valueAsStrings = aggregation.getValuesAsStrings(valueName);
-
-                // todo: size > 1 is not supported, requires a refactoring so that `size()` is exposed in the agg builder
                 if (valueAsStrings.size() > 0) {
                     extracted.put(valueName, valueAsStrings.get(0));
                 }

@@ -117,7 +117,7 @@ public final class TransformAggregations {
         TERMS("terms", FLATTENED),
         RARE_TERMS("rare_terms", FLATTENED),
         MISSING("missing", LONG),
-        TOP_METRICS("top_metrics", SOURCE),
+        TOP_METRICS("top_metrics", SOURCE), // size > 1 writes dest.top[]; size 1 stays a metrics flatten
         STATS("stats", DOUBLE),
         BOXPLOT("boxplot", DOUBLE),
         EXTENDED_STATS("extended_stats", DOUBLE);
@@ -249,16 +249,22 @@ public final class TransformAggregations {
         // does the agg specify output field names
         Optional<Set<String>> outputFieldNames = agg.getOutputFieldNames();
         if (outputFieldNames.isPresent()) {
+            // size > 1 (top_metrics) stores hits under dest.top.metrics.<field> on the group doc
+            String destInfix = agg.getRankedHitSize() > 1 ? ".top.metrics." : ".";
             return new Tuple<>(
                 outputFieldNames.get()
                     .stream()
                     .collect(
-                        Collectors.toMap(outputField -> agg.getName() + "." + outputField, outputField -> outputField, (v1, v2) -> v1)
+                        Collectors.toMap(outputField -> agg.getName() + destInfix + outputField, outputField -> outputField, (v1, v2) -> v1)
                     ),
                 outputFieldNames.get()
                     .stream()
                     .collect(
-                        Collectors.toMap(outputField -> agg.getName() + "." + outputField, outputField -> agg.getType(), (v1, v2) -> v1)
+                        Collectors.toMap(
+                            outputField -> agg.getName() + destInfix + outputField,
+                            outputField -> agg.getType(),
+                            (v1, v2) -> v1
+                        )
                     )
             );
         }

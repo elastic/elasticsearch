@@ -978,3 +978,6 @@ tests:
 - class: org.elasticsearch.search.aggregations.metrics.TDigestPercentilesIT
   method: testSingleValuedFieldPartiallyUnmapped
   issue: https://github.com/elastic/elasticsearch/issues/156864
+- class: org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettingsTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/156866

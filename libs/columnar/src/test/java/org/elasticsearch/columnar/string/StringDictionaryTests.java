@@ -16,6 +16,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
+
 /** The cardinality probe's accept / overflow behavior, ordinal assignment, and the dictionary's wire format. */
 public class StringDictionaryTests extends ESTestCase {
 
@@ -94,6 +96,24 @@ public class StringDictionaryTests extends ESTestCase {
         StringDictionary dictionary = builder.build();
         assertNotNull(dictionary);
         assertEquals(4, dictionary.size());
+    }
+
+    /** A dictionary read from disk carries terms but no term-to-ordinal map, so the lookup trips rather than NPEs. */
+    public void testOrdinalLookupOnReadSideDictionaryTrips() throws IOException {
+        StringDictionary.Builder builder = new StringDictionary.Builder();
+        builder.add(new BytesRef("nginx"));
+        builder.add(new BytesRef("apache"));
+
+        ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        builder.build().writeTo(out);
+        StringDictionary read = StringDictionary.readFrom(new ByteArrayDataInput(out.toArrayCopy()));
+
+        // The read side still resolves terms by ordinal, which is all the reader needs.
+        assertEquals(new BytesRef("nginx"), read.term(0));
+        assertEquals(new BytesRef("apache"), read.term(1));
+
+        AssertionError error = expectThrows(AssertionError.class, () -> read.ordinal(new BytesRef("nginx")));
+        assertThat(error.getMessage(), containsString("write-path only"));
     }
 
     public void testWireFormatRoundTrip() throws IOException {

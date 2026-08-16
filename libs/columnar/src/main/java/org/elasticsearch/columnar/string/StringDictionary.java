@@ -56,6 +56,7 @@ public final class StringDictionary {
      * {@link Builder} during a write.
      */
     public int ordinal(BytesRef term) {
+        assert ordinals != null : "ordinal lookup is write-path only";
         Integer ordinal = ordinals.get(term);
         assert ordinal != null : "term not in dictionary: " + term;
         return ordinal;

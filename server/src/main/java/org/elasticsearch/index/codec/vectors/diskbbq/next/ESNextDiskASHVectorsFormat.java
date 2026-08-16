@@ -88,6 +88,8 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
     public static final int DEFAULT_BITS_PER_DIM = IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM;
     /** Default fraction of original dimensions to project to. */
     public static final float DEFAULT_PROJECTED_DIMS_FRACTION = IvfSegmentConfig.AshConfig.DEFAULT_PROJECTED_DIMS_FRACTION;
+    /** Default query quantization bits per dimension. */
+    public static final int DEFAULT_QUERY_BITS_PER_DIM = 4;
 
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
@@ -101,6 +103,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
     private final IvfMergeConfigResolver ivfMergeConfigResolver;
     private final int bitsPerDim;
     private final float projectedDimsFraction;
+    private final int queryBitsPerDim;
 
     /** No-arg constructor for SPI. */
     public ESNextDiskASHVectorsFormat() {
@@ -120,7 +123,8 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
             IvfFlushConfigSource.empty(),
             IvfMergeConfigResolver.useCodecDefault(),
             DEFAULT_BITS_PER_DIM,
-            DEFAULT_PROJECTED_DIMS_FRACTION
+            DEFAULT_PROJECTED_DIMS_FRACTION,
+            DEFAULT_QUERY_BITS_PER_DIM
         );
     }
 
@@ -136,7 +140,8 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
         IvfFlushConfigSource ivfFlushConfigSource,
         IvfMergeConfigResolver ivfMergeConfigResolver,
         int bitsPerDim,
-        float projectedDimsFraction
+        float projectedDimsFraction,
+        int queryBitsPerDim
     ) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
@@ -180,6 +185,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
         this.ivfMergeConfigResolver = ivfMergeConfigResolver;
         this.bitsPerDim = bitsPerDim;
         this.projectedDimsFraction = projectedDimsFraction;
+        this.queryBitsPerDim = queryBitsPerDim;
     }
 
     @Override
@@ -208,7 +214,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
             var format = supportedFormats.get(f);
             if (format == null) return null;
             return format.fieldsReader(state, dio);
-        });
+        }, queryBitsPerDim);
     }
 
     @Override

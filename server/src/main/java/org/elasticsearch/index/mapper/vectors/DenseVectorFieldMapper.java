@@ -3006,7 +3006,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         IvfFlushConfigSource.empty(),
                         IvfMergeConfigResolver.useCodecDefault(),
                         bits,
-                        ESNextDiskASHVectorsFormat.DEFAULT_PROJECTED_DIMS_FRACTION
+                        ESNextDiskASHVectorsFormat.DEFAULT_PROJECTED_DIMS_FRACTION,
+                        ESNextDiskASHVectorsFormat.DEFAULT_QUERY_BITS_PER_DIM
                     );
                 } else {
                     IvfMergeConfigResolver mergeConfigResolver = autoCalibrate

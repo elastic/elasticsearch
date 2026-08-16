@@ -232,6 +232,18 @@ public class KnnIndexTester {
                     suffix.add(Integer.toString(args.quantizeBits()));
                 }
             }
+            case ASH -> {
+                suffix.add("ash");
+                suffix.add(Integer.toString(args.ivfClusterSize()));
+                int bits = args.quantizeBits() != null ? args.quantizeBits() : 2;
+                suffix.add(Integer.toString(bits));
+                if (args.queryQuantizeBits() != null && args.queryQuantizeBits() != 4) {
+                    suffix.add("q" + args.queryQuantizeBits());
+                }
+                if (args.projectedDimsFraction() != 0.5f) {
+                    suffix.add("p" + String.format(Locale.ROOT, "%.2f", args.projectedDimsFraction()));
+                }
+            }
         }
         if (dirConfig.requiresFreshIndex()) {
             // These types rebuild the index on every run and wipe the index path doing so, so they must not share it with the
@@ -282,6 +294,9 @@ public class KnnIndexTester {
                 int flatVectorThreshold = args.flatVectorThreshold() >= 0 ? args.flatVectorThreshold() : -1;
                 String sliceField = args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null;
                 int bitsPerDim = args.quantizeBits() != null ? args.quantizeBits() : 2;
+                int queryBits = args.queryQuantizeBits() != null
+                    ? args.queryQuantizeBits()
+                    : ESNextDiskASHVectorsFormat.DEFAULT_QUERY_BITS_PER_DIM;
                 yield new ESNextDiskASHVectorsFormat(
                     clusterSize,
                     centroidsPerParentCluster,
@@ -294,7 +309,8 @@ public class KnnIndexTester {
                     IvfFlushConfigSource.empty(),
                     IvfMergeConfigResolver.useCodecDefault(),
                     bitsPerDim,
-                    args.projectedDimsFraction()
+                    args.projectedDimsFraction(),
+                    queryBits
                 );
             }
             case GPU_HNSW -> {

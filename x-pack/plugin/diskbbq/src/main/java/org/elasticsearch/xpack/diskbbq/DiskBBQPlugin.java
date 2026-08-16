@@ -100,7 +100,8 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                                 IvfFlushConfigSource.empty(),
                                 IvfMergeConfigResolver.useCodecDefault(),
                                 diskbbq.getBits(),
-                                ESNextDiskASHVectorsFormat.DEFAULT_PROJECTED_DIMS_FRACTION
+                                ESNextDiskASHVectorsFormat.DEFAULT_PROJECTED_DIMS_FRACTION,
+                                ESNextDiskASHVectorsFormat.DEFAULT_QUERY_BITS_PER_DIM
                             );
                         }
                         IvfMergeConfigResolver mergeConfigResolver = diskbbq.autoCalibrate()

@@ -84,7 +84,8 @@ public record TestConfiguration(
     DatasetConfig datasetConfig,
     int numDeletedDocs,
     long deleteSeed,
-    float projectedDimsFraction
+    float projectedDimsFraction,
+    String quantizationType
 ) {
 
     static final ParseField DATASET_FIELD = new ParseField("dataset");
@@ -134,6 +135,7 @@ public record TestConfiguration(
     static final ParseField EXACT_FIELD = new ParseField("exact");
     static final ParseField EXACT_QUANTIZED_FIELD = new ParseField("exact_quantized");
     private static final ParseField PROJECTED_DIMS_FRACTION_FIELD = new ParseField("projected_dims_fraction");
+    private static final ParseField QUANTIZATION_TYPE_FIELD = new ParseField("quantization_type");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
@@ -217,6 +219,7 @@ public record TestConfiguration(
             ObjectParser.ValueType.VALUE_ARRAY
         );
         PARSER.declareFloat(Builder::setProjectedDimsFraction, PROJECTED_DIMS_FRACTION_FIELD);
+        PARSER.declareString(Builder::setQuantizationType, QUANTIZATION_TYPE_FIELD);
     }
 
     public int numberOfSearchRuns() {
@@ -475,6 +478,7 @@ public record TestConfiguration(
         private List<Boolean> exact = List.of(Boolean.FALSE);
         private List<Boolean> exactQuantized = List.of(Boolean.FALSE);
         private float projectedDimsFraction = 0.5f;
+        private String quantizationType = "osq";
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -727,6 +731,10 @@ public record TestConfiguration(
 
         public void setProjectedDimsFraction(float v) {
             this.projectedDimsFraction = v;
+        }
+
+        public void setQuantizationType(String v) {
+            this.quantizationType = v;
         }
 
         /*
@@ -1026,7 +1034,8 @@ public record TestConfiguration(
                 datasetConfig,
                 numDeletedDocs,
                 deleteSeed,
-                projectedDimsFraction
+                projectedDimsFraction,
+                quantizationType
             );
         }
 

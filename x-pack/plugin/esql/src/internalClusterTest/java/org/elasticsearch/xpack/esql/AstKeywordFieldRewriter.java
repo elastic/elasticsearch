@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.DeferredRegexExpression;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -89,7 +90,8 @@ import java.util.TreeSet;
  *   <li>The left-hand side of the match operator {@code :} ({@link MatchOperator}) accepts only a
  *       bare attribute; in-scope references there are recorded as
  *       {@link SkipSite#MATCH_OPERATOR_LHS} skip events.</li>
- *   <li>{@code field IN (subquery)} hoists a bare in-scope left-hand side into an
+ *   <li>{@code field IN (subquery)} — including the multi-column tuple form
+ *       {@code (f1, f2) IN (subquery)} — hoists a bare in-scope left-hand side into an
  *       {@code EVAL field = field_extract(field, "v")} inserted before the {@code WHERE} (the
  *       IN-subquery resolver accepts only a bare attribute or constant on that side, rejecting a
  *       {@code field_extract(...)} call as a "Complicated IN subquery"), and recursively rewrites
@@ -352,6 +354,11 @@ public final class AstKeywordFieldRewriter {
         return sb.toString();
     }
 
+    /** Builds an {@code EVAL} command that can be inserted immediately before another command. */
+    private static String evalBeforeCommand(List<String> fields, String wrapperSubKey) {
+        return evalRecovery(fields, wrapperSubKey).substring(3) + "\n| ";
+    }
+
     /** Returns {@code field_extract(<inner>, "<wrapperSubKey>")}. */
     private static String extractCall(String inner, String wrapperSubKey) {
         return FIELD_EXTRACT_FUNCTION + "(" + inner + ", \"" + wrapperSubKey + "\")";
@@ -610,6 +617,13 @@ public final class AstKeywordFieldRewriter {
             condition.forEachDown(InSubquery.class, in -> {
                 if (in.value() instanceof UnresolvedAttribute attr && scope.contains(attr.name())) {
                     hoist.add(attr.name());
+                }
+            });
+            condition.forEachDown(MultiColumnInSubquery.class, mcs -> {
+                for (Expression value : mcs.values()) {
+                    if (value instanceof UnresolvedAttribute attr && scope.contains(attr.name())) {
+                        hoist.add(attr.name());
+                    }
                 }
             });
             return hoist;
@@ -872,7 +886,17 @@ public final class AstKeywordFieldRewriter {
                 // a field_extract(...) LHS), and is excluded from this scope so it is not wrapped in
                 // place. A non-attribute LHS (constant/expression) is wrapped here as usual.
                 wrapExpression(inSubquery.value(), scope, null);
-                processInSubquery(inSubquery);
+                processInSubquery(inSubquery.subquery());
+                return;
+            }
+            if (expression instanceof MultiColumnInSubquery mcs) {
+                // Same treatment as InSubquery: every bare in-scope attribute in the left tuple is
+                // hoisted by collectInSubqueryLhsHoist (the resolver accepts only bare attributes or
+                // constants in the tuple), so wrapping here only affects non-attribute values.
+                for (Expression value : mcs.values()) {
+                    wrapExpression(value, scope, null);
+                }
+                processInSubquery(mcs.subquery());
                 return;
             }
             if (expression instanceof MatchOperator matchOperator) {
@@ -931,12 +955,12 @@ public final class AstKeywordFieldRewriter {
         /**
          * Rewrites the subquery of an {@code IN (subquery)} expression with a scope freshly resolved
          * from the subquery's own text (its {@code FROM} may reference a different dataset than the
-         * outer query) and appends a tail-end {@code EVAL} (no {@code KEEP}) so its projected column
-         * reaches the outer comparison as {@code keyword}. The outer left-hand side is rebound to
+         * outer query) and appends an {@code EVAL} before a terminal {@code KEEP}, when present,
+         * so its projected columns reach the outer comparison as {@code keyword} without changing
+         * their order. The outer left-hand side is rebound to
          * {@code keyword} separately by {@link #hoistBeforeCommand}, so both sides agree on type.
          */
-        private void processInSubquery(InSubquery inSubquery) {
-            LogicalPlan subquery = inSubquery.subquery();
+        private void processInSubquery(LogicalPlan subquery) {
             String subText = subqueryText(subquery);
             if (subText == null) {
                 return;
@@ -951,8 +975,17 @@ public final class AstKeywordFieldRewriter {
             }
             List<String> recoverable = new ArrayList<>(endScope);
             recoverable.sort(Comparator.naturalOrder());
-            int at = startOffset(subquery.source()) + subquery.source().text().length();
-            addEdit(at, at, evalRecovery(recoverable, wrapperSubKey));
+            if (subquery instanceof Keep keep && spanMatches(keep.source())) {
+                // A terminal KEEP fixes the tuple's column order. Appending EVAL after it would
+                // append the recovered flattened field to the end, e.g. turning
+                // (emp_no, job_positions, is_rehired) into (emp_no, is_rehired, job_positions).
+                // Insert before KEEP so the projection retains the order declared by the subquery.
+                int at = startOffset(keep.source());
+                addEdit(at, at, evalBeforeCommand(recoverable, wrapperSubKey));
+            } else {
+                int at = startOffset(subquery.source()) + subquery.source().text().length();
+                addEdit(at, at, evalRecovery(recoverable, wrapperSubKey));
+            }
             rewrittenNames.addAll(recoverable);
         }
 

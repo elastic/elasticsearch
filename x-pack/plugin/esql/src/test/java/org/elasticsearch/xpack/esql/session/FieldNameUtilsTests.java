@@ -3970,7 +3970,7 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertFieldNames("""
             FROM employees
             | STATS count = COUNT(*) WHERE emp_no IN (ROW a = 1 | KEEP a)
-            """, Set.of("_index", "emp_no", "emp_no.*", "a", "a.*"));
+            """, Set.of("_index", "emp_no", "emp_no.*"));
     }
 
     public void testStatsWhereTsInSubquery() {
@@ -3985,7 +3985,7 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertFieldNames("""
             FROM employees
             | STATS count = COUNT(*) WHERE (emp_no, salary) IN (ROW a = 1, b = 2 | KEEP a, b)
-            """, Set.of("_index", "emp_no", "emp_no.*", "salary", "salary.*", "a", "a.*", "b", "b.*"));
+            """, Set.of("_index", "emp_no", "emp_no.*", "salary", "salary.*"));
     }
 
     public void testStatsWhereMultiColumnTsInSubquery() {
@@ -4024,7 +4024,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                     CASE(
                       emp_no IN (ROW a = 1 | KEEP a),
                       true,
-                      (salary, languages) IN (TS k8s | STATS avg_over_time(val) BY ts | KEEP b, c)
+                      (salary, languages) IN (TS k8s | STATS avg_over_time(val) BY ts | KEEP b, a)
                     ),
                     (emp_no IN (FROM employees | KEEP emp_no)) IS NULL,
                     (salary IN (FROM employees | KEEP salary)) IS NOT NULL,
@@ -4043,12 +4043,10 @@ public class FieldNameUtilsTests extends ESTestCase {
                 "val.*",
                 "ts",
                 "ts.*",
-                "a",
-                "a.*",
                 "b",
                 "b.*",
-                "c",
-                "c.*",
+                "a",
+                "a.*",
                 "@timestamp",
                 "@timestamp.*"
             )

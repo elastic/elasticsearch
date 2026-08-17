@@ -393,7 +393,11 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
     }
 
     @Nullable
-    private ValidationException validatePutRequest(ServiceAccount.ServiceAccountId accountId, List<String> roles, List<String> runAsFromRoles) {
+    private ValidationException validatePutRequest(
+        ServiceAccount.ServiceAccountId accountId,
+        List<String> roles,
+        List<String> runAsFromRoles
+    ) {
         ValidationException validationException = null;
         final String namespaceError = ManagedServiceAccountIdValidator.validateNamespace(accountId.namespace());
         if (namespaceError != null) {
@@ -508,7 +512,12 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
                     if (runAsFromRoles == null) {
                         return null;
                     }
-                    return new ManagedServiceAccount(ServiceAccount.ServiceAccountId.fromPrincipal(username), roles, runAsFromRoles, enabled);
+                    return new ManagedServiceAccount(
+                        ServiceAccount.ServiceAccountId.fromPrincipal(username),
+                        roles,
+                        runAsFromRoles,
+                        enabled
+                    );
                 }
                 logger.warn("managed service account document [{}] has invalid enabled field", expectedPrincipal);
                 return null;

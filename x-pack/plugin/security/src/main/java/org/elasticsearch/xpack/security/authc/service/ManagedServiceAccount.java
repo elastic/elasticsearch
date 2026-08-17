@@ -77,6 +77,15 @@ final class ManagedServiceAccount implements ServiceAccount {
 
     @Override
     public String toString() {
-        return "ManagedServiceAccount{" + "id=" + id + ", roles=" + roles + ", runAsFromRoles=" + runAsFromRoles + ", enabled=" + enabled + '}';
+        return "ManagedServiceAccount{"
+            + "id="
+            + id
+            + ", roles="
+            + roles
+            + ", runAsFromRoles="
+            + runAsFromRoles
+            + ", enabled="
+            + enabled
+            + '}';
     }
 }

@@ -12,15 +12,17 @@ package org.elasticsearch.index.codec.vectors.ash;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
+import org.apache.lucene.util.BitUtil;
+import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.simdvec.AsymmetricHashingScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Random;
 import java.util.Set;
-import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -141,7 +143,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         assertThat(result.codeNorms()[0], greaterThan(0f));
     }
 
-    public void testFullPipelineRandomMethod() {
+    public void testFullPipelineRandomMethod() throws IOException {
         int nVectors = 100;
         int dim = 16;
         float projectedDimsFraction = 0.25f; // 16 * 0.25 = 4 projected dims
@@ -164,7 +166,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         }
         int[] assignments = new int[nVectors]; // all zero
 
-        IntFunction<float[]> centroidGetter = (i) -> centroids[assignments[i]];
+        CheckedIntFunction<float[], IOException> centroidGetter = (i) -> centroids[assignments[i]];
 
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             projectedDimsFraction,
@@ -190,7 +192,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         }
     }
 
-    public void testFullPipelineLearnedMethod() {
+    public void testFullPipelineLearnedMethod() throws IOException {
         int nVectors = 200;
         int dim = 32;
         float projectedDimsFraction = 0.25f; // 32 * 0.25 = 8 projected dims
@@ -212,7 +214,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         }
         int[] assignments = new int[nVectors];
 
-        IntFunction<float[]> centroidGetter = (i) -> centroids[assignments[i]];
+        CheckedIntFunction<float[], IOException> centroidGetter = (i) -> centroids[assignments[i]];
 
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             projectedDimsFraction,
@@ -242,21 +244,23 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // Score a query against the encoded vectors using the production scoring path
         float[] query = SvdUtil.randomGaussians(random(), dim);
 
-        // Project query: qt = query @ W (raw, not centered)
-        float[] qt = new float[nDims];
-        for (int j = 0; j < nDims; j++) {
-            double s = 0;
-            for (int d = 0; d < dim; d++) {
-                s = Math.fma(query[d], w[d * nDims + j], s);
-            }
-            qt[j] = (float) s;
-        }
+        // Project query: qt = wT @ query (raw, not centered)
+        float[] qt = SvdUtil.matrixVectorMultiply(wT, nDims, dim, query);
         float queryDotCentroid = ESVectorUtil.dotProduct(query, centroids[0]);
 
         float[] scores = new float[nVectors];
         for (int i = 0; i < nVectors; i++) {
             byte[] packed = AsymmetricHashingScorer.pack(encodedVectors[i], bitsPerDim);
-            scores[i] = AsymmetricHashingScorer.score(qt, queryDotCentroid, packed, nDims, bitsPerDim, scales[i], offsets[i]);
+            scores[i] = AsymmetricHashingScorer.score(
+                qt,
+                new float[] { queryDotCentroid },
+                packed,
+                0,
+                nDims,
+                bitsPerDim,
+                packCorrections(scales[i], offsets[i], 0),
+                0
+            );
         }
         assertEquals(nVectors, scores.length);
 
@@ -266,7 +270,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         assertThat("Expected positive rank correlation", correlation, greaterThan(0.1));
     }
 
-    public void testReconstructedDotProductApproximatesTrueDotProduct() {
+    public void testReconstructedDotProductApproximatesTrueDotProduct() throws IOException {
         // With no dimensionality reduction (projectedDimsFraction=1.0, so nDims == originalDim and W
         // is a random orthogonal matrix -- a pure rotation, not a projection), the only source of
         // reconstruction error is the quantization of the residual (vector - centroid). This
@@ -301,15 +305,8 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             float[] centroid = SvdUtil.randomGaussians(random(), dim);
             float[] query = SvdUtil.randomGaussians(random(), dim);
 
-            // Raw query projection: qt = query @ W
-            float[] qt = new float[nDims];
-            for (int j = 0; j < nDims; j++) {
-                double sum = 0;
-                for (int d = 0; d < dim; d++) {
-                    sum = Math.fma(query[d], w[d * nDims + j], sum);
-                }
-                qt[j] = (float) sum;
-            }
+            // Raw query projection: qt = wT @ query
+            float[] qt = SvdUtil.matrixVectorMultiply(wT, nDims, dim, query);
             float queryDotCentroid = ESVectorUtil.dotProduct(query, centroid, dim);
             AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, wT);
 
@@ -323,12 +320,13 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                 byte[] packed = AsymmetricHashingScorer.pack(enc.xEnc(), bitsPerDim);
                 float reconstructed = AsymmetricHashingScorer.score(
                     qt,
-                    queryDotCentroid,
+                    new float[] { queryDotCentroid },
                     packed,
+                    0,
                     nDims,
                     bitsPerDim,
-                    enc.scale(),
-                    enc.offset()
+                    packCorrections(enc.scale(), enc.offset(), 0),
+                    0
                 );
 
                 double err = reconstructed - trueDot;
@@ -352,11 +350,20 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // dot = 1.0*0.5 + 0.5*(-0.5) = 0.25
         // result = 0.25 * 1.0 + 0.0 + 0.0 = 0.25
         byte[] packed = AsymmetricHashingScorer.pack(encodedVector, bitsPerDim);
-        float score = AsymmetricHashingScorer.score(new float[] { 1.0f, 0.5f }, 0.0f, packed, nDims, bitsPerDim, scale, offset);
+        float score = AsymmetricHashingScorer.score(
+            new float[] { 1.0f, 0.5f },
+            new float[] { 0.0f },
+            packed,
+            0,
+            nDims,
+            bitsPerDim,
+            packCorrections(scale, offset, 0),
+            0
+        );
         assertEquals(0.25f, score, 1e-4f);
     }
 
-    public void testFallbackToRandomWhenTooFewVectors() {
+    public void testFallbackToRandomWhenTooFewVectors() throws IOException {
         // With only 2 vectors and nDims=4, learned method should fall back to random
         int dim = 16;
         float[][] vectors = {
@@ -365,7 +372,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         float[][] centroids = { new float[dim] };
         int[] assignments = { 0, 0 };
 
-        IntFunction<float[]> centroidGetter = i -> centroids[assignments[i]];
+        CheckedIntFunction<float[], IOException> centroidGetter = i -> centroids[assignments[i]];
 
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             0.25f,
@@ -399,7 +406,16 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // Compute reference score via plain float dot product
         double dot = ESVectorUtil.dotProduct(qt, codes, nDims);
         float floatScore = (float) dot * scale + qdc + offset;
-        float multiBitScore = AsymmetricHashingScorer.score(qt, qdc, packed, nDims, bitsPerDim, scale, offset);
+        float multiBitScore = AsymmetricHashingScorer.score(
+            qt,
+            new float[] { qdc },
+            packed,
+            0,
+            nDims,
+            bitsPerDim,
+            packCorrections(scale, offset, 0),
+            0
+        );
         assertEquals(floatScore, multiBitScore, 1e-4f);
     }
 
@@ -447,7 +463,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         assertThat(Math.abs(topK[1 * n + 1]), greaterThan(0.9f));
     }
 
-    public void testScoreReconstructsDotProduct() {
+    public void testScoreReconstructsDotProduct() throws IOException {
         int dim = 128;
         int nVectors = 1000;
         int nQueries = 100;
@@ -488,7 +504,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                 centroids[c][d] /= Math.max(counts[c], 1);
             }
         }
-        IntFunction<float[]> centroidGetter = i -> centroids[assignments[i]];
+        CheckedIntFunction<float[], IOException> centroidGetter = i -> centroids[assignments[i]];
 
         // Train
         AsymmetricHashingQuantizer ash = new AsymmetricHashingQuantizer(
@@ -497,29 +513,23 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             AsymmetricHashingQuantizer.Method.LEARNED,
             5,
             10,
-            seed
+            42L
         );
         float[] w = ash.train(vectors, centroidGetter);
         int nDims = ash.nDims(dim);
 
-        // Pre-transform each query: qt = q @ W
-        float[][] qt = new float[nQueries][nDims];
+        // Precompute per-cluster values
+        float[] wT = ESVectorUtil.transposeMatrix(w, dim, nDims);
+
+        // Pre-transform each query: qt = wT @ q
+        float[][] qt = new float[nQueries][];
         for (int q = 0; q < nQueries; q++) {
-            for (int j = 0; j < nDims; j++) {
-                double s = 0;
-                for (int d = 0; d < dim; d++) {
-                    s = Math.fma(queries[q][d], w[d * nDims + j], s);
-                }
-                qt[q][j] = (float) s;
-            }
+            qt[q] = SvdUtil.matrixVectorMultiply(wT, nDims, dim, queries[q]);
         }
 
         // Score matrices: approx[q][i] = ASH-approximated dot(q, v_i), exact[q][i] = true dot
         double[][] exact = new double[nQueries][nVectors];
         double[][] approx = new double[nQueries][nVectors];
-
-        // Precompute per-cluster values
-        float[] wT = ESVectorUtil.transposeMatrix(w, dim, nDims);
         AsymmetricHashingQuantizer.VectorAndNorm[] precomputedPerCluster = new AsymmetricHashingQuantizer.VectorAndNorm[nClusters];
         for (int c = 0; c < nClusters; c++) {
             precomputedPerCluster[c] = AsymmetricHashingQuantizer.precomputeCentroid(centroids[c], wT);
@@ -536,12 +546,13 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
                 float approxScore = AsymmetricHashingScorer.score(
                     qt[q],
-                    (float) qDotC,
+                    new float[] { (float) qDotC },
                     packed,
+                    0,
                     nDims,
                     bitsPerDim,
-                    enc.scale(),
-                    enc.offset()
+                    packCorrections(enc.scale(), enc.offset(), 0),
+                    0
                 );
 
                 exact[q][i] = exactDot;
@@ -627,5 +638,13 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             ranks[indices[r]] = r;
         }
         return ranks;
+    }
+
+    private static byte[] packCorrections(float scale, float offset, int docSum) {
+        byte[] corr = new byte[AsymmetricHashingScorer.CORRECTION_BYTES];
+        BitUtil.VH_LE_INT.set(corr, AsymmetricHashingScorer.CORR_SCALE, Float.floatToIntBits(scale));
+        BitUtil.VH_LE_INT.set(corr, AsymmetricHashingScorer.CORR_OFFSET, Float.floatToIntBits(offset));
+        BitUtil.VH_LE_INT.set(corr, AsymmetricHashingScorer.CORR_DOC_SUM, docSum);
+        return corr;
     }
 }

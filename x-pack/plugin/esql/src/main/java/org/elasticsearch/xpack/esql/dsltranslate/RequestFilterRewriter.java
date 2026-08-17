@@ -17,7 +17,9 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Applies the out-of-band request {@code filter} to external-source (dataset) leaves of an analyzed plan.
@@ -108,14 +110,8 @@ public final class RequestFilterRewriter {
             } else {
                 List<String> messages = new ArrayList<>(result.failures().size());
                 for (FilterRewriter.NodeFailure nf : result.failures()) {
-                    assert nf.node() instanceof ExternalRelation
-                        : "NodeFailure node must be ExternalRelation; predicate was ExternalRelation::isInstance";
                     messages.add(
-                        "request filter clause uses ["
-                            + nf.clause().construct()
-                            + "], unsupported on dataset ["
-                            + name((ExternalRelation) nf.node())
-                            + "]"
+                        "request filter clause uses [" + nf.clause().construct() + "], unsupported on dataset [" + name(nf.node()) + "]"
                     );
                 }
                 throw new VerificationException(String.join("\n", messages));
@@ -126,28 +122,25 @@ public final class RequestFilterRewriter {
 
     /** Warns about unsupported clauses dropped in partial mode, naming each construct and its dataset. */
     private static void warnUnsupportedClauses(List<FilterRewriter.NodeFailure> failures) {
-        StringBuilder sb = new StringBuilder(
-            "The request filter was partially applied to external dataset(s): the following Query DSL constructs"
-                + " are not supported and were skipped:"
-        );
+        // Deduplicate: the same construct can fail several times on the same dataset (e.g. two wildcard clauses),
+        // and repeating the pair only inflates the header. LinkedHashSet keeps the first-seen order.
+        Set<String> skipped = new LinkedHashSet<>();
         for (FilterRewriter.NodeFailure nf : failures) {
-            assert nf.node() instanceof ExternalRelation
-                : "NodeFailure node must be ExternalRelation; predicate was ExternalRelation::isInstance";
-            sb.append(" [")
-                .append(nf.clause().construct())
-                .append("] on dataset [")
-                .append(name((ExternalRelation) nf.node()))
-                .append("];");
+            skipped.add("[" + nf.clause().construct() + "] on dataset [" + name(nf.node()) + "]");
         }
-        sb.append(" use a WHERE clause to filter rows from external datasets instead");
-        HeaderWarning.addWarning(sb.toString());
+        // "could not be fully applied" is accurate whether some conjuncts were installed or none were.
+        HeaderWarning.addWarning(
+            "The request filter could not be fully applied to external dataset(s); the following Query DSL constructs"
+                + " are not supported and were skipped: "
+                + String.join("; ", skipped)
+                + ". Use a WHERE clause to filter rows from external datasets instead."
+        );
     }
 
     /** Warns that the filter was not applied to the plan's dataset leaves, naming them, when there are any. */
     private static void warnNotApplied(LogicalPlan plan, String reason) {
         List<String> datasets = plan.collect(ExternalRelation.class::isInstance)
             .stream()
-            .map(ExternalRelation.class::cast)
             .map(RequestFilterRewriter::name)
             .distinct()
             .toList();
@@ -161,7 +154,15 @@ public final class RequestFilterRewriter {
         }
     }
 
-    private static String name(ExternalRelation relation) {
-        return relation.datasetName() != null ? relation.datasetName() : relation.sourcePath();
+    /**
+     * The display name of a failure's target node. Today the target predicate only selects {@link ExternalRelation}
+     * leaves; the fallback keeps this safe if the predicate is ever broadened to other source boundaries (see the
+     * class javadoc) rather than turning into a production {@code ClassCastException}.
+     */
+    private static String name(LogicalPlan node) {
+        if (node instanceof ExternalRelation relation) {
+            return relation.datasetName() != null ? relation.datasetName() : relation.sourcePath();
+        }
+        return node.nodeName();
     }
 }

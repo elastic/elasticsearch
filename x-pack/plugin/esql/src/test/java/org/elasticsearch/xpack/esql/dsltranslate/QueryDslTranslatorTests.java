@@ -48,6 +48,7 @@ import java.util.function.Function;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 public class QueryDslTranslatorTests extends ESTestCase {
 
@@ -861,15 +862,83 @@ public class QueryDslTranslatorTests extends ESTestCase {
     }
 
     /**
-     * B4: when a required OR group has mixed success/failure, the successfully-translated disjuncts are applied
-     * as a partial OR rather than discarding the whole group.
-     * Before the fix: any should-arm failure caused the entire OR group to be dropped from applied (over-fetch).
+     * When a required OR group has any failed arm, the whole group is dropped (applied stays TRUE).
+     * A partial OR would exclude rows that matched only the dropped arm — under-fetch, which is the wrong
+     * direction for a pre-filter. Failures are still reported.
      */
-    public void testRequiredShouldPartialSuccessAppliesPartialOr() {
+    public void testRequiredShouldAnyFailureDropsWholeGroup() {
         QueryDslTranslator.TranslationResult result = translateResult(
             QueryBuilders.boolQuery().should(QueryBuilders.termQuery("status", 200)).should(QueryBuilders.wildcardQuery("tags", "a*"))
         );
-        assertFalse("wildcard arm is still reported as unsupported", result.isComplete());
-        assertNotEquals("the translated term disjunct must be applied (partial OR)", Literal.TRUE, result.applied());
+        assertFalse("wildcard arm failure is reported", result.isComplete());
+        assertEquals("whole OR group dropped — pre-filter must over-fetch", Literal.TRUE, result.applied());
+    }
+
+    /**
+     * adjust_pure_negative=false makes a pure-negative bool match NOTHING (Lucene suppresses the implicit match_all).
+     * In partial mode the must_not arms must NOT be applied as NOT(arm) — that would be a semantic inversion
+     * (returning rows instead of none). The failure is recorded and applied stays TRUE (unfiltered).
+     */
+    public void testAdjustPureNegativeFalseDoesNotApplyMustNotArms() {
+        QueryDslTranslator.TranslationResult result = translateResult(
+            QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("status", 200)).adjustPureNegative(false)
+        );
+        assertFalse("adjust_pure_negative=false is an unsupported bool option", result.isComplete());
+        assertEquals("must_not arms must not be applied — applied must be TRUE (unfiltered, safe)", Literal.TRUE, result.applied());
+    }
+
+    // --- Nested-bool B1 / B4 parity with the top-level translate() walk ---
+
+    /**
+     * B1 for nested bools: a nested bool with a parseBoolOptions failure (e.g. minimum_should_match:2) still
+     * contributes its must/filter arms to the outer applied expression instead of being dropped entirely.
+     * Kibana wraps filters in outer bools; losing the whole nested bool because of an inner bool-option failure
+     * would silently discard valid conjuncts.
+     */
+    public void testNestedBoolOptionsFailureStillAppliesMustArms() {
+        QueryDslTranslator.TranslationResult result = translateResult(
+            QueryBuilders.boolQuery().must(QueryBuilders.boolQuery().minimumShouldMatch(2).must(QueryBuilders.termQuery("status", 200)))
+        );
+        assertFalse("nested bool-options failure is still reported", result.isComplete());
+        assertNotEquals("nested must arm must be applied, not dropped to TRUE", Literal.TRUE, result.applied());
+    }
+
+    /**
+     * Nested required-OR group with any failed arm: the whole OR group is dropped (same safe over-fetch policy
+     * as the top-level translate). The outer must arm is still empty, so applied is TRUE.
+     */
+    public void testNestedRequiredShouldAnyFailureDropsWholeGroup() {
+        QueryDslTranslator.TranslationResult result = translateResult(
+            QueryBuilders.boolQuery()
+                .must(
+                    QueryBuilders.boolQuery()
+                        .should(QueryBuilders.termQuery("status", 200))
+                        .should(QueryBuilders.wildcardQuery("tags", "a*"))
+                )
+        );
+        assertFalse("wildcard arm failure is reported", result.isComplete());
+        assertEquals("whole nested OR group dropped — pre-filter must over-fetch", Literal.TRUE, result.applied());
+    }
+
+    /**
+     * must_not in a nested bool is all-or-nothing: if the arm cannot be fully translated, NOT is skipped entirely
+     * rather than applying NOT(partial), which would over-exclude and under-fetch.
+     * The must arm is still applied; the failed must_not arm produces no NOT expression in the result.
+     * If must_not were incorrectly applied, applied() would be And(must_expr, Not(wildcard_expr)).
+     * With the correct all-or-nothing policy, applied() is just the single must_expr (no And wrapper).
+     */
+    public void testNestedMustNotAllOrNothingSkipsPartialArm() {
+        QueryDslTranslator.TranslationResult result = translateResult(
+            QueryBuilders.boolQuery()
+                .must(
+                    QueryBuilders.boolQuery()
+                        .must(QueryBuilders.termQuery("status", 200))
+                        .mustNot(QueryBuilders.wildcardQuery("tags", "a*"))
+                )
+        );
+        assertFalse("wildcard must_not arm failure is reported", result.isComplete());
+        assertNotEquals("must arm is applied", Literal.TRUE, result.applied());
+        // Only one conjunct (the must arm) — no And combining it with a NOT for the dropped must_not arm.
+        assertThat("no And wrapping: must_not arm was not applied", result.applied(), not(instanceOf(And.class)));
     }
 }

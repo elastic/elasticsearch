@@ -159,6 +159,12 @@ public class FilterRewriterTests extends ESTestCase {
         );
         assertFalse("incomplete: one dataset cannot translate the term", result.isComplete());
         assertThat(result.failures(), not(empty()));
+        // The failure must be attributed to the integer dataset (string "active" is not a valid int), not to the keyword one.
+        assertThat(
+            "failure is on the integer-typed dataset, not the keyword one",
+            result.failures().stream().map(nf -> ((ExternalRelation) nf.node()).datasetName()).toList(),
+            contains("dsInt")
+        );
     }
 
     // --- fail-closed vs supported-no-op vs installed-false ---

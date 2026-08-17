@@ -37,9 +37,9 @@ import java.util.function.Predicate;
  * ordinary optimizer pipeline — the existing filter-pushdown rules push it toward the source and prune with it wherever
  * the source and the translated predicate allow, indistinguishable from a hand-written filter.
  *
- * <p>Translation is fail-closed: a construct outside the supported subset raises {@link TranslationUnsupportedException},
- * which propagates out of {@code rewrite} for the caller to turn into an error. A filter that translates to a supported
- * no-op ({@code match_all}) leaves the node unwrapped.
+ * <p>Translation is a collecting walk: every unsupported leaf is recorded in {@link RewriteResult#failures()} rather
+ * than thrown. The applied expression in the rewritten plan is the translatable subset; the caller decides what to do
+ * with any failures. A filter that translates to a supported no-op ({@code match_all}) leaves the node unwrapped.
  */
 public final class FilterRewriter {
 

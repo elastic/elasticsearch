@@ -334,6 +334,8 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return this;
     }
 
+    /** Whether unsupported request-filter DSL clauses are dropped with a warning; {@code null} when not set (treated as false). */
+    @Nullable
     public Boolean allowPartialDslFilter() {
         return allowPartialDslFilter;
     }

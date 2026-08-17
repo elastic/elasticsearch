@@ -9,11 +9,25 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.core.Nullable;
+
 import java.util.Locale;
 
 public enum VectorType {
     SPARSE_VECTOR,
     DENSE_VECTOR;
+
+    /**
+     * Returns the vector type produced by the given task type, or {@code null} if the task type does not produce embeddings.
+     */
+    @Nullable
+    public static VectorType fromTaskType(TaskType taskType) {
+        return switch (taskType) {
+            case SPARSE_EMBEDDING -> SPARSE_VECTOR;
+            case TEXT_EMBEDDING, EMBEDDING -> DENSE_VECTOR;
+            case RERANK, COMPLETION, CHAT_COMPLETION, ANY -> null;
+        };
+    }
 
     @Override
     public String toString() {

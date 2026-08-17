@@ -245,7 +245,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             MapperService msWithSettings = createMapperService(semanticMapping("field", inferenceId, modelSettings));
             MappedFieldType ftWithSettings = msWithSettings.fieldType("field");
 
-            VectorType producedType = taskType == TaskType.SPARSE_EMBEDDING ? VectorType.SPARSE_VECTOR : VectorType.DENSE_VECTOR;
+            VectorType producedType = VectorType.fromTaskType(taskType);
             assertEquals(expected, ftWithSettings.embeddingsFieldAndFormat(null));
             for (VectorType vectorType : VectorType.values()) {
                 if (vectorType != producedType) {

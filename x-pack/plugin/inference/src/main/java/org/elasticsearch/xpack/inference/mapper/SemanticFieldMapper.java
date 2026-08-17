@@ -1099,17 +1099,16 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             // The vector type this field produces is determined by the inference endpoint's task type. When there are no model settings
             // the field has never seen inference results, so there is nothing to fetch and nothing to validate.
             if (vectorType != null && modelSettings != null) {
-                VectorType producedVectorType = switch (modelSettings.taskType()) {
-                    case SPARSE_EMBEDDING -> VectorType.SPARSE_VECTOR;
-                    case TEXT_EMBEDDING, EMBEDDING -> VectorType.DENSE_VECTOR;
-                    default -> throw new IllegalStateException(
+                VectorType producedVectorType = VectorType.fromTaskType(modelSettings.taskType());
+                if (producedVectorType == null) {
+                    throw new IllegalStateException(
                         "Field ["
                             + name()
                             + "] is configured to use an inference endpoint with an unsupported task type ["
                             + modelSettings.taskType()
                             + "]"
                     );
-                };
+                }
 
                 if (vectorType != producedVectorType) {
                     return null;

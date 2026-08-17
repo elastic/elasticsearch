@@ -729,12 +729,12 @@ public record TestConfiguration(
             return this;
         }
 
-        public void setProjectedDimsFraction(float v) {
-            this.projectedDimsFraction = v;
+        public void setProjectedDimsFraction(float projectedDimsFraction) {
+            this.projectedDimsFraction = projectedDimsFraction;
         }
 
-        public void setQuantizationType(String v) {
-            this.quantizationType = v;
+        public void setQuantizationType(String quantizationType) {
+            this.quantizationType = quantizationType;
         }
 
         /*

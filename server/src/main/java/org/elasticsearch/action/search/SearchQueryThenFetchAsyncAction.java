@@ -326,14 +326,16 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
      * Request for starting the query phase for multiple shards.
      */
     public static final class NodeQueryRequest extends TransportRequest implements IndicesRequest {
-        private final List<ShardToQuery> shards;
+        // package-private for testing
+        final List<ShardToQuery> shards;
         private final SearchRequest searchRequest;
         private final Map<String, AliasFilter> aliasFilters;
         private final int totalShards;
         private final long absoluteStartMillis;
         private final String localClusterAlias;
 
-        private NodeQueryRequest(SearchRequest searchRequest, int totalShards, long absoluteStartMillis, String localClusterAlias) {
+        // package-private for testing
+        NodeQueryRequest(SearchRequest searchRequest, int totalShards, long absoluteStartMillis, String localClusterAlias) {
             this.shards = new ArrayList<>();
             this.searchRequest = searchRequest;
             this.aliasFilters = new HashMap<>();
@@ -379,7 +381,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         }
     }
 
-    private record ShardToQuery(float boost, String[] originalIndices, int shardIndex, ShardId shardId, ShardSearchContextId contextId)
+    // package-private for testing
+    record ShardToQuery(float boost, String[] originalIndices, int shardIndex, ShardId shardId, ShardSearchContextId contextId)
         implements
             Writeable {
 
@@ -607,7 +610,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         }
     }
 
-    private static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";
+    // package-private for testing
+    static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";
 
     static void registerNodeSearchAction(
         SearchTransportService searchTransportService,
@@ -834,25 +838,34 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             if (countDown.countDown() == false) {
                 return;
             }
-            if (channel.getVersion().supports(BATCHED_RESPONSE_MIGHT_INCLUDE_REDUCTION_FAILURE) == false) {
-                bwcRespond();
-                return;
-            }
             var channelListener = new ChannelActionListener<>(channel);
             NodeQueryResponse nodeQueryResponse;
-            try (queryPhaseResultConsumer) {
-                Exception reductionFailure = queryPhaseResultConsumer.failure.get();
-                if (reductionFailure == null) {
-                    nodeQueryResponse = getSuccessfulResponse();
-                } else {
-                    nodeQueryResponse = getReductionFailureResponse(reductionFailure);
+            try {
+                nodeQueryResponse = buildResponse();
+            } catch (Exception e) {
+                try {
+                    releaseAllResultsContexts();
+                } catch (Exception releaseException) {
+                    logger.trace("failed to release contexts after batched query response failure", releaseException);
                 }
-            } catch (IOException e) {
-                releaseAllResultsContexts();
                 channelListener.onFailure(e);
                 return;
             }
             ActionListener.respondAndRelease(channelListener, nodeQueryResponse);
+        }
+
+        private NodeQueryResponse buildResponse() throws Exception {
+            if (channel.getVersion().supports(BATCHED_RESPONSE_MIGHT_INCLUDE_REDUCTION_FAILURE) == false) {
+                return bwcBuildResponse();
+            }
+            try (queryPhaseResultConsumer) {
+                Exception reductionFailure = queryPhaseResultConsumer.failure.get();
+                if (reductionFailure == null) {
+                    return getSuccessfulResponse();
+                } else {
+                    return getReductionFailureResponse(reductionFailure);
+                }
+            }
         }
 
         private NodeQueryResponse getSuccessfulResponse() throws IOException {
@@ -913,27 +926,20 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
          * This code is strictly for _snapshot_ backwards compatibility. The feature flag
          * {@link SearchService#BATCHED_QUERY_PHASE_FEATURE_FLAG} was not turned on when the transport version
          * {@link SearchQueryThenFetchAsyncAction#BATCHED_RESPONSE_MIGHT_INCLUDE_REDUCTION_FAILURE} was introduced.
+         * <p>
+         * Any exception thrown here propagates to the wrapper in {@link #onShardDone()}, which is
+         * responsible for releasing all result contexts and responding to the channel with an error.
          */
-        void bwcRespond() {
-            var channelListener = new ChannelActionListener<>(channel);
+        private NodeQueryResponse bwcBuildResponse() throws Exception {
             try (queryPhaseResultConsumer) {
                 var failure = queryPhaseResultConsumer.failure.get();
                 if (failure != null) {
-                    releaseAllResultsContexts();
-                    channelListener.onFailure(failure);
-                    return;
+                    throw failure;
                 }
-                final QueryPhaseResultConsumer.MergeResult mergeResult;
-                try {
-                    mergeResult = Objects.requireNonNullElse(
-                        queryPhaseResultConsumer.consumePartialMergeResultDataNode(),
-                        EMPTY_PARTIAL_MERGE_RESULT
-                    );
-                } catch (Exception e) {
-                    releaseAllResultsContexts();
-                    channelListener.onFailure(e);
-                    return;
-                }
+                final QueryPhaseResultConsumer.MergeResult mergeResult = Objects.requireNonNullElse(
+                    queryPhaseResultConsumer.consumePartialMergeResultDataNode(),
+                    EMPTY_PARTIAL_MERGE_RESULT
+                );
                 // translate shard indices to those on the coordinator so that it can interpret the merge result without adjustments,
                 // also collect the set of indices that may be part of a subsequent fetch operation here so that we can release all other
                 // indices without a roundtrip to the coordinating node
@@ -967,11 +973,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     }
                     assert results[i] != null;
                 }
-
-                ActionListener.respondAndRelease(
-                    channelListener,
-                    new NodeQueryResponse(results, null, mergeResult, queryPhaseResultConsumer.topDocsStats)
-                );
+                return new NodeQueryResponse(results, null, mergeResult, queryPhaseResultConsumer.topDocsStats);
             }
         }
 

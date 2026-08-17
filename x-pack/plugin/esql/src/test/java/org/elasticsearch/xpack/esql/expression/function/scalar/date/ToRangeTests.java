@@ -75,11 +75,6 @@ public class ToRangeTests extends AbstractScalarFunctionTestCase {
                 );
             }));
         }
-
-        // The double bounds carry the badge themselves: unlike the range_* functions, no parameter of this
-        // signature is range-typed, so there is no cell that docsParam() would badge automatically. Every
-        // (double, double) supplier below must set it identically, or the generated table gains a second,
-        // unbadged row for the same signature.
         FunctionAppliesTo doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
         suppliers.add(new TestCaseSupplier("double range", List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
             double from = randomDoubleBetween(-1000.0, 0.0, true);

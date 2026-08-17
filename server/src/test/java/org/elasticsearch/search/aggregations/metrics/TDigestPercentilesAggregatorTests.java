@@ -12,15 +12,27 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -32,6 +44,7 @@ import java.util.function.Consumer;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
+import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
@@ -158,6 +171,138 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
         assertThat(
             e.getMessage(),
             equalTo("Cannot set [numberOfSignificantValueDigits] because the " + "method has already been configured for TDigest")
+        );
+    }
+
+    public void testBreakerBytesReleasedAfterSuccessfulAggregation() throws IOException {
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
+        PercentilesAggregationBuilder aggBuilder = new PercentilesAggregationBuilder("p").field("number")
+            .percentilesConfig(new PercentilesConfig.TDigest());
+
+        HierarchyCircuitBreakerService breakerService = requestBreakerService("10mb");
+        withSequentialIndex(100, reader -> {
+            try (
+                AggregationContext context = createAggregationContext(
+                    reader,
+                    createIndexSettings(),
+                    Queries.ALL_DOCS_INSTANCE,
+                    breakerService,
+                    AggregationBuilder.DEFAULT_PREALLOCATION,
+                    DEFAULT_MAX_BUCKETS,
+                    false,
+                    false,
+                    fieldType
+                )
+            ) {
+                Aggregator aggregator = createAggregator(aggBuilder, context);
+                aggregator.preCollection();
+                context.searcher().search(Queries.ALL_DOCS_INSTANCE, aggregator.asCollector());
+                aggregator.postCollection();
+                aggregator.buildTopLevel();
+            }
+            assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+        });
+    }
+
+    public void testBreakerTripsOnHighCardinalityTermsPercentiles() throws IOException {
+        // Reproduces the OOM scenario from the issue: a terms agg with many distinct values
+        // creates one TDigest sketch per bucket. With our fix each sketch charges the REQUEST
+        // breaker, so a tight limit trips the breaker instead of exhausting heap.
+        HierarchyCircuitBreakerService breakerService = requestBreakerService("50kb");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
+
+        PercentilesAggregationBuilder percBuilder = new PercentilesAggregationBuilder("p").field("number")
+            .percentilesConfig(new PercentilesConfig.TDigest());
+        TermsAggregationBuilder termsBuilder = new TermsAggregationBuilder("terms").field("number").size(10000).subAggregation(percBuilder);
+
+        withSequentialIndex(500, reader -> {
+            expectThrows(CircuitBreakingException.class, () -> {
+                try (
+                    AggregationContext context = createAggregationContext(
+                        reader,
+                        createIndexSettings(),
+                        Queries.ALL_DOCS_INSTANCE,
+                        breakerService,
+                        0,
+                        DEFAULT_MAX_BUCKETS,
+                        false,
+                        false,
+                        fieldType
+                    )
+                ) {
+                    Aggregator aggregator = createAggregator(termsBuilder, context);
+                    aggregator.preCollection();
+                    context.searcher().search(Queries.ALL_DOCS_INSTANCE, aggregator.asCollector());
+                    aggregator.postCollection();
+                    aggregator.buildTopLevel();
+                }
+            });
+            assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+        });
+    }
+
+    public void testBreakerTripReleasesAllBytes() throws IOException {
+        HierarchyCircuitBreakerService breakerService = requestBreakerService("1kb");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
+        PercentilesAggregationBuilder aggBuilder = new PercentilesAggregationBuilder("p").field("number")
+            .percentilesConfig(new PercentilesConfig.TDigest());
+
+        withSequentialIndex(500, reader -> {
+            expectThrows(CircuitBreakingException.class, () -> collectWithBreaker(reader, breakerService, aggBuilder, fieldType));
+            assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+        });
+    }
+
+    private static void withSequentialIndex(int docCount, CheckedConsumer<DirectoryReader, IOException> body) throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+                for (int i = 0; i < docCount; i++) {
+                    iw.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                body.accept(reader);
+            }
+        }
+    }
+
+    private void collectWithBreaker(
+        DirectoryReader reader,
+        CircuitBreakerService breakerService,
+        PercentilesAggregationBuilder aggBuilder,
+        MappedFieldType fieldType
+    ) throws IOException {
+        try (
+            AggregationContext context = createAggregationContext(
+                reader,
+                createIndexSettings(),
+                Queries.ALL_DOCS_INSTANCE,
+                breakerService,
+                0,
+                DEFAULT_MAX_BUCKETS,
+                false,
+                false,
+                fieldType
+            )
+        ) {
+            Aggregator aggregator = createAggregator(aggBuilder, context);
+            aggregator.preCollection();
+            context.searcher().search(Queries.ALL_DOCS_INSTANCE, aggregator.asCollector());
+            aggregator.postCollection();
+            aggregator.buildTopLevel();
+        }
+    }
+
+    private static HierarchyCircuitBreakerService requestBreakerService(String requestLimit) {
+        Settings settings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), requestLimit)
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+            .build();
+        return new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            settings,
+            List.of(),
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
     }
 

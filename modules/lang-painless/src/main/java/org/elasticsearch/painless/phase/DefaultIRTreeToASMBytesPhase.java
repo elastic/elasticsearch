@@ -283,10 +283,9 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             // $incAllocBytes/getAllocBytes/$checkAllocBytes overrides below and reset at the execute entry.
             classVisitor.visitField(Opcodes.ACC_PRIVATE, WriterConstants.ALLOC_BYTES_FIELD, "J", null, null).visitEnd();
 
-            if (warnAllocationBytes > 0L) {
-                // private boolean $allocWarned — latches the once-per-execution warning; reset alongside $allocBytes.
-                classVisitor.visitField(Opcodes.ACC_PRIVATE, WriterConstants.ALLOC_WARNED_FIELD, "Z", null, null).visitEnd();
-            }
+            // private boolean $allocWarned — latches the once-per-execution warning; reset alongside $allocBytes. Emitted
+            // whenever tracking is on, so $checkAllocBytes has one shape whichever thresholds are configured.
+            classVisitor.visitField(Opcodes.ACC_PRIVATE, WriterConstants.ALLOC_WARNED_FIELD, "Z", null, null).visitEnd();
 
             // public long $incAllocBytes(long bytes) { return this.$allocBytes += bytes; }
             MethodWriter incAllocBytes = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, WriterConstants.INC_ALLOC_BYTES);
@@ -309,63 +308,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             getAllocBytes.returnValue();
             getAllocBytes.endMethod();
 
-            // public void $checkAllocBytes(long bytes) {
-            // long total = this.$allocBytes += bytes;
-            // if (total > <warn> && !this.$allocWarned) { // only when the warning threshold is on
-            // this.$allocWarned = true;
-            // AllocationGuard.allocationWarnThresholdExceeded(this, bytes, total, <warn>);
-            // }
-            // if (total > <limit>) AllocationGuard.allocationLimitExceeded(bytes, total, <limit>); // only when enforcing
-            // }
-            // Each block is emitted only when its threshold is on, so warning-only and enforcement-only scripts carry just
-            // one comparison. Warning is checked first so an allocation crossing both is reported before the error is raised.
-            MethodWriter checkAllocBytes = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, WriterConstants.CHECK_ALLOC_BYTES);
-            checkAllocBytes.visitCode();
-            checkAllocBytes.loadThis();
-            checkAllocBytes.dup();
-            checkAllocBytes.getField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_BYTES_FIELD, Type.LONG_TYPE);
-            checkAllocBytes.loadArg(0);
-            checkAllocBytes.math(MethodWriter.ADD, Type.LONG_TYPE);
-            checkAllocBytes.visitInsn(Opcodes.DUP2_X1);
-            checkAllocBytes.putField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_BYTES_FIELD, Type.LONG_TYPE);
-            int totalSlot = checkAllocBytes.newLocal(Type.LONG_TYPE);
-            checkAllocBytes.storeLocal(totalSlot);
-
-            if (warnAllocationBytes > 0L) {
-                Label withinWarn = checkAllocBytes.newLabel();
-                checkAllocBytes.loadLocal(totalSlot);
-                checkAllocBytes.push(warnAllocationBytes);
-                checkAllocBytes.ifCmp(Type.LONG_TYPE, MethodWriter.LE, withinWarn);
-                checkAllocBytes.loadThis();
-                checkAllocBytes.getField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_WARNED_FIELD, Type.BOOLEAN_TYPE);
-                checkAllocBytes.ifZCmp(MethodWriter.NE, withinWarn);
-                checkAllocBytes.loadThis();
-                checkAllocBytes.push(true);
-                checkAllocBytes.putField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_WARNED_FIELD, Type.BOOLEAN_TYPE);
-                checkAllocBytes.loadThis();
-                checkAllocBytes.push(scriptContextName);
-                checkAllocBytes.loadArg(0);
-                checkAllocBytes.loadLocal(totalSlot);
-                checkAllocBytes.push(warnAllocationBytes);
-                checkAllocBytes.invokeStatic(WriterConstants.ALLOCATION_GUARD_TYPE, WriterConstants.ALLOCATION_WARN_THRESHOLD_EXCEEDED);
-                checkAllocBytes.mark(withinWarn);
-            }
-
-            if (maxAllocationBytes > 0L) {
-                Label withinLimit = checkAllocBytes.newLabel();
-                checkAllocBytes.loadLocal(totalSlot);
-                checkAllocBytes.push(maxAllocationBytes);
-                checkAllocBytes.ifCmp(Type.LONG_TYPE, MethodWriter.LE, withinLimit);
-                checkAllocBytes.push(scriptContextName);
-                checkAllocBytes.loadArg(0);
-                checkAllocBytes.loadLocal(totalSlot);
-                checkAllocBytes.push(maxAllocationBytes);
-                checkAllocBytes.invokeStatic(WriterConstants.ALLOCATION_GUARD_TYPE, WriterConstants.ALLOCATION_LIMIT_EXCEEDED);
-                checkAllocBytes.mark(withinLimit);
-            }
-
-            checkAllocBytes.returnValue();
-            checkAllocBytes.endMethod();
+            writeCheckAllocBytesMethod(classWriter, scriptContextName, warnAllocationBytes, maxAllocationBytes);
         }
 
         // Write the constructor:
@@ -491,12 +434,9 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.loadThis();
             methodWriter.push(0L);
             methodWriter.putField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_BYTES_FIELD, Type.LONG_TYPE);
-
-            if (warnAllocationBytes > 0L) {
-                methodWriter.loadThis();
-                methodWriter.push(false);
-                methodWriter.putField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_WARNED_FIELD, Type.BOOLEAN_TYPE);
-            }
+            methodWriter.loadThis();
+            methodWriter.push(false);
+            methodWriter.putField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_WARNED_FIELD, Type.BOOLEAN_TYPE);
         }
 
         // Define the #allocLimit marker when tracking is on and a script pointer is reachable: `this` (instance functions)
@@ -549,6 +489,61 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.mark(legacyPath);
         methodWriter.writeLoopCounter(loop.getSlot(), location);
         methodWriter.mark(end);
+    }
+
+    /**
+     * Generates the script class's {@code $checkAllocBytes} override, which every allocation site calls through the script
+     * interface:
+     *
+     * <pre>{@code
+     * public void $checkAllocBytes(long bytes) {
+     *     this.$allocWarned = AllocationGuard.checkAllocation(
+     *         this, "<context>", bytes, this.$allocBytes += bytes, this.$allocWarned, <warn>, <limit>);
+     * }
+     * }</pre>
+     *
+     * The generated code charges the running total and nothing more: whether to warn, to fail the script, or to do nothing
+     * is decided in {@link org.elasticsearch.painless.AllocationGuard#checkAllocation}, so that policy lives in readable Java
+     * instead of in emitted branches. The context name and both thresholds are fixed for the compile and so are passed as
+     * constants, which lets the JIT fold the comparisons for the configuration actually in force once the call inlines.
+     * <p>
+     * Emitted with one shape whichever thresholds are on — an unconfigured threshold is passed as its {@code -1} sentinel
+     * and rejected inside the guard. Nothing at all is emitted when tracking is off, which the bytecode-diff tests assert.
+     */
+    private static void writeCheckAllocBytesMethod(
+        ClassWriter classWriter,
+        String scriptContextName,
+        long warnAllocationBytes,
+        long maxAllocationBytes
+    ) {
+        MethodWriter checkAllocBytes = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, WriterConstants.CHECK_ALLOC_BYTES);
+        checkAllocBytes.visitCode();
+
+        // Receiver for the trailing putField of the returned latch value.
+        checkAllocBytes.loadThis();
+
+        // Arguments, in signature order. The running total is charged inline so `this.$allocBytes += bytes` both updates the
+        // field and leaves the new total on the stack as the totalBytes argument.
+        checkAllocBytes.loadThis();
+        checkAllocBytes.push(scriptContextName);
+        checkAllocBytes.loadArg(0);
+        checkAllocBytes.loadThis();
+        checkAllocBytes.dup();
+        checkAllocBytes.getField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_BYTES_FIELD, Type.LONG_TYPE);
+        checkAllocBytes.loadArg(0);
+        checkAllocBytes.math(MethodWriter.ADD, Type.LONG_TYPE);
+        checkAllocBytes.visitInsn(Opcodes.DUP2_X1);
+        checkAllocBytes.putField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_BYTES_FIELD, Type.LONG_TYPE);
+        checkAllocBytes.loadThis();
+        checkAllocBytes.getField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_WARNED_FIELD, Type.BOOLEAN_TYPE);
+        checkAllocBytes.push(warnAllocationBytes);
+        checkAllocBytes.push(maxAllocationBytes);
+
+        checkAllocBytes.invokeStatic(WriterConstants.ALLOCATION_GUARD_TYPE, WriterConstants.CHECK_ALLOCATION);
+        checkAllocBytes.putField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_WARNED_FIELD, Type.BOOLEAN_TYPE);
+
+        checkAllocBytes.returnValue();
+        checkAllocBytes.endMethod();
     }
 
     /**

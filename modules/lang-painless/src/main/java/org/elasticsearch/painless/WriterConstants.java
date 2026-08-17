@@ -281,9 +281,11 @@ public final class WriterConstants {
     public static final String ALLOC_BYTES_FIELD = "$allocBytes";
 
     /**
-     * Synthetic {@code boolean} field added when the allocation warning threshold is enabled. Latches once the threshold has
+     * Synthetic {@code boolean} field added whenever allocation tracking is enabled. Latches once the warning threshold has
      * been reported for this execution, so a script that stays above it does not warn at every later allocation; reset
-     * alongside {@link #ALLOC_BYTES_FIELD} at every {@code execute} entry.
+     * alongside {@link #ALLOC_BYTES_FIELD} at every {@code execute} entry. Emitted even when only the limit is configured, so
+     * the generated {@code $checkAllocBytes} has one shape regardless of which thresholds are on — it costs an unread boolean
+     * field, and which thresholds actually apply is decided in {@link AllocationGuard#checkAllocation}.
      */
     public static final String ALLOC_WARNED_FIELD = "$allocWarned";
 
@@ -299,32 +301,22 @@ public final class WriterConstants {
      */
     public static final Method CHECK_ALLOC_BYTES = getAsmMethod(void.class, "$checkAllocBytes", long.class);
 
-    /** ASM {@link Type} for {@link AllocationGuard}, the log-and-throw helper called on a limit breach. */
+    /** ASM {@link Type} for {@link AllocationGuard}, which owns the warn/throw decision. */
     public static final Type ALLOCATION_GUARD_TYPE = Type.getType(AllocationGuard.class);
 
     /**
-     * {@link AllocationGuard#allocationLimitExceeded(String, long, long, long)} — called from {@code $checkAllocBytes} on
-     * breach. The context name is a baked-in constant at the call site.
+     * {@link AllocationGuard#checkAllocation(PainlessScript, String, long, long, boolean, long, long)} — the sole call
+     * {@code $checkAllocBytes} makes after charging the running total. Context name and both thresholds are baked-in
+     * constants at the call site; the returned latch is stored back to {@link #ALLOC_WARNED_FIELD}.
      */
-    public static final Method ALLOCATION_LIMIT_EXCEEDED = getAsmMethod(
-        void.class,
-        "allocationLimitExceeded",
-        String.class,
-        long.class,
-        long.class,
-        long.class
-    );
-
-    /**
-     * {@link AllocationGuard#allocationWarnThresholdExceeded(PainlessScript, String, long, long, long)} — called from
-     * {@code $checkAllocBytes} the first time an execution crosses the warning threshold.
-     */
-    public static final Method ALLOCATION_WARN_THRESHOLD_EXCEEDED = getAsmMethod(
-        void.class,
-        "allocationWarnThresholdExceeded",
+    public static final Method CHECK_ALLOCATION = getAsmMethod(
+        boolean.class,
+        "checkAllocation",
         PainlessScript.class,
         String.class,
         long.class,
+        long.class,
+        boolean.class,
         long.class,
         long.class
     );

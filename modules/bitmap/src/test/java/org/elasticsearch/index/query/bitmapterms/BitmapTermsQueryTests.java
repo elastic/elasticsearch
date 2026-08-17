@@ -12,14 +12,28 @@ package org.elasticsearch.index.query.bitmapterms;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.QueryUtils;
@@ -32,9 +46,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -77,6 +97,16 @@ public class BitmapTermsQueryTests extends ESTestCase {
                 NumericUtils.intToSortableBytes((int) value, bytes, 0);
                 return new BytesRef(bytes);
             }
+
+            @Override
+            SortField.Type sortType() {
+                return SortField.Type.INT;
+            }
+
+            @Override
+            Object missingValue(long value) {
+                return (int) value;
+            }
         },
         LONG {
             @Override
@@ -90,14 +120,35 @@ public class BitmapTermsQueryTests extends ESTestCase {
                 NumericUtils.longToSortableBytes(value, bytes, 0);
                 return new BytesRef(bytes);
             }
+
+            @Override
+            SortField.Type sortType() {
+                return SortField.Type.LONG;
+            }
+
+            @Override
+            Object missingValue(long value) {
+                return value;
+            }
         };
 
         abstract BitmapValues bitmapOf(long... valuesIn);
 
         abstract BytesRef encodeTerm(long value);
 
+        abstract SortField.Type sortType();
+
+        /** Boxed as the type {@link SortField#setMissingValue} demands for this width. */
+        abstract Object missingValue(long value);
+
         void addField(Document doc, long value) {
             doc.add(new Field(FIELD, encodeTerm(value), INDEX_TERMS_TYPE));
+        }
+
+        /** Adds the term plus the doc values the index sort and the doc-range skip both read. */
+        void addSortableField(Document doc, long value) {
+            addField(doc, value);
+            doc.add(new SortedNumericDocValuesField(FIELD, value));
         }
 
         Query termInSetQuery(long... valuesIn) {
@@ -326,6 +377,325 @@ public class BitmapTermsQueryTests extends ESTestCase {
                     Query rewritten = searcher.rewrite(new BitmapTermsQuery(FIELD, width.empty()));
                     assertThat(rewritten, instanceOf(MatchNoDocsQuery.class));
                 }
+            }
+        }
+    }
+
+    private static RandomIndexWriter sortedWriter(Width width, Directory dir) throws IOException {
+        IndexWriterConfig config = newIndexWriterConfig();
+        config.setIndexSort(new Sort(new SortedNumericSortField(FIELD, width.sortType())));
+        return new RandomIndexWriter(random(), dir, config);
+    }
+
+    /**
+     * Asserts every leaf qualifies for the streaming scan, so a test written to cover it cannot quietly
+     * fall back to collecting into a builder and still pass.
+     */
+    private static void assertStreamingApplies(IndexReader reader) throws IOException {
+        assertFalse("expected at least one leaf", reader.leaves().isEmpty());
+        for (LeafReaderContext context : reader.leaves()) {
+            Sort sort = context.reader().getMetaData().sort();
+            assertNotNull("index sort did not survive to the leaf", sort);
+            assertThat(sort.getSort()[0].getField(), equalTo(FIELD));
+            Terms terms = context.reader().terms(FIELD);
+            assertNotNull(terms);
+            assertThat("field must be single-valued", terms.getSumDocFreq(), equalTo((long) terms.getDocCount()));
+        }
+    }
+
+    /**
+     * Scattered singletons plus a few runs. The streaming scan treats both the same way, so the shape
+     * that matters is only that some values are absent from the index and some are shared by several
+     * documents.
+     */
+    private long[] randomQueriedValues(int maxValue) {
+        SortedSet<Long> chosen = new TreeSet<>();
+        for (int singletons = randomIntBetween(5, 60); singletons > 0; singletons--) {
+            chosen.add((long) randomIntBetween(0, maxValue));
+        }
+        for (int runs = randomIntBetween(0, 3); runs > 0; runs--) {
+            long start = randomIntBetween(0, maxValue);
+            for (int i = 0, length = randomIntBetween(2, 50); i < length && start + i <= maxValue; i++) {
+                chosen.add(start + i);
+            }
+        }
+        // Above everything indexed, so the scan running off the end of the terms dictionary is covered.
+        if (randomBoolean()) {
+            chosen.add(maxValue + 1000L);
+        }
+        return chosen.stream().mapToLong(Long::longValue).toArray();
+    }
+
+    /**
+     * Cross-checks the streaming scan against a brute-force count, and runs {@link QueryUtils#check} so
+     * {@code advance()} is verified against {@code nextDoc()} rather than only exhaustive iteration.
+     */
+    public void testSortedIndexAgainstBruteForce() throws IOException {
+        for (Width width : Width.values()) {
+            int numDocs = atLeast(500);
+            int maxValue = randomIntBetween(50, 500);
+            long[] indexed = new long[numDocs];
+            try (Directory dir = newDirectory(); RandomIndexWriter w = sortedWriter(width, dir)) {
+                for (int i = 0; i < numDocs; i++) {
+                    indexed[i] = randomIntBetween(0, maxValue);
+                    Document doc = new Document();
+                    width.addSortableField(doc, indexed[i]);
+                    w.addDocument(doc);
+                }
+                try (IndexReader reader = w.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    assertStreamingApplies(searcher.getIndexReader());
+                    for (int iter = 0; iter < 15; iter++) {
+                        long[] queried = randomQueriedValues(maxValue);
+                        Set<Long> wanted = Arrays.stream(queried).boxed().collect(Collectors.toSet());
+                        int expected = 0;
+                        for (long value : indexed) {
+                            if (wanted.contains(value)) {
+                                expected++;
+                            }
+                        }
+                        Query query = query(width, queried);
+                        assertThat("width=" + width, searcher.count(query), equalTo(expected));
+                        QueryUtils.check(random(), query, searcher);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * The matched documents' field values, sorted. An index sort reorders documents, so doc ids cannot
+     * be compared across a sorted and an unsorted copy of the same data, but the values they carry can.
+     */
+    private static List<Long> matchedValues(IndexSearcher searcher, Query query) throws IOException {
+        Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+        List<Long> matched = new ArrayList<>();
+        for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
+            ScorerSupplier supplier = weight.scorerSupplier(context);
+            if (supplier == null) {
+                continue;
+            }
+            NumericDocValues values = DocValues.unwrapSingleton(DocValues.getSortedNumeric(context.reader(), FIELD));
+            DocIdSetIterator docs = supplier.get(Long.MAX_VALUE).iterator();
+            for (int doc = docs.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = docs.nextDoc()) {
+                assertTrue("doc " + doc + " has no value", values.advanceExact(doc));
+                matched.add(values.longValue());
+            }
+        }
+        Collections.sort(matched);
+        return matched;
+    }
+
+    /**
+     * The streaming scan must match the same documents as collecting into a builder. Running both over
+     * identical data isolates the strategy from the data, which a brute-force oracle alone cannot do.
+     */
+    public void testSortedAndUnsortedAgree() throws IOException {
+        for (Width width : Width.values()) {
+            int numDocs = atLeast(300);
+            int maxValue = randomIntBetween(50, 300);
+            long[] indexed = new long[numDocs];
+            for (int i = 0; i < numDocs; i++) {
+                indexed[i] = randomIntBetween(0, maxValue);
+            }
+            try (
+                Directory sortedDir = newDirectory();
+                RandomIndexWriter sorted = sortedWriter(width, sortedDir);
+                Directory plainDir = newDirectory();
+                RandomIndexWriter plain = new RandomIndexWriter(random(), plainDir)
+            ) {
+                for (long value : indexed) {
+                    Document doc = new Document();
+                    width.addSortableField(doc, value);
+                    sorted.addDocument(doc);
+                    Document copy = new Document();
+                    width.addSortableField(copy, value);
+                    plain.addDocument(copy);
+                }
+                try (IndexReader sortedReader = sorted.getReader(); IndexReader plainReader = plain.getReader()) {
+                    IndexSearcher sortedSearcher = newSearcher(sortedReader);
+                    IndexSearcher plainSearcher = newSearcher(plainReader);
+                    assertStreamingApplies(sortedSearcher.getIndexReader());
+                    for (int iter = 0; iter < 10; iter++) {
+                        Query query = query(width, randomQueriedValues(maxValue));
+                        assertThat("width=" + width, matchedValues(sortedSearcher, query), equalTo(matchedValues(plainSearcher, query)));
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Documents missing a value sort to one end and appear in no term's postings, so they cannot disturb
+     * the doc order the streaming scan relies on. This is the case the earlier doc-range strategy had to
+     * exclude and this one does not.
+     */
+    public void testSortedIndexWithMissingValues() throws IOException {
+        for (Width width : Width.values()) {
+            try (Directory dir = newDirectory(); RandomIndexWriter w = sortedWriter(width, dir)) {
+                int withValue = 0;
+                for (int i = 0; i < 200; i++) {
+                    Document doc = new Document();
+                    // Roughly a third of the documents carry no value at all.
+                    if (i % 3 != 0) {
+                        width.addSortableField(doc, i);
+                        withValue++;
+                    }
+                    w.addDocument(doc);
+                }
+                try (IndexReader reader = w.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    assertStreamingApplies(searcher.getIndexReader());
+                    long[] all = LongStream.range(0, 200).toArray();
+                    assertThat(searcher.count(query(width, all)), equalTo(withValue));
+                }
+            }
+        }
+    }
+
+    /**
+     * Where documents missing a value are placed does not matter, because they carry no term: they can
+     * only leave gaps in the doc ids a term's postings cover, never reorder them. Two documents with
+     * values V1 &lt; V2 sort in that order whatever the missing value is, so {@code term(V1)}'s postings
+     * still precede {@code term(V2)}'s.
+     * <p>
+     * The missing value here sits in the middle of the range the other documents span, so they
+     * interleave rather than collecting at one end. {@code index.sort.missing} cannot express that — it
+     * takes only {@code _first} and {@code _last} — but Lucene permits it, and it is the arrangement that
+     * would expose the assumption if it were wrong.
+     */
+    public void testSortedIndexWithInterleavedMissingValues() throws IOException {
+        for (Width width : Width.values()) {
+            IndexWriterConfig config = newIndexWriterConfig();
+            SortedNumericSortField sortField = new SortedNumericSortField(FIELD, width.sortType());
+            sortField.setMissingValue(width.missingValue(100));
+            config.setIndexSort(new Sort(sortField));
+            try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir, config)) {
+                int withValue = 0;
+                for (int i = 0; i < 200; i++) {
+                    Document doc = new Document();
+                    if (i % 3 != 0) {
+                        width.addSortableField(doc, i);
+                        withValue++;
+                    }
+                    w.addDocument(doc);
+                }
+                try (IndexReader reader = w.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    assertStreamingApplies(searcher.getIndexReader());
+                    Query query = query(width, LongStream.range(0, 200).toArray());
+                    assertThat("width=" + width, searcher.count(query), equalTo(withValue));
+                    // Emitting doc ids out of order would fail the iterator contract here.
+                    QueryUtils.check(random(), query, searcher);
+                }
+            }
+        }
+    }
+
+    /**
+     * Index sort places a multi-valued document by one of its values, so another of its values can belong
+     * to a much later term while the document sits early. Streaming would then emit doc ids out of order,
+     * so such a segment must collect instead. Asserted through {@link QueryUtils#check}, which verifies
+     * the iterator contract that streaming out of order would break.
+     */
+    public void testMultiValuedFieldIsNotStreamed() throws IOException {
+        for (Width width : Width.values()) {
+            try (Directory dir = newDirectory(); RandomIndexWriter w = sortedWriter(width, dir)) {
+                for (int i = 0; i < 100; i++) {
+                    Document doc = new Document();
+                    width.addSortableField(doc, i);
+                    // A second, far higher value on every document, so the terms order and the doc order
+                    // disagree as widely as possible.
+                    width.addSortableField(doc, 1000 + i);
+                    w.addDocument(doc);
+                }
+                try (IndexReader reader = w.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    for (LeafReaderContext context : reader.leaves()) {
+                        Terms terms = context.reader().terms(FIELD);
+                        assertThat("expected multi-valued", terms.getSumDocFreq(), greaterThan((long) terms.getDocCount()));
+                    }
+                    Query query = query(width, 5, 1005, 40, 1040);
+                    assertThat(searcher.count(query), equalTo(2));
+                    QueryUtils.check(random(), query, searcher);
+                }
+            }
+        }
+    }
+
+    /**
+     * count() sums docFreq, which counts deleted documents too, so a segment with deletions must fall
+     * back to counting by iteration.
+     */
+    public void testCountWithDeletions() throws IOException {
+        for (Width width : Width.values()) {
+            for (boolean sorted : new boolean[] { true, false }) {
+                try (
+                    Directory dir = newDirectory();
+                    RandomIndexWriter w = sorted ? sortedWriter(width, dir) : new RandomIndexWriter(random(), dir)
+                ) {
+                    for (int i = 0; i < 200; i++) {
+                        Document doc = new Document();
+                        width.addSortableField(doc, i);
+                        w.addDocument(doc);
+                    }
+                    w.deleteDocuments(new Term(FIELD, width.encodeTerm(100)));
+                    try (IndexReader reader = w.getReader()) {
+                        IndexSearcher searcher = newSearcher(reader);
+                        // 150 values queried, one of them deleted.
+                        assertThat(searcher.count(query(width, LongStream.range(0, 150).toArray())), equalTo(149));
+                    }
+                }
+            }
+        }
+    }
+
+    /** The docFreq count path needs no index sort, so it must agree with iteration on either layout. */
+    public void testCountAgreesWithIteration() throws IOException {
+        for (Width width : Width.values()) {
+            for (boolean sorted : new boolean[] { true, false }) {
+                int maxValue = 200;
+                try (
+                    Directory dir = newDirectory();
+                    RandomIndexWriter w = sorted ? sortedWriter(width, dir) : new RandomIndexWriter(random(), dir)
+                ) {
+                    for (int i = 0; i < 400; i++) {
+                        Document doc = new Document();
+                        width.addSortableField(doc, randomIntBetween(0, maxValue));
+                        w.addDocument(doc);
+                    }
+                    try (IndexReader reader = w.getReader()) {
+                        IndexSearcher searcher = newSearcher(reader);
+                        for (int iter = 0; iter < 10; iter++) {
+                            Query query = query(width, randomQueriedValues(maxValue));
+                            assertThat(
+                                "width=" + width + " sorted=" + sorted,
+                                searcher.count(query),
+                                equalTo(matchedValues(searcher, query).size())
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Long-only: streaming must hold across high-32-bit bucket boundaries, not just within one. */
+    public void testSortedIndexLongValuesBeyondIntRange() throws IOException {
+        long[] indexed = { 0L, 1L, Integer.MAX_VALUE, 1L << 32, (1L << 32) + 1, 1L << 33, BEYOND_INT, Long.MAX_VALUE };
+        try (Directory dir = newDirectory(); RandomIndexWriter w = sortedWriter(Width.LONG, dir)) {
+            for (long value : indexed) {
+                Document doc = new Document();
+                Width.LONG.addSortableField(doc, value);
+                w.addDocument(doc);
+            }
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                assertStreamingApplies(searcher.getIndexReader());
+                assertThat(searcher.count(query(Width.LONG, indexed)), equalTo(indexed.length));
+                assertThat(searcher.count(query(Width.LONG, 1L << 32, Long.MAX_VALUE)), equalTo(2));
+                assertThat(searcher.count(query(Width.LONG, (1L << 32) + 5)), equalTo(0));
+                QueryUtils.check(random(), query(Width.LONG, indexed), searcher);
             }
         }
     }

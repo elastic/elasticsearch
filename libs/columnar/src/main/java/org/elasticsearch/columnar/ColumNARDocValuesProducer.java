@@ -46,11 +46,8 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
 
     private final int maxDoc;
     private final IndexInput data;
-    private final Map<Integer, Column> columns = new HashMap<>();
+    private final Map<Integer, ColumnMetadata> columns = new HashMap<>();
     private boolean closed = false;
-
-    /** A read-side column: its declared type and the metadata needed to open it; exactly one is set. */
-    private record Column(ColumnarFieldType type, NumericColumnMetadata numeric, StringColumnMetadata string) {}
 
     ColumNARDocValuesProducer(SegmentReadState state) throws IOException {
         this.maxDoc = state.segmentInfo.maxDoc();
@@ -109,22 +106,23 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    private Column readColumn(ColumnarFieldType type, ChecksumIndexInput meta, final FormatVersion formatVersion) throws IOException {
+    private ColumnMetadata readColumn(ColumnarFieldType type, ChecksumIndexInput meta, final FormatVersion formatVersion)
+        throws IOException {
         return switch (type) {
-            case LONG, DOUBLE -> new Column(type, NumericColumnMetadata.readFrom(meta, maxDoc, formatVersion), null);
-            case STRING -> new Column(type, null, StringColumnMetadata.readFrom(meta, maxDoc, formatVersion));
+            case LONG, DOUBLE -> NumericColumnMetadata.readFrom(meta, maxDoc, formatVersion);
+            case STRING -> StringColumnMetadata.readFrom(meta, maxDoc, formatVersion);
         };
     }
 
     @Override
     public BinaryDocValues getBinary(FieldInfo field) throws IOException {
-        Column column = columns.get(field.number);
+        ColumnMetadata column = columns.get(field.number);
         if (column == null) {
             throw new IllegalStateException("field [" + field.name + "] is not a ColumNAR column");
         }
-        return switch (column.type()) {
-            case LONG, DOUBLE -> numericBinary(column.numeric());
-            case STRING -> stringBinary(column.string());
+        return switch (column) {
+            case NumericColumnMetadata numeric -> numericBinary(numeric);
+            case StringColumnMetadata string -> stringBinary(string);
         };
     }
 

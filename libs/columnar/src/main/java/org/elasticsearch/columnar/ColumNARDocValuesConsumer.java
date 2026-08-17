@@ -20,7 +20,6 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
@@ -66,13 +65,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     private final int blockSize;
     private boolean closed = false;
 
-    /** A column's metadata, flushed to the meta stream on close. Both column types expose this shape. */
-    @FunctionalInterface
-    private interface MetadataWriter {
-        void writeTo(DataOutput out) throws IOException;
-    }
-
-    private record FieldEntry(int fieldNumber, byte fieldTypeId, MetadataWriter metadata) {}
+    private record FieldEntry(int fieldNumber, byte fieldTypeId, ColumnMetadata metadata) {}
 
     ColumNARDocValuesConsumer(SegmentWriteState state, NumericPipelineSelector pipelineSelector, int blockSize) throws IOException {
         this.pipelineSelector = pipelineSelector;
@@ -325,7 +318,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             context,
             data
         );
-        fields.add(new FieldEntry(field.number, type.id(), metadata::writeTo));
+        fields.add(new FieldEntry(field.number, type.id(), metadata));
     }
 
     /**
@@ -365,7 +358,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             context,
             data
         );
-        fields.add(new FieldEntry(field.number, type.id(), metadata::writeTo));
+        fields.add(new FieldEntry(field.number, type.id(), metadata));
     }
 
     @Override

@@ -11,6 +11,7 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
+import org.elasticsearch.columnar.ColumnMetadata;
 import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
@@ -44,7 +45,7 @@ public record StringColumnMetadata(
     byte terminalId,
     byte[] transformIds,
     StringDictionary dictionary
-) {
+) implements ColumnMetadata {
     private static final byte[] NONE = new byte[0];
 
     static StringColumnMetadata empty(ColumnIteratorMetadata iterator, byte blockBytesCodecId) {
@@ -71,6 +72,7 @@ public record StringColumnMetadata(
         return numValues > numDocsWithField;
     }
 
+    @Override
     public void writeTo(DataOutput out) throws IOException {
         iterator.writeTo(out);
         out.writeVInt(numDocsWithField);

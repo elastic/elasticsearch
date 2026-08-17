@@ -11,6 +11,7 @@ package org.elasticsearch.columnar.numeric;
 
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
+import org.elasticsearch.columnar.ColumnMetadata;
 import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
@@ -48,7 +49,7 @@ public record NumericColumnMetadata(
     long valueAddressesDataLength,
     byte[] valueAddressesMeta,
     Skipper skipper
-) {
+) implements ColumnMetadata {
     private static final byte[] NONE = new byte[0];
 
     /** Descriptor of the default pipeline, stored on empty columns that serialize no block payload. */
@@ -150,6 +151,7 @@ public record NumericColumnMetadata(
         return numValues > numDocsWithField;
     }
 
+    @Override
     public void writeTo(DataOutput out) throws IOException {
         iterator.writeTo(out);
         out.writeVInt(numDocsWithField);

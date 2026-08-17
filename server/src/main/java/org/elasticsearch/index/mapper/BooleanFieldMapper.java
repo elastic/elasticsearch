@@ -23,7 +23,6 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
-import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -39,6 +38,7 @@ import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.escf.LuceneBinaryColumn;
 import org.elasticsearch.escf.LuceneLongColumn;
+import org.elasticsearch.escf.PresentDocIterator;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -815,19 +815,10 @@ public class BooleanFieldMapper extends FieldMapper {
         EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
         builder.lockScalar(EscfColumnKind.LONG);
         if (source.kind() == EscfColumnKind.BOOL) {
-            EscfColumnData colData = source.columnData();
-            FixedBitSet validity = colData.validity();
-            FixedBitSet boolValues = colData.values();
-            int docCount = colData.docCount();
-            if (validity == null) {
-                for (int doc = 0; doc < docCount; doc++) {
-                    builder.setLong(doc, (boolValues != null && boolValues.get(doc)) ? 1L : 0L);
-                }
-            } else {
-                BitSetIterator it = new BitSetIterator(validity, docCount);
-                for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
-                    builder.setLong(doc, (boolValues != null && boolValues.get(doc)) ? 1L : 0L);
-                }
+            FixedBitSet boolValues = source.columnData().values();
+            PresentDocIterator it = source.presentDocs();
+            for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
+                builder.setLong(doc, (boolValues != null && boolValues.get(doc)) ? 1L : 0L);
             }
         } else {
             final ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
@@ -849,21 +840,11 @@ public class BooleanFieldMapper extends FieldMapper {
         EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
         builder.lockScalar(EscfColumnKind.STRING);
         if (source.kind() == EscfColumnKind.BOOL) {
-            EscfColumnData colData = source.columnData();
-            FixedBitSet validity = colData.validity();
-            FixedBitSet boolValues = colData.values();
-            int docCount = colData.docCount();
-            if (validity == null) {
-                for (int doc = 0; doc < docCount; doc++) {
-                    boolean b = boolValues != null && boolValues.get(doc);
-                    builder.setString(doc, b ? Values.TRUE : Values.FALSE);
-                }
-            } else {
-                BitSetIterator it = new BitSetIterator(validity, docCount);
-                for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
-                    boolean b = boolValues != null && boolValues.get(doc);
-                    builder.setString(doc, b ? Values.TRUE : Values.FALSE);
-                }
+            FixedBitSet boolValues = source.columnData().values();
+            PresentDocIterator it = source.presentDocs();
+            for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
+                boolean b = boolValues != null && boolValues.get(doc);
+                builder.setString(doc, b ? Values.TRUE : Values.FALSE);
             }
         } else {
             final ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);

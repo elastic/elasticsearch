@@ -132,7 +132,7 @@ public abstract class IndexRouting {
     /**
      * Returns a {@link RoutingExtractor} for this routing strategy if it can compute the shard id
      * from data accumulated during a single source parse pass (e.g. via
-     * {@link org.elasticsearch.eirf.EirfEncoder}); returns {@code null} for strategies that route
+     * {@link org.elasticsearch.sourcebatch.SourceBatchEncoder}); returns {@code null} for strategies that route
      * solely on the document id and explicit routing field, in which case callers should use
      * {@link #indexShard(IndexRequest)} directly.
      */
@@ -394,7 +394,7 @@ public abstract class IndexRouting {
         /**
          * Records the routing hash that {@link #postProcess(IndexRequest)} will later read. Used by
          * subclasses that compute the hash through means other than {@link #hashSource} — e.g. via
-         * a {@link RoutingExtractor} fed during EIRF encoding.
+         * a {@link RoutingExtractor} fed during batch encoding.
          */
         final void setRecordedHash(int h) {
             this.hash = h;
@@ -576,7 +576,7 @@ public abstract class IndexRouting {
             }
 
             /**
-             * Computes the shard id from a {@link RoutingHashBuilder} populated during EIRF encoding,
+             * Computes the shard id from a {@link RoutingHashBuilder} populated during batch encoding,
              * applying the same post-processing as {@link #indexShard(IndexRequest)} (records the
              * hash so {@link #postProcess(IndexRequest)} can later embed it in the auto-generated id
              * for LogsDB, and reroutes if the destination shard is a not-yet-handed-off split target).
@@ -656,7 +656,7 @@ public abstract class IndexRouting {
             }
 
             /**
-             * Computes the shard id from a {@link TsidBuilder} populated during EIRF encoding,
+             * Computes the shard id from a {@link TsidBuilder} populated during batch encoding,
              * matching the post-processing of {@link #hashSource(IndexRequest)}: builds the tsid,
              * stashes it on the request so the data node can reuse it instead of rebuilding (see
              * {@link #extractDimensionsWhileMapping()}), records the routing hash for

@@ -16,7 +16,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.RoutingExtractor;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.eirf.EirfEncoder;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -32,14 +31,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Per-bulk helper that performs single-pass {@code XContent → EIRF} encoding while shard routing is
+ * Per-bulk helper that performs single-pass {@code XContent → ESCF} encoding while shard routing is
  * being computed, accumulating one row per item directly into the destination shard's row partition
- * inside an {@link EirfEncoder}. There is one encoder per concrete write index encountered in the
+ * inside an {@link EscfEncoder}. There is one encoder per concrete write index encountered in the
  * bulk; each encoder fans rows out to many partitions (one per destination shard).
  *
  * <p>Lifecycle: created at the start of a {@link BulkOperation#doRun() bulk run} only when
  * {@link #isBulkBatchEligible} returns true (i.e. every item in the bulk is structurally eligible
- * for EIRF encoding), used inside the initial-pass shard grouping, finalized via
+ * for batch encoding), used inside the initial-pass shard grouping, finalized via
  * {@link #finalizeBatches} just before per-shard {@code BulkShardRequest}s are constructed, and
  * {@link #close closed} when the bulk operation tears down.
  *
@@ -51,21 +50,19 @@ import java.util.Map;
  * disables itself for the remainder of the bulk, and every item routes through the inline-source
  * path.
  *
- * <p>Bulk-wide all-or-nothing: the decision to use EIRF encoding is made once for the whole bulk by
+ * <p>Bulk-wide all-or-nothing: the decision to use batch encoding is made once for the whole bulk by
  * the pre-scan in {@link BulkOperation#doRun()}. If a runtime encoder failure happens mid-grouping
  * — typically because the source bytes that already passed {@code BulkRequestParser} validation
  * fail the encoder's full parse — {@link #tryEncodeAndRoute} signals that via {@link #disabled()}
  * and the rest of the bulk goes through the inline-source path. {@link #finalizeBatches} returns an
  * empty map when disabled, so previously-committed rows are simply discarded and items keep their
  * inline source.
- *
- * TODO: Determine if this comment about EIRF is still accurate with ESCF and remove EIRF from imports and javadoc
  */
 final class BulkBatchEncoders implements Releasable {
 
     private static final Logger logger = LogManager.getLogger(BulkBatchEncoders.class);
 
-    /** Sentinel returned from {@link #tryEncodeAndRoute} when the item cannot be EIRF-encoded. */
+    /** Sentinel returned from {@link #tryEncodeAndRoute} when the item cannot be batch-encoded. */
     static final int NOT_BATCHABLE = -1;
 
     private static final class IndexState {
@@ -86,9 +83,9 @@ final class BulkBatchEncoders implements Releasable {
     private boolean closed;
 
     /**
-     * Returns true if every item in {@code bulkRequest} is structurally eligible to be EIRF-encoded:
+     * Returns true if every item in {@code bulkRequest} is structurally eligible to be batch-encoded:
      * an {@link IndexRequest} with inline source bytes, a known content type, and no pre-attached
-     * EIRF row. If false, the bulk goes through the inline-source path end-to-end and no encoder
+     * batch row. If false, the bulk goes through the inline-source path end-to-end and no encoder
      * helper is created.
      */
     static boolean isBulkBatchEligible(BulkRequest bulkRequest) {
@@ -158,7 +155,7 @@ final class BulkBatchEncoders implements Releasable {
             // empty, and subsequent items skip encoding (see the disabled check above). The
             // encoder's scratch will be reset at the start of the next parseToScratch call, so we
             // don't need to clean up here.
-            logger.debug("EIRF encoding / routing extraction failed; abandoning batch for the rest of this bulk", e);
+            logger.debug("batch encoding / routing extraction failed; abandoning batch for the rest of this bulk", e);
             disabled = true;
             return NOT_BATCHABLE;
         }
@@ -171,13 +168,13 @@ final class BulkBatchEncoders implements Releasable {
             // commitScratchTo failure indicates internal-state corruption (IO error on the
             // underlying stream). Surface it; the per-item catch in groupRequestsByShards turns it
             // into a per-item failure response.
-            throw new IllegalStateException("Failed to commit EIRF row for item to shard " + destShardId, e);
+            throw new IllegalStateException("Failed to commit batch row for item to shard " + destShardId, e);
         }
         return shardIdInt;
     }
 
     /**
-     * Build the EIRF batch for every shard that received committed rows, set the EIRF row reference
+     * Build the batch for every shard that received committed rows, set the batch row reference
      * on each item routed there (replacing inline source bytes with a row reference), and return
      * the resulting batches keyed by ShardId. Returns an empty map when {@link #disabled()} is true.
      */

@@ -16,8 +16,8 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.eirf.EirfRowToXContent;
 import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
+import org.elasticsearch.sourcebatch.SourceRowToXContent;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -185,7 +185,7 @@ public class EscfBatchBuilderTests extends ESTestCase {
 
     private static Map<String, Object> reconstruct(EscfBatch batch, int row) throws IOException {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            EirfRowToXContent.writeRow(batch.row(row), batch.schema(), builder);
+            SourceRowToXContent.writeRow(batch.row(row), batch.schema(), builder);
             return XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
         }
     }

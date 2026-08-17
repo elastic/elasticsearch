@@ -13,8 +13,6 @@ import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.eirf.EirfRowToXContent;
-import org.elasticsearch.eirf.EirfRowXContentParser;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -23,6 +21,8 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceRow;
+import org.elasticsearch.sourcebatch.SourceRowToXContent;
+import org.elasticsearch.sourcebatch.SourceRowXContentParser;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -45,7 +45,7 @@ import java.util.List;
  *     <li>{@link #parseMappings(BulkItemRequest[], SourceBatch, IndexShard, int, int, BatchMapperResolution)}
  *     runs per chunk. For each row it drives the pre-resolved mappers through their
  *     {@link FieldMapper#parse(org.elasticsearch.index.mapper.DocumentParserContext)} entry point
- *     using {@link EirfRowXContentParser#positionAtLeafValue(int)} as the value source, and
+ *     using {@link SourceRowXContentParser#positionAtLeafValue(int)} as the value source, and
  *     assembles {@link Engine.Index} operations.</li>
  * </ol>
  */
@@ -153,7 +153,7 @@ public final class ShardBatchMapper {
     /**
      * Parse one chunk of rows into {@link Engine.Index} operations, driving each pre-resolved
      * mapper through its normal {@link FieldMapper#parse} entry point with an
-     * {@link EirfRowXContentParser} positioned at the leaf's value. Returns {@code null} if any
+     * {@link SourceRowXContentParser} positioned at the leaf's value. Returns {@code null} if any
      * unexpected condition is hit; the caller will then fall back to the sequential path.
      */
     public static List<Engine.Index> parseMappings(
@@ -168,21 +168,21 @@ public final class ShardBatchMapper {
         final SourceSchema schema = batch.schema();
         final MappingLookup mappingLookup = primary.mapperService().mappingLookup();
         final MetadataFieldMapper[] metadataMappers = mappingLookup.getMapping().getSortedMetadataMappers();
-        // The schema tree is required by the EirfRowXContentParser constructor but is not used
+        // The schema tree is required by the SourceRowXContentParser constructor but is not used
         // along the per-leaf positioning path; built once per chunk.
-        final EirfRowXContentParser.SchemaNode schemaTree = EirfRowXContentParser.buildSchemaTree(schema);
+        final SourceRowXContentParser.SchemaNode schemaTree = SourceRowXContentParser.buildSchemaTree(schema);
         final FieldMapper[] columnMappers = resolution.columnMappers();
 
         for (int i = chunkStart; i < chunkEnd; i++) {
             final IndexRequest indexRequest = (IndexRequest) items[i].request();
             final SourceRow row = batch.row(i);
-            final EirfRowXContentParser rowParser = new EirfRowXContentParser(schemaTree, row);
+            final SourceRowXContentParser rowParser = new SourceRowXContentParser(schemaTree, row);
 
             final XContentType xContentType = indexRequest.getContentType() != null ? indexRequest.getContentType() : XContentType.JSON;
             // TODO: Right now we materialize a source back to avoid breaking translog assertions. We should fix the translog assertions
             // and move to just materializing the original x-content source for stored source mapping
             final BytesReference source = rowToSource(row, schema, xContentType);
-            // TODO: Metering and getIncludeSourceOnError currently do not work with EIRF parsing
+            // TODO: Metering and getIncludeSourceOnError currently do not work with batch row parsing
             final SourceToParse sourceToParse = new SourceToParse(
                 indexRequest.id(),
                 source,
@@ -239,7 +239,7 @@ public final class ShardBatchMapper {
         SourceToParse sourceToParse,
         MappingLookup mappingLookup,
         MetadataFieldMapper[] metadataMappers,
-        EirfRowXContentParser rowParser,
+        SourceRowXContentParser rowParser,
         FieldMapper[] columnMappers,
         MappingParserContext mappingParserContext
     ) throws IOException {
@@ -279,7 +279,7 @@ public final class ShardBatchMapper {
 
     private static BytesReference rowToSource(SourceRow row, SourceSchema schema, XContentType xContentType) throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-            EirfRowToXContent.writeRow(row, schema, builder);
+            SourceRowToXContent.writeRow(row, schema, builder);
             return BytesReference.bytes(builder);
         }
     }

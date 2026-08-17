@@ -16,7 +16,7 @@ import org.elasticsearch.sourcebatch.SourceBatchEncoder;
 import org.elasticsearch.xcontent.XContentString;
 
 /**
- * Accumulates the routing-relevant data of a single document during an EIRF parse pass and produces
+ * Accumulates the routing-relevant data of a single document during a batch-encoding parse pass and produces
  * a shard id for it without re-parsing the source.
  *
  * <p>Obtained from {@link IndexRouting#newRoutingExtractor()}. Routing strategies that do not need

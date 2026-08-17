@@ -10,11 +10,11 @@
 package org.elasticsearch.cluster.routing;
 
 /**
- * Thrown by a {@link RoutingExtractor} during {@link org.elasticsearch.eirf.EirfEncoder#parseToScratch}
+ * Thrown by a {@link RoutingExtractor} during {@link org.elasticsearch.sourcebatch.SourceBatchEncoder#parseToScratch}
  * when the extractor encounters input it cannot turn into a routing decision (today: an array at a
  * matched routing column). Callers — typically
  * {@link org.elasticsearch.action.bulk.BulkOperation} via
- * {@code BulkBatchEncoders.tryEncodeAndRoute} — catch this, log, and abandon EIRF encoding for the
+ * {@code BulkBatchEncoders.tryEncodeAndRoute} — catch this, log, and abandon batch encoding for the
  * remainder of the bulk so every item is routed through the inline-source path.
  */
 public final class RoutingExtractionException extends RuntimeException {

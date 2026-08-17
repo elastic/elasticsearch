@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.eirf.EirfRowXContentParser;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
@@ -30,6 +29,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceRow;
+import org.elasticsearch.sourcebatch.SourceRowXContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -41,7 +41,7 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
 
 /**
  * Handles the batch indexing code path for primary and replica shards.
- * Documents are read directly from a {@link SourceBatch} using {@link EirfRowXContentParser}
+ * Documents are read directly from a {@link SourceBatch} using {@link SourceRowXContentParser}
  * to feed the document parsing pipeline without intermediate JSON serialization.
  */
 public final class ShardBatchIndexer {
@@ -64,7 +64,7 @@ public final class ShardBatchIndexer {
 
     /**
      * Checks whether the batch indexing path can be used for this request.
-     * Returns true if batch indexing is enabled, an EIRF batch is present, synthetic source is active,
+     * Returns true if batch indexing is enabled, a source batch is present, synthetic source is active,
      * and all operations are index/create (no deletes, no updates).
      */
     public static boolean canUseBatchIndexing(BulkShardRequest request, boolean batchIndexingEnabled) {
@@ -84,8 +84,8 @@ public final class ShardBatchIndexer {
     }
 
     /**
-     * Attempts batch indexing on primary using EIRF data. Each document is parsed from the
-     * corresponding row in the batch using an {@link EirfRowXContentParser}.
+     * Attempts batch indexing on primary using batch data. Each document is parsed from the
+     * corresponding row in the batch using an {@link SourceRowXContentParser}.
      */
     static void performBatchIndexOnPrimary(
         final BulkItemRequest[] items,
@@ -148,10 +148,10 @@ public final class ShardBatchIndexer {
     }
 
     /**
-     * Performs a batch index on a replica using EIRF data.
+     * Performs a batch index on a replica using batch data.
      */
     static ReplicaBatchResult performBatchIndexOnReplica(BulkItemRequest[] items, SourceBatch batch, IndexShard replica) throws Exception {
-        final EirfRowXContentParser.SchemaNode schemaTree = EirfRowXContentParser.buildSchemaTree(batch.schema());
+        final SourceRowXContentParser.SchemaNode schemaTree = SourceRowXContentParser.buildSchemaTree(batch.schema());
         Translog.Location location = null;
         int processedItems = 0;
 

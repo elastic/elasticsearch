@@ -211,7 +211,7 @@ public class TranslogIndexBatchTests extends ESTestCase {
                 final Map<String, Object> expected = docs.get(i);
                 assertEquals(expected.keySet(), roundTripped.keySet());
                 for (Map.Entry<String, Object> e : expected.entrySet()) {
-                    // numeric types may widen (int -> long) through EIRF; compare via Number.longValue or string equality
+                    // numeric types may widen (int -> long) through batch encoding; compare via Number.longValue or string equality
                     final Object actual = roundTripped.get(e.getKey());
                     if (e.getValue() instanceof Number expectedN && actual instanceof Number actualN) {
                         assertEquals(expectedN.longValue(), actualN.longValue());

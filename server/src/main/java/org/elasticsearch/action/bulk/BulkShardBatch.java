@@ -75,7 +75,7 @@ public class BulkShardBatch implements Writeable {
     }
 
     /**
-     * For each item converted to an EIRF row, serializes that row back into its original content type and restores it as the
+     * For each item converted to a batch row, serializes that row back into its original content type and restores it as the
      * inline source, then detaches the batch from the request. No-op if no batch is attached.
      */
     public static void ensureInlineSources(BulkShardRequest request) throws IOException {

@@ -111,7 +111,9 @@ The following list contains the available S3 client settings. Those that must be
 :   ([time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) The timeout after which {{es}} will close an idle connection. The default value is 60 seconds.
 
 `s3.client.CLIENT_NAME.buffer_size` {applies_to}`stack: ga 9.6`
-:   ([byte value](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units)) Uploads larger than this are split into parts of this size and sent with the [AWS Multipart Upload API](https://docs.aws.amazon.com/AmazonS3/latest/dev/uploadobjusingmpu.html). Must be between `5mb` and `5gb`; defaults to 5% of the JVM heap, clamped to `5mb`–`100mb`. A repository's own `buffer_size` takes precedence. Note that a repository sizes its objects using its own `buffer_size` (or the default) rather than this setting, so if you set this lower, also lower the repository's `chunk_size` to at most this value × `max_multipart_parts`.
+:   ([byte value](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units)) The maximum size of an object that {{es}} uploads in a single request. Larger objects are split into parts of this size and sent with the [AWS Multipart Upload API](https://docs.aws.amazon.com/AmazonS3/latest/dev/uploadobjusingmpu.html). Must be between `5mb` and `5gb`. Defaults to 5% of the JVM heap, at least `5mb` and at most `100mb`. If set, the repository setting `buffer_size` overrides this value.
+
+    If you set this lower than the default, also set the repository `chunk_size` to at most this value × `max_multipart_parts`.
 
 `s3.client.CLIENT_NAME.path_style_access`
 :   Whether to force the use of the path style access pattern. If `true`, the path style access pattern will be used. If `false`, the access pattern will be automatically determined by the AWS Java SDK (See [AWS documentation](https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/AmazonS3Builder.html#setPathStyleAccessEnabled-java.lang.Boolean-) for details). Defaults to `false`.

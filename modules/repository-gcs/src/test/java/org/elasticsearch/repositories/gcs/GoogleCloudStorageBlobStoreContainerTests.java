@@ -243,6 +243,7 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
         when(storageService.client(any(), any(), any(), any())).thenReturn(meteredStorage);
         final GoogleCloudStorageClientSettings clientSettings = mock(GoogleCloudStorageClientSettings.class);
         when(clientSettings.getTenaciousRetriesEnabled()).thenReturn(false);
+        when(clientSettings.getResumableUploadThreshold()).thenReturn(ByteSizeValue.ofMb(5));
         when(storageService.clientSettings(any(), any())).thenReturn(clientSettings);
         return new GoogleCloudStorageBlobStore(
             ProjectId.DEFAULT,

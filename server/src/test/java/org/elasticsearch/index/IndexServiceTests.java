@@ -77,12 +77,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
 
         final Index index = indexService.index();
         assertAcked(indicesAdmin().prepareClose(index.getName()));
-        assertBusy(
-            () -> assertTrue(
-                "Index not found: " + index.getName(),
-                getInstanceFromNode(IndicesService.class).hasIndex(index)
-            )
-        );
+        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
 
         final IndexService closedIndexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
         assertNotSame(indexService, closedIndexService);

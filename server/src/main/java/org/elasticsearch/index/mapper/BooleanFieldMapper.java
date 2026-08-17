@@ -14,6 +14,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.column.LongColumn;
+import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
@@ -804,7 +805,7 @@ public class BooleanFieldMapper extends FieldMapper {
                 LuceneLongColumn.of(longData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, LongColumn.NumericKind.INT)
             );
         } else if (indexed) {
-            ctx.addColumn(LuceneBinaryColumn.of(booleansToTerms(source), fieldType().name(), StringField.TYPE_NOT_STORED));
+            ctx.addColumn(LuceneBinaryColumn.of(booleansToTerms(longData), fieldType().name(), StringField.TYPE_NOT_STORED));
             ctx.addColumn(LuceneLongColumn.of(longData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.INT));
         } else {
             ctx.addColumn(LuceneLongColumn.of(longData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.INT));
@@ -836,31 +837,14 @@ public class BooleanFieldMapper extends FieldMapper {
         return builder.finish(source.docCount());
     }
 
-    private EscfColumnData booleansToTerms(EscfColumn source) {
+    private EscfColumnData booleansToTerms(EscfColumnData longData) {
         EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
         builder.lockScalar(EscfColumnKind.STRING);
-        if (source.kind() == EscfColumnKind.BOOL) {
-            FixedBitSet boolValues = source.columnData().values();
-            PresentDocIterator it = source.presentDocs();
-            for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
-                boolean b = boolValues != null && boolValues.get(doc);
-                builder.setString(doc, b ? Values.TRUE : Values.FALSE);
-            }
-        } else {
-            final ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
-            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-                final BytesRef value = cursor.value();
-                if (value == null) {
-                    if (nullValue != null) {
-                        builder.setString(doc, nullValue ? Values.TRUE : Values.FALSE);
-                    }
-                } else {
-                    boolean b = parseBooleanString(value.utf8ToString());
-                    builder.setString(doc, b ? Values.TRUE : Values.FALSE);
-                }
-            }
+        LongTupleCursor cursor = EscfColumn.from(longData).longCursor();
+        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+            builder.setString(doc, cursor.longValue() != 0L ? Values.TRUE : Values.FALSE);
         }
-        return builder.finish(source.docCount());
+        return builder.finish(longData.docCount());
     }
 
     private static boolean parseBooleanString(String s) {

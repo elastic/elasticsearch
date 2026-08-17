@@ -1109,7 +1109,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 new MockCollector(ScoreMode.TOP_DOCS),
                 minScore
             );
-            assertEquals(ScoreMode.COMPLETE, qpc.scoreMode());
+            assertEquals(ScoreMode.TOP_DOCS_WITH_SCORES, qpc.scoreMode());
         }
         {
             QueryPhaseCollector qpc = new QueryPhaseCollector(
@@ -1119,7 +1119,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 new MockCollector(ScoreMode.TOP_DOCS_WITH_SCORES),
                 minScore
             );
-            assertEquals(ScoreMode.COMPLETE, qpc.scoreMode());
+            assertEquals(ScoreMode.TOP_DOCS_WITH_SCORES, qpc.scoreMode());
         }
     }
 

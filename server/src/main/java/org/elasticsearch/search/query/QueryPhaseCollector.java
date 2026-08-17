@@ -87,46 +87,37 @@ public final class QueryPhaseCollector implements TwoPhaseCollector {
 
     @Override
     public ScoreMode scoreMode() {
-        ScoreMode scoreMode;
+        final ScoreMode scoreMode;
         if (aggsCollector == null) {
             scoreMode = topDocsCollector.scoreMode();
         } else {
-            ScoreMode topDocsScoreMode = topDocsCollector.scoreMode();
-            ScoreMode aggsScoreMode = aggsCollector.scoreMode();
-            assert aggsScoreMode != ScoreMode.TOP_SCORES : "aggs never rely on setMinCompetitiveScore";
-            if (topDocsScoreMode == aggsScoreMode) {
-                scoreMode = topDocsScoreMode;
-            } else if (allowsSkippingViaCompetitiveIterator(topDocsScoreMode) && allowsSkippingViaCompetitiveIterator(aggsScoreMode)) {
-                // the two collectors only disagree on whether they need scores: no need to make collection exhaustive, given that
-                // CompositeLeafCollector exposes a competitive iterator only once one of the two has early terminated
-                scoreMode = ScoreMode.TOP_DOCS_WITH_SCORES;
-            } else if (topDocsScoreMode.needsScores() || aggsScoreMode.needsScores()) {
-                scoreMode = ScoreMode.COMPLETE;
+            assert aggsCollector.scoreMode() != ScoreMode.TOP_SCORES : "aggs never rely on setMinCompetitiveScore";
+            if (topDocsCollector.scoreMode() == aggsCollector.scoreMode()) {
+                scoreMode = topDocsCollector.scoreMode();
+            } else if (topDocsCollector.scoreMode().needsScores() || aggsCollector.scoreMode().needsScores()) {
+                if (topDocsCollector.scoreMode().isExhaustive() || aggsCollector.scoreMode().isExhaustive()) {
+                    // one of the two collectors needs scores, and one of the two collects every match
+                    scoreMode = ScoreMode.COMPLETE;
+                } else {
+                    // both collectors may skip documents, and TOP_SCORES is pointless as setMinCompetitiveScore is a no-op with aggs
+                    scoreMode = ScoreMode.TOP_DOCS_WITH_SCORES;
+                }
             } else {
+                // neither collector needs scores, and one of the two collects every match
+                assert topDocsCollector.scoreMode().isExhaustive() || aggsCollector.scoreMode().isExhaustive();
                 scoreMode = ScoreMode.COMPLETE_NO_SCORES;
             }
         }
-        if (minScore != null) {
-            // min_score needs scores, yet it does not require exhaustive collection; modes that already need scores are unchanged.
-            scoreMode = switch (scoreMode) {
-                case COMPLETE, COMPLETE_NO_SCORES -> ScoreMode.COMPLETE;
-                case TOP_DOCS, TOP_DOCS_WITH_SCORES -> ScoreMode.TOP_DOCS_WITH_SCORES;
-                case TOP_SCORES -> ScoreMode.TOP_SCORES;
-            };
+        if (minScore == null || scoreMode.needsScores()) {
+            return scoreMode;
         }
-        return scoreMode;
-    }
-
-    /**
-     * Whether the provided score mode allows skipping non-competitive documents via {@link LeafCollector#competitiveIterator()}.
-     * {@link ScoreMode#TOP_SCORES} does not, because it skips via {@link Scorable#setMinCompetitiveScore(float)}, which is never
-     * supported when aggs are collected.
-     */
-    private static boolean allowsSkippingViaCompetitiveIterator(ScoreMode scoreMode) {
-        return switch (scoreMode) {
-            case TOP_DOCS, TOP_DOCS_WITH_SCORES -> true;
-            case COMPLETE, COMPLETE_NO_SCORES, TOP_SCORES -> false;
-        };
+        // min_score needs scores, yet it does not require exhaustive collection
+        if (scoreMode.isExhaustive()) {
+            assert scoreMode == ScoreMode.COMPLETE_NO_SCORES;
+            return ScoreMode.COMPLETE;
+        }
+        assert scoreMode == ScoreMode.TOP_DOCS;
+        return ScoreMode.TOP_DOCS_WITH_SCORES;
     }
 
     /**

@@ -22,7 +22,7 @@ import java.util.Locale;
  *
  * <p>The mapping is intentionally narrow — a strict subset of ECS that both
  * {@code logsdb} and {@code logsdb_columnar} handle identically. See the javadoc
- * on {@link #writeMapping(XContentBuilder)} for field-by-field exclusion rationale.
+ * on {@link #writeMapping(XContentBuilder)} for field-by-field inclusion/exclusion rationale.
  */
 public final class EcsLogsDataGenerator {
 
@@ -256,6 +256,54 @@ public final class EcsLogsDataGenerator {
         { "https://app.example.com/health", "https://app.example.com/metrics" },
         { "https://auth.example.com/logout" } };
 
+    /**
+     * User-agent strings for the {@code keyword} field {@code user_agent.original}.
+     *
+     * <p>Values are short, ASCII-only, and contain no {@code "} or {@code \} characters —
+     * they are interpolated unescaped into both the bulk body and ES|QL string literals.
+     * Parentheses and slashes are fine.
+     */
+    static final String[] USER_AGENTS = {
+        "Mozilla/5.0 (X11; Linux x86_64) Chrome/120.0",
+        "Mozilla/5.0 (Macintosh) Firefox/121.0",
+        "curl/8.4.0",
+        "Mozilla/5.0 (Windows NT 10.0) Chrome/120.0",
+        "python-requests/2.31.0" };
+
+    /**
+     * Label sets for the {@code flattened} field {@code container.labels}. Each entry is an array
+     * of key-value rows, where the first element of each row is the key and the remaining elements
+     * are the values (pre-sorted ascending, duplicate-free).
+     *
+     * <p>{@code FlattenedFieldMapper.java:383-390} defaults {@code preserve_leaf_arrays} to
+     * {@code LOSSY} in logsdb and {@code EXACT} in strict columnar. LOSSY drops exactly three
+     * things: element order, duplicates, and JSON nulls. Every entry here is therefore a fixed
+     * point of that transform, so both modes reconstruct the same JSON — the same technique
+     * {@link #URL_FULLS} uses for wildcard.
+     *
+     * <p><strong>Invariants — all six are load-bearing:</strong>
+     * <ol>
+     *   <li>No JSON nulls anywhere.</li>
+     *   <li>Leaf values are strings only. Columnar's EXACT path batch-parses values and would
+     *       render a JSON number {@code 1.50} as {@code 1.5}; logsdb's LOSSY path would not.</li>
+     *   <li>Each key appears exactly once, in a single root object — no dotted/nested duplicate
+     *       spelling. The sorted-unique invariant holds per key <em>after</em> merging, so writing
+     *       a key twice would reintroduce ordering.</li>
+     *   <li>Multi-value rows are sorted ascending and duplicate-free.</li>
+     *   <li>A single value is emitted as a JSON scalar, never as {@code ["a"]}.</li>
+     *   <li>Keys and values are short ASCII, well under the default {@code ignore_above}.</li>
+     * </ol>
+     */
+    static final String[][][] CONTAINER_LABEL_SETS = {
+        { { "maintainer", "platform-team" }, { "tier", "backend" } },
+        { { "env", "production" }, { "tier", "backend", "critical" } },
+        { { "build", "stable" }, { "region", "us-east" }, { "team", "sre" } },
+        { { "env", "staging" } },
+        { { "rack", "rack-1", "rack-2" }, { "zone", "us-east-1a" } },
+        { { "release", "v1" }, { "tier", "frontend" } },
+        { { "datacenter", "dc-east" }, { "team", "infra" } },
+        { { "tier", "backend", "database" }, { "zone", "eu-west-1a" } } };
+
     static final String[] LABEL_KEYS = { "env", "team", "region", "tier", "version", "build", "release", "datacenter", "rack", "zone" };
     static final String[] LABEL_VALUES = {
         "prod",
@@ -327,11 +375,24 @@ public final class EcsLogsDataGenerator {
      *       sort-and-dedupe is a no-op. <strong>Never emit {@code ["a"]}, {@code null}, or an
      *       unsorted/duplicate array for these fields.</strong> {@code error.stack_trace} stays
      *       dropped — single-valued but long, and not a priority for this suite.</li>
-     *   <li>{@code keyword + match_only_text} multi-fields – {@code match_only_text} gets
-     *       {@code doc_values} by default only in columnar, making sub-fields aggregatable on
-     *       one side and not the other. All ECS name/path fields are plain {@code keyword}.</li>
-     *   <li>{@code flattened} – array preservation is {@code LOSSY} in logsdb but {@code EXACT}
-     *       in strict columnar ({@code FlattenedFieldMapper.java:388}).</li>
+     *   <li>{@code keyword + match_only_text} multi-fields – <strong>included</strong> as
+     *       {@code user_agent.original} (keyword) with a {@code .text} (match_only_text) sub-field.
+     *       {@code doc_values} is pinned to {@code true} on the sub-field because
+     *       {@code MatchOnlyTextFieldMapper.java:172-181} otherwise defaults it to
+     *       {@code indexMode.isStrictColumnar()}, putting columnar on binary doc values and logsdb
+     *       on {@code _source}. Pinning puts both modes on the same storage path. (The claim that
+     *       sub-fields are aggregatable on one side but not the other is a {@code _field_caps}
+     *       divergence; ES|QL hardcodes {@code aggregatable = false} for TEXT regardless, so it is
+     *       invisible here.) The top-level {@code message} and {@code error.message} fields are left
+     *       at their default {@code doc_values} — deliberately — so the suite also proves ES|QL
+     *       agrees when the two modes read from different storage.</li>
+     *   <li>{@code flattened} – <strong>included</strong> as {@code container.labels}. Array
+     *       preservation defaults to {@code LOSSY} in logsdb and {@code EXACT} in strict columnar
+     *       ({@code FlattenedFieldMapper.java:383-390}); LOSSY drops element order, duplicates, and
+     *       JSON nulls. Values in {@link #CONTAINER_LABEL_SETS} satisfy all six constraints that
+     *       make every entry a fixed point of the LOSSY transform, so both modes reconstruct
+     *       identical JSON. <strong>Never add JSON nulls, unsorted/duplicate arrays, or numeric
+     *       leaf values to that pool.</strong></li>
      *   <li>{@code ignore_above} – an over-long value goes to {@code _ignored_source} in logsdb
      *       but into binary doc values in columnar; invisible to ES|QL in one mode, visible in
      *       the other. Omitted; the generator keeps all keyword values short.</li>
@@ -405,8 +466,8 @@ public final class EcsLogsDataGenerator {
         keyword(b, "url.full", "wildcard");
         keyword(b, "url.query", "keyword");
 
-        // user_agent — plain keyword, not keyword+match_only_text multi-field
-        keyword(b, "user_agent.original", "keyword");
+        // user_agent.original: keyword + match_only_text sub-field (see inclusion note above)
+        keywordWithTextSubfield(b, "user_agent.original");
 
         // user.*
         keyword(b, "user.name", "keyword");
@@ -431,6 +492,9 @@ public final class EcsLogsDataGenerator {
         // container / orchestrator
         keyword(b, "container.id", "keyword");
         keyword(b, "container.name", "keyword");
+        // container.labels: flattened, not the same as the event-level labels object above;
+        // values in CONTAINER_LABEL_SETS satisfy the LOSSY fixed-point invariant (see rationale).
+        keyword(b, "container.labels", "flattened");
         keyword(b, "orchestrator.namespace", "keyword");
         keyword(b, "orchestrator.cluster.name", "keyword");
 
@@ -458,6 +522,30 @@ public final class EcsLogsDataGenerator {
         b.startObject(name).field("type", type).endObject();
     }
 
+    /**
+     * Writes a {@code keyword} property carrying a {@code match_only_text} sub-field named
+     * {@code text} — the ECS multi-field shape.
+     *
+     * <p>{@code doc_values} is pinned to {@code true} on the sub-field because
+     * {@code MatchOnlyTextFieldMapper.java:172-181} otherwise defaults it to
+     * {@code indexMode.isStrictColumnar()}: columnar would read the sub-field from binary doc
+     * values while logsdb reads it from {@code _source}. Pinning puts both modes on the same
+     * storage path. The parameter is not updateable, so it must live in the static mapping.
+     * {@code LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT.java:236-247} pins it for the same
+     * reason.
+     */
+    private static void keywordWithTextSubfield(XContentBuilder b, String name) throws IOException {
+        b.startObject(name)
+            .field("type", "keyword")
+            .startObject("fields")
+            .startObject("text")
+            .field("type", "match_only_text")
+            .field("doc_values", true)
+            .endObject()
+            .endObject()
+            .endObject();
+    }
+
     // ── document generation ───────────────────────────────────────────────────────────────────
 
     /**
@@ -470,13 +558,16 @@ public final class EcsLogsDataGenerator {
      * byte-identical regardless of how many times it is generated — which is the property that
      * makes "generate once, POST twice" correct.
      *
-     * <p>Multi-valued fields ({@code tags}, {@code url.full}, dynamic {@code labels.*}) are
-     * pre-sorted and unique. Columnar returns keyword and wildcard arrays in original insertion
-     * order ({@code KeywordFieldMapper readInArrayOrder},
-     * {@code MultiValuedBinaryDocValuesField.ArrayOrderInlineNull} for wildcard), while logsdb
-     * returns them sorted and deduped from doc values. A pre-sorted unique array is identical under
-     * both readers. Single-valued wildcard fields ({@code url.path}) are byte-identical in both
-     * modes because both encoders special-case a single value and store the raw bytes directly.
+     * <p>Multi-valued fields ({@code tags}, {@code url.full}, dynamic {@code labels.*},
+     * per-key arrays in {@code container.labels}) are pre-sorted and unique. Columnar returns
+     * keyword and wildcard arrays in original insertion order ({@code KeywordFieldMapper
+     * readInArrayOrder}, {@code MultiValuedBinaryDocValuesField.ArrayOrderInlineNull} for
+     * wildcard), while logsdb returns them sorted and deduped from doc values. A pre-sorted unique
+     * array is identical under both readers. The flattened field {@code container.labels} is
+     * additionally constrained so that its values are a fixed point of the LOSSY transform (no
+     * nulls, no duplicates, pre-sorted, string leaves only) — see {@link #CONTAINER_LABEL_SETS}.
+     * Single-valued wildcard fields ({@code url.path}) are byte-identical in both modes because
+     * both encoders special-case a single value and store the raw bytes directly.
      */
     public static String bulkBatch(int firstOrdinal, int count) {
         // Estimate ~400 bytes per document (action line + source)
@@ -547,6 +638,7 @@ public final class EcsLogsDataGenerator {
             appendStr(sb, "url.domain", URL_DOMAINS[ordinal % URL_DOMAINS.length], false);
             appendStr(sb, "url.path", URL_PATHS[ordinal % URL_PATHS.length], false);
             appendWildcardMv(sb, "url.full", URL_FULLS[ordinal % URL_FULLS.length]);
+            appendStr(sb, "user_agent.original", USER_AGENTS[ordinal % USER_AGENTS.length], false);
             appendStr(sb, "client.ip", CLIENT_IPS[ordinal % CLIENT_IPS.length], false);
             appendLong(sb, "event.duration", (ordinal % 10_000) * 1_000_000L, false);
             appendStr(sb, "event.outcome", HTTP_STATUS_CODES[ordinal % HTTP_STATUS_CODES.length] < 400 ? "success" : "failure", false);
@@ -564,6 +656,11 @@ public final class EcsLogsDataGenerator {
             appendStr(sb, "event.action", EVENT_ACTIONS[ordinal % EVENT_ACTIONS.length], false);
             appendLong(sb, "event.duration", (ordinal % 5_000) * 1_000_000L, false);
             appendStr(sb, "event.outcome", EVENT_OUTCOMES[ordinal % EVENT_OUTCOMES.length], false);
+        }
+
+        // container.labels: flattened (~90% of docs); values are LOSSY fixed points (see pool javadoc)
+        if (mask(ordinal, 9) != 0) {
+            appendFlattened(sb, "container.labels", CONTAINER_LABEL_SETS[ordinal % CONTAINER_LABEL_SETS.length]);
         }
 
         // tags: pre-sorted multi-valued keyword (absent on ~12% of docs)
@@ -637,6 +734,35 @@ public final class EcsLogsDataGenerator {
         }
     }
 
+    /**
+     * Emits a {@code flattened}-mapped field as a root JSON object.
+     *
+     * <p>Each row in {@code labelRows} is {@code [key, val1, val2, ...]}. A row with a single
+     * value emits the value as a JSON scalar; a row with multiple values emits a JSON array. The
+     * caller is responsible for passing rows that satisfy all six invariants in
+     * {@link #CONTAINER_LABEL_SETS} — in particular, multi-value rows must be sorted ascending and
+     * duplicate-free so that logsdb's LOSSY transform is a no-op.
+     */
+    private static void appendFlattened(StringBuilder sb, String name, String[][] labelRows) {
+        sb.append(",\"").append(name).append("\":{");
+        for (int i = 0; i < labelRows.length; i++) {
+            if (i > 0) sb.append(',');
+            String[] row = labelRows[i];
+            sb.append('"').append(row[0]).append("\":");
+            if (row.length == 2) {
+                sb.append('"').append(row[1]).append('"');
+            } else {
+                sb.append('[');
+                for (int v = 1; v < row.length; v++) {
+                    if (v > 1) sb.append(',');
+                    sb.append('"').append(row[v]).append('"');
+                }
+                sb.append(']');
+            }
+        }
+        sb.append('}');
+    }
+
     private static void appendLong(StringBuilder sb, String name, long value, boolean first) {
         if (first == false) sb.append(',');
         sb.append('"').append(name).append("\":").append(value);
@@ -686,9 +812,9 @@ public final class EcsLogsDataGenerator {
 
     /**
      * Returns the complete catalog of fields that {@link EcsEsqlQueryGenerator} may reference.
-     * {@code match_only_text} fields ({@code message}, {@code error.message}) appear as type
-     * {@code "text"} — usable in {@code MATCH} and {@code KEEP} but not in {@code SORT} or
-     * {@code STATS BY}.
+     * {@code match_only_text} fields ({@code message}, {@code error.message},
+     * {@code user_agent.original.text}) appear as type {@code "text"} — usable in {@code MATCH}
+     * and {@code KEEP} but not in {@code SORT} or {@code STATS BY}.
      *
      * <p>The sixth constructor argument is {@code alwaysPresent}: {@code true} means
      * {@link #appendDocument} emits this field on every document, so {@code IS NULL} on it
@@ -721,6 +847,10 @@ public final class EcsLogsDataGenerator {
             new Field("url.domain", "keyword", true, true, false, false), // flavor 0 only (~33%)
             new Field("url.path", "keyword", true, false, false, false), // flavor 0 only; mapped wildcard, surfaces as keyword in ESQL
             new Field("url.full", "keyword", false, true, true, false), // flavor 0 only; wildcard MV, pre-sorted unique
+            new Field("user_agent.original", "keyword", true, true, false, false), // flavor 0 only; keyword parent of match_only_text
+                                                                                   // sub-field
+            new Field("user_agent.original.text", "text", false, false, false, false), // flavor 0 only; match_only_text sub-field,
+                                                                                       // doc_values pinned
             new Field("client.ip", "ip", false, true, false, false), // flavor 0 only (~33%)
             new Field("error.type", "keyword", true, true, false, false), // flavor 1 only (~33%)
             new Field("error.code", "keyword", true, true, false, false), // flavor 1 only (~33%)
@@ -732,6 +862,10 @@ public final class EcsLogsDataGenerator {
             new Field("cloud.availability_zone", "keyword", true, true, false, false), // ~90% present (mask slot 3)
             new Field("process.pid", "long", true, false, false, false), // flavor 2 only (~33%)
             new Field("process.name", "keyword", true, false, false, false), // flavor 2 only (~33%)
+            // container.labels: flattened — not sortable (DataType.FLATTENED excluded from
+            // isSortable); lowCardinality=false keeps it out of COUNT_DISTINCT/VALUES; multiValued=false
+            // because the root is one JSON string per row. ~90% present (mask slot 9).
+            new Field("container.labels", "flattened", false, false, false, false),
             // tags: multi-valued — excluded from SORT and STATS BY; used in WHERE and KEEP.
             // ~87.5% present (TAG_POOLS[0] is empty; 1/8 ordinals have no tags).
             new Field("tags", "keyword", false, true, true, false)

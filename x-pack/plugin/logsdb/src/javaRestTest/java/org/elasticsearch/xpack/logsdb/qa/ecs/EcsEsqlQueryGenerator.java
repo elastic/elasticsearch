@@ -72,6 +72,7 @@ public class EcsEsqlQueryGenerator {
         Map.entry("cloud.availability_zone", EcsLogsDataGenerator.CLOUD_AZS),
         Map.entry("url.domain", EcsLogsDataGenerator.URL_DOMAINS),
         Map.entry("url.path", EcsLogsDataGenerator.URL_PATHS),
+        Map.entry("user_agent.original", EcsLogsDataGenerator.USER_AGENTS),
         Map.entry("error.type", EcsLogsDataGenerator.ERROR_TYPES),
         Map.entry("error.code", EcsLogsDataGenerator.ERROR_CODES),
         Map.entry("container.name", EcsLogsDataGenerator.CONTAINER_NAMES)
@@ -88,12 +89,19 @@ public class EcsEsqlQueryGenerator {
      * {@code ERROR_MESSAGES[4]} ("Service unavailable") are ever indexed. Terms from the other four
      * ERROR_MESSAGES entries (refused, timed, invalid, …) are never present in the corpus and must
      * not be used here.
+     *
+     * <p>{@code user_agent.original.text} is a flavor-0-only field. The standard tokeniser splits
+     * on {@code /} and {@code .}, so e.g. "Mozilla/5.0 (X11; Linux x86_64) Chrome/120.0" produces
+     * tokens including "mozilla", "chrome", "linux". Every term listed here is present in at least
+     * one {@link EcsLogsDataGenerator#USER_AGENTS} entry.
      */
     private static final Map<String, String[]> MATCH_TERMS = Map.of(
         "message",
         new String[] { "processed", "authenticated", "established", "connection", "request" },
         "error.message",
-        new String[] { "null", "pointer", "encountered", "service", "unavailable" }
+        new String[] { "null", "pointer", "encountered", "service", "unavailable" },
+        "user_agent.original.text",
+        new String[] { "mozilla", "chrome", "firefox", "curl", "python" }
     );
 
     /**

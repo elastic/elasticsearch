@@ -57,7 +57,7 @@ The following list describes the available client settings. Those that must be s
 :   The Azure secondary endpoint to connect to. It must include the protocol used to connect to Azure.
 
 `azure.client.CLIENT_NAME.max_single_part_upload_size` {applies_to}`stack: ga 9.6`
-:   ([byte value](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units)) Blobs larger than this are uploaded with several [Put Block](https://learn.microsoft.com/en-us/rest/api/storageservices/put-block) requests instead of a single [Put Blob](https://learn.microsoft.com/en-us/rest/api/storageservices/put-blob) request. Defaults to `256mb`. A repository's own `max_single_part_upload_size` takes precedence.
+:   ([byte value](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units)) The maximum size of a blob that {{es}} uploads in a single [Put Blob](https://learn.microsoft.com/en-us/rest/api/storageservices/put-blob) request. Larger blobs are uploaded with several [Put Block](https://learn.microsoft.com/en-us/rest/api/storageservices/put-block) requests. Defaults to `256mb`. If set, the repository setting `max_single_part_upload_size` overrides this value.
 
 `azure.client.CLIENT_NAME.block_size` {applies_to}`stack: ga 9.6`
 :   ([byte value](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units)) The size of each block in a multi-block upload. Larger blocks mean fewer requests. Cannot exceed `100mb`. Defaults to 5% of the JVM heap, at least `5mb` and at most `100mb`.

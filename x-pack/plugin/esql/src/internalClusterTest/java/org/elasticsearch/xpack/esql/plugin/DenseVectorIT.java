@@ -126,6 +126,31 @@ public class DenseVectorIT extends InferenceCommandIntegTestCase {
         }
     }
 
+    public void testDenseVectorChainedClausesWithDistinctEndpoints() throws IOException {
+        // Per-field endpoints: each chained DENSE_VECTOR clause uses its own inference endpoint.
+        final String secondModelId = "test-dense-vector-model-2";
+        createTestInferenceEndpoint(secondModelId, TaskType.TEXT_EMBEDDING, "text_embedding_test_service");
+        try {
+            var query = String.format(Locale.ROOT, """
+                FROM %s
+                | DENSE_VECTOR title WITH { "inference_id": "%s" }
+                | DENSE_VECTOR content WITH { "inference_id": "%s" }
+                | KEEP id, title_dense_vector, content_dense_vector
+                | LIMIT 5
+                """, TEST_INDEX, DENSE_VECTOR_MODEL_ID, secondModelId);
+
+            try (var resp = run(query)) {
+                var columnNames = resp.columns().stream().map(c -> c.name()).toList();
+                assertThat(columnNames, hasItem("title_dense_vector"));
+                assertThat(columnNames, hasItem("content_dense_vector"));
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(values, hasSize(lessThanOrEqualTo(5)));
+            }
+        } finally {
+            deleteTestInferenceEndpoint(secondModelId, TaskType.TEXT_EMBEDDING);
+        }
+    }
+
     public void testDenseVectorDisabledBySetting() throws Exception {
         updateClusterSettings(Settings.builder().put(InferenceSettings.DENSE_VECTOR_ENABLED_SETTING.getKey(), false));
 

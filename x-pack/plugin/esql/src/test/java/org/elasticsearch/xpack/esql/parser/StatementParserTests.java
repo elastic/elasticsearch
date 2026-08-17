@@ -4471,6 +4471,24 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.rowLimit(), equalTo(integer(1000)));
     }
 
+    public void testDenseVectorChainedClausesWithPerClauseEndpoints() {
+        assumeDenseVectorCommandEnabled();
+        // Each chained clause carries its own inference endpoint (per-field endpoints).
+        var outer = as(
+            processingCommand(
+                "DENSE_VECTOR title WITH { \"inference_id\" : \"endpoint-a\" } "
+                    + "| DENSE_VECTOR author WITH { \"inference_id\" : \"endpoint-b\" }"
+            ),
+            DenseVector.class
+        );
+        assertThat(outer.fields(), equalToIgnoringIds(List.of(attribute("author"))));
+        assertThat(outer.inferenceId(), equalTo(literalString("endpoint-b")));
+
+        var inner = as(outer.child(), DenseVector.class);
+        assertThat(inner.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(inner.inferenceId(), equalTo(literalString("endpoint-a")));
+    }
+
     public void testDenseVectorQualifiedName() {
         assumeDenseVectorCommandEnabled();
         var plan = as(processingCommand("DENSE_VECTOR user.name WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);

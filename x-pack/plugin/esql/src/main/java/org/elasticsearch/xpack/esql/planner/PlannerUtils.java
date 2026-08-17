@@ -395,6 +395,13 @@ public class PlannerUtils {
             return plan;
         }
         return plan.transformUp(FragmentExec.class, f -> {
+            // View-branch fragments must not receive the Lucene esFilter: the request filter has already been applied
+            // as a logical Filter above the view's output boundary (by ViewRequestFilterRewriter). Pushing the raw DSL
+            // filter into the Lucene scan would apply it before any aggregation or field computation the view performs,
+            // returning wrong results for fields that exist only as computed values (EVAL, STATS, RENAME, etc.).
+            if (f.isFromViewBranch()) {
+                return f;
+            }
             var fragmentFilter = f.esFilter();
             // TODO: have an ESFilter and push down to EsQueryExec / EsSource
             // This is an ugly hack to push the filter parameter to Lucene

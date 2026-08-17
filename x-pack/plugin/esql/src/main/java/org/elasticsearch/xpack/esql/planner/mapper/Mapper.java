@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -59,6 +60,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 
 /**
@@ -332,9 +334,22 @@ public class Mapper {
         // ComputeService.executePlan has trouble with executing plan without coordinator plan, adding exchange solves the issue
         int childSize = fork.children().size();
 
+        // ViewUnionAll carries metadata about which branches are view subplans vs bare index relations. View-branch
+        // fragments must not receive the raw Lucene esFilter (integrateEsFilterIntoFragment skips them); we mark
+        // them here so the distinction survives into the physical plan.
+        boolean isViewUnionAll = fork instanceof ViewUnionAll;
+
         List<PhysicalPlan> newChildren = new ArrayList<>(childSize);
+        List<LogicalPlan> logicalChildren = fork.children();
+        ViewUnionAll vua = isViewUnionAll ? (ViewUnionAll) fork : null;
+        List<String> viewKeys = isViewUnionAll ? vua.namedSubqueries().keySet().stream().toList() : null;
+
         for (int i = 0; i < childSize; i++) {
-            PhysicalPlan child = mapInner(fork.children().get(i));
+            PhysicalPlan child = mapInner(logicalChildren.get(i));
+            if (isViewUnionAll && viewKeys.get(i) != null) {
+                // View branch: mark every FragmentExec in the subtree so integrateEsFilterIntoFragment skips them.
+                child = child.transformDown(FragmentExec.class, FragmentExec::asFromViewBranch);
+            }
             if (child instanceof FragmentExec) {
                 child = new ExchangeExec(child.source(), child);
             }

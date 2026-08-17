@@ -2163,9 +2163,9 @@ public class EsqlCapabilities {
         DATE_RANGE_FIELD_TYPE_V6,
 
         /**
-         * Support for the DOUBLE_RANGE field type.
+         * Tech preview support for the DOUBLE_RANGE field type.
          */
-        DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V10(Build.current().isSnapshot()),
+        DOUBLE_RANGE_TECH_PREVIEW,
 
         /**
          * Network direction function.
@@ -3427,11 +3427,6 @@ public class EsqlCapabilities {
          * Support for equality (==, !=) and IN with date_range type.
          */
         EQUALITY_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
-
-        /**
-         * Support for equality ({@code ==}, {@code !=}) and {@code IN} with the {@code double_range} type.
-         */
-        EQUALITY_DOUBLE_RANGE(DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V10.isEnabled()),
 
         /**
          * Fix TopN encoding/decoding of {@code long_range} values.

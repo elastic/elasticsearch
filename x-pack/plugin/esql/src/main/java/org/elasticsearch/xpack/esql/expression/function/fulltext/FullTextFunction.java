@@ -14,7 +14,6 @@ import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator.ShardConfig;
 import org.elasticsearch.compute.lucene.query.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.lucene.query.LuceneQueryScoreEvaluator;
-import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -639,7 +638,7 @@ public abstract class FullTextFunction extends Function
     }
 
     @Override
-    public ScoreOperator.ExpressionScorer.Factory toScorer(ToScorer toScorer) {
+    public ExpressionEvaluator.Factory toScorer(ToScorer toScorer) {
         return new LuceneQueryScoreEvaluator.Factory(toShardConfigs(toScorer.shardContexts()));
     }
 
@@ -705,10 +704,10 @@ public abstract class FullTextFunction extends Function
         return (logicalPlan, failures) -> {
             if (logicalPlan instanceof Filter f) {
                 checkFullTextFunctionsInFilter(f, failures, true);
-                // After optimization, if this filter is still directly above a coordinator join, the push-down
-                // optimizer could not move it to the data nodes. Full-text functions require a Lucene shard
-                // context that the coordinator does not have for the data-side index.
-                if (f.child() instanceof Join join && join.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR) {
+                // After optimization, if a coordinator-executed join still sits anywhere beneath this filter
+                // (not just as a direct child), the push-down optimizer could not move the filter to the data
+                // nodes. Full-text functions require a Lucene shard context that the coordinator does not have.
+                if (f.anyMatch(p -> p instanceof Join join && join.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR)) {
                     failures.add(
                         fail(
                             this,

@@ -237,6 +237,7 @@ public class CsvTestsDataLoader {
         new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv", "k8s-settings.json"),
         new TestDataset("k8s-downsampled", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json"),
         new TestDataset("k8s_stored_source", "k8s-mappings.json", "k8s.csv").withSetting("k8s-stored-source-settings.json"),
+        new TestDataset("empty-k8s", "k8s-extra-mappings.json", "k8s-empty.csv").withSetting("k8s-settings.json"),
         new TestDataset(
             "promql_classic_histogram",
             "mapping-promql-classic-histogram-passthrough.json",
@@ -340,6 +341,7 @@ public class CsvTestsDataLoader {
         new TestDataset("many_numbers").withSetting("many_numbers-settings.json"),
         new TestDataset("mmr_text_vector_keyword"),
         new TestDataset("json_logs"),
+        new TestDataset("network_direction_networks"),
         new TestDataset("flattened_otel_logs"),
         new TestDataset("flattened_many"),
         new TestDataset("flattened_keyed"),

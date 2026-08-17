@@ -309,7 +309,7 @@ public class EcsEsqlQueryGenerator {
     // ── predicate generation ──────────────────────────────────────────────────────────────────
 
     private String randomPredicate() {
-        int choice = random.nextInt(10);
+        int choice = random.nextInt(11);
         switch (choice) {
             case 0 -> {
                 // Keyword equality: pick from fields with a pool so the literal provably exists.
@@ -394,6 +394,12 @@ public class EcsEsqlQueryGenerator {
                 // OR: widening — any simple predicate is safe as an OR operand.
                 return "(" + simplePredicate() + " OR " + simplePredicate() + ")";
             }
+            case 10 -> {
+                // Keyword not-equal: eliminates one value from the match set; matches all rows
+                // where the field holds a different pool value.
+                EcsLogsDataGenerator.Field f = pick(poolKeywords);
+                return f.name() + " != \"" + randomKeywordValue(f) + "\"";
+            }
             default -> throw new AssertionError("unexpected choice: " + choice);
         }
     }
@@ -438,7 +444,7 @@ public class EcsEsqlQueryGenerator {
      * impossible conjunction ({@code @timestamp >= T2 AND @timestamp < T1} where {@code T2 > T1}).
      */
     private String simpleCompoundPredicate() {
-        int choice = random.nextInt(2);
+        int choice = random.nextInt(3);
         return switch (choice) {
             case 0 -> {
                 // IN (v1, v2) on an always-present field: covers two ordinal residues so the
@@ -453,6 +459,12 @@ public class EcsEsqlQueryGenerator {
                 // that leaves whatever the first clause selected fully intact.
                 EcsLogsDataGenerator.Field f = pick(compoundKeywords);
                 yield f.name() + " IS NOT NULL";
+            }
+            case 2 -> {
+                // != on an always-present field: eliminates one pool value from the match set,
+                // so the conjunction with the first clause is rarely vacuous.
+                EcsLogsDataGenerator.Field f = pick(compoundKeywords);
+                yield f.name() + " != \"" + randomKeywordValue(f) + "\"";
             }
             default -> throw new AssertionError("unexpected choice: " + choice);
         };

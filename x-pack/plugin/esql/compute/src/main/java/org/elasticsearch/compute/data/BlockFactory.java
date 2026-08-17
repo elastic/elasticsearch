@@ -78,14 +78,16 @@ public class BlockFactory {
 
     protected BlockFactory(BlockFactoryBuilder builder, BlockFactory parent) {
         this.bigArrays = builder.bigArrays;
-        this.breaker = builder.breaker == null ? bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST) : builder.breaker;
+        CircuitBreakerService bs = bigArrays.breakerService();
+        this.breaker = builder.breaker != null ? builder.breaker
+            : bs != null ? bs.getBreaker(CircuitBreaker.REQUEST)
+            : new NoopCircuitBreaker(CircuitBreaker.REQUEST);
         if (builder.nativeMemoryBreaker != null) {
             this.nativeMemoryBreaker = builder.nativeMemoryBreaker;
         } else {
             // Auto-resolve from the breaker service, mirroring how `breaker` resolves REQUEST above.
             // Fall back to Noop when the service is absent (NON_RECYCLING_INSTANCE) or does not have
             // NATIVE_MEMORY registered (minimal test circuit breaker services).
-            CircuitBreakerService bs = bigArrays.breakerService();
             CircuitBreaker fromService = bs != null ? bs.getBreaker(CircuitBreaker.NATIVE_MEMORY) : null;
             if (fromService != null) {
                 this.nativeMemoryBreaker = fromService;

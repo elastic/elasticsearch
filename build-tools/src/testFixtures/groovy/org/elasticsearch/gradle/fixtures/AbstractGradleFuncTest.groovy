@@ -211,14 +211,19 @@ abstract class AbstractGradleFuncTest extends Specification {
      * it to nested {@code ./gradlew} subprocesses, which inherit {@code GRADLE_USER_HOME}.
      */
     private static void disableCacheCleanup(File testKitDir) {
-        File initScript = new File(testKitDir, "init.d/disable-cache-cleanup.init.gradle")
+        File initScriptDir = new File(testKitDir, "init.d")
+        File initScript = new File(initScriptDir, "disable-cache-cleanup.init.gradle")
         if (initScript.exists()) {
             return
         }
-        initScript.parentFile.mkdirs()
-        // Written to a temp file and moved into place so that concurrent workers never observe a
-        // partially written init script, which Gradle would fail to compile.
-        File tmpScript = File.createTempFile("disable-cache-cleanup", ".init.gradle", initScript.parentFile)
+        // Creates testKitDir too, which must exist before staging the temp file inside it.
+        initScriptDir.mkdirs()
+        // Staged outside init.d, under a suffix Gradle does not treat as an init script, and only
+        // then moved in atomically. Gradle applies every *.init.gradle(.kts) it finds in init.d, so
+        // staging a *.init.gradle temp file inside that directory would let a concurrent nested
+        // build apply a partially written script, or list one that is renamed out from under it a
+        // moment later - the very failure mode this method exists to prevent.
+        File tmpScript = File.createTempFile("disable-cache-cleanup", ".tmp", testKitDir)
         tmpScript.text = """
             beforeSettings { settings ->
                 settings.caches {

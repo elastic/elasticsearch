@@ -26,9 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class RemoteFetchTopNIT extends ESRestTestCase {
@@ -58,11 +56,7 @@ public class RemoteFetchTopNIT extends ESRestTestCase {
         createTestIndex(index);
         indexDocs(index);
 
-        CurrentNodeClient currentNodeClient = currentNodeClient();
-        assertThat(currentNodeClient.oldNodeAddresses(), not(empty()));
-        assertThat(currentNodeClient.currentNodeAddresses(), not(empty()));
-
-        try (RestClient currentClient = currentNodeClient.client()) {
+        try (RestClient currentClient = currentNodeClient()) {
             Map<String, Object> response = runEsql(
                 currentClient,
                 "FROM " + index + " | SORT unique_sort + 1 DESC | LIMIT 5 | KEEP unique_sort, payload"
@@ -155,12 +149,11 @@ public class RemoteFetchTopNIT extends ESRestTestCase {
         return entityAsMap(restClient.performRequest(request));
     }
 
-    private CurrentNodeClient currentNodeClient() throws IOException {
+    private RestClient currentNodeClient() throws IOException {
         // Clusters.mixedVersionCluster creates nodes in old/current/old/current order. Do not classify by version string:
         // detached BWC refs can report the same version as current nodes.
-        List<HttpHost> oldNodes = List.of(HttpHost.create(cluster.getHttpAddress(0)), HttpHost.create(cluster.getHttpAddress(2)));
-        List<HttpHost> currentNodes = List.of(HttpHost.create(cluster.getHttpAddress(1)), HttpHost.create(cluster.getHttpAddress(3)));
-        return new CurrentNodeClient(buildClient(restClientSettings(), currentNodes.toArray(new HttpHost[0])), currentNodes, oldNodes);
+        HttpHost[] currentNodes = { HttpHost.create(cluster.getHttpAddress(1)), HttpHost.create(cluster.getHttpAddress(3)) };
+        return buildClient(restClientSettings(), currentNodes);
     }
 
     private static boolean containsRemoteFetchOperator(Object value) {
@@ -183,6 +176,4 @@ public class RemoteFetchTopNIT extends ESRestTestCase {
         }
         return false;
     }
-
-    private record CurrentNodeClient(RestClient client, List<HttpHost> currentNodeAddresses, List<HttpHost> oldNodeAddresses) {}
 }

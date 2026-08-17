@@ -12,6 +12,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
@@ -22,8 +23,10 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -210,18 +213,25 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
 
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+        return postAnalysisPlanVerification(null);
+    }
+
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(AnalysisRegistry analysisRegistry) {
         return (plan, failures) -> {
             super.postAnalysisPlanVerification().accept(plan, failures);
-            fieldVerifier(plan, this, field, failures);
+            fieldVerifier(plan, this, field, analysisRegistry, failures);
         };
     }
 
     @Override
     public BiConsumer<LogicalPlan, Failures> postOptimizationPlanVerification() {
-        // check plan again after predicates are pushed down into subqueries
+        // Check plan again after predicates are pushed down into subqueries. No analysis registry is available at
+        // this point, so registry-backed checks (e.g. analyzer-name validation) only run in the post-analysis pass;
+        // registry inputs cannot change during optimization, so skipping them here is safe.
         return (plan, failures) -> {
             super.postOptimizationPlanVerification().accept(plan, failures);
-            fieldVerifier(plan, this, field, failures);
+            fieldVerifier(plan, this, field, null, failures);
         };
     }
 
@@ -259,6 +269,34 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
      * Keys are option names, values are the expected data types.
      */
     protected abstract Map<String, DataType> getAllowedOptions();
+
+    /** Resolves the analyzer from {@code opts} and delegates to {@link RuntimeSearch#textEvaluatorForQuery}. */
+    protected ExpressionEvaluator.Factory textEvaluatorForQueryWithOptions(
+        Query query,
+        Map<String, Object> opts,
+        EvaluatorMapper.ToEvaluator toEvaluator
+    ) {
+        return RuntimeSearch.textEvaluatorForQuery(
+            source(),
+            toEvaluator.apply(field()),
+            query,
+            RuntimeSearch.resolveNamedAnalyzer(opts, toEvaluator)
+        );
+    }
+
+    /** Resolves the analyzer from {@code opts} and delegates to {@link RuntimeSearch#textScoreEvaluatorForQuery}. */
+    protected ExpressionEvaluator.Factory textScoreEvaluatorForQueryWithOptions(
+        Query query,
+        Map<String, Object> opts,
+        EvaluatorMapper.ToEvaluator toEvaluator
+    ) {
+        return RuntimeSearch.textScoreEvaluatorForQuery(
+            source(),
+            toEvaluator.apply(field()),
+            query,
+            RuntimeSearch.resolveNamedAnalyzer(opts, toEvaluator)
+        );
+    }
 
     /**
      * Returns a human-readable string listing the expected field types.

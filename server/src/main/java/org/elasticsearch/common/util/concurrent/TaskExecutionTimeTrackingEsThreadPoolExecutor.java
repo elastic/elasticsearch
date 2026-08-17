@@ -104,8 +104,8 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             : null;
         this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
         this.trackMaxQueueLatency = trackingConfig.trackMaxQueueLatency();
-        this.apmUtilizationTracker = new ThreadUtilizationTracker(getMaximumPoolSize());
-        this.allocationUtilizationTracker = new ThreadUtilizationTracker(getMaximumPoolSize());
+        this.apmUtilizationTracker = new ThreadUtilizationTracker(() -> System.nanoTime(), totalExecutionTime, getMaximumPoolSize());
+        this.allocationUtilizationTracker = new ThreadUtilizationTracker(() -> System.nanoTime(), totalExecutionTime, getMaximumPoolSize());
     }
 
     public List<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {

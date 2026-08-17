@@ -85,7 +85,7 @@ public final class RestIndexActionTests extends RestActionTestCase {
         });
         RestRequest indexRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/some_index/_doc/1")
-            .withParams(Map.of("index", "some_index", "id", "1", "_slice", sliceValue))
+            .withParams(Map.of("index", "some_index", "id", "1", "slice", sliceValue))
             .withContent(new BytesArray("{}"), XContentType.JSON)
             .build();
         dispatchRequest(indexRequest);
@@ -96,7 +96,7 @@ public final class RestIndexActionTests extends RestActionTestCase {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest indexRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/some_index/_doc/1")
-            .withParams(Map.of("index", "some_index", "id", "1", "_slice", "s1", "routing", "r1"))
+            .withParams(Map.of("index", "some_index", "id", "1", "slice", "s1", "routing", "r1"))
             .withContent(new BytesArray("{}"), XContentType.JSON)
             .build();
         FakeRestChannel channel = dispatchRequestWithChannel(indexRequest);
@@ -105,7 +105,7 @@ public final class RestIndexActionTests extends RestActionTestCase {
             assertThat(RestResponseUtils.getBodyContent(response).utf8ToString(), containsString("illegal_argument_exception"));
             assertThat(
                 RestResponseUtils.getBodyContent(response).utf8ToString(),
-                containsString("[routing] is not allowed together with [_slice]")
+                containsString("[routing] is not allowed together with [slice]")
             );
         }
     }
@@ -114,14 +114,14 @@ public final class RestIndexActionTests extends RestActionTestCase {
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest indexRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/some_index/_doc/1")
-            .withParams(Map.of("index", "some_index", "id", "1", "_slice", "s1"))
+            .withParams(Map.of("index", "some_index", "id", "1", "slice", "s1"))
             .withContent(new BytesArray("{}"), XContentType.JSON)
             .build();
         FakeRestChannel channel = dispatchRequestWithChannel(indexRequest);
         try (var response = channel.capturedResponse()) {
             assertThat(response.status(), equalTo(RestStatus.BAD_REQUEST));
             assertThat(RestResponseUtils.getBodyContent(response).utf8ToString(), containsString("illegal_argument_exception"));
-            assertThat(RestResponseUtils.getBodyContent(response).utf8ToString(), containsString("request does not support [_slice]"));
+            assertThat(RestResponseUtils.getBodyContent(response).utf8ToString(), containsString("request does not support [slice]"));
         }
     }
 
@@ -129,13 +129,13 @@ public final class RestIndexActionTests extends RestActionTestCase {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest indexRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/some_index/_doc/1")
-            .withParams(Map.of("index", "some_index", "id", "1", "_slice", "_all"))
+            .withParams(Map.of("index", "some_index", "id", "1", "slice", "_all"))
             .withContent(new BytesArray("{}"), XContentType.JSON)
             .build();
         FakeRestChannel channel = dispatchRequestWithChannel(indexRequest);
         try (var response = channel.capturedResponse()) {
             assertThat(response.status(), equalTo(RestStatus.BAD_REQUEST));
-            assertThat(RestResponseUtils.getBodyContent(response).utf8ToString(), containsString("invalid [_slice] value"));
+            assertThat(RestResponseUtils.getBodyContent(response).utf8ToString(), containsString("invalid [slice] value"));
         }
     }
 
@@ -143,13 +143,13 @@ public final class RestIndexActionTests extends RestActionTestCase {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest indexRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/some_index/_doc/1")
-            .withParams(Map.of("index", "some_index", "id", "1", "_slice", "s1,s2"))
+            .withParams(Map.of("index", "some_index", "id", "1", "slice", "s1,s2"))
             .withContent(new BytesArray("{}"), XContentType.JSON)
             .build();
         FakeRestChannel channel = dispatchRequestWithChannel(indexRequest);
         try (var response = channel.capturedResponse()) {
             assertThat(response.status(), equalTo(RestStatus.BAD_REQUEST));
-            assertThat(RestResponseUtils.getBodyContent(response).utf8ToString(), containsString("invalid [_slice] value"));
+            assertThat(RestResponseUtils.getBodyContent(response).utf8ToString(), containsString("invalid [slice] value"));
         }
     }
 

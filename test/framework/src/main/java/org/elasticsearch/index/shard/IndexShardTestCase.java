@@ -218,11 +218,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
         );
     }
 
-    @Override
-    public final void setUp() throws Exception {
-        super.setUp();
-    }
-
     protected ThreadPool setUpThreadPool(Settings settings) {
         return new TestThreadPool(getClass().getName(), settings);
     }
@@ -231,11 +226,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
     public void tearDownShardTestResources() throws Exception {
         IOUtils.close(nodeEnvironment, this::tearDownThreadPool);
         IOUtils.rm(shardTempDirs.toArray(new Path[0]));
-    }
-
-    @Override
-    public final void tearDown() throws Exception {
-        super.tearDown();
     }
 
     protected void tearDownThreadPool() {
@@ -1268,7 +1258,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         } else {
             final long seqNo = shard.getMaxSeqNo() + 1;
             shard.advanceMaxSeqNoOfUpdatesOrDeletes(seqNo); // manually replicate max_seq_no_of_updates
-            result = shard.applyDeleteOperationOnReplica(seqNo, shard.getOperationPrimaryTerm(), 0L, id);
+            result = shard.applyDeleteOperationOnReplica(seqNo, shard.getOperationPrimaryTerm(), 0L, id, null);
             shard.sync(); // advance local checkpoint
         }
         return result;

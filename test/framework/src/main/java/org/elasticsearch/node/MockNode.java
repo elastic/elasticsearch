@@ -32,6 +32,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.plugins.MockPluginsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsLoader;
@@ -58,6 +59,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 
@@ -65,6 +67,7 @@ import java.io.Closeable;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -198,7 +201,8 @@ public class MockNode extends Node {
             String nodeId,
             LinkedProjectConfigService linkedProjectConfigService,
             CrossProjectModeDecider crossProjectModeDecider,
-            ProjectResolver projectResolver
+            ProjectResolver projectResolver,
+            List<? extends TransportMessageListener.Provider> transportMessageListenerProviders
         ) {
 
             // we use the MockTransportService.TestPlugin class as a marker to create a network
@@ -219,7 +223,8 @@ public class MockNode extends Node {
                     nodeId,
                     linkedProjectConfigService,
                     crossProjectModeDecider,
-                    projectResolver
+                    projectResolver,
+                    transportMessageListenerProviders
                 );
             } else {
                 return new MockTransportService(
@@ -276,6 +281,20 @@ public class MockNode extends Node {
             } else {
                 return new MockHttpTransport();
             }
+        }
+
+        @Override
+        ShutdownPrepareService newShutdownPrepareService(
+            PluginsService pluginsService,
+            Settings settings,
+            HttpServerTransport httpServerTransport,
+            TransportService transportService,
+            TerminationHandler terminationHandler
+        ) {
+            if (pluginsService.filterPlugins(ListenableShutdownPrepareService.TestPlugin.class).findAny().isPresent()) {
+                return new ListenableShutdownPrepareService(settings, httpServerTransport, transportService, terminationHandler);
+            }
+            return super.newShutdownPrepareService(pluginsService, settings, httpServerTransport, transportService, terminationHandler);
         }
     }
 

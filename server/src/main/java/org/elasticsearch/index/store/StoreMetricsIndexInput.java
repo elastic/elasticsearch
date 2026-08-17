@@ -16,7 +16,7 @@ import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.DirectAccessInput;
-import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
+import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;

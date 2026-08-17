@@ -53,7 +53,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class MultiSearchIT extends ESIntegTestCase {
 
@@ -117,11 +116,7 @@ public class MultiSearchIT extends ESIntegTestCase {
         ensureGreen(index);
 
         assertBusy(
-            () -> assertThat(
-                "request breaker should be at baseline before msearch",
-                requestBreakerEstimated(coordinatorNode),
-                lessThanOrEqualTo(0L)
-            )
+            () -> assertThat("request breaker should be at baseline before msearch", requestBreakerEstimated(coordinatorNode), equalTo(0L))
         );
         long baseline = requestBreakerEstimated(coordinatorNode);
 
@@ -166,7 +161,39 @@ public class MultiSearchIT extends ESIntegTestCase {
             () -> assertThat(
                 "request breaker should return to baseline after msearch completes",
                 requestBreakerEstimated(coordinatorNode),
-                lessThanOrEqualTo(baseline)
+                equalTo(baseline)
+            )
+        );
+    }
+
+    public void testBreakerAccountingEndToEndOnFailure() throws Exception {
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assumeFalse("coordinator uses a noop request breaker, skipping test", noopBreakerUsed(coordinatorNode));
+
+        int numSearches = 10;
+
+        assertBusy(
+            () -> assertThat("request breaker should be at baseline before msearch", requestBreakerEstimated(coordinatorNode), equalTo(0L))
+        );
+        long baseline = requestBreakerEstimated(coordinatorNode);
+
+        MultiSearchRequest request = new MultiSearchRequest();
+        var coordinatorClient = internalCluster().client(coordinatorNode);
+        for (int i = 0; i < numSearches; i++) {
+            request.add(coordinatorClient.prepareSearch("msearch-breaker-it-missing-" + i).request());
+        }
+        assertResponse(coordinatorClient.multiSearch(request), response -> {
+            assertThat(response.getResponses().length, equalTo(numSearches));
+            for (Item item : response) {
+                assertTrue(item.isFailure());
+            }
+        });
+
+        assertBusy(
+            () -> assertThat(
+                "request breaker should return to baseline after an all-failure msearch completes",
+                requestBreakerEstimated(coordinatorNode),
+                equalTo(baseline)
             )
         );
     }
@@ -344,11 +371,11 @@ public class MultiSearchIT extends ESIntegTestCase {
     public void testRoutingAndSliceCannotBeMixedAcrossRequestLevels() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         String body = """
-            {"_slice": "s1" }
+            {"slice": "s1" }
             {"query" : {"match_all" : {}}}
             """;
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseRequest(body, Map.of("routing", "r1")));
-        assertThat(ex.getMessage(), Matchers.is("[routing] and [_slice] cannot be combined in the same _msearch request"));
+        assertThat(ex.getMessage(), Matchers.is("[routing] and [slice] cannot be combined in the same _msearch request"));
     }
 
     public void testSliceEnabledIndexDefaultsToAllAndRejectsRoutingInExecution() throws Exception {
@@ -374,7 +401,7 @@ public class MultiSearchIT extends ESIntegTestCase {
                 response.getResponses()[1].getFailure().getMessage(),
                 containsString("[routing] is not allowed when [index.slice.enabled] is true")
             );
-            assertThat(response.getResponses()[1].getFailure().getMessage(), containsString("use [_slice] instead"));
+            assertThat(response.getResponses()[1].getFailure().getMessage(), containsString("use [slice] instead"));
         });
     }
 
@@ -395,11 +422,11 @@ public class MultiSearchIT extends ESIntegTestCase {
         String body = """
             {"index":"routing-index","routing":"r1"}
             {"query":{"term":{"field.keyword":"routing-r1"}}}
-            {"index":"slice-index","_slice":"s1"}
+            {"index":"slice-index","slice":"s1"}
             {"query":{"term":{"field.keyword":"slice-s1"}}}
             {"index":"routing-index","routing":"r2"}
             {"query":{"term":{"field.keyword":"routing-r2"}}}
-            {"index":"slice-index","_slice":"s2"}
+            {"index":"slice-index","slice":"s2"}
             {"query":{"term":{"field.keyword":"slice-s2"}}}
             """;
         MultiSearchRequest request = parseRequest(body, Map.of());

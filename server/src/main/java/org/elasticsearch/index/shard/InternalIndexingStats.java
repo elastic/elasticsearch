@@ -42,7 +42,7 @@ public final class InternalIndexingStats implements IndexingOperationListener {
     InternalIndexingStats(LongSupplier relativeTimeInNanosSupplier, IndexingStatsSettings settings, int numIndexingThreads) {
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.totalStats = new StatsHolder(
-            relativeTimeInNanosSupplier.getAsLong(),
+            relativeTimeInNanosSupplier,
             settings.getRecentWriteLoadHalfLifeForNewShards(),
             numIndexingThreads
         );
@@ -78,7 +78,7 @@ public final class InternalIndexingStats implements IndexingOperationListener {
      * Returns the average thread utilization since the last time this method was called, as a value between 0 and 1 (inclusive).
      */
     public double pollUtilization() {
-        return totalStats.indexingUtilizationTracker.pollUtilization(totalStats.totalExecutionTimeNanos);
+        return totalStats.indexingUtilizationTracker.pollUtilization();
     }
 
     long totalIndexingTimeInNanos() {
@@ -203,16 +203,20 @@ public final class InternalIndexingStats implements IndexingOperationListener {
         private LongAdder totalExecutionTimeNanos = new LongAdder();
         private ThreadUtilizationTracker indexingUtilizationTracker;
 
-        StatsHolder(long startTimeInNanos, TimeValue recentWriteLoadHalfLife, int numIndexingThreads) {
+        StatsHolder(LongSupplier timeSupplierInNanos, TimeValue recentWriteLoadHalfLife, int numIndexingThreads) {
             double lambdaInInverseNanos = Math.log(2.0) / recentWriteLoadHalfLife.nanos();
             logger.debug(
                 "Initialized stats for new shard calculating recent indexing load with half-life {} (decay parameter {} ns^-1)",
                 recentWriteLoadHalfLife,
                 lambdaInInverseNanos
             );
-            this.recentIndexMetric = new ExponentiallyWeightedMovingRate(lambdaInInverseNanos, startTimeInNanos);
+            this.recentIndexMetric = new ExponentiallyWeightedMovingRate(lambdaInInverseNanos, timeSupplierInNanos.getAsLong());
             this.peakIndexMetric = new AtomicReference<>(0.0);
-            this.indexingUtilizationTracker = new ThreadUtilizationTracker(numIndexingThreads);
+            this.indexingUtilizationTracker = new ThreadUtilizationTracker(
+                timeSupplierInNanos,
+                totalExecutionTimeNanos,
+                numIndexingThreads
+            );
         }
 
         IndexingStats.Stats stats(

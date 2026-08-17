@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils;
 import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessSearchNodeRecoveryMetricsCollector;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -382,7 +383,7 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
             assertThat(measurements.size(), equalTo(0));
         } else {
             // One from IndexShardCacheWarmer, one for the region 0 pre-warming
-            // and the other from StatelessIndexEventListener (which we may need to wait for it to appear)
+            // and the other from StatelessIndexNodeRecoveryListener (which we may need to wait for it to appear)
             assertBusy(() -> assertThat(measurements.size(), equalTo(3)));
             long totalBytesWarmed = 0;
             for (final Measurement metric : measurements) {
@@ -442,7 +443,7 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
         {
             var metric = getSingleRecordedMetric(
                 plugin::getLongCounterMeasurement,
-                StatelessRecoveryMetricsCollector.RECOVERY_BYTES_WARMED_FROM_INDEXING_METRIC
+                StatelessSearchNodeRecoveryMetricsCollector.RECOVERY_BYTES_WARMED_FROM_INDEXING_METRIC
             );
             warmedBytes = metric.getLong() > 0;
             assertRecoveryMetricAttributes(metric, false);
@@ -450,7 +451,7 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
         {
             var metric = getSingleRecordedMetric(
                 plugin::getLongCounterMeasurement,
-                StatelessRecoveryMetricsCollector.RECOVERY_BYTES_READ_FROM_INDEXING_METRIC
+                StatelessSearchNodeRecoveryMetricsCollector.RECOVERY_BYTES_READ_FROM_INDEXING_METRIC
             );
             readBytes = metric.getLong() > 0;
             assertRecoveryMetricAttributes(metric, false);

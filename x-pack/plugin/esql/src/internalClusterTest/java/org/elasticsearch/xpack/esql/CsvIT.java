@@ -14,7 +14,6 @@ import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
@@ -70,6 +69,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsRequest;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -193,6 +193,20 @@ public class CsvIT extends ESTestCase {
          * against the actual query output.
          */
         ExpectedResults transformExpectedResults(String testId, CsvSpecReader.CsvTestCase testCase, ExpectedResults expected);
+
+        /**
+         * Normalizes a single warning string before warnings are compared. The <em>same</em>
+         * function is applied to both the expected warnings declared in the csv-spec entry (via
+         * {@link CsvSpecReader.CsvTestCase#adjustExpectedWarnings(java.util.function.Function)}) and
+         * to each actual warning returned by the cluster, so a variant that mechanically rewrites
+         * the query can reconcile warnings whose expression text or source position differs purely
+         * as a side effect of the rewrite &mdash; without weakening the assertion for the parts of
+         * the warning that still carry meaning. The default is identity, so the unmodified corpus
+         * keeps asserting warnings verbatim.
+         */
+        default String normalizeWarning(String warning) {
+            return warning;
+        }
 
         /**
          * Called once after the index for {@code dataset} has been fully populated.
@@ -419,7 +433,12 @@ public class CsvIT extends ESTestCase {
             var warnings = listener.warnings.stream()
                 .map(w -> HeaderWarning.extractWarningValueFromWarningHeader(w, false))
                 .filter(w -> w.startsWith("No limit defined, adding default limit of") == false)
+                .map(indexLoadStrategy::normalizeWarning)
                 .toList();
+            // Apply the same normalization to the expected warnings so a variant that rewrites the
+            // query can reconcile warnings whose expression text or source position shifted purely
+            // as a side effect of the rewrite. For the identity strategy this is a no-op.
+            testCase.adjustExpectedWarnings(indexLoadStrategy::normalizeWarning);
             testCase.assertWarnings(false).assertWarnings(warnings, null);
             CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, response.documentsFound());
         } catch (Throwable t) {
@@ -464,7 +483,7 @@ public class CsvIT extends ESTestCase {
                             loadViews();
                             loadAliases();
                         }
-                        case EsqlResolveFieldsAction.NAME -> loadIndices((FieldCapabilitiesRequest) request);
+                        case EsqlResolveFieldsAction.NAME -> loadIndices((EsqlResolveFieldsRequest) request);
                         case GetInferenceModelAction.NAME -> loadInference((GetInferenceModelAction.Request) request);
                     }
                     return true;
@@ -542,7 +561,7 @@ public class CsvIT extends ESTestCase {
         }
     }
 
-    private static void loadIndices(FieldCapabilitiesRequest request) {
+    private static void loadIndices(EsqlResolveFieldsRequest request) {
         Stream.of(request.indices()).flatMap(pattern -> {
             assert pattern.contains("<") == false : "Date-math is not supported in test";
             if (pattern.contains("*")) {

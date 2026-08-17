@@ -1741,10 +1741,23 @@ public class SharedBlobCacheWarmingService {
         }
 
         private ActionListener<Void> metering(ActionListener<Void> target) {
-            return ActionListener.runAfter(
-                target,
-                () -> cacheWarmingPageAlignedBytesTotalMetric.incrementBy(totalBytesCopied.get(), warmingRun.labels())
-            );
+            // Use runBefore so the metric is recorded before the outer listener is notified, ensuring that callers waiting on that
+            // listener will observe the complete metric count. The runnable never throws: any unexpected exception from incrementBy is
+            // caught and logged so it cannot divert the outer listener to onFailure.
+            return ActionListener.runBefore(target, () -> {
+                try {
+                    cacheWarmingPageAlignedBytesTotalMetric.incrementBy(totalBytesCopied.get(), warmingRun.labels());
+                } catch (Throwable t) {
+                    logger.warn(
+                        () -> Strings.format(
+                            "Failed to record page-aligned bytes metric for %s %s",
+                            warmingRun.shardId(),
+                            warmingRun.type()
+                        ),
+                        t
+                    );
+                }
+            });
         }
 
         @Override

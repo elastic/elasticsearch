@@ -13,30 +13,47 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.elasticsearch.columnar.ColumnarFormat;
+import org.elasticsearch.columnar.FormatVersion;
 
 import java.io.IOException;
 
 /**
  * Thin wrappers over {@link CodecUtil} that stamp every ColumNAR file with the format name and
- * {@link ColumnarFormat#VERSION_CURRENT}. Centralising this keeps the codec header/footer identical
- * across the substrate's files and gives one place to check the on-disk version on read.
+ * version. Centralising this keeps the codec header/footer identical across the substrate's files
+ * and gives one place to check the on-disk version on read.
  */
 public final class ColumnarCodecUtil {
 
     private ColumnarCodecUtil() {}
 
-    /** Writes a ColumNAR index header for {@code name} into {@code out}. */
-    public static void writeHeader(IndexOutput out, String name, byte[] segmentId, String segmentSuffix) throws IOException {
-        CodecUtil.writeIndexHeader(out, name, ColumnarFormat.VERSION_CURRENT, segmentId, segmentSuffix);
+    /** Writes a ColumNAR index header for {@code name} into {@code out} stamping {@code version}. */
+    public static void writeHeader(IndexOutput out, String name, final FormatVersion version, byte[] segmentId, String segmentSuffix)
+        throws IOException {
+        CodecUtil.writeIndexHeader(out, name, version.version(), segmentId, segmentSuffix);
     }
 
     /**
      * Checks a ColumNAR index header on {@code in}, accepting any version in
-     * {@code [VERSION_START, VERSION_CURRENT]}, and returns the on-disk version.
+     * {@code [FormatVersion.BASELINE, FormatVersion.CURRENT]}, and returns the on-disk version as
+     * a typed {@link FormatVersion}. Throws
+     * {@link org.apache.lucene.index.IndexFormatTooNewException} or
+     * {@link org.apache.lucene.index.IndexFormatTooOldException} if the version is outside the
+     * readable range.
+     *
+     * <p>Pass the returned {@link FormatVersion} into every {@code readFrom} call for this segment;
+     * metadata readers compare {@link FormatVersion#version()} against a {@code VERSION_*} constant
+     * to handle layout changes introduced in later versions.
      */
-    public static int checkHeader(IndexInput in, String name, byte[] segmentId, String segmentSuffix) throws IOException {
-        return CodecUtil.checkIndexHeader(in, name, ColumnarFormat.VERSION_START, ColumnarFormat.VERSION_CURRENT, segmentId, segmentSuffix);
+    public static FormatVersion checkHeader(IndexInput in, String name, byte[] segmentId, String segmentSuffix) throws IOException {
+        final int raw = CodecUtil.checkIndexHeader(
+            in,
+            name,
+            FormatVersion.BASELINE.version(),
+            FormatVersion.CURRENT.version(),
+            segmentId,
+            segmentSuffix
+        );
+        return new FormatVersion(raw);
     }
 
     /** Writes the trailing checksum footer. */

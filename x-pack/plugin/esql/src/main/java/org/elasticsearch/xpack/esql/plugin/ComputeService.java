@@ -1041,6 +1041,9 @@ public class ComputeService {
          */
         List<Attribute> outputAttributes = resolvedPlan.output();
         var exchangeSource = new ExchangeSourceHandler(configuration.pragmas().exchangeBufferSize(), searchExecutor);
+        // Releases retained sessions on every data node at query end. Fetch operators also release the sessions
+        // they actually fetch from (the winning nodes), earlier. The overlap is intentional and safe: release is
+        // idempotent, and this releaser is the only one that reaches nodes whose rows lost the global TopN.
         final RemoteFetchService.RetainedSessionReleaser remoteFetchRetainedSessionReleaser = retainSearchContexts
             ? remoteFetchService.newRetainedSessionReleaser()
             : null;

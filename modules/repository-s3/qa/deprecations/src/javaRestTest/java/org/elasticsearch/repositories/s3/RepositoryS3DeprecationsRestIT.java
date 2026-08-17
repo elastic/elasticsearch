@@ -95,39 +95,35 @@ public class RepositoryS3DeprecationsRestIT extends ESRestTestCase {
             assertThat(repositoryIssues, hasSize(1));
             final var issue = repositoryIssues.get(0);
             assertThat(issue.get("level"), equalTo("critical"));
-            assertThat(issue.get("message"), equalTo("S3 repository disables conditional writes"));
+            assertThat(issue.get("message"), equalTo("S3 repository explicitly configures a deprecated conditional writes setting"));
             assertThat(issue.get("url"), equalTo(ReferenceDocs.S3_COMPATIBLE_REPOSITORIES.toString()));
-            assertThat(issue.get("details"), equalTo("""
-                This repository is configured to unsafely avoid conditional writes which may lead to repository corruption. \
-                Upgrade your storage to a system that is fully compatible with AWS S3 and then remove the \
-                [unsafely_incompatible_with_s3_conditional_writes] repository setting.\
-                """));
+            assertThat(issue.get("details"), equalTo(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_DEPRECATION_WARNING));
             assertThat(issue.get("resolve_during_rolling_upgrade"), equalTo(false));
         }
     }
 
     private Closeable registerRepository(String repositoryName, Settings extraRepositorySettings) throws IOException {
-        assertOK(
-            client().performRequest(
-                newXContentRequest(
-                    HttpMethod.PUT,
-                    "/_snapshot/" + repositoryName,
-                    (b, p) -> b.field("type", S3Repository.TYPE)
-                        .startObject("settings")
-                        .value(
-                            Settings.builder()
-                                .put("bucket", BUCKET)
-                                .put("base_path", BASE_PATH)
-                                .put("client", CLIENT)
-                                .put("canned_acl", "private")
-                                .put("storage_class", "standard")
-                                .put(extraRepositorySettings)
-                                .build()
-                        )
-                        .endObject()
+        final var request = newXContentRequest(
+            HttpMethod.PUT,
+            "/_snapshot/" + repositoryName,
+            (b, p) -> b.field("type", S3Repository.TYPE)
+                .startObject("settings")
+                .value(
+                    Settings.builder()
+                        .put("bucket", BUCKET)
+                        .put("base_path", BASE_PATH)
+                        .put("client", CLIENT)
+                        .put("canned_acl", "private")
+                        .put("storage_class", "standard")
+                        .put(extraRepositorySettings)
+                        .build()
                 )
-            )
+                .endObject()
         );
+        if (S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.exists(extraRepositorySettings)) {
+            request.setOptions(expectWarnings(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_SETTING_DEPRECATION_WARNING));
+        }
+        assertOK(client().performRequest(request));
         return () -> assertOK(client().performRequest(new Request("DELETE", "/_snapshot/" + repositoryName)));
     }
 

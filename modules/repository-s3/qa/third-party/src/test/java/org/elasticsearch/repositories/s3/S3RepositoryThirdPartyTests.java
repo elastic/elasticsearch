@@ -140,6 +140,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
             repoName
         ).setType("s3").setSettings(settings).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        assertWarnings(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_SETTING_DEPRECATION_WARNING);
     }
 
     @Override

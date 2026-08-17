@@ -258,7 +258,8 @@ class S3Repository extends MeteredBlobStoreRepository {
     @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // deprecated for a long time, can be removed in v10
     static final Setting<Boolean> UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES = Setting.boolSetting(
         "unsafely_incompatible_with_s3_conditional_writes",
-        false
+        false,
+        Setting.Property.Deprecated
     );
 
     private final S3Service service;
@@ -400,6 +401,17 @@ class S3Repository extends MeteredBlobStoreRepository {
         used for security-sensitive information. Instead, store all secure settings in the keystore. See [%s] for more information.\
         """, ReferenceDocs.SECURE_SETTINGS);
 
+    static final String UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_DEPRECATION_WARNING = Strings.format("""
+        This repository explicitly configures the deprecated [%s] repository setting. Remove this setting. If this setting is configured \
+        as [true], then first upgrade your storage to a system that is fully compatible with AWS S3.\
+        """, UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey());
+
+    static final String UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_SETTING_DEPRECATION_WARNING = Strings.format(
+        "[%s] setting was deprecated in Elasticsearch and will be removed in a future release. "
+            + "See the breaking changes documentation for the next major version.",
+        UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey()
+    );
+
     @Override
     public Collection<RepositoryDeprecationInfo> getDeprecationInfos() {
         final List<RepositoryDeprecationInfo> deprecationInfos = new ArrayList<>();
@@ -415,16 +427,13 @@ class S3Repository extends MeteredBlobStoreRepository {
                 )
             );
         }
-        if (supportsConditionalWrites == false) {
+        if (UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.exists(getMetadata().settings())) {
             deprecationInfos.add(
                 new RepositoryDeprecationInfo(
                     RepositoryDeprecationInfo.Level.CRITICAL,
-                    "S3 repository disables conditional writes",
+                    "S3 repository explicitly configures a deprecated conditional writes setting",
                     ReferenceDocs.S3_COMPATIBLE_REPOSITORIES,
-                    Strings.format("""
-                        This repository is configured to unsafely avoid conditional writes which may lead to repository corruption. \
-                        Upgrade your storage to a system that is fully compatible with AWS S3 and then remove the [%s] repository setting.\
-                        """, UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey()),
+                    UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_DEPRECATION_WARNING,
                     false
                 )
             );

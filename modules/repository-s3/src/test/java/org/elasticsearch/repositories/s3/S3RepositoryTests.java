@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -330,13 +329,23 @@ public class S3RepositoryTests extends ESTestCase {
         assertWarnings(S3Repository.INSECURE_CREDENTIALS_DEPRECATION_WARNING);
     }
 
-    public void testDeprecationInfosForUnsupportedConditionalWrites() {
+    public void testDeprecationInfosForConditionalWritesSetting() {
+        assertDeprecationInfosForConditionalWritesSetting(true);
+        assertWarnings(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_SETTING_DEPRECATION_WARNING);
+    }
+
+    public void testDeprecationInfosForConditionalWritesSettingMentionedWithDefaultValue() {
+        assertDeprecationInfosForConditionalWritesSetting(false);
+        assertWarnings(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_SETTING_DEPRECATION_WARNING);
+    }
+
+    private void assertDeprecationInfosForConditionalWritesSetting(boolean disablesConditionalWrites) {
         final var metadata = new RepositoryMetadata(
             "dummy-repo",
             "mock",
             Settings.builder()
                 .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
-                .put(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey(), true)
+                .put(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey(), disablesConditionalWrites)
                 .build()
         );
         try (var repo = createS3Repo(metadata)) {
@@ -345,13 +354,9 @@ public class S3RepositoryTests extends ESTestCase {
                 contains(
                     new RepositoryDeprecationInfo(
                         RepositoryDeprecationInfo.Level.CRITICAL,
-                        "S3 repository disables conditional writes",
+                        "S3 repository explicitly configures a deprecated conditional writes setting",
                         ReferenceDocs.S3_COMPATIBLE_REPOSITORIES,
-                        Strings.format("""
-                            This repository is configured to unsafely avoid conditional writes which may lead to repository corruption. \
-                            Upgrade your storage to a system that is fully compatible with AWS S3 and then remove the [%s] repository \
-                            setting.\
-                            """, S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey()),
+                        S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_DEPRECATION_WARNING,
                         false
                     )
                 )

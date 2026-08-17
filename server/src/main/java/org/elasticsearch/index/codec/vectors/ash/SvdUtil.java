@@ -217,6 +217,7 @@ final class SvdUtil {
             }
 
             // X_new = X @ B (row-broadcast for JIT vectorization)
+            // this uses doubles, so can't use matrixMultiply nor ESVectorUtil methods
             double[] xNew = new double[k * k];
             for (int i = 0; i < k; i++) {
                 int xBase = i * k;
@@ -250,31 +251,28 @@ final class SvdUtil {
         Arrays.fill(v, (float) (1.0 / Math.sqrt(k)));
         float[] mv = new float[k];
         float[] mtmv = new float[k];
+
         for (int iter = 0; iter < iterations; iter++) {
             // mv = M @ v
-            for (int i = 0; i < k; i++) {
-                mv[i] = ESVectorUtil.dotProduct(m, i * k, v, 0, k);
-            }
+            matrixVectorMultiply(m, k, k, v, mv);
             // mtmv = M^T @ mv: row-broadcast so M is read contiguously
-            Arrays.fill(mtmv, 0f);
             for (int i = 0; i < k; i++) {
                 ESVectorUtil.linearCombination(mv[i], m, i * k, mtmv, 0, k);
             }
-            // Normalize
-            double normSq = ESVectorUtil.dotProduct(mtmv, 0, mtmv, 0, k);
-            double norm = Math.sqrt(normSq);
-            if (norm < 1e-30) return 0f;
-            for (int j = 0; j < k; j++) {
-                v[j] = (float) (mtmv[j] / norm);
-            }
+            // Normalize mtmv - this becomes the new v for the next iteration
+            float normSq = ESVectorUtil.l2Normalize(mtmv);
+            if (normSq == 0f || !Float.isFinite(normSq)) return 0f;
+
+            float[] nextV = mtmv;
+            // re-use v for the next mtmv (less allocations woo!) and zero it out for re-use
+            Arrays.fill(v, 0f);
+            mtmv = v;
+            v = nextV;
         }
+
         // Compute ||M @ v|| which approximates sigma_max
-        double mvNormSq = 0;
-        for (int i = 0; i < k; i++) {
-            double sum = ESVectorUtil.dotProduct(m, i * k, v, 0, k);
-            mvNormSq += sum * sum;
-        }
-        return (float) Math.sqrt(mvNormSq);
+        matrixVectorMultiply(m, k, k, v, mv);
+        return (float) Math.sqrt(ESVectorUtil.dotProduct(mv, mv, k));
     }
 
     private static void sortDescending(float[] u, float[] s, float[] v, int m, int n) {
@@ -335,44 +333,82 @@ final class SvdUtil {
         // Block (subspace) power iteration: process all k vectors simultaneously.
         // V = random (n x k), iterate: V <- A^T (A V), then QR-orthogonalize.
         // This is O(iterations * m * n * k) total -- much faster than deflation for large k.
-        //
-        // We store V in column-major form (n x k) for QR, but use a transposed (k x n) copy
-        // for the matmul inner loops to enable row-contiguous access and JIT vectorization.
         int iters = 20; // sufficient for PCA init that gets refined by Procrustes
 
-        // V: (n x k) row-major -- each column is a candidate eigenvector
         float[] v = randomGaussians(new Random(seed), n * k);
         qrOrthogonalize(v, n, k);
 
         for (int iter = 0; iter < iters; iter++) {
-            // Build transposed view vT (k x n) for cache-friendly row access in matmul
-            float[] vT = transposeMatrix(v, n, k);
-
-            // W = A @ V (m x k): w[i*k + j] = dot(a[i*n..], vT[j*n..])
-            float[] w = new float[m * k];
-            for (int i = 0; i < m; i++) {
-                int aBase = i * n;
-                int wBase = i * k;
-                for (int j = 0; j < k; j++) {
-                    w[wBase + j] = ESVectorUtil.dotProduct(a, aBase, vT, j * n, n);
-                }
-            }
-
-            // V_new = A^T @ W (n x k): use row-broadcast accumulation
-            float[] vNew = new float[n * k];
-            for (int i = 0; i < m; i++) {
-                int aBase = i * n;
-                int wBase = i * k;
-                for (int d = 0; d < n; d++) {
-                    ESVectorUtil.linearCombination(a[aBase + d], w, wBase, vNew, d * k, k);
-                }
-            }
+            float[] w = matrixMultiply(a, v, m, n, k);          // W = A @ V (m x k)
+            float[] vNew = matrixMultiplyTA(a, w, m, n, k); // V_new = A^T @ W (n x k)
             qrOrthogonalize(vNew, n, k);
             v = vNew;
         }
 
         // Convert columns of V to rows for return format (k x n)
         return transposeMatrix(v, n, k);
+    }
+
+    /**
+     * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major.
+     * Result C is (m x n).
+     */
+    static float[] matrixMultiply(float[] a, float[] b, int m, int k, int n) {
+        float[] c = new float[m * n];
+        for (int i = 0; i < m; i++) {
+            int aBase = i * k;
+            int cBase = i * n;
+            for (int l = 0; l < k; l++) {
+                ESVectorUtil.linearCombination(a[aBase + l], b, l * n, c, cBase, n);
+            }
+        }
+        return c;
+    }
+
+    /**
+     * Computes {@code C = A^T @ B} where A is (m x k) and B is (m x n), both row-major.
+     * Result C is (k x n).
+     */
+    static float[] matrixMultiplyTA(float[] aT, float[] b, int m, int k, int n) {
+        float[] c = new float[k * n];
+        for (int l = 0; l < m; l++) {
+            int aBase = l * k;
+            int bBase = l * n;
+            for (int i = 0; i < k; i++) {
+                ESVectorUtil.linearCombination(aT[aBase + i], b, bBase, c, i * n, n);
+            }
+        }
+        return c;
+    }
+
+    /**
+     * Computes {@code result = A @ v} where A is a (rows x cols) row-major matrix.
+     *
+     * @param a      flat row-major matrix, length rows*cols
+     * @param rows   number of rows in A
+     * @param cols   number of columns in A (and length of v)
+     * @param v      input vector, length cols
+     * @return output vector, length rows
+     */
+    static float[] matrixVectorMultiply(float[] a, int rows, int cols, float[] v) {
+        float[] result = new float[rows];
+        matrixVectorMultiply(a, rows, cols, v, result);
+        return result;
+    }
+
+    /**
+     * Computes {@code result = A @ v} where A is a (rows x cols) row-major matrix.
+     *
+     * @param a      flat row-major matrix, length rows*cols
+     * @param rows   number of rows in A
+     * @param cols   number of columns in A (and length of v)
+     * @param v      input vector, length cols
+     * @param result output vector, length rows
+     */
+    static void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result) {
+        for (int i = 0; i < rows; i++) {
+            result[i] = ESVectorUtil.dotProduct(a, i * cols, v, 0, cols);
+        }
     }
 
     /**
@@ -404,7 +440,7 @@ final class SvdUtil {
     /**
      * Modified Gram-Schmidt QR orthogonalization in-place on columns of V (n x k), row-major.
      */
-    private static void qrOrthogonalize(float[] v, int n, int k) {
+    static void qrOrthogonalize(float[] v, int n, int k) {
         for (int j = 0; j < k; j++) {
             // Subtract projections of previous columns
             for (int prev = 0; prev < j; prev++) {
@@ -441,10 +477,7 @@ final class SvdUtil {
                     ESVectorUtil.linearCombination(u[i], a, i * n, w, 0, n);
                 }
                 // u_new = A w (m-dimensional)
-                float[] uNew = new float[m];
-                for (int i = 0; i < m; i++) {
-                    uNew[i] = ESVectorUtil.dotProduct(a, i * n, w, 0, n);
-                }
+                float[] uNew = matrixVectorMultiply(a, m, n, w);
                 // Deflate
                 for (int d = 0; d < found; d++) {
                     float dot = ESVectorUtil.dotProduct(uNew, deflated[d]);

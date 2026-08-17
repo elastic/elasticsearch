@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverSleeps;
 import org.elasticsearch.compute.operator.DriverStatus;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.esql.EsqlStreamTestUtils.StreamOutcome;
 import org.elasticsearch.xpack.esql.EsqlStreamTestUtils.Terminal;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
+import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
 import org.junit.After;
 import org.junit.Before;
 
@@ -83,6 +85,10 @@ import static org.hamcrest.Matchers.in;
 @ESIntegTestCase.ClusterScope(scope = TEST, minNumDataNodes = 2, maxNumDataNodes = 3, numClientNodes = 1)
 public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
 
+    private static final TimeValue SINK_INACTIVE_INTERVAL = TimeValue.timeValueMinutes(1);
+
+    private static final TimeValue EXCHANGE_CLEANUP_TIMEOUT = TimeValue.timeValueSeconds(SINK_INACTIVE_INTERVAL.seconds() * 3 / 2 + 30);
+
     // for hitting simulated network failures quickly
     private static final Settings DEFAULT_SETTINGS = Settings.builder()
         .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "5s")
@@ -112,7 +118,7 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
         Settings settings = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(DEFAULT_SETTINGS)
-            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMinutes(1))
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, SINK_INACTIVE_INTERVAL)
             .build();
         logger.info("settings {}", settings);
         return settings;
@@ -214,8 +220,25 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
                 .get();
             assertThat("Leftover ES|QL tasks: " + tasks.getTasks(), tasks.getTasks(), empty());
         }, 60, TimeUnit.SECONDS);
+        awaitExchangesReleased();
         ensureBlocksReleased();
-        ensureExchangesAreReleased();
+    }
+
+    private void awaitExchangesReleased() throws Exception {
+        for (String node : internalCluster().getNodeNames()) {
+            TransportEsqlQueryAction esqlQueryAction = internalCluster().getInstance(TransportEsqlQueryAction.class, node);
+            ExchangeService exchangeService = esqlQueryAction.exchangeService();
+            assertBusy(() -> {
+                if (exchangeService.lifecycleState() == Lifecycle.State.STARTED) {
+                    assertTrue("Leftover exchanges " + exchangeService + " on node " + node, exchangeService.isEmpty());
+                }
+            }, EXCHANGE_CLEANUP_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        }
+    }
+
+    @After
+    public void awaitExchangesReleasedAfterDisruption() throws Exception {
+        awaitExchangesReleased();
     }
 
     private StreamOutcome stream(String body, StreamGate gate, String... queryParams) throws Exception {

@@ -110,6 +110,7 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
     private boolean deliveryPending;
 
     private long pagesDelivered;
+    private long rowsPublished;
     private final SubscribableListener<Void> closedListener = new SubscribableListener<>();
 
     // Decremented on each Producer.finish(); zero → pagesFinished = true.
@@ -157,6 +158,7 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
     }
 
     public synchronized Producer registerProducer() {
+        assert pagesFinished == false : "producer registered after the stream's pages were finished";
         outstandingProducers++;
         return new Producer();
     }
@@ -172,7 +174,9 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
                 releaseAndStop = cancelled || terminated();
                 if (releaseAndStop == false) {
                     buffer.addLast(page);
-                    bufferedRows += page.getPositionCount();
+                    int positionCount = page.getPositionCount();
+                    bufferedRows += positionCount;
+                    rowsPublished += positionCount;
                     assert assertBufferInvariant();
                 }
             }
@@ -212,6 +216,10 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
 
     public synchronized StreamFooter footer() {
         return footer;
+    }
+
+    public synchronized long rowsPublished() {
+        return rowsPublished;
     }
 
     public synchronized Exception failure() {

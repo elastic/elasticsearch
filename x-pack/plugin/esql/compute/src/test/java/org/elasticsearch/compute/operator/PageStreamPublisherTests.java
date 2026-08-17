@@ -849,4 +849,45 @@ public class PageStreamPublisherTests extends ComputeTestCase {
             subscription.cancel();
         }
     }
+
+    public void testRowsPublishedCountsAcrossProducers() {
+        PageStreamPublisher publisher = new PageStreamPublisher(1024);
+        PageStreamPublisher.Producer producer1 = publisher.registerProducer();
+        PageStreamPublisher.Producer producer2 = publisher.registerProducer();
+        TestSubscriber subscriber = subscribeWithDemand(publisher);
+
+        assertThat("initial rowsPublished must be 0", publisher.rowsPublished(), equalTo(0L));
+
+        producer1.addPage(makePageWithValues(0, 3));
+        assertThat(publisher.rowsPublished(), equalTo(3L));
+
+        producer2.addPage(makePageWithValues(3, 7));
+        assertThat(publisher.rowsPublished(), equalTo(10L));
+
+        producer1.addPage(makePageWithValues(10, 5));
+        assertThat(publisher.rowsPublished(), equalTo(15L));
+
+        producer1.finish();
+        producer2.finish();
+
+        expectPage(subscriber, rows(0, 15));
+
+        subscriber.requestOne();
+        publisher.completeWithFooter(0, List.of(), false);
+        assertTrue("stream must complete", subscriber.completed);
+        assertThat(publisher.rowsPublished(), equalTo(15L));
+    }
+
+    public void testRowsPublishedDoesNotCountRejectedPages() {
+        PageStreamPublisher publisher = new PageStreamPublisher(1024);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
+        subscribeWithDemand(publisher);
+
+        assertTrue(producer.addPage(makePageWithValues(0, 4)));
+        assertThat(publisher.rowsPublished(), equalTo(4L));
+
+        publisher.failStream(new RuntimeException("terminal"));
+        assertFalse("addPage must return false after terminal state", producer.addPage(makePageWithValues(4, 6)));
+        assertThat("rejected page rows must not be counted", publisher.rowsPublished(), equalTo(4L));
+    }
 }

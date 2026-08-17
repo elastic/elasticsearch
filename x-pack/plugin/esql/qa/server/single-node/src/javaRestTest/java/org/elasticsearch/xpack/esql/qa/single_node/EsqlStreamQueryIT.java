@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -24,12 +25,14 @@ import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlStreamTestUtils.parseNdjson;
 import static org.elasticsearch.xpack.esql.EsqlStreamTestUtils.tolerateDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
@@ -58,6 +61,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
     }
 
     private static final String INDEX = "stream-test";
+    private static final int AGREEMENT_PAGE_SIZE = 2;
 
     @Before
     public void initIndex() throws IOException {
@@ -247,9 +251,9 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
     public void testDropNullColumnsAgreesWithQueryEndpoint() throws IOException {
         assertStreamAgreesWithQuery("FROM stream-test | SORT value | LIMIT 100 | RENAME sparse_field AS s | KEEP value, s");
         assertStreamAgreesWithQuery("FROM stream-test | SORT value | LIMIT 100 | EVAL s = sparse_field | KEEP value, s");
-        assertStreamAgreesWithQuery("FROM stream-test | STATS c = COUNT(*) BY s = sparse_field");
+        assertStreamAgreesWithQueryIgnoringRowOrder("FROM stream-test | STATS c = COUNT(*) BY s = sparse_field");
         assertStreamAgreesWithQuery("FROM stream-test | SORT value | LIMIT 100 | EVAL s = sparse_field | EVAL t = s | KEEP value, t");
-        assertStreamAgreesWithQuery("FROM stream-test | STATS c = COUNT(*) BY sparse_field");
+        assertStreamAgreesWithQueryIgnoringRowOrder("FROM stream-test | STATS c = COUNT(*) BY sparse_field");
         assertStreamAgreesWithQuery("FROM stream-test | SORT value | LIMIT 100 | KEEP value, description");
         assertStreamAgreesWithQuery("FROM stream-test | SORT value | LIMIT 100 | KEEP value, noidx_field, sparse_field");
     }
@@ -275,6 +279,47 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         assertTrue("alias of a populated field must not be dropped", columnNames(lines.get(0), "columns").contains("d"));
     }
 
+    public void testDropNullColumnsAcrossCommaSeparatedIndices() throws IOException {
+        Request createIndex2 = new Request("PUT", "/stream-test-2");
+        createIndex2.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "value":        { "type": "integer" },
+                  "description":  { "type": "keyword" },
+                  "sparse_field": { "type": "keyword" }
+                }
+              }
+            }
+            """);
+        assertOK(client().performRequest(createIndex2));
+
+        Request bulk2 = new Request("POST", "/_bulk?index=stream-test-2&refresh=true");
+        bulk2.setJsonEntity("""
+            {"index": {"_id": "5"}}
+            {"value": 5, "description": "number five"}
+            {"index": {"_id": "6"}}
+            {"value": 6, "description": "number six"}
+            """);
+        assertOK(client().performRequest(bulk2));
+
+        String query = "FROM stream-test,stream-test-2 | SORT value | LIMIT 10 | KEEP value, description, sparse_field";
+        List<Map<String, Object>> lines = stream(streamBody(query, 2), "drop_null_columns=true");
+
+        Map<String, Object> header = lines.get(0);
+        assertThat("header must contain all_columns", header, hasKey("all_columns"));
+        assertThat("header must contain columns", header, hasKey("columns"));
+
+        assertThat("all_columns must list all three fields", columnList(header, "all_columns"), hasSize(3));
+
+        List<String> trimmedNames = columnNames(header, "columns");
+        assertTrue("value must survive: it is populated in both indices", trimmedNames.contains("value"));
+        assertTrue("description must survive: it is populated in both indices", trimmedNames.contains("description"));
+        assertFalse("sparse_field must be dropped: it is empty in both indices", trimmedNames.contains("sparse_field"));
+
+        assertStreamAgreesWithQuery(query);
+    }
+
     public void testDropNullColumnsAggregateMetricDoubleIsKept() throws IOException {
         String query = "FROM stream-test | SORT value | LIMIT 100 | KEEP value, agg_field, sparse_field";
         List<Map<String, Object>> lines = stream(streamBody(query, 2), "drop_null_columns=true");
@@ -287,17 +332,90 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         assertStreamAgreesWithQuery(query);
     }
 
+    public void testInlineStats() throws IOException {
+        String esql = "FROM stream-test | INLINE STATS avg_val = AVG(value) | SORT value | LIMIT 10";
+        assertStreamAgreesWithQueryIgnoringRowOrder(esql);
+
+        List<Map<String, Object>> lines = stream(streamBody(esql, AGREEMENT_PAGE_SIZE), "drop_null_columns=true");
+        long headerFrameCount = lines.stream().filter(l -> l.containsKey("columns")).count();
+        assertEquals("stream must emit exactly one columns header frame for an INLINE STATS query", 1L, headerFrameCount);
+    }
+
+    public void testSubqueryIn() throws IOException {
+        String esql = "FROM stream-test | WHERE value IN (FROM stream-test | KEEP value | WHERE value > 2) | SORT value";
+        assertStreamAgreesWithQuery(esql);
+
+        List<Map<String, Object>> lines = stream(streamBody(esql, AGREEMENT_PAGE_SIZE), "drop_null_columns=true");
+        long headerFrameCount = lines.stream().filter(l -> l.containsKey("columns")).count();
+        assertEquals("stream must emit exactly one columns header frame for an IN-subquery query", 1L, headerFrameCount);
+    }
+
+    public void testExplain() throws IOException {
+        assumeTrue("EXPLAIN is snapshot only", Build.current().isSnapshot());
+        String esql = "EXPLAIN (FROM stream-test | SORT value | LIMIT 10 | KEEP value)";
+
+        List<Map<String, Object>> lines = stream(streamBody(esql, AGREEMENT_PAGE_SIZE));
+        long headerFrameCount = lines.stream().filter(l -> l.containsKey("columns")).count();
+        assertEquals("EXPLAIN stream must emit exactly one columns header frame", 1L, headerFrameCount);
+        List<String> explainColumnNames = columnNames(lines.get(0), "columns");
+        assertEquals(
+            "EXPLAIN columns must be cluster, node, role, type, plan",
+            List.of("cluster", "node", "role", "type", "plan"),
+            explainColumnNames
+        );
+    }
+
     private void assertStreamAgreesWithQuery(String esql) throws IOException {
+        assertStreamAgreesWithQuery(esql, true);
+    }
+
+    private void assertStreamAgreesWithQueryIgnoringRowOrder(String esql) throws IOException {
+        assertStreamAgreesWithQuery(esql, false);
+    }
+
+    private void assertStreamAgreesWithQuery(String esql, boolean orderedRows) throws IOException {
         Map<String, Object> queryResponse = query(esql);
         List<String> queryAllColumns = columnNames(queryResponse, "all_columns");
         List<String> queryColumns = columnNames(queryResponse, "columns");
 
-        Map<String, Object> streamHeader = stream(streamBody(esql, 10), "drop_null_columns=true").get(0);
+        List<Map<String, Object>> lines = stream(streamBody(esql, AGREEMENT_PAGE_SIZE), "drop_null_columns=true");
+        Map<String, Object> streamHeader = lines.get(0);
         List<String> streamAllColumns = columnNames(streamHeader, "all_columns");
         List<String> streamColumns = columnNames(streamHeader, "columns");
 
         assertEquals("all_columns must agree between /_query and /_query/stream for: " + esql, queryAllColumns, streamAllColumns);
         assertEquals("columns must agree between /_query and /_query/stream for: " + esql, queryColumns, streamColumns);
+
+        List<List<Object>> queryRows = rows(queryResponse);
+        List<List<Object>> streamRows = streamRows(lines);
+
+        assertThat("query returned no rows, so the data comparison would be vacuous: " + esql, queryRows, not(empty()));
+        for (List<Object> row : streamRows) {
+            assertThat("stream row width must match the trimmed column count for: " + esql, row.size(), equalTo(streamColumns.size()));
+        }
+        if (orderedRows) {
+            assertEquals("values must agree between /_query and /_query/stream for: " + esql, queryRows, streamRows);
+        } else {
+            assertEquals(
+                "values must agree (ignoring row order) between /_query and /_query/stream for: " + esql,
+                canonicalRows(queryRows),
+                canonicalRows(streamRows)
+            );
+        }
+    }
+
+    private static List<List<Object>> streamRows(List<Map<String, Object>> lines) {
+        List<List<Object>> all = new ArrayList<>();
+        for (Map<String, Object> line : lines) {
+            if (line.containsKey("values")) {
+                all.addAll(rows(line));
+            }
+        }
+        return all;
+    }
+
+    private static List<String> canonicalRows(List<List<Object>> rows) {
+        return rows.stream().map(String::valueOf).sorted().toList();
     }
 
     private void assertNoColumnTrimmed(String queryBody, String expectedColumnName) throws IOException {

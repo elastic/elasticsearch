@@ -50,6 +50,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -259,6 +260,118 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(timeout);
         } catch (ElasticsearchTimeoutException e) {
             throw new AssertionError("timeout", e);
+        }
+    }
+
+    public void testStreamingLogging() throws Exception {
+        int numDocs1 = setupIndex("stream-index-1", "192.168.0.1");
+        int numDocs2 = setupIndex("stream-index-2", "10.0.0.1");
+
+        assertStreamQuery("FROM stream-index-* | LIMIT 0", 0);
+        assertStreamQuery("FROM stream-index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100", 2);
+        assertStreamQuery("FROM stream-index-* | LIMIT 100", numDocs1 + numDocs2);
+    }
+
+    public void testStreamingLoggingFilter() throws Exception {
+        int numDocs = setupIndex("stream-filter-index", "192.168.0.1");
+        QueryBuilder filter = new TermQueryBuilder("host", "192.168.0.1");
+        EsqlQueryRequest source = syncEsqlQueryRequest("FROM stream-filter-index | LIMIT 100").filter(filter);
+        assertStreamQuery(source, "FROM stream-filter-index | LIMIT 100", numDocs, filter, "stream-filter-index");
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testStreamingLoggingPositionalParams() throws Exception {
+        int numDocs = setupIndex("stream-params-index", "192.168.0.1");
+        String query = "FROM stream-params-index | WHERE host == ? AND value < ? AND value != ? | LIMIT 100";
+        EsqlQueryRequest source = syncEsqlQueryRequest(query);
+        source.params(
+            new QueryParams(List.of(paramAsConstant(null, "192.168.0.1"), paramAsConstant(null, 1000), paramAsConstant(null, 1000)))
+        );
+        StreamQueryTestUtils.CountingStreamSubscriber subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
+        StreamQueryTestUtils.executeStreamRequest(client(), source, subscriber);
+
+        var event = appender.getLastEventAndReset();
+        var message = getMessageData(event);
+        assertMessageSuccess(message, EsqlLogContext.TYPE, query);
+        assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(numDocs)));
+        var params = (Map<String, Object>) getMessageField(event, QUERY_FIELD_PARAMS);
+        assertNotNull(params);
+        assertThat(params, hasKey(QueryLogging.QUERY_FIELD_PARAM_POSITIONAL));
+        var posParams = (List<Object>) params.get(QueryLogging.QUERY_FIELD_PARAM_POSITIONAL);
+        assertThat(posParams, hasSize(3));
+        assertThat(posParams.get(0), equalTo("192.168.0.1"));
+        assertThat(posParams.get(1), equalTo("1000"));
+        assertThat(posParams.get(2), equalTo("1000"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testStreamingLoggingNamedParams() throws Exception {
+        int numDocs = setupIndex("stream-named-index", "192.168.0.1");
+        String query = "FROM stream-named-index | WHERE host == ?host_name AND value < ?max_value | LIMIT 100";
+        EsqlQueryRequest source = syncEsqlQueryRequest(query);
+        source.params(new QueryParams(List.of(paramAsConstant("host_name", "192.168.0.1"), paramAsConstant("max_value", 1000))));
+
+        StreamQueryTestUtils.CountingStreamSubscriber subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
+        StreamQueryTestUtils.executeStreamRequest(client(), source, subscriber);
+
+        var event = appender.getLastEventAndReset();
+        var message = getMessageData(event);
+        assertMessageSuccess(message, EsqlLogContext.TYPE, query);
+        assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(numDocs)));
+        var params = (Map<String, Object>) getMessageField(event, QUERY_FIELD_PARAMS);
+        assertNotNull(params);
+        assertThat(params.get("host_name"), equalTo("192.168.0.1"));
+        assertThat(params.get("max_value"), equalTo("1000"));
+    }
+
+    public void testStreamingLoggingFailure() throws Exception {
+        setupIndex("stream-fail-index", "192.168.0.1");
+        String query = "FROM stream-fail-index | EVAL a = count(*) | LIMIT 100";
+
+        EsqlQueryRequest source = syncEsqlQueryRequest(query);
+        source.pageSize(between(1, 10));
+        StreamQueryTestUtils.CountingStreamSubscriber subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
+        expectThrows(Exception.class, () -> StreamQueryTestUtils.executeStreamRequest(client(), source, subscriber));
+
+        var event = appender.getLastEventAndReset();
+        assertNotNull("expected a query-log failure event", event);
+        var message = getMessageData(event);
+        assertMessageFailure(message, EsqlLogContext.TYPE, query, VerificationException.class, "count(*)");
+    }
+
+    private void assertStreamQuery(String query, long expectedHits) throws Exception {
+        assertStreamQuery(syncEsqlQueryRequest(query), query, expectedHits, null, null);
+    }
+
+    private void assertStreamQuery(EsqlQueryRequest source, String query, long expectedHits, QueryBuilder filter, String expectedIndices)
+        throws Exception {
+        StreamQueryTestUtils.CountingStreamSubscriber subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
+        StreamQueryTestUtils.executeStreamRequest(client(), source, subscriber);
+
+        var event = appender.getLastEventAndReset();
+        assertNotNull("expected a query-log event for /_query/stream", event);
+        var message = getMessageData(event);
+        assertMessageSuccess(message, EsqlLogContext.TYPE, query);
+
+        assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(expectedHits)));
+        if (expectedHits > 0) {
+            assertThat(subscriber.rowCount.get(), greaterThan(0));
+            assertThat(Long.parseLong(message.get(QUERY_FIELD_RESULT_COUNT)), equalTo((long) subscriber.rowCount.get()));
+        }
+        if (expectedIndices != null) {
+            assertThat(message.get(QUERY_FIELD_INDICES), equalTo(expectedIndices));
+        } else {
+            assertNotNull(message.get(QUERY_FIELD_INDICES));
+        }
+        if (filter != null) {
+            assertThat(message.get(QUERY_FIELD_FILTER), equalTo(QueryLoggerContext.filterToLogString(filter).get()));
+        } else {
+            assertNull(message.get(QUERY_FIELD_FILTER));
+        }
+
+        for (String key : new String[] { "documents_found", "values_loaded", "rows_emitted", "bytes_read", "read_nanos", "cpu_nanos" }) {
+            String fullKey = EsqlLogProducer.PROFILE_PREFIX + key;
+            assertTrue("Expected rollup field present: " + fullKey, message.containsKey(fullKey));
         }
     }
 

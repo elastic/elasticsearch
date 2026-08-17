@@ -103,11 +103,11 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
 
     @Override
     public void onFailure(Exception e) {
-        if (streamStarted) {
-            logger.debug("transport failure after stream started; error already delivered via publisher", e);
-            return;
-        }
         try {
+            if (streamStarted) {
+                logger.debug("transport failure after stream started; delivering the error via the publisher", e);
+                return;
+            }
             if (terminalEmitted.compareAndSet(false, true) == false) {
                 logger.debug("failure response already sent; discarding duplicate onFailure", e);
                 return;

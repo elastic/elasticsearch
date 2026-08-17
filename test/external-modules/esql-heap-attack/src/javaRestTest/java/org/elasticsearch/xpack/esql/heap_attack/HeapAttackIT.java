@@ -1058,13 +1058,13 @@ public class HeapAttackIT extends HeapAttackTestCase {
 
     public void testStreamingApiAvoidsCircuitBreak() throws IOException {
         int docs = 64;
+        String esqlQuery = "FROM bigtext | KEEP f";
         initGiantTextField(docs, false, 1);
         try {
             setRequestBreakerLimit("5%");
+            assertCircuitBreaks(attempt -> fetchBigText(esqlQuery));
 
-            assertCircuitBreaks(attempt -> fetchBigText());
-
-            var s = streamQuery("FROM bigtext | KEEP f", 1);
+            var s = streamQuery(esqlQuery, 1);
             assertFalse("streaming must not surface an error", s.sawError());
             assertThat(s.columns(), hasSize(1));
             assertMap(s.columns().get(0), matchesMap().entry("name", "f").entry("type", "text"));
@@ -1076,9 +1076,9 @@ public class HeapAttackIT extends HeapAttackTestCase {
         }
     }
 
-    private Map<String, Object> fetchBigText() throws IOException {
+    private Map<String, Object> fetchBigText(String esqlQuery) throws IOException {
         StringBuilder query = startQuery();
-        query.append("FROM bigtext | KEEP f\"}");
+        query.append(esqlQuery).append("\"}");
         return responseAsMap(query(query.toString(), "columns"));
     }
 

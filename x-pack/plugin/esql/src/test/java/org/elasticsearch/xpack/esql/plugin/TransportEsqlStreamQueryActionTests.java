@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -275,23 +274,56 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         assertEquals(0, names.length);
     }
 
-    public void testCollectIndexPatternsEsQueryExec() {
-        EsQueryExec plan = new EsQueryExec(Source.EMPTY, "logs-*", IndexMode.STANDARD, List.of(), null, List.of(), null, List.of());
-        Set<String> patterns = TransportEsqlStreamQueryAction.collectIndexPatterns(plan);
-        assertEquals(Set.of("logs-*"), patterns);
-    }
-
-    public void testCollectIndexPatternsEsSourceExec() {
-        EsSourceExec plan = new EsSourceExec(Source.EMPTY, "metrics-*", IndexMode.STANDARD, List.of(), null);
-        Set<String> patterns = TransportEsqlStreamQueryAction.collectIndexPatterns(plan);
-        assertEquals(Set.of("metrics-*"), patterns);
-    }
-
-    public void testCollectIndexPatternsFragmentExec() {
-        EsRelation relation = new EsRelation(Source.EMPTY, "traces-*", IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), List.of());
+    public void testCollectIndexNamesFragmentExec() {
+        EsRelation relation = new EsRelation(
+            Source.EMPTY,
+            "traces-*",
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of("traces-2024.01.01", IndexMode.STANDARD),
+            List.of()
+        );
         FragmentExec plan = new FragmentExec(relation);
-        Set<String> patterns = TransportEsqlStreamQueryAction.collectIndexPatterns(plan);
-        assertEquals(Set.of("traces-*"), patterns);
+        Set<String> names = TransportEsqlStreamQueryAction.collectIndexNames(plan);
+        assertEquals(Set.of("traces-2024.01.01"), names);
+    }
+
+    public void testCollectIndexNamesFragmentExecUsesConcreteIndicesNotPattern() {
+        EsRelation relation = new EsRelation(
+            Source.EMPTY,
+            "index1,index2",
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of("index1", IndexMode.STANDARD, "index2", IndexMode.STANDARD),
+            List.of()
+        );
+        FragmentExec plan = new FragmentExec(relation);
+        Set<String> names = TransportEsqlStreamQueryAction.collectIndexNames(plan);
+        assertEquals(Set.of("index1", "index2"), names);
+    }
+
+    public void testCollectIndexNamesFragmentExecKeepsClusterAliasQualification() {
+        EsRelation relation = new EsRelation(
+            Source.EMPTY,
+            "remote:idx,local_idx",
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of("remote:idx", IndexMode.STANDARD, "local_idx", IndexMode.STANDARD),
+            List.of()
+        );
+        FragmentExec plan = new FragmentExec(relation);
+        Set<String> names = TransportEsqlStreamQueryAction.collectIndexNames(plan);
+        assertEquals(Set.of("remote:idx", "local_idx"), names);
+    }
+
+    public void testCollectIndexNamesFragmentExecEmptyConcreteIndices() {
+        EsRelation relation = new EsRelation(Source.EMPTY, "empty-index", IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), List.of());
+        FragmentExec plan = new FragmentExec(relation);
+        Set<String> names = TransportEsqlStreamQueryAction.collectIndexNames(plan);
+        assertEquals(Set.of(), names);
     }
 
     public void testMarkPartialFromCompletionInfoFlipsExecutionInfo() {

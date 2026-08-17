@@ -65,6 +65,9 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     /** Breaker label for a buffered sub-search response; maps to {@link ChildMemoryCircuitBreaker#CATEGORY_MSEARCH}. */
     static final String MSEARCH_RESPONSE_BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_MSEARCH + "[response]";
 
+    /** Breaker label for bytes reserved for a buffered failure item; maps to {@link ChildMemoryCircuitBreaker#CATEGORY_MSEARCH}. */
+    static final String MSEARCH_FAILURE_BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_MSEARCH + "[failure]";
+
     /**
      * Fixed per-response overhead charged against the circuit breaker for every sub-search
      * response, regardless of the number of hits.
@@ -704,12 +707,12 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     ) {
         long bytes = estimateFailureBytes(item.getFailure());
         try {
-            circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, "<msearch_failure>");
+            circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, MSEARCH_FAILURE_BREAKER_LABEL);
         } catch (CircuitBreakingException tripped) {
             return accountBoundedFailureSubstitute(breakerAccounting, tripped);
         } catch (Exception unexpected) {
             logger.warn("msearch circuit breaker: failed to reserve bytes for failure item", unexpected);
-            circuitBreaker.addWithoutBreaking(bytes);
+            circuitBreaker.addWithoutBreaking(bytes, MSEARCH_FAILURE_BREAKER_LABEL);
             breakerAccounting.add(bytes, 0);
             return item;
         }
@@ -728,9 +731,9 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     ) {
         long substituteBytes = estimateFailureBytes(substitute);
         try {
-            circuitBreaker.addEstimateBytesAndMaybeBreak(substituteBytes, "<msearch_failure>");
+            circuitBreaker.addEstimateBytesAndMaybeBreak(substituteBytes, MSEARCH_FAILURE_BREAKER_LABEL);
         } catch (CircuitBreakingException stillTripped) {
-            circuitBreaker.addWithoutBreaking(substituteBytes);
+            circuitBreaker.addWithoutBreaking(substituteBytes, MSEARCH_FAILURE_BREAKER_LABEL);
         }
         breakerAccounting.add(substituteBytes, 0);
         return new MultiSearchResponse.Item(null, substitute);
@@ -756,8 +759,9 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         }
 
         void releaseAll() {
-            // Release incremental estimates under the same label they were admitted with; handoff bytes were admitted
-            // elsewhere (query-phase reduce) so they stay unlabeled.
+            // Release incremental estimates under a msearch label so they cancel the response/failure admits on the
+            // per-category gauge (both msearch[response] and msearch[failure] map to the same msearch category). Handoff
+            // bytes were admitted elsewhere (query-phase reduce) so they stay unlabeled.
             long incremental = incrementalBytes.get();
             if (incremental > 0) {
                 circuitBreaker.addWithoutBreaking(-incremental, MSEARCH_RESPONSE_BREAKER_LABEL);

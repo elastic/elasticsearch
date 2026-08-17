@@ -35,6 +35,7 @@ public class ChildMemoryCircuitBreakerTests extends ESTestCase {
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_PREALLOCATE, ChildMemoryCircuitBreaker.categoryFor("preallocate[aggregations]"));
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_PREALLOCATE, ChildMemoryCircuitBreaker.categoryFor("preallocate[test]"));
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_MSEARCH, ChildMemoryCircuitBreaker.categoryFor("msearch[response]"));
+        assertEquals(ChildMemoryCircuitBreaker.CATEGORY_MSEARCH, ChildMemoryCircuitBreaker.categoryFor("msearch[failure]"));
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_FETCH, ChildMemoryCircuitBreaker.categoryFor("fetch[source]"));
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_FETCH, ChildMemoryCircuitBreaker.categoryFor("fetch[script_field]"));
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_WILDCARD, ChildMemoryCircuitBreaker.categoryFor("wildcard[ci]:my_field"));

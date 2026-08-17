@@ -14,6 +14,41 @@ FROM tdigest_standard_index
 
 // -------------------------------------------------------------------------------
 
+bucket in eval
+required_capability: fn_bucket_histogram_types
+
+FROM tdigest_standard_index
+ | WHERE STARTS_WITH(instance, "hand-rolled")
+ | EVAL bucket = BUCKET(responseTime, 0.25)
+ | MV_EXPAND bucket
+ | SORT instance, RANGE_MIN(bucket)
+ | KEEP instance, bucket
+;
+
+instance:keyword  | bucket:double_range
+hand-rolled       | 0.0..0.25
+hand-rolled       | 0.25..0.5
+hand-rolled       | 0.5..0.75
+hand-rolled-empty | null
+;
+
+// -------------------------------------------------------------------------------
+
+bucket limit
+required_capability: fn_bucket_histogram_types
+
+FROM tdigest_standard_index | WHERE instance == "hand-rolled" | EVAL bucket = BUCKET(responseTime, 0.00001) | KEEP bucket
+;
+
+warning:Line 1:79: evaluation of [BUCKET(responseTime, 0.00001)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:79: java.lang.ArithmeticException: T-Digest is too large to create buckets of size 1.0E-5, would yield 39999 buckets
+
+bucket:double_range
+null
+;
+
+// -------------------------------------------------------------------------------
+
 suffix cast to_tdigest from histogram
 required_capability: casting_operator_for_histogram_types
 

@@ -32,6 +32,29 @@ dummy-zero_threshold_only | "{""scale"":0,""zero"":{""threshold"":2.0E-5}}"
 
 // -------------------------------------------------------------------------------
 
+bucket in eval
+required_capability: fn_bucket_histogram_types
+
+FROM exp_histo_sample
+ | WHERE instance IN ("dummy-empty", "dummy-full", "dummy-zero_count_only")
+ | EVAL bucket = BUCKET(responseTime, 25)
+ | MV_EXPAND bucket
+ | SORT instance, RANGE_MIN(bucket)
+ | KEEP instance, bucket
+;
+
+instance:keyword      | bucket:double_range
+dummy-empty           | null
+dummy-full            | -100.0..-75.0
+dummy-full            | -50.0..-25.0
+dummy-full            | -25.0..0.0
+dummy-full            | 0.0..25.0
+dummy-full            | 25.0..50.0
+dummy-zero_count_only | 0.0..25.0
+;
+
+// -------------------------------------------------------------------------------
+
 to_exponential_histogram from histogram
 required_capability: to_exponential_histogram
 

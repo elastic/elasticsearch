@@ -18,45 +18,18 @@ import org.elasticsearch.core.Releasables;
 import java.util.Arrays;
 
 /**
- * Scatters a single {@link EscfBatch} into {@code partitionCount} per-partition batches, driven
- * by a caller-supplied selector array: {@code selectors[row]} gives the destination partition
- * (shard index) for each row.
+ * Scatters a single {@link EscfBatch} into per-partition batches, where {@code selectors[row]}
+ * gives the destination partition for each row.
  *
- * <p>This is the alternative to computing routing during encoding. The caller encodes all documents
- * into one batch, then calls {@link #scatter} once the shard mapping is known. This decouples the
- * encode path (parsing, column building) from the routing decision, which is useful when the shard
- * count changes between encoding and routing (re-sharding), or when the routing decision requires
- * the fully-built batch.
+ * <p>Values are never decoded into Java scalars and re-encoded — BOOL uses bitset reads, fixed
+ * 64-bit kinds (LONG, DOUBLE) copy raw words, and var-width kinds (STRING, BINARY, UNION) copy
+ * opaque byte payloads. Kind hints are applied up front so all-absent partitions preserve the
+ * source column's kind, and UNION stays UNION in every partition.
  *
- * <p>Scatter is a <em>mechanical reshuffle</em>: values are never decoded into Java scalars and
- * re-encoded. The implementation uses three branches based on physical representation:
- * <ol>
- *   <li>Bitset ({@link EscfColumnKind#BOOL}): random-access bitset reads.</li>
- *   <li>Fixed 64-bit words ({@link EscfColumnKind#LONG}, {@link EscfColumnKind#DOUBLE}, and their
- *       array variants): raw bit patterns pass through via
- *       {@link EscfColumnBuilder#setRawFixed64} / {@link EscfColumnBuilder#appendFixedBits}.</li>
- *   <li>Var-width byte ranges ({@link EscfColumnKind#STRING}, {@link EscfColumnKind#BINARY}, their
- *       array variants, and {@link EscfColumnKind#UNION}): opaque byte payloads move verbatim
- *       through a {@link AbstractVarColumn.DenseBytesRefValuesCursor}.</li>
- * </ol>
- *
- * <p>Scatter is <em>kind-preserving for all seven column kinds</em>:
- * {@link EscfColumnBuilder#hintScalar}, {@link EscfColumnBuilder#hintArray}, and
- * {@link EscfColumnBuilder#hintUnion} are applied up front so that even an all-absent destination
- * partition finishes with the source column's kind. UNION columns stay UNION in every destination
- * partition regardless of how homogeneous the received rows are — raw slot copying requires the
- * destination to be a union builder from row 0.
- *
- * <p>The scatterer is <em>reusable</em>: scratch arrays are retained between calls and grown as
- * needed. Call {@link #close()} to release any in-flight state. The recycler is <em>not</em> owned
- * by this class and must not be closed via {@link #close()}.
- *
- * <p>Scatter builds all per-partition {@link EscfColumnData} arrays first, then constructs all
- * {@link EscfBatch} objects in a single non-throwing loop. This ensures that a failure during
- * column building can release all allocated buffers without double-closing already-handed-off data.
- *
- * <p><strong>Must live in {@code org.elasticsearch.escf}</strong>: it accesses package-private
- * APIs on {@link EscfBatch}, {@link EscfColumn} subtypes, and {@link EscfColumnBuilder}.
+ * <p>Reusable: scratch arrays grow as needed; call {@link #close()} to release in-flight state.
+ * The recycler is not owned by this class. Must live in {@code org.elasticsearch.escf} for
+ * package-private access to {@link EscfBatch}, {@link EscfColumn} subtypes, and
+ * {@link EscfColumnBuilder}.
  */
 public final class EscfBatchScatterer implements Releasable {
 
@@ -73,19 +46,13 @@ public final class EscfBatchScatterer implements Releasable {
     }
 
     /**
-     * Scatters {@code source}'s rows into up to {@code partitionCount} new batches.
-     * {@code selectors[row]} must be in {@code [0, partitionCount)} for every row in
-     * {@code [0, source.docCount())}.
+     * Scatters {@code source}'s rows into {@code partitionCount} new batches.
      *
-     * <p>Returns an array of length {@code partitionCount}, indexed by partition. Partitions that
-     * received no rows have a {@code null} entry. Each non-null batch owns its buffers; the caller
-     * is responsible for closing them. The source batch's {@link EscfBatch#schema()} is shared
-     * (not copied) — do not modify the schema after scatter.
+     * <p>Returns an array of length {@code partitionCount}; partitions with no rows have a
+     * {@code null} entry. Each non-null batch owns its buffers and must be closed by the caller.
+     * The schema is shared, not copied. The source may be closed immediately after this returns.
      *
-     * <p>The returned batches are fully independent of the source and of each other; the caller may
-     * close the source immediately after scatter returns.
-     *
-     * @throws IllegalArgumentException if any selector is out of {@code [0, partitionCount)} or
+     * @throws IllegalArgumentException if any selector is outside {@code [0, partitionCount)} or
      *                                  if {@code selectors.length < source.docCount()}
      */
     public EscfBatch[] scatter(EscfBatch source, int[] selectors, int partitionCount) {
@@ -148,10 +115,7 @@ public final class EscfBatchScatterer implements Releasable {
         return results;
     }
 
-    /**
-     * Releases any in-flight column builders and finished column data that have not yet been
-     * handed off to an {@link EscfBatch}. Safe to call at any point; idempotent.
-     */
+    /** Releases in-flight builders and column data not yet handed off. Safe to call at any point. */
     @Override
     public void close() {
         releaseInFlight();
@@ -201,11 +165,7 @@ public final class EscfBatchScatterer implements Releasable {
         }
     }
 
-    /**
-     * Applies a type hint to {@code builder} based on {@code col}'s kind so that scatter is
-     * kind-preserving: an all-absent partition finishes with the source column's kind rather
-     * than the default all-absent LONG, and a UNION partition receiving only LONG rows stays UNION.
-     */
+    /** Applies a kind hint so all-absent partitions preserve the source column's kind. */
     private static void applyHint(EscfColumnBuilder builder, EscfColumn col) {
         switch (col.kind()) {
             case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.BOOL, EscfColumnKind.STRING, EscfColumnKind.BINARY -> builder
@@ -215,8 +175,6 @@ public final class EscfBatchScatterer implements Releasable {
             default -> throw new IllegalStateException("Unknown column kind: " + EscfColumnKind.name(col.kind()));
         }
     }
-
-    // ---- Branch 1: bitset (BOOL) --------------------------------------------
 
     private void scatterBool(EscfColumn col, int[] selectors, int docCount, int[] destRow) {
         // EscfBoolColumn is a FixedBitSet — random access is cheaper than a cursor.
@@ -230,13 +188,9 @@ public final class EscfBatchScatterer implements Releasable {
         }
     }
 
-    // ---- Branch 2: fixed 64-bit words (LONG, DOUBLE, ARRAY of those) --------
-
     /**
-     * Scatters a LONG or DOUBLE scalar column. Both kinds store raw 64-bit LE words, so they share
-     * a single loop via {@link EscfColumnBuilder#setRawFixed64}. {@link AbstractFixed64Column#longCursor}
-     * is documented to yield "the raw 64-bit stored word" for both kinds, so no {@code
-     * Double.longBitsToDouble} conversion is needed on the read side.
+     * Scatters a LONG or DOUBLE column. Both store raw 64-bit LE words, so they share a loop via
+     * {@link EscfColumnBuilder#setRawFixed64} with no decode/re-encode.
      */
     private void scatterFixed64(EscfColumn col, int[] selectors, int docCount, int[] destRow) {
         byte kind = col.kind();
@@ -319,12 +273,7 @@ public final class EscfBatchScatterer implements Releasable {
         }
     }
 
-    // ---- Branch 3: var-width byte ranges (STRING, BINARY) -------------------
-
-    /**
-     * Scatters a STRING or BINARY scalar column. Values are passed as opaque byte ranges via the
-     * existing sparse {@link EscfColumn#bytesRefCursor} — no UTF-8 parsing or length prefixing.
-     */
+    /** Scatters a STRING or BINARY column via the sparse cursor; bytes are copied verbatim. */
     private void scatterVarWidth(EscfColumn col, int[] selectors, int docCount, int[] destRow) {
         boolean isString = col.kind() == EscfColumnKind.STRING;
         var cursor = col.bytesRefCursor(false);
@@ -344,21 +293,11 @@ public final class EscfBatchScatterer implements Releasable {
         }
     }
 
-    // ---- Branch 3: UNION (raw type + payload) --------------------------------
-
     /**
-     * Scatters a UNION column as a bytes-to-bytes copy. Each row's type byte is read from
-     * {@link EscfUnionColumn#typeVec()} and its payload from a dense
-     * {@link AbstractVarColumn.DenseBytesRefValuesCursor} over the union's {@code (offsets, data)}.
-     *
-     * <p>Unlike the var-width cursor, the union cursor is dense (one entry per row, including absent
-     * and null rows), because the UNION offset vector has one slot per row regardless of validity.
-     * Payload width comes from the offset vector — never from the type byte — so absent rows promoted
-     * from a numeric column (which occupy 8-byte payload slots) are copied correctly.
-     *
-     * <p>Because {@link #applyHint} calls {@link EscfColumnBuilder#hintUnion()} up front, the
-     * destination is always a union builder; rows that happen to all be LONG in one partition still
-     * finish as UNION.
+     * Scatters a UNION column as a bytes-to-bytes copy. The cursor is dense (one entry per row
+     * including absent rows) because the offset vector has one slot per row regardless of validity.
+     * Payload width comes from the offset vector, not the type byte, so promoted numeric absent rows
+     * (8-byte slots) copy correctly.
      */
     private void scatterUnion(EscfUnionColumn col, int[] selectors, int docCount, int[] destRow) {
         BytesRef typeVec = col.typeVec();
@@ -377,11 +316,6 @@ public final class EscfBatchScatterer implements Releasable {
     // Failure handling
     // -------------------------------------------------------------------------
 
-    /**
-     * Releases all in-flight builders (discarding their recycler-backed buffers) and any
-     * already-finished {@link EscfColumnData} that have not yet been handed off to an
-     * {@link EscfBatch}. Safe to call at any point; idempotent.
-     */
     private void releaseInFlight() {
         // discard() on a builder is idempotent after finish() (the stream is already moved/nulled).
         for (int p = 0; p < builders.length; p++) {

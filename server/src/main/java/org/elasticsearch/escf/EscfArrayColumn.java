@@ -35,17 +35,10 @@ final class EscfArrayColumn extends EscfColumn {
         this.rowOffsets = rowOffsets;
     }
 
-    /** Package-private accessor for the child (element) column; used by {@link EscfBatchScatterer}. */
     EscfColumn child() {
         return child;
     }
 
-    /**
-     * Package-private accessor for the row-element offset vector; used by {@link EscfBatchScatterer}.
-     * Row {@code d}'s elements occupy child rows {@code [rowOffsets.ints[rowOffsets.offset + d],
-     * rowOffsets.ints[rowOffsets.offset + d + 1])} — the child is kept unsliced by
-     * {@link #sliceInternal}, so the base offset may be non-zero.
-     */
     IntsRef rowOffsets() {
         return rowOffsets;
     }

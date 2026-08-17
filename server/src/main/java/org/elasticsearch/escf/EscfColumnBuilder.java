@@ -308,9 +308,7 @@ public final class EscfColumnBuilder {
     /**
      * Positional raw-bits write for a fixed-64 (LONG or DOUBLE) column. The {@code bits} parameter
      * is the raw 64-bit little-endian word: for LONG that is the value itself; for DOUBLE it is
-     * {@link Double#doubleToRawLongBits(double)}. Used by {@link EscfBatchScatterer} to scatter LONG
-     * and DOUBLE columns with a single shared loop, avoiding a {@code longBitsToDouble →
-     * doubleToRawLongBits} round trip.
+     * {@link Double#doubleToRawLongBits(double)}.
      */
     public void setRawFixed64(int row, byte kind, long bits) {
         assert kind == EscfColumnKind.LONG || kind == EscfColumnKind.DOUBLE;
@@ -332,8 +330,6 @@ public final class EscfColumnBuilder {
      *
      * <p>Absent rows do not advance the write cursor ({@code lastWrittenRow} is not updated), matching
      * the convention of {@link #addAbsent()}.
-     *
-     * <p>Used by {@link EscfBatchScatterer} to scatter UNION columns as a bytes-to-bytes copy.
      */
     public void addRawUnionRow(byte type, BytesRef payload) {
         assert current instanceof UnionBuilder : "addRawUnionRow requires hintUnion() to have been called first";

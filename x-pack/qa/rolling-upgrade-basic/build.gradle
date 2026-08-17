@@ -13,22 +13,19 @@ apply plugin: 'elasticsearch.bc-upgrade-test'
 
 // Each suite is parameterized over the upgrade phases and an earlier phase sets up the cluster state a later phase asserts on,
 // so a phase that passed must still run when a later phase is retried.
-smartRetry.pruneIndividualTests.set(false)
-
-dependencies {
-  javaRestTestImplementation(testArtifact(project(':server')))
-}
+smartRetry.pruneIndividualTests = false
 
 buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
+
+    // Security is explicitly disabled, do not run tests in FIPS mode
+    enabled = buildParams.inFipsJvm == false
   }
 }
 
 tasks.withType(Test).configureEach {
-  // CI doesn't like it when there's multiple clusters running at once
+  // just in case: prevent multiple cluster spawning at once
   maxParallelForks = 1
-  // Security is explicitly disabled, do not run tests in FIPS mode
-  enabled = enabled && buildParams.inFipsJvm == false
 }

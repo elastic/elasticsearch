@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 156633
+summary: Fuse `field_extract` feeding input-carrying commands
+type: enhancement

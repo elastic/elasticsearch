@@ -123,6 +123,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         if (type.isNumeric()) {
             writeNumericColumn(field, type, () -> ColumnarNumericBinaryDocValues.decodePayloads(valuesProducer.getBinary(field)));
         } else {
+            assert type == ColumnarFieldType.STRING : "Unsupported ColumNAR type [" + type + "]";
             writeStringColumn(field, type, () -> ColumnarStringBinaryDocValues.decodePayloads(valuesProducer.getBinary(field)));
         }
     }
@@ -139,6 +140,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         if (type.isNumeric()) {
             writeNumericColumn(field, type, () -> mergeCursor(field, mergeState));
         } else {
+            assert type == ColumnarFieldType.STRING : "Unsupported ColumNAR type [" + type + "]";
             writeStringColumn(field, type, () -> stringMergeCursor(field, mergeState));
         }
     }

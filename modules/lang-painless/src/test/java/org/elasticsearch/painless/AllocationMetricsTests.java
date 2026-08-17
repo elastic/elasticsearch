@@ -13,6 +13,8 @@ import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
@@ -28,18 +30,16 @@ public class AllocationMetricsTests extends AllocationTestCase {
 
     private RecordingMeterRegistry meterRegistry;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void installRecordingMetrics() {
         meterRegistry = new RecordingMeterRegistry();
         AllocationMetrics.setInstance(new AllocationMetrics(meterRegistry));
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void restoreNoopMetrics() {
         // The instance is static; a recording registry left installed would leak into unrelated tests.
         AllocationMetrics.setInstance(AllocationMetrics.NOOP);
-        super.tearDown();
     }
 
     private List<Measurement> measurements(String metricName) {

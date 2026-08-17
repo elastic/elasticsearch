@@ -34,14 +34,19 @@ import java.util.Arrays;
  */
 final class PointRangeBreakerWeight extends Weight {
 
-    private final ContextIndexSearcher searcher;
+    private final PointRangeExecutionAccounting accounting;
     private final Weight in;
     private final PointRangeQuery pointRangeQuery;
     private final boolean indexOrDocValues;
 
-    PointRangeBreakerWeight(ContextIndexSearcher searcher, Weight in, PointRangeQuery pointRangeQuery, boolean indexOrDocValues) {
+    PointRangeBreakerWeight(
+        PointRangeExecutionAccounting accounting,
+        Weight in,
+        PointRangeQuery pointRangeQuery,
+        boolean indexOrDocValues
+    ) {
         super(in.getQuery());
-        this.searcher = searcher;
+        this.accounting = accounting;
         this.in = in;
         this.pointRangeQuery = pointRangeQuery;
         this.indexOrDocValues = indexOrDocValues;
@@ -74,14 +79,14 @@ final class PointRangeBreakerWeight extends Weight {
             @Override
             public Scorer get(long leadCost) throws IOException {
                 if (indexOrDocValues == false || (cost >>> 3) <= leadCost) {
-                    searcher.chargeLeafExecutionBytes(charge);
+                    accounting.charge(context, charge);
                 }
                 return inner.get(leadCost);
             }
 
             @Override
             public BulkScorer bulkScorer() throws IOException {
-                searcher.chargeLeafExecutionBytes(charge);
+                accounting.charge(context, charge);
                 return inner.bulkScorer();
             }
 

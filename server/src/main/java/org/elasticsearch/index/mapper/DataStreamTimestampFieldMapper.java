@@ -43,7 +43,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     public static final String TIMESTAMP_VALUE_KEY = "@timestamp._value";
 
     public static final DataStreamTimestampFieldMapper ENABLED_INSTANCE = new DataStreamTimestampFieldMapper(true);
-    private static final DataStreamTimestampFieldMapper DISABLED_INSTANCE = new DataStreamTimestampFieldMapper(false);
+    static final DataStreamTimestampFieldMapper DISABLED_INSTANCE = new DataStreamTimestampFieldMapper(false);
 
     // For now the field shouldn't be useable in searches.
     // In the future it should act as an alias to the actual data stream timestamp field.

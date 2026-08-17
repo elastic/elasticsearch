@@ -363,13 +363,9 @@ setup:
   - match: { error.type: status_exception }
 
 ---
-"Validate diversification does not work with sparse vector data":
-  - requires:
-      cluster_features: [ "retriever.mmr_fetch_embeddings" ]
-      reason: "MMR now rejects sparse vector embeddings instead of silently ignoring them"
+"Validate diversification ignores sparse vector data":
 
   - do:
-      catch: bad_request
       search:
         index: test-result-diversification-sparse-semantic-text-index
         body:
@@ -387,9 +383,8 @@ setup:
                       content:
                         query: "What causes muscle soreness after running?"
 
-  - match: { status: 400 }
-  - contains: { error.root_cause.0.reason: "[diversify] search failed - retrievers '[standard]' returned errors" }
-  - contains: { error.root_cause.0.suppressed.0.failed_shards.0.reason.reason: "Field [content] of type [semantic_text] produces incompatible embeddings (requested: [dense_vector], produced: [sparse_vector])" }
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 0 }
 ---
 "Validate query_vector or query_vector_builder but not both":
 

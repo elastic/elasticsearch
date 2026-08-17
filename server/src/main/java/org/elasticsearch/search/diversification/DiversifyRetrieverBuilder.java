@@ -516,11 +516,10 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                 // Each element is a separate dense embedding (e.g. one float[] per chunk for semantic_text).
                 parseInferenceFieldValue(values);
             default ->
-                // Silently return an empty list for any other value type to handle BwC. Before the introduction of embeddings field
-                // fetching, the diversify retriever handled any non-dense vector field leniently by simply ignoring it.
-                // This fallthrough maintains that BwC behavior.
-                // Moving forward, SearchService enforces that any field fetched as an embeddings field actually provides embeddings and
-                // therefore is handled by one of the cases above. Thus, we will only hit the default case on the BwC path.
+                // Silently return an empty list for any other value type. This handles the BwC path where an older node serializes the
+                // embeddings field request as a plain fields entry (without the embeddings format), and the field values arrive in an
+                // unrecognized shape. On nodes that understand the embeddings field contract, SearchService only fetches fields that
+                // can produce embeddings, so this branch is never reached in steady-state.
                 List.of();
         };
     }

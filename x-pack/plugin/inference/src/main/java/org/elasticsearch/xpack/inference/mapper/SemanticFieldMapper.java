@@ -1112,17 +1112,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 };
 
                 if (vectorType != producedVectorType) {
-                    throw new IllegalArgumentException(
-                        "Field ["
-                            + name()
-                            + "] of type ["
-                            + typeName()
-                            + "] produces incompatible embeddings (requested: ["
-                            + vectorType
-                            + "], produced: ["
-                            + producedVectorType
-                            + "])"
-                    );
+                    return null;
                 }
             }
 

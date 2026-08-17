@@ -24,6 +24,11 @@ import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP
 
 /**
  * Completes planning that depends on the coordinator/data-node split and the current cluster topology.
+ * This is currently a late planning phase invoked by {@link ComputeService} because its inputs are only
+ * available when execution starts.
+ * <p>
+ * TODO: Move this phase out of {@link ComputeService} as part of a broader refactor that defines how
+ * compute-time inputs are propagated to, and resolved by, planner stages.
  */
 final class DistributedPlanPlanner {
 

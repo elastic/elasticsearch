@@ -6,19 +6,27 @@
  */
 package org.elasticsearch.xpack.security.authc.oidc;
 
+import com.sun.net.httpserver.HttpServer;
+
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
@@ -98,8 +106,13 @@ public class OpenIdConnectRealmSettingsTests extends ESTestCase {
     }
 
     public void testMissingAuthorizationEndpointThrowsError() {
+        // op.authorization_endpoint is left unset, so the realm now attempts to resolve it from the OP's discovery
+        // document at <op.issuer>/.well-known/openid-configuration; since op.issuer here doesn't serve one, that
+        // fetch fails and surfaces as a SettingsException naming the (unreachable) discovery URL.
+        final int closedPort = findClosedPort();
+        final String issuer = "http://" + InetAddresses.toUriString(InetAddress.getLoopbackAddress()) + ":" + closedPort;
         final Settings.Builder settingsBuilder = Settings.builder()
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), issuer)
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_PATH), "https://op.example.com/jwks.json")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
@@ -107,13 +120,12 @@ public class OpenIdConnectRealmSettingsTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
         settingsBuilder.setSecureSettings(getSecureSettings());
-        SettingsException exception = expectThrows(SettingsException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), null, null);
-        });
-        assertThat(
-            exception.getMessage(),
-            Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT))
+        final RealmConfig config = buildConfig(settingsBuilder.build());
+        SettingsException exception = expectThrows(
+            SettingsException.class,
+            () -> new OpenIdConnectRealm(config, sslServiceForDiscovery(), null, null)
         );
+        assertThat(exception.getMessage(), Matchers.containsString(issuer));
     }
 
     public void testInvalidAuthorizationEndpointThrowsError() {
@@ -136,23 +148,55 @@ public class OpenIdConnectRealmSettingsTests extends ESTestCase {
         );
     }
 
-    public void testMissingTokenEndpointThrowsErrorInCodeFlow() {
-        final Settings.Builder settingsBuilder = Settings.builder()
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_PATH), "https://op.example.com/jwks.json")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
-        settingsBuilder.setSecureSettings(getSecureSettings());
-        SettingsException exception = expectThrows(SettingsException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), null, null);
-        });
-        assertThat(
-            exception.getMessage(),
-            Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT))
-        );
+    public void testMissingTokenEndpointThrowsErrorInCodeFlow() throws Exception {
+        // op.token_endpoint is left unset, and op.authorization_endpoint/op.jwkset_path are also left unset so that
+        // discovery is attempted; the served discovery document omits token_endpoint (optional per the OIDC
+        // discovery spec), so it remains missing even after discovery, and the "code" response type still requires
+        // it, producing the same "setting is required" SettingsException as before this feature existed.
+        final HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        httpServer.start();
+        try {
+            final InetSocketAddress address = httpServer.getAddress();
+            final String issuer = "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
+            httpServer.createContext("/.well-known/openid-configuration", exchange -> {
+                final byte[] body = """
+                    {
+                      "issuer": "%s",
+                      "authorization_endpoint": "%s/login",
+                      "jwks_uri": "%s/jwks.json",
+                      "response_types_supported": ["code"],
+                      "subject_types_supported": ["public"],
+                      "id_token_signing_alg_values_supported": ["RS256"]
+                    }
+                    """.formatted(issuer, issuer, issuer).getBytes(StandardCharsets.UTF_8);
+                try {
+                    exchange.getResponseHeaders().add("Content-Type", "application/json");
+                    exchange.sendResponseHeaders(200, body.length);
+                    exchange.getResponseBody().write(body);
+                } finally {
+                    exchange.close();
+                }
+            });
+
+            final Settings.Builder settingsBuilder = Settings.builder()
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), issuer)
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+                .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
+            settingsBuilder.setSecureSettings(getSecureSettings());
+            final RealmConfig config = buildConfig(settingsBuilder.build());
+            SettingsException exception = expectThrows(
+                SettingsException.class,
+                () -> new OpenIdConnectRealm(config, sslServiceForDiscovery(), null, null)
+            );
+            assertThat(
+                exception.getMessage(),
+                Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT))
+            );
+        } finally {
+            httpServer.stop(1);
+        }
     }
 
     public void testMissingTokenEndpointIsAllowedInImplicitFlow() {
@@ -190,21 +234,24 @@ public class OpenIdConnectRealmSettingsTests extends ESTestCase {
     }
 
     public void testMissingJwksUrlThrowsError() {
+        // op.jwkset_path is left unset, so the realm attempts to resolve it from the OP's discovery document;
+        // since op.issuer here doesn't serve one, that fetch fails with a SettingsException naming the discovery URL.
+        final int closedPort = findClosedPort();
+        final String issuer = "http://" + InetAddresses.toUriString(InetAddress.getLoopbackAddress()) + ":" + closedPort;
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), issuer)
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
         settingsBuilder.setSecureSettings(getSecureSettings());
-        SettingsException exception = expectThrows(SettingsException.class, () -> {
-            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), null, null);
-        });
-        assertThat(
-            exception.getMessage(),
-            Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_PATH))
+        final RealmConfig config = buildConfig(settingsBuilder.build());
+        SettingsException exception = expectThrows(
+            SettingsException.class,
+            () -> new OpenIdConnectRealm(config, sslServiceForDiscovery(), null, null)
         );
+        assertThat(exception.getMessage(), Matchers.containsString(issuer));
     }
 
     public void testMissingIssuerThrowsError() {
@@ -460,5 +507,25 @@ public class OpenIdConnectRealmSettingsTests extends ESTestCase {
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
         return new RealmConfig(realmIdentifier, settings, env, threadContext);
+    }
+
+    private int findClosedPort() {
+        try (var socket = new java.net.ServerSocket(0, 0, InetAddress.getLoopbackAddress())) {
+            return socket.getLocalPort();
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    /**
+     * An {@link SSLService} whose realm SSL context is registered, for tests that need the realm's discovery
+     * resolver to make a real (albeit failing or loopback-only) HTTP connection.
+     */
+    private SSLService sslServiceForDiscovery() {
+        final Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put("xpack.security.authc.realms.oidc." + REALM_NAME + ".ssl.verification_mode", "certificate")
+            .build();
+        return new SSLService(TestEnvironment.newEnvironment(settings));
     }
 }

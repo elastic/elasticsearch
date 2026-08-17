@@ -61,10 +61,9 @@ public final class BatchExchangeStatusResponse extends TransportResponse {
             // them into the current thread's context before this constructor is called.
             // Parse the RFC 7234 warning format (e.g. "299 Elasticsearch-9.5.0 \"message\"") to extract the
             // plain warning text, so the strings are in the same format as those sent by new nodes.
-            this.warnings = threadContext.getResponseHeaders()
-                .getOrDefault("Warning", List.of())
+            this.warnings = threadContext.takeResponseHeaders("Warning")
                 .stream()
-                .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false))
+                .map(s -> HeaderWarning.decodeAndUnescape(HeaderWarning.extractWarningValueFromWarningHeader(s, false)))
                 .toList();
         }
     }

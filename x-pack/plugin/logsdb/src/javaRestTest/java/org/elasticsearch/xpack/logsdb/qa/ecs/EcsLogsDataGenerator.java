@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Generates the shared ECS-shaped mapping and synthetic log documents for
@@ -28,7 +29,8 @@ public final class EcsLogsDataGenerator {
     /** Fixed start instant for the timestamp ladder so runs are reproducible. */
     static final Instant START = Instant.parse("2024-01-01T00:00:00Z");
 
-    private static final DateTimeFormatter TS_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC);
+    private static final DateTimeFormatter TS_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.ROOT)
+        .withZone(ZoneOffset.UTC);
 
     // ── value pools (bounded cardinality; must not grow with corpus size) ────────────────────
 
@@ -444,7 +446,7 @@ public final class EcsLogsDataGenerator {
         StringBuilder sb = new StringBuilder(count * 450);
         for (int i = 0; i < count; i++) {
             int ordinal = firstOrdinal + i;
-            sb.append("{\"create\":{\"_id\":\"").append(String.format("%010d", ordinal)).append("\"}}\n");
+            sb.append("{\"create\":{\"_id\":\"").append(String.format(Locale.ROOT, "%010d", ordinal)).append("\"}}\n");
             appendDocument(sb, ordinal);
             sb.append('\n');
         }
@@ -458,7 +460,7 @@ public final class EcsLogsDataGenerator {
 
         // Always-present fields (every document has these)
         appendStr(sb, "@timestamp", TS_FMT.format(ts), true);
-        appendStr(sb, "log_id", String.format("%010d", ordinal), false);
+        appendStr(sb, "log_id", String.format(Locale.ROOT, "%010d", ordinal), false);
         appendStr(sb, "log.level", LOG_LEVELS[ordinal % LOG_LEVELS.length], false);
         appendStr(sb, "host.name", HOST_NAMES[ordinal % HOST_NAMES.length], false);
         appendStr(sb, "host.architecture", HOST_ARCHS[ordinal % HOST_ARCHS.length], false);
@@ -580,7 +582,7 @@ public final class EcsLogsDataGenerator {
         int h = seed;
         while (hex.length() < length) {
             h = h * 1664525 + 1013904223; // Knuth LCG
-            hex.append(String.format("%08x", h & 0xFFFFFFFFL));
+            hex.append(String.format(Locale.ROOT, "%08x", h & 0xFFFFFFFFL));
         }
         return hex.substring(0, length);
     }

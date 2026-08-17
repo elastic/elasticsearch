@@ -142,6 +142,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         @Param(
             name = "query",
             type = { "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Query string in Lucene query string format."
         ) Expression queryString,
         @MapParam(

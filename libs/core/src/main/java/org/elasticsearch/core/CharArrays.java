@@ -68,7 +68,7 @@ public final class CharArrays {
             // there is no guarantee that the byte buffers backing array is the right size
             // so we need to make a copy
             bytes = Arrays.copyOfRange(byteBuffer.array(), byteBuffer.position(), byteBuffer.limit());
-            Arrays.fill(byteBuffer.array(), (byte) 0); // clear sensitive data
+            //Arrays.fill(byteBuffer.array(), (byte) 0); // clear sensitive data
         } else {
             final int length = byteBuffer.limit() - byteBuffer.position();
             bytes = new byte[length];

@@ -175,6 +175,7 @@ import org.elasticsearch.xpack.stateless.commits.UploadQueueControllerService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.IndexEngineDynamicSettings;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerServiceFactory;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
@@ -522,6 +523,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<SearchCommitPrefetcher.PrefetchExecutor> prefetchExecutor = new SetOnce<>();
     private final SetOnce<BCCHeaderReadExecutor> bccHeaderReadExecutor = new SetOnce<>();
     private final SetOnce<SearchCommitPrefetcherDynamicSettings> prefetchingDynamicSettings = new SetOnce<>();
+    private final SetOnce<IndexEngineDynamicSettings> indexEngineDynamicSettings = new SetOnce<>();
     private final SetOnce<ReshardSearchFilters> reshardSearchFilters = new SetOnce<>();
     private final SetOnce<SearchShardInformationIndexListener> searchShardInformationIndexListener = new SetOnce<>();
     private final SetOnce<PITRelocationService> pitRelocationService = new SetOnce<>();
@@ -992,6 +994,9 @@ public class StatelessPlugin extends Plugin
 
         if (hasIndexRole) {
             components.add(new IndexingDiskController(nodeEnvironment, settings, threadPool, indicesService, commitService));
+            // We register the dynamic-settings listener once per node here, not inside each IndexEngine instance, to avoid
+            // holding a ClusterSettings → engine reference that would prevent garbage collection of closed engines.
+            setAndGet(indexEngineDynamicSettings, new IndexEngineDynamicSettings(clusterService.getClusterSettings()));
         }
         components.add(
             setAndGet(
@@ -1564,7 +1569,8 @@ public class StatelessPlugin extends Plugin
         RefreshManagerService refreshManagerService,
         ReshardIndexService reshardIndexService,
         DocumentParsingProvider documentParsingProvider,
-        IndexEngine.EngineMetrics engineMetrics
+        IndexEngine.EngineMetrics engineMetrics,
+        IndexEngineDynamicSettings indexEngineDynamicSettings
     ) {
         return new IndexEngine(
             engineConfig,
@@ -1578,6 +1584,7 @@ public class StatelessPlugin extends Plugin
             statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
             documentParsingProvider,
             engineMetrics,
+            indexEngineDynamicSettings,
             skipMerges.get(),
             statelessCommitService.getShardLocalCommitsTracker(engineConfig.getShardId()).shardLocalReadersTracker()
         );
@@ -1741,7 +1748,8 @@ public class StatelessPlugin extends Plugin
             refreshManagerService.get(),
             reshardIndexService.get(),
             documentParsingProvider.get(),
-            new IndexEngine.EngineMetrics(translogReplicatorMetrics.get(), newConfig.getMergeMetrics(), hollowShardMetrics.get())
+            new IndexEngine.EngineMetrics(translogReplicatorMetrics.get(), newConfig.getMergeMetrics(), hollowShardMetrics.get()),
+            indexEngineDynamicSettings.get()
         );
     }
 

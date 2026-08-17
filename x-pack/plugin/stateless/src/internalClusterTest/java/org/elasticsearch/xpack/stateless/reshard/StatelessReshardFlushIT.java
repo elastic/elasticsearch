@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.IndexEngineDynamicSettings;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 
@@ -202,7 +203,8 @@ public class StatelessReshardFlushIT extends AbstractStatelessPluginIntegTestCas
             RefreshManagerService refreshManagerService,
             ReshardIndexService reshardIndexService,
             DocumentParsingProvider documentParsingProvider,
-            IndexEngine.EngineMetrics engineMetrics
+            IndexEngine.EngineMetrics engineMetrics,
+            IndexEngineDynamicSettings indexEngineDynamicSettings
         ) {
             return new IndexEngine(
                 engineConfig,
@@ -216,6 +218,7 @@ public class StatelessReshardFlushIT extends AbstractStatelessPluginIntegTestCas
                 statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
                 documentParsingProvider,
                 engineMetrics,
+                indexEngineDynamicSettings,
                 statelessCommitService.getShardLocalCommitsTracker(engineConfig.getShardId()).shardLocalReadersTracker()
             ) {
                 @Override

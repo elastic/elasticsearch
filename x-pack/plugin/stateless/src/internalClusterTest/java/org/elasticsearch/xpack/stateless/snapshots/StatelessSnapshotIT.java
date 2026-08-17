@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.TestStatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.IndexEngineDynamicSettings;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
@@ -1707,7 +1708,8 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
             RefreshManagerService refreshManagerService,
             ReshardIndexService reshardIndexService,
             DocumentParsingProvider documentParsingProvider,
-            IndexEngine.EngineMetrics engineMetrics
+            IndexEngine.EngineMetrics engineMetrics,
+            IndexEngineDynamicSettings indexEngineDynamicSettings
         ) {
             final var shardId = engineConfig.getShardId();
             return new IndexEngine(
@@ -1722,6 +1724,7 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
                 statelessCommitService.getCommitBCCResolverForShard(shardId),
                 documentParsingProvider,
                 engineMetrics,
+                indexEngineDynamicSettings,
                 statelessCommitService.getShardLocalCommitsTracker(shardId).shardLocalReadersTracker()
             ) {
                 @Override

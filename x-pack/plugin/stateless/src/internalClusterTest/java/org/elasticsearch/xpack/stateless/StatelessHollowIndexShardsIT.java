@@ -109,6 +109,7 @@ import org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.IndexEngineDynamicSettings;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
@@ -269,7 +270,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             RefreshManagerService refreshManagerService,
             ReshardIndexService reshardIndexService,
             DocumentParsingProvider documentParsingProvider,
-            IndexEngine.EngineMetrics engineMetrics
+            IndexEngine.EngineMetrics engineMetrics,
+            IndexEngineDynamicSettings indexEngineDynamicSettings
         ) {
             Semaphore newIndexEngineStartedSemaphore = newIndexEngineStartedSemaphoreReference.get();
             if (newIndexEngineStartedSemaphore != null) {
@@ -289,7 +291,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 refreshManagerService,
                 reshardIndexService,
                 documentParsingProvider,
-                engineMetrics
+                engineMetrics,
+                indexEngineDynamicSettings
             );
         }
     }

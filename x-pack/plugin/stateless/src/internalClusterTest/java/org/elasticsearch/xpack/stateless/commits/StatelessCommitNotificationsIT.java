@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAc
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.IndexEngineDynamicSettings;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
@@ -110,7 +111,8 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessPluginInteg
             RefreshManagerService refreshManagerService,
             ReshardIndexService reshardIndexService,
             DocumentParsingProvider documentParsingProvider,
-            IndexEngine.EngineMetrics engineMetrics
+            IndexEngine.EngineMetrics engineMetrics,
+            IndexEngineDynamicSettings indexEngineDynamicSettings
         ) {
             return new IndexEngine(
                 engineConfig,
@@ -124,6 +126,7 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessPluginInteg
                 statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
                 documentParsingProvider,
                 engineMetrics,
+                indexEngineDynamicSettings,
                 statelessCommitService.getShardLocalCommitsTracker(engineConfig.getShardId()).shardLocalReadersTracker()
             ) {
                 @Override

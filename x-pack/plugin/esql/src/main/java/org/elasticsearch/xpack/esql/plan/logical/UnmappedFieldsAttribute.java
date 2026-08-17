@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -38,6 +39,12 @@ import java.util.Objects;
  * {@code true}, and it runs after {@code DetermineUnmappedFieldsToKeep}, so the column would be gone
  * before the coordinator ever got to expand it. The {@code $$} name is what keeps the column
  * unreachable from a query — user field names cannot start with it.
+ *
+ * <p>The column expands to its per-field columns only on the coordinator, long after {@code KEEP} was resolved against the
+ * (then still invisible) leaves, so {@link #keepOrder()} carries the governing {@code KEEP}'s projection terms in written order.
+ * The coordinator replays {@code KEEP}'s ordering over the real columns plus the discovered leaves (see
+ * {@link UnmappedFieldsPattern#keepOrdered}) so the output honors the left-to-right {@code KEEP} contract; it is empty when no
+ * top {@code KEEP} governs the order, in which case the leaves keep their natural (real-then-alphabetical) position.
  */
 public final class UnmappedFieldsAttribute extends TypedAttribute {
     public static final String ATTRIBUTE_NAME = Attribute.rawTemporaryName("unmapped_fields");
@@ -59,10 +66,16 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
     );
 
     private final UnmappedFieldsPattern pattern;
+    private final List<String> keepOrder;
 
     public UnmappedFieldsAttribute(Source source, UnmappedFieldsPattern pattern) {
+        this(source, pattern, List.of());
+    }
+
+    public UnmappedFieldsAttribute(Source source, UnmappedFieldsPattern pattern, List<String> keepOrder) {
         super(source, ATTRIBUTE_NAME, DataType.KEYWORD, Nullability.TRUE, null, false);
         this.pattern = pattern;
+        this.keepOrder = List.copyOf(keepOrder);
     }
 
     public UnmappedFieldsAttribute(
@@ -71,14 +84,24 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
         Nullability nullability,
         NameId id,
         boolean synthetic,
-        UnmappedFieldsPattern pattern
+        UnmappedFieldsPattern pattern,
+        List<String> keepOrder
     ) {
         super(source, ATTRIBUTE_NAME, type, nullability, id, synthetic);
         this.pattern = pattern;
+        this.keepOrder = List.copyOf(keepOrder);
     }
 
     public UnmappedFieldsPattern pattern() {
         return pattern;
+    }
+
+    /**
+     * The governing {@code KEEP}'s projection terms in written order (bare {@code *}, wildcard patterns and explicit names), or empty
+     * when no top {@code KEEP} governs the output order. Read by the coordinator to replay {@code KEEP} ordering over the expanded leaves.
+     */
+    public List<String> keepOrder() {
+        return keepOrder;
     }
 
     @Override
@@ -92,6 +115,8 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
             id().writeTo(out);
             out.writeBoolean(synthetic());
             out.writeNamedWriteable(pattern);
+            // No transport-version gate: unmapped_fields="LOAD_ALL" is snapshot-only, so no released node emits or parses this attribute.
+            out.writeStringCollection(keepOrder);
         }
     }
 
@@ -105,7 +130,8 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
             NameId id = NameId.readFrom((PlanStreamInput) stream);
             boolean synthetic = stream.readBoolean();
             UnmappedFieldsPattern pattern = stream.readNamedWriteable(UnmappedFieldsPattern.class);
-            return new UnmappedFieldsAttribute(source, dataType, nullability, id, synthetic, pattern);
+            List<String> keepOrder = stream.readStringCollectionAsList();
+            return new UnmappedFieldsAttribute(source, dataType, nullability, id, synthetic, pattern, keepOrder);
         });
     }
 
@@ -139,22 +165,22 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
         NameId id,
         boolean synthetic
     ) {
-        return new UnmappedFieldsAttribute(source, type, nullability, id, synthetic, pattern);
+        return new UnmappedFieldsAttribute(source, type, nullability, id, synthetic, pattern, keepOrder);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, UnmappedFieldsAttribute::new, dataType(), nullable(), id(), synthetic(), pattern);
+        return NodeInfo.create(this, UnmappedFieldsAttribute::new, dataType(), nullable(), id(), synthetic(), pattern, keepOrder);
     }
 
     @Override
     protected int innerHashCode(boolean ignoreIds) {
-        return Objects.hash(super.innerHashCode(ignoreIds), pattern);
+        return Objects.hash(super.innerHashCode(ignoreIds), pattern, keepOrder);
     }
 
     @Override
     protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (UnmappedFieldsAttribute) o;
-        return super.innerEquals(other, ignoreIds) && Objects.equals(pattern, other.pattern);
+        return super.innerEquals(other, ignoreIds) && Objects.equals(pattern, other.pattern) && Objects.equals(keepOrder, other.keepOrder);
     }
 }

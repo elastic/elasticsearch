@@ -25,6 +25,10 @@ public class UnmappedFieldsAttributeTests extends AbstractNamedExpressionSeriali
             .withAdditionalExcludes(List.of("secret*", "emp_no"));
     }
 
+    private static List<String> randomKeepOrder() {
+        return randomBoolean() ? List.of() : List.of("*", randomAlphaOfLength(4) + "*", randomAlphaOfLength(4));
+    }
+
     @Override
     protected UnmappedFieldsAttribute createTestInstance() {
         return new UnmappedFieldsAttribute(
@@ -33,7 +37,8 @@ public class UnmappedFieldsAttributeTests extends AbstractNamedExpressionSeriali
             randomFrom(Nullability.values()),
             new NameId(),
             randomBoolean(),
-            patternWithIntersectedOrGroupsAndExcludes()
+            patternWithIntersectedOrGroupsAndExcludes(),
+            randomKeepOrder()
         );
     }
 
@@ -45,14 +50,16 @@ public class UnmappedFieldsAttributeTests extends AbstractNamedExpressionSeriali
         NameId id = instance.id();
         boolean synthetic = instance.synthetic();
         UnmappedFieldsPattern pattern = instance.pattern();
-        switch (between(0, 4)) {
+        List<String> keepOrder = instance.keepOrder();
+        switch (between(0, 5)) {
             case 0 -> type = randomValueOtherThan(type, () -> randomFrom(DataType.types()));
             case 1 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
             case 2 -> id = new NameId();
             case 3 -> synthetic = false == synthetic;
             case 4 -> pattern = randomValueOtherThan(pattern, () -> UnmappedFieldsPattern.excludes(List.of(randomAlphaOfLength(4) + "*")));
+            case 5 -> keepOrder = randomValueOtherThan(keepOrder, UnmappedFieldsAttributeTests::randomKeepOrder);
         }
-        return new UnmappedFieldsAttribute(source, type, nullability, id, synthetic, pattern);
+        return new UnmappedFieldsAttribute(source, type, nullability, id, synthetic, pattern, keepOrder);
     }
 
     @Override
@@ -63,7 +70,8 @@ public class UnmappedFieldsAttributeTests extends AbstractNamedExpressionSeriali
             instance.nullable(),
             new NameId(),
             instance.synthetic(),
-            instance.pattern()
+            instance.pattern(),
+            instance.keepOrder()
         );
     }
 

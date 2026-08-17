@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -96,6 +97,62 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
             }
         }
         return includes(includes);
+    }
+
+    /**
+     * The ordered projection terms of a {@code KEEP}, as written: a bare {@code *}, wildcard patterns, and explicit names, in their
+     * left-to-right order. Unlike {@link #forKeep}, which folds them into an unordered membership predicate (and short-circuits on
+     * {@code *}), this keeps the order the coordinator needs to replay {@code KEEP}'s column ordering over the expanded leaves via
+     * {@link #keepOrdered}. Reads the same still-unresolved projections {@link #forKeep} does, so the same three shapes are supported.
+     */
+    public static List<String> orderTerms(List<? extends NamedExpression> projections) {
+        List<String> terms = new ArrayList<>(projections.size());
+        for (NamedExpression proj : projections) {
+            switch (proj) {
+                case UnresolvedStar ignored -> terms.add("*");
+                case UnresolvedNamePattern unp -> terms.add(unp.pattern());
+                case UnresolvedAttribute ua -> terms.add(ua.name());
+                default -> throw new IllegalStateException("Unsupported KEEP projection [" + proj + "]");
+            }
+        }
+        return terms;
+    }
+
+    /**
+     * Replays {@code KEEP}'s column-ordering contract over {@code childOutput} — the real columns followed by the discovered unmapped
+     * leaves (alphabetical) — using {@code keepTerms} from {@link #orderTerms}. This mirrors {@code Analyzer.keepResolver}: each term
+     * claims the columns it matches, a later term of equal-or-higher priority moves a column to the end, and priority is bare {@code *}
+     * (lowest) &lt; other wildcard &lt; explicit name (highest). It exists because a {@code LOAD_ALL} leaf is not a column when
+     * {@code KEEP} is resolved, so its position must be re-derived here, on the coordinator, from the same terms.
+     * <p>
+     * {@code childOutput} carries only what {@code KEEP} selected (its real columns plus the leaves it expands into); a column a later
+     * {@code EVAL} appended is trailed by the caller, not passed here. As a safety net any name no term matches still keeps its natural
+     * trailing position, so reordering is total and never drops a column.
+     */
+    public static List<String> keepOrdered(List<String> childOutput, List<String> keepTerms) {
+        LinkedHashMap<String, Integer> priorities = new LinkedHashMap<>();
+        for (String term : keepTerms) {
+            boolean explicit = Regex.isSimpleMatchPattern(term) == false;
+            // Priorities match keepResolver's: an explicit name (1) outranks any wildcard, and a non-bare wildcard (3) outranks bare * (4).
+            int priority = explicit ? 1 : (term.equals("*") ? 4 : 3);
+            for (String name : childOutput) {
+                boolean matched = explicit ? name.equals(term) : Regex.simpleMatch(term, name);
+                if (matched) {
+                    Integer previous = priorities.get(name);
+                    if (previous == null || previous >= priority) {
+                        priorities.remove(name);
+                        priorities.put(name, priority);
+                    }
+                }
+            }
+        }
+        List<String> ordered = new ArrayList<>(priorities.keySet());
+        for (String name : childOutput) {
+            if (priorities.containsKey(name) == false) {
+                ordered.add(name);
+            }
+        }
+        return ordered;
     }
 
     /**

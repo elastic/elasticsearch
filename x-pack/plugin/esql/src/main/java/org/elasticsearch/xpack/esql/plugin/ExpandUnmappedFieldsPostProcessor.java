@@ -52,6 +52,11 @@ import java.util.function.BiConsumer;
  * {@code DROP} covers it), so this post-processor is where the {@link UnmappedFieldsPattern} is applied per flattened <em>leaf</em>
  * name. Testing each dotted leaf against the same pattern a stored source's literal dotted key would face is what keeps an exact or
  * wildcard {@code KEEP}/{@code DROP} of a descendant behaving identically across the two source modes.
+ *
+ * <p>A leaf is not a column when {@code KEEP} is resolved, so the plan cannot position it; the column order is re-derived here. When a
+ * top {@code KEEP} governs the output (carried as {@link UnmappedFieldsAttribute#keepOrder()}), {@link UnmappedFieldsPattern#keepOrdered}
+ * replays its left-to-right ordering over the real columns plus the discovered leaves so the response honors {@code KEEP}'s contract;
+ * otherwise the leaves keep their natural real-then-alphabetical position.
  * <p>
  * TODO every row's {@code _source} ends up parsed three times: the data node parses it to filter the column, then the
  *  coordinator parses the column once to collect field names and once more to expand them. A columnar shape — one block of
@@ -73,7 +78,8 @@ class ExpandUnmappedFieldsPostProcessor {
         // The data node ships whole objects, pruning only subtrees a wildcard DROP covers, and leaves the per-leaf KEEP/DROP decision
         // to us: every flattened leaf name is tested against this pattern below, so a synthetic-source object and the equivalent
         // stored-source dotted key survive (or not) alike, whatever KEEP/DROP shape the query used.
-        UnmappedFieldsPattern pattern = ((UnmappedFieldsAttribute) schema.get(unmappedIdx)).pattern();
+        UnmappedFieldsAttribute unmappedAttribute = (UnmappedFieldsAttribute) schema.get(unmappedIdx);
+        UnmappedFieldsPattern pattern = unmappedAttribute.pattern();
 
         // From here on we own the input pages: on success rewritePage drains them one by one, on any failure we release whatever
         // is left below. Page#releaseBlocks is idempotent, so re-releasing pages rewritePage already drained is a no-op.
@@ -85,19 +91,19 @@ class ExpandUnmappedFieldsPostProcessor {
             // with a collision; this stays as a defensive guard for a caller that passes an unrestricted pattern (e.g. a unit test with
             // pattern=ALL over a partially-mapped object). Also converts the SortedSet to a list for iteration.
             Set<String> existingNames = existingColumnNames(schema, unmappedIdx);
-            List<String> sortedFieldNames = new ArrayList<>(fieldNames.size());
+            List<String> leafNames = new ArrayList<>(fieldNames.size());
             for (String name : fieldNames) {
                 if (existingNames.contains(name) == false) {
-                    sortedFieldNames.add(name);
+                    leafNames.add(name);
                 }
             }
             // TODO account for newSchema's field names against the circuit breaker. A wide _source turns into a wide schema, and
             // unlike the pages, the response schema has no breaker-tracked lifetime to release it against today.
-            List<Attribute> newSchema = buildSchema(schema, unmappedIdx, existingNames, sortedFieldNames);
-            List<Page> newPages = rewritePages(result, unmappedIdx, sortedFieldNames, blockFactory, reservationFactor);
+            ExpandedLayout layout = computeLayout(schema, unmappedIdx, leafNames, unmappedAttribute.keepOrder());
+            List<Page> newPages = rewritePages(result, unmappedIdx, leafNames, layout.blockOrder(), blockFactory, reservationFactor);
 
             Result expanded = new Result(
-                newSchema,
+                layout.schema(),
                 newPages,
                 result.attributeMetadata(),
                 result.configuration(),
@@ -178,52 +184,96 @@ class ExpandUnmappedFieldsPostProcessor {
     }
 
     /**
-     * Builds the expanded schema: every column except {@code _unmapped_fields}, then one keyword column per unmapped field name.
-     * {@code fieldNames} must already have any name colliding with a query column removed (see {@link #expand}).
+     * The expanded output layout: the reordered {@code schema} and, per output column, where its block comes from.
+     * <p>
+     * {@code blockOrder[pos]} is a retained column's index in the original {@code schema} when it is {@code < originalColumnCount}
+     * (never {@code unmappedIdx}), and {@code originalColumnCount + leafIndex} for an expanded leaf, where {@code leafIndex} is the
+     * leaf's position in {@code leafNames}. {@link #rewritePage} decodes it to place each block.
      */
-    private static List<Attribute> buildSchema(
-        List<Attribute> schema,
-        int unmappedIdx,
-        Set<String> existingNames,
-        List<String> fieldNames
-    ) {
-        List<Attribute> newSchema = new ArrayList<>(schema.size() - 1 + fieldNames.size());
-        for (int i = 0; i < schema.size(); i++) {
+    private record ExpandedLayout(List<Attribute> schema, int[] blockOrder) {}
+
+    /**
+     * Builds the expanded output layout: the final column order plus, per column, which block feeds it.
+     * <p>
+     * Real columns split around {@code _unmapped_fields}: those <em>before</em> it are the governing {@code KEEP}'s own selection (it
+     * pins the synthetic column right after its projections), those <em>after</em> it were appended by a later {@code EVAL}/generating
+     * command. Without a governing {@code KEEP} the order is natural — every real column in {@code schema} order, then the leaves
+     * (alphabetical, from {@code collectFieldNames}). With one, {@link UnmappedFieldsPattern#keepOrdered} replays {@code KEEP}'s
+     * left-to-right order over its selection plus the leaves (as if the leaves had been real columns when it was resolved) and the
+     * appended columns then trail, because {@code KEEP} never reorders a column that did not exist when it ran. {@code leafNames}
+     * already excludes any name colliding with a real column (see {@link #expand}), so real and leaf names are disjoint and each
+     * ordered name resolves to exactly one block.
+     */
+    private static ExpandedLayout computeLayout(List<Attribute> schema, int unmappedIdx, List<String> leafNames, List<String> keepOrder) {
+        int originalColumnCount = schema.size();
+        List<String> keptRealNames = new ArrayList<>();
+        List<String> appendedRealNames = new ArrayList<>();
+        Map<String, Integer> nameToSchemaIdx = new HashMap<>();
+        for (int i = 0; i < originalColumnCount; i++) {
             if (i != unmappedIdx) {
-                newSchema.add(schema.get(i));
+                String name = schema.get(i).name();
+                nameToSchemaIdx.put(name, i);
+                (i < unmappedIdx ? keptRealNames : appendedRealNames).add(name);
             }
         }
-        for (String name : fieldNames) {
-            if (existingNames.contains(name)) {
-                // Unreachable for LOAD_ALL input: expand() already drops leaves colliding with a query column. Kept as an always-on
-                // guard (assertions are off in production) so a future caller that skips that filter fails loudly here instead of
-                // emitting a response schema with two identically-named columns.
-                throw new IllegalStateException(
-                    Strings.format("Unmapped field [%s] collides with a query column; expand() must drop it before buildSchema", name)
-                );
-            }
-            newSchema.add(new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD));
+        Map<String, Integer> leafNameToIdx = new HashMap<>();
+        for (int i = 0; i < leafNames.size(); i++) {
+            leafNameToIdx.put(leafNames.get(i), i);
         }
-        return newSchema;
+
+        List<String> orderedNames;
+        if (keepOrder.isEmpty()) {
+            // No governing KEEP: natural order - every real column in schema order, then the expanded leaves.
+            orderedNames = new ArrayList<>(originalColumnCount - 1 + leafNames.size());
+            orderedNames.addAll(keptRealNames);
+            orderedNames.addAll(appendedRealNames);
+            orderedNames.addAll(leafNames);
+        } else {
+            // Replay KEEP's order over exactly what it selected (its real columns + the leaves it expands into), then trail the
+            // columns a later EVAL appended - the KEEP's terms must not re-select a column that did not exist when it was resolved.
+            List<String> keepScope = new ArrayList<>(keptRealNames.size() + leafNames.size());
+            keepScope.addAll(keptRealNames);
+            keepScope.addAll(leafNames);
+            orderedNames = UnmappedFieldsPattern.keepOrdered(keepScope, keepOrder);
+            orderedNames.addAll(appendedRealNames);
+        }
+
+        List<Attribute> newSchema = new ArrayList<>(orderedNames.size());
+        int[] blockOrder = new int[orderedNames.size()];
+        for (int pos = 0; pos < orderedNames.size(); pos++) {
+            String name = orderedNames.get(pos);
+            Integer schemaIdx = nameToSchemaIdx.get(name);
+            if (schemaIdx != null) {
+                newSchema.add(schema.get(schemaIdx));
+                blockOrder[pos] = schemaIdx;
+            } else {
+                Integer leafIdx = leafNameToIdx.get(name);
+                assert leafIdx != null : "ordered name [" + name + "] is neither a retained column nor an expanded leaf";
+                newSchema.add(new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD));
+                blockOrder[pos] = originalColumnCount + leafIdx;
+            }
+        }
+        return new ExpandedLayout(newSchema, blockOrder);
     }
 
-    /** Rewrite each page, replacing the {@code _unmapped_fields} block with one block per expanded field name. */
+    /** Rewrite each page, replacing the {@code _unmapped_fields} block with one block per expanded field name, in {@code blockOrder}. */
     private static List<Page> rewritePages(
         Result result,
         int unmappedIdx,
-        List<String> fieldNames,
+        List<String> leafNames,
+        int[] blockOrder,
         BlockFactory factory,
         double reservationFactor
     ) {
         int originalColumnCount = result.schema().size();
         // The authoritative set of surviving leaf names: already pattern-filtered by collectFieldNames and collision-pruned by expand().
         // The per-row leaf sink keeps only these, so schema and values are driven by one source of truth and dropped leaves never build.
-        Set<String> keep = Set.copyOf(fieldNames);
+        Set<String> keep = Set.copyOf(leafNames);
         var newPages = new ArrayList<Page>(result.pages().size());
         var success = false;
         try {
             for (Page p : result.pages()) {
-                newPages.add(rewritePage(unmappedIdx, keep, fieldNames, factory, p, originalColumnCount, reservationFactor));
+                newPages.add(rewritePage(unmappedIdx, keep, leafNames, blockOrder, originalColumnCount, factory, p, reservationFactor));
             }
             success = true;
             return newPages;
@@ -237,33 +287,38 @@ class ExpandUnmappedFieldsPostProcessor {
     private static Page rewritePage(
         int unmappedIdx,
         Set<String> keep,
-        List<String> fieldNames,
+        List<String> leafNames,
+        int[] blockOrder,
+        int originalColumnCount,
         BlockFactory blockFactory,
         Page page,
-        int originalColumnCount,
         double reservationFactor
     ) {
-        // Output blocks are the retained columns (all but _unmapped_fields) followed by one expanded column per field name
-        // collectFieldNames found, so fieldNames.size() is the single source for the expansion width.
-        int retainedBlockCount = originalColumnCount - 1;
-        int expandedBlockCount = fieldNames.size();
-        Block[] allBlocks = new Block[retainedBlockCount + expandedBlockCount];
-
-        int dest = 0;
-        for (int i = 0; i < originalColumnCount; i++) {
-            if (i != unmappedIdx) {
-                var block = page.getBlock(i);
-                block.incRef();
-                allBlocks[dest++] = block;
-            }
-        }
+        // Output blocks follow blockOrder: a retained column (code < originalColumnCount) keeps its original block, an expanded leaf
+        // gets a freshly built one. The retained/leaf split is disjoint (expand() drops colliding leaves) so each position has one source.
+        int leafCount = leafNames.size();
+        Block[] allBlocks = new Block[blockOrder.length];
 
         var success = false;
-        BytesRefBlock.Builder[] builders = new BytesRefBlock.Builder[expandedBlockCount];
+        BytesRefBlock.Builder[] builders = new BytesRefBlock.Builder[leafCount];
         try (var ignored = Releasables.wrap(builders)) {
+            // Place the retained blocks now (incRef so releasing the input page below leaves them alive) and record where each leaf's
+            // built block goes, so the expansion below builds straight into its final position.
+            int[] leafOutputPos = new int[leafCount];
+            for (int pos = 0; pos < blockOrder.length; pos++) {
+                int code = blockOrder[pos];
+                if (code < originalColumnCount) {
+                    var block = page.getBlock(code);
+                    block.incRef();
+                    allBlocks[pos] = block;
+                } else {
+                    leafOutputPos[code - originalColumnCount] = pos;
+                }
+            }
+
             // Zero expanded columns means nothing to expand, so just drop the _unmapped_fields column, keep any retained blocks,
             // and skip the wasted per-row _source re-parse.
-            if (expandedBlockCount > 0) {
+            if (leafCount > 0) {
                 BytesRefBlock unmappedBlock = page.getBlock(unmappedIdx);
                 Arrays.setAll(builders, i -> blockFactory.newBytesRefBlockBuilder(page.getPositionCount()));
                 // valueScratch and leaves are reused across rows: valueScratch holds one leaf's keyword values before they are appended,
@@ -280,7 +335,7 @@ class ExpandUnmappedFieldsPostProcessor {
                 CircuitBreaker breaker = blockFactory.breaker();
                 for (int row = 0; row < page.getPositionCount(); row++) {
                     if (unmappedBlock.isNull(row)) {
-                        appendRow(Map.of(), fieldNames, builders, valueScratch);
+                        appendRow(Map.of(), leafNames, builders, valueScratch);
                         continue;
                     }
                     BytesRef json = getBytesRef(unmappedBlock, row, jsonScratch);
@@ -288,13 +343,13 @@ class ExpandUnmappedFieldsPostProcessor {
                     try {
                         leaves.clear();
                         collectLeaves("", parseJson(json), leafSink);
-                        appendRow(leaves, fieldNames, builders, valueScratch);
+                        appendRow(leaves, leafNames, builders, valueScratch);
                     } finally {
                         breaker.addWithoutBreaking(-reservation);
                     }
                 }
                 for (int i = 0; i < builders.length; i++) {
-                    allBlocks[retainedBlockCount + i] = builders[i].build();
+                    allBlocks[leafOutputPos[i]] = builders[i].build();
                 }
             }
             var result = new Page(page.getPositionCount(), allBlocks);
@@ -318,13 +373,13 @@ class ExpandUnmappedFieldsPostProcessor {
      */
     private static void appendRow(
         Map<String, Object> leaves,
-        List<String> fieldNames,
+        List<String> leafNames,
         BytesRefBlock.Builder[] builders,
         List<BytesRef> valueScratch
     ) {
         for (int i = 0; i < builders.length; i++) {
             valueScratch.clear();
-            UnmappedKeywordValues.collect(leaves.get(fieldNames.get(i)), valueScratch);
+            UnmappedKeywordValues.collect(leaves.get(leafNames.get(i)), valueScratch);
             if (valueScratch.isEmpty()) {
                 builders[i].appendNull();
             } else if (valueScratch.size() == 1) {

@@ -3346,20 +3346,10 @@ public class EsqlCapabilities {
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, an auto-expanded unmapped source field is flattened to its leaves: a nested object
          * becomes one dotted {@code keyword} column per leaf (so a synthetic-source index expands to the same columns as a stored-source
-         * one), an array becomes a multivalue, and an object contributes no column of its own. Only meaningful when
-         * {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
+         * one), an array becomes a multivalue, and an object contributes a column of its own only if explicitly referenced. Only meaningful
+         * when {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
          */
         OPTIONAL_FIELDS_LOAD_ALL_FLATTEN_TO_LEAVES(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
-
-        /**
-         * Under {@code unmapped_fields="LOAD_ALL"}, an unmapped object field expands to the same leaf columns whether the index stores
-         * {@code _source} verbatim or reconstructs it synthetically, under every {@code KEEP}/{@code DROP} shape. A synthetic source
-         * rebuilds a dotted key like {@code unmapped.deep.leaf} as an {@code unmapped} parent object that the data node used to filter by
-         * its parent name, diverging from a stored source's literal dotted key. The data node now ships whole objects (pruning only a
-         * subtree-covering wildcard {@code DROP}) and the coordinator filters per flattened leaf. Only meaningful when
-         * {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
-         */
-        OPTIONAL_FIELDS_LOAD_ALL_OBJECT_LEAF_PARITY(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
 
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.

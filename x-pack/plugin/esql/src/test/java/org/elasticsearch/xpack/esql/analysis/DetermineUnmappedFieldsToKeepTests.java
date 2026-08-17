@@ -18,6 +18,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -268,6 +270,40 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         UnmappedFieldsPattern pattern = patternFor("FROM test | EVAL len = LENGTH(_unmapped_fields)");
         assertKept(pattern, "unmapped_extra");
         assertNotKept(pattern, excl("_unmapped_fields", "len"));
+    }
+
+    /**
+     * The governing (top-most) {@code KEEP}'s projection terms are captured, in written order, for the coordinator to replay column
+     * ordering over the expanded leaves. The bare {@code *}, wildcards and explicit names are all preserved verbatim.
+     */
+    public void testKeepOrderCapturedForTopKeep() {
+        assertThat(keepOrderFor("FROM test | KEEP *, unmapped.*, unmapped"), equalTo(List.of("*", "unmapped.*", "unmapped")));
+        assertThat(keepOrderFor("FROM test | KEEP unmapped.*, unmapped, *"), equalTo(List.of("unmapped.*", "unmapped", "*")));
+    }
+
+    /**
+     * No governing {@code KEEP} means the coordinator falls back to the natural real-then-alphabetical order, so nothing is captured:
+     * with no projection, and - deliberately - when the top-most projection is a {@code DROP} (whose removals reorder/rename in ways the
+     * name-based terms can no longer describe), even if a {@code KEEP} sits below it.
+     */
+    public void testKeepOrderEmptyWithoutGoverningKeep() {
+        assertThat(keepOrderFor("FROM test"), empty());
+        assertThat(keepOrderFor("FROM test | DROP unmapped"), empty());
+        assertThat(keepOrderFor("FROM test | KEEP unmapped* | DROP unmapped"), empty());
+    }
+
+    /**
+     * {@code EVAL}/{@code WHERE}/{@code SORT}/{@code LIMIT} above the {@code KEEP} are transparent to column ordering, so the walk
+     * descends through them and the {@code KEEP} still governs. ({@code emp_no} is kept so the {@code WHERE} above stays resolvable.)
+     */
+    public void testKeepOrderSeenThroughTransparentCommandsAboveKeep() {
+        assertThat(keepOrderFor("FROM test | KEEP emp_no, unmapped.* | WHERE emp_no > 0 | LIMIT 5"), equalTo(List.of("emp_no", "unmapped.*")));
+    }
+
+    private static List<String> keepOrderFor(String query) {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll(query));
+        EsRelation relation = EsqlTestUtils.singleValue(plan.collect(EsRelation.class));
+        return EsqlTestUtils.singleValue(CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)).keepOrder();
     }
 
     private static void assertKept(UnmappedFieldsPattern pattern, String... names) {

@@ -386,6 +386,89 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         }
     }
 
+    public void testKeepOrderPlacesLeavesPerKeepContractStarFirst() {
+        BlockFactory bf = blockFactory();
+        // KEEP *, unmapped.*, unmapped: the real column (from *) leads, then the object's dotted leaves (unmapped.*), then the scalar
+        // "unmapped" last - not the alphabetical unmapped, unmapped.bar, unmapped.deep.leaf, unmapped.foo a plain expansion would emit.
+        Result result = result(
+            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.ALL, List.of("*", "unmapped.*", "unmapped"))),
+            List.of(page(bf, List.of(row(1, jsonObject(KEEP_ORDER_JSON)))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "unmapped.bar", "unmapped.deep.leaf", "unmapped.foo", "unmapped")));
+            assertThat(
+                nonNullRows(expanded),
+                contains(
+                    matchesMap().entry(INT_ATTR, 1)
+                        .entry("unmapped.bar", "b")
+                        .entry("unmapped.deep.leaf", "d")
+                        .entry("unmapped.foo", "f")
+                        .entry("unmapped", "s")
+                )
+            );
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testKeepOrderCanPlaceRealColumnAfterExpandedLeaves() {
+        BlockFactory bf = blockFactory();
+        // KEEP unmapped.*, unmapped, *: the object's dotted leaves lead, then the scalar "unmapped", and the real column (matched only by
+        // the trailing *) lands LAST - a position the fixed "retained columns first, leaves after" layout could never produce.
+        Result result = result(
+            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.ALL, List.of("unmapped.*", "unmapped", "*"))),
+            List.of(page(bf, List.of(row(1, jsonObject(KEEP_ORDER_JSON)))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of("unmapped.bar", "unmapped.deep.leaf", "unmapped.foo", "unmapped", INT_ATTR)));
+            assertThat(
+                nonNullRows(expanded),
+                contains(
+                    matchesMap().entry("unmapped.bar", "b")
+                        .entry("unmapped.deep.leaf", "d")
+                        .entry("unmapped.foo", "f")
+                        .entry("unmapped", "s")
+                        .entry(INT_ATTR, 1)
+                )
+            );
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testKeepOrderTrailsEvalColumnAppendedAboveKeep() {
+        BlockFactory bf = blockFactory();
+        // FROM ... | KEEP * | EVAL z = ...: the EVAL column is appended after _unmapped_fields (KEEP pins that synthetic column right
+        // after its own projections, so a later-added real column lands past it). The trailing * would match "z", but it did not exist
+        // when KEEP ran, so it must trail the expanded leaves rather than be reordered among the * matches.
+        Result result = result(
+            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.ALL, List.of("*")), keywordAttr("z")),
+            List.of(page(bf, List.of(row(1, jsonObject(KEEP_ORDER_JSON), "e"))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "unmapped", "unmapped.bar", "unmapped.deep.leaf", "unmapped.foo", "z")));
+            assertThat(
+                nonNullRows(expanded),
+                contains(
+                    matchesMap().entry(INT_ATTR, 1)
+                        .entry("unmapped", "s")
+                        .entry("unmapped.bar", "b")
+                        .entry("unmapped.deep.leaf", "d")
+                        .entry("unmapped.foo", "f")
+                        .entry("z", "e")
+                )
+            );
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
     public void testExpandReleasesInputPagesWhenExpansionFails() {
         BlockFactory bf = blockFactory();
         // A _unmapped_fields cell must hold exactly one value; a two-value cell makes getBytesRef throw mid-collect. The point is that
@@ -435,6 +518,10 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     private static UnmappedFieldsAttribute unmappedAttr(UnmappedFieldsPattern pattern) {
         return new UnmappedFieldsAttribute(Source.EMPTY, pattern);
+    }
+
+    private static UnmappedFieldsAttribute unmappedAttr(UnmappedFieldsPattern pattern, List<String> keepOrder) {
+        return new UnmappedFieldsAttribute(Source.EMPTY, pattern, keepOrder);
     }
 
     /** Builds a single page whose blocks are inferred from {@code rows} (one {@link #row} per position). */
@@ -489,4 +576,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
     }
 
     private static final String INT_ATTR = "emp_no";
+
+    /** A scalar "unmapped" plus three dotted leaves - the object shape both KEEP-order tests expand and reorder. */
+    private static final String KEEP_ORDER_JSON = "{'unmapped':'s','unmapped.bar':'b','unmapped.deep.leaf':'d','unmapped.foo':'f'}";
 }

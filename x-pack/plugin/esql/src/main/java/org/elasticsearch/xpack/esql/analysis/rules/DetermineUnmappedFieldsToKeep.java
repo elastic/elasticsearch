@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
+import java.util.List;
+
 /**
  * When {@code SET unmapped_fields="LOAD_ALL"} is in effect, annotates
  * each non-LOOKUP {@link EsRelation} with an {@link UnmappedFieldsAttribute} carrying the
@@ -39,12 +41,35 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             return plan;
         }
         UnmappedFieldsPattern pattern = computeUnmappedFieldsToKeep(plan);
+        List<String> keepOrder = outermostKeepOrder(plan);
         return plan.transformUp(EsRelation.class, esr -> {
             if (esr.indexMode() == IndexMode.LOOKUP) {
                 return esr;
             }
-            return esr.withAdditionalAttribute(new UnmappedFieldsAttribute(Source.EMPTY, pattern));
+            return esr.withAdditionalAttribute(new UnmappedFieldsAttribute(Source.EMPTY, pattern, keepOrder));
         });
+    }
+
+    /**
+     * The projection terms of the top-most {@code KEEP}, in written order, or empty when no {@code KEEP} governs the output order.
+     * The coordinator replays them over the real columns plus the expanded leaves so a {@code LOAD_ALL} output honors {@code KEEP}'s
+     * left-to-right column contract (see {@link UnmappedFieldsPattern#keepOrdered}).
+     * <p>
+     * Only the top-most projection is consulted, and only when it is a {@code KEEP}: a {@code DROP}/{@code RENAME} above it would
+     * reorder or rename columns in ways these name-based terms can no longer describe, so the output falls back to the natural
+     * real-then-alphabetical order (unchanged from before this ordering support). Non-projection commands ({@code EVAL}, {@code WHERE},
+     * {@code SORT}, {@code LIMIT}) do not change which projection governs order, so the walk descends through them to that top
+     * {@code KEEP}; a column an {@code EVAL} appended above the {@code KEEP} trails its output at the coordinator (it did not exist when
+     * {@code KEEP} ran — see {@link UnmappedFieldsPattern#keepOrdered} and the post-processor's layout). The plan is a linear unary
+     * chain here — {@code LOAD_ALL} currently rejects non-unary plans in the {@code Verifier}.
+     */
+    private static List<String> outermostKeepOrder(LogicalPlan plan) {
+        for (LogicalPlan p = plan; p instanceof UnaryPlan unary; p = unary.child()) {
+            if (p instanceof ResolvingProject project) {
+                return project.isKeep() ? project.keepOrderTerms() : List.of();
+            }
+        }
+        return List.of();
     }
 
     /**

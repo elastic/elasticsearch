@@ -127,4 +127,45 @@ public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<U
         assertFalse(fixedSuffixDrop.matches("unmapped"));
         assertTrue(fixedSuffixDrop.matches("unmapped.deep.leaf"));
     }
+
+    /**
+     * {@link UnmappedFieldsPattern#keepOrdered} reproduces {@code Analyzer.keepResolver}'s ordering: priority is explicit name &gt;
+     * non-bare wildcard &gt; bare {@code *}, and a later term of equal-or-higher priority moves a column to the end. These are the worked
+     * examples from that method's javadoc.
+     */
+    public void testKeepOrderedMirrorsKeepResolverPriorities() {
+        assertEquals(List.of("bar", "foo"), UnmappedFieldsPattern.keepOrdered(List.of("foo", "bar"), List.of("*", "foo")));
+        assertEquals(List.of("foo", "bar"), UnmappedFieldsPattern.keepOrdered(List.of("foo", "bar"), List.of("foo", "*")));
+        assertEquals(List.of("bar", "foo"), UnmappedFieldsPattern.keepOrdered(List.of("foo", "bar"), List.of("bar*", "foo", "*")));
+        assertEquals(List.of("bar", "foo"), UnmappedFieldsPattern.keepOrdered(List.of("foo", "bar"), List.of("foo*", "bar", "fo*")));
+    }
+
+    /**
+     * The LOAD_ALL case this ordering exists for: the real columns and runtime-discovered leaves (alphabetical in {@code childOutput})
+     * are reordered to honor KEEP's left-to-right contract - including moving a real column ({@code id}) after the expanded leaves.
+     */
+    public void testKeepOrderedInterleavesRealColumnsAndExpandedLeaves() {
+        List<String> childOutput = List.of("id", "unmapped", "unmapped.bar", "unmapped.deep.leaf", "unmapped.foo");
+        assertEquals(
+            List.of("id", "unmapped.bar", "unmapped.deep.leaf", "unmapped.foo", "unmapped"),
+            UnmappedFieldsPattern.keepOrdered(childOutput, List.of("*", "unmapped.*", "unmapped"))
+        );
+        assertEquals(
+            List.of("unmapped.bar", "unmapped.deep.leaf", "unmapped.foo", "unmapped", "id"),
+            UnmappedFieldsPattern.keepOrdered(childOutput, List.of("unmapped.*", "unmapped", "*"))
+        );
+        // An explicit real column pinned between two leaf-producing terms: id lands after unmapped.* leaves but before the scalar unmapped.
+        assertEquals(
+            List.of("unmapped.bar", "unmapped.deep.leaf", "unmapped.foo", "id", "unmapped"),
+            UnmappedFieldsPattern.keepOrdered(childOutput, List.of("unmapped.*", "id", "unmapped"))
+        );
+    }
+
+    /**
+     * A {@code childOutput} name that no term matches - e.g. a column an {@code EVAL} added above the governing {@code KEEP} - keeps its
+     * natural trailing position, so reordering never drops a column.
+     */
+    public void testKeepOrderedAppendsUnmatchedColumnsLast() {
+        assertEquals(List.of("unmapped.foo", "x"), UnmappedFieldsPattern.keepOrdered(List.of("x", "unmapped.foo"), List.of("unmapped.*")));
+    }
 }

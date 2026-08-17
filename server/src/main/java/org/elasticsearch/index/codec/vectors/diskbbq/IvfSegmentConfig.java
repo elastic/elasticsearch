@@ -90,6 +90,22 @@ public record IvfSegmentConfig(
     }
 
     /**
+     * Returns the {@link QuantEncoding} from an {@link OsqConfig}.
+     * @throws ClassCastException if this config uses a different quantization strategy
+     */
+    public QuantEncoding osqEncoding() {
+        return ((OsqConfig) quantConfig).encoding();
+    }
+
+    /**
+     * Returns the {@link AshConfig} from this segment config.
+     * @throws ClassCastException if this config uses a different quantization strategy
+     */
+    public AshConfig ashConfig() {
+        return (AshConfig) quantConfig;
+    }
+
+    /**
      * Resolves oversample for search: query override, else finite persisted value, else mapping default.
      */
     public static float effectiveRescoreOversample(float persisted, Float queryOverride, float mappingDefault) {

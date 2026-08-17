@@ -120,6 +120,21 @@ public class KnnIndexTester {
         GPU_HNSW
     }
 
+    enum QuantizationType {
+        OSQ,
+        ASH;
+
+        static QuantizationType fromString(String name) {
+            if (name == null) {
+                return OSQ;
+            }
+            return switch (name.toLowerCase(Locale.ROOT)) {
+                case "ash" -> ASH;
+                default -> OSQ;
+            };
+        }
+    }
+
     public enum VectorEncoding {
         BYTE(org.apache.lucene.index.VectorEncoding.BYTE, DenseVectorFieldMapper.ElementType.BYTE),
         FLOAT32(org.apache.lucene.index.VectorEncoding.FLOAT32, DenseVectorFieldMapper.ElementType.FLOAT),
@@ -210,7 +225,7 @@ public class KnnIndexTester {
             case FLAT -> suffix.add("flat");
             case GPU_HNSW -> suffix.add("gpu_hnsw");
             case IVF -> {
-                boolean isAsh = "ash".equals(args.quantizationType());
+                boolean isAsh = QuantizationType.fromString(args.quantizationType()) == QuantizationType.ASH;
                 suffix.add(isAsh ? "ash" : "ivf");
                 suffix.add(Integer.toString(args.ivfClusterSize()));
                 if (isAsh) {
@@ -261,7 +276,7 @@ public class KnnIndexTester {
 
         format = switch (args.indexType()) {
             case IVF -> {
-                boolean isAsh = "ash".equals(args.quantizationType());
+                boolean isAsh = QuantizationType.fromString(args.quantizationType()) == QuantizationType.ASH;
                 int flatVectorThreshold = args.flatVectorThreshold() >= 0 ? args.flatVectorThreshold() : -1;
                 int centroidsPerParentCluster = args.secondaryClusterSize() == -1
                     ? (isAsh
@@ -832,7 +847,7 @@ public class KnnIndexTester {
     private static void checkQuantizeBits(TestConfiguration args) {
         switch (args.indexType()) {
             case IVF:
-                if ("ash".equals(args.quantizationType())) {
+                if (QuantizationType.fromString(args.quantizationType()) == QuantizationType.ASH) {
                     // ASH supports {1, 2, 3, 4, 8} for doc bits; query bits are independent
                     if (args.quantizeBits() != null && !Set.of(1, 2, 3, 4, 8).contains(args.quantizeBits())) {
                         throw new IllegalArgumentException(

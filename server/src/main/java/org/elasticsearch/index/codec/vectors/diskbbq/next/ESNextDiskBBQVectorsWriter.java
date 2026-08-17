@@ -238,7 +238,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
     ) throws IOException {
         final IvfSegmentConfig segmentConfig = requireSegmentConfig(fieldWritingContext);
 
-        final QuantEncoding effectiveQuantEncoding = ((IvfSegmentConfig.OsqConfig) segmentConfig.quantConfig()).encoding();
+        final QuantEncoding effectiveQuantEncoding = segmentConfig.osqEncoding();
         FlatCentroidClusters centroidClusters = (FlatCentroidClusters) centroidSupplier.centroidIndex();
         final boolean isByte = vectorValues instanceof ByteVectorValues;
 
@@ -350,7 +350,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
     ) throws IOException {
         final IvfSegmentConfig segmentConfig = requireSegmentConfig(fieldWritingContext);
 
-        final QuantEncoding effectiveQuantEncoding = ((IvfSegmentConfig.OsqConfig) segmentConfig.quantConfig()).encoding();
+        final QuantEncoding effectiveQuantEncoding = segmentConfig.osqEncoding();
         // first, quantize all the vectors into a temporary file
         var vectorSimilarityFunction = fieldInfo.getVectorSimilarityFunction();
         FlatCentroidClusters centroidClusters = (FlatCentroidClusters) centroidSupplier.centroidIndex();
@@ -712,7 +712,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         final IvfSegmentConfig segmentConfig = requireSegmentConfig(ivfSegmentConfig);
         metaOutput.writeInt(ES940OSQVectorsScorer.BULK_SIZE);
         metaOutput.writeInt(segmentConfig.centroidIndexFormat().id());
-        metaOutput.writeInt(((IvfSegmentConfig.OsqConfig) segmentConfig.quantConfig()).encoding().id());
+        metaOutput.writeInt(segmentConfig.osqEncoding().id());
         metaOutput.writeLong(preconditionerLength);
         if (preconditionerLength > 0) {
             metaOutput.writeLong(preconditionerOffset);

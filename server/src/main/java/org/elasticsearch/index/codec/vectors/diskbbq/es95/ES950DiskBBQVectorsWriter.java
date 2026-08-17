@@ -201,7 +201,7 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
     ) throws IOException {
         FloatVectorValues floatVectorValues = (FloatVectorValues) vectorValues;
         final IvfSegmentConfig segmentConfig = requireSegmentConfig(fieldWritingContext);
-        final QuantEncoding effectiveQuantEncoding = ((IvfSegmentConfig.OsqConfig) segmentConfig.quantConfig()).encoding();
+        final QuantEncoding effectiveQuantEncoding = segmentConfig.osqEncoding();
         FlatCentroidClusters centroidClusters = (FlatCentroidClusters) centroidSupplier.centroidIndex();
         int[] centroidVectorCount = new int[centroidSupplier.size()];
         for (int i = 0; i < assignments.length; i++) {
@@ -298,7 +298,7 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
     ) throws IOException {
         FloatVectorValues floatVectorValues = (FloatVectorValues) vectorValues;
         final IvfSegmentConfig segmentConfig = requireSegmentConfig(fieldWritingContext);
-        final QuantEncoding effectiveQuantEncoding = ((IvfSegmentConfig.OsqConfig) segmentConfig.quantConfig()).encoding();
+        final QuantEncoding effectiveQuantEncoding = segmentConfig.osqEncoding();
         // first, quantize all the vectors into a temporary file
         var vectorSimilarityFunction = fieldInfo.getVectorSimilarityFunction();
         FlatCentroidClusters centroidClusters = (FlatCentroidClusters) centroidSupplier.centroidIndex();
@@ -603,7 +603,7 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
     ) throws IOException {
         final IvfSegmentConfig segmentConfig = requireSegmentConfig(ivfSegmentConfig);
         metaOutput.writeInt(ES940OSQVectorsScorer.BULK_SIZE);
-        metaOutput.writeInt(((IvfSegmentConfig.OsqConfig) segmentConfig.quantConfig()).encoding().id());
+        metaOutput.writeInt(segmentConfig.osqEncoding().id());
         metaOutput.writeLong(preconditionerLength);
         if (preconditionerLength > 0) {
             metaOutput.writeLong(preconditionerOffset);

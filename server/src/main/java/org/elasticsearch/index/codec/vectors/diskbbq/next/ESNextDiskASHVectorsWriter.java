@@ -250,7 +250,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             fileOffset,
             assignments,
             overspillAssignments,
-            (IvfSegmentConfig.AshConfig) segmentConfig.quantConfig(),
+            segmentConfig.ashConfig(),
             fieldInfo.getVectorSimilarityFunction()
         );
         pendingAshMatrix = ashWriter.getAshProjectionMatrix();
@@ -285,7 +285,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             }
         }
         // ASH-specific: bits per dimension
-        metaOutput.writeVInt(((IvfSegmentConfig.AshConfig) ivfSegmentConfig.quantConfig()).bitsPerDim());
+        metaOutput.writeVInt(ivfSegmentConfig.ashConfig().bitsPerDim());
     }
 
     @Override

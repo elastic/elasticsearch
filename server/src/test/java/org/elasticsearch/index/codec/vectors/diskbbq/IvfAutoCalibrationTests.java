@@ -79,10 +79,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
 
             IvfSegmentConfig config = selector.resolve(fieldInfo, mergeState, CODEC_DEFAULT);
 
-            assertThat(
-                ((IvfSegmentConfig.OsqConfig) config.quantConfig()).encoding(),
-                is(((IvfSegmentConfig.OsqConfig) CODEC_DEFAULT.quantConfig()).encoding())
-            );
+            assertThat(config.osqEncoding(), is(CODEC_DEFAULT.osqEncoding()));
             assertThat(config.usePrecondition(), is(CODEC_DEFAULT.usePrecondition()));
             assertThat(config.rescoreOversample(), equalTo(CODEC_DEFAULT.rescoreOversample()));
         }
@@ -141,7 +138,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
             IvfSegmentConfig reused = selector.selectFromMergeState(fieldInfo, mergeState);
 
             assertThat(reused, notNullValue());
-            assertThat(((IvfSegmentConfig.OsqConfig) reused.quantConfig()).encoding(), is(QuantEncoding.ONE_BIT_4BIT_QUERY));
+            assertThat(reused.osqEncoding(), is(QuantEncoding.ONE_BIT_4BIT_QUERY));
             assertThat(reused.rescoreOversample(), equalTo(3.2f));
             assertFalse(reused.usePrecondition());
         }
@@ -187,7 +184,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
             IvfSegmentConfig reused = selector.selectFromMergeState(fieldInfo, mergeState);
 
             assertThat(reused, notNullValue());
-            assertThat(((IvfSegmentConfig.OsqConfig) reused.quantConfig()).encoding(), is(QuantEncoding.ONE_BIT_4BIT_QUERY));
+            assertThat(reused.osqEncoding(), is(QuantEncoding.ONE_BIT_4BIT_QUERY));
             // Weighted by VECTOR count: (2*8000 + 4*2000) / (8000 + 2000) = 2.4
             // Weighting by DOC count would instead give (2*8000 + 4*10000) / (8000 + 10000) = 3.11.
             assertThat(reused.rescoreOversample(), equalTo(2.4f));
@@ -227,7 +224,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
             IvfSegmentConfig reused = selector.selectFromMergeState(fieldInfo, mergeState);
 
             assertThat(reused, notNullValue());
-            assertThat(((IvfSegmentConfig.OsqConfig) reused.quantConfig()).encoding(), is(QuantEncoding.ONE_BIT_4BIT_QUERY));
+            assertThat(reused.osqEncoding(), is(QuantEncoding.ONE_BIT_4BIT_QUERY));
             // deleted vectors are excluded: A contributes 600 live vectors. (2*600 + 5*1000)/1600 = 3.875.
             // counting deleted vectors would instead give (2*1000 + 5*1000)/2000 = 3.5.
             int liveA = vectorsA - deletedA;
@@ -291,7 +288,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
                 IvfSegmentConfig reused = selector.selectFromMergeState(fieldInfo, mergeState);
 
                 assertThat(reused, notNullValue());
-                assertThat(((IvfSegmentConfig.OsqConfig) reused.quantConfig()).encoding(), is(QuantEncoding.ONE_BIT_4BIT_QUERY));
+                assertThat(reused.osqEncoding(), is(QuantEncoding.ONE_BIT_4BIT_QUERY));
                 float expectedOversample = (oversampleA * reader.leaves().get(0).reader().maxDoc() + oversampleB * reader.leaves()
                     .get(1)
                     .reader()
@@ -353,7 +350,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
                 IvfSegmentConfig reused = selector.selectFromMergeState(fieldInfo, mergeState);
 
                 assertThat(reused, notNullValue());
-                assertThat(((IvfSegmentConfig.OsqConfig) reused.quantConfig()).encoding(), is(QuantEncoding.ONE_BIT_4BIT_QUERY));
+                assertThat(reused.osqEncoding(), is(QuantEncoding.ONE_BIT_4BIT_QUERY));
                 // weighted by LIVE vectors: segment A contributes 70 (100 physical - 30 deleted), segment B 100.
                 // (2*70 + 4*100) / 170 = 3.176; weighting by physical size() would instead give (2*100+4*100)/200 = 3.0.
                 int liveA = 100 - 30;
@@ -370,8 +367,8 @@ public class IvfAutoCalibrationTests extends ESTestCase {
 
         IvfSegmentConfig config = selector.calibrate(vectors, VectorSimilarityFunction.EUCLIDEAN);
 
-        assertThat(((IvfSegmentConfig.OsqConfig) config.quantConfig()).encoding(), notNullValue());
-        assertTrue(CALIBRATION_CANDIDATE_ENCODINGS.contains(((IvfSegmentConfig.OsqConfig) config.quantConfig()).encoding()));
+        assertThat(config.osqEncoding(), notNullValue());
+        assertTrue(CALIBRATION_CANDIDATE_ENCODINGS.contains(config.osqEncoding()));
         assertTrue(Float.isFinite(config.rescoreOversample()));
         assertTrue(config.rescoreOversample() > 0f);
     }
@@ -402,7 +399,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
             IvfSegmentConfig reused = selector.selectFromMergeState(fieldInfo, mergeState);
 
             assertThat(reused, notNullValue());
-            assertThat(((IvfSegmentConfig.OsqConfig) reused.quantConfig()).encoding(), is(QuantEncoding.ONE_BIT_4BIT_QUERY));
+            assertThat(reused.osqEncoding(), is(QuantEncoding.ONE_BIT_4BIT_QUERY));
         }
     }
 
@@ -458,7 +455,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
 
             IvfSegmentConfig config = selector.resolve(fieldInfo, mergeState, CODEC_DEFAULT);
 
-            assertThat(((IvfSegmentConfig.OsqConfig) config.quantConfig()).encoding(), notNullValue());
+            assertThat(config.osqEncoding(), notNullValue());
             assertThat(selector.calibrateInvocations, equalTo(1));
             assertTrue(Float.isFinite(config.rescoreOversample()));
         }
@@ -493,7 +490,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
 
             IvfSegmentConfig config = selector.resolve(fieldInfo, mergeState, CODEC_DEFAULT);
 
-            assertThat(((IvfSegmentConfig.OsqConfig) config.quantConfig()).encoding(), is(QuantEncoding.TWO_BIT_4BIT_QUERY));
+            assertThat(config.osqEncoding(), is(QuantEncoding.TWO_BIT_4BIT_QUERY));
             assertThat(config.rescoreOversample(), equalTo(2.5f));
             assertEquals(0, selector.calibrateInvocations);
         }
@@ -512,10 +509,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
 
             IvfSegmentConfig config = selector.resolve(fieldInfo, mergeState, CODEC_DEFAULT);
 
-            assertThat(
-                ((IvfSegmentConfig.OsqConfig) config.quantConfig()).encoding(),
-                is(((IvfSegmentConfig.OsqConfig) CODEC_DEFAULT.quantConfig()).encoding())
-            );
+            assertThat(config.osqEncoding(), is(CODEC_DEFAULT.osqEncoding()));
             assertFalse(config.usePrecondition());
             assertThat(config.rescoreOversample(), equalTo(CODEC_DEFAULT.rescoreOversample()));
         }
@@ -534,10 +528,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
 
             IvfSegmentConfig config = selector.resolve(fieldInfo, mergeState, CODEC_DEFAULT);
 
-            assertThat(
-                ((IvfSegmentConfig.OsqConfig) config.quantConfig()).encoding(),
-                is(((IvfSegmentConfig.OsqConfig) CODEC_DEFAULT.quantConfig()).encoding())
-            );
+            assertThat(config.osqEncoding(), is(CODEC_DEFAULT.osqEncoding()));
             assertThat(config.rescoreOversample(), equalTo(CODEC_DEFAULT.rescoreOversample()));
         }
     }
@@ -548,10 +539,10 @@ public class IvfAutoCalibrationTests extends ESTestCase {
 
         IvfSegmentConfig config = selector.calibrate(vectors, VectorSimilarityFunction.EUCLIDEAN);
 
-        assertThat(((IvfSegmentConfig.OsqConfig) config.quantConfig()).encoding(), notNullValue());
+        assertThat(config.osqEncoding(), notNullValue());
         assertTrue(Float.isFinite(config.rescoreOversample()));
         assertTrue(config.rescoreOversample() > 0f);
-        assertTrue(CALIBRATION_CANDIDATE_ENCODINGS.contains(((IvfSegmentConfig.OsqConfig) config.quantConfig()).encoding()));
+        assertTrue(CALIBRATION_CANDIDATE_ENCODINGS.contains(config.osqEncoding()));
     }
 
     public void testCalibrateFullOnSyntheticCorpus() throws IOException {
@@ -565,8 +556,8 @@ public class IvfAutoCalibrationTests extends ESTestCase {
 
         IvfSegmentConfig config = selector.calibrate(vectors, VectorSimilarityFunction.EUCLIDEAN);
 
-        assertThat(((IvfSegmentConfig.OsqConfig) config.quantConfig()).encoding(), notNullValue());
-        assertTrue(CALIBRATION_CANDIDATE_ENCODINGS.contains(((IvfSegmentConfig.OsqConfig) config.quantConfig()).encoding()));
+        assertThat(config.osqEncoding(), notNullValue());
+        assertTrue(CALIBRATION_CANDIDATE_ENCODINGS.contains(config.osqEncoding()));
         assertTrue(Float.isFinite(config.rescoreOversample()));
         assertTrue(config.rescoreOversample() > 0f);
     }
@@ -599,7 +590,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
                     reader.leaves().getFirst().reader()
                 );
                 assertNotNull(persisted);
-                assertTrue(CALIBRATION_CANDIDATE_ENCODINGS.contains(((IvfSegmentConfig.OsqConfig) persisted.quantConfig()).encoding()));
+                assertTrue(CALIBRATION_CANDIDATE_ENCODINGS.contains(persisted.osqEncoding()));
                 assertTrue(Float.isFinite(persisted.rescoreOversample()));
                 assertTrue(
                     "calibrated oversample should be a rerank ratio, not flush-injected 2f",
@@ -629,7 +620,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
                 );
                 assertNotNull(persisted);
                 // The persisted encoding must be one of the calibration candidate encodings.
-                assertTrue(CALIBRATION_CANDIDATE_ENCODINGS.contains(((IvfSegmentConfig.OsqConfig) persisted.quantConfig()).encoding()));
+                assertTrue(CALIBRATION_CANDIDATE_ENCODINGS.contains(persisted.osqEncoding()));
                 // Must not inherit flush-injected oversample (2f from the first flush segment).
                 assertThat(persisted.rescoreOversample(), not(equalTo(2f)));
             }
@@ -642,8 +633,8 @@ public class IvfAutoCalibrationTests extends ESTestCase {
 
         IvfSegmentConfig config = selector.calibrate(vectors, similarityFunction);
 
-        assertThat(((IvfSegmentConfig.OsqConfig) config.quantConfig()).encoding(), notNullValue());
-        assertTrue(CALIBRATION_CANDIDATE_ENCODINGS.contains(((IvfSegmentConfig.OsqConfig) config.quantConfig()).encoding()));
+        assertThat(config.osqEncoding(), notNullValue());
+        assertTrue(CALIBRATION_CANDIDATE_ENCODINGS.contains(config.osqEncoding()));
         assertTrue(Float.isFinite(config.rescoreOversample()));
         assertTrue(config.rescoreOversample() > 0f);
     }

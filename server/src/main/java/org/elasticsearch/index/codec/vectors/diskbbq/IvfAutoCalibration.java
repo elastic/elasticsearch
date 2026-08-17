@@ -392,7 +392,7 @@ public class IvfAutoCalibration {
                 () -> format(
                     "Selected: encoding [%s] docs per cluster %d preconditioning %s %d query bits %d document bits"
                         + " rerank %d candidates (expected recall %.2f%%)",
-                    ((IvfSegmentConfig.OsqConfig) outcome.config().quantConfig()).encoding(),
+                    outcome.config().osqEncoding(),
                     vectorsPerCluster,
                     outcome.config().usePrecondition(),
                     s.qbits(),
@@ -404,7 +404,7 @@ public class IvfAutoCalibration {
             case SweepOutcome.BestEffort b -> logger.debug(
                 "No encoding met target recall [{}], selecting best [{}] with oversample [{}] precondition [{}] and recall [{}]",
                 targetRecall,
-                ((IvfSegmentConfig.OsqConfig) outcome.config().quantConfig()).encoding(),
+                outcome.config().osqEncoding(),
                 outcome.config().rescoreOversample(),
                 outcome.config().usePrecondition(),
                 b.bestRecall()

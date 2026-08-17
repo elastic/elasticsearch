@@ -23,7 +23,7 @@ public class IvfSegmentConfigTests extends ESTestCase {
         var q = QuantEncoding.FOUR_BIT_SYMMETRIC;
         IvfSegmentConfig c = IvfSegmentConfig.fromCodecDefaults(ci, new IvfSegmentConfig.OsqConfig(q), true);
         assertThat(c.centroidIndexFormat(), is(ci));
-        assertThat(((IvfSegmentConfig.OsqConfig) c.quantConfig()).encoding(), is(q));
+        assertThat(c.osqEncoding(), is(q));
         assertTrue(c.usePrecondition());
         assertTrue(Float.isNaN(c.rescoreOversample()));
     }

@@ -12,6 +12,8 @@ package org.elasticsearch.lucene.queries;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.ConstantScoreScorerSupplier;
@@ -61,37 +63,50 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
 
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-                final BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
-                if (values == null) {
+                final FieldInfo fi = context.reader().getFieldInfos().fieldInfo(fieldName);
+                if (fi == null || fi.getDocValuesType() != DocValuesType.BINARY) {
                     return null;
                 }
+                return new ConstantScoreScorerSupplier(score(), scoreMode, context.reader().maxDoc()) {
+                    @Override
+                    public long cost() {
+                        return context.reader().maxDoc();
+                    }
 
-                // Checkpoint now that a binary doc values reader has been opened for this surviving clause/segment pair.
-                ContextIndexSearcher.checkBinaryDvDecodeBreaker(breaker);
+                    @Override
+                    public DocIdSetIterator iterator(long leadCost) throws IOException {
+                        // Checkpoint before opening: the probe is 0-byte heap sampling, so
+                        // checking before the allocation skips it entirely when under pressure.
+                        ContextIndexSearcher.checkBinaryDvDecodeBreaker(breaker);
+                        final BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
+                        if (values == null) {
+                            return DocIdSetIterator.empty();
+                        }
 
-                // The optimized path returns a TwoPhaseIterator-backed iterator (see the contract
-                // on tryContainsIterator). ConstantScoreScorer unwraps the TwoPhase so Lucene's
-                // BulkScorer drives approximation.advance(min) + matches() within [min, max), giving
-                // linear scaling under sub-segment slicing (DataPartitioning.DOC).
-                String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
-                DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
+                        // The optimized path returns a TwoPhaseIterator-backed iterator (see the contract
+                        // on tryContainsIterator). ConstantScoreScorerSupplier unwraps the TwoPhase so Lucene's
+                        // BulkScorer drives approximation.advance(min) + matches() within [min, max), giving
+                        // linear scaling under sub-segment slicing (DataPartitioning.DOC).
+                        String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
+                        DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
 
-                // tryContainsIterator scans the whole doc blob (including the multi-valued length-prefix framing), so it is only correct
-                // for single-valued fields where no length prefixes exist.
-                final DocIdSetIterator containsIter = (countsSkipper == null || countsSkipper.maxValue() == 1)
-                    && values instanceof BlockLoader.OptionalColumnAtATimeReader direct ? direct.tryContainsIterator(containsTerm) : null;
+                        // tryContainsIterator scans the whole doc blob (including the multi-valued length-prefix framing), so it is only
+                        // correct for single-valued fields where no length prefixes exist.
+                        final DocIdSetIterator containsIter = (countsSkipper == null || countsSkipper.maxValue() == 1)
+                            && values instanceof BlockLoader.OptionalColumnAtATimeReader direct
+                                ? direct.tryContainsIterator(containsTerm)
+                                : null;
 
-                final DocIdSetIterator iterator;
-                if (containsIter != null) {
-                    iterator = containsIter;
-                } else {
-                    Predicate<BytesRef> predicate = bytes -> contains(bytes, containsTerm);
-                    final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-                    iterator = arrayOrderInlineNull
-                        ? AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(values, counts, predicate, matchCost())
-                        : AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, predicate, matchCost());
-                }
-                return ConstantScoreScorerSupplier.fromIterator(iterator, score(), scoreMode, context.reader().maxDoc());
+                        if (containsIter != null) {
+                            return containsIter;
+                        }
+                        Predicate<BytesRef> predicate = bytes -> contains(bytes, containsTerm);
+                        final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
+                        return arrayOrderInlineNull
+                            ? AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(values, counts, predicate, matchCost())
+                            : AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, predicate, matchCost());
+                    }
+                };
             }
 
             @Override

@@ -23,6 +23,7 @@ public class RangeMinErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
         assumeTrue("DATE_RANGE type is only supported in snapshot builds", DataType.DATE_RANGE.supportedVersion().supportedLocally());
+        assumeTrue("DOUBLE_RANGE type is only supported in snapshot builds", DataType.DOUBLE_RANGE.supportedVersion().supportedLocally());
         return paramsToSuppliers(RangeMinTests.parameters());
     }
 
@@ -33,6 +34,6 @@ public class RangeMinErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, i) -> "date_range"));
+        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, i) -> "date_range or double_range"));
     }
 }

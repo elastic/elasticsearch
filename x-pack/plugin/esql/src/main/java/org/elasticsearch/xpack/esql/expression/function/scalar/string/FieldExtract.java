@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -68,7 +69,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  *     verifier-time validation is eligible for pushdown.
  * </p>
  */
-public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpression {
+public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpression, AnyNullIsNull {
     private static final BytesRef TRUE_BYTES = new BytesRef("true");
     private static final BytesRef FALSE_BYTES = new BytesRef("false");
 
@@ -115,6 +116,18 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
             Inside a multi-value sub-field, JSON object elements are likewise absent from the flat storage and are
             skipped; nested JSON arrays are flattened recursively so all scalar leaves end up in the resulting
             multi-value block.""",
+        appendix = """
+            ::::{note}
+            `FIELD_EXTRACT` reads from the `flattened` field's doc values, so a multi-valued sub-field comes back
+            as a **sorted, de-duplicated** `keyword` set: the original document order is not preserved and
+            repeated values are collapsed. This is intrinsic to how the [`flattened` mapping
+            type](/reference/elasticsearch/mapping-reference/flattened.md) [stores leaf
+            arrays](/reference/elasticsearch/mapping-reference/flattened.md#flattened-preserve-leaf-arrays), not to
+            the function; use [`MV_SORT`](/reference/query-languages/esql/functions-operators/mv-functions/mv_sort.md)
+            if you need a defined order downstream. For the other flattened caveats - values are always `keyword`,
+            dotted-key resolution, and objects or missing keys returning `null` - see the [`flattened` field
+            type](/reference/elasticsearch/mapping-reference/flattened.md).
+            ::::""",
         examples = @Example(file = "field_extract", tag = "field_extract_host_name")
     )
     public FieldExtract(

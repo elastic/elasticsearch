@@ -9,10 +9,7 @@
 
 package org.elasticsearch.benchmark.index.codec.columnar;
 
-import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
@@ -22,8 +19,6 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.benchmark.Utils;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -42,13 +37,12 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
 /**
  * A numeric range query over a single force-merged segment, split into {@code numSlices} contiguous
- * doc-id windows each scored by its own fresh {@link org.apache.lucene.search.BulkScorer} — mirroring
+ * doc-id windows each scored by its own fresh {@link org.apache.lucene.search.BulkScorer}, mirroring
  * ESQL {@code DataPartitioning.DOC}. Set {@code format} to compare ColumNAR's range path against the
  * TSDB codecs on identical data.
  */
@@ -65,9 +59,9 @@ public class ColumnarNumericRangeSlicingBenchmark {
         Utils.configureBenchmarkLogging();
     }
 
-    private static final String FIELD = "value";
+    private static final String FIELD = NumericFormat.FIELD;
 
-    @Param({ "COLUMNAR", "ES819", "ES95" })
+    @Param({ "LUCENE", "ES819", "ES95", "COLUMNAR" })
     private NumericFormat format;
 
     @Param("1000000")
@@ -79,7 +73,10 @@ public class ColumnarNumericRangeSlicingBenchmark {
     @Param({ "MONOTONIC_TIMESTAMPS", "RANDOM_FULL" })
     private String workload;
 
-    /** Fraction of docs the range matches (by rank from the median). 0.0 is the near-empty worst case. */
+    @Param({ "128", "512" })
+    private int blockSize;
+
+    // 0.0 is the near-empty worst case
     @Param({ "0.0", "0.001" })
     private double selectivity;
 
@@ -90,18 +87,8 @@ public class ColumnarNumericRangeSlicingBenchmark {
 
     @Setup(Level.Trial)
     public void setup() throws IOException {
-        directory = FSDirectory.open(Files.createTempDirectory("columnar-range-slicing-"));
         final long[] values = NumericData.generate(workload, numDocs);
-        final IndexWriterConfig config = new IndexWriterConfig().setCodec(format.codec());
-        final BytesRefBuilder builder = new BytesRefBuilder();
-        try (IndexWriter writer = new IndexWriter(directory, config)) {
-            for (int i = 0; i < numDocs; i++) {
-                final Document doc = new Document();
-                format.addField(doc, FIELD, values[i], builder);
-                writer.addDocument(doc);
-            }
-            writer.forceMerge(1);
-        }
+        directory = format.buildSegment(FIELD, workload, values, "columnar-range-slicing-", blockSize);
         reader = DirectoryReader.open(directory);
         maxDoc = reader.maxDoc();
 

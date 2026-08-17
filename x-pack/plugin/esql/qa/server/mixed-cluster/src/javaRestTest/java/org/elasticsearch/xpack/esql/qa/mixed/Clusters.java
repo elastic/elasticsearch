@@ -25,7 +25,7 @@ public class Clusters {
      * release constants, so the boundary is converted from the server constant instead of being spelled out again. The
      * qualified name disambiguates the two {@code Version} types this file needs.
      */
-    private static final Version FEDERATION_SETTING_VERSION = Version.fromString(org.elasticsearch.Version.V_9_6_0.toString());
+    private static final Version FEDERATION_SETTING_VERSION = Version.fromString(org.elasticsearch.Version.V_9_5_0.toString());
 
     public static ElasticsearchCluster mixedVersionCluster() {
         return mixedVersionCluster(CsvTestUtils.createCsvDataDirectory(), false);
@@ -68,7 +68,7 @@ public class Clusters {
 
     /**
      * Configures a current-version node with the settings that do not exist on every version in the mixed cluster: a node
-     * that does not know a setting rejects it and fails to start, so the local-disk allowlist and the federation opt-in
+     * that does not know a setting rejects it and fails to start, so the local-disk allowlist and the federation gate
      * are set per node rather than cluster-wide.
      */
     private static void currentVersionNode(LocalNodeSpecBuilder node, Path csvDataPath) {

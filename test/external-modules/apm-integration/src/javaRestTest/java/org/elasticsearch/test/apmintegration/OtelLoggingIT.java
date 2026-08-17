@@ -125,7 +125,7 @@ public class OtelLoggingIT extends AbstractTelemetryIT {
         assertNull("cluster.uuid must not be on OTel records", log.attributes().get("log4j.map_message.cluster.uuid"));
         assertNull("node.name must not be on OTel records", log.attributes().get("log4j.map_message.node.name"));
         assertNull("node.id must not be on OTel records", log.attributes().get("log4j.map_message.node.id"));
-        assertThat(log.resourceAttributes(), equalTo(Map.of("service.name", "serverless-elasticsearch", "service.type", "elasticsearch")));
+        assertLogDeliveryResource();
     }
 
     public void testOtelLoggingOnSearch() throws Exception {
@@ -152,6 +152,12 @@ public class OtelLoggingIT extends AbstractTelemetryIT {
         var indices = (ArrayValue) log.attributes().get(QueryLogging.QUERY_FIELD_INDICES);
         assertThat(indices.getValuesList().getFirst().getStringValue(), equalTo("test_index"));
         // Query logs ship over the same provider as audit logs and share the log-delivery resource contract.
-        assertThat(log.resourceAttributes(), equalTo(Map.of("service.name", "serverless-elasticsearch", "service.type", "elasticsearch")));
+        assertLogDeliveryResource();
+    }
+
+    private void assertLogDeliveryResource() {
+        ReceivedTelemetry.ReceivedResource resource = apmServer().resource();
+        assertNotNull("log export should carry a resource", resource);
+        assertThat(resource.attributes(), equalTo(Map.of("service.name", "serverless-elasticsearch", "service.type", "elasticsearch")));
     }
 }

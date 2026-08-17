@@ -38,7 +38,7 @@ public final class OtelSdkSettings {
 
     // --- Resource attributes (all signals)
 
-    /** External OTel resource attributes attached to every metric, span and log record exported by the SDK path. */
+    /** External OTel resource attributes attached to every metric and span exported by the SDK path. */
     public static final Setting.AffixSetting<String> TELEMETRY_RESOURCE_ATTRIBUTES = Setting.prefixKeySetting(
         "telemetry.resource.",
         key -> Setting.simpleString(key, NodeScope)
@@ -217,15 +217,6 @@ public final class OtelSdkSettings {
     public static final Setting<String> TELEMETRY_LOGS_RESOURCE_SERVICE_NAME = Setting.simpleString(
         "telemetry.logs.resource.service.name",
         "self-managed-elasticsearch",
-        NodeScope
-    );
-
-    /**
-     * Value of the {@code service.type} resource attribute on exported log records.
-     */
-    public static final Setting<String> TELEMETRY_LOGS_RESOURCE_SERVICE_TYPE = Setting.simpleString(
-        "telemetry.logs.resource.service.type",
-        "elasticsearch",
         NodeScope
     );
 

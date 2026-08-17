@@ -260,7 +260,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
     static Resource logDeliveryResource(Settings settings) {
         return Resource.builder()
             .put("service.name", OtelSdkSettings.TELEMETRY_LOGS_RESOURCE_SERVICE_NAME.get(settings))
-            .put("service.type", OtelSdkSettings.TELEMETRY_LOGS_RESOURCE_SERVICE_TYPE.get(settings))
+            .put("service.type", "elasticsearch")
             .build();
     }
 

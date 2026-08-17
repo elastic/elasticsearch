@@ -145,18 +145,23 @@ public final class StoreRecovery {
                         .mapToLong(LocalShardSnapshot::maxUnsafeAutoIdTimestamp)
                         .max()
                         .getAsLong();
-                    addIndices(
-                        indexShard.recoveryState().getIndex(),
-                        directory,
-                        indexSort,
-                        sources,
-                        maxSeqNo,
-                        maxUnsafeAutoIdTimestamp,
-                        indexShard.indexSettings().getIndexMetadata(),
-                        indexShard.shardId().id(),
-                        isSplit,
-                        hasNested
-                    );
+                    indexShard.store().incRef();
+                    try {
+                        addIndices(
+                            indexShard.recoveryState().getIndex(),
+                            directory,
+                            indexSort,
+                            sources,
+                            maxSeqNo,
+                            maxUnsafeAutoIdTimestamp,
+                            indexShard.indexSettings().getIndexMetadata(),
+                            indexShard.shardId().id(),
+                            isSplit,
+                            hasNested
+                        );
+                    } finally {
+                        indexShard.store().decRef();
+                    }
                     indexShard.ensureRecoveryNotCancelled();
                     internalRecoverFromStore(indexShard, recoveryListener.delegateFailure((delegate, v) -> {
                         ActionListener.completeWith(delegate, () -> {

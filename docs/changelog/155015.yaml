@@ -1,5 +1,0 @@
-area: Aggregations
-issues: []
-pr: 155015
-summary: Over estimate memory usage of delayable writable
-type: bug

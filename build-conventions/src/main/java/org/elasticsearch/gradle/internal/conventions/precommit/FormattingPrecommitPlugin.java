@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.conventions.precommit;
 
 import com.diffplug.gradle.spotless.SpotlessExtension;
 import com.diffplug.gradle.spotless.SpotlessPlugin;
+import com.diffplug.spotless.LineEnding;
 
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.gradle.api.Plugin;
@@ -58,6 +59,12 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
                 String formatterConfigPath = "build-conventions/formatterConfig.xml";
 
                 java.target("src/**/*.java");
+                // Enforce Unix (LF) line endings unconditionally. Without this, spotless falls back
+                // to LineEnding.GIT_ATTRIBUTES which resolves to PLATFORM_NATIVE (CRLF) on Windows
+                // for files that have no explicit eol attribute in .gitattributes. That causes the
+                // formatter to emit CRLF output while the repository stores LF, producing spurious
+                // format violations on Windows CI agents and making the spotless cache platform-specific.
+                java.setLineEndings(LineEnding.UNIX);
                 java.removeUnusedImports();
 
                 // We enforce a standard order for imports

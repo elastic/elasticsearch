@@ -114,6 +114,7 @@ toc:
                 children:
                   - file: esql/commands/change-point.md
                   - file: esql/commands/completion.md
+                  - file: esql/commands/dedup.md
                   - file: esql/commands/dissect.md
                   - file: esql/commands/drop.md
                   - file: esql/commands/enrich.md

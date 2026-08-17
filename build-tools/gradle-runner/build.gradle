@@ -28,10 +28,10 @@ dependencies {
   testImplementation(buildLibs.spock.core) {
     exclude module: "groovy"
   }
-  testImplementation platform(buildLibs.junit5.platform)
-  testImplementation buildLibs.junit5.jupiter
-  testRuntimeOnly buildLibs.junit5.vintage
-  testRuntimeOnly buildLibs.junit5.platform.launcher
+  testImplementation platform(buildLibs.junit.platform)
+  testImplementation buildLibs.junit.jupiter
+  testRuntimeOnly buildLibs.junit.vintage
+  testRuntimeOnly buildLibs.junit.platform.launcher
 }
 
 tasks.named('test') {

@@ -78,7 +78,7 @@ configurations.all {
 }
 
 dependencies {
-  api "junit:junit:${versions.junit}"
+  api "junit:junit:${versions.junit4}"
   api project(':test:fixtures:testcontainer-utils')
   api("org.testcontainers:testcontainers:${versions.testcontainer}") {
     transitive = false

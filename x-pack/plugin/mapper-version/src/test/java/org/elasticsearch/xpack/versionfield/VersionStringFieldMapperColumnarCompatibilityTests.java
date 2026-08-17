@@ -18,11 +18,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
-/**
- * Parity tests ensuring that {@link VersionStringFieldMapper#mapColumnBatch} produces byte-identical
- * Lucene field sets (name + frozen FieldType + value) compared with the x-content row path for every
- * combination of presence, absence, arrays, and version string variants.
- */
 public class VersionStringFieldMapperColumnarCompatibilityTests extends AbstractColumnarMapperCompatibilityTestCase {
 
     private static final String FIELD = "f";
@@ -38,10 +33,6 @@ public class VersionStringFieldMapperColumnarCompatibilityTests extends Abstract
             .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
             .build();
     }
-
-    // -------------------------------------------------------------------------
-    // Single-valued / presence tests
-    // -------------------------------------------------------------------------
 
     public void testSingleValue() throws IOException {
         assertColumnarMatchesXContent(
@@ -247,10 +238,6 @@ public class VersionStringFieldMapperColumnarCompatibilityTests extends Abstract
         );
     }
 
-    // -------------------------------------------------------------------------
-    // Non-canonical numeric source literals — known divergence, muted
-    // -------------------------------------------------------------------------
-
     /**
      * Verifies that a canonical integer literal in the source (e.g. {@code {"f": 1}}) is stringified
      * correctly to {@code "1"} on the columnar path and produces the same term as the row path.
@@ -266,12 +253,7 @@ public class VersionStringFieldMapperColumnarCompatibilityTests extends Abstract
         );
     }
 
-    @AwaitsFix(
-        bugUrl = "columnar mapColumnBatch stringifies numeric source literals canonically "
-            + "(e.g. 1.50 -> \"1.5\"), diverging from the row path's parser.getText() which preserves "
-            + "\"1.50\"; the two paths index different terms for the same document. "
-            + "See VersionStringFieldMapper#mapColumnBatch javadoc for details."
-    )
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-team/issues/4920")
     public void testNonCanonicalNumericLiteral() throws IOException {
         // {"f": 1.50}: row path -> parser.getText() = "1.50"; columnar path -> utf8Cursor = "1.5".
         // These produce different encoded terms, causing a parity failure.

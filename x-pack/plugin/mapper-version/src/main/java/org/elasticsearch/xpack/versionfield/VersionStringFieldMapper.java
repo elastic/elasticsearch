@@ -453,17 +453,9 @@ public class VersionStringFieldMapper extends FieldMapper {
      * canonical {@code toString} form. This means a source document written as {@code {"f": 1.50}}
      * produces the columnar term {@code "1.5"}, whereas the row path captures the original source
      * text {@code "1.50"} via {@code parser.getText()} — indexing a <em>different</em> term for the
-     * same document. Similarly, {@code 1e3} → {@code "1000.0"} on the columnar path. For the
-     * {@code version} field type this is especially surprising because bare JSON numbers are a
-     * plausible (if non-standard) way to write version components. This divergence is accepted for
-     * consistency with {@code keyword} and {@code ip} fields; the fix requires a future option that
-     * keeps source columns as raw strings instead of re-parsing them. A test for this case is muted
-     * with {@code @AwaitsFix} until that option is available.
-     *
-     * <p>Throwing {@link UnsupportedOperationException} from this method is the sanctioned
-     * deoptimize signal: {@code ShardBatchMapper} catches it, logs
-     * {@code "columnar batch mapping failed on [{}], falling back"}, and re-runs the whole batch on
-     * the row path, which handles the error with correct per-document semantics.
+     * same document. Similarly, {@code 1e3} → {@code "1000.0"} on the columnar path. The fix requires
+     * a future option that keeps source columns as raw strings instead of re-parsing them. A test for
+     * this case is muted with {@code @AwaitsFix} until that option is available.
      */
     @Override
     public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
@@ -491,9 +483,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         if (encoded.isEmpty() == false) {
             // One serialization, two field-type wrappers with disjoint Lucene feature masks: the frozen
             // mapper FieldType carries inversion (docValuesType == NONE) and SortedSetDocValuesField.TYPE
-            // carries doc values (indexOptions == NONE). This mirrors the two fields parseCreateField adds
-            // and is required for the compatibility harness (AbstractColumnarMapperCompatibilityTestCase)
-            // to see field-set parity between the row and columnar paths.
+            // carries doc values (indexOptions == NONE).
             final EscfColumnData data = encoded.finish(docCount);
             ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), fieldType));
             ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), SortedSetDocValuesField.TYPE));

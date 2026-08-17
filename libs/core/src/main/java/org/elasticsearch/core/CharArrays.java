@@ -39,7 +39,7 @@ public final class CharArrays {
             // there is no guarantee that the char buffers backing array is the right size
             // so we need to make a copy
             chars = Arrays.copyOfRange(charBuffer.array(), charBuffer.position(), charBuffer.limit());
-            Arrays.fill(charBuffer.array(), (char) 0); // clear sensitive data
+            //Arrays.fill(charBuffer.array(), (char) 0); // clear sensitive data
         } else {
             final int length = charBuffer.limit() - charBuffer.position();
             chars = new char[length];

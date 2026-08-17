@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.logsdb.qa.ecs;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
 
@@ -31,16 +32,103 @@ import java.util.stream.Collectors;
  *
  * <p>{@code COUNT_DISTINCT} and {@code VALUES} are restricted to
  * {@linkplain EcsLogsDataGenerator.Field#lowCardinality() low-cardinality} fields. With a
- * corpus of 100k-300k documents, applying either to a high-cardinality field (e.g. {@code log_id}
- * or {@code @timestamp}) would exceed the default 3000 precision threshold causing approximate
- * results, or produce a result set too large to compare efficiently.
+ * corpus of 20,000–100,000 documents, applying either to a high-cardinality field (e.g.
+ * {@code log_id} or {@code @timestamp}) would exceed the default 3000 precision threshold
+ * causing approximate results, or produce a result set too large to compare efficiently.
  *
  * <p>{@code SORT} is never applied to {@code text}, {@code ip}, or multi-valued fields because
  * ES|QL does not support sorting on those types.
+ *
+ * <p>Keyword equality, {@code IN}, and {@code LIKE} predicates are only generated for fields
+ * that have an entry in {@link #KEYWORD_POOLS}, so every literal in a generated predicate is
+ * provably present in the corpus and the query is non-vacuous. Similarly, numeric thresholds
+ * are drawn from {@link #NUMERIC_THRESHOLDS} (covering each field's actual value range),
+ * date ranges are derived from the corpus timestamps, and CIDR ranges are chosen from
+ * {@link #CIDRS} which only contains prefixes that match at least one pooled IP value.
+ *
+ * <p>{@code IS NULL} is only generated for fields that are not always present — see
+ * {@link EcsLogsDataGenerator.Field#alwaysPresent()} — so it always has a chance of matching.
  */
 public class EcsEsqlQueryGenerator {
 
+    /**
+     * Keyword value pools keyed by field name. Only fields with an entry here are used in
+     * keyword equality, IN, and LIKE predicates — this guarantees every generated literal exists
+     * in the corpus. Fields without an entry are still reachable via KEEP, SORT, IS NOT NULL,
+     * EVAL, and STATS.
+     */
+    private static final Map<String, String[]> KEYWORD_POOLS = Map.ofEntries(
+        Map.entry("log.level", EcsLogsDataGenerator.LOG_LEVELS),
+        Map.entry("http.request.method", EcsLogsDataGenerator.HTTP_METHODS),
+        Map.entry("event.outcome", EcsLogsDataGenerator.EVENT_OUTCOMES),
+        Map.entry("event.action", EcsLogsDataGenerator.EVENT_ACTIONS),
+        Map.entry("host.name", EcsLogsDataGenerator.HOST_NAMES),
+        Map.entry("host.architecture", EcsLogsDataGenerator.HOST_ARCHS),
+        Map.entry("service.name", EcsLogsDataGenerator.SERVICE_NAMES),
+        Map.entry("service.version", EcsLogsDataGenerator.SERVICE_VERSIONS),
+        Map.entry("service.environment", EcsLogsDataGenerator.SERVICE_ENVS),
+        Map.entry("cloud.provider", EcsLogsDataGenerator.CLOUD_PROVIDERS),
+        Map.entry("cloud.region", EcsLogsDataGenerator.CLOUD_REGIONS),
+        Map.entry("cloud.availability_zone", EcsLogsDataGenerator.CLOUD_AZS),
+        Map.entry("url.domain", EcsLogsDataGenerator.URL_DOMAINS),
+        Map.entry("url.path", EcsLogsDataGenerator.URL_PATHS),
+        Map.entry("error.type", EcsLogsDataGenerator.ERROR_TYPES),
+        Map.entry("error.code", EcsLogsDataGenerator.ERROR_CODES),
+        Map.entry("container.name", EcsLogsDataGenerator.CONTAINER_NAMES)
+    );
+
+    /**
+     * MATCH search terms per text field. Drawn from each field's own value pool so the term is
+     * provably present in the standard-analyzer output. All pool strings consist of ASCII letters
+     * and spaces, so the standard tokeniser produces exactly the listed tokens.
+     *
+     * <p>{@code error.message} is a flavor-1-only field: {@code appendDocument} only emits it
+     * when {@code ordinal % 3 == 1}. For those ordinals, {@code ordinal % 6 ∈ {1, 4}}, so only
+     * {@code ERROR_MESSAGES[1]} ("Null pointer encountered") and
+     * {@code ERROR_MESSAGES[4]} ("Service unavailable") are ever indexed. Terms from the other four
+     * ERROR_MESSAGES entries (refused, timed, invalid, …) are never present in the corpus and must
+     * not be used here.
+     */
+    private static final Map<String, String[]> MATCH_TERMS = Map.of(
+        "message",
+        new String[] { "processed", "authenticated", "established", "connection", "request" },
+        "error.message",
+        new String[] { "null", "pointer", "encountered", "service", "unavailable" }
+    );
+
+    /**
+     * CIDR ranges per ip field. Each CIDR matches at least one value in that field's address pool,
+     * so {@code CIDR_MATCH} is never vacuously empty.
+     */
+    private static final Map<String, String[]> CIDRS = Map.of(
+        "host.ip",
+        new String[] { "10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12" },
+        "client.ip",
+        new String[] { "203.0.113.0/24", "198.51.100.0/24", "192.0.2.0/24", "10.10.0.0/16" }
+    );
+
+    /**
+     * Numeric thresholds per field: values that produce non-trivial selectivity for {@code >} and
+     * {@code <=} across the generated value range. There is no {@code default} branch — calling
+     * this method with a field not in the map is a generator bug.
+     */
+    private static final Map<String, long[]> NUMERIC_THRESHOLDS = Map.of(
+        "event.duration",
+        new long[] { 1_000_000L, 5_000_000L, 50_000_000L },
+        "event.risk_score",
+        new long[] { 10L, 50L, 90L },
+        "http.request.bytes",
+        new long[] { 512L, 1_024L, 4_096L },
+        "http.response.status_code",
+        new long[] { 200L, 300L, 400L, 500L },
+        "http.response.bytes",
+        new long[] { 1_024L, 8_192L, 32_768L },
+        "process.pid",
+        new long[] { 1_000L, 10_000L, 50_000L }
+    );
+
     private final Random random;
+    private final int corpusSize;
     private final List<EcsLogsDataGenerator.Field> all;
     private final List<EcsLogsDataGenerator.Field> keywords;
     private final List<EcsLogsDataGenerator.Field> numerics;
@@ -50,9 +138,22 @@ public class EcsEsqlQueryGenerator {
     private final List<EcsLogsDataGenerator.Field> sortable;
     private final List<EcsLogsDataGenerator.Field> groupable;
     private final List<EcsLogsDataGenerator.Field> lowCard;
+    /** Keyword fields with a {@link #KEYWORD_POOLS} entry: literals provably exist in the corpus. */
+    private final List<EcsLogsDataGenerator.Field> poolKeywords;
+    /** Numeric fields with a {@link #NUMERIC_THRESHOLDS} entry. */
+    private final List<EcsLogsDataGenerator.Field> poolNumerics;
+    /** Fields that are not always present: {@code IS NULL} has a chance of matching. */
+    private final List<EcsLogsDataGenerator.Field> nullableFields;
+    /**
+     * Always-present pool-keyword fields. Safe as {@code AND} operands: two flavor-agnostic
+     * fields AND'd together can never produce an empty result by construction, unlike e.g.
+     * an HTTP-only field AND'd with an error-only field.
+     */
+    private final List<EcsLogsDataGenerator.Field> compoundKeywords;
 
-    public EcsEsqlQueryGenerator(Random random) {
+    public EcsEsqlQueryGenerator(Random random, int corpusSize) {
         this.random = random;
+        this.corpusSize = corpusSize;
         this.all = EcsLogsDataGenerator.fields();
         this.keywords = filter(all, "keyword", false);
         this.numerics = filterTypes(all, "long", "double");
@@ -66,6 +167,10 @@ public class EcsEsqlQueryGenerator {
             .filter(f -> f.multiValued() == false)
             .collect(Collectors.toList());
         this.lowCard = all.stream().filter(EcsLogsDataGenerator.Field::lowCardinality).collect(Collectors.toList());
+        this.poolKeywords = keywords.stream().filter(f -> KEYWORD_POOLS.containsKey(f.name())).collect(Collectors.toList());
+        this.poolNumerics = numerics.stream().filter(f -> NUMERIC_THRESHOLDS.containsKey(f.name())).collect(Collectors.toList());
+        this.nullableFields = all.stream().filter(f -> f.alwaysPresent() == false).collect(Collectors.toList());
+        this.compoundKeywords = poolKeywords.stream().filter(EcsLogsDataGenerator.Field::alwaysPresent).collect(Collectors.toList());
     }
 
     // ── public API ────────────────────────────────────────────────────────────────────────────
@@ -106,8 +211,18 @@ public class EcsEsqlQueryGenerator {
     // ── pipeline stages ───────────────────────────────────────────────────────────────────────
 
     private void addWhereClauses(StringBuilder q, int n) {
-        for (int i = 0; i < n; i++) {
-            q.append("\n  | WHERE ").append(randomPredicate());
+        if (n == 0) {
+            return;
+        }
+        // The first WHERE clause can be any predicate (may reference flavor-specific fields).
+        q.append("\n  | WHERE ").append(randomPredicate());
+        // Additional WHERE clauses are equivalent to AND with the first clause. Using a second
+        // randomPredicate() call risks combining predicates from different document flavors
+        // (e.g. HTTP-only AND error-only), producing an empty intersection by construction.
+        // simpleCompoundPredicate() is restricted to always-present fields so it can never
+        // eliminate rows that survived the first clause due to a flavor mismatch.
+        for (int i = 1; i < n; i++) {
+            q.append("\n  | WHERE ").append(simpleCompoundPredicate());
         }
     }
 
@@ -189,84 +304,139 @@ public class EcsEsqlQueryGenerator {
         int choice = random.nextInt(10);
         switch (choice) {
             case 0 -> {
-                // keyword equality
-                EcsLogsDataGenerator.Field f = pick(keywords);
+                // Keyword equality: pick from fields with a pool so the literal provably exists.
+                EcsLogsDataGenerator.Field f = pick(poolKeywords);
                 return f.name() + " == \"" + randomKeywordValue(f) + "\"";
             }
             case 1 -> {
-                // keyword IN list
-                EcsLogsDataGenerator.Field f = pick(keywords);
+                // Keyword IN list: both values drawn from the field's pool.
+                EcsLogsDataGenerator.Field f = pick(poolKeywords);
                 String v1 = randomKeywordValue(f);
                 String v2 = randomKeywordValue(f);
                 return f.name() + " IN (\"" + v1 + "\", \"" + v2 + "\")";
             }
             case 2 -> {
-                // keyword LIKE prefix
-                EcsLogsDataGenerator.Field f = pick(keywords);
-                if (f.lowCardinality()) {
-                    String val = randomKeywordValue(f);
-                    String prefix = val.length() > 2 ? val.substring(0, 2) : val;
-                    return f.name() + " LIKE \"" + prefix + "*\"";
-                }
-                return pick(keywords).name() + " IS NOT NULL";
+                // Keyword LIKE prefix: the first two characters of a pooled value are used as the
+                // prefix, so the pattern provably matches at least that one value. No fallthrough
+                // for high-cardinality fields — every pool field can produce a valid prefix.
+                EcsLogsDataGenerator.Field f = pick(poolKeywords);
+                String val = randomKeywordValue(f);
+                String prefix = val.length() > 2 ? val.substring(0, 2) : val;
+                return f.name() + " LIKE \"" + prefix + "*\"";
             }
             case 3 -> {
-                // IS NULL / IS NOT NULL
-                EcsLogsDataGenerator.Field f = pick(all);
-                return f.name() + (random.nextBoolean() ? " IS NULL" : " IS NOT NULL");
+                // IS NULL: pick a field that is sometimes absent so the predicate can actually match.
+                // IS NOT NULL: any field, since always-present fields return TRUE for every row too.
+                if (random.nextBoolean()) {
+                    EcsLogsDataGenerator.Field f = pick(nullableFields);
+                    return f.name() + " IS NULL";
+                } else {
+                    EcsLogsDataGenerator.Field f = pick(all);
+                    return f.name() + " IS NOT NULL";
+                }
             }
             case 4 -> {
-                // numeric comparison
-                EcsLogsDataGenerator.Field f = pick(numerics);
+                // Numeric comparison: threshold drawn from the field's actual value range.
+                EcsLogsDataGenerator.Field f = pick(poolNumerics);
                 long threshold = randomNumericThreshold(f);
                 String op = random.nextBoolean() ? ">" : "<=";
                 return f.name() + " " + op + " " + threshold;
             }
             case 5 -> {
-                // date range
-                EcsLogsDataGenerator.Field f = pick(dates);
-                return f.name() + " >= \"2024-01-01T00:00:00.000Z\" AND " + f.name() + " < \"2024-01-08T00:00:00.000Z\"";
+                // Date range on @timestamp derived from the corpus size. Sampling two ordinals
+                // produces a window of genuinely random width — unlike a hardcoded range that
+                // matches 100% of a small corpus or 0% of a large one.
+                int o1 = random.nextInt(corpusSize);
+                int o2 = random.nextInt(corpusSize);
+                int lo = Math.min(o1, o2);
+                int hi = Math.max(o1, o2);
+                // Ensure a non-empty window: if both samples are the same ordinal, open a 1-second gap.
+                if (lo == hi) {
+                    if (hi < corpusSize - 1) {
+                        hi++;
+                    } else {
+                        lo--;
+                    }
+                }
+                return "@timestamp >= \""
+                    + EcsLogsDataGenerator.timestampAt(lo)
+                    + "\" AND @timestamp < \""
+                    + EcsLogsDataGenerator.timestampAt(hi)
+                    + "\"";
             }
             case 6 -> {
-                // CIDR_MATCH on ip
+                // CIDR_MATCH: ranges chosen from each field's own address space.
                 EcsLogsDataGenerator.Field f = pick(ips);
-                String cidr = pick(new String[] { "10.0.0.0/8", "192.168.0.0/16", "203.0.113.0/24" });
+                String cidr = pick(CIDRS.get(f.name()));
                 return "CIDR_MATCH(" + f.name() + ", \"" + cidr + "\")";
             }
             case 7 -> {
-                // MATCH on text
+                // MATCH on text: term drawn from the field's own message pool so it is provably
+                // present in the standard-analyzer output.
                 EcsLogsDataGenerator.Field f = pick(texts);
-                String term = pick(new String[] { "processed", "authenticated", "established", "failed", "refused" });
+                String term = pick(MATCH_TERMS.get(f.name()));
                 return "MATCH(" + f.name() + ", \"" + term + "\")";
             }
             case 8 -> {
-                // AND
-                return "(" + simplePredicate() + " AND " + simplePredicate() + ")";
+                // AND: restrict both operands to always-present fields so the conjunction cannot
+                // be vacuous due to document-flavor gating (e.g. HTTP-only AND error-only).
+                return "(" + simpleCompoundPredicate() + " AND " + simpleCompoundPredicate() + ")";
             }
             case 9 -> {
-                // OR
+                // OR: widening — any simple predicate is safe as an OR operand.
                 return "(" + simplePredicate() + " OR " + simplePredicate() + ")";
             }
             default -> throw new AssertionError("unexpected choice: " + choice);
         }
     }
 
-    /** Simpler predicate (no AND/OR nesting) used in compound predicates. */
+    /**
+     * Simple predicate (no nesting) used as an {@code OR} operand. May reference any field.
+     */
     private String simplePredicate() {
         int choice = random.nextInt(4);
         return switch (choice) {
             case 0 -> {
-                EcsLogsDataGenerator.Field f = pick(keywords);
+                EcsLogsDataGenerator.Field f = pick(poolKeywords);
                 yield f.name() + " == \"" + randomKeywordValue(f) + "\"";
             }
             case 1 -> pick(all).name() + " IS NOT NULL";
             case 2 -> {
-                EcsLogsDataGenerator.Field f = pick(numerics);
+                EcsLogsDataGenerator.Field f = pick(poolNumerics);
                 yield f.name() + " > " + randomNumericThreshold(f);
             }
             case 3 -> {
-                EcsLogsDataGenerator.Field f = pick(dates);
-                yield f.name() + " >= \"2024-01-01T00:00:00.000Z\"";
+                // Lower bound on @timestamp: always matches the suffix of the corpus after this ordinal.
+                int o = random.nextInt(corpusSize);
+                yield "@timestamp >= \"" + EcsLogsDataGenerator.timestampAt(o) + "\"";
+            }
+            default -> throw new AssertionError("unexpected choice: " + choice);
+        };
+    }
+
+    /**
+     * Simple predicate restricted to always-present, pool-backed keyword fields and
+     * the always-present {@code @timestamp}. Used as an {@code AND} operand so that two
+     * independently-selective predicates cannot produce an empty conjunction due to
+     * document-flavor gating.
+     */
+    private String simpleCompoundPredicate() {
+        int choice = random.nextInt(3);
+        return switch (choice) {
+            case 0 -> {
+                EcsLogsDataGenerator.Field f = pick(compoundKeywords);
+                yield f.name() + " == \"" + randomKeywordValue(f) + "\"";
+            }
+            case 1 -> {
+                // IS NOT NULL on an always-present field: always TRUE, so this operand widens
+                // the AND to whatever the other operand selects.
+                EcsLogsDataGenerator.Field f = pick(compoundKeywords);
+                yield f.name() + " IS NOT NULL";
+            }
+            case 2 -> {
+                // Lower bound on @timestamp: matches a random suffix of the always-present field.
+                int o = random.nextInt(corpusSize);
+                yield "@timestamp >= \"" + EcsLogsDataGenerator.timestampAt(o) + "\"";
             }
             default -> throw new AssertionError("unexpected choice: " + choice);
         };
@@ -336,40 +506,22 @@ public class EcsEsqlQueryGenerator {
 
     // ── value sampling from pools ─────────────────────────────────────────────────────────────
 
+    /**
+     * Returns a random value from this field's keyword pool. Every returned value is actually
+     * indexed in the corpus, so any generated predicate using this value is non-vacuous.
+     * Calling this with a field that has no {@link #KEYWORD_POOLS} entry is a generator bug.
+     */
     private String randomKeywordValue(EcsLogsDataGenerator.Field f) {
-        return switch (f.name()) {
-            case "log.level" -> pick(EcsLogsDataGenerator.LOG_LEVELS);
-            case "http.request.method" -> pick(EcsLogsDataGenerator.HTTP_METHODS);
-            case "event.outcome" -> pick(EcsLogsDataGenerator.EVENT_OUTCOMES);
-            case "event.action" -> pick(EcsLogsDataGenerator.EVENT_ACTIONS);
-            case "host.name" -> pick(EcsLogsDataGenerator.HOST_NAMES);
-            case "service.name" -> pick(EcsLogsDataGenerator.SERVICE_NAMES);
-            case "service.environment" -> pick(EcsLogsDataGenerator.SERVICE_ENVS);
-            case "cloud.provider" -> pick(EcsLogsDataGenerator.CLOUD_PROVIDERS);
-            case "cloud.region" -> pick(EcsLogsDataGenerator.CLOUD_REGIONS);
-            case "cloud.availability_zone" -> pick(EcsLogsDataGenerator.CLOUD_AZS);
-            case "url.domain" -> pick(EcsLogsDataGenerator.URL_DOMAINS);
-            case "url.path" -> pick(EcsLogsDataGenerator.URL_PATHS);
-            case "error.type" -> pick(EcsLogsDataGenerator.ERROR_TYPES);
-            case "error.code" -> pick(EcsLogsDataGenerator.ERROR_CODES);
-            case "container.name" -> pick(EcsLogsDataGenerator.CONTAINER_NAMES);
-            case "tags" -> pick(new String[] { "critical", "production", "audit", "deprecated", "experimental" });
-            // default: fields with no dedicated value pool (log.logger, service.version, etc.)
-            // return a generic string that is always present in the index as a dynamic value
-            default -> "example";
-        };
+        return pick(KEYWORD_POOLS.get(f.name()));
     }
 
+    /**
+     * Returns a random numeric threshold for this field drawn from {@link #NUMERIC_THRESHOLDS}.
+     * The threshold covers the field's generated value range and produces non-trivial selectivity
+     * for both {@code >} and {@code <=}. Calling this with a field not in the map is a generator bug.
+     */
     private long randomNumericThreshold(EcsLogsDataGenerator.Field f) {
-        return switch (f.name()) {
-            case "http.response.status_code" -> pick(new long[] { 200L, 300L, 400L, 500L });
-            case "http.request.bytes", "http.response.bytes" -> pick(new long[] { 512L, 1024L, 4096L });
-            case "event.duration" -> pick(new long[] { 1_000_000L, 10_000_000L, 100_000_000L });
-            case "process.pid" -> pick(new long[] { 1000L, 10000L, 50000L });
-            case "event.risk_score" -> pick(new long[] { 10L, 50L, 90L });
-            // default: numeric fields with no specific pool — threshold 0 filters ~half the corpus
-            default -> 0L;
-        };
+        return pick(NUMERIC_THRESHOLDS.get(f.name()));
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────────────────────

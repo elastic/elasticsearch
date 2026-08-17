@@ -247,7 +247,34 @@ public final class EcsLogsDataGenerator {
         }
     }
 
+    static final String[] HOST_ARCHS = { "x86_64", "aarch64", "arm64" };
+
+    /**
+     * All 30 distinct service version strings produced by {@link #appendDocument}.
+     * The formula is {@code "v" + (1 + ordinal%3) + "." + (ordinal%10) + ".0"}, which maps to
+     * index {@code (ordinal%3)*10 + (ordinal%10)}.
+     */
+    static final String[] SERVICE_VERSIONS;
+    static {
+        SERVICE_VERSIONS = new String[30];
+        int idx = 0;
+        for (int major = 1; major <= 3; major++) {
+            for (int minor = 0; minor < 10; minor++) {
+                SERVICE_VERSIONS[idx++] = "v" + major + "." + minor + ".0";
+            }
+        }
+    }
+
     private EcsLogsDataGenerator() {}
+
+    /**
+     * Returns the ISO-8601 {@code @timestamp} value for the document at the given ordinal.
+     * Used by {@link EcsEsqlQueryGenerator} to build date predicates anchored in the corpus window
+     * rather than using a hardcoded range that may not overlap the actual data.
+     */
+    public static String timestampAt(int ordinal) {
+        return TS_FMT.format(START.plusSeconds(ordinal));
+    }
 
     // ── mapping ──────────────────────────────────────────────────────────────────────────────
 
@@ -434,6 +461,7 @@ public final class EcsLogsDataGenerator {
         appendStr(sb, "log_id", String.format("%010d", ordinal), false);
         appendStr(sb, "log.level", LOG_LEVELS[ordinal % LOG_LEVELS.length], false);
         appendStr(sb, "host.name", HOST_NAMES[ordinal % HOST_NAMES.length], false);
+        appendStr(sb, "host.architecture", HOST_ARCHS[ordinal % HOST_ARCHS.length], false);
         appendStr(sb, "service.name", SERVICE_NAMES[ordinal % SERVICE_NAMES.length], false);
         appendStr(sb, "cloud.provider", CLOUD_PROVIDERS[ordinal % CLOUD_PROVIDERS.length], false);
         appendStr(sb, "cloud.region", CLOUD_REGIONS[ordinal % CLOUD_REGIONS.length], false);
@@ -445,6 +473,10 @@ public final class EcsLogsDataGenerator {
         }
         if (mask(ordinal, 2) != 0) {
             appendStr(sb, "service.environment", SERVICE_ENVS[ordinal % SERVICE_ENVS.length], false);
+        }
+        // service.version: present ~80% of documents (slot 10); 30 distinct values from SERVICE_VERSIONS
+        if ((ordinal * 7 + 10) % 10 < 8) {
+            appendStr(sb, "service.version", SERVICE_VERSIONS[(ordinal % 3) * 10 + (ordinal % 10)], false);
         }
         if (mask(ordinal, 3) != 0) {
             appendStr(sb, "cloud.availability_zone", CLOUD_AZS[ordinal % CLOUD_AZS.length], false);
@@ -565,52 +597,70 @@ public final class EcsLogsDataGenerator {
      * @param lowCardinality  distinct-value count bounded well below 3000 — safe for
      *                        COUNT_DISTINCT and VALUES (multi-valued fields excluded from VALUES)
      * @param multiValued     may contain multiple values per document
+     * @param alwaysPresent   {@code true} if {@link #appendDocument} emits this field on every
+     *                        document; {@code false} if it is conditionally emitted. Only fields
+     *                        where {@code alwaysPresent == false} should be used in {@code IS NULL}
+     *                        predicates — otherwise the predicate is provably vacuous.
      */
-    public record Field(String name, String esqlType, boolean sortable, boolean lowCardinality, boolean multiValued) {}
+    public record Field(
+        String name,
+        String esqlType,
+        boolean sortable,
+        boolean lowCardinality,
+        boolean multiValued,
+        boolean alwaysPresent
+    ) {}
 
     /**
      * Returns the complete catalog of fields that {@link EcsEsqlQueryGenerator} may reference.
      * {@code match_only_text} fields ({@code message}, {@code error.message}) appear as type
      * {@code "text"} — usable in {@code MATCH} and {@code KEEP} but not in {@code SORT} or
      * {@code STATS BY}.
+     *
+     * <p>The sixth constructor argument is {@code alwaysPresent}: {@code true} means
+     * {@link #appendDocument} emits this field on every document, so {@code IS NULL} on it
+     * is always false. Only fields with {@code alwaysPresent == false} should be used in
+     * {@code IS NULL} predicates.
      */
     public static List<Field> fields() {
         return List.of(
-            new Field("@timestamp", "date", true, false, false),
-            new Field("log_id", "keyword", true, false, false),
-            new Field("message", "text", false, false, false),
-            new Field("log.level", "keyword", true, true, false),
-            new Field("log.logger", "keyword", true, false, false),
-            new Field("host.name", "keyword", true, true, false),
-            new Field("host.architecture", "keyword", true, true, false),
-            new Field("host.ip", "ip", false, true, false),
-            new Field("service.name", "keyword", true, true, false),
-            new Field("service.version", "keyword", true, false, false),
-            new Field("service.environment", "keyword", true, true, false),
-            new Field("event.ingested", "date", true, false, false),
-            new Field("event.action", "keyword", true, true, false),
-            new Field("event.outcome", "keyword", true, true, false),
-            new Field("event.duration", "long", true, false, false),
-            new Field("event.risk_score", "double", true, false, false),
-            new Field("http.request.method", "keyword", true, true, false),
-            new Field("http.request.bytes", "long", true, false, false),
-            new Field("http.response.status_code", "long", true, true, false),
-            new Field("http.response.bytes", "long", true, false, false),
-            new Field("url.domain", "keyword", true, true, false),
-            new Field("url.path", "keyword", true, false, false),
-            new Field("client.ip", "ip", false, true, false),
-            new Field("error.type", "keyword", true, true, false),
-            new Field("error.code", "keyword", true, true, false),
-            new Field("error.message", "text", false, false, false),
-            new Field("trace.id", "keyword", true, false, false),
-            new Field("container.name", "keyword", true, true, false),
-            new Field("cloud.provider", "keyword", true, true, false),
-            new Field("cloud.region", "keyword", true, true, false),
-            new Field("cloud.availability_zone", "keyword", true, true, false),
-            new Field("process.pid", "long", true, false, false),
-            new Field("process.name", "keyword", true, false, false),
-            // tags: multi-valued — excluded from SORT and STATS BY; used in WHERE and KEEP
-            new Field("tags", "keyword", false, true, true)
+            // name type sort lowCard multi alwaysPresent
+            new Field("@timestamp", "date", true, false, false, true),
+            new Field("log_id", "keyword", true, false, false, true),
+            new Field("message", "text", false, false, false, false),  // ~90% present (mask slot 1)
+            new Field("log.level", "keyword", true, true, false, true),
+            new Field("log.logger", "keyword", true, false, false, false), // ~90% present (mask slot 5)
+            new Field("host.name", "keyword", true, true, false, true),
+            new Field("host.architecture", "keyword", true, true, false, true),
+            new Field("host.ip", "ip", false, true, false, false), // ~90% present (mask slot 4)
+            new Field("service.name", "keyword", true, true, false, true),
+            new Field("service.version", "keyword", true, true, false, false), // ~80% present (slot 10)
+            new Field("service.environment", "keyword", true, true, false, false), // ~90% present (mask slot 2)
+            new Field("event.ingested", "date", true, false, false, false), // ~50% present
+            new Field("event.action", "keyword", true, true, false, false), // flavor 2 only (~33%)
+            new Field("event.outcome", "keyword", true, true, false, true),  // all flavors
+            new Field("event.duration", "long", true, false, false, false), // flavors 0+2 (~67%)
+            new Field("event.risk_score", "double", true, false, false, false), // ~60% present
+            new Field("http.request.method", "keyword", true, true, false, false), // flavor 0 only (~33%)
+            new Field("http.request.bytes", "long", true, false, false, false), // flavor 0 only (~33%)
+            new Field("http.response.status_code", "long", true, true, false, false), // flavor 0 only (~33%)
+            new Field("http.response.bytes", "long", true, false, false, false), // flavor 0 only (~33%)
+            new Field("url.domain", "keyword", true, true, false, false), // flavor 0 only (~33%)
+            new Field("url.path", "keyword", true, false, false, false), // flavor 0 only (~33%)
+            new Field("client.ip", "ip", false, true, false, false), // flavor 0 only (~33%)
+            new Field("error.type", "keyword", true, true, false, false), // flavor 1 only (~33%)
+            new Field("error.code", "keyword", true, true, false, false), // flavor 1 only (~33%)
+            new Field("error.message", "text", false, false, false, false), // flavor 1 only (~33%)
+            new Field("trace.id", "keyword", true, false, false, false), // flavor 1 only (~33%)
+            new Field("container.name", "keyword", true, true, false, true),
+            new Field("cloud.provider", "keyword", true, true, false, true),
+            new Field("cloud.region", "keyword", true, true, false, true),
+            new Field("cloud.availability_zone", "keyword", true, true, false, false), // ~90% present (mask slot 3)
+            new Field("process.pid", "long", true, false, false, false), // flavor 2 only (~33%)
+            new Field("process.name", "keyword", true, false, false, false), // flavor 2 only (~33%)
+            // tags: multi-valued — excluded from SORT and STATS BY; used in WHERE and KEEP.
+            // ~87.5% present (TAG_POOLS[0] is empty; 1/8 ordinals have no tags).
+            new Field("tags", "keyword", false, true, true, false)
         );
     }
 }

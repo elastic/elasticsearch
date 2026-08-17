@@ -40,14 +40,14 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Duel suite that verifies ES|QL query results are identical between {@code index.mode=logsdb}
  * (baseline) and {@code index.mode=logsdb_columnar} (contender) over an ECS-shaped log corpus.
  *
  * <p>One corpus of synthetic ECS log documents is indexed once into both data streams. The
- * corpus is sized between 100,000 and 300,000 documents so that multiple segments, merges, and
+ * corpus is sized between 20,000 and 100,000 documents so that multiple segments, merges, and
  * doc-value blocks are created — the regime where logsdb/columnar differences tend to surface.
  * Queries are then executed against both streams and results compared row-for-row.
  *
@@ -87,6 +87,18 @@ public class EcsLogsEsqlDuelRestIT extends ESRestTestCase {
 
     /** Number of random queries per test method. */
     private static final int QUERIES_PER_METHOD = 40;
+
+    /**
+     * Minimum fraction of queries per method that must return at least one row from the baseline.
+     * A query returning no rows compares {@code []} to {@code []} and asserts nothing about either
+     * index mode. The threshold is intentionally below 1.0 because individual predicates can be
+     * legitimately selective; the WARN log names empty queries so a regression is diagnosable.
+     *
+     * <p>Note: ungrouped {@code STATS} always returns exactly one row even when no documents match
+     * the filter, so {@code testRandomStatsQueries} satisfies this check trivially. The ratio
+     * matters most for filter and eval queries where an empty result is a genuine signal.
+     */
+    private static final double MIN_NON_EMPTY_RATIO = 0.9;
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -193,33 +205,49 @@ public class EcsLogsEsqlDuelRestIT extends ESRestTestCase {
     // ── test methods ──────────────────────────────────────────────────────────────────────────
 
     public void testRandomFilterQueries() throws Exception {
-        EcsEsqlQueryGenerator gen = new EcsEsqlQueryGenerator(random());
+        EcsEsqlQueryGenerator gen = new EcsEsqlQueryGenerator(random(), corpusSize);
+        int nonEmpty = 0;
         for (int i = 0; i < QUERIES_PER_METHOD; i++) {
-            String query = gen.randomFilterQuery();
-            runAndCompare(query);
+            if (runAndCompare(gen.randomFilterQuery())) {
+                nonEmpty++;
+            }
         }
+        assertNonEmptyRatio(nonEmpty, QUERIES_PER_METHOD, "testRandomFilterQueries");
     }
 
     public void testRandomStatsQueries() throws Exception {
-        EcsEsqlQueryGenerator gen = new EcsEsqlQueryGenerator(random());
+        EcsEsqlQueryGenerator gen = new EcsEsqlQueryGenerator(random(), corpusSize);
+        int nonEmpty = 0;
         for (int i = 0; i < QUERIES_PER_METHOD; i++) {
-            String query = gen.randomStatsQuery();
-            runAndCompare(query);
+            if (runAndCompare(gen.randomStatsQuery())) {
+                nonEmpty++;
+            }
         }
+        assertNonEmptyRatio(nonEmpty, QUERIES_PER_METHOD, "testRandomStatsQueries");
     }
 
     public void testRandomEvalQueries() throws Exception {
-        EcsEsqlQueryGenerator gen = new EcsEsqlQueryGenerator(random());
+        EcsEsqlQueryGenerator gen = new EcsEsqlQueryGenerator(random(), corpusSize);
+        int nonEmpty = 0;
         for (int i = 0; i < QUERIES_PER_METHOD; i++) {
-            String query = gen.randomEvalQuery();
-            runAndCompare(query);
+            if (runAndCompare(gen.randomEvalQuery())) {
+                nonEmpty++;
+            }
         }
+        assertNonEmptyRatio(nonEmpty, QUERIES_PER_METHOD, "testRandomEvalQueries");
     }
 
     // ── query execution ───────────────────────────────────────────────────────────────────────
 
+    /**
+     * Runs {@code queryTemplate} against baseline and contender and asserts they agree.
+     *
+     * @return {@code true} if the baseline returned at least one row; {@code false} if the result
+     *         was empty. An empty result compares {@code []} to {@code []} and therefore asserts
+     *         nothing — callers should count empties and fail if the ratio is too high.
+     */
     @SuppressWarnings("unchecked")
-    private void runAndCompare(String queryTemplate) throws Exception {
+    private boolean runAndCompare(String queryTemplate) throws Exception {
         Map<String, Object> baseline = runEsql(queryTemplate, BASELINE_DS);
         Map<String, Object> contender = runEsql(queryTemplate, CONTENDER_DS);
 
@@ -264,6 +292,12 @@ public class EcsLogsEsqlDuelRestIT extends ESRestTestCase {
                 }
             }
         }
+
+        boolean hasRows = baseRows.isEmpty() == false;
+        if (hasRows == false) {
+            logger.warn("Empty baseline result for query:\n{}", queryTemplate.replace("$index", BASELINE_DS));
+        }
+        return hasRows;
     }
 
     @SuppressWarnings("unchecked")
@@ -359,7 +393,29 @@ public class EcsLogsEsqlDuelRestIT extends ESRestTestCase {
         assertOK(resp);
         Map<String, Object> body = XContentHelper.convertToMap(XContentType.JSON.xContent(), resp.getEntity().getContent(), true);
         int actual = (int) body.get("count");
-        assertThat("document count mismatch for " + dataStream + " — indexing may have been rejected", actual, greaterThan(expected - 1));
+        assertThat("document count mismatch for " + dataStream + " — indexing may have been rejected", actual, equalTo(expected));
+    }
+
+    /**
+     * Asserts that at least {@link #MIN_NON_EMPTY_RATIO} of the queries in a test method returned
+     * at least one row. A run dominated by empty results would pass while asserting nothing, since
+     * comparing {@code []} to {@code []} is vacuously true for both index modes. The WARN log in
+     * {@link #runAndCompare} names the empty queries so a regression is diagnosable.
+     */
+    private void assertNonEmptyRatio(int nonEmpty, int total, String method) {
+        assertThat(
+            "Too many queries in "
+                + method
+                + " returned no rows ("
+                + nonEmpty
+                + "/"
+                + total
+                + " non-empty, need >= "
+                + MIN_NON_EMPTY_RATIO
+                + ") — the duel is comparing empty result sets and asserting nothing",
+            (double) nonEmpty / total,
+            greaterThanOrEqualTo(MIN_NON_EMPTY_RATIO)
+        );
     }
 
     /**

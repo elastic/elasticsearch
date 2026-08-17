@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -56,12 +57,18 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 
 public class InSubqueryParserTests extends AbstractStatementParserTests {
 
     @Before
     public void checkSubqueryInFromCommandSupport() {
         assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+    }
+
+    private static void checkMultiColumnInSubquery() {
+        assumeTrue("multi-column IN subquery", EsqlCapabilities.Cap.WHERE_IN_MULTI_COLUMN_SUBQUERY.isEnabled());
     }
 
     /*
@@ -1422,7 +1429,386 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         assertThat(e.getMessage(), containsString("mismatched input 'FROM'"));
     }
 
-    // ---- helpers ----
+    // ---- multi-column IN subquery tests ----
+
+    /*
+     * Filter[MultiColumnInSubquery[[?emp_no, ?salary], Keep[UnresolvedRelation[employees]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testMultiColumnInSubquery() {
+        checkMultiColumnInSubquery();
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | WHERE (emp_no, salary) " + notClause + "IN (FROM sub_index | KEEP emp_no, salary)";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Expression condition = filter.condition();
+        MultiColumnInSubquery mcs;
+        if (negated) {
+            Not not = as(condition, Not.class);
+            mcs = as(not.field(), MultiColumnInSubquery.class);
+        } else {
+            mcs = as(condition, MultiColumnInSubquery.class);
+        }
+        assertThat(mcs.values().size(), equalTo(2));
+        Keep keep = as(mcs.subquery(), Keep.class);
+        UnresolvedRelation relation = as(keep.child(), UnresolvedRelation.class);
+        assertEquals("sub_index", relation.indexPattern().indexPattern());
+        relation = as(filter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", relation.indexPattern().indexPattern());
+    }
+
+    /*
+     * Filter[MultiColumnInSubquery[[?emp_no, ?salary, ?hire_date], Keep[UnresolvedRelation[employees]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testMultiColumnInSubqueryThreeColumns() {
+        checkMultiColumnInSubquery();
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | WHERE (emp_no, salary, hire_date) "
+            + notClause
+            + "IN (FROM sub_index | KEEP emp_no, salary, hire_date)";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Expression condition = filter.condition();
+        MultiColumnInSubquery mcs;
+        if (negated) {
+            Not not = as(condition, Not.class);
+            mcs = as(not.field(), MultiColumnInSubquery.class);
+        } else {
+            mcs = as(condition, MultiColumnInSubquery.class);
+        }
+        assertThat(mcs.values().size(), equalTo(3));
+        Keep keep = as(mcs.subquery(), Keep.class);
+        UnresolvedRelation relation = as(keep.child(), UnresolvedRelation.class);
+        assertEquals("sub_index", relation.indexPattern().indexPattern());
+        relation = as(filter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", relation.indexPattern().indexPattern());
+    }
+
+    /*
+     * Filter[InSubquery[[?emp_no], Keep[UnresolvedRelation[employees]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testMultiColumnInSubquerySingleColumn() {
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | WHERE (emp_no) " + notClause + "IN (FROM sub_index | KEEP emp_no)";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Expression condition = filter.condition();
+        InSubquery inSubquery;
+        if (negated) {
+            Not not = as(condition, Not.class);
+            inSubquery = as(not.field(), InSubquery.class);
+        } else {
+            inSubquery = as(condition, InSubquery.class);
+        }
+        Keep keep = as(inSubquery.subquery(), Keep.class);
+        UnresolvedRelation relation = as(keep.child(), UnresolvedRelation.class);
+        assertEquals("sub_index", relation.indexPattern().indexPattern());
+        relation = as(filter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", relation.indexPattern().indexPattern());
+    }
+
+    // ---- mixed single-column and multi-column IN subquery tests ----
+
+    /*
+     * Filter[And[InSubquery[?x, Keep[UnresolvedRelation[sub1]]],
+     *            (NOT) MultiColumnInSubquery[[?f1, ?f2], Keep[UnresolvedRelation[sub2]]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testMixedSingleAndMultiColumnInSubqueryWithAnd() {
+        checkMultiColumnInSubquery();
+        boolean multiNegated = randomBoolean();
+        String notClause = multiNegated ? "NOT " : "";
+        String query = "FROM main_index | WHERE x IN (FROM sub1 | KEEP a) AND (f1, f2) " + notClause + "IN (FROM sub2 | KEEP f1, f2)";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        And and = as(filter.condition(), And.class);
+
+        InSubquery inSubquery = as(and.left(), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub1", as(as(inSubquery.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        MultiColumnInSubquery mcs;
+        if (multiNegated) {
+            mcs = as(as(and.right(), Not.class).field(), MultiColumnInSubquery.class);
+        } else {
+            mcs = as(and.right(), MultiColumnInSubquery.class);
+        }
+        assertEquals(2, mcs.values().size());
+        assertEquals("sub2", as(as(mcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        assertEquals("main_index", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * Filter[Or[(NOT) MultiColumnInSubquery[[?f1, ?f2], Keep[UnresolvedRelation[sub1]]],
+     *           (NOT) InSubquery[?y, Keep[UnresolvedRelation[sub2]]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testMixedMultiAndSingleColumnInSubqueryWithOr() {
+        checkMultiColumnInSubquery();
+        boolean multiNegated = randomBoolean();
+        boolean singleNegated = randomBoolean();
+        String multiNot = multiNegated ? "NOT " : "";
+        String singleNot = singleNegated ? "NOT " : "";
+        String query = "FROM main_index | WHERE (f1, f2) "
+            + multiNot
+            + "IN (FROM sub1 | KEEP f1, f2) OR y "
+            + singleNot
+            + "IN (FROM sub2 | KEEP b)";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Or or = as(filter.condition(), Or.class);
+
+        MultiColumnInSubquery mcs;
+        if (multiNegated) {
+            mcs = as(as(or.left(), Not.class).field(), MultiColumnInSubquery.class);
+        } else {
+            mcs = as(or.left(), MultiColumnInSubquery.class);
+        }
+        assertEquals(2, mcs.values().size());
+        assertEquals("sub1", as(as(mcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        InSubquery inSubquery;
+        if (singleNegated) {
+            inSubquery = as(as(or.right(), Not.class).field(), InSubquery.class);
+        } else {
+            inSubquery = as(or.right(), InSubquery.class);
+        }
+        assertEquals("y", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub2", as(as(inSubquery.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        assertEquals("main_index", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * Filter[Or[And[InSubquery[?x, Keep[UnresolvedRelation[sub1]]],
+     *               Not[MultiColumnInSubquery[[?f1, ?f2], Keep[UnresolvedRelation[sub2]]]]],
+     *           InSubquery[?y, Keep[UnresolvedRelation[sub3]]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testMixedSingleAndMultiColumnInSubqueryWithAndOr() {
+        checkMultiColumnInSubquery();
+        String query = """
+            FROM main_index
+            | WHERE x IN (FROM sub1 | KEEP a)
+              AND (f1, f2) NOT IN (FROM sub2 | KEEP f1, f2)
+              OR y IN (FROM sub3 | KEEP b)
+            """;
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        And and = as(or.left(), And.class);
+
+        InSubquery firstIn = as(and.left(), InSubquery.class);
+        assertEquals("x", as(firstIn.value(), Attribute.class).name());
+        assertEquals("sub1", as(as(firstIn.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        MultiColumnInSubquery mcs = as(as(and.right(), Not.class).field(), MultiColumnInSubquery.class);
+        assertEquals(2, mcs.values().size());
+        assertEquals("sub2", as(as(mcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        InSubquery thirdIn = as(or.right(), InSubquery.class);
+        assertEquals("y", as(thirdIn.value(), Attribute.class).name());
+        assertEquals("sub3", as(as(thirdIn.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        assertEquals("main_index", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * Precedence: AND binds tighter than OR, resulting in:
+     * Filter[Or[And[And[Not[MultiColumnInSubquery[2]], InSubquery[?x]], MultiColumnInSubquery[3]],
+     *           Not[InSubquery[?y]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testMixedSubqueryChainWithAndOr() {
+        checkMultiColumnInSubquery();
+        String query = """
+            FROM main_index
+            | WHERE (f1, f2) NOT IN (FROM sub1 | KEEP f1, f2)
+              AND x IN (FROM sub2 | KEEP a)
+              AND (f1, f2, f3) IN (FROM sub3 | KEEP f1, f2, f3)
+              OR y NOT IN (FROM sub4 | KEEP b)
+            """;
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Or or = as(filter.condition(), Or.class);
+
+        Not outerNot = as(or.right(), Not.class);
+        InSubquery lastIn = as(outerNot.field(), InSubquery.class);
+        assertEquals("y", as(lastIn.value(), Attribute.class).name());
+        assertEquals("sub4", as(as(lastIn.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        And outerAnd = as(or.left(), And.class);
+
+        MultiColumnInSubquery mcs3 = as(outerAnd.right(), MultiColumnInSubquery.class);
+        assertEquals(3, mcs3.values().size());
+        assertEquals("sub3", as(as(mcs3.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        And innerAnd = as(outerAnd.left(), And.class);
+        MultiColumnInSubquery mcs1 = as(as(innerAnd.left(), Not.class).field(), MultiColumnInSubquery.class);
+        assertEquals(2, mcs1.values().size());
+        assertEquals("sub1", as(as(mcs1.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        InSubquery xIn = as(innerAnd.right(), InSubquery.class);
+        assertEquals("x", as(xIn.value(), Attribute.class).name());
+        assertEquals("sub2", as(as(xIn.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        assertEquals("main_index", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    // ---- nested multi-column IN subquery tests ----
+
+    /*
+     * Filter[(NOT) MultiColumnInSubquery[[?f1, ?f2],
+     *   Keep[Filter[(NOT) MultiColumnInSubquery[[?g1, ?g2], Keep[UnresolvedRelation[sub2]]]]
+     *              [UnresolvedRelation[sub1]]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testNestedMultiColumnInSubqueryInsideMultiColumnInSubquery() {
+        checkMultiColumnInSubquery();
+        boolean outerNegated = randomBoolean();
+        boolean innerNegated = randomBoolean();
+        String outerNot = outerNegated ? "NOT " : "";
+        String innerNot = innerNegated ? "NOT " : "";
+        String query = "FROM main_index | WHERE (f1, f2) "
+            + outerNot
+            + "IN (FROM sub1 | WHERE (g1, g2) "
+            + innerNot
+            + "IN (FROM sub2 | KEEP g1, g2) | KEEP f1, f2)";
+
+        LogicalPlan plan = query(query);
+        Filter outerFilter = as(plan, Filter.class);
+
+        MultiColumnInSubquery outerMcs;
+        if (outerNegated) {
+            outerMcs = as(as(outerFilter.condition(), Not.class).field(), MultiColumnInSubquery.class);
+        } else {
+            outerMcs = as(outerFilter.condition(), MultiColumnInSubquery.class);
+        }
+        assertEquals(2, outerMcs.values().size());
+        assertEquals("f1", as(outerMcs.values().get(0), Attribute.class).name());
+        assertEquals("f2", as(outerMcs.values().get(1), Attribute.class).name());
+
+        Keep outerKeep = as(outerMcs.subquery(), Keep.class);
+        Filter innerFilter = as(outerKeep.child(), Filter.class);
+
+        MultiColumnInSubquery innerMcs;
+        if (innerNegated) {
+            innerMcs = as(as(innerFilter.condition(), Not.class).field(), MultiColumnInSubquery.class);
+        } else {
+            innerMcs = as(innerFilter.condition(), MultiColumnInSubquery.class);
+        }
+        assertEquals(2, innerMcs.values().size());
+        assertEquals("g1", as(innerMcs.values().get(0), Attribute.class).name());
+        assertEquals("g2", as(innerMcs.values().get(1), Attribute.class).name());
+        assertEquals("sub2", as(as(innerMcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("sub1", as(innerFilter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main_index", as(outerFilter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * Filter[(NOT) MultiColumnInSubquery[[?f1, ?f2],
+     *   Keep[Filter[(NOT) InSubquery[?x, Keep[UnresolvedRelation[sub2]]]]
+     *              [UnresolvedRelation[sub1]]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testNestedSingleColumnInSubqueryInsideMultiColumnInSubquery() {
+        checkMultiColumnInSubquery();
+        boolean outerNegated = randomBoolean();
+        boolean innerNegated = randomBoolean();
+        String outerNot = outerNegated ? "NOT " : "";
+        String innerNot = innerNegated ? "NOT " : "";
+        String query = "FROM main_index | WHERE (f1, f2) "
+            + outerNot
+            + "IN (FROM sub1 | WHERE x "
+            + innerNot
+            + "IN (FROM sub2 | KEEP b) | KEEP f1, f2)";
+
+        LogicalPlan plan = query(query);
+        Filter outerFilter = as(plan, Filter.class);
+
+        MultiColumnInSubquery outerMcs;
+        if (outerNegated) {
+            outerMcs = as(as(outerFilter.condition(), Not.class).field(), MultiColumnInSubquery.class);
+        } else {
+            outerMcs = as(outerFilter.condition(), MultiColumnInSubquery.class);
+        }
+        assertEquals(2, outerMcs.values().size());
+        assertEquals("f1", as(outerMcs.values().get(0), Attribute.class).name());
+        assertEquals("f2", as(outerMcs.values().get(1), Attribute.class).name());
+
+        Keep outerKeep = as(outerMcs.subquery(), Keep.class);
+        Filter innerFilter = as(outerKeep.child(), Filter.class);
+
+        InSubquery innerIn;
+        if (innerNegated) {
+            innerIn = as(as(innerFilter.condition(), Not.class).field(), InSubquery.class);
+        } else {
+            innerIn = as(innerFilter.condition(), InSubquery.class);
+        }
+        assertEquals("x", as(innerIn.value(), Attribute.class).name());
+        assertEquals("sub2", as(as(innerIn.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("sub1", as(innerFilter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main_index", as(outerFilter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /*
+     * Filter[(NOT) InSubquery[?x,
+     *   Keep[Filter[(NOT) MultiColumnInSubquery[[?g1, ?g2], Keep[UnresolvedRelation[sub2]]]]
+     *              [UnresolvedRelation[sub1]]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testNestedMultiColumnInSubqueryInsideSingleColumnInSubquery() {
+        checkMultiColumnInSubquery();
+        boolean outerNegated = randomBoolean();
+        boolean innerNegated = randomBoolean();
+        String outerNot = outerNegated ? "NOT " : "";
+        String innerNot = innerNegated ? "NOT " : "";
+        String query = "FROM main_index | WHERE x "
+            + outerNot
+            + "IN (FROM sub1 | WHERE (g1, g2) "
+            + innerNot
+            + "IN (FROM sub2 | KEEP g1, g2) | KEEP a)";
+
+        LogicalPlan plan = query(query);
+        Filter outerFilter = as(plan, Filter.class);
+
+        InSubquery outerIn;
+        if (outerNegated) {
+            outerIn = as(as(outerFilter.condition(), Not.class).field(), InSubquery.class);
+        } else {
+            outerIn = as(outerFilter.condition(), InSubquery.class);
+        }
+        assertEquals("x", as(outerIn.value(), Attribute.class).name());
+
+        Keep outerKeep = as(outerIn.subquery(), Keep.class);
+        Filter innerFilter = as(outerKeep.child(), Filter.class);
+
+        MultiColumnInSubquery innerMcs;
+        if (innerNegated) {
+            innerMcs = as(as(innerFilter.condition(), Not.class).field(), MultiColumnInSubquery.class);
+        } else {
+            innerMcs = as(innerFilter.condition(), MultiColumnInSubquery.class);
+        }
+        assertEquals(2, innerMcs.values().size());
+        assertEquals("g1", as(innerMcs.values().get(0), Attribute.class).name());
+        assertEquals("g2", as(innerMcs.values().get(1), Attribute.class).name());
+        assertEquals("sub2", as(as(innerMcs.subquery(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("sub1", as(innerFilter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main_index", as(outerFilter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
 
     private void assertInPredicate(Expression expr, boolean negated, boolean isSubquery, String expectedIndex) {
         Expression inner = negated ? as(expr, Not.class).field() : expr;

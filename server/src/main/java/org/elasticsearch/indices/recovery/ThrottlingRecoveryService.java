@@ -91,7 +91,6 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         Setting.Property.NodeScope
     );
 
-    // TODO add unit tests for INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING - nocommit
     // TODO think about exposing the two counts as attributes on the metrics - nocommit
 
     private final Executor executor;

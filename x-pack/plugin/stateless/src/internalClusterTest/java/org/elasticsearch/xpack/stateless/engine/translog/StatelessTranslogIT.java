@@ -34,6 +34,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
@@ -853,7 +854,9 @@ public class StatelessTranslogIT extends AbstractStatelessPluginIntegTestCase {
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         indicesAdmin().prepareCreate(indexName)
             .setSettings(
-                indexSettings(1, 0).put("index.mapping.source.mode", "synthetic")
+                // The columnar batch path requires a strict-columnar index mode (see FieldMapper#supportsColumnarParse);
+                // COLUMNAR defaults to synthetic source.
+                indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
                     .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
             )
             .setMapping("""

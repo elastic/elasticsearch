@@ -4,9 +4,11 @@
 # elasticsearch-agentic-workflow
 #
 # On-demand agentic CI workflows powered by the self-contained archimedes CLI
-# (https://github.com/elastic/rene-bk-experiments). archimedes runs directly on
-# the agent — no remote pipeline trigger and no agent config in this repo. The
-# pre-command hook bootstraps archimedes and injects secrets when USE_ARCHIMEDES=true.
+# (https://github.com/elastic/elasticsearch-infra, archimedes/). archimedes runs
+# directly on the agent — no remote pipeline trigger and no agent config in this
+# repo. It is baked into the elasticsearch-* agent images; the pre-command hook
+# resolves it and injects secrets when USE_ARCHIMEDES=true (see
+# .buildkite/scripts/archimedes-env.sh).
 #
 # Supported workflows:
 #   test-analysis          — analyse a test-failure issue        (needs ISSUE_URL)
@@ -27,11 +29,49 @@ env:
   WORKFLOW:  "${WORKFLOW:-}"
   ISSUE_URL: "${ISSUE_URL:-}"
   PR_URL:    "${PR_URL:-}"
+  # Which archimedes to run. Unset (the default) uses whatever the agent image
+  # baked, with no network access.
+  #
+  # No floor is pinned here on purpose. The image bake tracks the LATEST release
+  # and the image is rebuilt daily, so the baked CLI is always recent enough for
+  # the input step below (which needs the meta-data support added in 0.48.0).
+  # Pinning a floor would be worse than useless: once the bake moves past it,
+  # every job would DOWNGRADE to the pinned version and pay a full reinstall.
+  #
+  # Set `latest` to force the newest release, or `<x.y.z>` to pin an exact one
+  # when reproducing an older build.
+  ARCHIMEDES_VERSION: "${ARCHIMEDES_VERSION:-}"
 
 steps:
+  # ── Collect inputs (UI-triggered builds only) ───────────────────────────────
+  # Skipped when WORKFLOW is already set, so API/scheduled builds run unattended.
+  - input: ":robot_face: Which agentic workflow?"
+    key: archimedes-input
+    if: build.env("WORKFLOW") == null || build.env("WORKFLOW") == ""
+    fields:
+      - select: "Workflow"
+        key: WORKFLOW
+        options:
+          - label: "test-analysis — analyse a test-failure issue"
+            value: "test-analysis"
+          - label: "pull-request-fix — self-heal a failing pull request"
+            value: "pull-request-fix"
+          - label: "pull-request-creation — implement a task and open a PR"
+            value: "pull-request-creation"
+      - text: "Issue URL"
+        key: ISSUE_URL
+        required: false
+        hint: "Required for test-analysis and pull-request-creation."
+      - text: "PR URL"
+        key: PR_URL
+        required: false
+        hint: "Required for pull-request-fix."
+
   # ── Run archimedes ───────────────────────────────────────────────────────────
-  - label: ":robot_face: Archimedes — :workflow:"
+  - label: ":robot_face: Archimedes"
     key: archimedes-run
+    depends_on: archimedes-input
+    allow_dependency_failure: false
     timeout_in_minutes: 60
     env:
       USE_ARCHIMEDES: "true"
@@ -47,12 +87,27 @@ steps:
       buildDirectory: /dev/shm/bk
     retry:
       automatic:
-        - exit_status: "*"
+        # Spot preemption only. GCP_PREEMPTION_EXIT_CODE (47) is exported by the
+        # pre-command hook, and `archimedes ci` resumes from the uploaded session
+        # artifact. -1/255 cover the agent being lost or hard-killed.
+        #
+        # Deliberately NOT "*": a genuine agent failure (bad prompt, schema
+        # violation, LLM error) is deterministic, so retrying it just pays the
+        # full LLM cost twice and hides the failure.
+        - exit_status: 47
+          limit: 1
+        - exit_status: -1
+          limit: 1
+        - exit_status: 255
           limit: 1
     # Single entry point: `archimedes ci` owns the whole CI envelope — input
     # validation, session download/upload (spot-preemption resume), the in-process
     # sandbox, dispatch to the analyze/fix-pr/create workflow, and the start/finish
-    # progress annotations. It reads WORKFLOW/ISSUE_URL/PR_URL from the step env
-    # (set above), so no YAML interpolation is needed. This is all a consuming
-    # repo (e.g. elasticsearch-serverless) needs beyond bootstrapping archimedes.
+    # progress annotations.
+    #
+    # It resolves WORKFLOW/ISSUE_URL/PR_URL from flags, then env, then Buildkite
+    # build meta-data — so the input step above needs no shell bridging, and
+    # API-triggered builds that pre-set the env vars keep working unchanged.
+    # Needs archimedes >= 0.48.0 for the meta-data source; the agent image bakes
+    # the latest release daily, so that is satisfied without pinning here.
     command: archimedes ci

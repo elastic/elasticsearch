@@ -86,76 +86,14 @@ export BUILDKITE_API_TOKEN
 
 export GH_TOKEN="${VAULT_GITHUB_TOKEN:-}"
 
-# ── archimedes ────────────────────────────────────────────────────────────────
-# Bootstraps the self-contained archimedes CLI (https://github.com/elastic/rene-bk-experiments)
-# so the elasticsearch-agentic-workflow pipeline can run agent sessions on this agent.
-#
-# Completely inert unless USE_ARCHIMEDES=true is set on the step. The required
-# secrets live in Vault at secret/ci/elastic-elasticsearch/agentic-workflows.
+# Bootstraps the archimedes agentic CI runner (elastic/elasticsearch-infra) and
+# injects its secrets, so the elasticsearch-agentic-workflow pipeline can run
+# agent sessions on this agent. Inert unless USE_ARCHIMEDES=true is set on the
+# step. Set ARCHIMEDES_VERSION to override the version baked into the agent
+# image (see the script header).
 if [[ "${USE_ARCHIMEDES:-}" == "true" ]]; then
-  # LiteLLM API key — the bundled models.json resolves it automatically.
-  OPENROUTER_API_KEY=$(vault_with_retry read -field=openrouter_token secret/ci/elastic-elasticsearch/agentic-workflows)
-  export OPENROUTER_API_KEY
-
-  # Cursor API key — the fallback when litellm is not available.
-  CURSOR_ACCESS_TOKEN=$(vault_with_retry read -field=cursor_token secret/ci/elastic-elasticsearch/agentic-workflows)
-  export CURSOR_ACCESS_TOKEN
-
-  # Read-only Buildkite token for the agent's bk_* tools. The bundled
-  # buildkite-jobs extension reads BUILDKITE_API_TOKEN, so alias it here
-  # (scoped to this step's environment).
-  BUILDKITE_RO_API_TOKEN=$(vault_with_retry read -field=buildkite_ro_token secret/ci/elastic-elasticsearch/agentic-workflows)
-  export BUILDKITE_RO_API_TOKEN
-  export BUILDKITE_API_TOKEN="${BUILDKITE_RO_API_TOKEN}"
-
-  # Develocity API key for build-scan reads during analysis.
-  DEVELOCITY_API_KEY=$(vault_with_retry read -field=develocity_api_token secret/ci/elastic-elasticsearch/agentic-workflows)
-  export DEVELOCITY_API_KEY
-
-  # ES delivery stats for resolving test history AND publishing results
-  ES_DELIVERY_STATS_URL=$(vault_with_retry read -field=es_delivery_stats_url secret/ci/elastic-elasticsearch/agentic-workflows)
-  export ES_DELIVERY_STATS_URL
-
-  ES_DELIVERY_STATS_API_KEY=$(vault_with_retry read -field=es_delivery_stats_api_key secret/ci/elastic-elasticsearch/agentic-workflows)
-  export ES_DELIVERY_STATS_API_KEY
-  export PATH="${HOME}/.local/bin:${PATH}"
-
-  # gh_admin_token is SAML-authorized for the elastic org. gh reads GH_TOKEN, so
-  # export it before bootstrapping: the installer uses gh to fetch the release,
-  # and archimedes uses gh at runtime for issue comment/edit.
-  GH_ADMIN_TOKEN=$(vault_with_retry read -field=gh_admin_token secret/ci/elastic-elasticsearch/agentic-workflows)
-  export GH_TOKEN="${GH_ADMIN_TOKEN}"
-  unset GH_ADMIN_TOKEN
-
-  # Bootstrap archimedes, upgrading if the installed version is behind the
-  # latest release. bootstrap.sh is fetched from the same release tag so the
-  # installer and the binary are always in sync.
-  ARCHIMEDES_REPO="${ARCHIMEDES_REPO:-elastic/elasticsearch-infra}"
-  _archimedes_latest_tag=$(gh api "repos/${ARCHIMEDES_REPO}/releases/latest" --jq '.tag_name' 2>/dev/null || true)
-  if [ -z "${_archimedes_latest_tag:-}" ] || [ "${_archimedes_latest_tag}" = "null" ]; then
-    _archimedes_latest_tag=$(gh api "repos/${ARCHIMEDES_REPO}/releases" \
-      --jq '[.[] | select(.tag_name | startswith("archimedes-"))] | sort_by(.created_at) | last | .tag_name' 2>/dev/null || echo "")
-  fi
-  _archimedes_latest_ver="${_archimedes_latest_tag#archimedes-v}"
-  _archimedes_installed_ver=$(archimedes version 2>/dev/null || echo "none")
-  if [[ "${_archimedes_installed_ver}" != "${_archimedes_latest_ver}" ]]; then
-    echo "--- Bootstrapping archimedes (latest release: ${_archimedes_latest_tag:-unknown}, installed: ${_archimedes_installed_ver})"
-    if ! gh api "repos/${ARCHIMEDES_REPO}/contents/archimedes/bootstrap.sh?ref=${_archimedes_latest_tag}" \
-           -H "Accept: application/vnd.github.raw+json" | bash -s; then
-      echo "archimedes bootstrap failed" >&2
-      exit 1
-    fi
-  else
-    echo "archimedes ${_archimedes_installed_ver} already up to date"
-  fi
-  unset _archimedes_latest_tag _archimedes_latest_ver _archimedes_installed_ver
-
-  # No external nono CLI bootstrap needed: archimedes sandboxes itself in-process
-  # via the bundled nono-ts SDK. The `archimedes ci` entry point applies the
-  # sandbox automatically, replacing the old `nono run` supervised wrapper that
-  # failed under Landlock with exit 127 when re-resolving the script interpreter.
+  source .buildkite/scripts/archimedes-env.sh
 fi
-# ── end archimedes ────────────────────────────────────────────────────────────
 
 if [[ "${USE_LUCENE_SNAPSHOT_CREDS:-}" == "true" ]]; then
   data=$(.buildkite/scripts/get-legacy-secret.sh aws-elastic/creds/lucene-snapshots)

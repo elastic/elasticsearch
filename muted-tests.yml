@@ -53,9 +53,6 @@ tests:
 - class: org.elasticsearch.snapshots.SharedClusterSnapshotRestoreIT
   method: testCloseOrReallocateDuringPartialSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/156342
-- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
-  method: testBottomFieldSort
-  issue: https://github.com/elastic/elasticsearch/issues/156363
 - class: org.elasticsearch.entitlement.runtime.policy.PolicyCheckerImplTests
   issue: https://github.com/elastic/elasticsearch/issues/156628
 - class: org.elasticsearch.gradle.reaper.ReaperPluginFuncTest

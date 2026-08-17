@@ -175,7 +175,7 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
             inputs.getRequest()
         );
         try {
-            var manager = createRequestManager(updatedChatCompletionModel);
+            var manager = createRequestManager(updatedChatCompletionModel, inputs.getRequest().excludeReasoning());
             var errorMessage = constructFailedToSendRequestMessage(COMPLETION_ERROR_PREFIX);
             var action = new SenderExecutableAction(getSender(), manager, errorMessage);
             action.execute(inputs, timeout, listener);
@@ -187,13 +187,17 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
     /**
      * Helper method to create a GenericRequestManager with a specified response handler.
      * @param model The GoogleVertexAiChatCompletionModel to be used for requests.
+     * @param excludeReasoning whether to suppress reasoning blocks in the response.
      * @return A GenericRequestManager configured with the provided response handler.
      */
-    private GenericRequestManager<UnifiedChatInput> createRequestManager(GoogleVertexAiChatCompletionModel model) {
+    private GenericRequestManager<UnifiedChatInput> createRequestManager(
+        GoogleVertexAiChatCompletionModel model,
+        boolean excludeReasoning
+    ) {
         return new GenericRequestManager<>(
             getServiceComponents().threadPool(),
             model,
-            model.getServiceSettings().provider().getChatCompletionResponseHandler(),
+            model.getServiceSettings().provider().getChatCompletionResponseHandler(excludeReasoning),
             unifiedChatInput -> new GoogleVertexAiUnifiedChatCompletionRequest(unifiedChatInput, model),
             UnifiedChatInput.class
         );

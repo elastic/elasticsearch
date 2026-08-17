@@ -524,10 +524,46 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         int length = randomIntBetween(1, vectorSize - offset);
         float[] a = randomFloatVector(vectorSize);
         float[] b = randomFloatVector(vectorSize);
-        float expected = defaultedProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
-        float actual = panamaProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
+        float expected = defaultedProvider.getVectorUtilSupport().dotProduct(a, offset, b, offset, length);
+        float actual = panamaProvider.getVectorUtilSupport().dotProduct(a, offset, b, offset, length);
         assertEquals(expected, actual, 1e-3f * length);
-        actual = nativeProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
+        actual = nativeProvider.getVectorUtilSupport().dotProduct(a, offset, b, offset, length);
+        assertEquals(expected, actual, 1e-3f * length);
+    }
+
+    public void testDotProductOffsetRange() {
+        int vectorSize = randomIntBetween(64, 2048);
+        int aOffset = randomIntBetween(0, vectorSize - 1);
+        int bOffset = randomIntBetween(0, vectorSize - 1);
+        int length = randomIntBetween(1, vectorSize - Math.max(aOffset, bOffset));
+        float[] a = randomFloatVector(vectorSize);
+        float[] b = randomFloatVector(vectorSize);
+        float expected = defaultedProvider.getVectorUtilSupport().dotProduct(a, aOffset, b, bOffset, length);
+        float actual = panamaProvider.getVectorUtilSupport().dotProduct(a, aOffset, b, bOffset, length);
+        assertEquals(expected, actual, 1e-3f * length);
+        actual = nativeProvider.getVectorUtilSupport().dotProduct(a, aOffset, b, bOffset, length);
+        assertEquals(expected, actual, 1e-3f * length);
+    }
+
+    public void testDotProductOffsetDifferentLengthArrays() {
+        // Regression test: the offset-based dotProduct must work when a and b have different total
+        // lengths. A previous short-circuit optimization incorrectly delegated to dotProduct(a, b)
+        // which requires a.length == b.length.
+        int aSize = randomIntBetween(16, 128);
+        int bSize = randomIntBetween(aSize + 1, aSize * 4);
+        int length = aSize; // dot over the full extent of a, but only a prefix of b
+        float[] a = randomFloatVector(aSize);
+        float[] b = randomFloatVector(bSize);
+        // Manual reference dot product
+        float expected = 0f;
+        for (int i = 0; i < length; i++) {
+            expected += a[i] * b[i];
+        }
+        float actual = defaultedProvider.getVectorUtilSupport().dotProduct(a, 0, b, 0, length);
+        assertEquals(expected, actual, 1e-3f * length);
+        actual = panamaProvider.getVectorUtilSupport().dotProduct(a, 0, b, 0, length);
+        assertEquals(expected, actual, 1e-3f * length);
+        actual = nativeProvider.getVectorUtilSupport().dotProduct(a, 0, b, 0, length);
         assertEquals(expected, actual, 1e-3f * length);
     }
 
@@ -1410,41 +1446,40 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
     }
 
     public void testLinearCombination() {
-        float[] x = new float[19];
-        float[] y1 = new float[19];
+        int xLength = randomIntBetween(10, 50);
+        int yLength = randomIntBetween(10, 50);
+        float[] x = VectorTestUtils.randomFloatVector(xLength);
+        float[] y1 = VectorTestUtils.randomFloatVector(yLength);
+        float[] y2 = y1.clone();
 
-        for (int i = 0; i < x.length; i++) {
-            x[i] = randomFloat();
-            y1[i] = randomFloat();
-        }
-        float[] y2 = new float[19];
-        System.arraycopy(y1, 0, y2, 0, 19);
+        int xOffset = randomIntBetween(0, xLength - 5);
+        int yOffset = randomIntBetween(0, yLength - 5);
+        int length = Math.min(xLength - xOffset, yLength - yOffset);
 
         float scaleX = randomFloat();
         float scaleY = randomFloat();
 
-        defaultedProvider.getVectorUtilSupport().linearCombination(scaleX, x, scaleY, y1);
-        panamaProvider.getVectorUtilSupport().linearCombination(scaleX, x, scaleY, y2);
+        defaultedProvider.getVectorUtilSupport().linearCombination(scaleX, x, xOffset, scaleY, y1, yOffset, length);
+        panamaProvider.getVectorUtilSupport().linearCombination(scaleX, x, xOffset, scaleY, y2, yOffset, length);
 
         assertArrayEquals(y1, y2, 1e-5f);
     }
 
     public void testLinearCombinationNoScaleDest() {
-        // Choosing 19 dimensions so that it is a rugged number that does not align with any SIMD length
-        float[] x = new float[19];
-        float[] y1 = new float[19];
+        int xLength = randomIntBetween(10, 50);
+        int yLength = randomIntBetween(10, 50);
+        float[] x = VectorTestUtils.randomFloatVector(xLength);
+        float[] y1 = VectorTestUtils.randomFloatVector(yLength);
+        float[] y2 = y1.clone();
 
-        for (int i = 0; i < x.length; i++) {
-            x[i] = randomFloat();
-            y1[i] = randomFloat();
-        }
-        float[] y2 = new float[19];
-        System.arraycopy(y1, 0, y2, 0, 19);
+        int xOffset = randomIntBetween(0, xLength - 5);
+        int yOffset = randomIntBetween(0, yLength - 5);
+        int length = Math.min(xLength - xOffset, yLength - yOffset);
 
         float scaleX = randomFloat();
 
-        defaultedProvider.getVectorUtilSupport().linearCombination(scaleX, x, y1);
-        panamaProvider.getVectorUtilSupport().linearCombination(scaleX, x, y2);
+        defaultedProvider.getVectorUtilSupport().linearCombination(scaleX, x, xOffset, y1, yOffset, length);
+        panamaProvider.getVectorUtilSupport().linearCombination(scaleX, x, xOffset, y2, yOffset, length);
 
         assertArrayEquals(y1, y2, 1e-5f);
     }

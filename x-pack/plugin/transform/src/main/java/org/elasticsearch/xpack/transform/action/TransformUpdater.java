@@ -154,6 +154,14 @@ public class TransformUpdater {
             && callerCredential == null
             && config.getCredentialId() != null;
 
+        if (update != null && update.isForceRekeying()) {
+            // Mirror datafeed _force_rekeying: require CPS + cloud-authenticated caller.
+            if (willMintCredential == false) {
+                listener.onFailure(TransformConfig.forceRekeyingRequiresCpsAndCloudAuthException());
+                return;
+            }
+        }
+
         // rewrite config into a new format if necessary
         final TransformConfig rewrittenConfig = TransformConfig.rewriteForUpdate(config);
         TransformConfig appliedConfig = update != null ? update.apply(rewrittenConfig) : rewrittenConfig;
@@ -267,7 +275,9 @@ public class TransformUpdater {
                 // - rewrite did not change the config
                 // - update is not making any changes
                 boolean migratingToUiam = willMintCredential && config.getCredentialId() == null;
+                boolean forceRekey = willMintCredential && update != null && update.isForceRekeying();
                 boolean unchanged = migratingToUiam == false
+                    && forceRekey == false
                     && (willMintCredential ? isUnchangedIgnoringHeaders(updatedConfig, config) : updatedConfig.equals(config));
                 if (config.getVersion() != null
                     && config.getVersion().onOrAfter(TransformInternalIndexConstants.INDEX_VERSION_LAST_CHANGED)

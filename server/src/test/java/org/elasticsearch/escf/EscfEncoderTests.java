@@ -12,11 +12,13 @@ package org.elasticsearch.escf;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.eirf.EirfRowToXContent;
+import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -258,6 +260,34 @@ public class EscfEncoderTests extends ESTestCase {
             }
         }
         throw new AssertionError("Column '" + path + "' not found in batch schema");
+    }
+
+    public void testScratchPageNotReleasedBeforeCommit() throws IOException {
+        Recycler<BytesRef> recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        try (EscfEncoder encoder = new EscfEncoder(recycler)) {
+            // Build a source that is a CompositeBytesReference so hasArray() == false, triggering
+            // the scratch-page path in parseToScratch.
+            byte[] bytes = "{\"s\":\"hello\",\"n\":42}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            BytesReference source = CompositeBytesReference.of(
+                new BytesArray(bytes, 0, bytes.length / 2),
+                new BytesArray(bytes, bytes.length / 2, bytes.length - bytes.length / 2)
+            );
+            assertFalse("source must be composite so the scratch-page path is taken", source.hasArray());
+            assertTrue("source must fit in one page", source.length() <= recycler.pageSize());
+
+            // parseToScratch copies source into a scratch page and stores UTF8Bytes refs that point
+            // into that page's byte[]. The page must stay alive until commitScratchTo copies them.
+            encoder.parseToScratch(source, XContentType.JSON, LeafSink.NO_OP);
+            // MockPageCacheRecycler poisons released pages with random bytes. If the scratch page
+            // were released here (the old bug), commitScratchTo would copy garbage.
+            encoder.commitScratchTo(0);
+            try (EscfBatch batch = encoder.buildPartition(0)) {
+                assertEquals(1, batch.docCount());
+                Map<String, Object> row = reconstruct(batch, 0);
+                assertEquals("hello", row.get("s"));
+                assertEquals(42, row.get("n"));
+            }
+        }
     }
 
     /**

@@ -607,42 +607,54 @@ public final class EscfColumnBuilder {
      * non-empty rows become {@code FIXED_ARRAY} slots (fixed children bulk-copied), present empty rows
      * become zero-length {@code UNION_ARRAY} slots, absent rows become {@code ABSENT} slots.
      * Rows {@code [upToRow, rowsConsumed)} are left for the caller.
+     *
+     * <p>If the rewrite loop throws, the fresh union's pages are released before propagating.
      */
     private UnionBuilder rewriteArrayToUnion(ArrayBuilder ab, int upToRow) {
         ab.seal();
         UnionBuilder union = new UnionBuilder(recycler);
-        BytesReference childBytes = ab.childData.bytes();
-        boolean fixed = ab.childKind == EscfColumnKind.LONG || ab.childKind == EscfColumnKind.DOUBLE;
-        // Unresolved kind (only empty arrays/absents) never reaches the typed slot branch below.
-        byte elemType = ab.childKind == UNSET_ARRAY_KIND ? 0 : childInlineType(ab.childKind);
-        for (int r = 0; r < upToRow; r++) {
-            int from = ab.rowOffsets[r];
-            int to = ab.rowOffsets[r + 1];
-            if (ab.isAbsentRow(r, from, to)) {
-                union.addAbsent();
-            } else if (from == to) {
-                union.addInlineArray(SourceValueType.UNION_ARRAY, EMPTY_BYTES); // present empty array
-            } else {
-                union.beginInlineSlot(SourceValueType.FIXED_ARRAY);
-                union.slotByte(elemType);
-                if (fixed) {
-                    union.slotSlice(childBytes, from * 8, (to - from) * 8);
+        boolean success = false;
+        try {
+            BytesReference childBytes = ab.childData.bytes();
+            boolean fixed = ab.childKind == EscfColumnKind.LONG || ab.childKind == EscfColumnKind.DOUBLE;
+            // Unresolved kind (only empty arrays/absents) never reaches the typed slot branch below.
+            byte elemType = ab.childKind == UNSET_ARRAY_KIND ? 0 : childInlineType(ab.childKind);
+            for (int r = 0; r < upToRow; r++) {
+                int from = ab.rowOffsets[r];
+                int to = ab.rowOffsets[r + 1];
+                if (ab.isAbsentRow(r, from, to)) {
+                    union.addAbsent();
+                } else if (from == to) {
+                    union.addInlineArray(SourceValueType.UNION_ARRAY, EMPTY_BYTES); // present empty array
                 } else {
-                    for (int e = from; e < to; e++) {
-                        int bf = ab.childOffsets[e];
-                        int bt = ab.childOffsets[e + 1];
-                        union.slotIntLE(bt - bf);
-                        union.slotSlice(childBytes, bf, bt - bf);
+                    union.beginInlineSlot(SourceValueType.FIXED_ARRAY);
+                    union.slotByte(elemType);
+                    if (fixed) {
+                        union.slotSlice(childBytes, from * 8, (to - from) * 8);
+                    } else {
+                        for (int e = from; e < to; e++) {
+                            int bf = ab.childOffsets[e];
+                            int bt = ab.childOffsets[e + 1];
+                            union.slotIntLE(bt - bf);
+                            union.slotSlice(childBytes, bf, bt - bf);
+                        }
                     }
+                    union.endInlineSlot();
                 }
-                union.endInlineSlot();
+            }
+            if (upToRow == ab.rowsConsumed()) {
+                ab.childData.close();
+                ab.consumed = true;
+            }
+            success = true;
+            return union;
+        } finally {
+            if (success == false) {
+                // Release the partially-written union pages so they are not leaked. The source
+                // ArrayBuilder (ab) is left intact; the caller's discard() will close ab.childData.
+                union.discard();
             }
         }
-        if (upToRow == ab.rowsConsumed()) {
-            ab.childData.close();
-            ab.consumed = true;
-        }
-        return union;
     }
 
     /** Replays row {@code r} of {@code ab} into the currently-open union slot as typed elements. */

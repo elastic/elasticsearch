@@ -51,6 +51,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -1298,6 +1299,7 @@ public class BulkOperationTests extends ESTestCase {
             threadPool,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             clusterService,
+            new MockPageCacheRecycler(Settings.EMPTY),
             request,
             client,
             existingResponses,

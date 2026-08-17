@@ -41,6 +41,16 @@ import java.util.List;
 public final class EscfEncoder implements SourceBatchEncoder {
 
     private final EscfBatchBuilder backend;
+    private final Recycler<BytesRef> recycler;
+
+    /**
+     * Scratch page held across {@link #parseToScratch} → {@link #commitScratchTo}: when the source
+     * is non-array and small enough to fit in one page we copy it to this page so the Jackson parser
+     * can read from a contiguous {@code byte[]} (faster than InputStream).
+     * <p>
+     * Must retain it across the row commit because the EscfRowBuffer holds pointers to the underlying bytes.
+     */
+    private Recycler.V<BytesRef> pendingScratchPage = null;
 
     public EscfEncoder() {
         this(BytesRefRecycler.NON_RECYCLING_INSTANCE);
@@ -48,22 +58,53 @@ public final class EscfEncoder implements SourceBatchEncoder {
 
     public EscfEncoder(Recycler<BytesRef> recycler) {
         this.backend = new EscfBatchBuilder(recycler);
+        this.recycler = recycler;
     }
 
     @Override
     public void parseToScratch(BytesReference source, XContentType xContentType, LeafSink sink) throws IOException {
+        assert pendingScratchPage == null : "previous scratch page was never released via commitScratchTo";
         EscfRowBuffer row = backend.beginRow();
-        try (XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, source, xContentType)) {
-            parser.allowDuplicateKeys(true);
-            parser.nextToken(); // START_OBJECT
-            flattenObject(row, parser, parser.nextToken(), sink);
+        // When the source is a composite BytesReference (hasArray() == false) and small enough to
+        // fit in a single page, copy it to a pooled scratch page so the Jackson parser can read
+        // from a contiguous byte[].
+        Recycler.V<BytesRef> page = source.hasArray() == false && source.length() <= recycler.pageSize() ? recycler.obtain() : null;
+        try {
+            BytesReference sourceToParse = page == null ? source : BytesReference.copyTo(source, page.v());
+            try (
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    XContentParserConfiguration.EMPTY,
+                    sourceToParse,
+                    xContentType
+                )
+            ) {
+                parser.allowDuplicateKeys(true);
+                parser.nextToken(); // START_OBJECT
+                flattenObject(row, parser, parser.nextToken(), sink);
+            }
+            row.finishRow();
+            pendingScratchPage = page; // transfer ownership; commitScratchTo releases it
+            page = null;
+        } finally {
+            if (page != null) {
+                page.close();
+            }
         }
-        row.finishRow();
     }
 
     @Override
     public int commitScratchTo(int partitionKey) {
-        return backend.commit(partitionKey);
+        try {
+            return backend.commit(partitionKey);
+        } finally {
+            // Release the scratch page now that scratchVar[] has been drained into the column
+            // builders; the bytes have been copied so the page is no longer referenced.
+            Recycler.V<BytesRef> page = pendingScratchPage;
+            pendingScratchPage = null;
+            if (page != null) {
+                page.close();
+            }
+        }
     }
 
     @Override
@@ -88,6 +129,11 @@ public final class EscfEncoder implements SourceBatchEncoder {
 
     @Override
     public void close() {
+        Recycler.V<BytesRef> page = pendingScratchPage;
+        pendingScratchPage = null;
+        if (page != null) {
+            page.close();
+        }
         backend.close();
     }
 

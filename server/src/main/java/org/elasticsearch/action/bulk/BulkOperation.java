@@ -45,11 +45,13 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -61,9 +63,9 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -116,6 +118,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         ThreadPool threadPool,
         Executor executor,
         ClusterService clusterService,
+        PageCacheRecycler pageCacheRecycler,
         BulkRequest bulkRequest,
         NodeClient client,
         AtomicArray<BulkItemResponse> responses,
@@ -133,6 +136,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             threadPool,
             executor,
             clusterService,
+            pageCacheRecycler,
             bulkRequest,
             client,
             responses,
@@ -154,6 +158,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         ThreadPool threadPool,
         Executor executor,
         ClusterService clusterService,
+        PageCacheRecycler pageCacheRecycler,
         BulkRequest bulkRequest,
         NodeClient client,
         AtomicArray<BulkItemResponse> responses,
@@ -196,7 +201,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             && clusterService.state().getMinTransportVersion().supports(BulkShardRequest.BULK_SHARD_BATCH)
             && ShardBatchIndexer.BATCH_INDEXING_FEATURE_FLAG.isEnabled()
             && BulkBatchEncoders.isBulkBatchEligible(bulkRequest)) {
-            batchEncoders = new BulkBatchEncoders();
+            batchEncoders = new BulkBatchEncoders(new BytesRefRecycler(pageCacheRecycler));
         } else {
             batchEncoders = null;
         }
@@ -428,13 +433,19 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             return;
         }
 
-        // Build per-shard EIRF batches for shards that ended up batchable (initial-pass only). For
+        // Build per-shard source batches for shards that ended up batchable (initial-pass only). For
         // shards marked non-batchable, no batch is produced and the items keep their inline source.
-        Map<ShardId, SourceBatch> shardBatches = batchEncoders == null ? Collections.emptyMap() : batchEncoders.finalizeBatches();
-
+        // The map is mutable so we can remove() entries as they are attached to shard requests;
+        // whatever remains after the loop was never dispatched and is released in the finally block.
+        // Initialized to a mutable empty map so the finally block's remove()/close() calls are
+        // safe even when batchEncoders is null or finalizeBatches throws.
+        Map<ShardId, SourceBatch> shardBatches = new HashMap<>();
         String nodeId = clusterService.localNode().getId();
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
         try (RefCountingRunnable bulkItemRequestCompleteRefCount = new RefCountingRunnable(onRequestsCompleted)) {
+            if (batchEncoders != null) {
+                shardBatches = batchEncoders.finalizeBatches();
+            }
             for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
                 final ShardId shardId = entry.getKey();
                 final List<BulkItemRequest> requests = entry.getValue();
@@ -451,9 +462,15 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     bulkRequest.isSimulated()
                 );
 
-                SourceBatch shardBatch = shardBatches.get(shardId);
+                // Use remove() so that any batch not matched by a dispatched request is left in
+                // the map and cleaned up in the finally block below.
+                SourceBatch shardBatch = shardBatches.remove(shardId);
+                // Tie the batch lifetime to this shard request: it is released when the shard
+                // request completes (or is short-circuited), before the refcount handle fires.
+                Releasable onFinish = bulkItemRequestCompleteRefCount.acquire();
                 if (shardBatch != null) {
                     bulkShardRequest.setBulkShardBatch(new BulkShardBatch(shardBatch));
+                    onFinish = Releasables.wrap(shardBatch, onFinish);
                 }
 
                 if (indexMetadata.getInferenceFields().isEmpty() == false) {
@@ -466,10 +483,15 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
                 boolean redactSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings());
-                executeBulkShardRequest(bulkShardRequest, project.id(), bulkItemRequestCompleteRefCount.acquire(), redactSeqNo);
+                executeBulkShardRequest(bulkShardRequest, project.id(), onFinish, redactSeqNo);
             }
+        } finally {
+            // Release any batches that were built but never dispatched (e.g. because the shard
+            // was absent from requestsByShard after a per-item failure in groupRequestsByShards),
+            // and close any remaining encoder partitions.
+            Releasables.close(shardBatches.values());
+            closeBatchEncoders();
         }
-        closeBatchEncoders();
     }
 
     private void closeBatchEncoders() {

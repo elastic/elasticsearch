@@ -96,6 +96,9 @@ public final class EscfBatchBuilder implements Releasable {
      * Finalizes all column builders for {@code partitionKey} and returns the resulting
      * {@link EscfBatch}. The batch owns the column buffers; close it to release them.
      * The partition entry is cleared; calling this twice for the same key is an error.
+     *
+     * <p>If building throws, all recycler pages accumulated in this partition are released
+     * before propagating the exception and the partition is discarded.
      */
     public EscfBatch buildPartition(int partitionKey) {
         final Partition partition = partitionKey < partitions.length ? partitions[partitionKey] : null;
@@ -105,13 +108,29 @@ public final class EscfBatchBuilder implements Releasable {
         final int leafCount = schema.leafCount();
         ensurePartitionBuilders(partition, leafCount);
         final EscfColumnData[] columns = new EscfColumnData[leafCount];
-        for (int c = 0; c < leafCount; c++) {
-            columns[c] = partition.builders.get(c).finish(partition.docCount);
+        boolean success = false;
+        try {
+            for (int c = 0; c < leafCount; c++) {
+                columns[c] = partition.builders.get(c).finish(partition.docCount);
+            }
+            // Clear the partition so close() skips it; a second call throws above.
+            partitions[partitionKey] = null;
+            // Each column owns its recycler-backed buffers; the batch releases them all on close.
+            EscfBatch batch = new EscfBatch(schema, partition.docCount, columns, Releasables.wrap(columns));
+            success = true;
+            return batch;
+        } finally {
+            if (success == false) {
+                // Close any columns that were already finished (they own the recycler pages).
+                // Then discard all builders — a no-op for the ones already finished since
+                // finish() moved their pages into the column data, which we just closed.
+                Releasables.closeWhileHandlingException(columns);
+                for (EscfColumnBuilder builder : partition.builders) {
+                    builder.discard();
+                }
+                partitions[partitionKey] = null;
+            }
         }
-        // Clear the partition so close() skips it; a second call throws above.
-        partitions[partitionKey] = null;
-        // Each column owns its recycler-backed buffers; the batch releases them all on close.
-        return new EscfBatch(schema, partition.docCount, columns, Releasables.wrap(columns));
     }
 
     /** Returns the number of rows committed to {@code partitionKey}, or 0 if none. */
@@ -192,8 +211,10 @@ public final class EscfBatchBuilder implements Releasable {
     private void ensurePartitionBuilders(Partition partition, int size) {
         while (partition.builders.size() < size) {
             EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT, recycler);
-            builder.addAbsents(partition.docCount);
+            // Add to the list before calling addAbsents so that close() can discard this
+            // builder if addAbsents throws (e.g. OOM while growing internal arrays).
             partition.builders.add(builder);
+            builder.addAbsents(partition.docCount);
         }
     }
 

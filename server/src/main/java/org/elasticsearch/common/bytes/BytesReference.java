@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Objects;
 
 /**
  * A reference to bytes.
@@ -194,6 +195,28 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
      * @see BytesRefIterator
      */
     BytesRefIterator iterator();
+
+    /**
+     * Copies all bytes from {@code source} into {@code dest}, starting at {@code dest.offset}.
+     * Returns a {@link BytesArray} view of the written region. The destination must have sufficient
+     * capacity: {@code dest.bytes.length - dest.offset >= source.length()}.
+     */
+    static BytesArray copyTo(BytesReference source, BytesRef dest) {
+        Objects.checkFromIndexSize(dest.offset, source.length(), dest.bytes.length);
+        BytesRefIterator it = source.iterator();
+        int pos = dest.offset;
+        try {
+            BytesRef fragment;
+            while ((fragment = it.next()) != null) {
+                System.arraycopy(fragment.bytes, fragment.offset, dest.bytes, pos, fragment.length);
+                pos += fragment.length;
+            }
+        } catch (IOException e) {
+            // BytesReference iterator implementations do not perform I/O
+            throw new AssertionError("won't happen", e);
+        }
+        return new BytesArray(dest.bytes, dest.offset, source.length());
+    }
 
     /**
      * @return {@code true} if this instance is backed by a byte array

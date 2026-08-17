@@ -178,6 +178,63 @@ public class EscfBatchBuilderTests extends ESTestCase {
         }
     }
 
+    public void testBuildPartitionThenBatchCloseReleasesPages() throws IOException {
+        // Builder is the outer resource so it closes after the batch.
+        // Its close() must be a no-op once the partition has been built.
+        try (EscfBatchBuilder builder = newBuilder()) {
+            EscfRowBuffer row = builder.beginRow();
+            row.stringField("s", utf8("hello"));  // VarBuilder allocates a page for its data stream
+            row.longField("n", 42L);              // FixedNumericBuilder allocates a page too
+            row.finishRow();
+            builder.commit(0);
+
+            try (EscfBatch batch = builder.buildPartition(0)) {
+                assertEquals(1, batch.docCount());
+                // partition 0 is cleared inside buildPartition(); builder.close() is now a no-op
+            }
+            // batch pages released by the inner TWR; builder.close() must not double-release
+        }
+        // @After invokes MockPageCacheRecycler.ensureAllPagesAreReleased()
+    }
+
+    /**
+     * Builder closed before {@code buildPartition} is called: the partition builders' recycler pages
+     * must all be released by {@link EscfBatchBuilder#close}.
+     */
+    public void testBuilderCloseWithoutBuildReleasesPages() throws IOException {
+        try (EscfBatchBuilder builder = newBuilder()) {
+            EscfRowBuffer row = builder.beginRow();
+            row.stringField("key", utf8("value"));
+            row.finishRow();
+            builder.commit(0);
+            // No buildPartition(); builder.close() via TWR must release all column-builder pages.
+        }
+        // @After confirms no leak
+    }
+
+    public void testUnbuiltPartitionsReleasedOnClose() throws IOException {
+        try (EscfBatchBuilder builder = newBuilder()) {
+            // Commit one row to partition 0
+            EscfRowBuffer row = builder.beginRow();
+            row.stringField("s", utf8("a"));
+            row.finishRow();
+            builder.commit(0);
+
+            // Commit one row to partition 1
+            row = builder.beginRow();
+            row.stringField("s", utf8("b"));
+            row.finishRow();
+            builder.commit(1);
+
+            // Build partition 0 only and immediately release it
+            try (EscfBatch batch = builder.buildPartition(0)) {
+                assertEquals(1, batch.docCount());
+            }
+            // Partition 1 is still alive inside the builder; builder.close() via TWR must release it.
+        }
+        // @After confirms no leak from partition 1's unbuilt column pages
+    }
+
     private static EscfBatchBuilder newBuilder() {
         Recycler<BytesRef> recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
         return new EscfBatchBuilder(recycler);

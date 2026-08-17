@@ -43,5 +43,5 @@ that is likely to change in the future:
       view, not the source indices.
 * `METADATA` directives inside and outside a view definition behave the same
   as they do for
-  [`METADATA` in subqueries](/reference/query-languages/esql/esql-subquery.md#subqueries-with-metadata).
+  [`METADATA` in subqueries](/reference/query-languages/esql/esql-from-subquery.md#subqueries-with-metadata).
   This will change for views.

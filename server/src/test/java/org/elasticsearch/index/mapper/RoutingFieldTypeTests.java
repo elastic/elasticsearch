@@ -22,7 +22,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.lucene.search.XDocValuesRewriteMethod;
 
 import java.util.List;
 
@@ -52,8 +51,6 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
         TermInSetQuery expected = new TermInSetQuery("_routing", List.of(new BytesRef("foo"), new BytesRef("bar")));
         TermInSetQuery actual = (TermInSetQuery) RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.termsQuery(List.of("foo", "bar"), MOCK_CONTEXT);
         assertEquals(expected, actual);
-        // newSlowSetQuery (SortedSetDocValuesSetQuery) is not affected by the docIDRunEnd() bug and
-        // still uses Lucene's own DOC_VALUES_REWRITE singleton.
         assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, actual.getRewriteMethod());
     }
 
@@ -141,7 +138,7 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testPrefixQueryDocValues() {
-        Query expected = new PrefixQuery(new Term("_routing", new BytesRef("foo")), XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+        Query expected = new PrefixQuery(new Term("_routing", new BytesRef("foo")), MultiTermQuery.DOC_VALUES_REWRITE);
         assertEquals(expected, RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.prefixQuery("foo", null, false, MOCK_CONTEXT));
 
         ElasticsearchException ee = expectThrows(
@@ -158,7 +155,7 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
         Query expected = new WildcardQuery(
             new Term("_routing", new BytesRef("foo*")),
             Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-            XDocValuesRewriteMethod.DOC_VALUES_REWRITE
+            MultiTermQuery.DOC_VALUES_REWRITE
         );
         assertEquals(expected, RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.wildcardQuery("foo*", null, false, MOCK_CONTEXT));
 
@@ -179,7 +176,7 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
             0,
             50,
             true,
-            XDocValuesRewriteMethod.DOC_VALUES_REWRITE
+            MultiTermQuery.DOC_VALUES_REWRITE
         );
         assertEquals(expected, RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.fuzzyQuery("foo", Fuzziness.ONE, 0, 50, true, MOCK_CONTEXT, null));
 

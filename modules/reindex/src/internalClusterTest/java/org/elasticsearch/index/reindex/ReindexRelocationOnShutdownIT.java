@@ -769,11 +769,8 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             mockLog.awaitAllExpectationsMatched();
 
             // Release the transport block. With the fix the task was NOT cancelled, so the destination
-            // handler runs and the relocation completes normally.
+            // handler runs, and the relocation completes normally.
             resumeBlocked.countDown();
-
-            // We've seen everything we need to see, rethrottle to allow the task to finish
-            rethrottleRunningRootReindex(numDocs);
 
             // The source task should complete via TaskRelocatedException (relocated, not cancelled).
             safeAwait(listenerDone);
@@ -782,6 +779,9 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
             // Wait for prepareForShutdown to return (it will see the task is gone and exit its inner loop).
             safeGet(shutdownFuture);
+
+            // We've seen everything we need to see, rethrottle to allow the task to finish
+            rethrottleRunningRootReindex(numDocs);
 
             // The relocated task should complete successfully on the data node.
             final GetTaskResponse relocatedResult = clusterAdmin().prepareGetTask(new TaskId(relocatedTaskIdString))

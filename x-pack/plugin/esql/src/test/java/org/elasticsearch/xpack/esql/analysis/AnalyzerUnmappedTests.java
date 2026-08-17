@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -1504,7 +1503,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             | SORT name
             | LIMIT 10
             """));
-        assertThat(Expressions.names(plan.output()), equalTo(List.of("name", "x", UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("name", "x")));
     }
 
     /**

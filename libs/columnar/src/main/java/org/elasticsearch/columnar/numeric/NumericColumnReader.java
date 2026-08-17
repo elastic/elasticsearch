@@ -44,7 +44,7 @@ public final class NumericColumnReader {
     private final NumericBlockEncoder encoder;
     private final long[] blockBuffer;
 
-    private int cachedBlock = -1;
+    private long cachedBlock = -1;
 
     public NumericColumnReader(NumericColumnMetadata meta, IndexInput data) throws IOException {
         this.meta = meta;
@@ -87,20 +87,20 @@ public final class NumericColumnReader {
     }
 
     /** The ordinal of a document's first value, given its rank. */
-    public int firstOrdinal(int rank) {
-        return valueAddresses == null ? rank : (int) valueAddresses.get(rank);
+    public long firstOrdinal(int rank) {
+        return valueAddresses == null ? rank : valueAddresses.get(rank);
     }
 
     /** The number of values a document has, given its rank. */
-    public int valueCount(int rank) {
-        return valueAddresses == null ? 1 : (int) (valueAddresses.get(rank + 1) - valueAddresses.get(rank));
+    public long valueCount(int rank) {
+        return valueAddresses == null ? 1 : valueAddresses.get(rank + 1) - valueAddresses.get(rank);
     }
 
     /** The value at {@code ordinal} in {@code [0, numValues)}. */
-    public long valueForOrdinal(int ordinal) throws IOException {
-        int block = ordinal / meta.blockSize();
+    public long valueForOrdinal(long ordinal) throws IOException {
+        long block = ordinal / meta.blockSize();
         ensureBlock(block);
-        return blockBuffer[ordinal - block * meta.blockSize()];
+        return blockBuffer[(int) (ordinal - block * meta.blockSize())];
     }
 
     /** Values per encoding block. */
@@ -109,7 +109,7 @@ public final class NumericColumnReader {
     }
 
     /** Total number of values across all documents. */
-    public int numValues() {
+    public long numValues() {
         return meta.numValues();
     }
 
@@ -117,12 +117,12 @@ public final class NumericColumnReader {
      * Decodes the block at {@code blockIndex} (single-block cache) and returns the shared buffer, valid
      * until the next call that touches a different block.
      */
-    public long[] block(int blockIndex) throws IOException {
+    public long[] block(long blockIndex) throws IOException {
         ensureBlock(blockIndex);
         return blockBuffer;
     }
 
-    private void ensureBlock(int block) throws IOException {
+    private void ensureBlock(long block) throws IOException {
         if (block == cachedBlock) {
             return;
         }
@@ -132,7 +132,7 @@ public final class NumericColumnReader {
         int length = (int) (blockEnd - blockStart);
         DataInput blockData = blockBytesCodec.read(data, length);
         // Full blocks hold blockSize values; the last block holds the remainder.
-        int valueCount = Math.min(meta.blockSize(), meta.numValues() - block * meta.blockSize());
+        int valueCount = (int) Math.min(meta.blockSize(), meta.numValues() - block * meta.blockSize());
         encoder.decode(blockData, valueCount, blockBuffer);
         cachedBlock = block;
     }

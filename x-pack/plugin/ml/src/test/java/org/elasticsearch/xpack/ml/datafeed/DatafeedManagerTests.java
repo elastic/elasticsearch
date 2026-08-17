@@ -1114,7 +1114,7 @@ public class DatafeedManagerTests extends ESTestCase {
         when(credentialManager.extractCloudManagedCredential(any())).thenReturn(new CloudCredential(new SecureString("t".toCharArray())));
         when(client.threadPool()).thenReturn(threadPool);
 
-        PersistedCloudCredential existingCred = new PersistedCloudCredential("existing-key-id", new SecureString("e".toCharArray()));
+        PersistedCloudCredential existingCred = randomPersistedCloudCredential("existing-key-id");
         DatafeedConfig.Builder existingBuilder = new DatafeedConfig.Builder("test-datafeed", "test-job");
         existingBuilder.setIndices(List.of("logs-*"));
         withCpsSearchSurface(existingBuilder);
@@ -1123,7 +1123,7 @@ public class DatafeedManagerTests extends ESTestCase {
         stubGetDatafeedConfig(datafeedConfigProvider, existingConfig);
 
         mockSearchProbeSucceeds(credentialManager, client);
-        PersistedCloudCredential newCred = new PersistedCloudCredential("new-key-id", new SecureString("n".toCharArray()));
+        PersistedCloudCredential newCred = randomPersistedCloudCredential("new-key-id");
         mockGrantSucceeds(apiKeyService, newCred);
         stubUpdateDatefeedConfigInvokesMintHook(datafeedConfigProvider, existingConfig, null);
         mockRevokeSucceeds(apiKeyService);
@@ -1171,7 +1171,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
         when(credentialManager.hasCloudManagedCredential(any())).thenReturn(true);
 
-        PersistedCloudCredential existingCred = new PersistedCloudCredential("existing-key-id", new SecureString("e".toCharArray()));
+        PersistedCloudCredential existingCred = randomPersistedCloudCredential("existing-key-id");
         DatafeedConfig.Builder existingBuilder = new DatafeedConfig.Builder("test-datafeed", "test-job");
         existingBuilder.setIndices(List.of("logs-*"));
         withCpsSearchSurface(existingBuilder);
@@ -1230,7 +1230,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
         when(credentialManager.hasCloudManagedCredential(any())).thenReturn(false);
 
-        PersistedCloudCredential existingCred = new PersistedCloudCredential("existing-key-id", new SecureString("e".toCharArray()));
+        PersistedCloudCredential existingCred = randomPersistedCloudCredential("existing-key-id");
         DatafeedConfig.Builder existingBuilder = new DatafeedConfig.Builder("test-datafeed", "test-job");
         existingBuilder.setIndices(List.of("logs-*"));
         withCpsSearchSurface(existingBuilder);

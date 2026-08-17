@@ -120,7 +120,9 @@ PUT _snapshot/my_backup
 :   (Optional, [byte value](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units)) Maximum snapshot restore rate per node. Defaults to unlimited. Note that restores are also throttled through [recovery settings](/reference/elasticsearch/configuration-reference/index-recovery-settings.md).
 
 `max_single_part_upload_size`
-:   (Optional, [byte value](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units)) Blobs larger than this are uploaded with several [Put Block](https://learn.microsoft.com/en-us/rest/api/storageservices/put-block) requests instead of a single [Put Blob](https://learn.microsoft.com/en-us/rest/api/storageservices/put-blob) request. Defaults to `azure.client.CLIENT_NAME.max_single_part_upload_size` {applies_to}`stack: ga 9.6`, which itself defaults to `256mb`.
+:   ([byte value](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units)) The maximum size of a blob that {{es}} uploads in a single [Put Blob](https://learn.microsoft.com/en-us/rest/api/storageservices/put-blob) request. Larger blobs are uploaded with several [Put Block](https://learn.microsoft.com/en-us/rest/api/storageservices/put-block) requests.
+    
+    {applies_to}`stack: ga 9.6` If this setting is not set, {{es}} uses `azure.client.CLIENT_NAME.max_single_part_upload_size`.
 
 `max_snapshot_bytes_per_sec`
 :   (Optional, [byte value](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units)) Maximum snapshot creation rate per node. Defaults to `40mb` per second. Note that if the [recovery settings for managed services](/reference/elasticsearch/configuration-reference/index-recovery-settings.md#recovery-settings-for-managed-services) are set, then it defaults to unlimited, and the rate is additionally throttled through [recovery settings](/reference/elasticsearch/configuration-reference/index-recovery-settings.md).

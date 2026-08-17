@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportRequest;
@@ -434,6 +435,8 @@ public class StatelessReshardingPitSearchIT extends AbstractStatelessPluginInteg
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings()
+            // Ensure the reaper runs promptly to avoid occasionally finding apparent context leaks during test teardown
+            .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
             // These tests are carefully set up and do not hit the situations that the delete unowned grace period prevents.
             .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO)
             // Disable so that they don't randomly flush and break our asserts.

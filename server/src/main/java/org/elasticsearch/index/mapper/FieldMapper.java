@@ -293,6 +293,35 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * Whether this mapper consumes the whole group of schema leaves rooted at its own path rather than a single leaf of its own. Mappers
+     * whose source value is an object that the columnar encoder explodes into one dotted leaf per key — {@code flattened} is the first —
+     * cannot be resolved leaf by leaf, because no mapper exists at those descendant paths. A mapper returning {@code true} receives every
+     * such leaf in one call to {@link #mapColumnGroupBatch}, and those leaves are never handed to a leaf mapper.
+     * <p>
+     * This is orthogonal to {@link #supportsColumnarParse(IndexSettings)}: a group mapper must return {@code true} from both to
+     * participate in the columnar path.
+     */
+    public boolean resolvesColumnGroup() {
+        return false;
+    }
+
+    /**
+     * Maps all documents in a batch for a mapper that {@link #resolvesColumnGroup() resolves a column group}. Called once per field per
+     * batch in place of {@link #mapColumnBatch}, covering every schema leaf rooted below this field's path. Output columns are attached
+     * to {@code ctx} via {@link BatchMappingContext#addColumn}, exactly as for {@link #mapColumnBatch}.
+     *
+     * @param ctx          the batch mapping context; receives output columns via {@code addColumn}
+     * @param columns      the ESCF source columns owned by this mapper, in schema-leaf order
+     * @param relativeKeys {@code relativeKeys[i]} is {@code columns[i]}'s schema path with this field's path and the separating dot
+     *                     stripped — for {@code flattened} that is exactly the flattened key
+     */
+    public void mapColumnGroupBatch(BatchMappingContext ctx, EscfColumn[] columns, String[] relativeKeys) {
+        throw new UnsupportedOperationException(
+            "mapColumnGroupBatch not implemented for mapper [" + typeName() + "] on field [" + fullPath() + "]"
+        );
+    }
+
+    /**
      * Parse the field value using the provided {@link DocumentParserContext}.
      */
     public void parse(DocumentParserContext context) throws IOException {

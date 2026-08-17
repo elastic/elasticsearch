@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 154463
+pr: 156670
+summary: Release `double_range` field type as tech preview
+type: enhancement

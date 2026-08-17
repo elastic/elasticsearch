@@ -15,7 +15,7 @@ import jdk.incubator.vector.VectorOperators;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
-import org.elasticsearch.simdvec.IndexInputUtils;
+import org.elasticsearch.lucene.store.IndexInputUtils;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -226,5 +226,4 @@ final class MSBitToBitES940OSQVectorsScorer extends MemorySegmentES940OSQVectors
         }
         return Float.NEGATIVE_INFINITY;
     }
-
 }

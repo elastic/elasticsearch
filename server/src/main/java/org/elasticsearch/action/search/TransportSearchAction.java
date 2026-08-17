@@ -93,8 +93,10 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.ProjectRoutingRequestInfo;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.SearchPlanningPhaseResolutionResult;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -134,6 +136,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.search.AbstractSearchAsyncAction.ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL;
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
@@ -219,7 +222,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchPhaseController = searchPhaseController;
         this.searchTransportService = searchTransportService;
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
-        SearchTransportService.registerRequestHandler(transportService, searchService, namedWriteableRegistry);
+        SearchTransportService.registerRequestHandler(
+            transportService,
+            searchService,
+            namedWriteableRegistry,
+            clusterService.getSettings()
+        );
         SearchQueryThenFetchAsyncAction.registerNodeSearchAction(
             searchTransportService,
             searchService,
@@ -559,6 +567,25 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             } else {
                 searchResponseActionListener = delegate;
+            }
+
+            // CPS project routing telemetry — queries counts all searches while the project has links;
+            // queries_project_routing and sub-counters only increment for requests that carry a project_routing expression.
+            // PIT opens (collectSearchTelemetry=false) are excluded — they are resource allocation, not queries.
+            if (collectSearchTelemetry) {
+                TargetProjects targetProjects = rewritten.getResolvedTargetProjects();
+                boolean hasLinkedProjects = targetProjects != null && targetProjects.hasLinkedProjects();
+                if (hasLinkedProjects) {
+                    // Non-null routingInfo signals to the holder that this request carried a project_routing expression,
+                    // triggering queries_project_routing and its sub-counters in addition to queries.
+                    String projectRouting = rewritten.getProjectRouting();
+                    ProjectRoutingRequestInfo routingInfo = Strings.isNullOrEmpty(projectRouting) == false
+                        ? (targetProjects.projectRoutingRequestInfo() != null
+                            ? targetProjects.projectRoutingRequestInfo()
+                            : ProjectRoutingRequestInfo.NONE)
+                        : null;
+                    usageService.getProjectRoutingUsageHolder().recordSearch(routingInfo, hasLinkedProjects);
+                }
             }
 
             if (resolvedIndices.getRemoteClusterIndices().isEmpty()) {
@@ -1591,6 +1618,23 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
+     * Creates a new Cluster object using shouldSkipOnFailure flag to set Status then swaps it in the clusters CHM at key clusterAlias but
+     * does <b>not</b> append any exception to the list of shard failures. Used when all shards fail due to an internal cancel, since we
+     * don't want to include exceptions due to the internal cancel in the response.
+     */
+    static void ccsClusterInfoUpdateInternalCancel(SearchResponse.Clusters clusters, String clusterAlias, boolean shouldSkipOnFailure) {
+        clusters.swapCluster(clusterAlias, (k, v) -> {
+            SearchResponse.Cluster.Status status;
+            if (shouldSkipOnFailure) {
+                status = SearchResponse.Cluster.Status.SKIPPED;
+            } else {
+                status = SearchResponse.Cluster.Status.FAILED;
+            }
+            return new SearchResponse.Cluster.Builder(v).setStatus(status).build();
+        });
+    }
+
+    /**
      * Creates a new Cluster object using the {@link ShardSearchFailure} info and shouldSkipOnFailure
      * flag to set Status. Then it swaps it in the clusters CHM at key clusterAlias
      */
@@ -2404,7 +2448,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             logCCSError(f, clusterAlias, skipOnFailure);
             remoteExceptions.put(clusterAlias, e);
             SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
-            if (skipOnFailure && ExceptionsHelper.isTaskCancelledException(e) == false) {
+            // If all shards failed due the search being cancelled internally, do not include the placeholder exception in the response
+            if (ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL.equals(ExceptionsHelper.unwrapCause(e).getMessage())) {
+                if (cluster != null) {
+                    ccsClusterInfoUpdateInternalCancel(clusters, clusterAlias, skipOnFailure);
+                }
+                maybeFinish();
+                return;
+            }
+            var isTaskCancelled = ExceptionsHelper.isTaskCancelledException(e);
+            if (skipOnFailure && isTaskCancelled == false) {
                 if (cluster != null) {
                     ccsClusterInfoUpdate(f, clusters, clusterAlias, true);
                 }
@@ -2413,10 +2466,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     ccsClusterInfoUpdate(f, clusters, clusterAlias, false);
                 }
                 Exception exception = e;
-                if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false
-                    && ExceptionsHelper.isTaskCancelledException(e) == false) {
+                if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false && isTaskCancelled == false) {
                     exception = wrapRemoteClusterFailure(clusterAlias, e);
                 }
+
                 if (exceptions.compareAndSet(null, exception) == false) {
                     exceptions.accumulateAndGet(exception, (previous, current) -> {
                         current.addSuppressed(previous);

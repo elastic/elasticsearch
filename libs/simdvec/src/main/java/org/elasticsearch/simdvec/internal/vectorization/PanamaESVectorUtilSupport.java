@@ -217,34 +217,34 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
-    public float dotProduct(float[] a, float[] b, int offset, int length) {
-        if (offset == 0 && length == a.length) {
+    public float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length) {
+        if (aOffset == 0 && bOffset == 0 && length == a.length && a.length == b.length) {
             return dotProduct(a, b);
         }
 
-        int i = offset;
-        int vectorEnd = offset + FLOAT_SPECIES.loopBound(length);
-        int end = offset + length;
+        int ai = aOffset, bi = bOffset;
+        int aVectorEnd = aOffset + FLOAT_SPECIES.loopBound(length);
+        int aEnd = aOffset + length;
 
         FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
-        for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
-            FloatVector av = FloatVector.fromArray(FLOAT_SPECIES, a, i);
-            FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, i);
+        for (; ai < aVectorEnd; ai += FLOAT_SPECIES.length(), bi += FLOAT_SPECIES.length()) {
+            FloatVector av = FloatVector.fromArray(FLOAT_SPECIES, a, ai);
+            FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, bi);
             acc = fma(av, bv, acc);
         }
 
         float result = acc.reduceLanes(ADD);
-        for (; i < end; i++) {
-            result = fma(a[i], b[i], result);
+        for (; ai < aEnd; ai++, bi++) {
+            result = fma(a[ai], b[bi], result);
         }
         return result;
     }
 
     @Override
-    public void l2Normalize(float[] v, int offset, int length) {
-        float normSq = dotProduct(v, v, offset, length);
+    public float l2Normalize(float[] v, int offset, int length) {
+        float normSq = dotProduct(v, offset, v, offset, length);
         if (normSq == 0f) {
-            return;
+            return 0;
         }
 
         float scale = (float) (1.0 / Math.sqrt(normSq));
@@ -261,6 +261,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         for (; i < end; i++) {
             v[i] *= scale;
         }
+        return normSq;
     }
 
     @Override
@@ -2384,22 +2385,22 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
-    public void packAsBinary(int[] vector, byte[] packed) {
+    public void pack1BitValues(int[] vector, byte[] packed) {
         // 128 / 32 == 4
         if (vector.length >= 8 && HAS_FAST_INTEGER_VECTORS) {
             // TODO: can we optimize for >= 512?
             if (VECTOR_BITSIZE >= 256) {
-                packAsBinary256(vector, packed);
+                pack1BitValues256(vector, packed);
                 return;
             } else if (VECTOR_BITSIZE == 128) {
-                packAsBinary128(vector, packed);
+                pack1BitValues128(vector, packed);
                 return;
             }
         }
-        DefaultESVectorUtilSupport.packAsBinaryImpl(vector, packed);
+        DefaultESVectorUtilSupport.pack1BitValuesImpl(vector, packed);
     }
 
-    private void packAsBinary256(int[] vector, byte[] packed) {
+    private void pack1BitValues256(int[] vector, byte[] packed) {
         final int limit = INT_SPECIES_256.loopBound(vector.length);
         int i = 0;
         int index = 0;
@@ -2419,7 +2420,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         packed[index] = result;
     }
 
-    private void packAsBinary128(int[] vector, byte[] packed) {
+    private void pack1BitValues128(int[] vector, byte[] packed) {
         final int limit = INT_SPECIES_128.loopBound(vector.length) - INT_SPECIES_128.length();
         int i = 0;
         int index = 0;
@@ -2443,31 +2444,31 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
-    public void packDibit(int[] vector, byte[] packed) {
-        DefaultESVectorUtilSupport.packDibitImpl(vector, packed);
+    public void stride2BitValues(int[] vector, byte[] packed) {
+        DefaultESVectorUtilSupport.stride2BitValuesImpl(vector, packed);
     }
 
     @Override
-    public void packDibitQuad(int[] vector, byte[] packed) {
-        DefaultESVectorUtilSupport.packDibitQuadImpl(vector, packed);
+    public void pack2BitValues(int[] vector, byte[] packed) {
+        DefaultESVectorUtilSupport.pack2BitValuesImpl(vector, packed);
     }
 
     @Override
-    public void transposeHalfByte(int[] q, byte[] quantQueryByte) {
+    public void stride4BitValues(int[] vector, byte[] packed) {
         // 128 / 32 == 4
-        if (q.length >= 8 && HAS_FAST_INTEGER_VECTORS) {
+        if (vector.length >= 8 && HAS_FAST_INTEGER_VECTORS) {
             if (VECTOR_BITSIZE >= 256) {
-                transposeHalfByte256(q, quantQueryByte);
+                stride4BitValues256(vector, packed);
                 return;
             } else if (VECTOR_BITSIZE == 128) {
-                transposeHalfByte128(q, quantQueryByte);
+                stride4BitValues128(vector, packed);
                 return;
             }
         }
-        DefaultESVectorUtilSupport.transposeHalfByteImpl(q, quantQueryByte);
+        DefaultESVectorUtilSupport.stride4BitValuesImpl(vector, packed);
     }
 
-    private void transposeHalfByte256(int[] q, byte[] quantQueryByte) {
+    private void stride4BitValues256(int[] q, byte[] quantQueryByte) {
         final int limit = INT_SPECIES_256.loopBound(q.length);
         int i = 0;
         int index = 0;
@@ -2504,7 +2505,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         quantQueryByte[index + 3 * quantQueryByte.length / 4] = (byte) upperByte;
     }
 
-    private void transposeHalfByte128(int[] q, byte[] quantQueryByte) {
+    private void stride4BitValues128(int[] q, byte[] quantQueryByte) {
         final int limit = INT_SPECIES_128.loopBound(q.length) - INT_SPECIES_128.length();
         int i = 0;
         int index = 0;
@@ -2648,42 +2649,46 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
-    public void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest) {
-        assert other.length == dest.length;
-
+    public void linearCombination(
+        float scaleOther,
+        float[] other,
+        int otherOffset,
+        float scaleDest,
+        float[] dest,
+        int destOffset,
+        int length
+    ) {
         final FloatVector scaleDestVec = FloatVector.broadcast(FLOAT_SPECIES, scaleDest);
-        final int limit = FLOAT_SPECIES.loopBound(dest.length);
+        final int limit = FLOAT_SPECIES.loopBound(length);
         int i = 0;
         for (; i < limit; i += FLOAT_SPECIES.length()) {
-            FloatVector destVec = FloatVector.fromArray(FLOAT_SPECIES, dest, i);
-            FloatVector otherVec = FloatVector.fromArray(FLOAT_SPECIES, other, i);
+            FloatVector destVec = FloatVector.fromArray(FLOAT_SPECIES, dest, destOffset + i);
+            FloatVector otherVec = FloatVector.fromArray(FLOAT_SPECIES, other, otherOffset + i);
             destVec = fma(destVec, scaleDestVec, otherVec.mul(scaleOther));
-            destVec.intoArray(dest, i);
+            destVec.intoArray(dest, destOffset + i);
         }
 
         // tail
-        for (; i < dest.length; i++) {
-            dest[i] = fma(scaleOther, other[i], scaleDest * dest[i]);
+        for (; i < length; i++) {
+            dest[destOffset + i] = fma(scaleOther, other[otherOffset + i], scaleDest * dest[destOffset + i]);
         }
     }
 
     @Override
-    public void linearCombination(float scaleOther, float[] other, float[] dest) {
-        assert other.length == dest.length;
-
+    public void linearCombination(float scaleOther, float[] other, int otherOffset, float[] dest, int destOffset, int length) {
         final FloatVector scaleOtherVec = FloatVector.broadcast(FLOAT_SPECIES, scaleOther);
-        final int limit = FLOAT_SPECIES.loopBound(dest.length);
+        final int limit = FLOAT_SPECIES.loopBound(length);
         int i = 0;
         for (; i < limit; i += FLOAT_SPECIES.length()) {
-            FloatVector destVec = FloatVector.fromArray(FLOAT_SPECIES, dest, i);
-            FloatVector otherVec = FloatVector.fromArray(FLOAT_SPECIES, other, i);
+            FloatVector destVec = FloatVector.fromArray(FLOAT_SPECIES, dest, destOffset + i);
+            FloatVector otherVec = FloatVector.fromArray(FLOAT_SPECIES, other, otherOffset + i);
             destVec = fma(otherVec, scaleOtherVec, destVec);
-            destVec.intoArray(dest, i);
+            destVec.intoArray(dest, destOffset + i);
         }
 
         // tail
-        for (; i < dest.length; i++) {
-            dest[i] = fma(other[i], scaleOther, dest[i]);
+        for (; i < length; i++) {
+            dest[destOffset + i] = fma(other[otherOffset + i], scaleOther, dest[destOffset + i]);
         }
     }
 

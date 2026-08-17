@@ -231,46 +231,28 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         future.get(1, TimeUnit.HOURS).close();
     }
 
-    public void testNoDeadlockOnConcurrentBlock() throws InterruptedException {
-        var stressTestIterations = 1000;
-        for (var i = 0; i < stressTestIterations; i++) {
-            final CountDownLatch blockOperationsRunning = new CountDownLatch(2);
-            AtomicBoolean deadlock = new AtomicBoolean(false);
-            CountDownLatch completePendingOperation = new CountDownLatch(1);
+    public void testNoDeadlockOnConcurrentBlock() {
+        final CountDownLatch blockOperationsRunning = new CountDownLatch(2);
+        CountDownLatch completePendingOperation = new CountDownLatch(1);
 
-            final Runnable pendingOperation = () -> {
-                permits.acquire(ActionListener.wrap((release) -> {
-                    completePendingOperation.await(3, TimeUnit.SECONDS);
-                    release.close();
-                }, (ex) -> {}), null, true);
-            };
+        final Runnable pendingOperation = () -> {
+            permits.acquire(ActionTestUtils.assertNoFailureListener((release) -> {
+                safeAwait(completePendingOperation);
+                release.close();
+            }), null, true);
+        };
 
-            final Runnable blockOperation = () -> {
-                permits.blockOperations(
-                    ActionListener.releaseAfter(
-                        ActionListener.wrap(Releasable::close, (ex) -> { deadlock.set(true); }),
-                        blockOperationsRunning::countDown
-                    ),
-                    3,
-                    TimeUnit.SECONDS,
-                    threadPool.generic()
-                );
-            };
+        final Runnable blockOperation = () -> {
+            permits.blockOperations(
+                ActionListener.releaseAfter(ActionTestUtils.assertNoFailureListener(Releasable::close), blockOperationsRunning::countDown),
+                SAFE_AWAIT_TIMEOUT.duration(),
+                SAFE_AWAIT_TIMEOUT.timeUnit(),
+                threadPool.generic()
+            );
+        };
 
-            /*
-             * The target interleaving is having the two blockOperations calls racing to acquire permits after they wait on pending
-             * operation to finish.
-             * We cannot deterministically engineer that without instrumenting the implementation, so we stress test it by running the
-             * scenario `stressTestIterations` times.
-             */
-            threadPool.generic().execute(pendingOperation);
-            threadPool.generic().execute(blockOperation);
-            threadPool.generic().execute(blockOperation);
-            completePendingOperation.countDown();
-
-            assertTrue(blockOperationsRunning.await(5, TimeUnit.SECONDS));
-            assertFalse(deadlock.get());
-        }
+        runInParallel(pendingOperation, blockOperation, blockOperation, completePendingOperation::countDown);
+        safeAwait(blockOperationsRunning);
     }
 
     /**

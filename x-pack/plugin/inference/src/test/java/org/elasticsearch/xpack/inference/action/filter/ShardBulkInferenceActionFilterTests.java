@@ -49,12 +49,12 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
@@ -1389,33 +1389,33 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         };
         doAnswer(unparsedModelAnswer).when(modelRegistry).getModelWithSecrets(any(), any());
 
-        Answer<MinimalServiceSettings> singleMinimalServiceSettingsAnswer = invocationOnMock -> {
+        Answer<EndpointClusterState> singleEndpointClusterStateAnswer = invocationOnMock -> {
             String inferenceId = (String) invocationOnMock.getArguments()[0];
             var model = modelMap.get(inferenceId);
             if (model == null) {
                 throw new ResourceNotFoundException("model id [{}] not found", inferenceId);
             }
 
-            return new MinimalServiceSettings(model);
+            return new EndpointClusterState(model);
         };
-        doAnswer(singleMinimalServiceSettingsAnswer).when(modelRegistry).getMinimalServiceSettings(any());
+        doAnswer(singleEndpointClusterStateAnswer).when(modelRegistry).getEndpointClusterState(any());
 
-        Answer<Map<String, MinimalServiceSettings>> multipleMinimalServiceSettingsAnswer = invocationOnMock -> {
+        Answer<Map<String, EndpointClusterState>> multipleEndpointClusterStateAnswer = invocationOnMock -> {
             Set<String> inferenceIds = (Set<String>) invocationOnMock.getArguments()[0];
             boolean throwIfAnyNotFound = (boolean) invocationOnMock.getArguments()[1];
 
-            Map<String, MinimalServiceSettings> minimalServiceSettingsMap = new HashMap<>();
+            Map<String, EndpointClusterState> endpointClusterStateMap = new HashMap<>();
             for (String inferenceId : inferenceIds) {
                 var model = modelMap.get(inferenceId);
                 if (model != null) {
-                    minimalServiceSettingsMap.put(inferenceId, new MinimalServiceSettings(model));
+                    endpointClusterStateMap.put(inferenceId, new EndpointClusterState(model));
                 } else if (throwIfAnyNotFound) {
                     throw new ResourceNotFoundException("model id [{}] not found", inferenceId);
                 }
             }
-            return minimalServiceSettingsMap;
+            return endpointClusterStateMap;
         };
-        doAnswer(multipleMinimalServiceSettingsAnswer).when(modelRegistry).getMinimalServiceSettings(any(), anyBoolean());
+        doAnswer(multipleEndpointClusterStateAnswer).when(modelRegistry).getEndpointClusterState(any(), anyBoolean());
 
         InferenceService inferenceService = mock(InferenceService.class);
         Answer<?> chunkedInferAnswer = invocationOnMock -> {
@@ -1618,7 +1618,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 null,
                 new SemanticTextField.InferenceResult(
                     model.getInferenceEntityId(),
-                    new MinimalServiceSettings(model),
+                    new EndpointClusterState(model),
                     null,
                     Map.of(field, List.of(chunk))
                 ),

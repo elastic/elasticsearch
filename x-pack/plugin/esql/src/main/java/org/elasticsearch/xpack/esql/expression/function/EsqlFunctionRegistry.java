@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetim
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDoubleRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogram;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
@@ -574,6 +575,7 @@ public class EsqlFunctionRegistry {
                 ToDegrees.DEFINITION,
                 ToDenseVector.DEFINITION,
                 ToDouble.DEFINITION,
+                ToDoubleRange.DEFINITION,
                 ToExponentialHistogram.DEFINITION,
                 ToGauge.DEFINITION,
                 ToGeohash.DEFINITION,

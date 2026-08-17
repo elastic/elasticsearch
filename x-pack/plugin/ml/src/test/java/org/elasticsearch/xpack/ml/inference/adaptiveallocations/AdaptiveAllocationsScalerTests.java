@@ -162,6 +162,36 @@ public class AdaptiveAllocationsScalerTests extends ESTestCase {
         assertThat(adaptiveAllocationsScaler.scale(), equalTo(77));
     }
 
+    public void testAutoscaling_respectsMaxAllocationsByMemory() {
+        AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 1, SIXTY_SECONDS);
+        adaptiveAllocationsScaler.setMaxAllocationsByMemory(3);
+
+        // A very high load would otherwise demand far more than 3 allocations, but the memory cap bounds it to 3.
+        adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(1_000_000, 10_000_000, 1, 0.05), 10, 1);
+        assertThat(adaptiveAllocationsScaler.scale(), equalTo(3));
+        assertThat(adaptiveAllocationsScaler.getNumberOfAllocations(), equalTo(3L));
+        // The raw demand is preserved for telemetry and exceeds the memory cap.
+        assertThat(adaptiveAllocationsScaler.getNeededNumberOfAllocations(), greaterThan(3L));
+    }
+
+    public void testAutoscaling_noMemoryCapLeavesFirstScaleUpUnaffected() {
+        AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 1, SIXTY_SECONDS);
+        // No memory cap set (null) - e.g. before any runtime memory has been observed - so scaling is only bounded by
+        // the safeguard, exactly as it was before the memory cap existed.
+        adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(1_000_000, 10_000_000, 1, 0.05), 10, 1);
+        assertThat(adaptiveAllocationsScaler.scale(), equalTo(32));
+    }
+
+    public void testAutoscaling_memoryCapNeverScalesToZero() {
+        AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 2, SIXTY_SECONDS);
+        // A cap of zero (no memory headroom) must not itself drive the deployment to zero allocations; that path is
+        // reserved for the no-requests case. It is floored at one.
+        adaptiveAllocationsScaler.setMaxAllocationsByMemory(0);
+        adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(1_000_000, 10_000_000, 1, 0.05), 10, 2);
+        assertThat(adaptiveAllocationsScaler.scale(), equalTo(1));
+        assertThat(adaptiveAllocationsScaler.getNumberOfAllocations(), equalTo(1L));
+    }
+
     public void testAutoscaling_scaleDownToZeroAllocations() {
         AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 1, FIFTEEN_MINUTES);
         // 1 hour with 1 request per 1 seconds, so don't scale.

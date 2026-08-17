@@ -370,9 +370,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecSpatialShapesIT
   method: test {csv-spec:spatial_shapes.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/154157
-- class: org.elasticsearch.xpack.esql.action.CrossClusterLookupJoinFailuresIT
-  method: testLookupDisconnect
-  issue: https://github.com/elastic/elasticsearch/issues/155185
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecApproximationIT
   method: test {csv-spec:approximation.Rename stats group key}
   issue: https://github.com/elastic/elasticsearch/issues/155194
@@ -460,9 +457,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:METRICS}
   issue: https://github.com/elastic/elasticsearch/issues/156829
-- class: org.elasticsearch.xpack.esql.action.CrossClusterLoggingIT
-  method: testRemoteQueryLogging
-  issue: https://github.com/elastic/elasticsearch/issues/156834
 - class: org.elasticsearch.index.mapper.BinaryFieldMapperTests
   method: testSyntheticSourceWithTranslogSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/156860

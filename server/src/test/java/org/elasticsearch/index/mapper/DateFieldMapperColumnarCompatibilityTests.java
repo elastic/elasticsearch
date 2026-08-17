@@ -159,6 +159,51 @@ public class DateFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
         );
     }
 
+    public void testIndexedStringValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "date").field("index", true).endObject()),
+            columnarSettings(),
+            batch("indexed string value", 1L, doc("d1", 1L, "{\"f\":\"2024-01-15T12:00:00.000Z\"}"))
+        );
+    }
+
+    public void testIndexedLongValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "date").field("index", true).endObject()),
+            columnarSettings(),
+            batch("indexed long value", 1L, doc("d1", 1L, "{\"f\":1705320000000}"))
+        );
+    }
+
+    public void testIndexedWithAbsentDoc() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "date").field("index", true).endObject()),
+            columnarSettings(),
+            batch(
+                "indexed with absent doc",
+                1L,
+                doc("d1", 1L, "{\"f\":\"2024-01-01T00:00:00.000Z\"}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":\"2024-03-15T08:30:00.000Z\"}")
+            )
+        );
+    }
+
+    public void testIndexedMultipleDocs() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "date").field("index", true).endObject()),
+            columnarSettings(),
+            batch(
+                "indexed multiple docs",
+                1L,
+                doc("d1", 1L, "{\"f\":\"2020-01-01T00:00:00.000Z\"}"),
+                doc("d2", 2L, "{\"f\":\"2021-06-15T12:00:00.000Z\"}"),
+                doc("d3", 3L, "{\"f\":\"2022-12-31T23:59:59.999Z\"}"),
+                doc("d4", 4L, "{}")
+            )
+        );
+    }
+
     /**
      * Columnar-mode settings leaving {@code doc_values.multi_value} at its default of {@code true},
      * so array values reach the mapper instead of being rejected at parse time.

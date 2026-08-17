@@ -295,26 +295,20 @@ public class EqualsTests extends AbstractScalarFunctionTestCase {
         }
 
         // Double range cases
-        if (DataType.DOUBLE_RANGE.supportedVersion().supportedLocally()) {
-            FunctionAppliesTo doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
-            List<TestCaseSupplier.TypedDataSupplier> doubleRangeCases = TestCaseSupplier.doubleRangeCases()
-                .stream()
-                .map(c -> c.withAppliesTo(doubleRangeAppliesTo))
-                .toList();
-            suppliers.addAll(
-                TestCaseSupplier.forBinaryNotCasting(
-                    "EqualsDoubleRangeEvaluator",
-                    "lhs",
-                    "rhs",
-                    Object::equals,
-                    DataType.BOOLEAN,
-                    doubleRangeCases,
-                    doubleRangeCases,
-                    List.of(),
-                    false
-                )
-            );
-        }
+        List<TestCaseSupplier.TypedDataSupplier> doubleRangeCases = TestCaseSupplier.doubleRangeCases();
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "EqualsDoubleRangeEvaluator",
+                "lhs",
+                "rhs",
+                Object::equals,
+                DataType.BOOLEAN,
+                doubleRangeCases,
+                doubleRangeCases,
+                List.of(),
+                false
+            )
+        );
 
         // Dense vector cases
         suppliers.add(new TestCaseSupplier("<dense_vector>, <dense_vector>", List.of(DataType.DENSE_VECTOR, DataType.DENSE_VECTOR), () -> {

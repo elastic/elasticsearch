@@ -50,6 +50,9 @@ dependencies {
   implementation "com.microsoft.graph:microsoft-graph-core:3.6.6"
   implementation project(path: "kiota-merged", configuration: 'shadow')
   implementation "com.azure:azure-identity:1.18.4"
+  implementation "com.azure:azure-core:1.57.1"
+  implementation "com.azure:azure-json:1.5.1"
+  implementation "com.azure:azure-xml:1.2.1"
   implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"

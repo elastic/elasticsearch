@@ -42,9 +42,9 @@ dependencies {
   // Azure Blob Storage - minimal set, versions aligned with repository-azure
   implementation 'com.azure:azure-storage-blob:12.27.1'
   implementation 'com.azure:azure-storage-common:12.26.1'
-  implementation 'com.azure:azure-core:1.51.0'
-  implementation 'com.azure:azure-identity:1.13.2'
-  implementation 'com.azure:azure-core-http-netty:1.15.3'
+  implementation 'com.azure:azure-core:1.57.1'
+  implementation 'com.azure:azure-identity:1.18.4'
+  implementation 'com.azure:azure-core-http-netty:1.16.3'
   // msal4j is required at runtime by azure-identity's DefaultAzureCredentialBuilder; it is
   // marked optional in azure-identity's POM, so we declare it (and the nimbus/oauth2-oidc-sdk
   // chain it pulls in) explicitly. Versions aligned with modules/repository-azure.

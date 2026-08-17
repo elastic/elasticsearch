@@ -35,7 +35,7 @@ public abstract class AzureCoreClassPatcher implements TransformAction<Transform
     private static final List<PatcherInfo> CLASS_PATCHERS = List.of(
         classPatcher(
             "com/azure/core/implementation/ImplUtils.class",
-            "7beda5bdff5ea460cfc08721a188cf07d16e0c987dae45401fca7abf4e6e6c0e",
+            "eeefba657e2900a0992f63eb37474b7b1c42f475c64b1f1ffdf6a634683bf93c",
             ImplUtilsPatcher::new
         )
     );

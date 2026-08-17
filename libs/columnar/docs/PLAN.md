@@ -68,6 +68,17 @@ The direction, the decisions that constrain it, and the build order. Update as d
   While ColumNAR is behind a feature flag and has no stable on-disk compatibility commitment,
   a format-version bump is required only for layout changes, not for id additions.
 
+- **Decide the width of `numValues` before the format freezes** — both `NumericColumnMetadata` and
+  `StringColumnMetadata` hold it as an `int` written with `writeVInt`, so a column is capped at
+  `Integer.MAX_VALUE` values. A single-valued column cannot reach that (`numValues` equals
+  `numDocsWithField`, itself bounded by `maxDoc`), but a multi-valued one can: 200M documents averaging
+  20 values passes the limit, and a large force-merged segment holding an array field is not an exotic
+  shape. The numeric column supports multi-value today and so already carries the exposure; the string
+  column inherits it as soon as multi-value lands. Widening to a vlong is a layout change and therefore
+  needs a `FormatVersion` bump, which is why it is cheaper to settle now than later. Both consumers
+  accumulate through `Math.addExact`, so an overflow fails the flush or merge rather than writing a
+  column with a negative block count — a backstop against silent corruption, not a fix for the cap.
+
 - **Server-side selector wiring**: implement a concrete `NumericPipelineSelector` in server that
   inspects `FieldType`, `IndexMode`, and `MetricType` to route each field to the correct pipeline
   factory, and wire it into `PerFieldFormatSupplier`.

@@ -304,7 +304,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         NumericColumnValues counter = cursors.get();
         for (int doc = counter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = counter.nextDoc()) {
             numDocsWithField++;
-            numValues += counter.valueCount();
+            // numDocsWithField is bounded by maxDoc, but a multi-valued column's numValues is not.
+            numValues = Math.addExact(numValues, counter.valueCount());
         }
 
         // A BINARY field can't carry a skipper, so the column builds its own skip index inline
@@ -346,7 +347,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                     "ColumNAR string columns are single-valued; document [" + doc + "] of field [" + field.name + "] has " + count
                 );
             }
-            numValues += count;
+            numValues = Math.addExact(numValues, count);
             for (int i = 0; i < count; i++) {
                 dictionaryBuilder.add(counter.nextValue());
             }

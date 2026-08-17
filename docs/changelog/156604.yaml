@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 156604
+summary: Fix MV-unsafe evaluator in Parquet late-mat filter
+type: bug

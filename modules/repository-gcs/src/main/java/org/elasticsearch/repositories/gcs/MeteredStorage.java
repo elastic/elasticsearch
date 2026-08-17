@@ -19,9 +19,20 @@ import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.CopyWriter;
+import com.google.cloud.storage.HttpStorageOptions;
+import com.google.cloud.storage.MultipartUploadClient;
+import com.google.cloud.storage.MultipartUploadSettings;
+import com.google.cloud.storage.RequestBody;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageBatch;
 import com.google.cloud.storage.StorageOptions;
+import com.google.cloud.storage.multipartupload.model.AbortMultipartUploadRequest;
+import com.google.cloud.storage.multipartupload.model.AbortMultipartUploadResponse;
+import com.google.cloud.storage.multipartupload.model.CompleteMultipartUploadRequest;
+import com.google.cloud.storage.multipartupload.model.CreateMultipartUploadRequest;
+import com.google.cloud.storage.multipartupload.model.CreateMultipartUploadResponse;
+import com.google.cloud.storage.multipartupload.model.UploadPartRequest;
+import com.google.cloud.storage.multipartupload.model.UploadPartResponse;
 import com.google.cloud.storage.spi.v1.HttpStorageRpc;
 
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -49,17 +60,21 @@ public class MeteredStorage {
     private final Storage storage;
     private final com.google.api.services.storage.Storage storageRpc;
     private final GcsRepositoryStatsCollector statsCollector;
+    private final MultipartUploadClient multipartUploadClient;
 
     public MeteredStorage(Storage storage, GcsRepositoryStatsCollector statsCollector) {
         this.storage = storage;
         this.storageRpc = getStorageRpc(storage);
         this.statsCollector = statsCollector;
+        this.multipartUploadClient = MultipartUploadClient.create(MultipartUploadSettings.of((HttpStorageOptions) storage.getOptions()));
     }
 
+    // for testing
     MeteredStorage(Storage storage, com.google.api.services.storage.Storage storageRpc, GcsRepositoryStatsCollector statsCollector) {
         this.storage = storage;
         this.storageRpc = storageRpc;
         this.statsCollector = statsCollector;
+        this.multipartUploadClient = null;
     }
 
     @SuppressForbidden(reason = "need access to storage client")
@@ -340,6 +355,23 @@ public class MeteredStorage {
                 return new MeteredIterator(iterable.iterator());
             }
         }
+    }
+
+    public CreateMultipartUploadResponse meteredCreateMultipartUpload(OperationPurpose purpose, CreateMultipartUploadRequest request)
+        throws IOException {
+        return statsCollector.collectIOSupplier(purpose, INSERT, () -> multipartUploadClient.createMultipartUpload(request));
+    }
+
+    public UploadPartResponse meteredUploadPart(OperationPurpose purpose, UploadPartRequest request, RequestBody body) throws IOException {
+        return statsCollector.collectIOSupplier(purpose, INSERT, () -> multipartUploadClient.uploadPart(request, body));
+    }
+
+    public void meteredCompleteMultipartUpload(OperationPurpose purpose, CompleteMultipartUploadRequest request) throws IOException {
+        statsCollector.collectIORunnable(purpose, INSERT, () -> multipartUploadClient.completeMultipartUpload(request));
+    }
+
+    public AbortMultipartUploadResponse meteredAbortMultipartUpload(OperationPurpose purpose, AbortMultipartUploadRequest request) {
+        return statsCollector.collectSupplier(purpose, DELETE, () -> multipartUploadClient.abortMultipartUpload(request));
     }
 
     public void copy(OperationPurpose purpose, BlobId sourceBlobId, BlobInfo targetBlobInfo, long megabytesCopiedPerChunk) {

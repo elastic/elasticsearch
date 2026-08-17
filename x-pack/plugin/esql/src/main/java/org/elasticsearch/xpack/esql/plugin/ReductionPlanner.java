@@ -10,12 +10,14 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.expression.function.scalar.RemoteFetchHandleFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -113,6 +115,23 @@ public final class ReductionPlanner {
         };
         if (planTimeProfile != null) {
             planTimeProfile.addReductionPlanNanos(System.nanoTime() - startTime);
+        }
+
+        /*
+         * The handle attribute in the sink schema means the coordinator already committed both sides of the exchange to the
+         * remote-fetch schema. All other reductions forward the original doc-based columns, which the coordinator can no
+         * longer consume, so fail here instead of surfacing an obscure schema mismatch at exchange time.
+         */
+        if (originalPlan.output().stream().anyMatch(RemoteFetchHandle::isAttribute)) {
+            boolean producesHandle = reductionPlan.nodeReducePlan()
+                .anyMatch(
+                    p -> p instanceof EvalExec eval && eval.fields().stream().anyMatch(a -> a.child() instanceof RemoteFetchHandleFunction)
+                );
+            if (producesHandle == false) {
+                throw new IllegalStateException(
+                    "coordinator planned remote-fetch TopN but the node reduction could not be rebuilt for plan [" + originalPlan + "]"
+                );
+            }
         }
 
         // TODO: How we generate intermediate attributes prevents us from cleanly checking dependencies here. We should always be

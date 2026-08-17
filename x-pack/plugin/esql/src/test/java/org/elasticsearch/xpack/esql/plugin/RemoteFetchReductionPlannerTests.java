@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.scalar.RemoteFetchHandleFunction;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -54,6 +56,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -129,7 +132,7 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of("employees", IndexMode.STANDARD),
+            Map.of("employees", new IndexProperties(IndexMode.STANDARD, 0)),
             List.of(doc, hireDate, salary, empNo)
         );
         Project fieldsNeededBeforeTopN = new Project(Source.EMPTY, relation, List.of(doc, hireDate));
@@ -227,6 +230,50 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
         assertTrue(RemoteFetchReductionPlanner.planReduceDriverTopN(contextFactory(), plan, "node-a", "session-a[n]").isEmpty());
     }
 
+    public void testFailsWhenCoordinatorCommittedButReductionCannotBeRebuilt() {
+        Attribute handle = new ReferenceAttribute(
+            Source.EMPTY,
+            null,
+            RemoteFetchReductionPlanner.HANDLE_ATTRIBUTE_NAME,
+            DataType.KEYWORD,
+            Nullability.FALSE,
+            null,
+            true
+        );
+        Attribute sort = field("sort", DataType.LONG);
+        List<Order> order = List.of(new Order(Source.EMPTY, sort, Order.OrderDirection.ASC, Order.NullsPosition.LAST));
+        EsRelation relation = new EsRelation(
+            Source.EMPTY,
+            "test",
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)),
+            List.of(sort)
+        );
+        // The fragment lacks the top-level Project that planReduceDriverTopN requires, so the remote-fetch rewrite declines.
+        TopN topN = new TopN(Source.EMPTY, relation, order, EsqlTestUtils.of(10), false);
+        ExchangeSinkExec sink = new ExchangeSinkExec(Source.EMPTY, List.of(handle, sort), false, new FragmentExec(topN));
+
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> ReductionPlanner.plan(
+                PlannerSettings.DEFAULTS,
+                new EsqlFlags(false),
+                EsqlTestUtils.TEST_CFG,
+                FoldContext.small(),
+                sink,
+                true,
+                true,
+                true,
+                "node-a",
+                "session-a[n]",
+                null
+            )
+        );
+        assertThat(e.getMessage(), containsString("node reduction could not be rebuilt"));
+    }
+
     private static FieldAttribute field(String name, DataType dataType) {
         return new FieldAttribute(Source.EMPTY, name, new EsField(name, dataType, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
     }
@@ -242,7 +289,7 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.STANDARD),
+            Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)),
             List.of(doc, sort, specialized)
         );
         Project dataProject = new Project(

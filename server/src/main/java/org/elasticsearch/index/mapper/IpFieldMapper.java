@@ -858,15 +858,16 @@ public class IpFieldMapper extends FieldMapper {
         return docValuesParameters.multiValue() == false;
     }
 
-    // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
-    private static EscfColumnBuilder mergeStringColumn() {
-        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private static EscfColumnBuilder mergeStringColumn(BatchMappingContext ctx) {
+        // TODO: Need to wire the data up to be released when the BatchMappingContext is released. This work is in progress.
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, ctx.recycler());
         b.lockScalar(EscfColumnKind.STRING);
         return b;
     }
 
-    private static EscfColumnBuilder mergeLongColumn() {
-        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private static EscfColumnBuilder mergeLongColumn(BatchMappingContext ctx) {
+        // TODO: Need to wire the data up to be released when the BatchMappingContext is released. This work is in progress.
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, ctx.recycler());
         b.lockScalar(EscfColumnKind.LONG);
         return b;
     }
@@ -903,8 +904,8 @@ public class IpFieldMapper extends FieldMapper {
         // advances, so no value has to outlive the nextDoc() that moves past it.
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
         // TODO: make the batch return these column builders to wire up recycling
-        final EscfColumnBuilder binaryDvs = mergeStringColumn();
-        final EscfColumnBuilder dvCounts = mergeLongColumn();
+        final EscfColumnBuilder binaryDvs = mergeStringColumn(ctx);
+        final EscfColumnBuilder dvCounts = mergeLongColumn(ctx);
         // The 16-byte null-value substitute, or null when no null_value is configured.
         final BytesRef nullValueEncoded = nullValue != null ? new BytesRef(CIDRUtils.encode(nullValue.getAddress())) : null;
 
@@ -964,6 +965,7 @@ public class IpFieldMapper extends FieldMapper {
             pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, encoded);
             docSlotCount++;
             hasNonNull = true;
+            // TODO: Implement ignore malformed.
         }
 
         // Attach output columns. Binary-dv blob and counts are each emitted independently.
@@ -988,7 +990,7 @@ public class IpFieldMapper extends FieldMapper {
         // retainValues=false: every value is consumed within one loop iteration, before the cursor advances.
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
         // IP always re-encodes (no zero-copy shortcut), so the values builder is unconditional.
-        final EscfColumnBuilder values = mergeStringColumn();
+        final EscfColumnBuilder values = mergeStringColumn(ctx);
         // The 16-byte null-value substitute, or null when no null_value is configured.
         final BytesRef nullValueEncoded = nullValue != null ? new BytesRef(CIDRUtils.encode(nullValue.getAddress())) : null;
 
@@ -1017,6 +1019,7 @@ public class IpFieldMapper extends FieldMapper {
             if (valueSeenThisDoc) {
                 // multi_value=false violation: bail so ShardBatchMapper falls back to the row path,
                 // which raises the correct per-doc error (on_failure=FAIL).
+                // TODO: move to external method validation.
                 throw new UnsupportedOperationException(
                     "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
                 );

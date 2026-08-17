@@ -432,6 +432,17 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         BiFunction<TypedData, TypedData, List<String>> warnings,
         boolean allowRhsZero
     ) {
+        return forBinaryComparisonWithWidening(typeStuff, lhsName, rhsName, warnings, allowRhsZero, false);
+    }
+
+    public static List<TestCaseSupplier> forBinaryComparisonWithWidening(
+        NumericTypeTestConfigs<Boolean> typeStuff,
+        String lhsName,
+        String rhsName,
+        BiFunction<TypedData, TypedData, List<String>> warnings,
+        boolean allowRhsZero,
+        boolean forceLiteralRhs
+    ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         List<DataType> numericTypes = List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE);
 
@@ -449,15 +460,24 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     + "="
                     + getCastEvaluator("Attribute[channel=1]", rhs, expected)
                     + "]";
+                List<TypedDataSupplier> rhsSuppliers = getSuppliersForNumericType(
+                    rhsType,
+                    expectedTypeStuff.min(),
+                    expectedTypeStuff.max(),
+                    allowRhsZero
+                );
+                if (forceLiteralRhs) {
+                    rhsSuppliers = rhsSuppliers.stream().map(s -> new TypedDataSupplier(s.name(), s.supplier(), s.type(), true)).toList();
+                }
                 casesCrossProduct(
                     (l, r) -> expectedTypeStuff.expected().apply((Number) l, (Number) r),
                     getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), allowRhsZero),
-                    getSuppliersForNumericType(rhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), allowRhsZero),
+                    rhsSuppliers,
                     (lhs, rhs) -> equalTo(evaluatorToString.apply(lhs, rhs)),
                     warnings,
                     suppliers,
                     DataType.BOOLEAN,
-                    true
+                    forceLiteralRhs == false
                 );
             }
         }
@@ -951,6 +971,25 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 dateRangeCases(),
                 expectedType,
                 v -> expectedValue.apply((LongRangeBlockBuilder.LongRange) v),
+                warnings
+            );
+        }
+    }
+
+    public static void forUnaryDoubleRange(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<DoubleRangeBlockBuilder.DoubleRange, Object> expectedValue,
+        List<String> warnings
+    ) {
+        if (DataType.DOUBLE_RANGE.supportedVersion().supportedLocally()) {
+            unary(
+                suppliers,
+                expectedEvaluatorToString,
+                doubleRangeCases(),
+                expectedType,
+                v -> expectedValue.apply((DoubleRangeBlockBuilder.DoubleRange) v),
                 warnings
             );
         }

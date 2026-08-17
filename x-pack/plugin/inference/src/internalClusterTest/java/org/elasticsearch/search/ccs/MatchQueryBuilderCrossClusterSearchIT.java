@@ -9,7 +9,7 @@ package org.elasticsearch.search.ccs;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.index.query.MatchQueryBuilder;
-import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.model.TestModel;
@@ -39,8 +39,8 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
         List.of(TaskType.EMBEDDING)
     );
 
-    private final Map<String, MinimalServiceSettings> localInferenceIds = new HashMap<>();
-    private final Map<String, MinimalServiceSettings> remoteInferenceIds = new HashMap<>();
+    private final Map<String, EndpointClusterState> localInferenceIds = new HashMap<>();
+    private final Map<String, EndpointClusterState> remoteInferenceIds = new HashMap<>();
 
     @Override
     protected boolean reuseClusters() {
@@ -258,7 +258,7 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
 
         // Create fields with mixed types across clusters
         String sharedInferenceId = "shared-inference-id";
-        MinimalServiceSettings sharedSettings = getServiceSettings("semantic");
+        EndpointClusterState sharedSettings = getServiceSettings("semantic");
         localInferenceIds.put(sharedInferenceId, sharedSettings);
         remoteInferenceIds.put(sharedInferenceId, sharedSettings);
         for (String localFieldType : allFieldTypes) {
@@ -293,9 +293,9 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
         return Map.of("type", semanticFieldType, "inference_id", inferenceId);
     }
 
-    private static MinimalServiceSettings getServiceSettings(String semanticFieldType) {
+    private static EndpointClusterState getServiceSettings(String semanticFieldType) {
         TaskType taskType = randomFrom(taskTypes.get(semanticFieldType));
-        return new MinimalServiceSettings(TestModel.createRandomInstance(taskType, List.of(SimilarityMeasure.DOT_PRODUCT)));
+        return new EndpointClusterState(TestModel.createRandomInstance(taskType, List.of(SimilarityMeasure.DOT_PRODUCT)));
     }
 
     private static String mixedTypeFieldName(String localFieldType, String remoteFieldType) {

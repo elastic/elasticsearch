@@ -474,3 +474,187 @@ ROW height_range = TO_RANGE(null, 1.0)
 absent:boolean
 true
 ;
+
+###############################################
+# TO_DOUBLE_RANGE tests
+###############################################
+
+toDoubleRangeFromString
+required_capability: double_range_field_type_development_v10
+required_capability: fn_to_double_range
+
+// tag::to_double_range-str[]
+ROW str = "1.5..2.5"
+| EVAL range = TO_DOUBLE_RANGE(str)
+// end::to_double_range-str[]
+;
+
+// tag::to_double_range-str-result[]
+str:keyword | range:double_range
+1.5..2.5    | 1.5..2.5
+// end::to_double_range-str-result[]
+;
+
+toDoubleRangeIdentity
+required_capability: double_range_field_type_development_v10
+required_capability: fn_to_double_range
+
+FROM heights
+| WHERE description == "Short"
+| EVAL same = TO_DOUBLE_RANGE(height_range)
+| KEEP same
+;
+
+same:double_range
+1.5..1.6
+;
+
+toDoubleRangeToStringRoundTrip
+required_capability: double_range_field_type_development_v10
+required_capability: fn_to_double_range
+required_capability: equality_double_range
+
+FROM heights
+| WHERE height_range == TO_DOUBLE_RANGE(TO_STRING(height_range))
+| KEEP description
+| SORT description
+;
+
+description:keyword
+Medium Height
+Short
+Tall
+Very Short
+Very Tall
+;
+
+// TO_DOUBLE_RANGE(keyword) converts each element of a multi-value string.
+toDoubleRangeFromMvString
+required_capability: double_range_field_type_development_v10
+required_capability: fn_to_double_range
+
+ROW s = ["1.5..2.5", "3.5..4.5"]
+| EVAL r = MV_SORT(TO_STRING(TO_DOUBLE_RANGE(s)))
+;
+
+s:keyword            | r:keyword
+[1.5..2.5, 3.5..4.5] | [1.5..2.5, 3.5..4.5]
+;
+
+toDoubleRangeNoSeparator
+required_capability: double_range_field_type_development_v10
+required_capability: fn_to_double_range
+
+ROW s = "not-a-range"
+| EVAL r = TO_DOUBLE_RANGE(s)
+| KEEP r
+;
+warningRegex:evaluation of \[TO_DOUBLE_RANGE\(s\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: expected double range in the form 'from..to', got \[not-a-range\]
+
+r:double_range
+null
+;
+
+toDoubleRangeInvalidBounds
+required_capability: double_range_field_type_development_v10
+required_capability: fn_to_double_range
+
+ROW s = "2.5..1.5"
+| EVAL r = TO_DOUBLE_RANGE(s)
+| KEEP r
+;
+warningRegex:evaluation of \[TO_DOUBLE_RANGE\(s\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: double range 'from' \[2.5\] must be less than 'to' \[1.5\]
+
+r:double_range
+null
+;
+
+toDoubleRangeUnparseableBound
+required_capability: double_range_field_type_development_v10
+required_capability: fn_to_double_range
+
+ROW s = "abc..1.5"
+| EVAL r = TO_DOUBLE_RANGE(s)
+| KEEP r
+;
+warningRegex:evaluation of \[TO_DOUBLE_RANGE\(s\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.NumberFormatException: For input string: \\\"abc\\\"
+
+r:double_range
+null
+;
+
+toDoubleRangeNaNBound
+required_capability: double_range_field_type_development_v10
+required_capability: fn_to_double_range
+
+ROW s = "NaN..1.0"
+| EVAL r = TO_DOUBLE_RANGE(s)
+| KEEP r
+;
+warningRegex:evaluation of \[TO_DOUBLE_RANGE\(s\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: double range 'from' \[NaN\] must be less than 'to' \[1.0\]
+
+r:double_range
+null
+;
+
+// Open bounds are represented as infinities.
+toDoubleRangeOpenLowerBound
+required_capability: double_range_field_type_development_v10
+required_capability: fn_to_double_range
+
+ROW r = TO_DOUBLE_RANGE("-Infinity..0.0")
+| EVAL min = RANGE_MIN(r), max = RANGE_MAX(r)
+;
+
+r:double_range  | min:double | max:double
+-Infinity..0.0  | -Infinity  | 0.0
+;
+
+toDoubleRangeOpenUpperBound
+required_capability: double_range_field_type_development_v10
+required_capability: fn_to_double_range
+
+ROW r = TO_DOUBLE_RANGE("2.0..Infinity")
+| EVAL min = RANGE_MIN(r), max = RANGE_MAX(r)
+;
+
+r:double_range | min:double | max:double
+2.0..Infinity  | 2.0        | Infinity
+;
+
+toDoubleRangeFullyOpen
+required_capability: double_range_field_type_development_v10
+required_capability: fn_to_double_range
+
+ROW r = TO_DOUBLE_RANGE("-Infinity..Infinity")
+| EVAL contains_small = RANGE_CONTAINS(r, -1.0E300), contains_large = RANGE_CONTAINS(r, 1.0E300)
+| KEEP contains_small, contains_large
+;
+
+contains_small:boolean | contains_large:boolean
+true                   | true
+;
+
+// Pushdown of an infinite-bound literal: the infinities must translate to unbounded query
+// sides instead of concrete bounds, which range queries on double fields reject.
+rangeWithinOpenBounds
+required_capability: double_range_field_type_development_v10
+required_capability: fn_to_double_range
+
+FROM heights
+| WHERE RANGE_WITHIN(height_range, TO_DOUBLE_RANGE("-Infinity..Infinity"))
+| KEEP description
+| SORT description
+;
+
+description:keyword
+Medium Height
+Short
+Tall
+Very Short
+Very Tall
+;

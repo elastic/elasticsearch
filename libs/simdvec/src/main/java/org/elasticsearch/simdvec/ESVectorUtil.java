@@ -992,6 +992,32 @@ public class ESVectorUtil {
     }
 
     /**
+     * Computes {@code dest[destOffset..destOffset+length) = scaleOther * other[otherOffset..otherOffset+length)
+     *          + scaleDest * dest[destOffset..destOffset+length)}.
+     *
+     * @param scaleOther a multiplicative factor for other
+     * @param other the other vector
+     * @param otherOffset starting index into other
+     * @param scaleDest a multiplicative factor for dest
+     * @param dest the destination vector
+     * @param destOffset starting index into dest
+     * @param length number of elements to process
+     */
+    public static void linearCombination(
+        float scaleOther,
+        float[] other,
+        int otherOffset,
+        float scaleDest,
+        float[] dest,
+        int destOffset,
+        int length
+    ) {
+        Objects.checkFromIndexSize(otherOffset, length, other.length);
+        Objects.checkFromIndexSize(destOffset, length, dest.length);
+        IMPL.linearCombination(scaleOther, other, otherOffset, scaleDest, dest, destOffset, length);
+    }
+
+    /**
      * Computes dest = scale * other + scaledDes * dest
      *
      * @param scaleOther a multiplicative factor for other
@@ -1003,7 +1029,23 @@ public class ESVectorUtil {
         if (other.length != dest.length) {
             throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
         }
-        IMPL.linearCombination(scaleOther, other, scaleDest, dest);
+        IMPL.linearCombination(scaleOther, other, 0, scaleDest, dest, 0, dest.length);
+    }
+
+    /**
+     * Computes {@code dest[destOffset..destOffset+length) += scaleOther * other[otherOffset..otherOffset+length)}.
+     *
+     * @param scaleOther a multiplicative factor for other
+     * @param other the other vector
+     * @param otherOffset starting index into other
+     * @param dest the destination vector
+     * @param destOffset starting index into dest
+     * @param length number of elements to process
+     */
+    public static void linearCombination(float scaleOther, float[] other, int otherOffset, float[] dest, int destOffset, int length) {
+        Objects.checkFromIndexSize(otherOffset, length, other.length);
+        Objects.checkFromIndexSize(destOffset, length, dest.length);
+        IMPL.linearCombination(scaleOther, other, otherOffset, dest, destOffset, length);
     }
 
     /**
@@ -1017,7 +1059,7 @@ public class ESVectorUtil {
         if (other.length != dest.length) {
             throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
         }
-        IMPL.linearCombination(scaleOther, other, dest);
+        IMPL.linearCombination(scaleOther, other, 0, dest, 0, dest.length);
     }
 
     /**

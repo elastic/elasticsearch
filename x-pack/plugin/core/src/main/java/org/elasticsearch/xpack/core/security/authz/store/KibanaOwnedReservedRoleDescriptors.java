@@ -702,7 +702,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".entities.*")
-                    .privileges("auto_configure", "create_index", "read", "write")
+                    .privileges("auto_configure", "create_index", "delete_index", "manage", "read", "write")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".entities.*history*")

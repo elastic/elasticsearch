@@ -11,6 +11,7 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.ByteBuffersDirectory;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.FilterIndexInput;
@@ -231,6 +232,7 @@ public class IndexDirectory extends ByteSizeDirectory {
 
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
+        context = maybeAddStatelessAdviceHint(name, context);
 
         if (cacheDirectory.containsFile(name) == false) {
             LocalFileRef localFile;
@@ -260,6 +262,25 @@ public class IndexDirectory extends ByteSizeDirectory {
         }
 
         return cacheDirectory.openInput(name, context);
+    }
+
+    /**
+     * Appends a {@link StatelessAdviceHint} to the IOContext for file types that have been validated
+     * for MADV_RANDOM on the indexing tier. Currently supports stored fields data files (.fdt).
+     */
+    static IOContext maybeAddStatelessAdviceHint(String name, IOContext context) {
+        var ext = IndexFileNames.getExtension(name);
+        if (LuceneFilesExtensions.FDT.getExtension().equals(ext) && context.hints().contains(DataAccessHint.RANDOM)) {
+            var existingHints = context.hints();
+            var allHints = new IOContext.FileOpenHint[existingHints.size() + 1];
+            int i = 0;
+            for (var hint : existingHints) {
+                allHints[i++] = hint;
+            }
+            allHints[i] = StatelessAdviceHint.STORED_FIELDS;
+            return context.withHints(allHints);
+        }
+        return context;
     }
 
     @Override

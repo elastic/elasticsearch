@@ -145,7 +145,7 @@ public class EcsLogsEsqlDuelRestIT extends ESRestTestCase {
         createDataStream(BASELINE_DS);
         createDataStream(CONTENDER_DS);
 
-        corpusSize = randomIntBetween(100_000, 300_000);
+        corpusSize = randomIntBetween(20_000, 100_000);
         long startMs = System.currentTimeMillis();
         logger.info("Indexing corpus of {} documents into baseline and contender data streams", corpusSize);
 

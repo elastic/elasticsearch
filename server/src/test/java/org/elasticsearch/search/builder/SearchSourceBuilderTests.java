@@ -32,7 +32,6 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.LinearDecayFunctionBuilder;
-import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -161,10 +160,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
         List<EmbeddingsField> embeddingsFields = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
-            EmbeddingsField field = new EmbeddingsField(
-                randomAlphaOfLengthBetween(5, 10),
-                randomBoolean() ? null : randomFrom(VectorType.values())
-            );
+            EmbeddingsField field = EmbeddingsFieldTests.randomEmbeddingsField();
             embeddingsFields.add(field);
             original.fetchEmbeddingsField(field);
         }
@@ -215,9 +211,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         if (randomBoolean()) {
             int numEmbeddingsFields = randomIntBetween(1, 5);
             for (int i = 0; i < numEmbeddingsFields; i++) {
-                builder.fetchEmbeddingsField(
-                    new EmbeddingsField(randomAlphaOfLengthBetween(5, 10), randomBoolean() ? null : randomFrom(VectorType.values()))
-                );
+                builder.fetchEmbeddingsField(EmbeddingsFieldTests.randomEmbeddingsField());
             }
         }
         return builder;

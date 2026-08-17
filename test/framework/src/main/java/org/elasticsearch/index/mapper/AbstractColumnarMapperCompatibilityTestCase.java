@@ -399,7 +399,11 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         final FieldType ft = new FieldType(field.fieldType());
         ft.freeze();
 
-        final Number numeric = field.numericValue();
+        // For 2-byte point fields (e.g. HalfFloatPoint), numericValue() returns a float whose longValue()
+        // is lossy: multiple half-float values can share the same truncated long. Use binaryValue() instead
+        // so the raw 2-byte sortable encoding is compared, which the BinaryColumn columnar path also emits.
+        final boolean useBinary = ft.pointDimensionCount() == 1 && ft.pointNumBytes() == 2;
+        final Number numeric = useBinary ? null : field.numericValue();
         final Long longValue = numeric != null ? numeric.longValue() : null;
         BytesRef bytesValue = null;
         if (longValue == null) {

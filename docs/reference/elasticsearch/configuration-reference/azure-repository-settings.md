@@ -62,7 +62,7 @@ The following list describes the available client settings. Those that must be s
 `azure.client.CLIENT_NAME.block_size` {applies_to}`stack: ga 9.6`
 :   ([byte value](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units)) Size of each block in a multi-block upload; larger blocks mean fewer requests. Cannot exceed `100mb`. Defaults to 5% of the JVM heap, clamped to `5mb`–`100mb`.
 
-    Azure allows [50,000 blocks per blob](https://learn.microsoft.com/en-us/rest/api/storageservices/understanding-block-blobs--append-blobs--and-page-blobs), so the largest uploadable blob is `block_size` × 50,000. A repository's `chunk_size` both defaults to and is capped at 50,000 × the *default* block size regardless of what you configure here, so lower it to at most `block_size` × 50,000 if you lower `block_size`.
+    Azure allows [50,000 blocks per blob](https://learn.microsoft.com/en-us/rest/api/storageservices/understanding-block-blobs--append-blobs--and-page-blobs), so the largest uploadable blob is `block_size` × 50,000. A repository's `chunk_size` both defaults to and is capped at 50,000 × the default block size regardless of what you configure here, so lower it to at most `block_size` × 50,000 if you lower `block_size`.
 
 ::::{admonition} Obtaining credentials from the environment
 :class: note

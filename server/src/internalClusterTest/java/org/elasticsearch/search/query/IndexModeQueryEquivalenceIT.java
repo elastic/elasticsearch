@@ -53,6 +53,7 @@ public class IndexModeQueryEquivalenceIT extends ESIntegTestCase {
     private static final String[] DIM_B_VALUES = { "match", "mismatch" };
     private static final String[] TAG_VALUES = { "alpha", "excluded", "gamma" };
     private static final long[] VALUE_VALS = { 10L, 20L, 30L, 40L };
+    private static final double[] SCORE_VALS = { 1.0, 2.0, 3.0, 4.0 };
 
     // Shared across all five index-mode indices.
     private static final String TS_START = "2024-01-01T00:00:00Z";
@@ -163,6 +164,9 @@ public class IndexModeQueryEquivalenceIT extends ESIntegTestCase {
             .startObject("value")
             .field("type", "long")
             .endObject()
+            .startObject("score")
+            .field("type", "double")
+            .endObject()
             .startObject("doc_id")
             .field("type", "long")
             .endObject()
@@ -173,7 +177,7 @@ public class IndexModeQueryEquivalenceIT extends ESIntegTestCase {
 
     // ---- document generation -----------------------------------------------
 
-    record Doc(long ts, String dimA, String dimB, String tag, long value, long docId) {}
+    record Doc(long ts, String dimA, String dimB, String tag, long value, double score, long docId) {}
 
     /**
      * Generates documents using a run-length strategy: each field value is held constant for a random
@@ -185,8 +189,8 @@ public class IndexModeQueryEquivalenceIT extends ESIntegTestCase {
      */
     private List<Doc> generateDocs(int n) {
         final List<Doc> docs = new ArrayList<>(n);
-        int dimAIdx = 0, dimBIdx = 0, tagIdx = 0, valueIdx = 0;
-        int dimARun = 0, dimBRun = 0, tagRun = 0, valueRun = 0;
+        int dimAIdx = 0, dimBIdx = 0, tagIdx = 0, valueIdx = 0, scoreIdx = 0;
+        int dimARun = 0, dimBRun = 0, tagRun = 0, valueRun = 0, scoreRun = 0;
         for (int i = 0; i < n; i++) {
             if (dimARun-- <= 0) {
                 dimAIdx = (dimAIdx + 1) % DIM_A_VALUES.length;
@@ -204,7 +208,21 @@ public class IndexModeQueryEquivalenceIT extends ESIntegTestCase {
                 valueIdx = (valueIdx + 1) % VALUE_VALS.length;
                 valueRun = randomIntBetween(50, 200);
             }
-            docs.add(new Doc(BASE_TS + i, DIM_A_VALUES[dimAIdx], DIM_B_VALUES[dimBIdx], TAG_VALUES[tagIdx], VALUE_VALS[valueIdx], i));
+            if (scoreRun-- <= 0) {
+                scoreIdx = (scoreIdx + 1) % SCORE_VALS.length;
+                scoreRun = randomIntBetween(50, 200);
+            }
+            docs.add(
+                new Doc(
+                    BASE_TS + i,
+                    DIM_A_VALUES[dimAIdx],
+                    DIM_B_VALUES[dimBIdx],
+                    TAG_VALUES[tagIdx],
+                    VALUE_VALS[valueIdx],
+                    SCORE_VALS[scoreIdx],
+                    i
+                )
+            );
         }
         return docs;
     }
@@ -226,6 +244,8 @@ public class IndexModeQueryEquivalenceIT extends ESIntegTestCase {
                         doc.tag(),
                         "value",
                         doc.value(),
+                        "score",
+                        doc.score(),
                         "doc_id",
                         doc.docId()
                     )
@@ -287,9 +307,8 @@ public class IndexModeQueryEquivalenceIT extends ESIntegTestCase {
                 .filter(QueryBuilders.rangeQuery("value").gte(20L).lte(30L))
                 .mustNot(QueryBuilders.termQuery("dim_b", "mismatch"))
         );
-
         // Randomly generated queries.
-        final int numRandom = randomIntBetween(5, 8);
+        final int numRandom = randomIntBetween(5, 10);
         for (int i = 0; i < numRandom; i++) {
             queries.add(randomBoolQuery());
         }
@@ -298,27 +317,31 @@ public class IndexModeQueryEquivalenceIT extends ESIntegTestCase {
     }
 
     /**
-     * Builds a random {@code bool} query with 1–3 clauses drawn from term/terms/range over the mapped
-     * fields. Clauses are placed randomly in filter/must/must_not/should positions.
+     * Builds a random {@code bool} query. Each clause is either a leaf query or,
+     * with ~20% probability at depth &lt; 2, a recursively generated nested {@code bool}. Multiple
+     * clauses of the same type (filter, must, must_not, should) are allowed.
      */
     private BoolQueryBuilder randomBoolQuery() {
+        return randomBoolQuery(0);
+    }
+
+    private BoolQueryBuilder randomBoolQuery(int depth) {
         final BoolQueryBuilder bool = QueryBuilders.boolQuery();
         final int numClauses = randomIntBetween(1, 3);
         boolean hasShouldOnly = true;
         for (int i = 0; i < numClauses; i++) {
-            final QueryBuilder leaf = randomLeafQuery();
-            final int pos = randomIntBetween(0, 3);
-            switch (pos) {
+            final QueryBuilder clause = (depth < 2 && randomIntBetween(0, 4) == 0) ? randomBoolQuery(depth + 1) : randomLeafQuery();
+            switch (randomIntBetween(0, 3)) {
                 case 0 -> {
-                    bool.filter(leaf);
+                    bool.filter(clause);
                     hasShouldOnly = false;
                 }
                 case 1 -> {
-                    bool.must(leaf);
+                    bool.must(clause);
                     hasShouldOnly = false;
                 }
-                case 2 -> bool.mustNot(leaf);
-                case 3 -> bool.should(leaf);
+                case 2 -> bool.mustNot(clause);
+                case 3 -> bool.should(clause);
             }
         }
         if (hasShouldOnly && bool.should().isEmpty() == false) {
@@ -332,12 +355,54 @@ public class IndexModeQueryEquivalenceIT extends ESIntegTestCase {
     }
 
     private QueryBuilder randomLeafQuery() {
-        return switch (randomIntBetween(0, 4)) {
+        return switch (randomIntBetween(0, 13)) {
             case 0 -> QueryBuilders.termQuery("dim_a", randomFrom(DIM_A_VALUES));
             case 1 -> QueryBuilders.termQuery("dim_b", randomFrom(DIM_B_VALUES));
             case 2 -> QueryBuilders.termQuery("tag", randomFrom(TAG_VALUES));
             case 3 -> QueryBuilders.termsQuery("tag", randomSubset(TAG_VALUES));
-            default -> QueryBuilders.rangeQuery("value").gte(VALUE_VALS[randomIntBetween(0, 1)]).lte(VALUE_VALS[randomIntBetween(2, 3)]);
+            case 4 -> QueryBuilders.termsQuery("dim_a", randomSubset(DIM_A_VALUES));
+            case 5 -> QueryBuilders.termsQuery("dim_b", randomSubset(DIM_B_VALUES));
+            case 6 -> QueryBuilders.rangeQuery("value").gte(VALUE_VALS[randomIntBetween(0, 1)]).lte(VALUE_VALS[randomIntBetween(2, 3)]);
+            case 7 -> QueryBuilders.rangeQuery("score").gte(SCORE_VALS[randomIntBetween(0, 1)]).lte(SCORE_VALS[randomIntBetween(2, 3)]);
+            // Date range over a random sub-window of the indexed timestamp space.
+            case 8 -> QueryBuilders.rangeQuery("@timestamp")
+                .gte(BASE_TS + randomIntBetween(0, 1500))
+                .lt(BASE_TS + randomIntBetween(3000, 5500));
+            // String (lexicographic) range on a keyword field. "other" < "target" and "match" < "mismatch",
+            // so the chosen bounds reliably produce a mix of 0, 1, or both values.
+            case 9 -> randomBoolean()
+                ? QueryBuilders.rangeQuery("dim_a").gte(randomFrom("a", "m", "p")).lte(randomFrom("p", "t", "z"))
+                : QueryBuilders.rangeQuery("dim_b").gte(randomFrom("a", "m")).lte(randomFrom("mi", "n", "z"));
+            // Wildcard, prefix, regexp, and fuzzy: use a 1–3 char prefix derived from a known value so
+            // the pattern reliably matches at least one of the low-cardinality values in the corpus.
+            case 11 -> {
+                String field = randomFrom("dim_a", "dim_b", "tag");
+                String val = randomFrom(valuesFor(field));
+                yield QueryBuilders.wildcardQuery(field, val.substring(0, randomIntBetween(1, Math.min(3, val.length()))) + "*");
+            }
+            case 12 -> {
+                String field = randomFrom("dim_a", "dim_b", "tag");
+                String val = randomFrom(valuesFor(field));
+                yield QueryBuilders.prefixQuery(field, val.substring(0, randomIntBetween(1, Math.min(3, val.length()))));
+            }
+            case 13 -> {
+                String field = randomFrom("dim_a", "dim_b", "tag");
+                String val = randomFrom(valuesFor(field));
+                yield QueryBuilders.regexpQuery(field, val.substring(0, randomIntBetween(1, Math.min(3, val.length()))) + ".*");
+            }
+            default -> {
+                String field = randomFrom("dim_a", "dim_b", "tag");
+                yield QueryBuilders.fuzzyQuery(field, randomFrom(valuesFor(field)));
+            }
+        };
+    }
+
+    private String[] valuesFor(String field) {
+        return switch (field) {
+            case "dim_a" -> DIM_A_VALUES;
+            case "dim_b" -> DIM_B_VALUES;
+            case "tag" -> TAG_VALUES;
+            default -> throw new AssertionError("unknown keyword field: " + field);
         };
     }
 

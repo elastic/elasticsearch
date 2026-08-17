@@ -74,7 +74,7 @@ public class AiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProv
 
     static final String KIBANA_APPLICATION = "kibana-.kibana";
     // Index pattern mirrors the Kibana-side definition; keep in sync if it changes.
-    static final String[] AI_INDEX_INDICES = { "ai-index-idx-*", "ai-index-ds-*" };
+    static final String[] AI_INDEX_INDICES = { "ai-index-idx-sml-data" };
     static final String RESOURCE_PREFIX = "space:";
     // Action namespace owned by AI Index; mirrors the Kibana-side AiIndexActions definition, keep in sync if it changes.
     static final String AI_INDEX_ACTION_PREFIX = "ai_index:";

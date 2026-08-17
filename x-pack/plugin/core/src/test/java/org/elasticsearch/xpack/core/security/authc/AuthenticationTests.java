@@ -799,8 +799,8 @@ public class AuthenticationTests extends ESTestCase {
             Map.of(
                 ServiceAccountSettings.MANAGED_SERVICE_ACCOUNT_FIELD,
                 true,
-                ServiceAccountSettings.RUN_AS_FROM_FIELD,
-                java.util.List.of("elastic/kibana")
+                ServiceAccountSettings.RUN_AS_FROM_ROLES_FIELD,
+                java.util.List.of("kibana_system")
             ),
             true
         );

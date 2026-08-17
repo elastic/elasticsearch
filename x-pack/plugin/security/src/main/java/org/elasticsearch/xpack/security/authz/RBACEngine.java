@@ -212,11 +212,7 @@ public class RBACEngine implements AuthorizationEngine {
                 request,
                 authentication
             );
-            return hasCapability
-                && allowsRunAsFrom(
-                    authentication.getEffectiveSubject().getUser(),
-                    authentication.getAuthenticatingSubject().getUser().principal()
-                );
+            return hasCapability && allowsRunAsFromRoles(authentication.getEffectiveSubject().getUser(), callerRole);
         }
         if (authentication.getAuthenticatingSubject().getType() == Subject.Type.SERVICE_ACCOUNT) {
             return false;
@@ -224,10 +220,18 @@ public class RBACEngine implements AuthorizationEngine {
         return callerRole.checkRunAs(authentication.getEffectiveSubject().getUser().principal());
     }
 
-    private static boolean allowsRunAsFrom(User target, String authenticatingPrincipal) {
-        final Object raw = target.metadata().get(ServiceAccountSettings.RUN_AS_FROM_FIELD);
-        if (raw instanceof List<?> principals) {
-            return principals.contains(authenticatingPrincipal);
+    /**
+     * Target consent is a role-descriptor-name allowlist. The authenticating subject's
+     * {@link Role#names()} must intersect that list. Empty or missing is fail closed.
+     */
+    private static boolean allowsRunAsFromRoles(User target, Role callerRole) {
+        final Object raw = target.metadata().get(ServiceAccountSettings.RUN_AS_FROM_ROLES_FIELD);
+        if (raw instanceof List<?> consentedRoles) {
+            for (String callerRoleName : callerRole.names()) {
+                if (consentedRoles.contains(callerRoleName)) {
+                    return true;
+                }
+            }
         }
         return false;
     }

@@ -27,7 +27,7 @@ public class ServiceAccountInfo implements Writeable, ToXContent {
     private final boolean managed;
     private final RoleDescriptor roleDescriptor;
     private final List<String> roles;
-    private final List<String> runAsFrom;
+    private final List<String> runAsFromRoles;
     private final Boolean enabled;
 
     public static ServiceAccountInfo builtIn(String principal, RoleDescriptor roleDescriptor) {
@@ -38,8 +38,8 @@ public class ServiceAccountInfo implements Writeable, ToXContent {
         return managed(principal, roles, List.of(), enabled);
     }
 
-    public static ServiceAccountInfo managed(String principal, List<String> roles, List<String> runAsFrom, boolean enabled) {
-        return new ServiceAccountInfo(principal, true, null, List.copyOf(roles), List.copyOf(runAsFrom), enabled);
+    public static ServiceAccountInfo managed(String principal, List<String> roles, List<String> runAsFromRoles, boolean enabled) {
+        return new ServiceAccountInfo(principal, true, null, List.copyOf(roles), List.copyOf(runAsFromRoles), enabled);
     }
 
     private ServiceAccountInfo(
@@ -47,7 +47,7 @@ public class ServiceAccountInfo implements Writeable, ToXContent {
         boolean managed,
         RoleDescriptor roleDescriptor,
         List<String> roles,
-        List<String> runAsFrom,
+        List<String> runAsFromRoles,
         Boolean enabled
     ) {
         this.principal = Objects.requireNonNull(principal, "service account principal cannot be null");
@@ -55,12 +55,12 @@ public class ServiceAccountInfo implements Writeable, ToXContent {
         if (managed) {
             this.roleDescriptor = null;
             this.roles = Objects.requireNonNull(roles, "roles cannot be null");
-            this.runAsFrom = Objects.requireNonNull(runAsFrom, "run_as_from cannot be null");
+            this.runAsFromRoles = Objects.requireNonNull(runAsFromRoles, "run_as_from_roles cannot be null");
             this.enabled = Objects.requireNonNull(enabled, "enabled cannot be null");
         } else {
             this.roleDescriptor = Objects.requireNonNull(roleDescriptor, "service account descriptor cannot be null");
             this.roles = null;
-            this.runAsFrom = null;
+            this.runAsFromRoles = null;
             this.enabled = null;
         }
     }
@@ -72,19 +72,19 @@ public class ServiceAccountInfo implements Writeable, ToXContent {
             if (managed) {
                 this.roles = in.readStringCollectionAsList();
                 this.enabled = in.readBoolean();
-                this.runAsFrom = in.readStringCollectionAsList();
+                this.runAsFromRoles = in.readStringCollectionAsList();
                 this.roleDescriptor = null;
             } else {
                 this.roleDescriptor = new RoleDescriptor(in);
                 this.roles = null;
-                this.runAsFrom = null;
+                this.runAsFromRoles = null;
                 this.enabled = null;
             }
         } else {
             this.managed = false;
             this.roleDescriptor = new RoleDescriptor(in);
             this.roles = null;
-            this.runAsFrom = null;
+            this.runAsFromRoles = null;
             this.enabled = null;
         }
     }
@@ -105,8 +105,8 @@ public class ServiceAccountInfo implements Writeable, ToXContent {
         return roles;
     }
 
-    public List<String> getRunAsFrom() {
-        return runAsFrom;
+    public List<String> getRunAsFromRoles() {
+        return runAsFromRoles;
     }
 
     public Boolean getEnabled() {
@@ -121,7 +121,7 @@ public class ServiceAccountInfo implements Writeable, ToXContent {
             if (managed) {
                 out.writeStringCollection(roles);
                 out.writeBoolean(enabled);
-                out.writeStringCollection(runAsFrom);
+                out.writeStringCollection(runAsFromRoles);
             } else {
                 roleDescriptor.writeTo(out);
             }
@@ -137,7 +137,7 @@ public class ServiceAccountInfo implements Writeable, ToXContent {
         if (managed) {
             builder.field("managed_by", ServiceAccountManagedBy.USER.value());
             builder.stringListField("roles", roles);
-            builder.stringListField("run_as_from", runAsFrom);
+            builder.stringListField("run_as_from_roles", runAsFromRoles);
             builder.field("enabled", enabled);
         } else {
             builder.field("managed_by", ServiceAccountManagedBy.ELASTIC.value());
@@ -160,8 +160,8 @@ public class ServiceAccountInfo implements Writeable, ToXContent {
             + roleDescriptor
             + ", roles="
             + roles
-            + ", runAsFrom="
-            + runAsFrom
+            + ", runAsFromRoles="
+            + runAsFromRoles
             + ", enabled="
             + enabled
             + '}';
@@ -176,12 +176,12 @@ public class ServiceAccountInfo implements Writeable, ToXContent {
             && principal.equals(that.principal)
             && Objects.equals(roleDescriptor, that.roleDescriptor)
             && Objects.equals(roles, that.roles)
-            && Objects.equals(runAsFrom, that.runAsFrom)
+            && Objects.equals(runAsFromRoles, that.runAsFromRoles)
             && Objects.equals(enabled, that.enabled);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(principal, managed, roleDescriptor, roles, runAsFrom, enabled);
+        return Objects.hash(principal, managed, roleDescriptor, roles, runAsFromRoles, enabled);
     }
 }

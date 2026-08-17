@@ -490,8 +490,8 @@ public class SecuritySystemIndices {
                     builder.field("type", "keyword");
                     builder.endObject();
 
-                    if (mappingVersion.onOrAfter(SecurityMainIndexMappingVersion.ADD_MANAGED_SERVICE_ACCOUNT_RUN_AS_FROM)) {
-                        builder.startObject("run_as_from");
+                    if (mappingVersion.onOrAfter(SecurityMainIndexMappingVersion.ADD_MANAGED_SERVICE_ACCOUNT_RUN_AS_FROM_ROLES)) {
+                        builder.startObject("run_as_from_roles");
                         builder.field("type", "keyword");
                         builder.endObject();
                     }
@@ -1139,9 +1139,9 @@ public class SecuritySystemIndices {
         ADD_ESQL_GLOBAL_DATASOURCE_PRIVILEGE(5),
 
         /**
-         * Mapping for {@code run_as_from} on managed service account documents.
+         * Mapping for {@code run_as_from_roles} on managed service account documents.
          */
-        ADD_MANAGED_SERVICE_ACCOUNT_RUN_AS_FROM(6),
+        ADD_MANAGED_SERVICE_ACCOUNT_RUN_AS_FROM_ROLES(6),
 
         ;
 

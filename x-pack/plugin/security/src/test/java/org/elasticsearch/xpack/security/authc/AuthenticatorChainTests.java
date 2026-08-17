@@ -497,8 +497,8 @@ public class AuthenticatorChainTests extends ESTestCase {
             Map.of(
                 ServiceAccountSettings.MANAGED_SERVICE_ACCOUNT_FIELD,
                 true,
-                ServiceAccountSettings.RUN_AS_FROM_FIELD,
-                List.of("elastic/kibana")
+                ServiceAccountSettings.RUN_AS_FROM_ROLES_FIELD,
+                List.of("kibana_system")
             ),
             true
         );

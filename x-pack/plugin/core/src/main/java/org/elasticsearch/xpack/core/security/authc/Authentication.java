@@ -595,7 +595,8 @@ public final class Authentication implements ToXContentObject {
         }
 
         // Service accounts may initiate run-as of a managed service account only. Authorization still
-        // requires the run_as_managed_service_account privilege and target-side run_as_from consent.
+        // requires the run_as_managed_service_account privilege and target-side run_as_from_roles consent
+        // (a role-descriptor-name allowlist matched against the caller's Role.names()).
         // AuthenticatorChain ignores a run-as header that does not name a managed account.
 
         // Real run-as for cross cluster access could happen on the querying cluster side, but not on the fulfilling cluster. Since the

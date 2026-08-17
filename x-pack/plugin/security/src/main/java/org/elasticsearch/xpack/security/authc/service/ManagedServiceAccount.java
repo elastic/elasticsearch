@@ -20,7 +20,7 @@ final class ManagedServiceAccount implements ServiceAccount {
 
     private final ServiceAccount.ServiceAccountId id;
     private final List<String> roles;
-    private final List<String> runAsFrom;
+    private final List<String> runAsFromRoles;
     private final boolean enabled;
     private final User user;
 
@@ -28,17 +28,22 @@ final class ManagedServiceAccount implements ServiceAccount {
         this(id, roles, List.of(), enabled);
     }
 
-    ManagedServiceAccount(ServiceAccount.ServiceAccountId id, List<String> roles, List<String> runAsFrom, boolean enabled) {
+    ManagedServiceAccount(ServiceAccount.ServiceAccountId id, List<String> roles, List<String> runAsFromRoles, boolean enabled) {
         this.id = Objects.requireNonNull(id, "service account id cannot be null");
         this.roles = List.copyOf(Objects.requireNonNull(roles, "roles cannot be null"));
-        this.runAsFrom = List.copyOf(Objects.requireNonNull(runAsFrom, "run_as_from cannot be null"));
+        this.runAsFromRoles = List.copyOf(Objects.requireNonNull(runAsFromRoles, "run_as_from_roles cannot be null"));
         this.enabled = enabled;
         this.user = new User(
             id.asPrincipal(),
             roles.toArray(String[]::new),
             "Managed service account - " + id,
             null,
-            Map.of(ServiceAccountSettings.MANAGED_SERVICE_ACCOUNT_FIELD, true, ServiceAccountSettings.RUN_AS_FROM_FIELD, this.runAsFrom),
+            Map.of(
+                ServiceAccountSettings.MANAGED_SERVICE_ACCOUNT_FIELD,
+                true,
+                ServiceAccountSettings.RUN_AS_FROM_ROLES_FIELD,
+                this.runAsFromRoles
+            ),
             enabled
         );
     }
@@ -57,8 +62,8 @@ final class ManagedServiceAccount implements ServiceAccount {
         return roles;
     }
 
-    List<String> runAsFrom() {
-        return runAsFrom;
+    List<String> runAsFromRoles() {
+        return runAsFromRoles;
     }
 
     boolean enabled() {
@@ -72,6 +77,6 @@ final class ManagedServiceAccount implements ServiceAccount {
 
     @Override
     public String toString() {
-        return "ManagedServiceAccount{" + "id=" + id + ", roles=" + roles + ", runAsFrom=" + runAsFrom + ", enabled=" + enabled + '}';
+        return "ManagedServiceAccount{" + "id=" + id + ", roles=" + roles + ", runAsFromRoles=" + runAsFromRoles + ", enabled=" + enabled + '}';
     }
 }

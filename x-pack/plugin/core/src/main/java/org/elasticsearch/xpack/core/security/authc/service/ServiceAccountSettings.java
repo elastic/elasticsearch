@@ -15,7 +15,8 @@ public final class ServiceAccountSettings {
     public static final String TOKEN_SOURCE_FIELD = "_token_source";
     public static final String BUILTIN_SERVICE_ACCOUNT_FIELD = "_elastic_service_account";
     public static final String MANAGED_SERVICE_ACCOUNT_FIELD = "_managed_service_account";
-    public static final String RUN_AS_FROM_FIELD = "_run_as_from";
+    /** Metadata key for the target's role-descriptor-name impersonation allowlist. */
+    public static final String RUN_AS_FROM_ROLES_FIELD = "_run_as_from_roles";
 
     private ServiceAccountSettings() {}
 }

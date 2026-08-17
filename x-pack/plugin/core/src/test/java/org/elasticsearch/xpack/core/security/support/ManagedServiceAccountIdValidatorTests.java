@@ -27,13 +27,13 @@ public class ManagedServiceAccountIdValidatorTests extends ESTestCase {
         assertThat(ManagedServiceAccountIdValidator.validatePrincipal("my-team/my-service"), nullValue());
     }
 
-    public void testRunAsFromRejectsWildcardsAndEmpty() {
-        assertThat(ManagedServiceAccountIdValidator.validateRunAsFromPrincipal("*"), containsString("wildcard"));
-        assertThat(ManagedServiceAccountIdValidator.validateRunAsFromPrincipal("acme/*"), containsString("wildcard"));
-        assertThat(ManagedServiceAccountIdValidator.validateRunAsFromPrincipal(""), containsString("must not be empty"));
-        assertThat(ManagedServiceAccountIdValidator.validateRunAsFromPrincipal("elastic/kibana"), nullValue());
-        assertThat(ManagedServiceAccountIdValidator.validateRunAsFromPrincipal("acme/other-workflow"), nullValue());
-        assertThat(ManagedServiceAccountIdValidator.validateRunAsFromPrincipal("native_user"), containsString("must be a service account"));
+    public void testRunAsFromAcceptsRoleDescriptorNamesAndRejectsWildcards() {
+        assertThat(ManagedServiceAccountIdValidator.validateRunAsFromRole("kibana_system"), nullValue());
+        assertThat(ManagedServiceAccountIdValidator.validateRunAsFromRole("elastic/kibana"), nullValue());
+        assertThat(ManagedServiceAccountIdValidator.validateRunAsFromRole("custom_workflow_role"), nullValue());
+        assertThat(ManagedServiceAccountIdValidator.validateRunAsFromRole("*"), containsString("wildcard"));
+        assertThat(ManagedServiceAccountIdValidator.validateRunAsFromRole("acme/*"), containsString("wildcard"));
+        assertThat(ManagedServiceAccountIdValidator.validateRunAsFromRole(""), containsString("must not be empty"));
     }
 
     public void testRejectsWhitespace() {

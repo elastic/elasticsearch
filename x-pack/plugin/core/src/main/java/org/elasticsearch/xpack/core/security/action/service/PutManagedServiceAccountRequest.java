@@ -30,7 +30,7 @@ public class PutManagedServiceAccountRequest extends UntypedActionRequest {
 
     private static final ParseField ROLES = new ParseField("roles");
     private static final ParseField ENABLED = new ParseField("enabled");
-    private static final ParseField RUN_AS_FROM = new ParseField("run_as_from");
+    private static final ParseField RUN_AS_FROM_ROLES = new ParseField("run_as_from_roles");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<PutManagedServiceAccountRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -41,13 +41,13 @@ public class PutManagedServiceAccountRequest extends UntypedActionRequest {
     static {
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), ROLES);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED);
-        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), RUN_AS_FROM);
+        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), RUN_AS_FROM_ROLES);
     }
 
     private final String namespace;
     private final String serviceName;
     private final List<String> roles;
-    private final List<String> runAsFrom;
+    private final List<String> runAsFromRoles;
     private final boolean enabled;
     private WriteRequest.RefreshPolicy refreshPolicy = WriteRequest.RefreshPolicy.WAIT_UNTIL;
 
@@ -59,21 +59,21 @@ public class PutManagedServiceAccountRequest extends UntypedActionRequest {
         String namespace,
         String serviceName,
         List<String> roles,
-        List<String> runAsFrom,
+        List<String> runAsFromRoles,
         boolean enabled
     ) {
         this.namespace = Objects.requireNonNull(namespace, "namespace cannot be null");
         this.serviceName = Objects.requireNonNull(serviceName, "service name cannot be null");
         this.roles = List.copyOf(Objects.requireNonNull(roles, "roles cannot be null"));
-        this.runAsFrom = List.copyOf(Objects.requireNonNull(runAsFrom, "run_as_from cannot be null"));
+        this.runAsFromRoles = List.copyOf(Objects.requireNonNull(runAsFromRoles, "run_as_from_roles cannot be null"));
         this.enabled = enabled;
     }
 
-    private PutManagedServiceAccountRequest(List<String> roles, Boolean enabled, List<String> runAsFrom) {
+    private PutManagedServiceAccountRequest(List<String> roles, Boolean enabled, List<String> runAsFromRoles) {
         this.namespace = null;
         this.serviceName = null;
         this.roles = List.copyOf(Objects.requireNonNull(roles, "roles cannot be null"));
-        this.runAsFrom = runAsFrom == null ? List.of() : List.copyOf(runAsFrom);
+        this.runAsFromRoles = runAsFromRoles == null ? List.of() : List.copyOf(runAsFromRoles);
         this.enabled = enabled == null || enabled;
     }
 
@@ -84,12 +84,12 @@ public class PutManagedServiceAccountRequest extends UntypedActionRequest {
         roles = in.readStringCollectionAsList();
         enabled = in.readBoolean();
         refreshPolicy = WriteRequest.RefreshPolicy.readFrom(in);
-        runAsFrom = in.readStringCollectionAsList();
+        runAsFromRoles = in.readStringCollectionAsList();
     }
 
     public static PutManagedServiceAccountRequest parse(String namespace, String serviceName, XContentParser parser) throws IOException {
         final PutManagedServiceAccountRequest request = PARSER.parse(parser, null);
-        return new PutManagedServiceAccountRequest(namespace, serviceName, request.roles, request.runAsFrom, request.enabled);
+        return new PutManagedServiceAccountRequest(namespace, serviceName, request.roles, request.runAsFromRoles, request.enabled);
     }
 
     public String getNamespace() {
@@ -104,8 +104,8 @@ public class PutManagedServiceAccountRequest extends UntypedActionRequest {
         return roles;
     }
 
-    public List<String> getRunAsFrom() {
-        return runAsFrom;
+    public List<String> getRunAsFromRoles() {
+        return runAsFromRoles;
     }
 
     public boolean isEnabled() {
@@ -141,10 +141,10 @@ public class PutManagedServiceAccountRequest extends UntypedActionRequest {
                 validationException = addValidationError(roleNameError.toString(), validationException);
             }
         }
-        for (String principal : runAsFrom) {
-            final String runAsFromError = ManagedServiceAccountIdValidator.validateRunAsFromPrincipal(principal);
-            if (runAsFromError != null) {
-                validationException = addValidationError(runAsFromError, validationException);
+        for (String roleName : runAsFromRoles) {
+            final String runAsFromRolesError = ManagedServiceAccountIdValidator.validateRunAsFromRole(roleName);
+            if (runAsFromRolesError != null) {
+                validationException = addValidationError(runAsFromRolesError, validationException);
             }
         }
         return validationException;
@@ -158,6 +158,6 @@ public class PutManagedServiceAccountRequest extends UntypedActionRequest {
         out.writeStringCollection(roles);
         out.writeBoolean(enabled);
         refreshPolicy.writeTo(out);
-        out.writeStringCollection(runAsFrom);
+        out.writeStringCollection(runAsFromRoles);
     }
 }

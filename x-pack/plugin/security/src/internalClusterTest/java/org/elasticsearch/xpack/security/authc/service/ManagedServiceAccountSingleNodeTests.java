@@ -69,6 +69,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class ManagedServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
 
     private static final String SECURITY_ADMIN = "managed_sa_security_admin";
+    private static final String ECH_KIBANA = "ech_kibana_clone";
     private static final String NAMESPACE = "poc-team";
     private static final String MONITOR_ROLE = "managed_sa_monitor_role";
     private static final String API_KEY_ROLE = "managed_sa_api_key_role";
@@ -85,7 +86,7 @@ public class ManagedServiceAccountSingleNodeTests extends SecuritySingleNodeTest
 
     @Override
     protected String configUsers() {
-        return super.configUsers() + SECURITY_ADMIN + ":" + TEST_PASSWORD_HASHED + "\n";
+        return super.configUsers() + SECURITY_ADMIN + ":" + TEST_PASSWORD_HASHED + "\n" + ECH_KIBANA + ":" + TEST_PASSWORD_HASHED + "\n";
     }
 
     @Override
@@ -112,7 +113,7 @@ public class ManagedServiceAccountSingleNodeTests extends SecuritySingleNodeTest
 
     @Override
     protected String configUsersRoles() {
-        return super.configUsersRoles() + SECURITY_ADMIN + ":" + SECURITY_ADMIN + "\n";
+        return super.configUsersRoles() + SECURITY_ADMIN + ":" + SECURITY_ADMIN + "\n" + "kibana_system:" + ECH_KIBANA + "\n";
     }
 
     @Override
@@ -317,7 +318,7 @@ public class ManagedServiceAccountSingleNodeTests extends SecuritySingleNodeTest
             .filter(i -> principal.equals(i.getPrincipal()))
             .findFirst()
             .orElseThrow();
-        assertThat(info.getRunAsFrom(), equalTo(java.util.List.of("elastic/kibana")));
+        assertThat(info.getRunAsFromRoles(), equalTo(java.util.List.of("elastic/kibana")));
 
         final SecureString kibanaToken = securityAdminClient().execute(
             CreateServiceAccountTokenAction.INSTANCE,
@@ -330,6 +331,50 @@ public class ManagedServiceAccountSingleNodeTests extends SecuritySingleNodeTest
         assertThat(runAsAuth.getAuthenticatingSubject().getUser().principal(), equalTo("elastic/kibana"));
         assertThat(runAsAuth.getEffectiveSubject().getUser().principal(), equalTo(principal));
         assertThat(runAsAuth.getEffectiveSubject().getUser().roles(), arrayContainingInAnyOrder(MONITOR_ROLE));
+
+        final ElasticsearchSecurityException cloneDeniedOnSaName = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> client().filterWithHeader(
+                Map.of(
+                    "Authorization",
+                    basicAuthHeaderValue(ECH_KIBANA, new SecureString(TEST_PASSWORD.toCharArray())),
+                    AuthenticationServiceField.RUN_AS_USER_HEADER,
+                    principal
+                )
+            ).execute(AuthenticateAction.INSTANCE, AuthenticateRequest.INSTANCE).actionGet()
+        );
+        assertThat(cloneDeniedOnSaName.status(), equalTo(RestStatus.FORBIDDEN));
+
+        final String roleConsentName = "role-consent-" + randomAlphaOfLengthBetween(4, 8).toLowerCase(java.util.Locale.ROOT);
+        final String roleConsentPrincipal = NAMESPACE + "/" + roleConsentName;
+        securityAdminClient().execute(
+            PutManagedServiceAccountAction.INSTANCE,
+            new PutManagedServiceAccountRequest(
+                NAMESPACE,
+                roleConsentName,
+                java.util.List.of(MONITOR_ROLE),
+                java.util.List.of("kibana_system"),
+                true
+            )
+        ).actionGet();
+
+        final Authentication cloneRunAs = client().filterWithHeader(
+            Map.of(
+                "Authorization",
+                basicAuthHeaderValue(ECH_KIBANA, new SecureString(TEST_PASSWORD.toCharArray())),
+                AuthenticationServiceField.RUN_AS_USER_HEADER,
+                roleConsentPrincipal
+            )
+        ).execute(AuthenticateAction.INSTANCE, AuthenticateRequest.INSTANCE).actionGet().authentication();
+        assertThat(cloneRunAs.isRunAs(), is(true));
+        assertThat(cloneRunAs.getAuthenticatingSubject().getUser().principal(), equalTo(ECH_KIBANA));
+        assertThat(cloneRunAs.getEffectiveSubject().getUser().principal(), equalTo(roleConsentPrincipal));
+
+        final ElasticsearchSecurityException kibanaDeniedOnRoleName = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> authenticateWithRunAs(kibanaToken.toString(), roleConsentPrincipal)
+        );
+        assertThat(kibanaDeniedOnRoleName.status(), equalTo(RestStatus.FORBIDDEN));
 
         final String noConsentName = "no-consent-" + randomAlphaOfLengthBetween(4, 8).toLowerCase(java.util.Locale.ROOT);
         securityAdminClient().execute(

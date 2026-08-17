@@ -81,6 +81,13 @@ teardown:
   - do:
       security.delete_managed_service_account:
         namespace: yaml_poc
+        service: runas_from_role
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_managed_service_account:
+        namespace: yaml_poc
         service: no_consent
         force: true
         ignore: 404
@@ -90,6 +97,11 @@ teardown:
         namespace: yaml_poc
         service: runas_wildcard
         force: true
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "ech_kibana_clone"
         ignore: 404
 
 ---
@@ -133,7 +145,7 @@ teardown:
       "yaml_poc/worker_1":
         managed_by: user
         roles: ["managed_yaml_monitor"]
-        run_as_from: []
+        run_as_from_roles: []
         enabled: true
 
   # requests scoped to a namespace default to managed_by=elastic,user;
@@ -256,7 +268,7 @@ teardown:
   - match: { username: "yaml_poc/worker_1" }
 
 ---
-"Test run-as of a managed service account requires run_as_from consent":
+"Test run-as of a managed service account requires run_as_from_roles consent":
   - do:
       security.put_managed_service_account:
         namespace: yaml_poc
@@ -264,7 +276,7 @@ teardown:
         body: >
           {
             "roles": ["managed_yaml_monitor"],
-            "run_as_from": ["elastic/kibana"]
+            "run_as_from_roles": ["elastic/kibana"]
           }
   - match: { created: true }
 
@@ -276,7 +288,7 @@ teardown:
       "yaml_poc/runas_worker":
         managed_by: user
         roles: ["managed_yaml_monitor"]
-        run_as_from: ["elastic/kibana"]
+        run_as_from_roles: ["elastic/kibana"]
         enabled: true
 
   - do:
@@ -286,6 +298,7 @@ teardown:
         name: yaml-runas-kibana
   - set: { "token.value": yaml_kibana_token }
 
+  # elastic/kibana's RoleDescriptor name is elastic/kibana, not kibana_system
   - do:
       headers:
         Authorization: Bearer ${yaml_kibana_token}
@@ -327,19 +340,58 @@ teardown:
         body: >
           {
             "roles": ["managed_yaml_monitor"],
-            "run_as_from": ["*"]
+            "run_as_from_roles": ["*"]
           }
 
   - do:
-      catch: bad_request
+      security.put_user:
+        username: "ech_kibana_clone"
+        body: >
+          {
+            "password": "x-pack-test-password",
+            "roles": ["kibana_system"]
+          }
+
+  # clone has kibana_system, not the elastic/kibana descriptor name
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic ZWNoX2tpYmFuYV9jbG9uZTp4LXBhY2stdGVzdC1wYXNzd29yZA==" # ech_kibana_clone:x-pack-test-password
+        es-security-runas-user: yaml_poc/runas_worker
+      security.authenticate: {}
+
+  - do:
       security.put_managed_service_account:
         namespace: yaml_poc
-        service: runas_native_user
+        service: runas_from_role
         body: >
           {
             "roles": ["managed_yaml_monitor"],
-            "run_as_from": ["native_user"]
+            "run_as_from_roles": ["kibana_system"]
           }
+  - match: { created: true }
+
+  - do:
+      headers:
+        Authorization: "Basic ZWNoX2tpYmFuYV9jbG9uZTp4LXBhY2stdGVzdC1wYXNzd29yZA==" # ech_kibana_clone:x-pack-test-password
+        es-security-runas-user: yaml_poc/runas_from_role
+      security.authenticate: {}
+  - match: { username: "yaml_poc/runas_from_role" }
+  - match: { roles: ["managed_yaml_monitor"] }
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: Bearer ${yaml_kibana_token}
+        es-security-runas-user: yaml_poc/runas_from_role
+      security.authenticate: {}
+
+  # superuser has the capability via manage_security but neither listed name
+  - do:
+      catch: forbidden
+      headers:
+        es-security-runas-user: yaml_poc/runas_worker
+      security.authenticate: {}
 
   - do:
       headers:

@@ -31,26 +31,26 @@ public class PutManagedServiceAccountRequestTests extends ESTestCase {
             assertThat(request.getNamespace(), equalTo("my-team"));
             assertThat(request.getServiceName(), equalTo("worker"));
             assertThat(request.getRoles(), equalTo(List.of("role-a", "role-b")));
-            assertThat(request.getRunAsFrom(), equalTo(List.of()));
+            assertThat(request.getRunAsFromRoles(), equalTo(List.of()));
             assertThat(request.isEnabled(), is(false));
         }
     }
 
-    public void testParseRequestWithRunAsFrom() throws IOException {
+    public void testParseRequestWithRunAsFromRoles() throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, """
             {
               "roles": ["role-a"],
-              "run_as_from": ["elastic/kibana"]
+              "run_as_from_roles": ["kibana_system", "elastic/kibana"]
             }
             """)) {
             final PutManagedServiceAccountRequest request = PutManagedServiceAccountRequest.parse("my-team", "worker", parser);
             assertThat(request.getRoles(), equalTo(List.of("role-a")));
-            assertThat(request.getRunAsFrom(), equalTo(List.of("elastic/kibana")));
+            assertThat(request.getRunAsFromRoles(), equalTo(List.of("kibana_system", "elastic/kibana")));
             assertThat(request.isEnabled(), is(true));
         }
     }
 
-    public void testValidateRejectsWildcardRunAsFrom() {
+    public void testValidateRejectsWildcardRunAsFromRoles() {
         final PutManagedServiceAccountRequest request = new PutManagedServiceAccountRequest(
             "my-team",
             "worker",
@@ -61,15 +61,15 @@ public class PutManagedServiceAccountRequestTests extends ESTestCase {
         assertThat(request.validate().validationErrors().toString(), containsString("wildcard"));
     }
 
-    public void testValidateRejectsNativeUserRunAsFrom() {
+    public void testValidateAcceptsServiceAccountDescriptorName() {
         final PutManagedServiceAccountRequest request = new PutManagedServiceAccountRequest(
             "my-team",
             "worker",
             List.of("role-a"),
-            List.of("native_user"),
+            List.of("elastic/kibana"),
             true
         );
-        assertThat(request.validate().validationErrors().toString(), containsString("must be a service account"));
+        assertThat(request.validate(), equalTo(null));
     }
 
     public void testParseRequestWithRolesOnlyDefaultsEnabledTrue() throws IOException {

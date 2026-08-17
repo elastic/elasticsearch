@@ -246,7 +246,7 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
     public void putAccount(
         ServiceAccount.ServiceAccountId accountId,
         List<String> roles,
-        List<String> runAsFrom,
+        List<String> runAsFromRoles,
         boolean enabled,
         WriteRequest.RefreshPolicy refreshPolicy,
         ActionListener<PutResult> listener
@@ -261,12 +261,12 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
             );
             return;
         }
-        final ValidationException validationException = validatePutRequest(accountId, roles, runAsFrom);
+        final ValidationException validationException = validatePutRequest(accountId, roles, runAsFromRoles);
         if (validationException != null) {
             listener.onFailure(validationException);
             return;
         }
-        try (XContentBuilder builder = newAccountDocument(accountId, roles, runAsFrom, enabled)) {
+        try (XContentBuilder builder = newAccountDocument(accountId, roles, runAsFromRoles, enabled)) {
             final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
                 .setId(docIdForPrincipal(accountId.asPrincipal()))
                 .setSource(builder)
@@ -286,7 +286,7 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
                             final PutResult.Type type = response.getResult() == DocWriteResponse.Result.CREATED
                                 ? PutResult.Type.CREATED
                                 : PutResult.Type.UPDATED;
-                            final ManagedServiceAccount account = new ManagedServiceAccount(accountId, roles, runAsFrom, enabled);
+                            final ManagedServiceAccount account = new ManagedServiceAccount(accountId, roles, runAsFromRoles, enabled);
                             invalidateManagedAccountCache(
                                 accountId.asPrincipal(),
                                 ActionListener.wrap(ignore -> listener.onResponse(new PutResult(type, account)), listener::onFailure)
@@ -393,7 +393,7 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
     }
 
     @Nullable
-    private ValidationException validatePutRequest(ServiceAccount.ServiceAccountId accountId, List<String> roles, List<String> runAsFrom) {
+    private ValidationException validatePutRequest(ServiceAccount.ServiceAccountId accountId, List<String> roles, List<String> runAsFromRoles) {
         ValidationException validationException = null;
         final String namespaceError = ManagedServiceAccountIdValidator.validateNamespace(accountId.namespace());
         if (namespaceError != null) {
@@ -422,14 +422,14 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
                 }
             }
         }
-        if (runAsFrom != null) {
-            for (String principal : runAsFrom) {
-                final String runAsFromError = ManagedServiceAccountIdValidator.validateRunAsFromPrincipal(principal);
-                if (runAsFromError != null) {
+        if (runAsFromRoles != null) {
+            for (String roleName : runAsFromRoles) {
+                final String runAsFromRolesError = ManagedServiceAccountIdValidator.validateRunAsFromRole(roleName);
+                if (runAsFromRolesError != null) {
                     if (validationException == null) {
                         validationException = new ValidationException();
                     }
-                    validationException.addValidationError(runAsFromError);
+                    validationException.addValidationError(runAsFromRolesError);
                 }
             }
         }
@@ -439,19 +439,19 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
     private XContentBuilder newAccountDocument(
         ServiceAccount.ServiceAccountId accountId,
         List<String> roles,
-        List<String> runAsFrom,
+        List<String> runAsFromRoles,
         boolean enabled
     ) throws IOException {
         final Version version = clusterService.state().nodes().getMinNodeVersion();
         final List<String> deduplicatedRoles = deduplicateRoles(roles);
-        final List<String> deduplicatedRunAsFrom = deduplicateRoles(runAsFrom);
+        final List<String> deduplicatedRunAsFromRoles = deduplicateRoles(runAsFromRoles);
         return XContentFactory.jsonBuilder()
             .startObject()
             .field("doc_type", SERVICE_ACCOUNT_DOC_TYPE)
             .field("version", version.id)
             .field("username", accountId.asPrincipal())
             .field("roles", deduplicatedRoles)
-            .field("run_as_from", deduplicatedRunAsFrom)
+            .field("run_as_from_roles", deduplicatedRunAsFromRoles)
             .field("enabled", enabled)
             .endObject();
     }
@@ -504,11 +504,11 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
                 }
                 final Object enabledValue = source.get("enabled");
                 if (enabledValue instanceof Boolean enabled) {
-                    final List<String> runAsFrom = parseRunAsFrom(expectedPrincipal, source.get("run_as_from"));
-                    if (runAsFrom == null) {
+                    final List<String> runAsFromRoles = parseRunAsFromRoles(expectedPrincipal, source.get("run_as_from_roles"));
+                    if (runAsFromRoles == null) {
                         return null;
                     }
-                    return new ManagedServiceAccount(ServiceAccount.ServiceAccountId.fromPrincipal(username), roles, runAsFrom, enabled);
+                    return new ManagedServiceAccount(ServiceAccount.ServiceAccountId.fromPrincipal(username), roles, runAsFromRoles, enabled);
                 }
                 logger.warn("managed service account document [{}] has invalid enabled field", expectedPrincipal);
                 return null;
@@ -521,35 +521,35 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
     }
 
     /**
-     * Absent {@code run_as_from} is fail-closed empty. Malformed values reject the whole document.
+     * Absent {@code run_as_from_roles} is fail-closed empty. Malformed values reject the whole document.
      */
     @Nullable
-    private List<String> parseRunAsFrom(String expectedPrincipal, @Nullable Object runAsFromValue) {
-        if (runAsFromValue == null) {
+    private List<String> parseRunAsFromRoles(String expectedPrincipal, @Nullable Object runAsFromRolesValue) {
+        if (runAsFromRolesValue == null) {
             return List.of();
         }
-        if (runAsFromValue instanceof List<?> runAsFromList) {
-            final List<String> runAsFrom = new ArrayList<>(runAsFromList.size());
-            for (Object principalValue : runAsFromList) {
-                if (principalValue instanceof String principal) {
-                    final String error = ManagedServiceAccountIdValidator.validateRunAsFromPrincipal(principal);
+        if (runAsFromRolesValue instanceof List<?> runAsFromRolesList) {
+            final List<String> runAsFromRoles = new ArrayList<>(runAsFromRolesList.size());
+            for (Object roleValue : runAsFromRolesList) {
+                if (roleValue instanceof String roleName) {
+                    final String error = ManagedServiceAccountIdValidator.validateRunAsFromRole(roleName);
                     if (error != null) {
                         logger.warn(
-                            "managed service account document [{}] has invalid run_as_from principal [{}]",
+                            "managed service account document [{}] has invalid run_as_from_roles role [{}]",
                             expectedPrincipal,
-                            principal
+                            roleName
                         );
                         return null;
                     }
-                    runAsFrom.add(principal);
+                    runAsFromRoles.add(roleName);
                 } else {
-                    logger.warn("managed service account document [{}] has non-string run_as_from entry", expectedPrincipal);
+                    logger.warn("managed service account document [{}] has non-string run_as_from_roles entry", expectedPrincipal);
                     return null;
                 }
             }
-            return runAsFrom;
+            return runAsFromRoles;
         }
-        logger.warn("managed service account document [{}] has invalid run_as_from field", expectedPrincipal);
+        logger.warn("managed service account document [{}] has invalid run_as_from_roles field", expectedPrincipal);
         return null;
     }
 

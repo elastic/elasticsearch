@@ -30,7 +30,7 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             return ServiceAccountInfo.managed(
                 principal,
                 randomSubsetOf(randomIntBetween(0, 3), "role-a", "role-b", "role-c"),
-                randomBoolean() ? List.of() : List.of("elastic/kibana"),
+                randomBoolean() ? List.of() : List.of("kibana_system"),
                 randomBoolean()
             );
         }

@@ -170,7 +170,7 @@ When creating roles, refer to this page for a complete list of available privile
 
 
 `run_as_managed_service_account` {applies_to}`serverless: unavailable`
-:   Privilege to initiate run-as of a managed service account. The caller must be a service account, and the target account must list that service-account principal in its `run_as_from` allowlist. Service accounts cannot run-as ordinary users. Granted to the `kibana_system` role (and therefore the `elastic/kibana` service account).
+:   Privilege to initiate run-as of a managed service account. The target account must also list one of the caller's role-descriptor names in its `run_as_from_roles` allowlist. Service accounts cannot run-as ordinary users. Granted to the `kibana_system` role. The built-in `elastic/kibana` service account has the same privilege set under its own descriptor name; list both `kibana_system` and `elastic/kibana` to cover typical Kibana callers.
 
 
 `manage_slm` {applies_to}`serverless: unavailable` {applies_to}`stack: deprecated 8.15`

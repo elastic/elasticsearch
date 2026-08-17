@@ -220,7 +220,7 @@ public class ServiceAccountService {
         managedServiceAccountStore.putAccount(
             request.getAccountId(),
             request.getRoles(),
-            request.getRunAsFrom(),
+            request.getRunAsFromRoles(),
             request.isEnabled(),
             request.getRefreshPolicy(),
             ActionListener.wrap(
@@ -361,7 +361,7 @@ public class ServiceAccountService {
                             account -> ServiceAccountInfo.managed(
                                 account.id().asPrincipal(),
                                 account.roles(),
-                                account.runAsFrom(),
+                                account.runAsFromRoles(),
                                 account.enabled()
                             )
                         )

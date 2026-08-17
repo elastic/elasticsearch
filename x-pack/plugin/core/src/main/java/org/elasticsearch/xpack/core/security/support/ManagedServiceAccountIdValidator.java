@@ -46,30 +46,26 @@ public final class ManagedServiceAccountIdValidator {
     }
 
     /**
-     * Validates a {@code run_as_from} entry: an exact service-account principal, not a user
-     * and not a pattern. Built-in {@code elastic/*} callers are allowed here (unlike
-     * {@link #validatePrincipal}, which reserves that namespace for account identity).
-     * {@code *} is rejected so the field cannot recreate a wildcard impersonation grant.
+     * Validates a {@code run_as_from_roles} entry: an exact {@link org.elasticsearch.xpack.core.security.authz.RoleDescriptor}
+     * name. That includes reserved roles such as {@code kibana_system} and built-in service-account
+     * descriptor names such as {@code elastic/kibana}. {@code *} is rejected so the field cannot
+     * recreate a wildcard impersonation grant.
      */
-    public static String validateRunAsFromPrincipal(String principal) {
-        if (Strings.isNullOrEmpty(principal)) {
-            return "run_as_from principal must not be empty";
+    public static String validateRunAsFromRole(String roleName) {
+        if (Strings.isNullOrEmpty(roleName)) {
+            return "run_as_from_roles role name must not be empty";
         }
-        if (principal.equals(principal.trim()) == false) {
-            return "run_as_from principal must not have leading or trailing whitespace";
+        if (roleName.equals(roleName.trim()) == false) {
+            return "run_as_from_roles role name must not have leading or trailing whitespace";
         }
-        if (principal.indexOf('*') >= 0) {
-            return "run_as_from does not allow wildcard patterns; use exact service account principals";
+        if (roleName.indexOf('*') >= 0) {
+            return "run_as_from_roles does not allow wildcard patterns; use exact role names";
         }
-        final int split = principal.indexOf('/');
-        if (split == -1) {
-            return "run_as_from principal must be a service account in the form {namespace}/{service-name}";
+        final Validation.Error error = NativeRealmValidationUtil.validateRoleName(roleName, true);
+        if (error != null) {
+            return error.toString();
         }
-        final String namespaceError = validateComponent(principal.substring(0, split), "namespace");
-        if (namespaceError != null) {
-            return namespaceError;
-        }
-        return validateServiceName(principal.substring(split + 1));
+        return null;
     }
 
     public static String validatePrincipal(String principal) {

@@ -184,30 +184,24 @@ public class ManagedServiceAccountStoreTests extends ESTestCase {
         assertThat(loadAccountFromSource(PRINCIPAL, source), nullValue());
     }
 
-    public void testParseAccountDocumentMissingRunAsFromDefaultsEmpty() throws Exception {
+    public void testParseAccountDocumentMissingRunAsFromRolesDefaultsEmpty() throws Exception {
         final Map<String, Object> source = validAccountDocument(PRINCIPAL, List.of(ROLE_A), true);
         final ManagedServiceAccount account = loadAccountFromSource(PRINCIPAL, source);
         assertThat(account, notNullValue());
-        assertThat(account.runAsFrom(), empty());
+        assertThat(account.runAsFromRoles(), empty());
     }
 
-    public void testParseAccountDocumentReadsRunAsFrom() throws Exception {
+    public void testParseAccountDocumentReadsRunAsFromRoles() throws Exception {
         final Map<String, Object> source = validAccountDocument(PRINCIPAL, List.of(ROLE_A), true);
-        source.put("run_as_from", List.of("elastic/kibana"));
+        source.put("run_as_from_roles", List.of("kibana_system", "elastic/kibana"));
         final ManagedServiceAccount account = loadAccountFromSource(PRINCIPAL, source);
         assertThat(account, notNullValue());
-        assertThat(account.runAsFrom(), equalTo(List.of("elastic/kibana")));
+        assertThat(account.runAsFromRoles(), equalTo(List.of("kibana_system", "elastic/kibana")));
     }
 
-    public void testParseAccountDocumentRejectsWildcardRunAsFrom() throws Exception {
+    public void testParseAccountDocumentRejectsWildcardRunAsFromRoles() throws Exception {
         final Map<String, Object> source = validAccountDocument(PRINCIPAL, List.of(ROLE_A), true);
-        source.put("run_as_from", List.of("*"));
-        assertThat(loadAccountFromSource(PRINCIPAL, source), nullValue());
-    }
-
-    public void testParseAccountDocumentRejectsNativeUserRunAsFrom() throws Exception {
-        final Map<String, Object> source = validAccountDocument(PRINCIPAL, List.of(ROLE_A), true);
-        source.put("run_as_from", List.of("native_user"));
+        source.put("run_as_from_roles", List.of("*"));
         assertThat(loadAccountFromSource(PRINCIPAL, source), nullValue());
     }
 

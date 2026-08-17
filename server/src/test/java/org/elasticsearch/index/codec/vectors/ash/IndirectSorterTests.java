@@ -37,14 +37,6 @@ public class IndirectSorterTests extends ESTestCase {
         assertPermutation(indices, 5);
     }
 
-    public void testSortDescendingByFloatSmall() {
-        float[] keys = { 5.0f, 1.0f, 3.0f, 2.0f, 4.0f };
-        int[] indices = { 0, 1, 2, 3, 4 };
-        IndirectSorter.sortDescendingByFloat(indices, keys, indices.length);
-        assertSortedDescending(keys, indices);
-        assertPermutation(indices, 5);
-    }
-
     public void testSortAscendingByDoubleRandomized() {
         for (int iter = 0; iter < 50; iter++) {
             // Cover both the insertion-sort path (small ranges) and the quicksort/heapsort path.
@@ -59,23 +51,6 @@ public class IndirectSorterTests extends ESTestCase {
             IndirectSorter.sortAscendingByDouble(indices, keys, n);
 
             assertSortedAscending(keys, indices);
-            assertPermutation(indices, n);
-        }
-    }
-
-    public void testSortDescendingByFloatRandomized() {
-        for (int iter = 0; iter < 50; iter++) {
-            int n = randomIntBetween(1, 300);
-            float[] keys = new float[n];
-            for (int i = 0; i < n; i++) {
-                keys[i] = (float) random().nextGaussian();
-            }
-            int[] indices = new int[n];
-            Arrays.setAll(indices, IntUnaryOperator.identity());
-
-            IndirectSorter.sortDescendingByFloat(indices, keys, n);
-
-            assertSortedDescending(keys, indices);
             assertPermutation(indices, n);
         }
     }

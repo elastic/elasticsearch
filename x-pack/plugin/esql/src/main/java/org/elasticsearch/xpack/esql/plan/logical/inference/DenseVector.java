@@ -37,6 +37,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+import static org.elasticsearch.xpack.esql.inference.InferenceSettings.DENSE_VECTOR_ROW_LIMIT_SETTING;
 
 /**
  * The {@code DENSE_VECTOR} command generates a {@code dense_vector} embedding column per input field.
@@ -52,10 +53,22 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
 
     public static final String TIMEOUT_OPTION_NAME = "timeout";
 
+    /**
+     * Built-in default inference endpoint used when the query provides no {@code inference_id} (via {@code WITH}) and no
+     * cluster-level default ({@code esql.command.dense_vector.default_inference_id}) is configured. This is the E5 text
+     * embedding endpoint that is registered on ML-capable nodes, so it works with zero configuration.
+     */
+    public static final String DEFAULT_INFERENCE_ID = ".multilingual-e5-small-elasticsearch";
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "DenseVector",
         DenseVector::new
+    );
+
+    private static final Literal DEFAULT_ROW_LIMIT = Literal.integer(
+        Source.EMPTY,
+        DENSE_VECTOR_ROW_LIMIT_SETTING.getDefault(Settings.EMPTY)
     );
 
     /** Input fields to embed (unresolved names before analysis, resolved attributes after). */
@@ -70,7 +83,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
     private List<Attribute> lazyOutput;
 
     public DenseVector(Source source, LogicalPlan child, Expression rowLimit, List<NamedExpression> fields) {
-        this(source, child, Literal.NULL, rowLimit, fields, List.of(), null);
+        this(source, child, Literal.keyword(Source.EMPTY, DEFAULT_INFERENCE_ID), rowLimit, fields, List.of(), null);
     }
 
     public DenseVector(
@@ -92,7 +105,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
+            in.getTransportVersion().supports(ESQL_INFERENCE_ROW_LIMIT) ? in.readNamedWriteable(Expression.class) : DEFAULT_ROW_LIMIT,
             in.readNamedWriteableCollectionAsList(NamedExpression.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readOptionalTimeValue() : null

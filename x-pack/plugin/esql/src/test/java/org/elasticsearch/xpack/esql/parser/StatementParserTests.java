@@ -4460,7 +4460,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = as(processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\"}"), DenseVector.class);
         assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"))));
         assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
-        assertThat(plan.rowLimit(), equalTo(integer(100)));
+        assertThat(plan.rowLimit(), equalTo(integer(1000)));
     }
 
     public void testDenseVectorMultipleFields() {
@@ -4468,7 +4468,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = as(processingCommand("DENSE_VECTOR title, author WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
         assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"), attribute("author"))));
         assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
-        assertThat(plan.rowLimit(), equalTo(integer(100)));
+        assertThat(plan.rowLimit(), equalTo(integer(1000)));
     }
 
     public void testDenseVectorQualifiedName() {
@@ -4501,14 +4501,62 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.timeout(), equalTo(TimeValue.timeValueSeconds(30)));
     }
 
-    public void testDenseVectorMissingInferenceId() {
+    public void testDenseVectorDefaultInferenceId() {
         assumeDenseVectorCommandEnabled();
-        expectError("FROM foo* | DENSE_VECTOR title", "Missing mandatory option [inference_id] in DENSE_VECTOR");
+        // No WITH: falls through to the built-in default endpoint.
+        var plan = as(processingCommand("DENSE_VECTOR title"), DenseVector.class);
+        assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
     }
 
-    public void testDenseVectorEmptyOptions() {
+    public void testDenseVectorEmptyOptionsUsesDefaultInferenceId() {
         assumeDenseVectorCommandEnabled();
-        expectError("FROM foo* | DENSE_VECTOR title WITH { }", "Missing mandatory option [inference_id] in DENSE_VECTOR");
+        // Empty WITH: still falls through to the built-in default endpoint.
+        var plan = as(processingCommand("DENSE_VECTOR title WITH { }"), DenseVector.class);
+        assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+    }
+
+    public void testDenseVectorClusterDefaultInferenceId() {
+        assumeDenseVectorCommandEnabled();
+        // Cluster-level default overrides the built-in default when no WITH id is given.
+        Settings settings = Settings.builder()
+            .put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), "cluster-default-id")
+            .build();
+        var plan = as(processingCommand("DENSE_VECTOR title", new QueryParams(), settings), DenseVector.class);
+        assertThat(plan.inferenceId(), equalTo(literalString("cluster-default-id")));
+    }
+
+    public void testDenseVectorWithOptionOverridesClusterDefault() {
+        assumeDenseVectorCommandEnabled();
+        // WITH { inference_id } takes precedence over the cluster-level default.
+        Settings settings = Settings.builder()
+            .put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), "cluster-default-id")
+            .build();
+        var plan = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"with-id\" }", new QueryParams(), settings),
+            DenseVector.class
+        );
+        assertThat(plan.inferenceId(), equalTo(literalString("with-id")));
+    }
+
+    public void testDenseVectorRowLimitOverride() {
+        assumeDenseVectorCommandEnabled();
+        int customRowLimit = between(1, 10_000);
+        Settings settings = Settings.builder().put(InferenceSettings.DENSE_VECTOR_ROW_LIMIT_SETTING.getKey(), customRowLimit).build();
+        var plan = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\" }", new QueryParams(), settings),
+            DenseVector.class
+        );
+        assertThat(plan.rowLimit(), equalTo(integer(customRowLimit)));
+    }
+
+    public void testDenseVectorCommandDisabled() {
+        assumeDenseVectorCommandEnabled();
+        Settings settings = Settings.builder().put(InferenceSettings.DENSE_VECTOR_ENABLED_SETTING.getKey(), false).build();
+        ParsingException pe = expectThrows(
+            ParsingException.class,
+            () -> processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\" }", new QueryParams(), settings)
+        );
+        assertThat(pe.getMessage(), containsString("DENSE_VECTOR command is disabled"));
     }
 
     public void testDenseVectorUnknownOption() {

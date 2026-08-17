@@ -626,7 +626,7 @@ public class JsonXContentGenerator implements XContentGenerator {
             generator.close();
         } catch (YAMLException e) {
             // ignore the SnakeYAML exception, our own structural check handles the same case
-            assert failsStructuralCheck : "Should fail the structural check, but didn't: " + e.getMessage();
+            assert allowIllFormed || failsStructuralCheck : "Should fail the structural check, but didn't: " + e.getMessage();
         } catch (IOException e) {
             if (exception == null) {
                 exception = e;

@@ -108,7 +108,7 @@ final class AshSphericalScalarQuantizer {
      * 1-bit quantization: each dimension is assigned magnitude 0.5 with the sign of the input.
      * The norm is always sqrt(0.25 * d) = 0.5 * sqrt(d).
      */
-    private static float quantizeExact1Bit(float[] z, int zOffset, float[] out, int outOffset, int d) {
+    static float quantizeExact1Bit(float[] z, int zOffset, float[] out, int outOffset, int d) {
         for (int j = 0; j < d; j++) {
             out[outOffset + j] = Math.copySign(0.5f, z[zOffset + j]);
         }
@@ -122,7 +122,7 @@ final class AshSphericalScalarQuantizer {
      * by |z_j| descending and sweeps to find the cutoff that maximizes
      * cumDot / sqrt(cumNormSq), where upgrading dimension j adds |z_j| to cumDot and 2.0 to cumNormSq.
      */
-    private static float quantizeExact2Bit(float[] z, int zOffset, float[] out, int outOffset, int d) {
+    static float quantizeExact2Bit(float[] z, int zOffset, float[] out, int outOffset, int d) {
         int[] order = new int[d];
         float[] absZ = new float[d];
         for (int j = 0; j < d; j++) {
@@ -172,7 +172,7 @@ final class AshSphericalScalarQuantizer {
     /**
      * General quantization path for bitsPerDim > 2 (nSteps > 1).
      */
-    private float quantizeExactGeneral(float[] z, int zOffset, float[] out, int outOffset, int d, int numAbsLevels, int nSteps) {
+    static float quantizeExactGeneral(float[] z, int zOffset, float[] out, int outOffset, int d, int numAbsLevels, int nSteps) {
 
         // Extract signs and absolute values
         float[] signs = new float[d];

@@ -262,7 +262,7 @@ PUT /_security/service/acme/billing-workflow
 }
 ```
 
-`run_as_from` is an optional list of exact service-account principals who may impersonate this account. Native usernames are rejected. Absent or empty means nobody may: fail closed, and the state of every account created before the field exists. GET returns the field. The name is deliberately not `run_as`; on a role descriptor that means "who I may inhabit," and reusing it here would invert the meaning on a different document type. The security index already maps `run_as` as keyword for roles; this is a new field and a mapping addition.
+`run_as_from` is an optional list of exact service-account principals who may impersonate this account. Native usernames are rejected. If the field is omitted or `[]`, nobody may impersonate the account. That default is fail closed. Accounts created before the field existed have no `run_as_from` on disk; they stay non-impersonable until someone writes an explicit list. GET returns the field. The name is deliberately not `run_as`; on a role descriptor that means "who I may inhabit," and reusing it here would invert the meaning on a different document type. The security index already maps `run_as` as keyword for roles; this is a new field and a mapping addition.
 
 Exact service-account principals only (`namespace/service`, including built-in `elastic/kibana`). No `*`, no `elastic/*`, no native users. A wildcard on the target would recreate the original hole on a different document.
 

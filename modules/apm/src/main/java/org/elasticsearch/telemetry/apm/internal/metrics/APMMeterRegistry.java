@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.telemetry.apm;
+package org.elasticsearch.telemetry.apm.internal.metrics;
 
 import io.opentelemetry.api.metrics.Meter;
 
@@ -15,16 +15,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
-import org.elasticsearch.telemetry.apm.internal.metrics.DoubleAsyncCounterAdapter;
-import org.elasticsearch.telemetry.apm.internal.metrics.DoubleCounterAdapter;
-import org.elasticsearch.telemetry.apm.internal.metrics.DoubleGaugeAdapter;
-import org.elasticsearch.telemetry.apm.internal.metrics.DoubleHistogramAdapter;
-import org.elasticsearch.telemetry.apm.internal.metrics.DoubleUpDownCounterAdapter;
-import org.elasticsearch.telemetry.apm.internal.metrics.LongAsyncCounterAdapter;
-import org.elasticsearch.telemetry.apm.internal.metrics.LongCounterAdapter;
-import org.elasticsearch.telemetry.apm.internal.metrics.LongGaugeAdapter;
-import org.elasticsearch.telemetry.apm.internal.metrics.LongHistogramAdapter;
-import org.elasticsearch.telemetry.apm.internal.metrics.LongUpDownCounterAdapter;
 import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
@@ -120,11 +110,6 @@ public class APMMeterRegistry implements MeterRegistry {
     }
 
     @Override
-    public DoubleCounter getDoubleCounter(String name) {
-        return doubleCounters.get(name);
-    }
-
-    @Override
     public DoubleAsyncCounter registerDoublesAsyncCounter(
         String name,
         String description,
@@ -147,20 +132,10 @@ public class APMMeterRegistry implements MeterRegistry {
     }
 
     @Override
-    public DoubleAsyncCounter getDoubleAsyncCounter(String name) {
-        return doubleAsynchronousCounters.get(name);
-    }
-
-    @Override
     public DoubleUpDownCounter registerDoubleUpDownCounter(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return register(doubleUpDownCounters, new DoubleUpDownCounterAdapter(meter, name, description, unit));
         }
-    }
-
-    @Override
-    public DoubleUpDownCounter getDoubleUpDownCounter(String name) {
-        return doubleUpDownCounters.get(name);
     }
 
     @Override
@@ -179,11 +154,6 @@ public class APMMeterRegistry implements MeterRegistry {
     }
 
     @Override
-    public DoubleGauge getDoubleGauge(String name) {
-        return doubleGauges.get(name);
-    }
-
-    @Override
     public DoubleHistogram registerDoubleHistogram(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return register(doubleHistograms, new DoubleHistogramAdapter(meter, name, description, unit));
@@ -195,11 +165,6 @@ public class APMMeterRegistry implements MeterRegistry {
         try (ReleasableLock lock = registerLock.acquire()) {
             return register(doubleHistograms, new DoubleHistogramAdapter(meter, name, description, unit, bucketBoundaries));
         }
-    }
-
-    @Override
-    public DoubleHistogram getDoubleHistogram(String name) {
-        return doubleHistograms.get(name);
     }
 
     @Override
@@ -225,25 +190,10 @@ public class APMMeterRegistry implements MeterRegistry {
     }
 
     @Override
-    public LongAsyncCounter getLongAsyncCounter(String name) {
-        return longAsynchronousCounters.get(name);
-    }
-
-    @Override
-    public LongCounter getLongCounter(String name) {
-        return longCounters.get(name);
-    }
-
-    @Override
     public LongUpDownCounter registerLongUpDownCounter(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return register(longUpDownCounters, new LongUpDownCounterAdapter(meter, name, description, unit));
         }
-    }
-
-    @Override
-    public LongUpDownCounter getLongUpDownCounter(String name) {
-        return longUpDownCounters.get(name);
     }
 
     @Override
@@ -254,11 +204,6 @@ public class APMMeterRegistry implements MeterRegistry {
                 new LongGaugeAdapter(meter, name, description, unit, timed(name, observer), deregisterFunc(longGauges))
             );
         }
-    }
-
-    @Override
-    public LongGauge getLongGauge(String name) {
-        return longGauges.get(name);
     }
 
     @Override
@@ -273,11 +218,6 @@ public class APMMeterRegistry implements MeterRegistry {
         try (ReleasableLock lock = registerLock.acquire()) {
             return register(longHistograms, new LongHistogramAdapter(meter, name, description, unit, bucketBoundaries));
         }
-    }
-
-    @Override
-    public LongHistogram getLongHistogram(String name) {
-        return longHistograms.get(name);
     }
 
     private <T extends AbstractInstrument<?>> T register(Registrar<T> registrar, T adapter) {
@@ -355,5 +295,25 @@ public class APMMeterRegistry implements MeterRegistry {
     // scope for testing
     Meter getMeter() {
         return meter;
+    }
+
+    DoubleCounter getDoubleCounter(String name) {
+        return doubleCounters.get(name);
+    }
+
+    DoubleAsyncCounter getDoubleAsyncCounter(String name) {
+        return doubleAsynchronousCounters.get(name);
+    }
+
+    DoubleGauge getDoubleGauge(String name) {
+        return doubleGauges.get(name);
+    }
+
+    LongAsyncCounter getLongAsyncCounter(String name) {
+        return longAsynchronousCounters.get(name);
+    }
+
+    LongGauge getLongGauge(String name) {
+        return longGauges.get(name);
     }
 }

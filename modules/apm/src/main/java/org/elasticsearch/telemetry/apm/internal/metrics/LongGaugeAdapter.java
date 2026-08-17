@@ -12,8 +12,6 @@ package org.elasticsearch.telemetry.apm.internal.metrics;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.ObservableLongGauge;
 
-import org.elasticsearch.telemetry.apm.AbstractAsyncInstrument;
-import org.elasticsearch.telemetry.apm.AbstractInstrument;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.util.Collection;
@@ -24,9 +22,9 @@ import java.util.function.Supplier;
 /**
  * LongGaugeAdapter wraps an otel ObservableLongGauge
  */
-public class LongGaugeAdapter extends AbstractAsyncInstrument<ObservableLongGauge> implements org.elasticsearch.telemetry.metric.LongGauge {
+class LongGaugeAdapter extends AbstractAsyncInstrument<ObservableLongGauge> implements org.elasticsearch.telemetry.metric.LongGauge {
 
-    public LongGaugeAdapter(
+    LongGaugeAdapter(
         Meter meter,
         String name,
         String description,

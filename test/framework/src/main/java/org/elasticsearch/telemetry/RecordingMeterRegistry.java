@@ -51,11 +51,6 @@ public class RecordingMeterRegistry implements MeterRegistry {
         return instrument;
     }
 
-    @Override
-    public DoubleCounter getDoubleCounter(String name) {
-        return (DoubleCounter) recorder.getInstrument(InstrumentType.DOUBLE_COUNTER, name);
-    }
-
     protected DoubleCounter buildDoubleCounter(String name, String description, String unit) {
         return new RecordingInstruments.RecordingDoubleCounter(name, recorder);
     }
@@ -65,11 +60,6 @@ public class RecordingMeterRegistry implements MeterRegistry {
         DoubleUpDownCounter instrument = buildDoubleUpDownCounter(name, description, unit);
         recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
         return instrument;
-    }
-
-    @Override
-    public DoubleUpDownCounter getDoubleUpDownCounter(String name) {
-        return (DoubleUpDownCounter) recorder.getInstrument(InstrumentType.DOUBLE_UP_DOWN_COUNTER, name);
     }
 
     protected DoubleUpDownCounter buildDoubleUpDownCounter(String name, String description, String unit) {
@@ -93,11 +83,6 @@ public class RecordingMeterRegistry implements MeterRegistry {
         return instrument;
     }
 
-    @Override
-    public DoubleGauge getDoubleGauge(String name) {
-        return (DoubleGauge) recorder.getInstrument(InstrumentType.DOUBLE_GAUGE, name);
-    }
-
     protected DoubleGauge buildDoubleGauge(
         String name,
         String description,
@@ -117,11 +102,6 @@ public class RecordingMeterRegistry implements MeterRegistry {
     @Override
     public DoubleHistogram registerDoubleHistogram(String name, String description, String unit, List<Double> bucketBoundaries) {
         return registerDoubleHistogram(name, description, unit);
-    }
-
-    @Override
-    public DoubleHistogram getDoubleHistogram(String name) {
-        return (DoubleHistogram) recorder.getInstrument(InstrumentType.DOUBLE_HISTOGRAM, name);
     }
 
     protected DoubleHistogram buildDoubleHistogram(String name, String description, String unit) {
@@ -153,11 +133,6 @@ public class RecordingMeterRegistry implements MeterRegistry {
     }
 
     @Override
-    public LongAsyncCounter getLongAsyncCounter(String name) {
-        return (LongAsyncCounter) recorder.getInstrument(InstrumentType.LONG_ASYNC_COUNTER, name);
-    }
-
-    @Override
     public DoubleAsyncCounter registerDoubleAsyncCounter(
         String name,
         String description,
@@ -179,17 +154,6 @@ public class RecordingMeterRegistry implements MeterRegistry {
         return instrument;
     }
 
-    @Override
-    public DoubleAsyncCounter getDoubleAsyncCounter(String name) {
-        return (DoubleAsyncCounter) recorder.getInstrument(InstrumentType.DOUBLE_ASYNC_COUNTER, name);
-
-    }
-
-    @Override
-    public LongCounter getLongCounter(String name) {
-        return (LongCounter) recorder.getInstrument(InstrumentType.LONG_COUNTER, name);
-    }
-
     protected LongCounter buildLongCounter(String name, String description, String unit) {
         return new RecordingInstruments.RecordingLongCounter(name, recorder);
     }
@@ -199,11 +163,6 @@ public class RecordingMeterRegistry implements MeterRegistry {
         LongUpDownCounter instrument = buildLongUpDownCounter(name, description, unit);
         recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
         return instrument;
-    }
-
-    @Override
-    public LongUpDownCounter getLongUpDownCounter(String name) {
-        return (LongUpDownCounter) recorder.getInstrument(InstrumentType.LONG_UP_DOWN_COUNTER, name);
     }
 
     protected LongUpDownCounter buildLongUpDownCounter(String name, String description, String unit) {
@@ -222,11 +181,6 @@ public class RecordingMeterRegistry implements MeterRegistry {
         return instrument;
     }
 
-    @Override
-    public LongGauge getLongGauge(String name) {
-        return (LongGauge) recorder.getInstrument(InstrumentType.LONG_GAUGE, name);
-    }
-
     protected LongGauge buildLongGauge(String name, String description, String unit, Supplier<Collection<LongWithAttributes>> observer) {
         return new RecordingInstruments.RecordingLongGauge(name, observer, recorder);
     }
@@ -238,18 +192,53 @@ public class RecordingMeterRegistry implements MeterRegistry {
         return instrument;
     }
 
+    protected LongHistogram buildLongHistogram(String name, String description, String unit) {
+        return new RecordingInstruments.RecordingLongHistogram(name, recorder);
+    }
+
     @Override
     public LongHistogram registerLongHistogram(String name, String description, String unit, List<Long> bucketBoundaries) {
         return registerLongHistogram(name, description, unit);
     }
 
-    @Override
-    public LongHistogram getLongHistogram(String name) {
-        return (LongHistogram) recorder.getInstrument(InstrumentType.LONG_HISTOGRAM, name);
+    public DoubleCounter getDoubleCounter(String name) {
+        return (DoubleCounter) recorder.getInstrument(InstrumentType.DOUBLE_COUNTER, name);
     }
 
-    protected LongHistogram buildLongHistogram(String name, String description, String unit) {
-        return new RecordingInstruments.RecordingLongHistogram(name, recorder);
+    public LongGauge getLongGauge(String name) {
+        return (LongGauge) recorder.getInstrument(InstrumentType.LONG_GAUGE, name);
+    }
+
+    public DoubleUpDownCounter getDoubleUpDownCounter(String name) {
+        return (DoubleUpDownCounter) recorder.getInstrument(InstrumentType.DOUBLE_UP_DOWN_COUNTER, name);
+    }
+
+    public LongUpDownCounter getLongUpDownCounter(String name) {
+        return (LongUpDownCounter) recorder.getInstrument(InstrumentType.LONG_UP_DOWN_COUNTER, name);
+    }
+
+    public DoubleGauge getDoubleGauge(String name) {
+        return (DoubleGauge) recorder.getInstrument(InstrumentType.DOUBLE_GAUGE, name);
+    }
+
+    public DoubleHistogram getDoubleHistogram(String name) {
+        return (DoubleHistogram) recorder.getInstrument(InstrumentType.DOUBLE_HISTOGRAM, name);
+    }
+
+    public LongAsyncCounter getLongAsyncCounter(String name) {
+        return (LongAsyncCounter) recorder.getInstrument(InstrumentType.LONG_ASYNC_COUNTER, name);
+    }
+
+    public DoubleAsyncCounter getDoubleAsyncCounter(String name) {
+        return (DoubleAsyncCounter) recorder.getInstrument(InstrumentType.DOUBLE_ASYNC_COUNTER, name);
+    }
+
+    public LongCounter getLongCounter(String name) {
+        return (LongCounter) recorder.getInstrument(InstrumentType.LONG_COUNTER, name);
+    }
+
+    public LongHistogram getLongHistogram(String name) {
+        return (LongHistogram) recorder.getInstrument(InstrumentType.LONG_HISTOGRAM, name);
     }
 
     /**

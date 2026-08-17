@@ -164,7 +164,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         final String clusterAlias = randomAlphaOfLengthBetween(3, 8);
         final RemoteClusterCredentialsManager credentialsResolver = mock(RemoteClusterCredentialsManager.class);
         when(credentialsResolver.resolveCredentials(clusterAlias)).thenReturn(new SecureString(randomAlphaOfLength(42)));
-        final Transport.Connection wrappedConnection = RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
+        final Transport.Connection wrappedConnection = RemoteConnectionManager.wrapConnectionWithRemoteInfo(
             connection,
             new RemoteConnectionInfo(randomProjectIdOrDefault(), randomProjectIdOrDefault(), clusterAlias),
             credentialsResolver
@@ -193,7 +193,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         final SecureString credentials = new SecureString(randomAlphaOfLength(42));
         // second credential will never be resolved
         when(credentialsResolver.resolveCredentials(clusterAlias)).thenReturn(credentials, (SecureString) null);
-        final Transport.Connection wrappedConnection = RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
+        final Transport.Connection wrappedConnection = RemoteConnectionManager.wrapConnectionWithRemoteInfo(
             connection,
             new RemoteConnectionInfo(randomProjectIdOrDefault(), randomProjectIdOrDefault(), clusterAlias),
             credentialsResolver
@@ -213,7 +213,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         // A genuine (non-default) origin & linked project ID round-trips through the wrapped connection.
         final ProjectId originProjectId = randomUniqueProjectId();
         final ProjectId linkedProjectId = randomUniqueProjectId();
-        final Transport.Connection wrappedConnection = RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
+        final Transport.Connection wrappedConnection = RemoteConnectionManager.wrapConnectionWithRemoteInfo(
             connection,
             new RemoteConnectionInfo(originProjectId, linkedProjectId, clusterAlias),
             credentialsResolver
@@ -231,7 +231,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
 
         // The default origin project ID is passed by here by default in non-MP clusters
         // The default linked project ID stands in for "no linked project" (e.g. non-CPS remote clusters)
-        final Transport.Connection defaultProjectConnection = RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
+        final Transport.Connection defaultProjectConnection = RemoteConnectionManager.wrapConnectionWithRemoteInfo(
             connection,
             new RemoteConnectionInfo(ProjectId.DEFAULT, ProjectId.DEFAULT, clusterAlias),
             credentialsResolver

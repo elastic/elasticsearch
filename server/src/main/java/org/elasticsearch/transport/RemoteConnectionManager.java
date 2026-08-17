@@ -65,7 +65,7 @@ public class RemoteConnectionManager implements ConnectionManager {
                 addConnectedNode(node);
                 try {
                     // called when a node is successfully connected through a proxy connection
-                    maybeLogDeprecationWarning(wrapConnectionWithRemoteClusterInfo(connection, remoteConnectionInfo, credentialsManager));
+                    maybeLogDeprecationWarning(wrapConnectionWithRemoteInfo(connection, remoteConnectionInfo, credentialsManager));
                 } catch (Exception e) {
                     logger.warn("Failed to log deprecation warning.", e);
                 }
@@ -82,7 +82,7 @@ public class RemoteConnectionManager implements ConnectionManager {
         return credentialsManager;
     }
 
-    RemoteConnectionInfo getRemoteClusterProjectInfo() {
+    RemoteConnectionInfo getRemoteConnectionInfo() {
         return remoteConnectionInfo;
     }
 
@@ -131,7 +131,7 @@ public class RemoteConnectionManager implements ConnectionManager {
             profile,
             listener.delegateFailureAndWrap(
                 (l, connection) -> l.onResponse(
-                    maybeLogDeprecationWarning(wrapConnectionWithRemoteClusterInfo(connection, remoteConnectionInfo, credentialsManager))
+                    maybeLogDeprecationWarning(wrapConnectionWithRemoteInfo(connection, remoteConnectionInfo, credentialsManager))
                 )
             )
         );
@@ -272,7 +272,7 @@ public class RemoteConnectionManager implements ConnectionManager {
 
     private Transport.Connection getConnectionInternal(DiscoveryNode node) throws NodeNotConnectedException {
         Transport.Connection connection = delegate.getConnection(node);
-        return wrapConnectionWithRemoteClusterInfo(connection, remoteConnectionInfo, credentialsManager);
+        return wrapConnectionWithRemoteInfo(connection, remoteConnectionInfo, credentialsManager);
     }
 
     private synchronized void addConnectedNode(DiscoveryNode addedNode) {
@@ -494,7 +494,7 @@ public class RemoteConnectionManager implements ConnectionManager {
         }
     }
 
-    static InternalRemoteConnection wrapConnectionWithRemoteClusterInfo(
+    static InternalRemoteConnection wrapConnectionWithRemoteInfo(
         Transport.Connection connection,
         RemoteConnectionInfo remoteConnectionInfo,
         RemoteClusterCredentialsManager credentialsManager

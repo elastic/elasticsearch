@@ -13,3 +13,7 @@ esplugin {
   description = 'Test module for resource exhaustion and 429 response verification'
   classname = 'org.elasticsearch.test.resourceexhaustion.ResourceExhaustionPlugin'
 }
+
+dependencies {
+  clusterModules project(':modules:lang-painless')
+}

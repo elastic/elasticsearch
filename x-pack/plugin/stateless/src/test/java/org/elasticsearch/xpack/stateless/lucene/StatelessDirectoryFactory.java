@@ -22,6 +22,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.FilterIndexOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -73,9 +74,10 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
  *   <li>{@link #newSearchDirectory(Path)} and its overloads reproduce {@link SearchDirectory}: reads of committed files
  *       flow through the stateless blob cache, as on a search node. Writes go to a local NIOFSDirectory, and each file
  *       becomes readable through the cache as soon as it is closed, so nothing is ever read from the local copy.</li>
- *   <li>{@link #newIndexDirectory(Path)} reproduces {@link IndexDirectory}: files are read from the local copy for as long
- *       as they have not been uploaded to the object store, as on an indexing node. Nothing is ever uploaded here, so
- *       reads stay on the local path for the lifetime of the directory.</li>
+ *   <li>{@link #newIndexDirectory(Path, Path)} reproduces {@link IndexDirectory}: files are read from the local copy for as
+ *       long as they have not been uploaded to the object store, as on an indexing node. Nothing is ever uploaded here, so
+ *       reads stay on the local path for the lifetime of the directory. Just like in production code, the index path is
+ *       wiped when the directory is created.</li>
  * </ul>
  */
 public final class StatelessDirectoryFactory {
@@ -131,39 +133,66 @@ public final class StatelessDirectoryFactory {
     }
 
     /**
+     * Creates a directory that keeps the Lucene index, the node environment and the shared cache all under
+     * {@code indexPath}. Fine for a scratch directory nothing else reads. Prefer {@link #newIndexDirectory(Path, Path)}
+     * when {@code indexPath} is also opened as a plain Lucene index, since that keeps the node
+     * environment and cache files out of it.
+     */
+    public static Directory newIndexDirectory(Path indexPath) throws IOException {
+        return newIndexDirectory(indexPath, indexPath);
+    }
+
+    /**
      * Creates an {@link IndexDirectory} whose files are written locally and never uploaded to the object store, so that
      * {@link IndexDirectory#openInput} returns a {@code ReopeningIndexInput} reading from the local file. That is the read
      * path a stateless indexing node takes when it reopens a just-written segment file, for instance when a Lucene merge
      * reopens the flat vector file it has just written.
+     *
+     * <p><b>Any existing index at {@code indexPath} is destroyed.</b> {@link IndexDirectory} tracks only the files it has
+     * itself created: {@link IndexDirectory#listAll()} never reports what is on disk, so pre-existing files would be
+     * invisible to Lucene yet still collide when it creates an output of the same name. {@code indexPath} is therefore
+     * wiped with {@link Lucene#cleanLuceneIndex}, exactly as {@code StatelessPlugin} does before wrapping the directory of
+     * a promotable shard.
      *
      * <p>The directory is wrapped in a {@link StoreMetricsDirectory} to match the input chain a real shard sees (see
      * {@code Store}). The shared blob cache is created because {@link IndexDirectory} requires one, but it is never read
      * from on this path: no blob container is registered and no file is ever marked as uploaded, so
      * {@code IndexBlobStoreCacheDirectory.containsFile} returns {@code false} for every name.
      *
-     * @param indexPath path where index files are written; also holds the node environment and cache files
+     * @param indexPath path where index files are written; wiped before use
+     * @param workPath  scratch directory for the node environment and cache files
      * @return a read-write directory reproducing the stateless indexing-node local read path
      */
-    public static Directory newIndexDirectory(Path indexPath) throws IOException {
-        // The directory is empty at construction, and the cache is never read on this path
-        var infra = Infra.create(indexPath, SHARED_CACHE_REGION_SIZE_SETTING.getDefault(Settings.EMPTY), Settings.EMPTY);
+    public static Directory newIndexDirectory(Path indexPath, Path workPath) throws IOException {
+        var localDirectory = new MMapDirectory(indexPath);
         boolean success = false;
         try {
-            var indexDirectory = new IndexDirectory(
-                new MMapDirectory(indexPath),
-                new IndexBlobStoreCacheDirectory(infra.cacheService(), new ShardId(new Index("index", "_na_"), 0)),
-                null,
-                true
-            );
-            var directory = new IndexNodeDirectory(
-                new StoreMetricsDirectory(indexDirectory, new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new)),
-                infra
-            );
-            success = true;
-            return directory;
+            // IndexDirectory requires an empty local directory. Wipe before creating the infrastructure, so that
+            // the node environment and cache files are not in the way when indexPath and workPath are the same directory.
+            Lucene.cleanLuceneIndex(localDirectory);
+            // The cache is never read on this path, so a single region is enough
+            var infra = Infra.create(workPath, SHARED_CACHE_REGION_SIZE_SETTING.getDefault(Settings.EMPTY), Settings.EMPTY);
+            try {
+                var indexDirectory = new IndexDirectory(
+                    localDirectory,
+                    new IndexBlobStoreCacheDirectory(infra.cacheService(), new ShardId(new Index("index", "_na_"), 0)),
+                    null,
+                    true
+                );
+                var directory = new IndexNodeDirectory(
+                    new StoreMetricsDirectory(indexDirectory, new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new)),
+                    infra
+                );
+                success = true;
+                return directory;
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(infra);
+                }
+            }
         } finally {
             if (success == false) {
-                IOUtils.closeWhileHandlingException(infra);
+                IOUtils.closeWhileHandlingException(localDirectory);
             }
         }
     }

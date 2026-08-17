@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.internal.hppc.LongArrayList;
@@ -31,7 +32,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -45,7 +45,6 @@ import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.lucene.queries.SortedSetDocValuesRangeQuery;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -254,7 +253,7 @@ class DownsampleShardIndexer {
 
     private Query createQuery() {
         if (this.state.started() && this.state.tsid() != null) {
-            return SortedSetDocValuesRangeQuery.newSlowRangeQuery(TimeSeriesIdFieldMapper.NAME, this.state.tsid(), null, true, false);
+            return SortedSetDocValuesField.newSlowRangeQuery(TimeSeriesIdFieldMapper.NAME, this.state.tsid(), null, true, false);
         }
         return Queries.ALL_DOCS_INSTANCE;
     }
@@ -885,7 +884,7 @@ class DownsampleShardIndexer {
             return builder;
         }
 
-        public XContentBuilder buildExtraResetDocument(long timestamp, List<Tuple<String, ResetDataPoints.ResetValue>> resetValues)
+        public XContentBuilder buildExtraResetDocument(long timestamp, Map<String, ResetDataPoints.ResetValue> resetValues)
             throws IOException {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE);
             builder.startObject();
@@ -894,8 +893,8 @@ class DownsampleShardIndexer {
             for (DimensionFieldDownsampler dimensionFieldDownsampler : dimensionDownsamplers) {
                 dimensionFieldDownsampler.write(builder);
             }
-            for (Tuple<String, ResetDataPoints.ResetValue> resetValue : resetValues) {
-                resetValue.v2().write(resetValue.v1(), builder);
+            for (var resetValue : resetValues.entrySet()) {
+                resetValue.getValue().write(resetValue.getKey(), builder);
             }
 
             extractLegacyDimensionsIfNeeded(builder);

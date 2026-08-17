@@ -39,10 +39,8 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.WildcardQuery;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -97,9 +95,7 @@ import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
-import org.elasticsearch.lucene.queries.SortedSetDocValuesRangeQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
-import org.elasticsearch.lucene.search.XDocValuesRewriteMethod;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.SortedBinaryDocValuesStringFieldScript;
@@ -808,7 +804,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else if (usesBinaryDocValues) {
                 return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value), useArrayOrderBinaryDocValues);
             } else {
-                return SortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
+                return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
             }
         }
 
@@ -848,7 +844,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     includeUpper
                 );
             } else {
-                return SortedSetDocValuesRangeQuery.newSlowRangeQuery(
+                return SortedSetDocValuesField.newSlowRangeQuery(
                     name(),
                     lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
                     upperTerm == null ? null : indexedValueForSearch(upperTerm),
@@ -889,7 +885,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     prefixLength,
                     maxExpansions,
                     transpositions,
-                    XDocValuesRewriteMethod.DOC_VALUES_REWRITE,
+                    MultiTermQuery.DOC_VALUES_REWRITE,
                     context,
                     name()
                 );
@@ -916,7 +912,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else {
                 if (caseInsensitive == false) {
                     Term prefix = new Term(name(), indexedValueForSearch(value));
-                    return new PrefixQuery(prefix, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                    return new PrefixQuery(prefix, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
                 return new StringScriptFieldPrefixQuery(
                     new Script(""),
@@ -1275,9 +1271,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                     Term term = new Term(name(), value);
                     if (context.getCircuitBreaker() != null) {
                         Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
-                        return new AutomatonQuery(term, dfa, false, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                        return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
                     }
-                    return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                    return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
 
                 StringFieldScript.LeafFactory leafFactory = ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx);
@@ -1309,9 +1305,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                     Term term = new Term(name(), value);
                     if (context.getCircuitBreaker() != null) {
                         Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
-                        return new AutomatonQuery(term, dfa, false, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                        return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
                     }
-                    return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                    return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
             }
         }
@@ -1350,7 +1346,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                             maxDeterminizedStates,
                             context.getCircuitBreaker()
                         );
-                        return new AutomatonQuery(term, dfa, false, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                        return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
                     }
                     return new RegexpQuery(
                         new Term(name(), indexedValueForSearch(value)),
@@ -1358,7 +1354,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         matchFlags,
                         RegexpQuery.DEFAULT_PROVIDER,
                         maxDeterminizedStates,
-                        XDocValuesRewriteMethod.DOC_VALUES_REWRITE
+                        MultiTermQuery.DOC_VALUES_REWRITE
                     );
                 }
             }
@@ -1577,9 +1573,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         // strings. This is possible as an eventual user option.
 
         if (fieldType().usesArrayOrderBinaryDocValues()) {
-            // retainValues=true: mapColumnBatchArrayOrder buffers a whole document's values in docSlots[]
-            // and only encodes them once the cursor has advanced to the next doc.
-            mapColumnBatchArrayOrder(ctx, EscfColumnTransforms.utf8Cursor(source, true), emitTerms, emitDvs, emitFallback);
+            mapColumnBatchArrayOrder(ctx, source, emitTerms, emitDvs, emitFallback);
         } else {
             mapColumnBatchSingleValue(ctx, source, emitTerms, emitDvs, emitFallback);
         }
@@ -1587,13 +1581,16 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private void mapColumnBatchArrayOrder(
         BatchMappingContext ctx,
-        ObjectTupleCursor<BytesRef> cursor,
+        EscfColumn source,
         boolean emitTerms,
         boolean emitDvs,
         boolean emitFallback
     ) {
         final int docCount = ctx.docCount();
 
+        // retainValues=false: each value is appended to the document blob before the cursor advances, so no
+        // value has to outlive the nextDoc() that moves past it.
+        final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
         // TODO: make the batch return these column builders to wire up recycling
         final EscfColumnBuilder terms = emitTerms ? mergeStringColumn() : null;
         final EscfColumnBuilder binaryDvs = emitDvs ? mergeStringColumn() : null;
@@ -1604,13 +1601,13 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         int currentDoc = -1;
         boolean ignoredThisDoc = false;
-        // Per-doc element buffer for blob encoding; null when blob is not emitted.
-        BytesRef[] docSlots = emitDvs ? new BytesRef[4] : null;
-        // Batch-scoped encode buffer. ArrayOrderInlineNull.encode writes each document's blob here and returns a
-        // view over it; binaryDvs.setString copies the bytes out immediately, so the buffer is free to be
-        // overwritten on the next document.
-        final BytesRefBuilder blobScratch = emitDvs ? new BytesRefBuilder() : null;
+        // Buffer null when not emitted. Each document's slots are appended as they are read and
+        // the finished blob is handed to binaryDvs.setString, which copies it out immediately, so the
+        // buffer is free to be rewritten.
+        final BytesRefBuilder docBlob = emitDvs ? new BytesRefBuilder() : null;
+        int pos = 0;
         int docSlotCount = 0;
+        int lastValueLength = 0;
         // True when the current doc has at least one non-null slot; gates binary dv blob emission.
         boolean hasNonNull = false;
 
@@ -1622,13 +1619,12 @@ public final class KeywordFieldMapper extends FieldMapper {
                 if (binaryDvs != null && docSlotCount > 0) {
                     dvCounts.setLong(currentDoc, docSlotCount);
                     if (hasNonNull) {
-                        // TODO: let ArrayOrderInlineNull.encode write straight into the column builder's stream. The
-                        // scratch buffer removes the per-document allocation, but the bytes are still copied once.
-                        binaryDvs.setString(
-                            currentDoc,
-                            MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(docSlots, docSlotCount, blobScratch)
-                        );
+                        // TODO: considering appending slots straight into the column builder's stream.
+                        // A single non-null slot is stored raw, so drop its length prefix; both cases end at pos.
+                        final int length = docSlotCount == 1 ? lastValueLength : pos;
+                        binaryDvs.setString(currentDoc, docBlob.bytes(), pos - length, length);
                     }
+                    pos = 0;
                     docSlotCount = 0;
                     hasNonNull = false;
                 }
@@ -1650,13 +1646,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                     // Fall through to normal value processing below.
                 } else {
                     if (binaryDvs != null) {
-                        if (docSlotCount == docSlots.length) {
-                            docSlots = Arrays.copyOf(
-                                docSlots,
-                                ArrayUtil.oversize(docSlotCount + 1, RamUsageEstimator.NUM_BYTES_OBJECT_REF)
-                            );
-                        }
-                        docSlots[docSlotCount++] = null;
+                        pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, null);
+                        docSlotCount++;
                         // hasNonNull stays false: null slots do not produce a binary dv blob.
                     }
                     continue;
@@ -1694,10 +1685,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                 terms.setString(currentDoc, binaryValue);
             }
             if (binaryDvs != null) {
-                if (docSlotCount == docSlots.length) {
-                    docSlots = Arrays.copyOf(docSlots, ArrayUtil.oversize(docSlotCount + 1, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
-                }
-                docSlots[docSlotCount++] = binaryValue;
+                pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, binaryValue);
+                lastValueLength = binaryValue.length;
+                docSlotCount++;
                 hasNonNull = true;
             }
         }

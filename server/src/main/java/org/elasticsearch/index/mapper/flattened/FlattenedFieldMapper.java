@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.DirectoryReader;
@@ -31,12 +32,10 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermRangeQuery;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOBooleanSupplier;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
@@ -108,7 +107,6 @@ import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullPrefixQuery;
 import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
-import org.elasticsearch.lucene.queries.SortedSetDocValuesRangeQuery;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.FlattenedDocValuesField;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
@@ -125,7 +123,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -740,7 +737,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                     }
                     return new ScanningBinaryDocValuesTermQuery(name(), keyedValue, false);
                 } else {
-                    return SortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
+                    return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
                 }
             } else {
                 return super.termQuery(value, context);
@@ -776,7 +773,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 BytesRef upper = new BytesRef(keyPrefix);
                 upper.bytes[upper.offset + upper.length - 1] = (byte) 0x01; // bump the trailing separator byte for an exclusive upper bound
 
-                return SortedSetDocValuesRangeQuery.newSlowRangeQuery(name(), lower, upper, true, false);
+                return SortedSetDocValuesField.newSlowRangeQuery(name(), lower, upper, true, false);
             }
             return new PrefixQuery(new Term(name(), keyPrefix));
         }
@@ -1888,7 +1885,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
      *   <li>{@code <root>._keyed.counts} — the slot count per document, including null slots.</li>
      * </ol>
      *
-     * <p>Two known divergences from the row path:
+     * <p>Known divergence from the row path:
      * <ul>
      *   <li><b>Slot order.</b> Slots are emitted in schema-leaf order (first-seen key order across the batch) rather than per-document
      *       JSON order. The two agree when all documents list their keys in the same order, which is the common case.
@@ -1898,9 +1895,14 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
      *       Same divergence as {@link KeywordFieldMapper#mapColumnBatch}.</li>
      * </ul>
      *
-     * <p>TODO: {@code depth_limit} and {@code relativeKeys} uniqueness are not enforced — deferred to the production hook-up in
-     * {@code ShardBatchMapper}, where the right schema representation will need to be propogated.
+     * <p>Duplicate relative keys within a batch are benign, including when one document carries both spellings
+     * ({@code {"flat":{"a.b":1,"a":{"b":2}}}} produces two columns whose relative key is {@code a.b}). Every column of
+     * the group arrives here in a single call, so both slots land in the same per-document blob and the emitted slot
+     * count matches the row path. This is why aliasing is safe for group mappers but not for per-leaf ones, which
+     * {@code ShardBatchMapper#resolveMappers} rejects.
      *
+     * @throws IllegalArgumentException when a relative key's depth exceeds {@code depth_limit}, mirroring
+     *         {@code FlattenedFieldParser.validateDepthLimit}
      * @throws UnsupportedOperationException when a value exceeds {@code ignore_above}, so that the caller falls back to the row path,
      *         which writes the {@code <root>._keyed._ignored} channel this path does not yet produce
      */
@@ -1911,6 +1913,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         final int columnCount = columns.length;
 
         // The "key\0" prefix is constant across documents for a given column, so build it once.
+        // Also validate depth_limit and the reserved separator character here, once per key.
         final BytesRef[] keyPrefixes = new BytesRef[columnCount];
         final BytesRefBuilder prefixScratch = new BytesRefBuilder();
         for (int k = 0; k < columnCount; k++) {
@@ -1918,6 +1921,13 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             if (key.indexOf(FlattenedFieldParser.SEPARATOR_BYTE) >= 0) {
                 throw new IllegalArgumentException(
                     "Keys in [flattened] fields cannot contain the reserved character \\0. Offending key: [" + key + "]."
+                );
+            }
+            // depth_limit mirrors FlattenedFieldParser.validateDepthLimit: path.length() + 1 > depthLimit,
+            // where path.length() equals the number of dots in the relative key (nesting depth).
+            if (dotCountInKey(key) + 1 > depthLimit()) {
+                throw new IllegalArgumentException(
+                    "The provided [flattened] field [" + fullPath() + "] exceeds the maximum depth limit of [" + depthLimit() + "]."
                 );
             }
             prefixScratch.clear();
@@ -1930,9 +1940,9 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         // Doc each cursor is currently positioned on, or NO_MORE_DOCS once drained.
         final int[] cursorDocs = new int[columnCount];
         for (int k = 0; k < columnCount; k++) {
-            // retainValues=true: a document's slots are buffered and only encoded once the cursor has moved on,
-            // so the value BytesRef must stay valid past the nextDoc() call that advances off this document.
-            final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(columns[k], true);
+            // retainValues=false: each value is appended to the document blob before the cursor advances, so no
+            // value has to outlive the nextDoc() that moves past it.
+            final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(columns[k], false);
             cursors.add(cursor);
             cursorDocs[k] = cursor.nextDoc();
         }
@@ -1941,16 +1951,20 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         final EscfColumnBuilder counts = mergeLongColumn();
         final BytesRef nullValueBytes = builder.nullValue.get() != null ? new BytesRef(builder.nullValue.get()) : null;
 
-        // Per-document tuple buffer, reused across documents. Interleaved: tuples[2*i] = keyPrefix, tuples[2*i+1] = value
-        // (null value signals a null slot). No separate null marker is needed: the value's presence or absence carries the
-        // distinction, and the retained cursor BytesRef is valid until the column builder consumes it at end-of-document.
-        BytesRef[] tuples = new BytesRef[8];
-        // Batch-scoped encode buffer. encodeTuples writes each document's blob here and returns a view over it;
-        // keyed.setString copies the bytes out immediately, so the buffer is free to be overwritten next document.
-        final BytesRefBuilder encodeScratch = new BytesRefBuilder();
+        final BytesRefBuilder docBlob = new BytesRefBuilder();
+        int seedEstimate = 0;
+        for (int k = 0; k < columnCount; k++) {
+            if (cursorDocs[k] != DocIdSetIterator.NO_MORE_DOCS) {
+                final BytesRef first = cursors.get(k).value();
+                seedEstimate += MultiValuedBinaryDocValuesField.VINT_MAX_BYTES + keyPrefixes[k].length + (first == null ? 0 : first.length);
+            }
+        }
+        // ~1.25x headroom for documents a little wider than the first.
+        docBlob.grow(seedEstimate + (seedEstimate >> 2));
 
         for (int doc = 0; doc < docCount; doc++) {
             int slotCount = 0;
+            int pos = 0;
             // Column-minor within a document: all of key[0]'s values, then key[1]'s, ... See the slot-order note above.
             for (int k = 0; k < columnCount; k++) {
                 final BytesRef keyPrefix = keyPrefixes[k];
@@ -1978,23 +1992,17 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                         }
                     }
 
-                    if (2 * slotCount + 2 > tuples.length) {
-                        tuples = Arrays.copyOf(tuples, 2 * ArrayUtil.oversize(slotCount + 1, RamUsageEstimator.NUM_BYTES_OBJECT_REF * 2));
-                    }
-                    tuples[2 * slotCount] = keyPrefix;
-                    tuples[2 * slotCount + 1] = value;
+                    pos = MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.appendSlot(docBlob, pos, keyPrefix, value);
                     slotCount++;
 
+                    // The value's bytes are already in docBlob, so advancing past it is safe.
                     cursorDocs[k] = cursor.nextDoc();
                 }
             }
 
             if (slotCount > 0) {
                 // Unlike the non-keyed ArrayOrderInlineNull, an all-null document still writes a blob: its null slots carry keys.
-                keyed.setString(
-                    doc,
-                    MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.encodeTuples(tuples, slotCount, encodeScratch)
-                );
+                keyed.setString(doc, docBlob.bytes(), 0, pos);
                 counts.setLong(doc, slotCount);
             }
         }
@@ -2028,6 +2036,17 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
         b.lockScalar(EscfColumnKind.LONG);
         return b;
+    }
+
+    /** Counts the number of {@code '.'} characters in {@code key}. Used to compute nesting depth for {@code depth_limit} checks. */
+    private static int dotCountInKey(String key) {
+        int count = 0;
+        for (int i = 0; i < key.length(); i++) {
+            if (key.charAt(i) == '.') {
+                count++;
+            }
+        }
+        return count;
     }
 
     /** Mirrors the row path's immense-keyed-value error in {@link FlattenedFieldParser}. */

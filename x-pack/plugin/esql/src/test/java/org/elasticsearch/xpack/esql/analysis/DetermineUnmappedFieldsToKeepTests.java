@@ -297,7 +297,10 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
      * descends through them and the {@code KEEP} still governs. ({@code emp_no} is kept so the {@code WHERE} above stays resolvable.)
      */
     public void testKeepOrderSeenThroughTransparentCommandsAboveKeep() {
-        assertThat(keepOrderFor("FROM test | KEEP emp_no, unmapped.* | WHERE emp_no > 0 | LIMIT 5"), equalTo(List.of("emp_no", "unmapped.*")));
+        assertThat(
+            keepOrderFor("FROM test | KEEP emp_no, unmapped.* | WHERE emp_no > 0 | LIMIT 5"),
+            equalTo(List.of("emp_no", "unmapped.*"))
+        );
     }
 
     private static List<String> keepOrderFor(String query) {

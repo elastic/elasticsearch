@@ -13,6 +13,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 
+import java.util.EnumSet;
+
 /**
  * Golden tests for PromQL to ESQL plan translation.
  */
@@ -165,7 +167,8 @@ public class PromqlGoldenTests extends GoldenTestCase {
         builder("""
             PROMQL index=k8s step=1h result=(
               sum by (tier) (label_replace(network.bytes_in, "tier", "$1", "region", "(.+)"))
-            )""").expectationChangesAt(DIMENSION_VALUES)
+            )""").stages(EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION))
+            .expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
             .expectationChangesAt(PACK_DIMS_AGG)
             .run();
@@ -181,7 +184,8 @@ public class PromqlGoldenTests extends GoldenTestCase {
         builder("""
             PROMQL index=k8s step=1h result=(
               sum by (pod) (label_replace(network.bytes_in, "pod", "p-$1", "pod", "(.+)"))
-            )""").expectationChangesAt(DIMENSION_VALUES)
+            )""").stages(EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION))
+            .expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
             .expectationChangesAt(PACK_DIMS_AGG)
             .run();
@@ -195,7 +199,8 @@ public class PromqlGoldenTests extends GoldenTestCase {
         builder("""
             PROMQL index=k8s step=1h result=(
               sum by (pod) (label_replace(network.bytes_in, "pod", "x", "region", "nomatch"))
-            )""").expectationChangesAt(DIMENSION_VALUES)
+            )""").stages(EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION))
+            .expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
             .expectationChangesAt(PACK_DIMS_AGG)
             .run();

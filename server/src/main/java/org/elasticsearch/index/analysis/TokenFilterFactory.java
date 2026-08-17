@@ -97,6 +97,36 @@ public interface TokenFilterFactory {
     }
 
     /**
+     * Returns a value-typed key used by {@link AnalysisRegistry} to share analyzers that reference
+     * this factory across indices. Two factories whose {@code sharingKey()} results are equal (via
+     * {@code Object.equals}/{@code hashCode} on the returned value) are treated as behaviorally
+     * equivalent and their analyzers can be shared.
+     *
+     * <p><b>Defaults to identity</b> ({@code this}): a factory that does not override this never
+     * shares, which is always safe — at worst it misses a deduplication, never produces wrong
+     * tokenization. Override it to opt into sharing: hold a single {@code Config} record over all
+     * settings that influence behavior and return that record, so adding a setting means adding a
+     * record component (no separate place to forget). Stateless factories return a constant.
+     *
+     * <p>An override MUST capture all state that affects behavior, including any external resource
+     * version (file mtime, synonyms-set generation, etc). The returned value's {@code equals}/
+     * {@code hashCode} MUST be stable across calls — notably, raw
+     * {@link org.apache.lucene.analysis.CharArraySet} fields are unsafe (their {@code hashCode}
+     * is unstable). Wrap them in {@link Analysis.StableCharArraySet} so the key holds a
+     * stable-hash reference (equality still defers to
+     * {@link org.apache.lucene.analysis.CharArraySet#equals}).
+     *
+     * <p><b>Testing contract</b>: every setting folded into this key must also be declared as a
+     * distinguishing setting in the factory's {@code AnalysisFactoryTestCase} sharing probe (or the
+     * factory marked stateless / identity there). That test fails the build if a registered factory
+     * is left unclassified, and asserts each declared setting actually changes the key — so adding a
+     * setting here means adding it to that declaration too.
+     */
+    default Object sharingKey() {
+        return this;
+    }
+
+    /**
      * A TokenFilterFactory that does no filtering to its TokenStream
      */
     TokenFilterFactory IDENTITY_FILTER = new TokenFilterFactory() {
@@ -108,6 +138,12 @@ public interface TokenFilterFactory {
         @Override
         public TokenStream create(TokenStream tokenStream) {
             return tokenStream;
+        }
+
+        @Override
+        public Object sharingKey() {
+            // Constant singleton — every reference is the same instance.
+            return this;
         }
     };
 }

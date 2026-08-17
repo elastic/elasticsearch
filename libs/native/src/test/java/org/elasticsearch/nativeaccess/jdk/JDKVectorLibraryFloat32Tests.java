@@ -12,8 +12,8 @@ package org.elasticsearch.nativeaccess.jdk;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
+import org.elasticsearch.nativeaccess.SimdVecLibraryTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -26,33 +26,33 @@ import java.util.function.IntFunction;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 import static org.hamcrest.Matchers.containsString;
 
-public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests {
+public class JDKVectorLibraryFloat32Tests extends SimdVecLibraryTests {
 
     static final ValueLayout.OfFloat LAYOUT_LE_FLOAT = JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
 
     final float delta;
 
-    public JDKVectorLibraryFloat32Tests(VectorSimilarityFunctions.Function function, int size) {
+    public JDKVectorLibraryFloat32Tests(SimdVecLibrary.SimilarityFunction function, int size) {
         super(function, size);
         this.delta = 1e-5f * size; // scale the delta with the size
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
-        List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(VectorSimilarityFunctionsTests.parametersFactory());
+        List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(SimdVecLibraryTests.parametersFactory());
         // cosine is not used on floats
-        baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.Function.COSINE);
+        baseParams.removeIf(os -> os[0] == SimdVecLibrary.SimilarityFunction.COSINE);
         return baseParams;
     }
 
     @BeforeClass
     public static void beforeClass() {
-        VectorSimilarityFunctionsTests.setup();
+        SimdVecLibraryTests.setup();
     }
 
     @AfterClass
     public static void afterClass() {
-        VectorSimilarityFunctionsTests.cleanup();
+        SimdVecLibraryTests.cleanup();
     }
 
     public void testAllZeroValues() {
@@ -84,13 +84,11 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
 
             float expected = ScalarOperations.similarity(function, values[first], values[second]);
             assertEquals(expected, similarity(nativeSeg1, nativeSeg2, dims), delta);
-            if (supportsHeapSegments()) {
-                var heapSeg1 = MemorySegment.ofArray(values[first]);
-                var heapSeg2 = MemorySegment.ofArray(values[second]);
-                assertEquals(expected, similarity(heapSeg1, heapSeg2, dims), delta);
-                assertEquals(expected, similarity(nativeSeg1, heapSeg2, dims), delta);
-                assertEquals(expected, similarity(heapSeg1, nativeSeg2, dims), delta);
-            }
+            var heapSeg1 = MemorySegment.ofArray(values[first]);
+            var heapSeg2 = MemorySegment.ofArray(values[second]);
+            assertEquals(expected, similarity(heapSeg1, heapSeg2, dims), delta);
+            assertEquals(expected, similarity(nativeSeg1, heapSeg2, dims), delta);
+            assertEquals(expected, similarity(heapSeg1, nativeSeg2, dims), delta);
         }
     }
 
@@ -114,11 +112,9 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
         similarityBulk(segment, nativeQuerySeg, dims, numVecs, bulkScoresSeg);
         assertScoresEquals(expectedScores, bulkScoresSeg, delta);
 
-        if (supportsHeapSegments()) {
-            float[] bulkScores = new float[numVecs];
-            similarityBulk(segment, nativeQuerySeg, dims, numVecs, MemorySegment.ofArray(bulkScores));
-            assertArrayEquals(expectedScores, bulkScores, delta);
-        }
+        float[] bulkScores = new float[numVecs];
+        similarityBulk(segment, nativeQuerySeg, dims, numVecs, MemorySegment.ofArray(bulkScores));
+        assertArrayEquals(expectedScores, bulkScores, delta);
     }
 
     public void testFloat32BulkWithOffsets() {
@@ -178,7 +174,6 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
 
     public void testFloat32BulkWithOffsetsHeapSegments() {
         assumeTrue(notSupportedMsg(), supported());
-        assumeTrue("Requires support for heap MemorySegments", supportsHeapSegments());
         final int dims = size;
         final int numVecs = randomIntBetween(2, 101);
         var offsets = new int[numVecs];
@@ -365,10 +360,13 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
         assumeTrue(notSupportedMsg(), supported());
         var segment = arena.allocate((long) size * 3 * Float.BYTES);
 
-        Exception ex = expectThrows(IAE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size + 1), size));
-        assertThat(ex.getMessage(), containsString("Dimensions differ"));
+        int elemBytes = size * Float.BYTES;
+        // Segments can differ in size and be larger than length: only length bytes are read
+        var aTail = randomIntBetween(0, size) * Float.BYTES;
+        var bTail = randomIntBetween(0, size) * Float.BYTES;
+        similarity(segment.asSlice(0L, elemBytes + aTail), segment.asSlice(0L, elemBytes + bTail), size);
 
-        ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
+        Exception ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
 
         ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size), -1));

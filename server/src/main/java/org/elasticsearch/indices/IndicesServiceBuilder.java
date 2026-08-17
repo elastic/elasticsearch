@@ -35,7 +35,6 @@ import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
@@ -94,7 +93,6 @@ public class IndicesServiceBuilder {
     Map<String, PluggableDirectoryMetricsHolder<?>> directoryMetricHolderMap;
     ThreadLocalDirectoryMetricHolder<StoreMetrics> storeMetricsHolder;
     ThrottlingRecoveryService throttlingRecoveryService;
-    RecoverySchedulingListener recoverySchedulingListener;
 
     public IndicesServiceBuilder settings(Settings settings) {
         this.settings = settings;
@@ -219,11 +217,6 @@ public class IndicesServiceBuilder {
 
     public IndicesServiceBuilder throttlingRecoveryService(ThrottlingRecoveryService throttlingRecoveryService) {
         this.throttlingRecoveryService = throttlingRecoveryService;
-        return this;
-    }
-
-    public IndicesServiceBuilder recoverySchedulingListener(RecoverySchedulingListener recoverySchedulingListener) {
-        this.recoverySchedulingListener = recoverySchedulingListener;
         return this;
     }
 

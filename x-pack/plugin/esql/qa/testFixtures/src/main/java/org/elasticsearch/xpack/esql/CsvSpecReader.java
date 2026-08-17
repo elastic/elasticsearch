@@ -49,6 +49,7 @@ public final class CsvSpecReader {
         private final StringBuilder data = new StringBuilder();
         private final List<String> requiredCapabilities = new ArrayList<>();
         private final List<String> requiredCapabilitiesLocalCluster = new ArrayList<>();
+        private final List<String> missingCapabilitiesLocalCluster = new ArrayList<>();
         private final List<String> missingCapabilitiesRemoteCluster = new ArrayList<>();
         private final List<DatasetSource> datasetSources = new ArrayList<>();
         private final List<SpecReader.Parser> optionParsers = new ArrayList<>();
@@ -85,6 +86,7 @@ public final class CsvSpecReader {
                 testCase.query = query.toString();
                 testCase.requiredCapabilities = List.copyOf(requiredCapabilities);
                 testCase.requiredCapabilitiesLocalCluster = List.copyOf(requiredCapabilitiesLocalCluster);
+                testCase.missingCapabilitiesLocalCluster = List.copyOf(missingCapabilitiesLocalCluster);
                 testCase.missingCapabilitiesRemoteCluster = List.copyOf(missingCapabilitiesRemoteCluster);
                 testCase.datasetSources = List.copyOf(datasetSources);
                 testCase.pragmas = Map.copyOf(pragmas);
@@ -94,6 +96,7 @@ public final class CsvSpecReader {
                 testCase.skipFlattenedRewrite = skipFlattenedRewrite;
                 requiredCapabilities.clear();
                 requiredCapabilitiesLocalCluster.clear();
+                missingCapabilitiesLocalCluster.clear();
                 missingCapabilitiesRemoteCluster.clear();
                 datasetSources.clear();
                 requestStored = WhenLoadsRequestedToStored.IGNORE_VALUE_ORDER;
@@ -133,6 +136,10 @@ public final class CsvSpecReader {
             }
             if (lower.startsWith("required_capability_coordinator:")) {
                 state.requiredCapabilitiesLocalCluster.add(line.substring("required_capability_coordinator:".length()).trim());
+                return Boolean.TRUE;
+            }
+            if (lower.startsWith("missing_capability_coordinator:")) {
+                state.missingCapabilitiesLocalCluster.add(line.substring("missing_capability_coordinator:".length()).trim());
                 return Boolean.TRUE;
             }
             if (lower.startsWith("missing_capability_data_node:")) {
@@ -476,6 +483,11 @@ public final class CsvSpecReader {
          */
         public List<String> requiredCapabilitiesLocalCluster = List.of();
         /**
+         * Capabilities that must be missing on the local (coordinating) cluster.
+         * (not supported for single-cluster tests)
+         */
+        public List<String> missingCapabilitiesLocalCluster = List.of();
+        /**
          * Capabilities that must be missing on the remote cluster.
          * (not supported for single-cluster tests)
          */
@@ -532,6 +544,21 @@ public final class CsvSpecReader {
             expectedWarningsRegexString.replaceAll(updater::apply);
             expectedWarningsRegex.clear();
             expectedWarningsRegex.addAll(expectedWarningsRegexString.stream().map(CsvSpecReader::warningRegexToPattern).toList());
+        }
+
+        /**
+         * Makes expected warnings optional: they may or may not appear in the response.
+         * Any actual warning must still match one of the expected patterns.
+         * Used in mixed/multi-cluster tests where older nodes (pre-9.6) may not propagate
+         * warnings correctly due to a threading bug fixed in 9.6.
+         */
+        public void makeWarningsOptional() {
+            if (expectedWarnings.isEmpty() == false) {
+                expectedWarningsRegexString.addAll(expectedWarnings.stream().map(Pattern::quote).toList());
+                expectedWarnings.clear();
+                expectedWarningsRegex.clear();
+                expectedWarningsRegex.addAll(expectedWarningsRegexString.stream().map(CsvSpecReader::warningRegexToPattern).toList());
+            }
         }
 
         /**

@@ -19,6 +19,7 @@ import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
 public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final Factory factory;
+    private final Object sharingKey;
 
     public ShingleTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
@@ -54,6 +55,7 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
             tokenSeparator,
             fillerToken
         );
+        this.sharingKey = new Key(minShingleSize, maxShingleSize, outputUnigrams, outputUnigramsIfNoShingles, tokenSeparator, fillerToken);
     }
 
     @Override
@@ -69,6 +71,20 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
     public Factory getInnerFactory() {
         return this.factory;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(
+        int minShingleSize,
+        int maxShingleSize,
+        boolean outputUnigrams,
+        boolean outputUnigramsIfNoShingles,
+        String tokenSeparator,
+        String fillerToken
+    ) {}
 
     public static final class Factory implements TokenFilterFactory {
         private final int maxShingleSize;
@@ -152,6 +168,12 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
         @Override
         public String name() {
             return name;
+        }
+
+        @Override
+        public Object sharingKey() {
+            // Same key shape as the outer ShingleTokenFilterFactory.
+            return new Key(minShingleSize, maxShingleSize, outputUnigrams, outputUnigramsIfNoShingles, tokenSeparator, fillerToken);
         }
     }
 }

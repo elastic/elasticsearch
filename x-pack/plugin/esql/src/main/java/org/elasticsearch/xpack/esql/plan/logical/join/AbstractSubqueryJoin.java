@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
@@ -31,8 +32,11 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSingleValueOrNull;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
@@ -40,12 +44,14 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.SortPreserving;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -69,7 +75,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 public abstract class AbstractSubqueryJoin extends Join implements SortPreserving, ExecutesOn.Coordinator {
 
     protected AbstractSubqueryJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
-        super(source, left, right, config, false);
+        super(source, left, right, config, ExecuteLocation.ANY);
     }
 
     protected AbstractSubqueryJoin(
@@ -80,7 +86,7 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
         List<Attribute> leftFields,
         List<Attribute> rightFields
     ) {
-        super(source, left, right, type, leftFields, rightFields, null, false);
+        super(source, left, right, type, leftFields, rightFields, null, ExecuteLocation.ANY);
     }
 
     @Override
@@ -109,19 +115,21 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
 
     /**
      * Build the terminal plan when the right side has zero rows. {@code x IN ()} ≡ FALSE for SEMI / MARK; {@code x NOT IN ()} ≡ TRUE for
-     * ANTI. MarkJoin produces an Eval that sets the mark attribute to FALSE.
+     * ANTI. SemiJoin collapses to an empty {@code LocalRelation}, AntiJoin keeps every row, and MarkJoin produces an Eval that sets the
+     * mark attribute to FALSE.
      */
     protected abstract LogicalPlan buildEmptyRightSidePlan(Source source);
 
     /**
      * Build the terminal plan when the right side contains a NULL value that forces the predicate to a constant for every left row.
-     * For SEMI this only fires when every right value is NULL ({@code allRightNull == true}) and produces {@code Filter(FALSE)}.
-     * For ANTI any NULL on the right is fatal, so it overrides {@link #shortCircuitOnAnyRightNull()} and likewise produces
-     * {@code Filter(FALSE)}. MarkJoin does not short-circuit on any NULL — it keeps the row counts unchanged and emits
-     * {@code Eval($m = NULL)} when every right value is NULL.
+     * For SEMI this only fires when every right value is NULL ({@code allRightNull == true}); for ANTI any NULL on the right is fatal,
+     * so it overrides {@link #shortCircuitOnAnyRightNull()}. In both cases no left row can survive, so the join collapses to an empty
+     * {@code LocalRelation} — the same rewrite {@code PruneFilters} applies to a constant-false filter, inlined here because subquery
+     * substitution happens after the coordinator logical optimizer ran. MarkJoin does not short-circuit on any NULL — it keeps the row
+     * counts unchanged and emits {@code Eval($m = NULL)} when every right value is NULL.
      */
     protected LogicalPlan buildShortCircuitPlan(Source source, boolean allRightNull) {
-        return new Filter(source, left(), Literal.FALSE);
+        return new LocalRelation(source, output(), EmptyLocalSupplier.EMPTY);
     }
 
     /**
@@ -156,6 +164,15 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
     }
 
     /**
+     * Build the terminal plan for the multi-column filter path. The {@code condition} is an already-built OR-of-ANDs expression
+     * covering all deduplicated right-side tuples. SEMI returns {@code Filter(wrapInExpression(condition))}; ANTI wraps in {@code Not}
+     * via {@link #wrapInExpression}; MarkJoin overrides to produce an {@code Eval} that materialises the mark attribute.
+     */
+    protected LogicalPlan buildFilterPathPlanFromExpression(Expression condition, Source source) {
+        return new Filter(source, left(), wrapInExpression(source, condition));
+    }
+
+    /**
      * Build the {@link In} expression for the filter path by turning each BlockHash dedup position into a {@link Literal}. A NULL position
      * (BlockHash's reserved group 0) becomes a NULL literal naturally, so {@link In}'s three-valued semantics carry the correct
      * predicate/mark value into the surrounding {@code Filter} (SEMI/ANTI) or {@code Eval} (MARK).
@@ -183,7 +200,7 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
         Source source,
         boolean rightHadNulls
     ) {
-        Join leftJoin = new Join(source, leftSide, deduplicatedData, leftJoinConfig, false);
+        Join leftJoin = new Join(source, leftSide, deduplicatedData, leftJoinConfig, ExecuteLocation.ANY);
         Filter filter = new Filter(source, leftJoin, sentinelFilterCondition(source, sentinelAttr));
         List<NamedExpression> leftOutput = new ArrayList<>(left().output());
         return new Project(source, filter, leftOutput);
@@ -217,40 +234,45 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        // SemiJoin/AntiJoin/MarkJoin are built by InSubqueryResolver which always produces a single-field config (one left field, one
-        // right field). The Analyzer additionally verifies that the subquery returns exactly one column. inlineData reads
-        // leftFields().get(0) unconditionally, so a multi-field config would silently use only the first pair — fail loudly here instead.
-        if (config().leftFields().size() != 1 || config().rightFields().size() != 1) {
+        List<Attribute> leftFields = config().leftFields();
+        List<Attribute> rightFields = config().rightFields();
+
+        if (leftFields.isEmpty() || leftFields.size() != rightFields.size()) {
             failures.add(
                 fail(
                     this,
-                    "IN subquery requires exactly one left and right field, found [{}] and [{}]",
-                    config().leftFields().size(),
-                    config().rightFields().size()
+                    "IN subquery requires the same non-zero number of fields on each side, found [{}] left and [{}] right",
+                    leftFields.size(),
+                    rightFields.size()
                 )
             );
             return;
         }
-        Attribute leftField = config().leftFields().get(0);
-        Attribute rightField = config().rightFields().get(0);
-        DataType leftType = leftField.dataType();
-        DataType rightType = rightField.dataType();
 
-        if (subqueryJoinCompatible(leftType, rightType) == false) {
-            failures.add(
-                fail(
-                    leftField,
-                    "left field [{}] of type [{}] is incompatible with right field [{}] of type [{}]",
-                    leftField.name(),
-                    leftType,
-                    rightField.name(),
-                    rightType
-                )
-            );
-        }
-        // Same unsupported types as Join, except TEXT and VERSION are allowed in IN/NOT IN subquery joins
-        if (isSubqueryJoinUnsupported(rightType)) {
-            failures.add(fail(leftField, "IN subquery with right field [{}] of type [{}] is not supported", rightField.name(), rightType));
+        for (int i = 0; i < leftFields.size(); i++) {
+            Attribute leftField = leftFields.get(i);
+            Attribute rightField = rightFields.get(i);
+            DataType leftType = leftField.dataType();
+            DataType rightType = rightField.dataType();
+
+            if (subqueryJoinCompatible(leftType, rightType) == false) {
+                failures.add(
+                    fail(
+                        leftField,
+                        "left field [{}] of type [{}] is incompatible with right field [{}] of type [{}]",
+                        leftField.name(),
+                        leftType,
+                        rightField.name(),
+                        rightType
+                    )
+                );
+            }
+            // Same unsupported types as Join, except TEXT and VERSION are allowed in IN/NOT IN subquery joins
+            if (isSubqueryJoinUnsupported(rightType)) {
+                failures.add(
+                    fail(leftField, "IN subquery with right field [{}] of type [{}] is not supported", rightField.name(), rightType)
+                );
+            }
         }
     }
 
@@ -305,8 +327,9 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
      *       <ul>
      *         <li>SEMI: {@code x IN (a, b, NULL)} ≡ {@code x IN (a, b)} once {@code WHERE} drops NULL results, so the filter path keeps
      *         the NULL literal (it's harmless) and the hash-join path strips it from the {@link LocalRelation}.</li>
-     *         <li>ANTI: any NULL on the right makes the predicate non-TRUE for every row, so we short-circuit to {@code Filter(FALSE)}
-     *         immediately after the dedup.</li>
+     *         <li>ANTI: for a single-column join, any NULL on the right makes the predicate non-TRUE for every row, so we short-circuit
+     *         to {@code Filter(FALSE)} immediately after the dedup. For multi-column joins, only an entirely NULL tuple has that
+     *         property; a partial NULL tuple can still be a definite mismatch and is evaluated through the expression path.</li>
      *         <li>MARK: keeps {@code rightHadNulls} only as a hint for the hash-join path's CASE expression — the filter path uses the
      *         NULL position in the dedup output directly to drive {@link In}'s three-valued mark.</li>
      *       </ul>
@@ -337,11 +360,25 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
         // InSubqueryResolver always produces single-field SemiJoin/AntiJoin/MarkJoin configs, and the Analyzer enforces a single-column
         // subquery output. This method reads leftFields().get(0) unconditionally — assert the contract here so a programmatic misuse trips
         // an assertion rather than silently using only the first field pair.
-        assert subqueryJoin.config().leftFields().size() == 1
-            : "subquery join must have exactly one left field, found " + subqueryJoin.config().leftFields().size();
-        assert subqueryJoin.config().rightFields().size() == 1
-            : "subquery join must have exactly one right field, found " + subqueryJoin.config().rightFields().size();
+        int fieldCount = subqueryJoin.config().leftFields().size();
+        // TODO convert the assert to proper exception
+        assert fieldCount >= 1 : "subquery join must have at least one field, found " + fieldCount;
+        assert fieldCount == subqueryJoin.config().rightFields().size()
+            : "subquery join left/right field count mismatch: " + fieldCount + " vs " + subqueryJoin.config().rightFields().size();
 
+        if (fieldCount > 1) {
+            return inlineDataMultiColumn(subqueryJoin, data, hashJoinThreshold, blockFactory, pageHolder);
+        }
+        return inlineDataSingleColumn(subqueryJoin, data, hashJoinThreshold, blockFactory, pageHolder);
+    }
+
+    private static LogicalPlan inlineDataSingleColumn(
+        AbstractSubqueryJoin subqueryJoin,
+        LocalRelation data,
+        int hashJoinThreshold,
+        BlockFactory blockFactory,
+        AtomicReference<Page> pageHolder
+    ) {
         List<Attribute> schema = data.output();
         Page page = data.supplier().get();
         Source source = subqueryJoin.source();
@@ -353,7 +390,7 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
 
         // Dedup the right-side key column up front. The DedupResult owns the freshly allocated key block; try-with-resources releases it
         // for every terminal path except the hash-join path, which transfers the block into the new dedup page.
-        try (DedupResult dedup = deduplicateRightKeys(page.getBlock(0), blockFactory)) {
+        try (DedupResult dedup = deduplicateRightKeys(page.getBlock(0), blockFactory, source)) {
             return routeDedupResult(subqueryJoin, dedup, schema, source, hashJoinThreshold, blockFactory, pageHolder);
         }
     }
@@ -474,6 +511,82 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
         }
     }
 
+    private static final class MultiColumnDedupResult implements Releasable {
+        private final Block[] keyColumns;
+        private final boolean[] isNullPosition;
+        private final boolean hadNulls;
+
+        MultiColumnDedupResult(Block[] keyColumns) {
+            this.keyColumns = keyColumns;
+            int positions = positions();
+            this.isNullPosition = new boolean[positions];
+            boolean anyNull = false;
+            for (Block col : keyColumns) {
+                for (int pos = 0; pos < positions; pos++) {
+                    if (col.isNull(pos)) {
+                        isNullPosition[pos] = true;
+                        anyNull = true;
+                    }
+                }
+            }
+            this.hadNulls = anyNull;
+        }
+
+        Block[] keyColumns() {
+            return keyColumns;
+        }
+
+        int positions() {
+            return keyColumns.length > 0 ? keyColumns[0].getPositionCount() : 0;
+        }
+
+        boolean hadNulls() {
+            return hadNulls;
+        }
+
+        /**
+         * Returns whether every deduplicated tuple is entirely NULL. A tuple with only one NULL component is not enough: for example,
+         * {@code (10001, NULL)} compares FALSE with {@code (10002, "Developer")}, so {@code NOT IN} must not be short-circuited for
+         * that tuple. The {@code isNullPosition} array records whether any component is NULL and is therefore intentionally not used
+         * for this check.
+         */
+        boolean allNull() {
+            if (hadNulls == false || positions() == 0) {
+                return false;
+            }
+            for (int pos = 0; pos < positions(); pos++) {
+                for (Block keyColumn : keyColumns) {
+                    if (keyColumn.isNull(pos) == false) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        int[] nullFreePositions() {
+            int count = 0;
+            for (boolean b : isNullPosition) {
+                if (b == false) {
+                    count++;
+                }
+            }
+            int[] result = new int[count];
+            int idx = 0;
+            for (int i = 0; i < isNullPosition.length; i++) {
+                if (isNullPosition[i] == false) {
+                    result[idx++] = i;
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(keyColumns);
+        }
+    }
+
     /**
      * Canonicalize the right-side key column and deduplicate it through a single-column {@link BlockHash}.
      * <p>
@@ -487,11 +600,11 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
      * The returned {@link DedupResult} owns a freshly allocated, circuit-breaker-tracked key block; the caller is responsible for
      * releasing it (or transferring it via {@link DedupResult#markConsumed()}).
      */
-    private static DedupResult deduplicateRightKeys(Block keyBlock, BlockFactory blockFactory) {
+    private static DedupResult deduplicateRightKeys(Block keyBlock, BlockFactory blockFactory, Source source) {
         Block dedupInput = keyBlock;
         Block convertedKeyBlock = null;
         if (keyBlock.mayHaveMultivaluedFields()) {
-            convertedKeyBlock = convertMvPositionsToNull(keyBlock, blockFactory);
+            convertedKeyBlock = convertMvPositionsToNull(keyBlock, blockFactory, source, new HashSet<>());
             dedupInput = convertedKeyBlock;
         }
 
@@ -620,6 +733,290 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
         return subqueryJoin.buildHashJoinPathPlan(leftSide, deduplicatedData, leftJoinConfig, sentinelAttr, source, rightHadNulls);
     }
 
+    /**
+     * Inlines a materialized multi-column subquery result into its join plan. The right-side page is first normalized and deduplicated;
+     * for example, rows {@code (10001, ["Accountant", "Developer"])} and {@code (10002, "Manager")} become the logical tuples
+     * {@code (10001, NULL)} and {@code (10002, "Manager")}. The NULL is intentional: a multi-valued key is not expanded into several
+     * matching tuples for an IN subquery.
+     * <p>
+     * The filter path is used for small results and whenever MARK/ANTI needs to distinguish FALSE from UNKNOWN. For example, with a
+     * right-side {@code (10001, NULL)}, a left {@code (10002, "Developer")} is a definite mismatch (FALSE), while
+     * {@code (10001, "Developer")} is an indeterminate partial match (NULL). A hash lookup containing only NULL-free tuples cannot
+     * represent that distinction, so NULL-containing right tuples force the expression path for those join types.
+     */
+    private static LogicalPlan inlineDataMultiColumn(
+        AbstractSubqueryJoin subqueryJoin,
+        LocalRelation data,
+        int hashJoinThreshold,
+        BlockFactory blockFactory,
+        AtomicReference<Page> pageHolder
+    ) {
+        List<Attribute> schema = data.output();
+        Page page = data.supplier().get();
+        Source source = subqueryJoin.source();
+        int n = subqueryJoin.config().leftFields().size();
+
+        if (page == null || page.getBlockCount() == 0 || schema.isEmpty() || page.getPositionCount() == 0) {
+            releaseSourcePage(pageHolder);
+            return subqueryJoin.buildEmptyRightSidePlan(source);
+        }
+
+        List<Block> keyBlocks = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            keyBlocks.add(page.getBlock(i));
+        }
+
+        try (MultiColumnDedupResult dedup = deduplicateMultiColumnKeys(keyBlocks, blockFactory, source)) {
+            if (dedup.positions() == 0) {
+                releaseSourcePage(pageHolder);
+                return subqueryJoin.buildEmptyRightSidePlan(source);
+            }
+
+            boolean rightHadNulls = dedup.hadNulls();
+            boolean allRightNull = dedup.allNull();
+
+            // A completely NULL right tuple makes every row comparison UNKNOWN, so all join types have a constant result. A partially
+            // NULL tuple does not: it is FALSE when any known component differs and UNKNOWN only when all known components match. In
+            // particular, ANTI and MARK must use the expression path for partial NULL tuples instead of AntiJoin's single-column
+            // "any NULL is fatal" short-circuit.
+            if (allRightNull) {
+                releaseSourcePage(pageHolder);
+                return subqueryJoin.buildShortCircuitPlan(source, true);
+            }
+
+            List<Attribute> leftFields = subqueryJoin.config().leftFields();
+            DataType[] keyTypes = new DataType[n];
+            for (int i = 0; i < n; i++) {
+                keyTypes[i] = schema.get(i).dataType();
+            }
+
+            // For ANTI and MARK with any NULL-containing right tuples, the hash-join path cannot represent the row-wise three-valued
+            // semantics. A left row that matches the non-null components of a right tuple containing NULL must evaluate to NULL, not
+            // FALSE. Use the filter path, which builds that behavior explicitly for each right tuple.
+            boolean forceFilterPath = rightHadNulls && (subqueryJoin instanceof AntiJoin || subqueryJoin instanceof MarkJoin);
+
+            if (dedup.positions() <= hashJoinThreshold || forceFilterPath) {
+                releaseSourcePage(pageHolder);
+                List<Expression> guardedLeftFields = guardedLeftFields(source, leftFields);
+                Expression filterExpr = buildMultiColumnInExpression(dedup.keyColumns(), keyTypes, guardedLeftFields, source);
+                return buildMultiColumnFilterPathPlan(subqueryJoin, filterExpr, source);
+            }
+
+            return inlineAsHashJoinMultiColumn(subqueryJoin, dedup, schema, source, blockFactory, pageHolder, rightHadNulls);
+        }
+    }
+
+    /**
+     * Builds the row-wise {@code IN} expression used when the right side must be evaluated as an expression rather than a hash lookup.
+     * Each right-side position becomes one tuple predicate, and the tuple predicates are combined with {@code OR}.
+     * <p>
+     * This must preserve SQL's three-valued row comparison semantics. For a right tuple such as {@code (10001, NULL)}, the comparison
+     * with a left tuple is effectively:
+     * <pre>
+     * (left.emp_no = 10001) AND (left.job_positions = NULL)
+     * </pre>
+     * but evaluating the second equality directly would lose the distinction between {@code FALSE} and {@code UNKNOWN}. Instead, the
+     * non-NULL components are compared first: if any of them differs, the tuple comparison is definitely {@code FALSE}; if all of them
+     * match, the NULL component makes the tuple comparison {@code UNKNOWN}. For example:
+     * <pre>
+     * (10001, "Developer") compared with (10001, NULL) -> NULL
+     * (10002, "Developer") compared with (10001, NULL) -> FALSE
+     * </pre>
+     * The outer {@code OR} then gives {@code IN} its normal behavior. This distinction is observable for {@code MARK} joins and for
+     * {@code NOT IN}: a definite mismatch can make {@code NOT IN} true, while a partial match against a NULL-containing tuple makes it
+     * NULL and therefore false in a {@code WHERE} clause.
+     * <p>
+     * The left expressions are normally wrapped in {@link MvSingleValueOrNull} before this method is called. Thus a multi-valued left
+     * key participates as NULL, and emits the standard warning, rather than causing the entire row to be discarded before the tuple
+     * comparison can determine whether another key proves a definite mismatch.
+     */
+    private static Expression buildMultiColumnInExpression(
+        Block[] dedupBlocks,
+        DataType[] keyTypes,
+        List<? extends Expression> leftFields,
+        Source source
+    ) {
+        int positions = dedupBlocks[0].getPositionCount();
+        int n = leftFields.size();
+        List<Expression> rowPredicates = new ArrayList<>(positions);
+        for (int pos = 0; pos < positions; pos++) {
+            List<Expression> colEqs = new ArrayList<>(n);
+            boolean hasNull = false;
+            for (int col = 0; col < n; col++) {
+                if (dedupBlocks[col].isNull(pos)) {
+                    hasNull = true;
+                } else {
+                    Expression literal = new Literal(source, toJavaObject(dedupBlocks[col], pos), keyTypes[col]);
+                    colEqs.add(new Equals(source, leftFields.get(col), literal));
+                }
+            }
+            Expression nonNullColumnsMatch = Predicates.combineAnd(colEqs);
+            if (hasNull) {
+                // Do not write Equals(leftField, NULL) here. The Case preserves FALSE for a known mismatch and returns NULL only
+                // after all non-NULL tuple components match. For example, (10002, "Developer") compared with (10001, NULL) is FALSE,
+                // not NULL, while (10001, "Developer") compared with (10001, NULL) is NULL.
+                rowPredicates.add(
+                    new Case(source, nonNullColumnsMatch, List.of(new Literal(source, null, DataType.BOOLEAN), Literal.FALSE))
+                );
+            } else {
+                rowPredicates.add(nonNullColumnsMatch);
+            }
+        }
+        return Predicates.combineOr(rowPredicates);
+    }
+
+    /**
+     * Builds the terminal filter plan for a multi-column IN expression. SEMI/ANTI use the expression as a WHERE predicate, while MARK
+     * uses an {@code Eval} supplied by {@link MarkJoin#buildFilterPathPlanFromExpression} to materialize the synthetic mark attribute.
+     * <p>
+     * The left expressions have already been wrapped in {@link MvSingleValueOrNull}. Consequently, a left row such as
+     * {@code (10001, ["Developer", "Manager"])} is evaluated as {@code (10001, NULL)} and can still survive a NOT IN predicate when
+     * every right tuple has a definite mismatch. It must not be removed by an early {@code IS NOT NULL} filter: doing so would turn
+     * {@code (10002, NULL) NOT IN ((10001, NULL))} into a false result even though the tuple comparison is FALSE and NOT FALSE is TRUE.
+     */
+    private static LogicalPlan buildMultiColumnFilterPathPlan(AbstractSubqueryJoin subqueryJoin, Expression condition, Source source) {
+        if (subqueryJoin.filterNullLeftKeysBeforeHashJoin() == false) {
+            return subqueryJoin.buildFilterPathPlanFromExpression(condition, source);
+        }
+        return new Filter(source, subqueryJoin.left(), subqueryJoin.wrapInExpression(source, condition));
+    }
+
+    private static List<Expression> guardedLeftFields(Source source, List<Attribute> leftFields) {
+        List<Expression> guardedFields = new ArrayList<>(leftFields.size());
+        for (Attribute leftField : leftFields) {
+            guardedFields.add(new MvSingleValueOrNull(source, leftField));
+        }
+        return guardedFields;
+    }
+
+    /**
+     * Builds the multi-column LEFT-hash-join plan from NULL-free right tuples. Positions containing a NULL in any key column are
+     * removed before creating the local relation because a hash join cannot encode the partial-match UNKNOWN state. For example, the
+     * right tuples {@code (10001, NULL)} and {@code (10002, "Manager")} contribute only {@code (10002, "Manager")} to the hash table.
+     * <p>
+     * Every left key is still passed through {@link MvSingleValueOrNull}, so a multi-valued left key becomes NULL and emits its warning.
+     * The synthetic TRUE sentinel identifies exact hash matches; SEMI/ANTI and MARK interpret that sentinel differently in their
+     * subclass-specific terminal plans. Cases involving right-side NULL tuples are routed through the filter path before this method.
+     */
+    private static LogicalPlan inlineAsHashJoinMultiColumn(
+        AbstractSubqueryJoin subqueryJoin,
+        MultiColumnDedupResult dedup,
+        List<Attribute> schema,
+        Source source,
+        BlockFactory blockFactory,
+        AtomicReference<Page> pageHolder,
+        boolean rightHadNulls
+    ) {
+        int n = subqueryJoin.config().leftFields().size();
+        int[] nullFreePositions = dedup.nullFreePositions();
+
+        Block sentinel = null;
+        Page dedupPage;
+        boolean success = false;
+        try {
+            Block[] pageBlocks = new Block[n + 1];
+            for (int col = 0; col < n; col++) {
+                pageBlocks[col] = dedup.keyColumns()[col].filter(false, nullFreePositions);
+            }
+            sentinel = blockFactory.newConstantBooleanBlockWith(true, nullFreePositions.length);
+            pageBlocks[n] = sentinel;
+            sentinel = null;
+            dedupPage = new Page(pageBlocks);
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(sentinel);
+            }
+        }
+
+        if (pageHolder != null) {
+            Page oldSource = pageHolder.getAndSet(dedupPage);
+            if (oldSource != null) {
+                Releasables.closeExpectNoException(oldSource);
+            }
+        }
+
+        Attribute sentinelAttr = new ReferenceAttribute(source, null, "$$matched", DataType.BOOLEAN, Nullability.TRUE, null, false);
+        List<Attribute> extendedSchema = new ArrayList<>(schema);
+        extendedSchema.add(sentinelAttr);
+        LocalRelation deduplicatedData = new LocalRelation(source, extendedSchema, LocalSupplier.of(dedupPage));
+
+        List<Attribute> leftFields = subqueryJoin.config().leftFields();
+        List<Alias> svGuardAliases = new ArrayList<>(n);
+        List<Attribute> svGuardedLeftFields = new ArrayList<>(n);
+        for (Attribute leftField : leftFields) {
+            Alias svGuardAlias = new Alias(source, "$$" + leftField.name() + "$sv", new MvSingleValueOrNull(source, leftField), null, true);
+            svGuardAliases.add(svGuardAlias);
+            svGuardedLeftFields.add(svGuardAlias.toAttribute());
+        }
+        LogicalPlan leftSide = new Eval(source, subqueryJoin.left(), svGuardAliases);
+
+        JoinConfig leftJoinConfig = new JoinConfig(LEFT, svGuardedLeftFields, subqueryJoin.config().rightFields(), null);
+        return subqueryJoin.buildHashJoinPathPlan(leftSide, deduplicatedData, leftJoinConfig, sentinelAttr, source, rightHadNulls);
+    }
+
+    /**
+     * Converts and deduplicates the right-side columns as tuple keys. Conversion happens column-by-column but deduplication happens
+     * across the complete row, so {@code (10001, ["A", "B"])} becomes one tuple {@code (10001, NULL)}, not two tuples
+     * {@code (10001, "A")} and {@code (10001, "B")}. This is what keeps a multi-valued key from accidentally matching one of its
+     * individual values in an IN subquery.
+     * <p>
+     * {@link MultiColumnDedupResult} records whether each deduplicated position has a NULL in any column. A position such as
+     * {@code (10001, NULL)} is retained for the expression path, where it can produce UNKNOWN for a partial match, but is excluded from
+     * the hash relation because hash joins only represent fully known tuples. The converted blocks are temporary ownership transferred
+     * to this method and released after {@link BlockHash} has copied the keys.
+     */
+    private static MultiColumnDedupResult deduplicateMultiColumnKeys(List<Block> keyBlocks, BlockFactory blockFactory, Source source) {
+        int n = keyBlocks.size();
+        Block[] convertedBlocks = new Block[n];
+        boolean[] converted = new boolean[n];
+        Set<Source> warnedSources = new HashSet<>();
+        try {
+            for (int i = 0; i < n; i++) {
+                if (keyBlocks.get(i).mayHaveMultivaluedFields()) {
+                    convertedBlocks[i] = convertMvPositionsToNull(keyBlocks.get(i), blockFactory, source, warnedSources);
+                    converted[i] = true;
+                } else {
+                    convertedBlocks[i] = keyBlocks.get(i);
+                }
+            }
+            Block[] dedupKeys = dedupViaBlockHashMultiColumn(convertedBlocks, blockFactory);
+            return new MultiColumnDedupResult(dedupKeys);
+        } finally {
+            for (int i = 0; i < n; i++) {
+                if (converted[i]) {
+                    Releasables.closeExpectNoException(convertedBlocks[i]);
+                }
+            }
+        }
+    }
+
+    private static Block[] dedupViaBlockHashMultiColumn(Block[] inputs, BlockFactory blockFactory) {
+        int emitBatchSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
+        List<BlockHash.GroupSpec> specs = new ArrayList<>(inputs.length);
+        for (int i = 0; i < inputs.length; i++) {
+            specs.add(new BlockHash.GroupSpec(i, inputs[i].elementType()));
+        }
+        try (BlockHash hash = BlockHash.build(specs, blockFactory, emitBatchSize, false)) {
+            hash.add(new Page(inputs), new GroupingAggregatorFunction.AddInput() {
+                @Override
+                public void add(int positionOffset, IntArrayBlock groupIds) {}
+
+                @Override
+                public void add(int positionOffset, IntBigArrayBlock groupIds) {}
+
+                @Override
+                public void add(int positionOffset, IntVector groupIds) {}
+
+                @Override
+                public void close() {}
+            });
+            try (IntVector selected = hash.nonEmpty()) {
+                return hash.getKeys(selected);
+            }
+        }
+    }
+
     private static void releaseSourcePage(AtomicReference<Page> pageHolder) {
         if (pageHolder == null) {
             return;
@@ -638,16 +1035,32 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
      * <p>
      * The returned Block is owned by the caller (allocated through {@code blockFactory} and tracked by the request circuit breaker).
      */
-    private static Block convertMvPositionsToNull(Block input, BlockFactory blockFactory) {
+    private static Block convertMvPositionsToNull(Block input, BlockFactory blockFactory, Source source, Set<Source> warnedSources) {
         int positionCount = input.getPositionCount();
         ElementType type = input.elementType();
+        boolean hasMultiValuedPosition = false;
         try (Block.Builder builder = type.newBlockBuilder(positionCount, blockFactory)) {
             for (int p = 0; p < positionCount; p++) {
                 if (input.isNull(p) || input.getValueCount(p) > 1) {
+                    hasMultiValuedPosition |= input.getValueCount(p) > 1;
                     builder.appendNull();
                 } else {
                     builder.copyFrom(input, p, p + 1);
                 }
+            }
+            if (hasMultiValuedPosition && warnedSources.add(source)) {
+                HeaderWarning.addWarning(
+                    "Line {}:{}: evaluation of [{}] failed, treating result as null. Only first 20 failures recorded",
+                    source.lineNumber(),
+                    source.columnNumber(),
+                    source.text()
+                );
+                HeaderWarning.addWarning(
+                    "Line {}:{}: {}: single-value function encountered multi-value",
+                    source.lineNumber(),
+                    source.columnNumber(),
+                    IllegalArgumentException.class.getName()
+                );
             }
             return builder.build();
         }

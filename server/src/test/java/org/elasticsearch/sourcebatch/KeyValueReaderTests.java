@@ -11,7 +11,6 @@ package org.elasticsearch.sourcebatch;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.eirf.EirfEncoder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -30,7 +29,7 @@ public class KeyValueReaderTests extends ESTestCase {
             )
         ) {
             parser.nextToken(); // START_OBJECT
-            return EirfEncoder.serializeKeyValue(parser);
+            return SourceBatchEncodeHelper.serializeKeyValue(parser);
         }
     }
 

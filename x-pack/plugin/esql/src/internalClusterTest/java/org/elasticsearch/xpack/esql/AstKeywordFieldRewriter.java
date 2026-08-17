@@ -16,7 +16,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.DeferredRegexExpression;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -88,7 +90,8 @@ import java.util.TreeSet;
  *   <li>The left-hand side of the match operator {@code :} ({@link MatchOperator}) accepts only a
  *       bare attribute; in-scope references there are recorded as
  *       {@link SkipSite#MATCH_OPERATOR_LHS} skip events.</li>
- *   <li>{@code field IN (subquery)} hoists a bare in-scope left-hand side into an
+ *   <li>{@code field IN (subquery)} — including the multi-column tuple form
+ *       {@code (f1, f2) IN (subquery)} — hoists a bare in-scope left-hand side into an
  *       {@code EVAL field = field_extract(field, "v")} inserted before the {@code WHERE} (the
  *       IN-subquery resolver accepts only a bare attribute or constant on that side, rejecting a
  *       {@code field_extract(...)} call as a "Complicated IN subquery"), and recursively rewrites
@@ -147,8 +150,6 @@ public final class AstKeywordFieldRewriter {
         MATCH_OPERATOR_LHS,
         /** Body of a {@code LOOKUP JOIN <index> ON <field>[, <field>]*} command. */
         LOOKUP_JOIN_ON,
-        /** Body of an {@code INSIST_🐔 <field>[, <field>]*} developer-only command. */
-        INSIST_BODY,
         /** Identifier inside an ES|QL qualified-name reference of the form {@code [<index>].[<field>]}. */
         QUALIFIED_NAME_BRACKETS
     }
@@ -200,6 +201,19 @@ public final class AstKeywordFieldRewriter {
             return name;
         }
 
+        // DeferredRegexExpression is a parse-time placeholder for LIKE/RLIKE with a
+        // non-literal constant-expression pattern (e.g. WHERE field LIKE CONCAT(...)). It is
+        // not a Function and is not in CLASS_NAME_TO_OPERATOR_NAME (only the resolved
+        // WildcardLike/RLike classes are). Without this case the tracking context from the
+        // enclosing Not would leak through and the field at position 0 would be recorded as
+        // "NOT:0 is covered" instead of the correct "LIKE:0" / "RLIKE:0".
+        if (expression instanceof DeferredRegexExpression ure) {
+            return switch (ure.variant()) {
+                case LIKE -> "LIKE";
+                case RLIKE -> "RLIKE";
+            };
+        }
+
         String opName = CLASS_NAME_TO_OPERATOR_NAME.get(expression.getClass().getName());
         if (opName != null) {
             return opName;
@@ -237,7 +251,15 @@ public final class AstKeywordFieldRewriter {
         Walker walker = new Walker(query, scopeResolver, wrapperSubKey);
         Set<String> endScope = walker.processPipeline(plan, initialScope);
         String body = walker.applyEdits();
-        String rewritten = appendTopLevelTailRecovery(body, endScope, expectedColumnOrder, wrapperSubKey, walker.rewrittenNames);
+        boolean bodyModified = body.equals(query) == false;
+        String rewritten = appendTopLevelTailRecovery(
+            body,
+            endScope,
+            expectedColumnOrder,
+            wrapperSubKey,
+            walker.rewrittenNames,
+            bodyModified
+        );
         boolean modified = rewritten.equals(query) == false;
         return new RewriteResult(
             rewritten,
@@ -252,24 +274,37 @@ public final class AstKeywordFieldRewriter {
     /**
      * Appends the top-level tail-end recovery to {@code body}: an {@code | EVAL ...} that rebinds
      * every field still in scope (intersected with {@code expectedColumnOrder} when supplied) back
-     * to its keyword value, optionally followed by a {@code | KEEP <expectedColumnOrder>} to
-     * restore the test-expected column positions.
+     * to its keyword value, followed by a {@code | KEEP <expectedColumnOrder>} that restores the
+     * test-expected column positions.
+     * <p>
+     * The order-restoring {@code KEEP} is appended whenever the expected order is known and the
+     * query was rewritten at all &mdash; not only when a field needs type recovery. A rewrite can
+     * reorder the output columns without leaving any field in end-of-pipeline scope: an in-place
+     * {@code EVAL <field> = field_extract(<field>, "v")} hoisted before {@code MV_EXPAND} (or before
+     * a {@code WHERE} carrying an {@code IN (subquery)}) reassigns an <em>existing</em> column, and
+     * ES|QL moves a reassigned column to the last position. That pushes a trailing synthetic column
+     * such as {@code FORK}'s {@code _fork} ahead of the reassigned field, so the columns arrive in a
+     * different order than the csv-spec header even though every value is correct. Because a
+     * {@code KEEP} listing exactly the expected columns is an identity projection when the order
+     * already matches, appending it only ever normalizes order and never changes which rows or
+     * values are produced (see the safety argument at the call site).
      */
     private static String appendTopLevelTailRecovery(
         String body,
         Set<String> endScope,
         List<String> expectedColumnOrder,
         String wrapperSubKey,
-        Set<String> rewrittenNamesSink
+        Set<String> rewrittenNamesSink,
+        boolean bodyModified
     ) {
         List<String> recoverable = recoverableFields(endScope, expectedColumnOrder);
-        if (recoverable.isEmpty()) {
-            return body;
-        }
         StringBuilder sb = new StringBuilder(body);
-        sb.append(evalRecovery(recoverable, wrapperSubKey));
-        rewrittenNamesSink.addAll(recoverable);
-        if (expectedColumnOrder.isEmpty() == false) {
+        if (recoverable.isEmpty() == false) {
+            sb.append(evalRecovery(recoverable, wrapperSubKey));
+            rewrittenNamesSink.addAll(recoverable);
+        }
+        boolean restoreColumnOrder = expectedColumnOrder.isEmpty() == false && (recoverable.isEmpty() == false || bodyModified);
+        if (restoreColumnOrder) {
             sb.append("\n| KEEP ");
             for (int i = 0; i < expectedColumnOrder.size(); i++) {
                 if (i > 0) {
@@ -317,6 +352,11 @@ public final class AstKeywordFieldRewriter {
             sb.append(name).append(" = ").append(extractCall(name, wrapperSubKey));
         }
         return sb.toString();
+    }
+
+    /** Builds an {@code EVAL} command that can be inserted immediately before another command. */
+    private static String evalBeforeCommand(List<String> fields, String wrapperSubKey) {
+        return evalRecovery(fields, wrapperSubKey).substring(3) + "\n| ";
     }
 
     /** Returns {@code field_extract(<inner>, "<wrapperSubKey>")}. */
@@ -523,10 +563,6 @@ public final class AstKeywordFieldRewriter {
             if (node instanceof Fork fork) {
                 return processFork(fork, scope);
             }
-            if (isInsist(node)) {
-                recordSkips(node.expressions(), scope, SkipSite.INSIST_BODY);
-                return scope;
-            }
             // Source commands (FROM/TS/ROW), subquery sources and any other command: wrap whatever
             // own expressions the node exposes (a no-op for leaf sources) and preserve scope.
             for (Expression expression : node.expressions()) {
@@ -581,6 +617,13 @@ public final class AstKeywordFieldRewriter {
             condition.forEachDown(InSubquery.class, in -> {
                 if (in.value() instanceof UnresolvedAttribute attr && scope.contains(attr.name())) {
                     hoist.add(attr.name());
+                }
+            });
+            condition.forEachDown(MultiColumnInSubquery.class, mcs -> {
+                for (Expression value : mcs.values()) {
+                    if (value instanceof UnresolvedAttribute attr && scope.contains(attr.name())) {
+                        hoist.add(attr.name());
+                    }
                 }
             });
             return hoist;
@@ -843,7 +886,17 @@ public final class AstKeywordFieldRewriter {
                 // a field_extract(...) LHS), and is excluded from this scope so it is not wrapped in
                 // place. A non-attribute LHS (constant/expression) is wrapped here as usual.
                 wrapExpression(inSubquery.value(), scope, null);
-                processInSubquery(inSubquery);
+                processInSubquery(inSubquery.subquery());
+                return;
+            }
+            if (expression instanceof MultiColumnInSubquery mcs) {
+                // Same treatment as InSubquery: every bare in-scope attribute in the left tuple is
+                // hoisted by collectInSubqueryLhsHoist (the resolver accepts only bare attributes or
+                // constants in the tuple), so wrapping here only affects non-attribute values.
+                for (Expression value : mcs.values()) {
+                    wrapExpression(value, scope, null);
+                }
+                processInSubquery(mcs.subquery());
                 return;
             }
             if (expression instanceof MatchOperator matchOperator) {
@@ -902,12 +955,12 @@ public final class AstKeywordFieldRewriter {
         /**
          * Rewrites the subquery of an {@code IN (subquery)} expression with a scope freshly resolved
          * from the subquery's own text (its {@code FROM} may reference a different dataset than the
-         * outer query) and appends a tail-end {@code EVAL} (no {@code KEEP}) so its projected column
-         * reaches the outer comparison as {@code keyword}. The outer left-hand side is rebound to
+         * outer query) and appends an {@code EVAL} before a terminal {@code KEEP}, when present,
+         * so its projected columns reach the outer comparison as {@code keyword} without changing
+         * their order. The outer left-hand side is rebound to
          * {@code keyword} separately by {@link #hoistBeforeCommand}, so both sides agree on type.
          */
-        private void processInSubquery(InSubquery inSubquery) {
-            LogicalPlan subquery = inSubquery.subquery();
+        private void processInSubquery(LogicalPlan subquery) {
             String subText = subqueryText(subquery);
             if (subText == null) {
                 return;
@@ -922,8 +975,17 @@ public final class AstKeywordFieldRewriter {
             }
             List<String> recoverable = new ArrayList<>(endScope);
             recoverable.sort(Comparator.naturalOrder());
-            int at = startOffset(subquery.source()) + subquery.source().text().length();
-            addEdit(at, at, evalRecovery(recoverable, wrapperSubKey));
+            if (subquery instanceof Keep keep && spanMatches(keep.source())) {
+                // A terminal KEEP fixes the tuple's column order. Appending EVAL after it would
+                // append the recovered flattened field to the end, e.g. turning
+                // (emp_no, job_positions, is_rehired) into (emp_no, is_rehired, job_positions).
+                // Insert before KEEP so the projection retains the order declared by the subquery.
+                int at = startOffset(keep.source());
+                addEdit(at, at, evalBeforeCommand(recoverable, wrapperSubKey));
+            } else {
+                int at = startOffset(subquery.source()) + subquery.source().text().length();
+                addEdit(at, at, evalRecovery(recoverable, wrapperSubKey));
+            }
             rewrittenNames.addAll(recoverable);
         }
 
@@ -1040,10 +1102,6 @@ public final class AstKeywordFieldRewriter {
 
         private static Set<String> attributeNames(List<? extends NamedExpression> attributes) {
             return namedExpressionNames(attributes);
-        }
-
-        private static boolean isInsist(LogicalPlan node) {
-            return node.getClass().getSimpleName().toLowerCase(Locale.ROOT).startsWith("insist");
         }
     }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -49,9 +50,8 @@ public class DataSourceCredentialsTests extends ESTestCase {
 
     private DataSourceCredentials credentials;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initCredentials() {
         credentials = new DataSourceCredentials(IDENTITY);
     }
 

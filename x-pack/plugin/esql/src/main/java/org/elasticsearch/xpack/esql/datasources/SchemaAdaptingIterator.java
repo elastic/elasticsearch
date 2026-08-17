@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import java.io.IOException;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.function.Consumer;
 
 /**
  * Wraps a format reader's page iterator and runs each page through a {@link ColumnMapping}
@@ -44,7 +45,7 @@ import java.util.NoSuchElementException;
  *
  * <h2>{@link ColumnExtractorProducer} forwarding</h2>
  * The adapter unconditionally declares the {@link ColumnExtractorProducer} capability and forwards
- * {@link #createColumnExtractor()} / {@link #setExtractorId(int)} to its delegate. Whether those
+ * {@link #createColumnExtractor(Consumer)} / {@link #setExtractorId(int)} to its delegate. Whether those
  * calls actually succeed depends on the delegate: a non-producer delegate makes
  * {@code instanceof ColumnExtractorProducer} a necessary-but-not-sufficient guard at consumer
  * sites — the dispatch into the delegate fails loud (see {@link #innerProducer()}). The only
@@ -200,8 +201,8 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
     }
 
     @Override
-    public ColumnExtractor createColumnExtractor() throws IOException {
-        return innerProducer().createColumnExtractor();
+    public ColumnExtractor createColumnExtractor(@Nullable Consumer<String> driverThreadWarningSink) throws IOException {
+        return innerProducer().createColumnExtractor(driverThreadWarningSink);
     }
 
     @Override

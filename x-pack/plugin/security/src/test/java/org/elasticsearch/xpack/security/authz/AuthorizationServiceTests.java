@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -18,6 +17,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.stats.ProjectRoutingUsageSnapshot;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
@@ -56,6 +56,7 @@ import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.TransportDeleteAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.TransportGetAction;
@@ -133,6 +134,8 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.InvalidProjectRoutingException;
+import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.search.crossproject.ProjectRoutingInfo;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.ProjectTags;
@@ -150,6 +153,7 @@ import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -382,7 +386,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            projectRoutingResolver
+            projectRoutingResolver,
+            new UsageService()
         );
     }
 
@@ -1368,7 +1373,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            projectRoutingResolver
+            projectRoutingResolver,
+            new UsageService()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1454,7 +1460,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            originOnlyRoutingResolver
+            originOnlyRoutingResolver,
+            new UsageService()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1510,7 +1517,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            projectRoutingResolver
+            projectRoutingResolver,
+            new UsageService()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -2058,7 +2066,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(settings),
-            projectRoutingResolver
+            projectRoutingResolver,
+            new UsageService()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -2112,7 +2121,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(settings),
-            projectRoutingResolver
+            projectRoutingResolver,
+            new UsageService()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -3709,7 +3719,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(Settings.EMPTY),
-            projectRoutingResolver
+            projectRoutingResolver,
+            new UsageService()
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -3873,7 +3884,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(Settings.EMPTY),
-            projectRoutingResolver
+            projectRoutingResolver,
+            new UsageService()
         );
         Authentication authentication;
         try (StoredContext ignore = threadContext.stashContext()) {
@@ -4091,7 +4103,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(notAccessibleIndexExpression.localExpressions().indices(), empty());
         assertThat(notAccessibleIndexExpression.localExpressions().localIndexResolutionResult(), equalTo(CONCRETE_RESOURCE_UNAUTHORIZED));
         assertThat(
-            notAccessibleIndexExpression.localExpressions().exception().getMessage(),
+            request.getResolvedIndexExpressions().authorizationFailureTemplate(),
             equalTo(
                 "action [indices:data/read/search] is unauthorized for user [user]"
                     + " with effective roles [partial-access-role] on indices [-*], "
@@ -4131,7 +4143,22 @@ public class AuthorizationServiceTests extends ESTestCase {
         ProjectId projectId = randomUniqueProjectId();
         String type = randomFrom("elasticsearch", "security", "observability");
         String org = randomAlphaOfLength(10);
-        Map<String, String> tags = Map.of("_id", projectId.id(), "_type", type, "_organization", org, "_alias", alias);
+        String provider = randomAlphaOfLength(10);
+        String region = randomAlphaOfLength(10);
+        Map<String, String> tags = Map.of(
+            "_id",
+            projectId.id(),
+            "_type",
+            type,
+            "_organization",
+            org,
+            "_alias",
+            alias,
+            "_csp",
+            provider,
+            "_region",
+            region
+        );
         ProjectTags projectTags = new ProjectTags(tags);
         return new ProjectRoutingInfo(projectId, type, alias, org, projectTags);
     }
@@ -4178,21 +4205,281 @@ public class AuthorizationServiceTests extends ESTestCase {
     ) {
         return new ResolvedIndexExpression(
             original,
-            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult, null),
+            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult),
             Set.of()
         );
     }
 
-    private static ResolvedIndexExpression resolvedIndexExpression(
-        String original,
-        Set<String> localExpressions,
-        ResolvedIndexExpression.LocalIndexResolutionResult localIndexResolutionResult,
-        ElasticsearchException exception
-    ) {
-        return new ResolvedIndexExpression(
-            original,
-            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult, exception),
-            Set.of()
+    /**
+     * Creates an {@link AuthorizationService} configured for cross-project mode with the given routing resolver and usage service.
+     * Uses the same settings and mocks as the default test setup except for CPS-specific overrides.
+     */
+    private AuthorizationService createCpsAuthorizationService(ProjectRoutingResolver routingResolver, UsageService usageService) {
+        final Settings settings = Settings.builder().put("serverless.cross_project.enabled", "true").build();
+        return new AuthorizationService(
+            settings,
+            rolesStore,
+            fieldPermissionsCache,
+            clusterService,
+            auditTrailService,
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
+            threadPool,
+            new AnonymousUser(settings),
+            null,
+            Collections.emptySet(),
+            new XPackLicenseState(() -> 0),
+            indexNameExpressionResolver,
+            operatorPrivilegesService,
+            RESTRICTED_INDICES,
+            new AuthorizationDenialMessages.Default(),
+            linkedProjectConfigService,
+            projectResolver,
+            authorizedProjectsResolver,
+            crossProjectModeDecider,
+            routingResolver,
+            usageService
         );
+    }
+
+    public void testSearchProjectRoutingFailureRecordedOnInvalidProjectRoutingException() {
+        final ProjectRoutingInfo origin = createRandomProjectWithAlias(randomAlphaOfLengthBetween(5, 10));
+        final ProjectRoutingInfo linked = createRandomProjectWithAlias(randomAlphaOfLengthBetween(5, 10));
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<TargetProjects> callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
+            // hasLinkedProjects=true simulates ServerlessAuthorizedProjectsResolver setting the flag
+            callback.onResponse(new TargetProjects(origin, List.of(linked), null, true));
+            return null;
+        }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
+        when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
+        when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
+
+        final ProjectRoutingResolver throwingResolver = new ProjectRoutingResolver() {
+            @Override
+            public void validate(String projectRouting, ProjectMetadata projectMetadata) {}
+
+            @Override
+            public TargetProjects resolve(String projectRouting, ProjectMetadata projectMetadata, TargetProjects authorizedProjects) {
+                throw new InvalidProjectRoutingException("no project routing match for [{}]", projectRouting);
+            }
+        };
+
+        final UsageService usageService = new UsageService();
+        authorizationService = createCpsAuthorizationService(throwingResolver, usageService);
+
+        roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
+        final Authentication authentication = createAuthentication(
+            new User("test_user", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())
+        );
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        final SearchRequest searchRequest = new SearchRequest("index-*");
+
+        expectThrows(
+            InvalidProjectRoutingException.class,
+            () -> authorize(authentication, TransportSearchAction.NAME, searchRequest, true, null)
+        );
+
+        final ProjectRoutingUsageSnapshot snapshot = usageService.getProjectRoutingUsageHolder().getSnapshot();
+        assertThat(snapshot.getSearchQueriesTotal(), equalTo(1L));
+        assertThat(snapshot.getSearchWithProjectRouting(), equalTo(1L));
+        assertThat(snapshot.getSearchProjectRoutingFailures(), equalTo(1L));
+        assertThat(snapshot.getEsqlQueriesTotal(), equalTo(0L));
+        assertThat(snapshot.getEsqlProjectRoutingFailures(), equalTo(0L));
+    }
+
+    public void testProjectRoutingFailureNotRecordedWhenNoLinkedProjects() {
+        // authorizedProjectsResolver returns TargetProjects with hasLinkedProjects=false (no links configured)
+        // → recordSearchProjectRoutingFailure is a no-op
+        final ProjectRoutingInfo origin = createRandomProjectWithAlias(randomAlphaOfLengthBetween(5, 10));
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<TargetProjects> callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
+            callback.onResponse(new TargetProjects(origin, List.of()));
+            return null;
+        }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
+        when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
+        when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
+
+        final ProjectRoutingResolver throwingResolver = new ProjectRoutingResolver() {
+            @Override
+            public void validate(String projectRouting, ProjectMetadata projectMetadata) {}
+
+            @Override
+            public TargetProjects resolve(String projectRouting, ProjectMetadata projectMetadata, TargetProjects authorizedProjects) {
+                throw new InvalidProjectRoutingException("bad routing [{}]", projectRouting);
+            }
+        };
+
+        final UsageService usageService = new UsageService();
+        authorizationService = createCpsAuthorizationService(throwingResolver, usageService);
+
+        roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
+        final Authentication authentication = createAuthentication(
+            new User("test_user", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())
+        );
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        final SearchRequest searchRequest = new SearchRequest("index-*");
+
+        expectThrows(
+            InvalidProjectRoutingException.class,
+            () -> authorize(authentication, TransportSearchAction.NAME, searchRequest, true, null)
+        );
+
+        final ProjectRoutingUsageSnapshot snapshot = usageService.getProjectRoutingUsageHolder().getSnapshot();
+        assertThat(snapshot.getSearchQueriesTotal(), equalTo(0L));
+        assertThat(snapshot.getSearchProjectRoutingFailures(), equalTo(0L));
+        assertThat(snapshot.getEsqlQueriesTotal(), equalTo(0L));
+        assertThat(snapshot.getEsqlProjectRoutingFailures(), equalTo(0L));
+    }
+
+    public void testEsqlProjectRoutingFailureRecordedOnInvalidProjectRoutingException() {
+        final ProjectRoutingInfo origin = createRandomProjectWithAlias(randomAlphaOfLengthBetween(5, 10));
+        final ProjectRoutingInfo linked = createRandomProjectWithAlias(randomAlphaOfLengthBetween(5, 10));
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<TargetProjects> callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
+            // hasLinkedProjects=true simulates ServerlessAuthorizedProjectsResolver setting the flag
+            callback.onResponse(new TargetProjects(origin, List.of(linked), null, true));
+            return null;
+        }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
+        when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
+        when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
+
+        final ProjectRoutingResolver throwingResolver = new ProjectRoutingResolver() {
+            @Override
+            public void validate(String projectRouting, ProjectMetadata projectMetadata) {}
+
+            @Override
+            public TargetProjects resolve(String projectRouting, ProjectMetadata projectMetadata, TargetProjects authorizedProjects) {
+                throw new InvalidProjectRoutingException("no project routing match for [{}]", projectRouting);
+            }
+        };
+
+        final UsageService usageService = new UsageService();
+        authorizationService = createCpsAuthorizationService(throwingResolver, usageService);
+
+        roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
+        final Authentication authentication = createAuthentication(
+            new User("test_user", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())
+        );
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        // ES|QL routing failures occur on EsqlResolveFieldsRequest (action indices:data/read/esql/resolve_fields).
+        // That class is in x-pack:plugin:esql (not accessible here), so use FieldCapabilitiesRequest as a stand-in —
+        // it implements IndicesRequest.Replaceable (i.e. CrossProjectCandidate) and the action string drives the bucket.
+        final FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest();
+
+        expectThrows(
+            InvalidProjectRoutingException.class,
+            () -> authorize(authentication, "indices:data/read/esql/resolve_fields", fieldCapsRequest, true, null)
+        );
+
+        final ProjectRoutingUsageSnapshot snapshot = usageService.getProjectRoutingUsageHolder().getSnapshot();
+        assertThat(snapshot.getSearchQueriesTotal(), equalTo(0L));
+        assertThat(snapshot.getSearchProjectRoutingFailures(), equalTo(0L));
+        assertThat(snapshot.getEsqlQueriesTotal(), equalTo(1L));
+        assertThat(snapshot.getEsqlWithProjectRouting(), equalTo(1L));
+        assertThat(snapshot.getEsqlProjectRoutingFailures(), equalTo(1L));
+    }
+
+    public void testProjectRoutingFailureIgnoredForUnrecognizedAction() {
+        final ProjectRoutingInfo origin = createRandomProjectWithAlias(randomAlphaOfLengthBetween(5, 10));
+        final ProjectRoutingInfo linked = createRandomProjectWithAlias(randomAlphaOfLengthBetween(5, 10));
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<TargetProjects> callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
+            // hasLinkedProjects=true to confirm action-name gating (not the hasLinkedProjects gate) suppresses recording
+            callback.onResponse(new TargetProjects(origin, List.of(linked), null, true));
+            return null;
+        }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
+        when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
+        when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
+
+        final ProjectRoutingResolver throwingResolver = new ProjectRoutingResolver() {
+            @Override
+            public void validate(String projectRouting, ProjectMetadata projectMetadata) {}
+
+            @Override
+            public TargetProjects resolve(String projectRouting, ProjectMetadata projectMetadata, TargetProjects authorizedProjects) {
+                throw new InvalidProjectRoutingException("no project routing match for [{}]", projectRouting);
+            }
+        };
+
+        final UsageService usageService = new UsageService();
+        authorizationService = createCpsAuthorizationService(throwingResolver, usageService);
+
+        roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
+        final Authentication authentication = createAuthentication(
+            new User("test_user", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())
+        );
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        // Use FieldCapabilitiesRequest (not SearchRequest) so that neither the instanceof SearchRequest
+        // check nor the esql/resolve_fields action-name check matches, confirming the action is ignored.
+        final FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest();
+
+        // "indices:data/read/get" is neither a search nor an ES|QL action
+        expectThrows(
+            InvalidProjectRoutingException.class,
+            () -> authorize(authentication, "indices:data/read/get", fieldCapsRequest, true, null)
+        );
+
+        final ProjectRoutingUsageSnapshot snapshot = usageService.getProjectRoutingUsageHolder().getSnapshot();
+        assertThat(snapshot.getSearchQueriesTotal(), equalTo(0L));
+        assertThat(snapshot.getSearchProjectRoutingFailures(), equalTo(0L));
+        assertThat(snapshot.getEsqlQueriesTotal(), equalTo(0L));
+        assertThat(snapshot.getEsqlProjectRoutingFailures(), equalTo(0L));
+    }
+
+    public void testSearchProjectRoutingFailureRecordedOnNoMatchingProjectException() {
+        // projectRoutingResolver returns empty TargetProjects (hasLinkedProjects=true) → wildcard expansion throws
+        // NoMatchingProjectException
+        final ProjectRoutingInfo origin = createRandomProjectWithAlias(randomAlphaOfLengthBetween(5, 10));
+        final ProjectRoutingInfo linked = createRandomProjectWithAlias(randomAlphaOfLengthBetween(5, 10));
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<TargetProjects> callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
+            // hasLinkedProjects=true simulates ServerlessAuthorizedProjectsResolver setting the flag
+            callback.onResponse(new TargetProjects(origin, List.of(linked), null, true));
+            return null;
+        }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
+        when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
+        when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
+
+        // Resolver returns empty TargetProjects (no origin, no linked) but marks hasLinkedProjects=true.
+        // The wildcard expander then throws NoMatchingProjectException because no project is available
+        // after applying the routing expression.
+        final ProjectRoutingResolver emptyResultResolver = new ProjectRoutingResolver() {
+            @Override
+            public void validate(String projectRouting, ProjectMetadata projectMetadata) {}
+
+            @Override
+            public TargetProjects resolve(String projectRouting, ProjectMetadata projectMetadata, TargetProjects authorizedProjects) {
+                return new TargetProjects(null, List.of(), null, true);
+            }
+        };
+
+        final UsageService usageService = new UsageService();
+        authorizationService = createCpsAuthorizationService(emptyResultResolver, usageService);
+
+        roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
+        final Authentication authentication = createAuthentication(
+            new User("test_user", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())
+        );
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        // Wildcard search: triggers full index expansion path through which NoMatchingProjectException is thrown.
+        // projectRouting must be non-null so ensureProjectsAvailable() throws NoMatchingProjectException (not AssertionError).
+        final SearchRequest searchRequest = new SearchRequest("*");
+        searchRequest.setProjectRouting("project-routing-value");
+
+        expectThrows(
+            NoMatchingProjectException.class,
+            () -> authorize(authentication, TransportSearchAction.NAME, searchRequest, true, null)
+        );
+
+        final ProjectRoutingUsageSnapshot snapshot = usageService.getProjectRoutingUsageHolder().getSnapshot();
+        assertThat(snapshot.getSearchQueriesTotal(), equalTo(1L));
+        assertThat(snapshot.getSearchWithProjectRouting(), equalTo(1L));
+        assertThat(snapshot.getSearchProjectRoutingFailures(), equalTo(1L));
+        assertThat(snapshot.getEsqlQueriesTotal(), equalTo(0L));
+        assertThat(snapshot.getEsqlProjectRoutingFailures(), equalTo(0L));
     }
 }

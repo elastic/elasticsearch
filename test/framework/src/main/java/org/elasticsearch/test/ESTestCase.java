@@ -587,6 +587,18 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    @Override
+    public final void setUp() throws Exception {
+        // use an @Before method for per-test setup
+        super.setUp();
+    }
+
+    @Override
+    public final void tearDown() throws Exception {
+        // use an @After method for per-test cleanup
+        super.tearDown();
+    }
+
     @Before
     public void setHeaderWarningAppender() {
         this.headerWarningAppender = HeaderWarningAppender.createAppender("header_warning", null);
@@ -739,6 +751,16 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public void ensureNoWarnings() {
         assertThat("unexpected warning headers", filterOutExcludedWarnings(getActualWarningStrings(true)), empty());
+    }
+
+    /**
+     * Reads and clears the deprecation warnings currently recorded on the thread context, returning the raw warning
+     * messages. Like {@link #assertWarnings}, this consumes the warnings so a subsequent {@link #ensureNoWarnings()}
+     * passes; it exists for tests that must combine ThreadContext warnings with warnings captured through another
+     * channel before asserting on the union.
+     */
+    protected final List<String> takeResponseWarnings() {
+        return getActualWarningStrings(true);
     }
 
     @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // remove
@@ -2409,8 +2431,12 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static void assertEqualsPercent(float expectedValue, float actualValue, float deltaPercent) {
-        var error = Math.max(expectedValue * deltaPercent, DEFAULT_DELTA);
-        var actualDelta = Math.abs(expectedValue - actualValue) - error;
+        assertEqualsPercent(expectedValue, actualValue, deltaPercent, DEFAULT_DELTA);
+    }
+
+    public static void assertEqualsPercent(float expectedValue, float actualValue, float deltaPercent, float absoluteDelta) {
+        float error = Math.max(expectedValue * deltaPercent, absoluteDelta);
+        float actualDelta = Math.abs(expectedValue - actualValue) - error;
         if (actualDelta > 0) {
             fail(Strings.format("expected:<%f> but was:<%f>", expectedValue, actualValue));
         }
@@ -2474,12 +2500,59 @@ public abstract class ESTestCase extends LuceneTestCase {
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
         AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins), new StablePluginsRegistry());
         AnalysisRegistry analysisRegistry = analysisModule.getAnalysisRegistry();
+        Map<String, TokenFilterFactory> tokenFilters = analysisRegistry.buildTokenFilterFactories(indexSettings);
+        Map<String, TokenizerFactory> tokenizers = analysisRegistry.buildTokenizerFactories(indexSettings);
+        Map<String, CharFilterFactory> charFilters = analysisRegistry.buildCharFilterFactories(indexSettings);
+        assertValidSharingKeys(analysisRegistry, indexSettings, tokenFilters, tokenizers, charFilters);
         return new TestAnalysis(
             analysisRegistry.build(IndexCreationContext.CREATE_INDEX, indexSettings),
-            analysisRegistry.buildTokenFilterFactories(indexSettings),
-            analysisRegistry.buildTokenizerFactories(indexSettings),
-            analysisRegistry.buildCharFilterFactories(indexSettings)
+            tokenFilters,
+            tokenizers,
+            charFilters
         );
+    }
+
+    /**
+     * Validates the {@code sharingKey()} contract that the node-level analyzer cache depends on, for
+     * every factory any analysis test builds (across all modules and plugins, not just
+     * analysis-common). Rebuilds an independent set of factories from the same recipe and asserts
+     * that a key is never {@code null} and that whenever two independently-built factories of the
+     * same recipe compare {@code equal} they also hash {@code equal}.
+     *
+     * <p>The {@code equals => hashCode} check catches the classic bug of placing a raw
+     * {@link org.apache.lucene.analysis.CharArraySet} in a key (content {@code equals} but identity
+     * {@code hashCode}) instead of {@code Analysis.StableCharArraySet}, which would silently corrupt
+     * the cache map. It is universal and free of false positives: identity-keyed factories (e.g.
+     * {@code multiplexer}, the ICU opaque-object keys) compare unequal across builds, so the
+     * implication holds vacuously for them.
+     */
+    private static void assertValidSharingKeys(
+        AnalysisRegistry registry,
+        IndexSettings indexSettings,
+        Map<String, TokenFilterFactory> tokenFilters,
+        Map<String, TokenizerFactory> tokenizers,
+        Map<String, CharFilterFactory> charFilters
+    ) throws IOException {
+        Map<String, TokenFilterFactory> tokenFilters2 = registry.buildTokenFilterFactories(indexSettings);
+        Map<String, TokenizerFactory> tokenizers2 = registry.buildTokenizerFactories(indexSettings);
+        Map<String, CharFilterFactory> charFilters2 = registry.buildCharFilterFactories(indexSettings);
+        tokenFilters.forEach(
+            (name, f) -> assertValidSharingKey("token filter [" + name + "]", f.sharingKey(), tokenFilters2.get(name).sharingKey())
+        );
+        tokenizers.forEach(
+            (name, f) -> assertValidSharingKey("tokenizer [" + name + "]", f.sharingKey(), tokenizers2.get(name).sharingKey())
+        );
+        charFilters.forEach(
+            (name, f) -> assertValidSharingKey("char filter [" + name + "]", f.sharingKey(), charFilters2.get(name).sharingKey())
+        );
+    }
+
+    private static void assertValidSharingKey(String what, Object key, Object rebuiltKey) {
+        assertNotNull(what + " returned a null sharingKey()", key);
+        assertNotNull(what + " returned a null sharingKey() on rebuild", rebuiltKey);
+        if (key.equals(rebuiltKey)) {
+            assertEquals(what + " sharingKey() is equal across builds but hashCode differs", key.hashCode(), rebuiltKey.hashCode());
+        }
     }
 
     /**

@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -33,9 +33,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
+import java.util.stream.Stream;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
+import static org.elasticsearch.xpack.inference.external.response.XContentUtils.parseObjects;
 
 public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor<
     Deque<ServerSentEvent>,
@@ -93,17 +93,9 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
         }
     }
 
-    private Iterator<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parse(
-        XContentParserConfiguration parserConfig,
-        String event
-    ) throws IOException {
-        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, event)) {
-            moveToFirstToken(jsonParser);
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, jsonParser.currentToken(), jsonParser);
-
-            StreamingUnifiedChatCompletionResults.ChatCompletionChunk chunk = GoogleVertexAiChatCompletionChunkParser.parse(jsonParser);
-            return Collections.singleton(chunk).iterator();
-        }
+    Iterator<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parse(XContentParserConfiguration parserConfig, String event)
+        throws IOException {
+        return parseObjects(parserConfig, event, p -> Stream.of(GoogleVertexAiChatCompletionChunkParser.parse(p))).iterator();
     }
 
     public static class GoogleVertexAiChatCompletionChunkParser {

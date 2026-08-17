@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedProjectRoutingDiagnostics;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -394,7 +395,16 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                     listener
                 ),
-                listener::onFailure
+                e -> {
+                    Exception enriched = DatafeedProjectRoutingDiagnostics.enrichIfNoMatchingProject(
+                        effectiveDatafeed.getId(),
+                        effectiveDatafeed.getProjectRouting(),
+                        e,
+                        DatafeedProjectRoutingDiagnostics.Phase.VALIDATE_BEFORE_MINT
+                    );
+                    auditor.error(job.getId(), enriched.getMessage());
+                    listener.onFailure(enriched);
+                }
             )
         );
     }
@@ -587,8 +597,11 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 datafeedTask.completeOrFailIfRequired(null);
                 return;
             }
+            // DatafeedState has no allocation id: null state means a fresh user start (fail-fast path),
+            // STARTED means the task was already running and this is a system reassignment (retry path).
+            boolean isReassignment = DatafeedState.STARTED.equals(datafeedState);
             switch (datafeedTask.setDatafeedRunner(datafeedRunner)) {
-                case NEITHER -> datafeedRunner.run(datafeedTask, datafeedTask::completeOrFailIfRequired);
+                case NEITHER -> datafeedRunner.run(datafeedTask, isReassignment, datafeedTask::completeOrFailIfRequired);
                 case ISOLATED -> logger.info("[{}] datafeed isolated immediately after reassignment.", params.getDatafeedId());
                 case STOPPED -> {
                     logger.info("[{}] datafeed stopped immediately after reassignment. Marking as completed", params.getDatafeedId());

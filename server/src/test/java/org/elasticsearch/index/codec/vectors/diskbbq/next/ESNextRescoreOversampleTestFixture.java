@@ -70,14 +70,6 @@ public final class ESNextRescoreOversampleTestFixture {
     /** Rescore oversample values swept by {@link IvfAutoCalibration}; derived from the source so they stay in sync. */
     public static final Set<Float> CALIBRATION_RERANK_OVERSAMPLES = IvfAutoCalibration.rerankOversamples();
 
-    /**
-     * Merge resolver matching {@link org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper} when
-     * {@code auto_calibrate} is enabled.
-     */
-    public static IvfMergeConfigResolver productionMergeResolver(int vectorsPerCluster) {
-        return IvfAutoCalibration.mergeConfigResolver(vectorsPerCluster);
-    }
-
     private ESNextRescoreOversampleTestFixture() {}
 
     /** Shared codec helpers for IVF writer + merge replay. */
@@ -117,8 +109,8 @@ public final class ESNextRescoreOversampleTestFixture {
             dir,
             vectorDimensions,
             vectorsPerSegment,
-            new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, oversampleSegmentA),
-            new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, oversampleSegmentB),
+            IvfSegmentConfig.of(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, oversampleSegmentA),
+            IvfSegmentConfig.of(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, oversampleSegmentB),
             mergeConfigResolver
         );
     }
@@ -176,7 +168,7 @@ public final class ESNextRescoreOversampleTestFixture {
                 return Optional.empty();
             }
             float oversample = flushSequence.getAndIncrement() == 0 ? oversampleSegmentA : oversampleSegmentB;
-            return Optional.of(new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, oversample));
+            return Optional.of(IvfSegmentConfig.of(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, oversample));
         };
         Codec codec = createDiskBbqCodec(flushConfig, IvfMergeConfigResolver.useCodecDefault());
         IndexWriterConfig iwc = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
@@ -248,7 +240,7 @@ public final class ESNextRescoreOversampleTestFixture {
             int seq = flushSequence.getAndIncrement();
             boolean precondition = seq == 0 ? preconditionSegmentA : preconditionSegmentB;
             return Optional.of(
-                new IvfSegmentConfig(
+                IvfSegmentConfig.of(
                     CentroidIndexFormat.FLAT,
                     QuantEncoding.ONE_BIT_4BIT_QUERY,
                     precondition,
@@ -261,44 +253,6 @@ public final class ESNextRescoreOversampleTestFixture {
 
         writeTwoCommits(vectorsPerSegment, vectorDimensions, dir, iwc);
         return DirectoryReader.open(dir);
-    }
-
-    /**
-     * Two commits under {@link NoMergePolicy}, then force-merge to one segment. The merge-time
-     * {@link IvfMergeConfigResolver} controls the persisted oversample on the output segment (flush-time values
-     * are overwritten for the merged artifact).
-     */
-    public static DirectoryReader buildTwoLeavesThenMergedOneSegment(
-        Directory dir,
-        int vectorDimensions,
-        int vectorsPerSegment,
-        float oversampleSegmentA,
-        float oversampleSegmentB,
-        IvfMergeConfigResolver mergeConfigResolverForBothPhases,
-        float expectedOversampleAfterMerge
-    ) throws IOException {
-        AtomicInteger flushSequence = new AtomicInteger(0);
-        IvfFlushConfigSource flushConfig = (state, fieldInfo) -> {
-            if (FIELD_NAME.equals(fieldInfo.name) == false) {
-                return Optional.empty();
-            }
-            int seq = flushSequence.getAndIncrement();
-            float ov = seq == 0 ? oversampleSegmentA : oversampleSegmentB;
-            return Optional.of(new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, ov));
-        };
-        Codec codec = createDiskBbqCodec(flushConfig, mergeConfigResolverForBothPhases);
-
-        IndexWriterConfig iwcNoMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
-        writeTwoCommits(vectorsPerSegment, vectorDimensions, dir, iwcNoMerge);
-
-        IndexWriterConfig iwcMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec);
-        try (IndexWriter mergeWriter = new IndexWriter(dir, iwcMerge)) {
-            mergeWriter.forceMerge(1);
-        }
-        DirectoryReader reader = DirectoryReader.open(dir);
-        assertThat(reader.leaves(), hasSize(1));
-        assertEquals(expectedOversampleAfterMerge, persistedOversampleOnLeaf(reader.leaves().getFirst().reader()), 0f);
-        return reader;
     }
 
     private static void writeTwoCommits(int vectorsPerSegment, int vectorDimensions, Directory dir, IndexWriterConfig iwc)
@@ -333,9 +287,9 @@ public final class ESNextRescoreOversampleTestFixture {
             }
             int seq = flushSequence.getAndIncrement();
             if (seq == 0) {
-                return Optional.of(new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, 2f));
+                return Optional.of(IvfSegmentConfig.of(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, 2f));
             }
-            return Optional.of(new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.TWO_BIT_4BIT_QUERY, false, 3f));
+            return Optional.of(IvfSegmentConfig.of(CentroidIndexFormat.FLAT, QuantEncoding.TWO_BIT_4BIT_QUERY, false, 3f));
         };
         Codec codec = createDiskBbqCodec(flushConfig, IvfAutoCalibration.mergeConfigResolver(vectorsPerCluster));
         IndexWriterConfig iwcNoMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
@@ -348,26 +302,6 @@ public final class ESNextRescoreOversampleTestFixture {
         DirectoryReader reader = DirectoryReader.open(dir);
         assertThat(reader.leaves(), hasSize(1));
         return reader;
-    }
-
-    /**
-     * Two flushed segments with disagreeing calibration metadata, merged by a background tiered merge
-     * (not force-merge), so {@link IvfAutoCalibration} re-calibrates when metadata reuse fails.
-     */
-    public static DirectoryReader buildBackgroundMergedWithDisagreeingFlushCalibration(
-        Directory dir,
-        Random rnd,
-        int vectorDimensions,
-        int vectorsPerSegment,
-        int vectorsPerCluster
-    ) throws IOException {
-        return buildBackgroundMergedWithDisagreeingFlushCalibration(
-            dir,
-            rnd,
-            vectorDimensions,
-            vectorsPerSegment,
-            new IvfAutoCalibration(vectorsPerCluster)
-        );
     }
 
     public static DirectoryReader buildBackgroundMergedWithDisagreeingFlushCalibration(
@@ -384,9 +318,9 @@ public final class ESNextRescoreOversampleTestFixture {
             }
             int seq = flushSequence.getAndIncrement();
             if (seq == 0) {
-                return Optional.of(new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, 2f));
+                return Optional.of(IvfSegmentConfig.of(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, 2f));
             }
-            return Optional.of(new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.TWO_BIT_4BIT_QUERY, false, 3f));
+            return Optional.of(IvfSegmentConfig.of(CentroidIndexFormat.FLAT, QuantEncoding.TWO_BIT_4BIT_QUERY, false, 3f));
         };
         Codec codec = createDiskBbqCodec(flushConfig, calibration::resolve);
         IndexWriterConfig iwcNoMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
@@ -414,7 +348,7 @@ public final class ESNextRescoreOversampleTestFixture {
         if (encoding == null) {
             return null;
         }
-        return new IvfSegmentConfig(CentroidIndexFormat.FLAT, encoding, persistedPreconditionOnLeaf(leaf), persistedOversampleOnLeaf(leaf));
+        return IvfSegmentConfig.of(CentroidIndexFormat.FLAT, encoding, persistedPreconditionOnLeaf(leaf), persistedOversampleOnLeaf(leaf));
     }
 
     public static QuantEncoding persistedQuantEncodingOnLeaf(LeafReader leaf) throws IOException {

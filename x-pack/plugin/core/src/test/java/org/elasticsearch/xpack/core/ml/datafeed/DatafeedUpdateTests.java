@@ -552,6 +552,44 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         assertThat(updatedDatafeed.getProjectRouting(), equalTo(newProjectRouting));
     }
 
+    public void testIsUserInitiatedProjectRoutingChangeWhenRoutingOmittedShouldReturnFalse() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("df-1", "job-1").setIndices(List.of("logs-*"))
+            .setProjectRouting("_alias:_origin")
+            .build();
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setScrollSize(100).build();
+        assertFalse(DatafeedUpdate.isUserInitiatedProjectRoutingChange(datafeed, update));
+    }
+
+    public void testIsUserInitiatedProjectRoutingChangeWhenRoutingUnchangedShouldReturnFalse() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("df-1", "job-1").setIndices(List.of("logs-*"))
+            .setProjectRouting("_alias:_origin")
+            .build();
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setProjectRouting("_alias:_origin").build();
+        assertFalse(DatafeedUpdate.isUserInitiatedProjectRoutingChange(datafeed, update));
+    }
+
+    public void testIsUserInitiatedProjectRoutingChangeWhenRoutingWidensShouldReturnTrue() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("df-1", "job-1").setIndices(List.of("logs-*"))
+            .setProjectRouting("_alias:_origin")
+            .build();
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setProjectRouting("_alias:prod-*").build();
+        assertTrue(DatafeedUpdate.isUserInitiatedProjectRoutingChange(datafeed, update));
+    }
+
+    public void testIsUserInitiatedProjectRoutingChangeWhenRoutingNarrowsShouldReturnTrue() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("df-1", "job-1").setIndices(List.of("logs-*"))
+            .setProjectRouting("_alias:prod-*")
+            .build();
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setProjectRouting("_alias:_origin").build();
+        assertTrue(DatafeedUpdate.isUserInitiatedProjectRoutingChange(datafeed, update));
+    }
+
+    public void testIsUserInitiatedProjectRoutingChangeWhenRoutingSetOnPreviouslyUnsetConfigShouldReturnTrue() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("df-1", "job-1").setIndices(List.of("logs-*")).build();
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setProjectRouting("_alias:_origin").build();
+        assertTrue(DatafeedUpdate.isUserInitiatedProjectRoutingChange(datafeed, update));
+    }
+
     public void testProjectRoutingParsing() throws IOException {
         String datafeedUpdateJson = """
             {

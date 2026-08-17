@@ -23,6 +23,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -67,7 +69,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  *     verifier-time validation is eligible for pushdown.
  * </p>
  */
-public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpression {
+public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpression, AnyNullIsNull {
     private static final BytesRef TRUE_BYTES = new BytesRef("true");
     private static final BytesRef FALSE_BYTES = new BytesRef("false");
 
@@ -114,6 +116,18 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
             Inside a multi-value sub-field, JSON object elements are likewise absent from the flat storage and are
             skipped; nested JSON arrays are flattened recursively so all scalar leaves end up in the resulting
             multi-value block.""",
+        appendix = """
+            ::::{note}
+            `FIELD_EXTRACT` reads from the `flattened` field's doc values, so a multi-valued sub-field comes back
+            as a **sorted, de-duplicated** `keyword` set: the original document order is not preserved and
+            repeated values are collapsed. This is intrinsic to how the [`flattened` mapping
+            type](/reference/elasticsearch/mapping-reference/flattened.md) [stores leaf
+            arrays](/reference/elasticsearch/mapping-reference/flattened.md#flattened-preserve-leaf-arrays), not to
+            the function; use [`MV_SORT`](/reference/query-languages/esql/functions-operators/mv-functions/mv_sort.md)
+            if you need a defined order downstream. For the other flattened caveats - values are always `keyword`,
+            dotted-key resolution, and objects or missing keys returning `null` - see the [`flattened` field
+            type](/reference/elasticsearch/mapping-reference/flattened.md).
+            ::::""",
         examples = @Example(file = "field_extract", tag = "field_extract_host_name")
     )
     public FieldExtract(
@@ -392,8 +406,22 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
      * returns the synthetic data-node field name (e.g. {@code "resource.attributes.host.name"}).
      * The data node's {@code FieldTypeLookup} resolves this name to a
      * {@code KeyedFlattenedFieldType} which handles the key-prefix encoding in
-     * {@code indexedValueForSearch}. The caller is responsible for wrapping the produced query
-     * in a {@code SingleValueQuery} to preserve ES|QL's single-value comparison semantics.
+     * {@code indexedValueForSearch}.
+     * <p>
+     *     The produced query is a <em>candidate</em> query: it matches every document whose keyed
+     *     sub-field holds the value under that key, including multi-valued documents. Exact ES|QL
+     *     single-value semantics are restored by rechecking the predicate in the compute engine, so
+     *     the comparison operators report {@link TranslationAware.Translatable#RECHECK} rather than
+     *     wrapping the query in a {@code SingleValueQuery}. A {@code SingleValueQuery} would have to
+     *     decompress the flattened field's binary doc values to count the values per document; the
+     *     recheck instead reuses the keyword column the evaluator already extracts, which is far cheaper.
+     * </p>
+     * <p>
+     *     Pushdown requires the flattened root to be <strong>indexed</strong>. The candidate query is
+     *     only worthwhile against a real postings list; on a doc-values-only field the keyed term query
+     *     degrades to a full doc-values scan, which is no better than running the predicate as a plain
+     *     filter. In that case this returns empty so the comparison stays in the {@code FilterExec}.
+     * </p>
      * <p>
      *     Explicitly mapped sub-fields are <strong>not</strong> pushed: for them the synthetic name
      *     resolves to the real typed field (e.g. an {@code ip} or {@code long}), so a pushed query
@@ -412,6 +440,7 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
             return Optional.empty();
         }
         return foldedKeyForFlattenedRoot().filter(k -> pushdownPredicates.isIndexedAndHasDocValues(k.root()))
+            .filter(k -> pushdownPredicates.isIndexed(k.root()))
             .filter(
                 k -> pushdownPredicates.supportsLoaderConfig(
                     k.root(),

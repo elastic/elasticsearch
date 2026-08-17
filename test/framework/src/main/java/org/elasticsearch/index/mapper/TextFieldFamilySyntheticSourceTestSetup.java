@@ -53,7 +53,7 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
     private static FieldMapper.DocValuesParameter.Values docValuesParams(boolean supportsDocValues, boolean isColumnar) {
         // currently, only text fields support doc values, so if doc_values aren't supported, then there is no reason to generate them
         if (supportsDocValues == false) {
-            return FieldMapper.DocValuesParameter.Values.DISABLED;
+            return FieldMapper.DocValuesParameter.Values.DISABLED_LOW_CARDINALITY;
         }
 
         // multi_value=false is only valid in strict-columnar index modes.
@@ -69,7 +69,7 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         return switch (randomInt(2)) {
             case 0 -> new FieldMapper.DocValuesParameter.Values(true, LOW, multiValue, true, onFailure);
             case 1 -> new FieldMapper.DocValuesParameter.Values(true, HIGH, multiValue, true, onFailure);
-            case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
+            case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED_LOW_CARDINALITY;
             default -> throw new IllegalStateException();
         };
     }

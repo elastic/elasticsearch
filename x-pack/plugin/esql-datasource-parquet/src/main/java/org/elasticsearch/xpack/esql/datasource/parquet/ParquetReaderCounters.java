@@ -19,16 +19,20 @@ import java.util.concurrent.atomic.LongAdder;
 /**
  * Mutable, thread-safe counter struct for a {@link ParquetFormatReader}. One instance is held per
  * reader; instrumentation sites bump fields around footer reads, row-group filtering, page-index
- * narrowing, late materialization, per-column reads, and the {@code read} / {@code readRange}
- * entry points. {@link #snapshot()} produces an immutable {@link Map} of counter values that can
- * be folded into the operator-status envelope.
+ * narrowing, late materialization, per-column reads, the {@code read} / {@code readRange} entry
+ * points, and the row-group transitions / per-batch decode of the returned column iterators
+ * ({@code ParquetColumnIterator}, {@link OptimizedParquetColumnIterator}). {@link #snapshot()}
+ * produces an immutable {@link Map} of counter values that can be folded into the operator-status
+ * envelope.
  * <p>
  * Counter buckets: footer ({@code footer_read_nanos}, {@code footer_size_bytes},
  * {@code row_groups_in_file}), row-group filter ({@code row_groups_total}, {@code row_groups_kept}),
  * page index ({@code page_index_used}, {@code rows_in_kept_row_groups}, {@code rows_after_page_index}),
  * late materialization ({@code late_materialization_enabled},
  * {@code late_materialization_used}, {@code predicate_columns}),
- * aggregate ({@code read_nanos}), and a typed per-column map under {@code columns}.
+ * aggregate ({@code read_nanos}) — producer-thread time across open, row-group transitions
+ * (prefetch wait, filtering), and per-batch decode/decompress — and a typed per-column map under
+ * {@code columns}.
  * <p>
  * The mutable / immutable split mirrors the {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetricsCounters}
  * pattern. {@link LongAdder} is preferred over {@code AtomicLong} because async read-path

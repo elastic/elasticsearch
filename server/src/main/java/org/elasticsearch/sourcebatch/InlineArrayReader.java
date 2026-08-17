@@ -10,6 +10,8 @@
 package org.elasticsearch.sourcebatch;
 
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.xcontent.Text;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.nio.charset.StandardCharsets;
 
@@ -139,6 +141,12 @@ public final class InlineArrayReader implements ArrayReader {
     public String stringValue() {
         int len = ByteUtils.readIntLE(data, currentStart);
         return new String(data, currentStart + 4, len, StandardCharsets.UTF_8);
+    }
+
+    @Override
+    public Text textValue() {
+        int len = ByteUtils.readIntLE(data, currentStart);
+        return new Text(new XContentString.UTF8Bytes(data, currentStart + 4, len));
     }
 
     /**

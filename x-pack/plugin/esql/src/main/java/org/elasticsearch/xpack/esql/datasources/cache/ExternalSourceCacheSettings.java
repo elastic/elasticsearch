@@ -38,12 +38,23 @@ public final class ExternalSourceCacheSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Deprecated no-op. The schema (per-file) and dataset-aggregate caches are invalidated by identity
+     * (mtime / file-set fingerprint in the key) and bounded by CACHE_SIZE + LRU, never by a clock — see
+     * {@link ExternalSourceCacheService}. This setting formerly capped the schema cache with a hard TTL;
+     * it is retained, registered, and ignored so a node that carries it in {@code elasticsearch.yml} from
+     * an earlier version still starts (removing a released node setting would fail startup). It is wired to
+     * nothing and emits a deprecation warning when set.
+     */
     public static final Setting<TimeValue> SCHEMA_TTL = Setting.positiveTimeSetting(
         "esql.source.cache.schema.ttl",
         TimeValue.timeValueMinutes(5),
+        Setting.Property.DeprecatedWarning,
         Setting.Property.NodeScope
     );
 
+    // Only the listing cache carries a time-based refresh: it discovers file identity and has no per-file
+    // key to invalidate on. The schema and dataset-aggregate caches invalidate by identity, not by a clock.
     public static final Setting<TimeValue> LISTING_TTL = Setting.positiveTimeSetting(
         "esql.source.cache.listing.ttl",
         TimeValue.timeValueSeconds(30),

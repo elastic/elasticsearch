@@ -155,7 +155,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
     }
 
-    public void testRetryOnFailureOnRecoveryFromPeer() {
+    public void testRetryOnFailureOnRecoveryFromPeer() throws Exception {
         String source = internalCluster().startNode();
         final var indexName = randomIndexName();
 
@@ -166,16 +166,17 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         String target = internalCluster().startNode();
 
-        armRandomPeerRecoveryFailure(target);
         RetryRecoveryTestPlugin.reset();
+        armRandomPeerRecoveryFailure(target);
 
         // Recover from peer
-        indicesAdmin().prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put("index.routing.allocation.require._name", target))
-            .execute();
+        assertAcked(
+            indicesAdmin().prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put("index.routing.allocation.require._name", target))
+        );
+        assertBusy(() -> assertAllShardsOnNodes(indexName, target));
 
         ensureGreen(indexName);
-        assertAllShardsOnNodes(indexName, target);
         assertThat(RetryRecoveryTestPlugin.retryCounter.get(), equalTo(1));
         assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
     }

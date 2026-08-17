@@ -43,8 +43,7 @@ import static org.elasticsearch.xpack.esql.inference.InferenceSettings.COMPLETIO
 /**
  * The {@code DENSE_VECTOR} command generates a {@code dense_vector} embedding column per input field.
  * <p>
- * It takes a comma-separated list of field-name patterns (the {@code qualifiedNamePatterns} grammar shared with
- * {@code KEEP}/{@code DROP}, so wildcards are supported) and, for each matched text field, appends a generated
+ * It takes an explicit comma-separated list of field names and, for each text field, appends a generated
  * {@code <field>_dense_vector} column. Unlike {@code KEEP}, it adds columns rather than projecting them.
  * </p>
  */
@@ -63,7 +62,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
 
     private static final Literal DEFAULT_ROW_LIMIT = Literal.integer(Source.EMPTY, COMPLETION_ROW_LIMIT_SETTING.getDefault(Settings.EMPTY));
 
-    /** Input fields to embed (name patterns before analysis, resolved and wildcard-expanded attributes after). */
+    /** Input fields to embed (unresolved names before analysis, resolved attributes after). */
     private final List<NamedExpression> fields;
 
     /**
@@ -165,7 +164,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
     }
 
     /**
-     * Returns a copy with resolved/wildcard-expanded input fields and the matching generated {@code <field>_dense_vector}
+     * Returns a copy with resolved input fields and the matching generated {@code <field>_dense_vector}
      * attributes. Used by the analyzer once {@link #fields} are resolved against the child output.
      */
     public DenseVector withResolvedFields(List<NamedExpression> resolvedFields, List<Attribute> resolvedGeneratedFields) {
@@ -223,8 +222,8 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
                 return false;
             }
         }
-        // An empty field list is a resolved no-op: every wildcard pattern matched nothing, so the
-        // command generates no columns. Non-empty results always have generatedFields populated 1:1 with fields.
+        // An empty field list is a resolved no-op: the command generates no columns.
+        // Non-empty results always have generatedFields populated 1:1 with fields.
         return true;
     }
 

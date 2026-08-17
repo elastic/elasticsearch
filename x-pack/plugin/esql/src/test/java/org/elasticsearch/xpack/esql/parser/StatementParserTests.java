@@ -4476,34 +4476,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("weird name"))));
     }
 
-    public void testDenseVectorWildcard() {
+    public void testDenseVectorWildcardNotSupported() {
         assumeDenseVectorCommandEnabled();
-        var plan = as(processingCommand("DENSE_VECTOR titl* WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
-        assertThat(plan.fields(), hasSize(1));
-        assertThat(as(plan.fields().get(0), UnresolvedNamePattern.class).pattern(), equalTo("titl*"));
-    }
-
-    public void testDenseVectorMultipleWildcards() {
-        assumeDenseVectorCommandEnabled();
-        var plan = as(processingCommand("DENSE_VECTOR t*, a* WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
-        assertThat(plan.fields(), hasSize(2));
-        assertThat(as(plan.fields().get(0), UnresolvedNamePattern.class).pattern(), equalTo("t*"));
-        assertThat(as(plan.fields().get(1), UnresolvedNamePattern.class).pattern(), equalTo("a*"));
-    }
-
-    public void testDenseVectorMixedNameAndWildcard() {
-        assumeDenseVectorCommandEnabled();
-        var plan = as(processingCommand("DENSE_VECTOR title, auth* WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
-        assertThat(plan.fields(), hasSize(2));
-        assertThat(plan.fields().get(0), equalToIgnoringIds(attribute("title")));
-        assertThat(as(plan.fields().get(1), UnresolvedNamePattern.class).pattern(), equalTo("auth*"));
-    }
-
-    public void testDenseVectorStar() {
-        assumeDenseVectorCommandEnabled();
-        var plan = as(processingCommand("DENSE_VECTOR * WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
-        assertThat(plan.fields(), hasSize(1));
-        assertThat(plan.fields().get(0), instanceOf(UnresolvedStar.class));
+        // Wildcards are not supported: the field list is an explicit qualifiedNames list, so a pattern is a parse error.
+        expectError("FROM books | DENSE_VECTOR titl* WITH { \"inference_id\" : \"my-id\" }", "mismatched input '*'");
+        expectError("FROM books | DENSE_VECTOR * WITH { \"inference_id\" : \"my-id\" }", "mismatched input '*'");
     }
 
     public void testDenseVectorWithTimeout() {

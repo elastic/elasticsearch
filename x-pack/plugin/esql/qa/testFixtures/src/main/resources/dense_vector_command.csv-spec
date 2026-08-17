@@ -49,28 +49,16 @@ a:keyword                  | b:keyword             | a_dense_vector:dense_vector
 be excellent to each other | live long and prosper | [45.0, 55.0, 54.0]          | [50.0, 57.0, 56.0]
 ;
 
-dense_vector command with a wildcard field pattern
+dense_vector command on a single explicitly-named field
 required_capability: dense_vector_command
 required_capability: dense_vector_field_type_released
 
 ROW title = "Who is Victor Hugo?"
-| DENSE_VECTOR titl* WITH { "inference_id" : "test_dense_inference" }
+| DENSE_VECTOR title WITH { "inference_id" : "test_dense_inference" }
 ;
 
 title:keyword       | title_dense_vector:dense_vector
 Who is Victor Hugo? | [56.0, 50.0, 48.0]
-;
-
-dense_vector command wildcard matching nothing is a silent no-op
-required_capability: dense_vector_command
-required_capability: dense_vector_field_type_released
-
-ROW input = "Who is Victor Hugo?"
-| DENSE_VECTOR nomatch* WITH { "inference_id" : "test_dense_inference" }
-;
-
-input:keyword
-Who is Victor Hugo?
 ;
 
 dense_vector command with timeout option
@@ -103,13 +91,13 @@ book_no:keyword | title:text | publisher:text | title_dense_vector:dense_vector 
 ;
 
 
-dense_vector command with a wildcard field pattern over an index
+dense_vector command on a single explicitly-named field over an index
 required_capability: dense_vector_command
 required_capability: dense_vector_field_type_released
 
 FROM books
 | WHERE book_no IN ("7480", "8605")
-| DENSE_VECTOR titl* WITH { "inference_id" : "test_dense_inference" }
+| DENSE_VECTOR title WITH { "inference_id" : "test_dense_inference" }
 | SORT book_no
 | KEEP book_no, title, title_dense_vector
 ;
@@ -117,20 +105,6 @@ FROM books
 book_no:keyword | title:text | title_dense_vector:dense_vector
 7480            | The Hobbit | [50.0, 49.0, 48.0]
 8605            | Dead Souls | [45.0, 49.0, 53.0]
-;
-
-dense_vector command wildcard matching nothing over an index is a silent no-op
-required_capability: dense_vector_command
-required_capability: dense_vector_field_type_released
-
-FROM books
-| WHERE book_no == "7480"
-| DENSE_VECTOR nomatch* WITH { "inference_id" : "test_dense_inference" }
-| KEEP book_no, title
-;
-
-book_no:keyword | title:text
-7480            | The Hobbit
 ;
 
 dense_vector command with timeout option over an index

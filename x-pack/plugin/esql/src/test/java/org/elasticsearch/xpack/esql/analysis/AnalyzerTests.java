@@ -4559,33 +4559,6 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(getAttributeByName(denseVector.output(), "book_no_dense_vector"), notNullValue());
     }
 
-    public void testDenseVectorWildcardExpandsToTextFields() {
-        assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = books().query("""
-            FROM books
-            | DENSE_VECTOR publ* WITH { "inference_id" : "text-embedding-inference-id" }
-            """);
-
-        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
-        assertThat(denseVector.generatedAttributes(), hasSize(1));
-        assertThat(getAttributeByName(denseVector.output(), "publisher_dense_vector"), notNullValue());
-    }
-
-    public void testDenseVectorStarEmbedsTextFieldsOnly() {
-        assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = books().query("""
-            FROM books
-            | DENSE_VECTOR * WITH { "inference_id" : "text-embedding-inference-id" }
-            """);
-
-        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
-        // a text field is embedded...
-        assertThat(getAttributeByName(denseVector.output(), "title_dense_vector"), notNullValue());
-        // ...but non-text fields are silently excluded (no year_dense_vector /ratings_dense_vector)
-        assertThat(getAttributeByName(denseVector.output(), "year_dense_vector"), nullValue());
-        assertThat(getAttributeByName(denseVector.output(), "ratings_dense_vector"), nullValue());
-    }
-
     public void testDenseVectorNonTextFieldFails() {
         assumeDenseVectorCommandEnabled();
         books().error(
@@ -4602,32 +4575,6 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
-    public void testDenseVectorWildcardNoMatchIsSilent() {
-        assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = books().query("""
-            FROM books
-            | DENSE_VECTOR nomatch* WITH { "inference_id" : "text-embedding-inference-id" }
-            """);
-
-        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
-        assertThat(denseVector.fields(), empty());
-        assertThat(denseVector.generatedAttributes(), empty());
-    }
-
-    public void testDenseVectorWildcardNonTextMatchIsSilent() {
-        assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = books().query("""
-            FROM books
-            | DENSE_VECTOR title, y* WITH { "inference_id" : "text-embedding-inference-id" }
-            """);
-
-        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
-        // title (text) is embedded; y* matches only `year` (integer), which is silently skipped
-        assertThat(denseVector.generatedAttributes(), hasSize(1));
-        assertThat(getAttributeByName(denseVector.output(), "title_dense_vector"), notNullValue());
-        assertThat(getAttributeByName(denseVector.output(), "year_dense_vector"), nullValue());
-    }
-
     public void testDenseVectorDuplicateFieldIsDeduped() {
         assumeDenseVectorCommandEnabled();
         LogicalPlan plan = books().query("""
@@ -4639,18 +4586,6 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(denseVector.fields(), hasSize(1));
         assertThat(denseVector.generatedAttributes(), hasSize(1));
         assertThat(getAttributeByName(denseVector.output(), "title_dense_vector"), notNullValue());
-    }
-
-    public void testDenseVectorOverlappingWildcardIsDeduped() {
-        assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = books().query("""
-            FROM books
-            | DENSE_VECTOR title, titl* WITH { "inference_id" : "text-embedding-inference-id" }
-            """);
-
-        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
-        assertThat(denseVector.fields(), hasSize(1));
-        assertThat(denseVector.generatedAttributes(), hasSize(1));
     }
 
     public void testResolveGroupingsBeforeResolvingImplicitReferencesToGroupings() {

@@ -1543,8 +1543,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitDenseVectorCommand(EsqlBaseParser.DenseVectorCommandContext ctx) {
         Source source = source(ctx);
 
-        // Field-list input, shared with KEEP/DROP (wildcards supported). No expressions/renames — computed values go through EVAL first.
-        List<NamedExpression> fields = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {});
+        // Explicit field list; no expressions or renames.
+        List<NamedExpression> fields = ctx.qualifiedNames()
+            .qualifiedName()
+            .stream()
+            .map(qn -> (NamedExpression) visitQualifiedName(qn))
+            .toList();
         // Reuse the completion row limit
         // TODO: Change to own limit
         Literal rowLimit = Literal.integer(source, context.inferenceSettings().completionRowLimit());

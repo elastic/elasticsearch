@@ -45,11 +45,6 @@ public class HistogramFractionTests extends AbstractScalarFunctionTestCase {
         this.testCase = testCaseSupplier.get();
     }
 
-    @Override
-    protected boolean canSerialize() {
-        return DataType.DOUBLE_RANGE.supportedVersion().supportedLocally();
-    }
-
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();

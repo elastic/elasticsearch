@@ -112,7 +112,7 @@ public class SamlResponseHandlerTests extends SamlTestCase {
     }
 
     protected static String randomSigningAlgorithm() {
-        return randomFrom("RSA", "DSA", "EC");
+        return inFipsJvm() ? randomFrom("RSA", "EC") : randomFrom("RSA", "DSA", "EC");
     }
 
     @AfterClass

@@ -944,3 +944,64 @@ tests:
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerInSubqueryGoldenTests
   method: testMultiColumnInSubqueryWithTsSource {historical}
   issue: https://github.com/elastic/elasticsearch/issues/156845
+- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
+  method: testIndexTimeFieldData {p0=false p1=BASIC}
+  issue: https://github.com/elastic/elasticsearch/issues/156846
+- class: org.elasticsearch.xpack.transform.integration.TransformGetAndGetStatsIT
+  method: testGetAndGetStatsForTransformWithoutConfig
+  issue: https://github.com/elastic/elasticsearch/issues/156847
+- class: org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponseTests
+  method: testSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/156848
+- class: org.elasticsearch.xpack.core.transform.action.PreviewTransformActionRequestTests
+  method: testCloudCredentialRoundTripPreservesValue
+  issue: https://github.com/elastic/elasticsearch/issues/156850
+- class: org.elasticsearch.xpack.core.transform.action.ResetTransformActionRequestTests
+  method: testCloudCredentialRoundTripPreservesValue
+  issue: https://github.com/elastic/elasticsearch/issues/156851
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/156852
+- class: org.elasticsearch.cluster.action.shard.ShardStartedTaskExecutorTests
+  issue: https://github.com/elastic/elasticsearch/issues/156853
+- class: org.elasticsearch.common.util.BigArraysTests
+  method: testEstimatedBytesSameAsActualBytes
+  issue: https://github.com/elastic/elasticsearch/issues/156854
+- class: org.elasticsearch.repositories.RepositoriesServiceTests
+  method: testRegisterRepositorySuccessAfterCreationFailed
+  issue: https://github.com/elastic/elasticsearch/issues/156855
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecChangePointIT
+  method: test {csv-spec:change_point.null keys}
+  issue: https://github.com/elastic/elasticsearch/issues/156856
+- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=downsample/10_basic/Downsample a downsampled index}
+  issue: https://github.com/elastic/elasticsearch/issues/156862
+- class: org.elasticsearch.search.aggregations.metrics.TDigestPercentilesIT
+  method: testSingleValuedFieldPartiallyUnmapped
+  issue: https://github.com/elastic/elasticsearch/issues/156864
+- class: org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettingsTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/156866
+- class: org.elasticsearch.xpack.inference.common.oauth2.OAuth2SecretsTests
+  method: testConcurrentSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/156867
+- class: org.elasticsearch.xpack.inference.common.oauth2.OAuth2SecretsTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/156868
+- class: org.elasticsearch.xpack.transform.integration.TransformGetAndGetStatsIT
+  method: testManyTransforms
+  issue: https://github.com/elastic/elasticsearch/issues/156869
+- class: org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponseTests
+  method: testConcurrentSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/156870
+- class: org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponseTests
+  method: testConcurrentEquals
+  issue: https://github.com/elastic/elasticsearch/issues/156871
+- class: org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponseTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/156872
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.lookupJoin [lz4raw/GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/156877
+- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=ml/ml_standard_analyze/Test analyze API with the standard 7.16 ML analyzer}
+  issue: https://github.com/elastic/elasticsearch/issues/156878

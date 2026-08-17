@@ -11,11 +11,13 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 public class UnknownTypeRepositoryTests extends ESTestCase {
 
@@ -34,5 +36,20 @@ public class UnknownTypeRepositoryTests extends ESTestCase {
 
     public void testShouldNotThrowWhenClosingToAllowRemovingRepo() {
         repository.close();
+    }
+
+    public void testDeprecationInfos() {
+        assertThat(
+            repository.getDeprecationInfos(),
+            hasItem(
+                new RepositoryDeprecationInfo(
+                    RepositoryDeprecationInfo.Level.CRITICAL,
+                    "Unknown repository type",
+                    ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                    "This repository uses an unknown type. Ensure that all required plugins are installed before upgrading.",
+                    false
+                )
+            )
+        );
     }
 }

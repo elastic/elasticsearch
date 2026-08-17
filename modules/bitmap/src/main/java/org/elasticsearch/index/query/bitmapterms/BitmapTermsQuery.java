@@ -86,7 +86,7 @@ public class BitmapTermsQuery extends Query implements Accountable {
                 }
 
                 if (canStream(reader, terms)) {
-                    long estimatedCost = estimateCost(reader, terms);
+                    final long estimatedCost = estimateCost(reader, terms);
                     return new ScorerSupplier() {
                         @Override
                         public Scorer get(long leadCost) throws IOException {
@@ -105,9 +105,11 @@ public class BitmapTermsQuery extends Query implements Accountable {
                     };
                 }
 
+                // Cheap proxy: an upper bound on the matching terms, since not every bitmap value need exist in the
+                // dictionary. Not a bound on the matching docs, as one term can hold many; the exact count needs the
+                // merge scan, and the collected DocIdSet reports its true cost once get() has run.
+                final long cost = values.cardinality();
                 return new ScorerSupplier() {
-                    long cost = -1;
-
                     @Override
                     public Scorer get(long leadCost) throws IOException {
                         DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), terms);
@@ -117,10 +119,6 @@ public class BitmapTermsQuery extends Query implements Accountable {
 
                     @Override
                     public long cost() {
-                        if (cost == -1) {
-                            // Upper bound: assume each bitmap value matches at least one doc
-                            cost = values.cardinality();
-                        }
                         return cost;
                     }
                 };
@@ -201,9 +199,10 @@ public class BitmapTermsQuery extends Query implements Accountable {
     }
 
     /**
-     * Rough per-segment cost: the cardinality scaled by the average docs per term, since a streamed
-     * match set is never materialised and so has no exact size to report. The eager path keeps the
-     * plain cardinality it has always used.
+     * Rough per-segment cost for the streaming path: the bitmap's cardinality scaled by the average documents per
+     * term, clamped to {@code maxDoc}. Both inputs are terms dictionary metadata, since the true count would take
+     * the merge scan. The collecting path can afford the plain cardinality because the built set reports its real
+     * size soon after; a streamed one never does, and Lucene keeps using this number to order conjunctions.
      */
     private long estimateCost(LeafReader reader, Terms terms) throws IOException {
         long termCount = terms.size();

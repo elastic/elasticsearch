@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.datasources.BackendFixture;
 import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
-import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
 import org.elasticsearch.xpack.esql.generator.AllowedGeneratorFailureException;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;

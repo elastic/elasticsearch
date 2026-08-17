@@ -12,15 +12,20 @@ package org.elasticsearch.columnar.numeric;
 /**
  * A factory that builds a {@link NumericPipeline} for a given block size. Returned by
  * {@link NumericPipelineSelector#select} so that the selector can express "which pipeline type"
- * without knowing the block size, while {@link org.elasticsearch.columnar.ColumNARDocValuesFormat}
- * remains the sole owner of the block size decision.
+ * without knowing the block size, while
+ * {@link org.elasticsearch.columnar.ColumNARDocValuesFormat} remains the sole owner of the block
+ * size decision.
  *
- * <p>The named factories on {@link NumericPipeline} ({@link NumericPipeline#defaultPipeline},
- * {@link NumericPipeline#monotonicLongPipeline}, etc.) satisfy this interface as method references.
+ * <p>Typical usage as a method reference:
+ * <pre>{@code
+ * (fieldName, type) -> NumericPipeline::monotonicLongPipeline
+ * }</pre>
  */
 @FunctionalInterface
 public interface NumericPipelineTemplate {
 
-    /** Builds a pipeline configured for the given block size. */
+    /**
+     * Builds a pipeline configured for the given block size.
+     */
     NumericPipeline build(int blockSize);
 }

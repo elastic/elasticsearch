@@ -820,3 +820,6 @@ tests:
 - class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=ml/ml_standard_analyze/Test analyze API with the standard 7.16 ML analyzer}
   issue: https://github.com/elastic/elasticsearch/issues/156878
+- class: org.elasticsearch.reindex.management.ReindexDoubleRelocationIT
+  method: testDoubleRelocationWithManagementEndpoints
+  issue: https://github.com/elastic/elasticsearch/issues/156929

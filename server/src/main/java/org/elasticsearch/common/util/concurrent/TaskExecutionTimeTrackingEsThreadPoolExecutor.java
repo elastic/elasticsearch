@@ -261,9 +261,9 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     public double pollUtilization(UtilizationTrackingPurpose utilizationTrackingPurpose) {
         switch (utilizationTrackingPurpose) {
             case APM:
-                return apmUtilizationTracker.pollUtilization(totalExecutionTime);
+                return apmUtilizationTracker.pollUtilization();
             case ALLOCATION:
-                return allocationUtilizationTracker.pollUtilization(totalExecutionTime);
+                return allocationUtilizationTracker.pollUtilization();
             default:
                 throw new IllegalStateException("No operation defined for [" + utilizationTrackingPurpose + "]");
         }

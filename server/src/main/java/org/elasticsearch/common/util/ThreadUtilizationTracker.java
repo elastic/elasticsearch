@@ -10,10 +10,7 @@
 package org.elasticsearch.common.util;
 
 import java.util.concurrent.atomic.LongAdder;
-<<<<<<< HEAD
-=======
 import java.util.function.LongSupplier;
->>>>>>> main
 
 /**
  * Generalization of thread utilization tracking. Tracks the total execution time of a set of threads and allows polling for the average

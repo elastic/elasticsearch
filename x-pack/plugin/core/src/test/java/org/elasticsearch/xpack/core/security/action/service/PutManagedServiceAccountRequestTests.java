@@ -61,6 +61,17 @@ public class PutManagedServiceAccountRequestTests extends ESTestCase {
         assertThat(request.validate().validationErrors().toString(), containsString("wildcard"));
     }
 
+    public void testValidateRejectsNativeUserRunAsFrom() {
+        final PutManagedServiceAccountRequest request = new PutManagedServiceAccountRequest(
+            "my-team",
+            "worker",
+            List.of("role-a"),
+            List.of("native_user"),
+            true
+        );
+        assertThat(request.validate().validationErrors().toString(), containsString("must be a service account"));
+    }
+
     public void testParseRequestWithRolesOnlyDefaultsEnabledTrue() throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, """
             {

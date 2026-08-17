@@ -205,6 +205,12 @@ public class ManagedServiceAccountStoreTests extends ESTestCase {
         assertThat(loadAccountFromSource(PRINCIPAL, source), nullValue());
     }
 
+    public void testParseAccountDocumentRejectsNativeUserRunAsFrom() throws Exception {
+        final Map<String, Object> source = validAccountDocument(PRINCIPAL, List.of(ROLE_A), true);
+        source.put("run_as_from", List.of("native_user"));
+        assertThat(loadAccountFromSource(PRINCIPAL, source), nullValue());
+    }
+
     public void testGetByPrincipalRejectsElasticNamespace() {
         PlainActionFuture<ManagedServiceAccount> future = new PlainActionFuture<>();
         store.getByPrincipal("elastic/worker", future);

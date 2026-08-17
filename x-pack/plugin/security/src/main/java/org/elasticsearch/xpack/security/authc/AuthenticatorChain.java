@@ -219,6 +219,12 @@ class AuthenticatorChain {
             return;
         }
 
+        if (authentication.isServiceAccount() && ManagedServiceAccountIdValidator.validatePrincipal(runAsUsername) != null) {
+            logger.info("ignore run-as header since service accounts may only run-as managed service accounts [{}]", authentication);
+            finishAuthentication(context, authentication, listener);
+            return;
+        }
+
         if (ManagedServiceAccountIdValidator.validatePrincipal(runAsUsername) == null) {
             serviceAccountService.findManagedAccountForRunAs(runAsUsername, listener.delegateFailureAndWrap((l, user) -> {
                 final Authentication finalAuth;

@@ -330,3 +330,21 @@ teardown:
             "run_as_from": ["*"]
           }
 
+  - do:
+      catch: bad_request
+      security.put_managed_service_account:
+        namespace: yaml_poc
+        service: runas_native_user
+        body: >
+          {
+            "roles": ["managed_yaml_monitor"],
+            "run_as_from": ["native_user"]
+          }
+
+  - do:
+      headers:
+        Authorization: Bearer ${yaml_kibana_token}
+        es-security-runas-user: elastic
+      security.authenticate: {}
+  - match: { username: "elastic/kibana" }
+

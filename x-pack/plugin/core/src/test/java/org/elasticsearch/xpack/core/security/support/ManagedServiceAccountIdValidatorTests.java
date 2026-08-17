@@ -32,7 +32,8 @@ public class ManagedServiceAccountIdValidatorTests extends ESTestCase {
         assertThat(ManagedServiceAccountIdValidator.validateRunAsFromPrincipal("acme/*"), containsString("wildcard"));
         assertThat(ManagedServiceAccountIdValidator.validateRunAsFromPrincipal(""), containsString("must not be empty"));
         assertThat(ManagedServiceAccountIdValidator.validateRunAsFromPrincipal("elastic/kibana"), nullValue());
-        assertThat(ManagedServiceAccountIdValidator.validateRunAsFromPrincipal("native_user"), nullValue());
+        assertThat(ManagedServiceAccountIdValidator.validateRunAsFromPrincipal("acme/other-workflow"), nullValue());
+        assertThat(ManagedServiceAccountIdValidator.validateRunAsFromPrincipal("native_user"), containsString("must be a service account"));
     }
 
     public void testRejectsWhitespace() {

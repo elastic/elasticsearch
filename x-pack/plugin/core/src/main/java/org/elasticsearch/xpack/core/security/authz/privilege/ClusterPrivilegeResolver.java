@@ -333,8 +333,8 @@ public class ClusterPrivilegeResolver {
     );
     public static final NamedClusterPrivilege GRANT_API_KEY = new ActionClusterPrivilege("grant_api_key", GRANT_API_KEY_PATTERN);
     /**
-     * Authorizes initiating run-as of a managed service account. The target account must also list the
-     * authenticating principal in {@code run_as_from}.
+     * Authorizes initiating run-as of a managed service account. The caller must be a service account,
+     * and the target account must also list that principal in {@code run_as_from}.
      */
     public static final String RUN_AS_MANAGED_SERVICE_ACCOUNT_ACTION = "cluster:admin/xpack/security/managed_service_account/run_as";
     public static final NamedClusterPrivilege RUN_AS_MANAGED_SERVICE_ACCOUNT = new ActionClusterPrivilege(

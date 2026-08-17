@@ -764,7 +764,7 @@ public class AuthenticationTests extends ESTestCase {
         // But not when it already run-as another user
         assertThat(AuthenticationTestHelper.builder().apiKey().runAs().build().supportsRunAs(anonymousUser), is(false));
 
-        // Service account can run-as (authorization still requires run_as_managed_service_account + target consent)
+        // Service account can run-as a managed service account only (authc ignores other targets)
         assertThat(AuthenticationTestHelper.builder().serviceAccount().build().supportsRunAs(anonymousUser), is(true));
 
         // internal user cannot run-as

@@ -218,6 +218,9 @@ public class RBACEngine implements AuthorizationEngine {
                     authentication.getAuthenticatingSubject().getUser().principal()
                 );
         }
+        if (authentication.getAuthenticatingSubject().getType() == Subject.Type.SERVICE_ACCOUNT) {
+            return false;
+        }
         return callerRole.checkRunAs(authentication.getEffectiveSubject().getUser().principal());
     }
 

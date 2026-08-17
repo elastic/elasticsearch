@@ -262,9 +262,9 @@ PUT /_security/service/acme/billing-workflow
 }
 ```
 
-`run_as_from` is an optional list of exact principals who may impersonate this account. Absent or empty means nobody may: fail closed, and the state of every account created before the field exists. GET returns the field. The name is deliberately not `run_as`; on a role descriptor that means "who I may inhabit," and reusing it here would invert the meaning on a different document type. The security index already maps `run_as` as keyword for roles; this is a new field and a mapping addition.
+`run_as_from` is an optional list of exact service-account principals who may impersonate this account. Native usernames are rejected. Absent or empty means nobody may: fail closed, and the state of every account created before the field exists. GET returns the field. The name is deliberately not `run_as`; on a role descriptor that means "who I may inhabit," and reusing it here would invert the meaning on a different document type. The security index already maps `run_as` as keyword for roles; this is a new field and a mapping addition.
 
-Exact principals only. No `*`, no `elastic/*`. A wildcard on the target would recreate the original hole on a different document.
+Exact service-account principals only (`namespace/service`, including built-in `elastic/kibana`). No `*`, no `elastic/*`, no native users. A wildcard on the target would recreate the original hole on a different document.
 
 Direct bearer-token authentication is unchanged: holding a token does not require membership in `run_as_from`. Impersonation and credential possession stay separate. A disabled account is rejected as a run-as target the same way it fails authentication.
 
@@ -272,7 +272,7 @@ PUT remains full replacement, as with `roles` and `enabled`. Updating roles with
 
 #### Caller capability, not a name list
 
-The authenticating principal still needs permission to *ask*. Allow service accounts to initiate run-as on this path, but do not put a managed-namespace `run_as` pattern on `kibana_system`. Give `elastic/kibana` a capability: a dedicated cluster privilege (for example `run_as_managed_service_account`) on that account's built-in role, or an equivalent special case for that principal. That answers "is this principal allowed to attempt impersonation of managed accounts." The account's `run_as_from` answers "may they inhabit *this* account." Both checks must pass.
+The authenticating principal still needs permission to *ask*. Allow service accounts to initiate run-as of a managed account only; a service account that sends a run-as header naming an ordinary user has that header ignored, as before this feature. Do not put a managed-namespace `run_as` pattern on `kibana_system`. Give `elastic/kibana` a capability: a dedicated cluster privilege (for example `run_as_managed_service_account`) on that account's built-in role, or an equivalent special case for that principal. That answers "is this principal allowed to attempt impersonation of managed accounts." The account's `run_as_from` answers "may they inhabit *this* account." Both checks must pass. A role assigned to a managed account that includes classic `run_as` does not let that account inhabit users.
 
 `elastic/kibana` does not have `manage_security`, so it cannot write `run_as_from` and cannot opt itself into accounts. Consent is an admin mutation (the Kibana management UI runs as the logged-in admin); use is later impersonation by Task Manager with the Kibana service token. That split is the security property.
 

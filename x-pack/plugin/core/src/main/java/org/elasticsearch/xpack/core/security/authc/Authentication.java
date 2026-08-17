@@ -594,9 +594,9 @@ public final class Authentication implements ToXContentObject {
             return false;
         }
 
-        // Service accounts may initiate run-as of a managed service account. Authorization still requires
-        // the run_as_managed_service_account privilege and target-side run_as_from consent.
-        // (The previous unconditional false is what blocked this path.)
+        // Service accounts may initiate run-as of a managed service account only. Authorization still
+        // requires the run_as_managed_service_account privilege and target-side run_as_from consent.
+        // AuthenticatorChain ignores a run-as header that does not name a managed account.
 
         // Real run-as for cross cluster access could happen on the querying cluster side, but not on the fulfilling cluster. Since the
         // authentication instance corresponds to the fulfilling-cluster-side view, run-as is not supported

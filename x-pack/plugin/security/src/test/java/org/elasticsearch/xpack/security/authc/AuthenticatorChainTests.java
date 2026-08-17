@@ -547,6 +547,39 @@ public class AuthenticatorChainTests extends ESTestCase {
         verify(realmsAuthenticator, never()).lookupRunAsUser(any(), any(), any());
     }
 
+    public void testServiceAccountRunAsOrdinaryUserIsIgnored() throws IllegalAccessException {
+        final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
+        threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "ordinary-user");
+
+        final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);
+        final Authenticator.Context context = new Authenticator.Context(threadContext, auditableRequest, null, true, realms);
+
+        doAnswer(invocation -> {
+            fail("should not look up an ordinary run-as user for a service account");
+            return null;
+        }).when(realmsAuthenticator).lookupRunAsUser(any(), any(), any());
+
+        final Logger logger = LogManager.getLogger(AuthenticatorChain.class);
+        Loggers.setLevel(logger, Level.INFO);
+        try (var mockLog = MockLog.capture(AuthenticatorChain.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "run-as",
+                    AuthenticatorChain.class.getName(),
+                    Level.INFO,
+                    "ignore run-as header since service accounts may only run-as managed service accounts [" + authentication + "]"
+                )
+            );
+            final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+            authenticatorChain.maybeLookupRunAsUser(context, authentication, future);
+            assertThat(future.actionGet(), equalTo(authentication));
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(logger, Level.INFO);
+        }
+        verify(serviceAccountService, never()).findManagedAccountForRunAs(any(), any());
+    }
+
     public void testRunAsIsIgnoredForUnsupportedAuthenticationTypes() throws IllegalAccessException {
         final Authentication authentication = randomFrom(
             AuthenticationTestHelper.builder().anonymous(anonymousUser).build(),

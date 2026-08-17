@@ -46,12 +46,9 @@ public final class NumberColumnTransform {
         final byte[] buf = new byte[Short.BYTES];
         final BytesRef ref = new BytesRef(buf);
         LongTupleCursor cursor = source.longCursor();
-        int prevDoc = -1;
         for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
             HalfFloatPoint.encodeDimension(HalfFloatPoint.sortableShortToHalfFloat((short) cursor.longValue()), buf, 0);
-            builder.addAbsents(doc - prevDoc - 1);
-            builder.addBytes(ref);
-            prevDoc = doc;
+            builder.setBinary(doc, ref);
         }
         return builder.finish(source.docCount());
     }

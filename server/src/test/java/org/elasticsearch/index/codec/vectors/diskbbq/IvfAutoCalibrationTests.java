@@ -470,7 +470,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
                 int totalNumVectors,
                 IvfAutoCalibration.CalibrationMode mode
             ) {
-                return new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.TWO_BIT_4BIT_QUERY, false, 2.5f);
+                return IvfSegmentConfig.of(CentroidIndexFormat.FLAT, QuantEncoding.TWO_BIT_4BIT_QUERY, false, 2.5f);
             }
         };
         FieldInfo fieldInfo = vectorFieldInfo("f");

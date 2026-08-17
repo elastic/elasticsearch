@@ -27,11 +27,14 @@ import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.core.security.cloud.InternalCloudApiKeyService;
@@ -42,6 +45,7 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -57,6 +61,12 @@ public final class CredentialTransitions {
     private static final Logger logger = LogManager.getLogger(CredentialTransitions.class);
 
     /**
+     * Result of minting a CPS datafeed cloud API key: the persisted envelope plus security headers
+     * rewritten to the minted key's own {@link Authentication}.
+     */
+    public record MintedCredential(PersistedCloudCredential credential, Map<String, String> headers) {}
+
+    /**
      * How a datafeed config update should treat the persisted cloud internal credential envelope.
      */
     public sealed interface Change permits Change.Keep, Change.Mint, Change.Clear {
@@ -65,9 +75,9 @@ public final class CredentialTransitions {
 
         /**
          * Provides a hook that receives the applied {@link DatafeedConfig} and resolves the
-         * credential to persist (probe → mint → {@code credentialListener.onResponse}).
+         * credential + minted-auth headers to persist (probe → mint → {@code listener.onResponse}).
          */
-        record Mint(BiConsumer<DatafeedConfig, ActionListener<PersistedCloudCredential>> mintHook) implements Change {}
+        record Mint(BiConsumer<DatafeedConfig, ActionListener<MintedCredential>> mintHook) implements Change {}
 
         record Clear() implements Change {}
 
@@ -143,6 +153,7 @@ public final class CredentialTransitions {
         UpdateDatafeedAction.Request request,
         String jobId,
         Map<String, String> headers,
+        ClusterState clusterState,
         ThreadPool threadPool,
         SecurityContext securityContext,
         BiConsumer<DatafeedConfig, ActionListener<Boolean>> validator,
@@ -150,7 +161,7 @@ public final class CredentialTransitions {
     ) {
         switch (intent) {
             case CLEAR -> applyDowngrade(request, jobId, headers, validator, listener);
-            case REPLACE -> applyRekey(request, jobId, headers, threadPool, securityContext, validator, listener);
+            case REPLACE -> applyRekey(request, jobId, headers, clusterState, threadPool, securityContext, validator, listener);
             case KEEP -> persistUpdateWithoutCredentialChange(request, headers, validator, listener);
         }
     }
@@ -170,16 +181,19 @@ public final class CredentialTransitions {
             Map<String, String> headers = threadPool.getThreadContext().getHeaders();
             CloudCredential carriedCredential = request.getCloudCredential();
             validateSearchBeforeMint(request.getDatafeed(), headers, carriedCredential, listener.delegateFailureAndWrap((l, ignored) -> {
-                mintCpsKeyForDatafeed(datafeedId, threadPool, securityContext, carriedCredential, l, (newCredential, userHeaders) -> {
+                mintCpsKeyForDatafeed(datafeedId, jobId, threadPool, securityContext, carriedCredential, clusterState, l, minted -> {
                     DatafeedConfig.Builder builder = new DatafeedConfig.Builder(request.getDatafeed());
-                    builder.setCloudInternalCredential(newCredential);
+                    builder.setCloudInternalCredential(minted.credential());
                     PutDatafeedAction.Request updatedRequest = new PutDatafeedAction.Request(builder.build());
                     updatedRequest.masterNodeTimeout(request.masterNodeTimeout());
+                    // putDatafeedConfig re-runs getPersistableSafeSecurityHeaders on these headers; that is
+                    // idempotent here. The update path has no such downstream pass, so the mint-side call is
+                    // load-bearing and must not be removed as "duplicate".
                     persistFn.put(
                         updatedRequest,
-                        userHeaders,
+                        minted.headers(),
                         clusterState,
-                        revokeKeyOnFailure(newCredential, jobId, ActionListener.wrap(response -> {
+                        revokeKeyOnFailure(minted.credential(), jobId, ActionListener.wrap(response -> {
                             auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_KEY_MINTED));
                             l.onResponse(response);
                         }, l::onFailure))
@@ -273,6 +287,7 @@ public final class CredentialTransitions {
         UpdateDatafeedAction.Request request,
         String jobId,
         Map<String, String> headers,
+        ClusterState clusterState,
         ThreadPool threadPool,
         SecurityContext securityContext,
         BiConsumer<DatafeedConfig, ActionListener<Boolean>> validator,
@@ -302,20 +317,22 @@ public final class CredentialTransitions {
         // The hook is invoked by DatafeedConfigProvider after GET+apply, ensuring the probe
         // and mint run against the single authoritative applied config (no duplicate apply).
         Change.Mint mintChange = new Change.Mint(
-            (applied, credentialListener) -> validateSearchBeforeMint(
+            (applied, mintedListener) -> validateSearchBeforeMint(
                 applied,
                 headers,
                 request.getCloudCredential(),
-                credentialListener.delegateFailureAndWrap(
+                mintedListener.delegateFailureAndWrap(
                     (cl, ignored) -> mintCpsKeyForDatafeed(
                         datafeedId,
+                        jobId,
                         threadPool,
                         securityContext,
                         request.getCloudCredential(),
+                        clusterState,
                         cl,
-                        (newCred, userHeaders) -> {
-                            mintedCredRef.set(newCred);
-                            cl.onResponse(newCred);
+                        minted -> {
+                            mintedCredRef.set(minted.credential());
+                            cl.onResponse(minted);
                         }
                     )
                 )
@@ -457,30 +474,39 @@ public final class CredentialTransitions {
 
     private void mintCpsKeyForDatafeed(
         String datafeedId,
+        String jobId,
         ThreadPool threadPool,
         @Nullable SecurityContext securityContext,
         @Nullable CloudCredential carriedCredential,
+        ClusterState clusterState,
         ActionListener<?> failurePropagator,
-        BiConsumer<PersistedCloudCredential, Map<String, String>> onSuccess
+        Consumer<MintedCredential> onSuccess
     ) {
         useSecondaryAuthIfAvailable(securityContext, () -> {
             final ThreadContext threadContext = threadPool.getThreadContext();
             final CloudCredential callerCredential = resolveCallerCredential(carriedCredential, threadContext);
-            Map<String, String> userHeaders = threadPool.getThreadContext().getHeaders();
             apiKeyServiceSupplier.get()
                 .grantCloudAuthentication(
                     callerCredential,
                     "datafeed:" + datafeedId,
-                    ActionListener.wrap(
-                        result -> useSecondaryAuthIfAvailable(
-                            securityContext,
-                            () -> onSuccess.accept(result.persistedCredential(), userHeaders)
-                        ),
-                        e -> {
-                            logger.error(() -> "[" + datafeedId + "] Failed to mint internal cloud API key for CPS datafeed", e);
-                            failurePropagator.onFailure(e);
+                    ActionListener.wrap(result -> useSecondaryAuthIfAvailable(securityContext, () -> {
+                        final Map<String, String> mintedHeaders;
+                        try {
+                            // Rewrite before any persist: if encode() throws, only the UIAM grant
+                            // needs undoing (no config doc has been written yet).
+                            mintedHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
+                                Map.of(AuthenticationField.AUTHENTICATION_KEY, result.authentication().encode()),
+                                clusterState
+                            );
+                        } catch (Exception encodeFailure) {
+                            revokeKeyOnFailure(result.persistedCredential(), jobId, failurePropagator).onFailure(encodeFailure);
+                            return;
                         }
-                    )
+                        onSuccess.accept(new MintedCredential(result.persistedCredential(), mintedHeaders));
+                    }), e -> {
+                        logger.error(() -> "[" + datafeedId + "] Failed to mint internal cloud API key for CPS datafeed", e);
+                        failurePropagator.onFailure(e);
+                    })
                 );
         });
     }
@@ -490,11 +516,7 @@ public final class CredentialTransitions {
         if (carriedCredential != null) {
             return carriedCredential;
         }
-        CloudCredentialManager credentialManager = credentialManagerSupplier.get();
-        if (credentialManager.hasCloudManagedCredential(threadContext)) {
-            return credentialManager.extractCloudManagedCredential(threadContext);
-        }
-        return null;
+        return credentialManagerSupplier.get().extractCloudManagedCredential(threadContext);
     }
 
     private <T> ActionListener<T> revokeKeyOnFailure(PersistedCloudCredential mintedCredential, String jobId, ActionListener<T> delegate) {

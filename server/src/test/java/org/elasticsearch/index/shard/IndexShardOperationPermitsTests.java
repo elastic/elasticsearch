@@ -233,25 +233,29 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
 
     public void testNoDeadlockOnConcurrentBlock() {
         final CountDownLatch blockOperationsRunning = new CountDownLatch(2);
-        CountDownLatch completePendingOperation = new CountDownLatch(1);
+        final CyclicBarrier barrier = new CyclicBarrier(3);
 
         final Runnable pendingOperation = () -> {
             permits.acquire(ActionTestUtils.assertNoFailureListener((release) -> {
-                safeAwait(completePendingOperation);
+                safeAwait(barrier);
+                safeAwait(barrier);
                 release.close();
             }), null, true);
         };
 
         final Runnable blockOperation = () -> {
+            safeAwait(barrier);
             permits.blockOperations(
                 ActionListener.releaseAfter(ActionTestUtils.assertNoFailureListener(Releasable::close), blockOperationsRunning::countDown),
                 SAFE_AWAIT_TIMEOUT.duration(),
                 SAFE_AWAIT_TIMEOUT.timeUnit(),
                 threadPool.generic()
             );
+            safeAwait(barrier);
         };
 
-        runInParallel(pendingOperation, blockOperation, blockOperation, completePendingOperation::countDown);
+
+        runInParallel(pendingOperation, blockOperation, blockOperation);
         safeAwait(blockOperationsRunning);
     }
 

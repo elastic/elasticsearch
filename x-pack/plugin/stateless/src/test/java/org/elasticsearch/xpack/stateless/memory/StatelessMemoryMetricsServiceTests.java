@@ -44,7 +44,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.elasticsearch.xpack.stateless.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
 import static org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsServiceTestUtils.getLastMaxTotalPostingsInMemoryBytes;
 import static org.hamcrest.Matchers.allOf;
@@ -74,9 +73,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
                 StatelessMemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
                 StatelessMemoryMetricsService.MERGE_MEMORY_ESTIMATE_ENABLED_SETTING,
                 StatelessMemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING,
-                StatelessMemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING,
-                StatelessMemoryMetricsService.ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING,
-                SETTING_CLUSTER_MAX_SHARDS_PER_NODE
+                StatelessMemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING
             )
         ).collect(Collectors.toSet());
 
@@ -127,6 +124,45 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         assertThat(shardHeapUsages.get(shardId1).indexHeapUsageBytes(), equalTo(service.computeIndexHeapUsage(shardMemoryMetrics1)));
         assertThat(shardHeapUsages.get(shardId2).shardHeapUsageBytes(), equalTo(service.computeShardHeapUsage(shardMemoryMetrics2)));
         assertThat(shardHeapUsages.get(shardId2).indexHeapUsageBytes(), equalTo(service.computeIndexHeapUsage(shardMemoryMetrics2)));
+    }
+
+    /**
+     * Verifies that the shard heap usage returned to the allocation decider
+     * ({@link StatelessMemoryMetricsService#computeShardHeapUsage} and {@link StatelessMemoryMetricsService#getShardHeapUsages})
+     * is the plain adaptive estimate without inflation from the adaptive minimum threshold.
+     * The threshold is a tier-level autoscaling floor only; it must not affect per-shard allocation decisions.
+     */
+    public void testShardHeapUsageForAllocationDeciderIsNotInflatedByThreshold() {
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(StatelessMemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING.getKey(), "-1b")
+                .put(StatelessMemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING.getKey(), "0%")
+                .build()
+        );
+
+        // A shard with no segments, fields, postings, live-docs, or points: the adaptive estimate
+        // is just ADAPTIVE_SHARD_MEMORY_OVERHEAD (75 KB).
+        var emptyShardMetrics = new StatelessMemoryMetricsService.ShardMemoryMetrics(
+            0L,
+            0,
+            0,
+            0L,
+            0L,
+            0L,
+            UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+            0L,
+            MetricQuality.EXACT,
+            "node-0",
+            System.nanoTime()
+        );
+
+        long heapUsage = service.computeShardHeapUsage(emptyShardMetrics);
+        assertThat(heapUsage, equalTo(StatelessMemoryMetricsService.ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes()));
+
+        // Verify via getShardHeapUsages() — the actual allocation decider feed — returns the same value.
+        var shardId = new ShardId(new Index(randomIdentifier(), randomUUID()), 0);
+        service.getShardMemoryMetrics().put(shardId, emptyShardMetrics);
+        assertThat(service.getShardHeapUsages().get(shardId).shardHeapUsageBytes(), equalTo(heapUsage));
     }
 
     public void testShardHeapUsageIncludesPointsMemory() {

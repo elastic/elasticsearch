@@ -29,7 +29,18 @@ import java.util.Optional;
  */
 public abstract class ArchivedOracleJdkToolchainResolver extends AbstractCustomJavaToolchainResolver {
 
-    private static final Map<Integer, String> ARCHIVED_BASE_VERSIONS = Maps.of(21, "21.0.6", 20, "20.0.2", 19, "19.0.2", 18, "18.0.2.1");
+    private static final Map<Integer, String> ARCHIVED_BASE_VERSIONS = Maps.of(
+        21,
+        "21.0.6",
+        20,
+        "20.0.2",
+        19,
+        "19.0.2",
+        18,
+        "18.0.2.1",
+        17,
+        "17.0.12"
+    );
 
     @Override
     public Optional<JavaToolchainDownload> resolve(JavaToolchainRequest request) {

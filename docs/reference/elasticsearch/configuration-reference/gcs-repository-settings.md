@@ -104,7 +104,7 @@ The following settings are supported:
     ::::
 
 
-`multipart_upload_size_threshold`
+`multipart_upload_size_threshold` {applies_to}`stack: ga 9.6`
 :   The maximum size of a blob that {{es}} uploads in a single request. Blobs larger than this threshold are uploaded using [GCS resumable uploads](https://cloud.google.com/storage/docs/resumable-uploads). Defaults to `5mb`. The minimum allowed value is `5mb`.
 
 `chunk_size`

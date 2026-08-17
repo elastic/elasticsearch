@@ -54,7 +54,7 @@ public final class StringColumnReader {
 
     private final BytesRef value = new BytesRef();
 
-    private int cachedBlock = -1;
+    private long cachedBlock = -1;
 
     public StringColumnReader(StringColumnMetadata meta, IndexInput data) throws IOException {
         assert meta.multiValued() == false : "multi-valued string columns are not implemented yet";
@@ -105,12 +105,12 @@ public final class StringColumnReader {
      * so a document's rank is its value address; the seam is kept so multi-valued support stays a localized
      * change (the numeric column resolves this through a value-address table).
      */
-    public int firstValueAddress(int rank) {
+    public long firstValueAddress(int rank) {
         return rank;
     }
 
     /** The number of values a document has, given its rank — always one until multi-valued columns land. */
-    public int valueCount(int rank) {
+    public long valueCount(int rank) {
         return 1;
     }
 
@@ -118,10 +118,10 @@ public final class StringColumnReader {
      * The value at {@code valueAddress} in {@code [0, numValues)}. The returned {@link BytesRef} points into a
      * buffer this reader reuses, so it is only valid until the next call.
      */
-    public BytesRef valueAt(int valueAddress) throws IOException {
-        int block = valueAddress / meta.blockSize();
+    public BytesRef valueAt(long valueAddress) throws IOException {
+        long block = valueAddress / meta.blockSize();
         ensureBlock(block);
-        int position = valueAddress - block * meta.blockSize();
+        int position = (int) (valueAddress - block * meta.blockSize());
         return switch (meta.layout()) {
             case PLAIN -> {
                 value.bytes = blockValueBytes;
@@ -139,11 +139,11 @@ public final class StringColumnReader {
     }
 
     /** Total number of values across all documents. */
-    public int numValues() {
+    public long numValues() {
         return meta.numValues();
     }
 
-    private void ensureBlock(int block) throws IOException {
+    private void ensureBlock(long block) throws IOException {
         if (block == cachedBlock) {
             return;
         }
@@ -153,7 +153,7 @@ public final class StringColumnReader {
         int length = (int) (blockEnd - blockStart);
         DataInput blockData = blockBytesCodec.read(data, length);
         // Full blocks hold blockSize values; the last block holds the remainder.
-        int valueCount = Math.min(meta.blockSize(), meta.numValues() - block * meta.blockSize());
+        int valueCount = (int) Math.min(meta.blockSize(), meta.numValues() - block * meta.blockSize());
         switch (meta.layout()) {
             case PLAIN -> StringBlockEncoder.decode(blockData, valueCount, blockValueBytes, blockValueOffsets);
             case DICTIONARY -> ordinalEncoder.decode(blockData, valueCount, blockOrdinals);

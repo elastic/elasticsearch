@@ -33,7 +33,7 @@ import java.io.IOException;
 public record StringColumnMetadata(
     ColumnIteratorMetadata iterator,
     int numDocsWithField,
-    int numValues,
+    long numValues,
     int blockSize,
     byte blockBytesCodecId,
     StringColumnLayout layout,
@@ -79,7 +79,7 @@ public record StringColumnMetadata(
         if (numDocsWithField == 0) {
             return;
         }
-        out.writeVInt(numValues);
+        out.writeVLong(numValues);
         out.writeVInt(blockSize);
         out.writeByte(blockBytesCodecId);
         out.writeByte(layout.id());
@@ -117,7 +117,7 @@ public record StringColumnMetadata(
         if (numDocsWithField == 0) {
             return empty(iterator, BlockBytesCodec.IDENTITY_ID);
         }
-        int numValues = in.readVInt();
+        long numValues = in.readVLong();
         int blockSize = in.readVInt();
         byte blockBytesCodecId = in.readByte();
         StringColumnLayout layout = StringColumnLayout.fromId(in.readByte());
@@ -161,7 +161,7 @@ public record StringColumnMetadata(
         return bytes;
     }
 
-    int numBlocks() {
-        return numValues == 0 ? 0 : (int) ((numValues + (long) blockSize - 1) / blockSize);
+    long numBlocks() {
+        return numValues == 0 ? 0 : (numValues + blockSize - 1) / blockSize;
     }
 }

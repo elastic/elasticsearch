@@ -59,7 +59,7 @@ public final class NumericColumnWriter {
     public static NumericColumnMetadata write(
         int maxDoc,
         int numDocsWithField,
-        int numValues,
+        long numValues,
         IOSupplier<NumericColumnValues> cursors,
         NumericPipeline pipeline,
         BlockBytesCodec blockBytesCodec,
@@ -75,7 +75,7 @@ public final class NumericColumnWriter {
 
         int blockSize = pipeline.blockSize();
         boolean multiValued = numValues > numDocsWithField;
-        int numBlocks = (int) ((numValues + (long) blockSize - 1) / blockSize);
+        long numBlocks = (numValues + blockSize - 1) / blockSize;
         long valuesOffset = data.getFilePointer();
 
         MonotonicWriter blockOffsets = new MonotonicWriter(directory, context, data.getName(), numBlocks + 1L, MonotonicWriter.BLOCK_SHIFT);
@@ -98,7 +98,7 @@ public final class NumericColumnWriter {
             int[] blockValueCount = new int[1];
             BlockBytesCodec.BlockEncoder blockEncoder = out -> encoder.encode(buffer, blockValueCount[0], out);
             int inBlock = 0;
-            int valueAddress = 0;
+            long valueAddress = 0;
             SkipIndexCodec.Writer skip = skipCodec == null ? null : skipCodec.writer();
             NumericColumnValues values = cursors.get();
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {

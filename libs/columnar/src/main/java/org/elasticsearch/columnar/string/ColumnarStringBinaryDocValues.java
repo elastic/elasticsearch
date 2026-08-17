@@ -40,10 +40,10 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
     @Override
     public BytesRef binaryValue() throws IOException {
         final int rank = iterator.rank();
-        final int first = reader.firstValueAddress(rank);
-        final int count = reader.valueCount(rank);
+        final long first = reader.firstValueAddress(rank);
+        final long count = reader.valueCount(rank);
         if (values.length < count) {
-            values = new BytesRef[ArrayUtil.oversize(count, Integer.BYTES)];
+            values = new BytesRef[ArrayUtil.oversize((int) count, Integer.BYTES)];
         }
         // A PLAIN column hands back one reused BytesRef, so reading several value addresses before encoding
         // would alias them all onto the last value. Columns are single-valued today, which makes that
@@ -56,7 +56,7 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
         for (int i = 0; i < count; i++) {
             values[i] = reader.valueAt(first + i);
         }
-        return StringBinaryPayload.encode(values, count, payload);
+        return StringBinaryPayload.encode(values, (int) count, payload);
     }
 
     @Override
@@ -95,13 +95,13 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
      */
     public StringColumnValues directValues() {
         return new StringColumnValues() {
-            private int first;
-            private int count;
+            private long first;
+            private long count;
             private int upto;
 
             @Override
             public int valueCount() {
-                return count;
+                return (int) count;
             }
 
             @Override

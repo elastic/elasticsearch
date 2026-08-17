@@ -68,17 +68,6 @@ The direction, the decisions that constrain it, and the build order. Update as d
   While ColumNAR is behind a feature flag and has no stable on-disk compatibility commitment,
   a format-version bump is required only for layout changes, not for id additions.
 
-- **Decide the width of `numValues` before the format freezes** — both `NumericColumnMetadata` and
-  `StringColumnMetadata` hold it as an `int` written with `writeVInt`, so a column is capped at
-  `Integer.MAX_VALUE` values. A single-valued column cannot reach that (`numValues` equals
-  `numDocsWithField`, itself bounded by `maxDoc`), but a multi-valued one can: 200M documents averaging
-  20 values passes the limit, and a large force-merged segment holding an array field is not an exotic
-  shape. The numeric column supports multi-value today and so already carries the exposure; the string
-  column inherits it as soon as multi-value lands. Widening to a vlong is a layout change and therefore
-  needs a `FormatVersion` bump, which is why it is cheaper to settle now than later. Both consumers
-  accumulate through `Math.addExact`, so an overflow fails the flush or merge rather than writing a
-  column with a negative block count — a backstop against silent corruption, not a fix for the cap.
-
 - **Server-side selector wiring**: implement a concrete `NumericPipelineSelector` in server that
   inspects `FieldType`, `IndexMode`, and `MetricType` to route each field to the correct pipeline
   factory, and wire it into `PerFieldFormatSupplier`.
@@ -88,11 +77,10 @@ The direction, the decisions that constrain it, and the build order. Update as d
   supplies presence and a value-address table, so this mirrors what `NumericColumnWriter` does — the
   string metadata already carries `numValues` separately from `numDocsWithField` for exactly this.
 
-  Two things to carry over rather than rediscover. `ColumnarStringBinaryDocValues.binaryValue` relies on
-  a `PLAIN` column handing back one reused `BytesRef` per call, so collecting several values before
+  One thing to carry over rather than rediscover: `ColumnarStringBinaryDocValues.binaryValue` relies on a
+  `PLAIN` column handing back one reused `BytesRef` per call, so collecting several values before
   encoding would alias them onto the last one; either copy each value out or encode into the payload
-  while walking the value addresses. An assert marks the spot. And a multi-valued column is what makes
-  `numValues` able to overflow an `int`, so it lands with or after the width decision above.
+  while walking the value addresses. An assert marks the spot.
 
 - **Sort the string terms dictionary** — decided, not yet built, and wanted before the format ships
   because it changes a frozen on-disk layout. Terms are currently stored in first-seen order (the POC's

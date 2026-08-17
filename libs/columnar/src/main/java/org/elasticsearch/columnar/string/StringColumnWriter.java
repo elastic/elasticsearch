@@ -62,7 +62,7 @@ public final class StringColumnWriter {
     public static StringColumnMetadata write(
         int maxDoc,
         int numDocsWithField,
-        int numValues,
+        long numValues,
         IOSupplier<StringColumnValues> cursors,
         StringDictionary dictionary,
         int blockSize,
@@ -77,7 +77,7 @@ public final class StringColumnWriter {
         }
 
         StringColumnLayout layout = dictionary == null ? StringColumnLayout.PLAIN : StringColumnLayout.DICTIONARY;
-        int numBlocks = (int) ((numValues + (long) blockSize - 1) / blockSize);
+        long numBlocks = (numValues + blockSize - 1) / blockSize;
         long valuesOffset = data.getFilePointer();
 
         try (

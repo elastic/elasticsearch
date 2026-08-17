@@ -293,12 +293,11 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         // Count in one pass, then stream the values block by block from fresh cursors — never buffer
         // the whole field on-heap, so a large merge stays memory-bounded.
         int numDocsWithField = 0;
-        int numValues = 0;
+        long numValues = 0;
         NumericColumnValues counter = cursors.get();
         for (int doc = counter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = counter.nextDoc()) {
             numDocsWithField++;
-            // numDocsWithField is bounded by maxDoc, but a multi-valued column's numValues is not.
-            numValues = Math.addExact(numValues, counter.valueCount());
+            numValues += counter.valueCount();
         }
 
         // A BINARY field can't carry a skipper, so the column builds its own skip index inline
@@ -329,7 +328,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
      */
     private void writeStringColumn(FieldInfo field, ColumnarFieldType type, IOSupplier<StringColumnValues> cursors) throws IOException {
         int numDocsWithField = 0;
-        int numValues = 0;
+        long numValues = 0;
         StringDictionary.Builder dictionaryBuilder = new StringDictionary.Builder();
         StringColumnValues counter = cursors.get();
         for (int doc = counter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = counter.nextDoc()) {
@@ -340,7 +339,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                     "ColumNAR string columns are single-valued; document [" + doc + "] of field [" + field.name + "] has " + count
                 );
             }
-            numValues = Math.addExact(numValues, count);
+            numValues += count;
             for (int i = 0; i < count; i++) {
                 dictionaryBuilder.add(counter.nextValue());
             }

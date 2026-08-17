@@ -185,9 +185,9 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         // Therefore, we rethrottle the reindexing task to run unlimited requests per second, immediately triggering relocation
         rethrottleRunningRootReindex(numDocs);
 
-        // Wait for the client listener before stopping the node: the relocation handoff still has transport round trips in
-        // flight on this node, and stopping the node concurrently can strand their response handlers in already-terminated
-        // thread pools, hanging the listener and leaking the stranded messages' network buffers
+        // Wait for the client listener before stopping the node: the relocation is initiated but the listener may be not completed.
+        // Stopping the node concurrently can strand their response handlers in already-terminated thread pools, hanging the listener and
+        // leaking the stranded messages' network buffers
         assertTrue("reindex listener should complete", listenerDone.await(30, TimeUnit.SECONDS));
 
         internalCluster().stopNode(coordNodeName);
@@ -445,9 +445,9 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         final ShutdownPrepareService shutdownPrepareService = internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName);
         shutdownPrepareService.prepareForShutdown();
 
-        // Wait for the client listener before stopping the node: the relocation handoff still has transport round trips in
-        // flight on this node, and stopping the node concurrently can strand their response handlers in already-terminated
-        // thread pools, hanging the listener and leaking the stranded messages' network buffers
+        // Wait for the listener before stopping the node: prepareForShutdown() cancels the un-relocatable task but does not wait
+        // for the listener to complete. Stopping the node concurrently can strand that response handler in an already-terminated thread
+        // pool, hanging the listener and leaking the undelivered message's network buffer
         assertTrue("reindex listener should complete", listenerDone.await(30, TimeUnit.SECONDS));
 
         internalCluster().stopNode(coordNodeName);

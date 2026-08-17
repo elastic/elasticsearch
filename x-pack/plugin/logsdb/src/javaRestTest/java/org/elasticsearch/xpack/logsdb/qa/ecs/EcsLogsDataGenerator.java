@@ -228,6 +228,34 @@ public final class EcsLogsDataGenerator {
         { "canary", "monitoring", "production" },
         { "high-priority", "production" } };
 
+    /**
+     * Pre-sorted, unique URL arrays for the multi-valued {@code wildcard} field {@code url.full}.
+     *
+     * <p>{@code WildcardFieldMapper} sets {@code arrayOrderBinaryDocValues =
+     * indexMode.isStrictColumnar()}, so {@code logsdb_columnar} returns wildcard arrays in original
+     * insertion order while {@code logsdb} returns them sorted and deduped from doc values. A
+     * pre-sorted unique array is identical under both encoders — the same invariant
+     * {@link #TAG_POOLS} relies on, applied here to a wildcard mapper.
+     *
+     * <p><strong>Invariant:</strong> every inner array must be sorted in ascending lexicographic
+     * order and contain no duplicate elements. Violating this makes the two index modes return
+     * different sequences, causing a duel failure that is difficult to trace back to this pool.
+     *
+     * <p>A single-element entry must be emitted as a JSON scalar (not a one-element array) so
+     * that synthetic {@code _source} also agrees: {@code ["a"]} round-trips as {@code "a"} in
+     * columnar but preserves the array wrapper in logsdb. The duel is ES|QL-only today, but keeping
+     * the invariant API-complete avoids silent breakage if {@code _source} comparison is added later.
+     */
+    static final String[][] URL_FULLS = {
+        {},
+        { "https://api.example.com/v1/status" },
+        { "https://api.example.com/v1/users", "https://app.example.com/v2/search" },
+        { "https://auth.example.com/login" },
+        { "https://cdn.example.com/assets/main.js", "https://static.example.com/css/app.css" },
+        { "https://api.example.com/v2/orders" },
+        { "https://app.example.com/health", "https://app.example.com/metrics" },
+        { "https://auth.example.com/logout" } };
+
     static final String[] LABEL_KEYS = { "env", "team", "region", "tier", "version", "build", "release", "datacenter", "rack", "zone" };
     static final String[] LABEL_VALUES = {
         "prod",
@@ -288,13 +316,17 @@ public final class EcsLogsDataGenerator {
      * {@code logsdb} expands them to nested objects; {@code logsdb_columnar} auto-flattens the
      * nested form to the same dotted leaf names, so ES|QL field references resolve identically.
      *
-     * <p>Field types deliberately excluded from the mapping, with rationale:
+     * <p>Field types included or excluded with rationale:
      * <ul>
-     *   <li>{@code wildcard} – {@code WildcardFieldMapper.java:278} sets
-     *       {@code arrayOrderBinaryDocValues = indexMode.isStrictColumnar()}, so multi-valued
-     *       wildcard fields are returned in original array order in columnar but sorted/deduped
-     *       in logsdb. ECS would normally map {@code url.path} and {@code error.stack_trace} as
-     *       wildcard; those are declared {@code keyword} and dropped respectively.</li>
+     *   <li>{@code wildcard} – <strong>included</strong> as {@code url.path} (single-valued) and
+     *       {@code url.full} (multi-valued). {@code WildcardFieldMapper.java:278} sets
+     *       {@code arrayOrderBinaryDocValues = indexMode.isStrictColumnar()}, so columnar preserves
+     *       original array order while logsdb sorts and dedupes. Both fields are constrained to
+     *       shapes that read identically under either encoder: a single value is byte-identical in
+     *       both modes, and {@link #URL_FULLS} arrays are pre-sorted and unique so logsdb's
+     *       sort-and-dedupe is a no-op. <strong>Never emit {@code ["a"]}, {@code null}, or an
+     *       unsorted/duplicate array for these fields.</strong> {@code error.stack_trace} stays
+     *       dropped — single-valued but long, and not a priority for this suite.</li>
      *   <li>{@code keyword + match_only_text} multi-fields – {@code match_only_text} gets
      *       {@code doc_values} by default only in columnar, making sub-fields aggregatable on
      *       one side and not the other. All ECS name/path fields are plain {@code keyword}.</li>
@@ -366,9 +398,11 @@ public final class EcsLogsDataGenerator {
         b.startObject("http.response.status_code").field("type", "long").endObject();
         b.startObject("http.response.bytes").field("type", "long").endObject();
 
-        // url.* — url.path is keyword, not wildcard (see exclusions above)
+        // url.* — url.path and url.full are wildcard (see inclusion note above); url.full is
+        // multi-valued and emitted as a pre-sorted unique array so both index modes agree.
         keyword(b, "url.domain", "keyword");
-        keyword(b, "url.path", "keyword");
+        keyword(b, "url.path", "wildcard");
+        keyword(b, "url.full", "wildcard");
         keyword(b, "url.query", "keyword");
 
         // user_agent — plain keyword, not keyword+match_only_text multi-field
@@ -384,7 +418,7 @@ public final class EcsLogsDataGenerator {
         b.startObject("source.port").field("type", "long").endObject();
         b.startObject("network.bytes").field("type", "long").endObject();
 
-        // error.* — error.stack_trace excluded (wildcard in ECS, see exclusions above)
+        // error.* — error.stack_trace excluded (wildcard in ECS, not a priority for this suite)
         keyword(b, "error.type", "keyword");
         keyword(b, "error.code", "keyword");
         keyword(b, "error.message", "match_only_text");
@@ -436,10 +470,13 @@ public final class EcsLogsDataGenerator {
      * byte-identical regardless of how many times it is generated — which is the property that
      * makes "generate once, POST twice" correct.
      *
-     * <p>Multi-valued fields ({@code tags}, dynamic {@code labels.*}) are pre-sorted. Columnar
-     * returns keyword arrays in original array order ({@code KeywordFieldMapper} {@code
-     * readInArrayOrder}), while logsdb returns them sorted/deduped from doc values. A pre-sorted
-     * unique array is identical under both readers.
+     * <p>Multi-valued fields ({@code tags}, {@code url.full}, dynamic {@code labels.*}) are
+     * pre-sorted and unique. Columnar returns keyword and wildcard arrays in original insertion
+     * order ({@code KeywordFieldMapper readInArrayOrder},
+     * {@code MultiValuedBinaryDocValuesField.ArrayOrderInlineNull} for wildcard), while logsdb
+     * returns them sorted and deduped from doc values. A pre-sorted unique array is identical under
+     * both readers. Single-valued wildcard fields ({@code url.path}) are byte-identical in both
+     * modes because both encoders special-case a single value and store the raw bytes directly.
      */
     public static String bulkBatch(int firstOrdinal, int count) {
         // Estimate ~400 bytes per document (action line + source)
@@ -509,6 +546,7 @@ public final class EcsLogsDataGenerator {
             appendLong(sb, "http.response.bytes", (ordinal % 65536) + 128L, false);
             appendStr(sb, "url.domain", URL_DOMAINS[ordinal % URL_DOMAINS.length], false);
             appendStr(sb, "url.path", URL_PATHS[ordinal % URL_PATHS.length], false);
+            appendWildcardMv(sb, "url.full", URL_FULLS[ordinal % URL_FULLS.length]);
             appendStr(sb, "client.ip", CLIENT_IPS[ordinal % CLIENT_IPS.length], false);
             appendLong(sb, "event.duration", (ordinal % 10_000) * 1_000_000L, false);
             appendStr(sb, "event.outcome", HTTP_STATUS_CODES[ordinal % HTTP_STATUS_CODES.length] < 400 ? "success" : "failure", false);
@@ -564,6 +602,39 @@ public final class EcsLogsDataGenerator {
     private static void appendStr(StringBuilder sb, String name, String value, boolean first) {
         if (first == false) sb.append(',');
         sb.append('"').append(name).append("\":\"").append(value).append('"');
+    }
+
+    /**
+     * Emits a {@code wildcard}-mapped field that may have 0, 1, or multiple values.
+     *
+     * <ul>
+     *   <li>0 values – field is omitted entirely (both modes: field absent).</li>
+     *   <li>1 value – emitted as a JSON scalar string, NOT as a one-element array. A one-element
+     *       array {@code ["a"]} diverges in synthetic {@code _source}: logsdb preserves the array
+     *       wrapper via {@code _ignored_source} while columnar stores the single value and emits
+     *       a scalar. This duel is ES|QL-only so the divergence would be invisible today, but
+     *       keeping the invariant API-complete avoids silent breakage if {@code _source} comparison
+     *       is added later.</li>
+     *   <li>≥2 values – emitted as a JSON array. The caller is responsible for passing a
+     *       pre-sorted unique array so that logsdb's sort-and-dedupe is a no-op and the two modes
+     *       return identical sequences. See {@link #URL_FULLS}.</li>
+     * </ul>
+     */
+    private static void appendWildcardMv(StringBuilder sb, String name, String[] values) {
+        if (values.length == 0) {
+            return;
+        }
+        sb.append(",\"").append(name).append("\":");
+        if (values.length == 1) {
+            sb.append('"').append(values[0]).append('"');
+        } else {
+            sb.append('[');
+            for (int i = 0; i < values.length; i++) {
+                if (i > 0) sb.append(',');
+                sb.append('"').append(values[i]).append('"');
+            }
+            sb.append(']');
+        }
     }
 
     private static void appendLong(StringBuilder sb, String name, long value, boolean first) {
@@ -648,7 +719,8 @@ public final class EcsLogsDataGenerator {
             new Field("http.response.status_code", "long", true, true, false, false), // flavor 0 only (~33%)
             new Field("http.response.bytes", "long", true, false, false, false), // flavor 0 only (~33%)
             new Field("url.domain", "keyword", true, true, false, false), // flavor 0 only (~33%)
-            new Field("url.path", "keyword", true, false, false, false), // flavor 0 only (~33%)
+            new Field("url.path", "keyword", true, false, false, false), // flavor 0 only; mapped wildcard, surfaces as keyword in ESQL
+            new Field("url.full", "keyword", false, true, true, false), // flavor 0 only; wildcard MV, pre-sorted unique
             new Field("client.ip", "ip", false, true, false, false), // flavor 0 only (~33%)
             new Field("error.type", "keyword", true, true, false, false), // flavor 1 only (~33%)
             new Field("error.code", "keyword", true, true, false, false), // flavor 1 only (~33%)

@@ -254,7 +254,6 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
             safeAwait(barrier);
         };
 
-
         runInParallel(pendingOperation, blockOperation, blockOperation);
         safeAwait(blockOperationsRunning);
     }

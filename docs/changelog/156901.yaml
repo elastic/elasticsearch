@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 156901
+summary: Add support for repository deprecations to UA
+type: enhancement

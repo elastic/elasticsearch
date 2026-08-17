@@ -46,6 +46,8 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -57,12 +59,16 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -304,6 +310,96 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         public Object formatSortValue(Object value) {
             return RawDocValueFormat.INSTANCE.formatSortValue(value);
         }
+    }
+
+    /**
+     * The batched query phase sends one request per node and builds no {@link SearchTransportService}
+     * counting handler, so a shard's ARS probe slot is the only thing counting it while that request is
+     * out. It has to survive the send and come back once the shards report, here through a node-level
+     * failure. Releasing at send time instead would leave the node uncounted for the whole query.
+     */
+    public void testBatchedQueryHoldsArsProbeSlotUntilTheShardsReport() throws Exception {
+        DiscoveryNode localNode = DiscoveryNodeUtils.create("local_node");
+        DiscoveryNode dataNode = DiscoveryNodeUtils.create("data_node");
+        AtomicReference<TransportResponseHandler<?>> nodeQueryHandler = new AtomicReference<>();
+
+        TransportService transportService = mock(TransportService.class);
+        when(transportService.getLocalNode()).thenReturn(localNode);
+        doAnswer(invocation -> {
+            nodeQueryHandler.set(invocation.getArgument(4));
+            return null;
+        }).when(transportService).sendChildRequest(any(), eq(SearchQueryThenFetchAsyncAction.NODE_SEARCH_ACTION_NAME), any(), any(), any());
+        SearchTransportService searchTransportService = new SearchTransportService(transportService, null, null);
+
+        // two shards on one remote node, so the phase batches them into a single node request
+        List<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter(
+            "idx",
+            new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
+            2,
+            false,
+            dataNode,
+            null
+        );
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(true);
+        searchRequest.source(new SearchSourceBuilder().size(1));
+        SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
+        PendingSearchRequests pendingSearchRequests = new PendingSearchRequests();
+        ArsReservations reservations = new ArsReservations(pendingSearchRequests, null);
+        task.setArsReservations(reservations);
+        for (SearchShardIterator shardIt : shardsIter) {
+            reservations.reserve(shardIt.shardId(), dataNode.getId());
+        }
+
+        CountDownLatch latch = new CountDownLatch(1);
+        SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
+            logger,
+            null,
+            searchTransportService,
+            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
+            (clusterAlias, node) -> new SearchAsyncActionTests.MockConnection(dataNode),
+            Collections.singletonMap("_na_", AliasFilter.EMPTY),
+            Collections.emptyMap(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new ArraySearchPhaseResults<>(shardsIter.size()),
+            searchRequest,
+            ActionListener.wrap(r -> latch.countDown(), e -> latch.countDown()),
+            shardsIter,
+            Collections.emptyMap(),
+            new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
+            new ClusterState.Builder(new ClusterName("test")).build(),
+            task,
+            SearchResponse.Clusters.EMPTY,
+            null,
+            true,
+            false,
+            new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
+            Map.of()
+        ) {
+            @Override
+            protected SearchPhase getNextPhase() {
+                return new SearchPhase("test") {
+                    @Override
+                    protected void run() {
+                        latch.countDown();
+                    }
+                };
+            }
+        };
+        action.start();
+
+        assertNotNull("the batched node request should have been sent", nodeQueryHandler.get());
+        assertEquals(
+            "the slots must survive the send, nothing else counts these shards",
+            Map.of(dataNode.getId(), 2L),
+            pendingSearchRequests.liveView()
+        );
+
+        nodeQueryHandler.get().handleException(new TransportException("node is gone"));
+        latch.await();
+
+        assertFalse("slots were not given back when the shards reported", reservations.hasReservations());
+        assertTrue(pendingSearchRequests.liveView().isEmpty());
     }
 
     // Test what happens if doc formatter fails to format the bottom sort values

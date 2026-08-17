@@ -71,6 +71,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.Index;
@@ -429,10 +430,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private void executeRequest(
         SearchTask task,
         SearchRequest original,
-        ActionListener<SearchResponse> originalListener,
+        ActionListener<SearchResponse> listener,
         Function<ActionListener<SearchResponse>, SearchPhaseProvider> searchPhaseProvider,
         boolean collectSearchTelemetry
     ) {
+        // Give back any ARS probe slot this search still holds. The release sites below cover the
+        // paths that report a per-shard outcome; this covers the rest, such as a phase that fails as
+        // a whole. A slot that is never given back gates its node out of probe traffic permanently.
+        final ActionListener<SearchResponse> originalListener = ActionListener.runAfter(
+            listener,
+            () -> ArsReservations.releaseAllFor(task)
+        );
         boolean resolvesCrossProject = crossProjectModeDecider.resolvesCrossProject(original);
         final long relativeStartNanos = System.nanoTime();
         final SearchTimeProvider timeProvider = new SearchTimeProvider(
@@ -1937,13 +1945,20 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             );
             aliasFilter = buildIndexAliasFilters(projectState, indicesAndAliases, indices);
             aliasFilter.putAll(remoteAliasMap);
+            // The alias has to come from the request we are about to route, not from the top-level
+            // one: the local half of a cross-cluster search with minimize_roundtrips=true carries
+            // the empty string here, and the shard iterators built below are stamped with the same
+            // value. Reservations are matched on it when they are given back.
+            final ArsReservations reservations = searchTransportService.newArsReservations(searchRequest.getLocalClusterAlias());
+            task.setArsReservations(reservations);
             localShardIterators = getLocalShardsIterator(
                 projectState,
                 searchRequest,
                 searchRequest.getLocalClusterAlias(),
                 indicesAndAliases,
                 concreteLocalIndices,
-                false
+                false,
+                reservations
             );
 
             // localShardIterators is empty since there are no matching indices. In such cases,
@@ -2637,7 +2652,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         String clusterAlias,
         Set<ResolvedExpression> indicesAndAliases,
         String[] concreteIndices,
-        boolean shouldSort
+        boolean shouldSort,
+        @Nullable ArsReservations reservations
     ) {
         concreteIndices = ignoreBlockedIndices(projectState, concreteIndices);
         var routingMap = indexNameExpressionResolver.resolveSearchRouting(
@@ -2645,16 +2661,24 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             searchRequest.routing(),
             searchRequest.indices()
         );
-        List<SearchShardRouting> shardRoutings = clusterService.operationRouting()
-            .searchShards(
-                projectState,
-                concreteIndices,
-                routingMap,
-                searchRequest.preference(),
-                responseCollectorService,
-                searchTransportService.getPendingSearchRequests(),
-                shouldSort
-            );
+        var operationRouting = clusterService.operationRouting();
+        var arsContext = new OperationRouting.ArsContext(
+            responseCollectorService,
+            searchTransportService.getPendingSearchRequests(),
+            searchTransportService.getLiveClientConnections(),
+            reservations,
+            operationRouting.isAdaptiveReplicaSelectionProbeEnabled(),
+            operationRouting.getAdaptiveReplicaSelectionProbeInflightCap(),
+            operationRouting.getAdaptiveReplicaSelectionWarmupSamples()
+        );
+        List<SearchShardRouting> shardRoutings = operationRouting.searchShards(
+            projectState,
+            concreteIndices,
+            routingMap,
+            searchRequest.preference(),
+            arsContext,
+            shouldSort
+        );
         final Map<String, OriginalIndices> originalIndices = buildPerIndexOriginalIndices(
             projectState,
             indicesAndAliases,

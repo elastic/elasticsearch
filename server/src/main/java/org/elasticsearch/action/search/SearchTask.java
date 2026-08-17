@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 
@@ -23,6 +24,8 @@ public class SearchTask extends CancellableTask {
     private final Supplier<String> descriptionSupplier;
     private SearchProgressListener progressListener = SearchProgressListener.NOOP;
     private Supplier<SearchResponseMerger> searchResponseMergerSupplier;  // used for CCS minimize_roundtrips=true
+    // written once on the coordination thread before any shard is routed, read from transport threads
+    private volatile ArsReservations arsReservations;
 
     public SearchTask(
         long id,
@@ -69,6 +72,20 @@ public class SearchTask extends CancellableTask {
      */
     public void setSearchResponseMergerSupplier(Supplier<SearchResponseMerger> supplier) {
         this.searchResponseMergerSupplier = supplier;
+    }
+
+    /**
+     * The ARS probe slots this search claimed while routing, or {@code null} if it never routed
+     * shards it also dispatches to. {@code _search_shards}, which ranks on behalf of a remote
+     * coordinator, is the notable case of the latter.
+     */
+    @Nullable
+    ArsReservations getArsReservations() {
+        return arsReservations;
+    }
+
+    void setArsReservations(ArsReservations arsReservations) {
+        this.arsReservations = arsReservations;
     }
 
     /**

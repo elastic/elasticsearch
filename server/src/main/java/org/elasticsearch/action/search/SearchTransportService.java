@@ -33,7 +33,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
@@ -134,7 +133,7 @@ public class SearchTransportService {
         ActionListener<? super SearchPhaseResult>,
         ActionListener<? super SearchPhaseResult>> responseWrapper;
     private SearchService searchService;
-    private final Map<String, Long> clientConnections = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private final PendingSearchRequests pendingSearchRequests = new PendingSearchRequests();
 
     public SearchTransportService(
         TransportService transportService,
@@ -470,7 +469,26 @@ public class SearchTransportService {
      * This is a snapshot of the current pending search and not a live map.
      */
     public Map<String, Long> getPendingSearchRequests() {
-        return new HashMap<>(clientConnections);
+        return pendingSearchRequests.snapshot();
+    }
+
+    /**
+     * Return a read-only live view of the pending search requests map. Unlike
+     * {@link #getPendingSearchRequests()}, this reflects concurrent dispatch activity in real
+     * time. Used by ARS probing to check actual concurrent load on stat-less nodes.
+     */
+    public Map<String, Long> getLiveClientConnections() {
+        return pendingSearchRequests.liveView();
+    }
+
+    /**
+     * Creates the ledger a single search uses to claim ARS probe slots at routing-decision time.
+     *
+     * @param clusterAlias the alias carried by the search request whose shards are about to be
+     *                     ranked, used to tell this cluster's shards from those of a remote one
+     */
+    ArsReservations newArsReservations(@Nullable String clusterAlias) {
+        return new ArsReservations(pendingSearchRequests, clusterAlias);
     }
 
     static class ScrollFreeContextRequest extends AbstractTransportRequest {
@@ -1013,7 +1031,7 @@ public class SearchTransportService {
             super(listener, responseReader, TransportResponseHandler.TRANSPORT_WORKER);
             this.nodeId = connection.getNode().getId();
             // Increment the number of connections for this node by one
-            clientConnections.compute(nodeId, (id, conns) -> conns == null ? 1 : conns + 1);
+            pendingSearchRequests.increment(nodeId);
         }
 
         @Override
@@ -1031,17 +1049,7 @@ public class SearchTransportService {
         // Decrement the number of connections or remove it entirely if there are no more connections
         // We need to remove the entry here so we don't leak when nodes go away forever
         private void decConnectionCount() {
-            assert assertNodePresent();
-            clientConnections.computeIfPresent(nodeId, (id, conns) -> conns == 1 ? null : conns - 1);
-        }
-
-        private boolean assertNodePresent() {
-            var conns = clientConnections.get(nodeId);
-            assert conns != null : "number of connections for " + nodeId + " is null, but should be an integer";
-            assert conns >= 1 : "number of connections for " + nodeId + " should be >= 1 but was " + conns;
-            // Always return true, there is additional asserting here, the boolean is just so this
-            // can be skipped when assertions are not enabled
-            return true;
+            pendingSearchRequests.decrement(nodeId);
         }
     }
 

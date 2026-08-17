@@ -1152,7 +1152,10 @@ class NodeConstruction {
             clusterService.getClusterSettings()
         );
 
-        final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
+        final ResponseCollectorService responseCollectorService = new ResponseCollectorService(
+            clusterService,
+            telemetryProvider.getMeterRegistry()
+        );
         modules.bindToInstance(ResponseCollectorService.class, responseCollectorService);
         modules.bindToInstance(CrossProjectModeDecider.class, crossProjectModeDecider);
 

@@ -55,6 +55,7 @@ import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -323,6 +324,83 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         SearchShardIterator shard1 = result.get().iterators().stream().filter(i -> i.shardId().id() == 1).findFirst().orElseThrow();
         assertFalse(shard0.skip());
         assertTrue(shard1.skip());
+    }
+
+    /**
+     * A shard the pre-filter skips is never queried, so its ARS probe slot has to come back here. A
+     * matching shard keeps its slot, so that the cap still covers it across this round trip until the
+     * query phase dispatches it.
+     */
+    public void testGivesBackArsProbeSlotsOfSkippedShardsOnly() throws InterruptedException {
+        final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
+            0,
+            System.nanoTime(),
+            System::nanoTime
+        );
+        Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
+        lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
+
+        // shard 0 matches, shard 1 does not
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
+            @Override
+            public void sendCanMatch(
+                Transport.Connection connection,
+                CanMatchNodeRequest request,
+                SearchTask task,
+                ActionListener<CanMatchNodeResponse> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
+            ) {
+                final List<ResponseOrFailure> responses = new ArrayList<>();
+                for (CanMatchNodeRequest.Shard shard : request.getShardLevelRequests()) {
+                    responses.add(new ResponseOrFailure(new CanMatchShardResponse(shard.shardId().id() == 0, null)));
+                }
+                new Thread(() -> listener.onResponse(new CanMatchNodeResponse(responses))).start();
+            }
+        };
+
+        CountDownLatch latch = new CountDownLatch(1);
+        List<SearchShardIterator> shardsIter = getShardsIter(
+            "idx",
+            new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
+            2,
+            false,
+            primaryNode,
+            null
+        );
+        SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", TaskId.EMPTY_TASK_ID, Map.of());
+        PendingSearchRequests pendingSearchRequests = new PendingSearchRequests();
+        ArsReservations reservations = new ArsReservations(pendingSearchRequests, null);
+        task.setArsReservations(reservations);
+        for (SearchShardIterator shardIt : shardsIter) {
+            reservations.reserve(shardIt.shardId(), primaryNode.getId());
+        }
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(true);
+
+        CanMatchPreFilterSearchPhase.execute(
+            logger,
+            searchTransportService,
+            (clusterAlias, node) -> lookup.get(node),
+            Collections.singletonMap("_na_", AliasFilter.EMPTY),
+            Collections.emptyMap(),
+            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
+            searchRequest,
+            shardsIter,
+            timeProvider,
+            task,
+            false,
+            EMPTY_CONTEXT_PROVIDER,
+            new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
+            Map.of(),
+            // the local search path, which drops skipped shards instead of marking them
+            false
+        ).addListener(ActionTestUtils.assertNoFailureListener(iter -> latch.countDown()));
+        latch.await();
+
+        // only the shard that is still going to be queried keeps its slot
+        assertEquals(Map.of(primaryNode.getId(), 1L), pendingSearchRequests.liveView());
     }
 
     public void testFilterWithFailure() throws InterruptedException {

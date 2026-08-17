@@ -128,6 +128,20 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
     }
 
     @Override
+    protected boolean releasesArsReservationOnResult() {
+        return false;
+    }
+
+    @Override
+    protected void onShardResult(DfsSearchResult result) {
+        // Nothing counts this shard until DfsQueryPhase queries the same node, which waits for every
+        // shard's DFS result. Reclaim before consuming, since the last result runs that phase inline.
+        final SearchShardTarget target = result.getSearchShardTarget();
+        ArsReservations.reclaimFor(getTask(), target.getShardId(), target.getNodeId());
+        super.onShardResult(result);
+    }
+
+    @Override
     protected void onShardGroupFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
         progressListener.notifyQueryFailure(shardIndex, shardTarget, exc);
     }

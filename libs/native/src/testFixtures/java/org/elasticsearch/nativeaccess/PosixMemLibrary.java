@@ -9,7 +9,7 @@
 
 package org.elasticsearch.nativeaccess;
 
-import org.elasticsearch.foreign.CaptureErrno;
+import org.elasticsearch.foreign.CaptureSystemError;
 import org.elasticsearch.foreign.Function;
 import org.elasticsearch.foreign.LibrarySpecification;
 import org.elasticsearch.foreign.Platform;
@@ -34,7 +34,7 @@ public interface PosixMemLibrary {
      *         address {@code -1} ({@code MAP_FAILED}) on failure, with errno set
      * @see <a href="https://man7.org/linux/man-pages/man2/mmap.2.html">mmap manpage</a>
      */
-    @CaptureErrno
+    @CaptureSystemError
     @Function("mmap")
     MemorySegment mmap(MemorySegment addr, long length, int prot, int flags, int fd, long offset);
 
@@ -45,7 +45,7 @@ public interface PosixMemLibrary {
      * @return 0 on success, -1 on failure with errno set
      * @see <a href="https://man7.org/linux/man-pages/man2/mprotect.2.html">mprotect manpage</a>
      */
-    @CaptureErrno
+    @CaptureSystemError
     @Function("mprotect")
     int mprotect(MemorySegment addr, long length, int prot);
 
@@ -55,7 +55,7 @@ public interface PosixMemLibrary {
      * @return 0 on success, -1 on failure with errno set
      * @see <a href="https://man7.org/linux/man-pages/man2/munmap.2.html">munmap manpage</a>
      */
-    @CaptureErrno
+    @CaptureSystemError
     @Function("munmap")
     int munmap(MemorySegment addr, long length);
 }

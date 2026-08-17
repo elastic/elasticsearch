@@ -140,6 +140,10 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
             repoName
         ).setType("s3").setSettings(settings).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        assertWarnings(
+            "[unsafely_incompatible_with_s3_conditional_writes] setting was deprecated in Elasticsearch and will be removed in a future "
+                + "release. See the breaking changes documentation for the next major version."
+        );
     }
 
     @Override

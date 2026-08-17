@@ -41,7 +41,16 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
         Settings extraRepositorySettings
     ) {
         public Closeable register(UnaryOperator<Settings> settingsUnaryOperator) throws IOException {
-            assertOK(client().performRequest(getRegisterRequest(settingsUnaryOperator)));
+            final var request = getRegisterRequest(settingsUnaryOperator);
+            if (S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.exists(extraRepositorySettings)) {
+                request.setOptions(
+                    expectWarnings(
+                        "[unsafely_incompatible_with_s3_conditional_writes] setting was deprecated in Elasticsearch and will be removed "
+                            + "in a future release. See the breaking changes documentation for the next major version."
+                    )
+                );
+            }
+            assertOK(client().performRequest(request));
             return () -> assertOK(client().performRequest(new Request("DELETE", "/_snapshot/" + repositoryName())));
         }
 

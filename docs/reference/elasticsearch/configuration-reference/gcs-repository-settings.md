@@ -73,7 +73,7 @@ The following are the available client settings. Those that must be stored in th
 :   Size of the write buffer passed to the GCS SDK for resumable uploads. Controls the amount of data buffered in memory before each HTTP PUT request. The SDK default of `16MB` is used if this setting is not configured.
 
 `gcs.client.CLIENT_NAME.resumable_upload_threshold` {applies_to}`stack: ga 9.6`
-:   ([byte value](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units)) Blobs larger than this are uploaded with a [resumable upload](https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload), in chunks of at most `resumable_write_buffer_size`; smaller blobs are uploaded in a single request. Cannot exceed `100mb`. Defaults to `5mb`.
+:   ([byte value](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units)) The maximum size of a blob that {{es}} uploads in a single request. Larger blobs are uploaded with a [resumable upload](https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload), in chunks of at most `resumable_write_buffer_size`. Cannot exceed `100mb`. Defaults to `5mb`.
 
 
 ## Repository settings [repository-gcs-repository-settings]

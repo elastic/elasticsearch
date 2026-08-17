@@ -111,7 +111,9 @@ The following list contains the available S3 client settings. Those that must be
 :   ([time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) The timeout after which {{es}} will close an idle connection. The default value is 60 seconds.
 
 `s3.client.CLIENT_NAME.buffer_size` {applies_to}`stack: ga 9.6`
-:   ([byte value](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units)) Uploads larger than this are split into parts of this size and sent with the [AWS Multipart Upload API](https://docs.aws.amazon.com/AmazonS3/latest/dev/uploadobjusingmpu.html). Must be between `5mb` and `5gb`; defaults to 5% of the JVM heap, clamped to `5mb`–`100mb`. A repository's own `buffer_size` takes precedence. Note that a repository sizes its objects using its own `buffer_size` (or the default) rather than this setting, so if you set this lower, also lower the repository's `chunk_size` to at most this value × `max_multipart_parts`.
+:   ([byte value](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units)) The maximum size of an object that {{es}} uploads in a single request. Larger objects are split into parts of this size and sent with the [AWS Multipart Upload API](https://docs.aws.amazon.com/AmazonS3/latest/dev/uploadobjusingmpu.html). Must be between `5mb` and `5gb`. Defaults to 5% of the JVM heap, at least `5mb` and at most `100mb`. If set, the repository setting `buffer_size` overrides this value.
+
+    If you set this lower than the default, also set the repository `chunk_size` to at most this value × `max_multipart_parts`.
 
 `s3.client.CLIENT_NAME.path_style_access`
 :   Whether to force the use of the path style access pattern. If `true`, the path style access pattern will be used. If `false`, the access pattern will be automatically determined by the AWS Java SDK (See [AWS documentation](https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/AmazonS3Builder.html#setPathStyleAccessEnabled-java.lang.Boolean-) for details). Defaults to `false`.
@@ -192,7 +194,9 @@ The following settings are supported:
 :   When set to `true` files are encrypted on server side using AES256 algorithm. Defaults to `false`.
 
 `buffer_size`
-:   ([byte value](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units)) Minimum threshold below which the chunk is uploaded using a single request. Beyond this threshold, the S3 repository will use the [AWS Multipart Upload API](https://docs.aws.amazon.com/AmazonS3/latest/dev/uploadobjusingmpu.html) to split the chunk into several parts, each of `buffer_size` length, and to upload each part in its own request. Note that setting a buffer size lower than `5mb` is not allowed since it will prevent the use of the Multipart API and may result in upload errors. It is also not possible to set a buffer size greater than `5gb` as it is the maximum upload size allowed by S3. Defaults to `s3.client.CLIENT_NAME.buffer_size` {applies_to}`stack: ga 9.6`, which itself defaults to 5% of JVM heap, clamped to `5mb`–`100mb`.
+:   ([byte value](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units)) The maximum size of an object that {{es}} uploads in a single request. Larger objects are split into parts of this size and sent with the [AWS Multipart Upload API](https://docs.aws.amazon.com/AmazonS3/latest/dev/uploadobjusingmpu.html). Must be between `5mb` and `5gb`. Those are the minimum and maximum part sizes S3 allows. Defaults to 5% of the JVM heap, at least `5mb` and at most `100mb`.
+    
+    {applies_to}`stack: ga 9.6` If this setting is not set, {{es}} uses `s3.client.CLIENT_NAME.buffer_size`.
 
 `max_multipart_parts`
 :   (integer) The maximum number of parts that {{es}} will write during a multipart upload of a single object. Files which are larger than this repository's `buffer_size × max_multipart_parts` will be chunked into several smaller objects. {{es}} may also split a file across multiple objects to satisfy other constraints such as the `chunk_size` limit. Defaults to `10000` which is the [maximum number of parts in a multipart upload in AWS S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html).

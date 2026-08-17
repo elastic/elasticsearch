@@ -7,6 +7,60 @@ tests:
 - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
   method: test {yaml=/10_apm/Test template reinstallation}
   issue: https://github.com/elastic/elasticsearch/issues/116445
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=transform/*}
+  issue: https://github.com/elastic/elasticsearch/issues/120816
+- class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
+  method: testMixedSortFieldTypes
+  issue: https://github.com/elastic/elasticsearch/issues/142077
+- class: org.elasticsearch.xpack.inference.external.http.RequestBasedTaskRunnerTests
+  method: testLoopOneAtATime
+  issue: https://github.com/elastic/elasticsearch/issues/156103
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/search/retriever/line_983}
+  issue: https://github.com/elastic/elasticsearch/issues/156119
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
+  issue: https://github.com/elastic/elasticsearch/issues/156121
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.highlight/30_max_analyzed_offset/Plain highlighter with max_analyzed_offset < 0 should FAIL}
+  issue: https://github.com/elastic/elasticsearch/issues/156122
+- class: org.elasticsearch.search.aggregations.metrics.LargeTopHitsIT
+  method: test500Queries
+  issue: https://github.com/elastic/elasticsearch/issues/148056
+- class: org.elasticsearch.threadpool.SimpleThreadPoolIT
+  method: testThreadPoolMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/156130
+- class: org.elasticsearch.packaging.test.KeystoreManagementTests
+  method: test50CreateKeystoreManually
+  issue: https://github.com/elastic/elasticsearch/issues/155335
+- class: org.elasticsearch.xpack.esql.inference.completion.CompletionOperatorTests
+  method: testSimpleCircuitBreaking
+  issue: https://github.com/elastic/elasticsearch/issues/156135
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
+  method: testWriteLargeBlob
+  issue: https://github.com/elastic/elasticsearch/issues/150356
+- class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
+  method: testContinuousEvents
+  issue: https://github.com/elastic/elasticsearch/issues/153782
+- class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
+  issue: https://github.com/elastic/elasticsearch/issues/156233
+- class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/156234
+- class: org.elasticsearch.search.SearchWithRejectionsIT
+  method: testOpenContextsAfterRejections
+  issue: https://github.com/elastic/elasticsearch/issues/156244
+- class: org.elasticsearch.snapshots.SharedClusterSnapshotRestoreIT
+  method: testCloseOrReallocateDuringPartialSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/156342
+- class: org.elasticsearch.entitlement.runtime.policy.PolicyCheckerImplTests
+  issue: https://github.com/elastic/elasticsearch/issues/156628
+- class: org.elasticsearch.gradle.reaper.ReaperPluginFuncTest
+  method: can launch reaper
+  issue: https://github.com/elastic/elasticsearch/issues/156707
+- class: org.elasticsearch.common.xcontent.builder.XContentBuilderTests
+  method: testCloseAllowIllFormedDoesNotValidateStructuralCorrectness
+  issue: https://github.com/elastic/elasticsearch/issues/156563  
 
 # Examples:
 #

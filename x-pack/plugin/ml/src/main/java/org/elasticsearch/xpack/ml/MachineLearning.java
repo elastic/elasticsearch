@@ -1517,6 +1517,7 @@ public class MachineLearning extends Plugin
             client,
             inferenceAuditor,
             telemetryProvider.getMeterRegistry(),
+            new NodeLoadDetector(memoryTracker),
             nlpEnabled,
             settings
         );

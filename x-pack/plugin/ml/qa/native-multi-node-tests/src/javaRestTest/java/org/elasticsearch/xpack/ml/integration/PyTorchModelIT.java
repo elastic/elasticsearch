@@ -366,6 +366,27 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
             assertThat((Integer) XContentMapValues.extractValue("inference_stats.inference_count", stats.get(0)), equalTo(5));
             int inferenceCount = sumInferenceCountOnNodes(nodes);
             assertThat(inferenceCount, equalTo(5));
+
+            // The native process reports its resident set size periodically. When at least one node has reported it,
+            // the API must surface it as the runtime native memory in model_size_stats (summed across nodes). The check
+            // is guarded so it does not flake if no measurement has been received within the short test window.
+            long summedNodeRss = 0;
+            boolean anyNodeReportedRss = false;
+            for (var node : nodes) {
+                Number nodeRss = (Number) node.get("average_inference_process_memory_rss_bytes");
+                if (nodeRss != null) {
+                    anyNodeReportedRss = true;
+                    summedNodeRss += nodeRss.longValue();
+                }
+            }
+            if (anyNodeReportedRss) {
+                Number runtimeNativeMemory = (Number) XContentMapValues.extractValue(
+                    "model_size_stats.runtime_native_memory_bytes",
+                    stats.get(0)
+                );
+                assertThat(runtimeNativeMemory, notNullValue());
+                assertThat(runtimeNativeMemory.longValue(), equalTo(summedNodeRss));
+            }
         }
     }
 

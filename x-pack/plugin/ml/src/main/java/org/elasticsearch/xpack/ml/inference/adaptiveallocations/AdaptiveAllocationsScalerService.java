@@ -27,6 +27,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction;
@@ -36,6 +37,8 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.NodeLoad;
+import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.util.ArrayList;
@@ -156,6 +159,17 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                     () -> observeLong(AdaptiveAllocationsScaler::getLastMeasuredQueueSize)
                 )
             );
+            metrics.add(
+                meterRegistry.registerLongsGauge(
+                    "es.ml.trained_models.adaptive_allocations.max_number_of_allocations_by_memory.current",
+                    "the maximum number of allocations that fit in the available ML memory given the observed " + "per-allocation memory",
+                    "",
+                    () -> observeLong(scaler -> {
+                        Integer cap = scaler.getMaxNumberOfAllocationsByMemory();
+                        return cap == null ? null : cap.longValue();
+                    })
+                )
+            );
         }
 
         Collection<LongWithAttributes> observeLong(Function<AdaptiveAllocationsScaler, Long> getValue) {
@@ -209,6 +223,14 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     private final MeterRegistry meterRegistry;
     private final Metrics metrics;
     private final boolean isNlpEnabled;
+    /**
+     * Used to compute the free ML memory on each node so the scaler can be capped by real memory. May be {@code null}
+     * in tests that do not exercise the memory cap, in which case no cap is applied.
+     */
+    private final NodeLoadDetector nodeLoadDetector;
+    private volatile int maxMachineMemoryPercent;
+    private volatile boolean useAutoMachineMemoryPercent;
+    private volatile int maxOpenJobsPerNode;
     private final Map<String, Map<String, Stats>> lastInferenceStatsByDeploymentAndNode;
     private Long lastInferenceStatsTimestampMillis;
     private final Map<String, AdaptiveAllocationsScaler> scalers;
@@ -226,6 +248,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         Client client,
         InferenceAuditor inferenceAuditor,
         MeterRegistry meterRegistry,
+        NodeLoadDetector nodeLoadDetector,
         boolean isNlpEnabled,
         Settings settings
     ) {
@@ -235,11 +258,15 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
             client,
             inferenceAuditor,
             meterRegistry,
+            nodeLoadDetector,
             isNlpEnabled,
             DEFAULT_TIME_INTERVAL_SECONDS,
             new AtomicLong(MachineLearning.SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME.get(settings).getSeconds()),
             new AtomicLong(MachineLearning.SCALE_UP_COOLDOWN_TIME.get(settings).getMillis())
         );
+        this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
+        this.useAutoMachineMemoryPercent = MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
+        this.maxOpenJobsPerNode = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(
                 MachineLearning.SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME,
@@ -250,6 +277,15 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 MachineLearning.SCALE_UP_COOLDOWN_TIME,
                 timeInterval -> this.scaleUpCooldownTimeMillis.set(timeInterval.getMillis())
             );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, value -> this.maxMachineMemoryPercent = value);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
+                value -> this.useAutoMachineMemoryPercent = value
+            );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(MachineLearning.MAX_OPEN_JOBS_PER_NODE, value -> this.maxOpenJobsPerNode = value);
     }
 
     // visible for testing
@@ -264,15 +300,46 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         AtomicLong scaleToZeroAfterNoRequestsSeconds,
         AtomicLong scaleUpCooldownTimeMillis
     ) {
+        this(
+            threadPool,
+            clusterService,
+            client,
+            inferenceAuditor,
+            meterRegistry,
+            null,
+            isNlpEnabled,
+            timeIntervalSeconds,
+            scaleToZeroAfterNoRequestsSeconds,
+            scaleUpCooldownTimeMillis
+        );
+    }
+
+    // visible for testing
+    AdaptiveAllocationsScalerService(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        Client client,
+        InferenceAuditor inferenceAuditor,
+        MeterRegistry meterRegistry,
+        NodeLoadDetector nodeLoadDetector,
+        boolean isNlpEnabled,
+        long timeIntervalSeconds,
+        AtomicLong scaleToZeroAfterNoRequestsSeconds,
+        AtomicLong scaleUpCooldownTimeMillis
+    ) {
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.client = client;
         this.inferenceAuditor = inferenceAuditor;
         this.meterRegistry = meterRegistry;
+        this.nodeLoadDetector = nodeLoadDetector;
         this.isNlpEnabled = isNlpEnabled;
         this.timeIntervalSeconds = timeIntervalSeconds;
         this.scaleToZeroAfterNoRequestsSeconds = scaleToZeroAfterNoRequestsSeconds;
         this.scaleUpCooldownTimeMillis = scaleUpCooldownTimeMillis;
+        this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.getDefault(Settings.EMPTY);
+        this.useAutoMachineMemoryPercent = MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT.getDefault(Settings.EMPTY);
+        this.maxOpenJobsPerNode = MachineLearning.MAX_OPEN_JOBS_PER_NODE.getDefault(Settings.EMPTY);
 
         lastInferenceStatsByDeploymentAndNode = new HashMap<>();
         lastInferenceStatsTimestampMillis = null;
@@ -447,12 +514,36 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
             return;
         }
 
+        // Only touch cluster state when the memory cap is actually in play. This keeps the common path cheap and avoids
+        // extra cluster-state reads (and cluster-state writes: the cap is applied in-memory to the scaler, never
+        // persisted, so it does not add churn to cluster state).
+        ClusterState clusterState = nodeLoadDetector == null ? null : clusterService.state();
+        TrainedModelAssignmentMetadata assignmentMetadata = clusterState == null
+            ? null
+            : TrainedModelAssignmentMetadata.fromState(clusterState);
+
         for (Map.Entry<String, Stats> deploymentAndStats : recentStatsByDeployment.entrySet()) {
             String deploymentId = deploymentAndStats.getKey();
             Stats stats = deploymentAndStats.getValue();
             AdaptiveAllocationsScaler adaptiveAllocationsScaler = scalers.get(deploymentId);
             adaptiveAllocationsScaler.process(stats, statsTimeInterval, numberOfAllocations.get(deploymentId));
+            if (nodeLoadDetector != null) {
+                adaptiveAllocationsScaler.setMaxAllocationsByMemory(
+                    computeMaxAllocationsByMemory(clusterState, assignmentMetadata, deploymentId, numberOfAllocations.get(deploymentId))
+                );
+            }
             Integer newNumberOfAllocations = adaptiveAllocationsScaler.scale();
+            if (newNumberOfAllocations != null
+                && adaptiveAllocationsScaler.getNeededNumberOfAllocations() > adaptiveAllocationsScaler.getNumberOfAllocations()
+                && adaptiveAllocationsScaler.getMaxNumberOfAllocationsByMemory() != null
+                && adaptiveAllocationsScaler.getNumberOfAllocations() <= adaptiveAllocationsScaler.getMaxNumberOfAllocationsByMemory()) {
+                logger.debug(
+                    "adaptive allocations scaler: deployment [{}] is capped at [{}] allocations by available memory " + "(needed [{}]).",
+                    deploymentId,
+                    adaptiveAllocationsScaler.getMaxNumberOfAllocationsByMemory(),
+                    adaptiveAllocationsScaler.getNeededNumberOfAllocations()
+                );
+            }
             if (newNumberOfAllocations != null) {
                 Long lastScaleUpTimeMillis = lastScaleUpTimesMillis.get(deploymentId);
                 // hasRecentScaleUp indicates whether this service has recently scaled up the deployment.
@@ -511,6 +602,62 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Computes an upper bound on the number of allocations for a deployment based on the ML memory actually available
+     * across the cluster and the per-allocation memory observed at runtime. Returns {@code null} (no cap) when memory
+     * accounting is unavailable or no runtime memory has been observed yet, which leaves the first scale-up unaffected.
+     */
+    private Integer computeMaxAllocationsByMemory(
+        ClusterState clusterState,
+        TrainedModelAssignmentMetadata assignmentMetadata,
+        String deploymentId,
+        int currentAllocations
+    ) {
+        if (nodeLoadDetector == null) {
+            return null;
+        }
+        TrainedModelAssignment assignment = assignmentMetadata.getDeploymentAssignment(deploymentId);
+        if (assignment == null) {
+            return null;
+        }
+        Long observedPerAllocationMemoryBytes = assignment.getObservedPerAllocationMemoryBytes();
+        if (observedPerAllocationMemoryBytes == null || observedPerAllocationMemoryBytes <= 0) {
+            return null;
+        }
+
+        long totalFreeMlMemoryBytes = 0L;
+        boolean anyMlNode = false;
+        for (DiscoveryNode node : clusterState.nodes()) {
+            if (MachineLearning.isMlNode(node) == false) {
+                continue;
+            }
+            NodeLoad nodeLoad = nodeLoadDetector.detectNodeLoad(
+                clusterState,
+                assignmentMetadata,
+                node,
+                maxOpenJobsPerNode,
+                maxMachineMemoryPercent,
+                useAutoMachineMemoryPercent
+            );
+            if (nodeLoad.getError() != null) {
+                continue;
+            }
+            anyMlNode = true;
+            totalFreeMlMemoryBytes += Math.max(0L, nodeLoad.getFreeMemoryExcludingPerNodeOverhead());
+        }
+        if (anyMlNode == false) {
+            return null;
+        }
+
+        // The free memory already excludes the memory attributed to this deployment's current allocations, so the cap is
+        // the current allocations plus however many additional allocations fit in the remaining headroom. Flooring the
+        // additional count at zero keeps the cap from ever forcing a scale-down below the current size (avoiding churn);
+        // real scale-down is driven by the demand signal and enforced by the planner.
+        long additionalAllocations = totalFreeMlMemoryBytes / observedPerAllocationMemoryBytes;
+        long cap = currentAllocations + Math.max(0L, additionalAllocations);
+        return (int) Math.min(Integer.MAX_VALUE, cap);
     }
 
     private void updateNumberOfAllocations(

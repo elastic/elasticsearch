@@ -92,7 +92,8 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             randomIntBetween(0, 100),
             avgInferenceTimeLastPeriod,
             randomLongBetween(0, 100),
-            randomLongBetween(0, 100)
+            noInferenceCallsOnNodeYet ? null : randomLongBetween(0, 1_000_000),
+            noInferenceCallsOnNodeYet ? null : randomLongBetween(0, 1_000_000)
         );
     }
 

@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -252,6 +253,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         Setting.Property.Dynamic
     );
 
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // deprecated for a long time, can be removed in v10
     static final Setting<Boolean> UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES = Setting.boolSetting(
         "unsafely_incompatible_with_s3_conditional_writes",
         false

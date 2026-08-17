@@ -109,37 +109,19 @@ public final class QueryDslTranslator {
     }
 
     private Expression dispatch(QueryBuilder query) {
-        if (query instanceof BoolQueryBuilder bool) {
-            return bool(bool);
-        }
-        if (query instanceof TermQueryBuilder term) {
-            return term(term);
-        }
-        if (query instanceof TermsQueryBuilder terms) {
-            return terms(terms);
-        }
-        if (query instanceof MatchQueryBuilder match) {
-            return match(match);
-        }
-        if (query instanceof MatchPhraseQueryBuilder phrase) {
-            return matchPhrase(phrase);
-        }
-        if (query instanceof MultiMatchQueryBuilder multiMatch) {
-            return multiMatch(multiMatch);
-        }
-        if (query instanceof ExistsQueryBuilder exists) {
-            return exists(exists);
-        }
-        if (query instanceof MatchAllQueryBuilder) {
-            return Literal.TRUE;
-        }
-        if (query instanceof MatchNoneQueryBuilder) {
-            return Literal.FALSE;
-        }
-        if (query instanceof RangeQueryBuilder range) {
-            return range(range);
-        }
-        throw new TranslationUnsupportedException(query.getName());
+        return switch (query) {
+            case BoolQueryBuilder bool -> bool(bool);
+            case TermQueryBuilder term -> term(term);
+            case TermsQueryBuilder terms -> terms(terms);
+            case MatchQueryBuilder match -> match(match);
+            case MatchPhraseQueryBuilder phrase -> matchPhrase(phrase);
+            case MultiMatchQueryBuilder multiMatch -> multiMatch(multiMatch);
+            case ExistsQueryBuilder exists -> exists(exists);
+            case MatchAllQueryBuilder matchAllQueryBuilder -> Literal.TRUE;
+            case MatchNoneQueryBuilder matchNoneQueryBuilder -> Literal.FALSE;
+            case RangeQueryBuilder range -> range(range);
+            default -> throw new TranslationUnsupportedException(query.getName());
+        };
     }
 
     /**

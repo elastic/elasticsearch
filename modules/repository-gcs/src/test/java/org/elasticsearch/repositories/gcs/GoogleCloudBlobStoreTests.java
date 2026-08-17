@@ -18,6 +18,7 @@ import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.core.Nullable;
@@ -118,6 +119,16 @@ public class GoogleCloudBlobStoreTests extends ESTestCase {
 
     // --- repository-level setting validation ---
 
+    public void testMultipartUploadSizeThresholdFlowsToBlobStore() {
+        final ByteSizeValue threshold = ByteSizeValue.ofMb(10);
+        final GoogleCloudStorageRepository repository = createRepositoryWithSetting(
+            GoogleCloudStorageRepository.MULTIPART_UPLOAD_SIZE_THRESHOLD.getKey(),
+            threshold.getStringRep()
+        );
+        final GoogleCloudStorageBlobStore blobStore = repository.createBlobStore();
+        assertEquals(threshold.getBytes(), blobStore.getLargeBlobThresholdInBytes());
+    }
+
     public void testValidStorageClassIsAccepted() {
         final String settingKey = randomFrom(
             GoogleCloudStorageRepository.DATA_STORAGE_CLASS.getKey(),
@@ -151,6 +162,7 @@ public class GoogleCloudBlobStoreTests extends ESTestCase {
             service,
             BigArrays.NON_RECYCLING_INSTANCE,
             randomIntBetween(1, 8) * 1024,
+            GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE,
             BackoffPolicy.noBackoff(),
             mock(GcsRepositoryStatsCollector.class),
             dataStorageClass,

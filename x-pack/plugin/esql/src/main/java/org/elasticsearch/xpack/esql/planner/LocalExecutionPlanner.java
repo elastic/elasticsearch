@@ -233,6 +233,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -1245,14 +1246,16 @@ public class LocalExecutionPlanner {
 
         ElementType[] elementTypes = new ElementType[source.layout.numberOfChannels()];
         TopNEncoder[] encoders = new TopNEncoder[source.layout.numberOfChannels()];
+        Set<NameId> remoteFetchHandleIds = inputAttributes.stream()
+            .filter(RemoteFetchHandle::isAttribute)
+            .map(Attribute::id)
+            .collect(Collectors.toSet());
         List<Layout.ChannelSet> inverse = source.layout.inverse();
         for (int channel = 0; channel < inverse.size(); channel++) {
             Layout.ChannelSet channelSet = inverse.get(channel);
             var fieldExtractPreference = fieldExtractPreference(docValuesAttributes, channelSet.nameIds());
             elementTypes[channel] = PlannerUtils.toElementType(channelSet.type(), fieldExtractPreference);
-            boolean remoteFetchHandleChannel = inputAttributes.stream()
-                .filter(attribute -> channelSet.nameIds().contains(attribute.id()))
-                .anyMatch(RemoteFetchHandle::isAttribute);
+            boolean remoteFetchHandleChannel = channelSet.nameIds().stream().anyMatch(remoteFetchHandleIds::contains);
             // Handles use a keyword-shaped block to cross generic exchanges, but their contents are binary StreamOutput payloads.
             encoders[channel] = remoteFetchHandleChannel
                 ? TopNEncoder.DEFAULT_UNSORTABLE

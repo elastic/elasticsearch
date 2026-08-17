@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.expression.function.scalar.RemoteFetchHandleFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -56,8 +57,6 @@ public final class ReductionPlanner {
             originalPlan,
             runNodeLevelReduction,
             reduceNodeLateMaterialization,
-            false,
-            null,
             null,
             planTimeProfile
         );
@@ -71,15 +70,13 @@ public final class ReductionPlanner {
         ExchangeSinkExec originalPlan,
         boolean runNodeLevelReduction,
         boolean reduceNodeLateMaterialization,
-        boolean remoteFetchTopN,
-        String localNodeId,
-        String retainedSessionId,
+        @Nullable RemoteFetchReductionPlanner.RemoteFetchContext remoteFetchContext,
         PlanTimeProfile planTimeProfile
     ) {
         long startTime = planTimeProfile == null ? 0 : System.nanoTime();
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
         ReductionPlan passThroughReduction = new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
-        if (remoteFetchTopN == false && reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
+        if (remoteFetchContext == null && reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
             return passThroughReduction;
         }
 
@@ -105,9 +102,7 @@ public final class ReductionPlanner {
                 passThroughReduction,
                 runNodeLevelReduction,
                 reduceNodeLateMaterialization,
-                remoteFetchTopN,
-                localNodeId,
-                retainedSessionId
+                remoteFetchContext
             );
             // Not a TopN - must be an agg or a limit
             case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> placePlanBetweenExchanges.apply(rp.plan());
@@ -158,17 +153,10 @@ public final class ReductionPlanner {
         ReductionPlan passThroughReduction,
         boolean runNodeLevelReduction,
         boolean reduceNodeLateMaterialization,
-        boolean remoteFetchTopN,
-        String localNodeId,
-        String retainedSessionId
+        @Nullable RemoteFetchReductionPlanner.RemoteFetchContext remoteFetchContext
     ) {
-        if (remoteFetchTopN && localNodeId != null && retainedSessionId != null) {
-            var remoteFetchReduction = RemoteFetchReductionPlanner.planReduceDriverTopN(
-                contextFactory,
-                originalPlan,
-                localNodeId,
-                retainedSessionId
-            );
+        if (remoteFetchContext != null) {
+            var remoteFetchReduction = RemoteFetchReductionPlanner.planReduceDriverTopN(contextFactory, originalPlan, remoteFetchContext);
             if (remoteFetchReduction.isPresent()) {
                 return remoteFetchReduction.get();
             }

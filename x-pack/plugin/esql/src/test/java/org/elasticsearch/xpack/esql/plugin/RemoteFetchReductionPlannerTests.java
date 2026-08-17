@@ -100,7 +100,7 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
         assertThat(remoteFetch.attributesToFetch().stream().map(Attribute::name).toList(), containsInAnyOrder("salary", "emp_no"));
         assertThat(
             planned.dataNodePlan().output().stream().map(Attribute::name).toList(),
-            equalTo(List.of(RemoteFetchReductionPlanner.HANDLE_ATTRIBUTE_NAME, "hire_date"))
+            equalTo(List.of(RemoteFetchHandle.ATTRIBUTE_NAME, "hire_date"))
         );
     }
 
@@ -167,7 +167,7 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
          * data: ExchangeSink[handle, hire_date]
          *           \- Fragment[Project[doc, hire_date] -> TopN[hire_date] -> EsRelation]
          */
-        assertThat(planned.dataNodePlan().output().getFirst().name(), equalTo(RemoteFetchReductionPlanner.HANDLE_ATTRIBUTE_NAME));
+        assertThat(planned.dataNodePlan().output().getFirst().name(), equalTo(RemoteFetchHandle.ATTRIBUTE_NAME));
         assertThat(planned.dataNodePlan().output(), equalTo(List.of(planned.dataNodePlan().output().getFirst(), hireDate)));
         assertThat(planned.dataNodePlan().child().output(), equalTo(List.of(doc, hireDate)));
 
@@ -185,9 +185,7 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
             planned.dataNodePlan(),
             true,
             true,
-            true,
-            "node-a",
-            "session-a[n]",
+            new RemoteFetchReductionPlanner.RemoteFetchContext("node-a", "session-a[n]"),
             null
         );
 
@@ -213,12 +211,7 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
     }
 
     public void testUserColumnNamedLikeRemoteFetchHandleIsNotTreatedAsInternalHandle() {
-        Attribute userColumn = new ReferenceAttribute(
-            Source.EMPTY,
-            null,
-            RemoteFetchReductionPlanner.HANDLE_ATTRIBUTE_NAME,
-            DataType.KEYWORD
-        );
+        Attribute userColumn = new ReferenceAttribute(Source.EMPTY, null, RemoteFetchHandle.ATTRIBUTE_NAME, DataType.KEYWORD);
         ExchangeSinkExec plan = new ExchangeSinkExec(
             Source.EMPTY,
             List.of(userColumn),
@@ -227,14 +220,20 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
         );
 
         assertFalse(RemoteFetchReductionPlanner.needsRetainedSearchContexts(plan));
-        assertTrue(RemoteFetchReductionPlanner.planReduceDriverTopN(contextFactory(), plan, "node-a", "session-a[n]").isEmpty());
+        assertTrue(
+            RemoteFetchReductionPlanner.planReduceDriverTopN(
+                contextFactory(),
+                plan,
+                new RemoteFetchReductionPlanner.RemoteFetchContext("node-a", "session-a[n]")
+            ).isEmpty()
+        );
     }
 
     public void testFailsWhenCoordinatorCommittedButReductionCannotBeRebuilt() {
         Attribute handle = new ReferenceAttribute(
             Source.EMPTY,
             null,
-            RemoteFetchReductionPlanner.HANDLE_ATTRIBUTE_NAME,
+            RemoteFetchHandle.ATTRIBUTE_NAME,
             DataType.KEYWORD,
             Nullability.FALSE,
             null,
@@ -265,9 +264,7 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
                 sink,
                 true,
                 true,
-                true,
-                "node-a",
-                "session-a[n]",
+                new RemoteFetchReductionPlanner.RemoteFetchContext("node-a", "session-a[n]"),
                 null
             )
         );

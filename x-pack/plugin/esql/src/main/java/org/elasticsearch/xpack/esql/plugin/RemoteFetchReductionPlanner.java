@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 
@@ -66,10 +67,42 @@ import java.util.function.Function;
  *     <li>{@code FORK}/{@code FUSE}: possible later, but require a branch-aware fetch design.</li>
  * </ul>
  */
-class RemoteFetchReductionPlanner {
-    static final String HANDLE_ATTRIBUTE_NAME = RemoteFetchHandle.ATTRIBUTE_NAME;
-
+final class RemoteFetchReductionPlanner {
     record CoordinatorPlan(PhysicalPlan coordinatorPlan, ExchangeSinkExec dataNodePlan) {}
+
+    /**
+     * Request-specific state required to plan a remote-fetch reduction; present only when the request opted into remote-fetch TopN.
+     */
+    record RemoteFetchContext(String localNodeId, String retainedSessionId) {
+        RemoteFetchContext {
+            Objects.requireNonNull(localNodeId, "localNodeId");
+            Objects.requireNonNull(retainedSessionId, "retainedSessionId");
+        }
+    }
+
+    // Reduce planning only needs field-extraction shape: treat every field as present, but non-indexed, so
+    // extraction remains explicit instead of being optimized into Lucene pushdown.
+    private static final SearchStats SEARCH_STATS_TOP_N_REPLACEMENT = new SearchStats.UnsupportedSearchStats() {
+        @Override
+        public boolean exists(FieldAttribute.FieldName field) {
+            return true;
+        }
+
+        @Override
+        public boolean isIndexed(FieldAttribute.FieldName field) {
+            return false;
+        }
+
+        @Override
+        public Object min(FieldAttribute.FieldName field) {
+            return null;
+        }
+
+        @Override
+        public Object max(FieldAttribute.FieldName field) {
+            return null;
+        }
+    };
 
     private record TopNPlanningContext(
         FragmentExec fragmentExec,
@@ -142,22 +175,16 @@ class RemoteFetchReductionPlanner {
         FragmentExec fetchPlan = new FragmentExec(new RemoteFetchSource(Source.EMPTY, attributesToFetch));
 
         var replacedTopN = new Holder<Boolean>(false);
-        PhysicalPlan updatedCoordinatorPlan = coordinatorPlan.transformDown(PhysicalPlan.class, p -> {
-            if ((p instanceof TopNExec) == false || replacedTopN.get()) {
-                return p;
+        PhysicalPlan updatedCoordinatorPlan = coordinatorPlan.transformDown(TopNExec.class, t -> {
+            if (replacedTopN.get() == false
+                && t.child() instanceof ExchangeSourceExec source
+                && source.output().equals(originalDataPlan.output())) {
+                replacedTopN.set(true);
+                ExchangeSourceExec updatedSource = new ExchangeSourceExec(source.source(), exchangeOutput, source.isIntermediateAgg());
+                TopNExec updatedTopN = t.replaceChild(updatedSource);
+                return new RemoteFetchExec(t.source(), updatedTopN, handle, attributesToFetch, attributesToFetch, fetchPlan);
             }
-            TopNExec t = (TopNExec) p;
-            if ((t.child() instanceof ExchangeSourceExec) == false) {
-                return p;
-            }
-            ExchangeSourceExec source = (ExchangeSourceExec) t.child();
-            if (source.output().equals(originalDataPlan.output()) == false) {
-                return p;
-            }
-            replacedTopN.set(true);
-            ExchangeSourceExec updatedSource = new ExchangeSourceExec(source.source(), exchangeOutput, source.isIntermediateAgg());
-            TopNExec updatedTopN = t.replaceChild(updatedSource);
-            return new RemoteFetchExec(t.source(), updatedTopN, handle, attributesToFetch, attributesToFetch, fetchPlan);
+            return t;
         });
         if (replacedTopN.get() == false) {
             return Optional.empty();
@@ -177,8 +204,7 @@ class RemoteFetchReductionPlanner {
     static Optional<ReductionPlan> planReduceDriverTopN(
         Function<SearchStats, LocalPhysicalOptimizerContext> contextFactory,
         ExchangeSinkExec originalPlan,
-        String localNodeId,
-        String retainedSessionId
+        RemoteFetchContext remoteFetchContext
     ) {
         Attribute handle = remoteFetchHandleAttribute(originalPlan.output()).orElse(null);
         if (handle == null) {
@@ -202,15 +228,17 @@ class RemoteFetchReductionPlanner {
         );
         ExchangeSinkExec updatedDataPlan = originalPlan.replaceChildAndUpdateOutput(updatedFragmentExec);
 
+        // As long as the shard fragment remains Project -> TopN, each data driver emits its pages already sorted. Re-evaluate
+        // this check when new fetch plan shapes (e.g. LIMIT) stop guaranteeing sorted shard output.
+        boolean fragmentIsSorted = updatedFragmentExec.fragment() instanceof Project p && p.child() instanceof TopN;
         PhysicalPlan reductionPlan = toPhysicalPlanForReductionSchema(fragmentExec.fragment(), context).transformDown(TopNExec.class, t -> {
             PhysicalPlan exchangeExec = new ExchangeSourceExec(topN.source(), expectedDataOutput, false);
-            boolean fragmentIsSorted = updatedFragmentExec.fragment() instanceof Project p && p.child() instanceof TopN;
             return fragmentIsSorted ? t.replaceChild(exchangeExec).withSortedInput() : t.replaceChild(exchangeExec);
         });
         Alias handleAlias = new Alias(
             Source.EMPTY,
             handle.name(),
-            new RemoteFetchHandleFunction(Source.EMPTY, doc, localNodeId, retainedSessionId),
+            new RemoteFetchHandleFunction(Source.EMPTY, doc, remoteFetchContext.localNodeId(), remoteFetchContext.retainedSessionId()),
             handle.id(),
             true
         );
@@ -225,19 +253,15 @@ class RemoteFetchReductionPlanner {
      * dedicated marker, the synthetic handle attribute is the cross-node contract.
      */
     static boolean needsRetainedSearchContexts(PhysicalPlan plan) {
-        return plan.anyMatch(p -> p.output().stream().anyMatch(RemoteFetchReductionPlanner::isRemoteFetchHandleAttribute));
+        return plan.anyMatch(p -> p.output().stream().anyMatch(RemoteFetchHandle::isAttribute));
     }
 
     private static Attribute handleAttribute(Source source) {
-        return new ReferenceAttribute(source, null, HANDLE_ATTRIBUTE_NAME, DataType.KEYWORD, Nullability.FALSE, null, true);
+        return new ReferenceAttribute(source, null, RemoteFetchHandle.ATTRIBUTE_NAME, DataType.KEYWORD, Nullability.FALSE, null, true);
     }
 
     private static Optional<Attribute> remoteFetchHandleAttribute(List<Attribute> attributes) {
-        return attributes.stream().filter(RemoteFetchReductionPlanner::isRemoteFetchHandleAttribute).findFirst();
-    }
-
-    private static boolean isRemoteFetchHandleAttribute(Attribute attr) {
-        return RemoteFetchHandle.isAttribute(attr);
+        return attributes.stream().filter(RemoteFetchHandle::isAttribute).findFirst();
     }
 
     private static boolean isFetchable(Attribute attr) {
@@ -313,28 +337,4 @@ class RemoteFetchReductionPlanner {
     }
 
     private RemoteFetchReductionPlanner() {}
-
-    // Reduce planning only needs field-extraction shape: treat every field as present, but non-indexed, so
-    // extraction remains explicit instead of being optimized into Lucene pushdown.
-    private static final SearchStats SEARCH_STATS_TOP_N_REPLACEMENT = new SearchStats.UnsupportedSearchStats() {
-        @Override
-        public boolean exists(FieldAttribute.FieldName field) {
-            return true;
-        }
-
-        @Override
-        public boolean isIndexed(FieldAttribute.FieldName field) {
-            return false;
-        }
-
-        @Override
-        public Object min(FieldAttribute.FieldName field) {
-            return null;
-        }
-
-        @Override
-        public Object max(FieldAttribute.FieldName field) {
-            return null;
-        }
-    };
 }

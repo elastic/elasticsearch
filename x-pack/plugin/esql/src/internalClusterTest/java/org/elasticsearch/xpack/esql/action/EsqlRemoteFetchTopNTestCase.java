@@ -580,7 +580,8 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
     }
 
     private static boolean containsField(Set<String> fields, String fieldName) {
-        return fields.stream().anyMatch(field -> field.contains(fieldName));
+        // Reader keys have the shape "field:reader_description"; match the field prefix exactly so that e.g. "id" does not match "docid".
+        return fields.stream().anyMatch(field -> field.startsWith(fieldName + ":"));
     }
 
     private static Set<String> fieldsLoadedBeforeFetch(EsqlQueryResponse response) {

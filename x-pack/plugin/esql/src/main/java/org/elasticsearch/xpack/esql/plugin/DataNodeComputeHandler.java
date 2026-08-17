@@ -840,6 +840,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         final String sessionId = request.sessionId();
         final String nodeReduceSessionId = nodeReduceSessionId(sessionId);
         if (request.plan() instanceof ExchangeSinkExec plan) {
+            var remoteFetchContext = request.retainSearchContexts() && request.pragmas().remoteFetchTopN()
+                ? new RemoteFetchReductionPlanner.RemoteFetchContext(clusterService.localNode().getId(), nodeReduceSessionId)
+                : null;
             reductionPlan = ReductionPlanner.plan(
                 computeService.plannerSettings().get(),
                 computeService.createFlags(),
@@ -848,9 +851,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 plan,
                 request.runNodeLevelReduction(),
                 request.reductionLateMaterialization(),
-                request.retainSearchContexts() && request.pragmas().remoteFetchTopN(),
-                clusterService.localNode().getId(),
-                nodeReduceSessionId,
+                remoteFetchContext,
                 planTimeProfile
             );
         } else {

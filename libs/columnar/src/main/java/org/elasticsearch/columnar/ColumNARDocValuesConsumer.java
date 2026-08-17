@@ -138,15 +138,15 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     public void mergeBinaryField(FieldInfo field, MergeState mergeState) throws IOException {
         ColumnarFieldType type = ColumnarFieldType.fromField(field);
         if (type.isNumeric()) {
-            writeNumericColumn(field, type, () -> mergeCursor(field, mergeState));
+            writeNumericColumn(field, type, () -> numericMergeCursor(field, mergeState));
         } else {
             assert type == ColumnarFieldType.STRING : "Unsupported ColumNAR type [" + type + "]";
             writeStringColumn(field, type, () -> stringMergeCursor(field, mergeState));
         }
     }
 
-    private static NumericColumnValues mergeCursor(FieldInfo field, MergeState mergeState) throws IOException {
-        List<MergeSub> subs = new ArrayList<>();
+    private static NumericColumnValues numericMergeCursor(FieldInfo field, MergeState mergeState) throws IOException {
+        List<ColumnMergeSub<NumericColumnValues>> subs = new ArrayList<>();
         long cost = 0;
         for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
             DocValuesProducer producer = mergeState.docValuesProducers[i];
@@ -166,13 +166,13 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 ? columnar.directValues()
                 : ColumnarNumericBinaryDocValues.decodePayloads(binary);
             cost += values.cost();
-            subs.add(new MergeSub(mergeState.docMaps[i], values));
+            subs.add(new ColumnMergeSub<>(mergeState.docMaps[i], values));
         }
 
-        DocIDMerger<MergeSub> merger = DocIDMerger.of(subs, mergeState.needsIndexSort);
+        DocIDMerger<ColumnMergeSub<NumericColumnValues>> merger = DocIDMerger.of(subs, mergeState.needsIndexSort);
         long finalCost = cost;
         return new NumericColumnValues() {
-            private MergeSub current;
+            private ColumnMergeSub<NumericColumnValues> current;
             private int docID = -1;
 
             @Override
@@ -209,10 +209,14 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         };
     }
 
-    private static final class MergeSub extends DocIDMerger.Sub {
-        private final NumericColumnValues values;
+    /**
+     * One source segment's cursor, in merged doc order. The type parameter keeps the column's own value
+     * accessors reachable through {@link #values}, which {@link DocIDMerger.Sub} itself does not expose.
+     */
+    private static final class ColumnMergeSub<T extends DocIdSetIterator> extends DocIDMerger.Sub {
+        private final T values;
 
-        MergeSub(MergeState.DocMap docMap, NumericColumnValues values) {
+        ColumnMergeSub(MergeState.DocMap docMap, T values) {
             super(docMap);
             this.values = values;
         }
@@ -224,12 +228,12 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     }
 
     /**
-     * The string counterpart of {@link #mergeCursor}: reads each source segment's values in bulk off disk via
+     * The string counterpart of {@link #numericMergeCursor}: reads each source segment's values in bulk off disk via
      * {@link ColumnarStringBinaryDocValues#directValues}, in merged doc order. A fresh cursor is built per pass
      * — count plus cardinality probe, iterator, then values.
      */
     private static StringColumnValues stringMergeCursor(FieldInfo field, MergeState mergeState) throws IOException {
-        List<StringMergeSub> subs = new ArrayList<>();
+        List<ColumnMergeSub<StringColumnValues>> subs = new ArrayList<>();
         long cost = 0;
         for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
             DocValuesProducer producer = mergeState.docValuesProducers[i];
@@ -249,13 +253,13 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 ? columnar.directValues()
                 : ColumnarStringBinaryDocValues.decodePayloads(binary);
             cost += values.cost();
-            subs.add(new StringMergeSub(mergeState.docMaps[i], values));
+            subs.add(new ColumnMergeSub<>(mergeState.docMaps[i], values));
         }
 
-        DocIDMerger<StringMergeSub> merger = DocIDMerger.of(subs, mergeState.needsIndexSort);
+        DocIDMerger<ColumnMergeSub<StringColumnValues>> merger = DocIDMerger.of(subs, mergeState.needsIndexSort);
         long finalCost = cost;
         return new StringColumnValues() {
-            private StringMergeSub current;
+            private ColumnMergeSub<StringColumnValues> current;
             private int docID = -1;
 
             @Override
@@ -290,20 +294,6 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 return finalCost;
             }
         };
-    }
-
-    private static final class StringMergeSub extends DocIDMerger.Sub {
-        private final StringColumnValues values;
-
-        StringMergeSub(MergeState.DocMap docMap, StringColumnValues values) {
-            super(docMap);
-            this.values = values;
-        }
-
-        @Override
-        public int nextDoc() throws IOException {
-            return values.nextDoc();
-        }
     }
 
     private void writeNumericColumn(FieldInfo field, ColumnarFieldType type, IOSupplier<NumericColumnValues> cursors) throws IOException {

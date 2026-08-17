@@ -113,16 +113,26 @@ public final class BooleanArrowBufVector extends AbstractArrowBufVector<BooleanV
     public BooleanVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         var allocator = blockFactory.arrowAllocator();
         int bufLen = ((length + 63) / 64) * Long.BYTES;
-        var buffer = allocator.buffer(Math.max(1, bufLen));
-        buffer.setZero(0, buffer.capacity());
-        for (int i = 0; i < length; i++) {
-            if (getBoolean(positions[offset + i])) {
-                int byteIdx = i / 8;
-                buffer.setByte(byteIdx, buffer.getByte(byteIdx) | (1 << (i % 8)));
+        ArrowBuf buffer = null;
+        boolean success = false;
+        try {
+            buffer = allocator.buffer(Math.max(1, bufLen));
+            buffer.setZero(0, buffer.capacity());
+            for (int i = 0; i < length; i++) {
+                if (getBoolean(positions[offset + i])) {
+                    int byteIdx = i / 8;
+                    buffer.setByte(byteIdx, buffer.getByte(byteIdx) | (1 << (i % 8)));
+                }
+            }
+
+            BooleanVector result = vectorConstructor().create(buffer, length, blockFactory);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                ArrowUtils.releaseBuffers(buffer);
             }
         }
-
-        return vectorConstructor().create(buffer, length, blockFactory);
     }
 
     @Override

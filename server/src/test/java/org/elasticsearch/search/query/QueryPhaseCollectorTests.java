@@ -1471,15 +1471,20 @@ public class QueryPhaseCollectorTests extends ESTestCase {
 
             @Override
             public int nextDoc() {
-                if (idx >= docs.length) return doc = NO_MORE_DOCS;
+                if (idx >= docs.length) {
+                    return doc = NO_MORE_DOCS;
+                }
                 return doc = docs[idx++];
             }
 
             @Override
             public int advance(int target) {
-                while (idx < docs.length && docs[idx] < target)
+                while (idx < docs.length && docs[idx] < target) {
                     idx++;
-                if (idx >= docs.length) return doc = NO_MORE_DOCS;
+                }
+                if (idx >= docs.length) {
+                    return doc = NO_MORE_DOCS;
+                }
                 return doc = docs[idx++];
             }
 

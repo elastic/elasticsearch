@@ -34,6 +34,7 @@ import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -1271,7 +1272,12 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             new IndexRequest("index").id("1").source(new BytesArray(doc1Source), XContentType.JSON),
             new IndexRequest("index").id("2").source(new BytesArray(doc2Source), XContentType.JSON) };
         IndexOperationBatch batch = EngineTestCase.initFromRequests(requests);
-        BatchMappingContext context = new BatchMappingContext(batch, mapperService.mappingLookup(), mapperService.getIndexSettings());
+        BatchMappingContext context = new BatchMappingContext(
+            batch,
+            mapperService.mappingLookup(),
+            mapperService.getIndexSettings(),
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
 
         mapper.preColumnarParse(context);
 

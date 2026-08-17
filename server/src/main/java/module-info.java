@@ -491,6 +491,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat,
             org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat,
             org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat,
+            org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93ScalarQuantizedVectorsFormat,

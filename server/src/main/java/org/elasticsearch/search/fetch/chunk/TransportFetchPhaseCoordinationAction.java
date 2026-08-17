@@ -241,7 +241,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                         responseStream.addHitWithSequence(hit, position);
                     }
                 }
-                circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedRetainedBytes, "fetch_chunk_accumulation");
+                circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedRetainedBytes, FetchPhaseResponseStream.FETCH_CHUNK_BREAKER_LABEL);
                 responseStream.trackBreakerBytes(estimatedRetainedBytes);
             }
 

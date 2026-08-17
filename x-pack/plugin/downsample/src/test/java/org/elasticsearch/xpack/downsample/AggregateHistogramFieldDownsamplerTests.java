@@ -132,12 +132,12 @@ public class AggregateHistogramFieldDownsamplerTests extends ESTestCase {
             assertThat(timestamp, anyOf(equalTo(20L), equalTo(30L)));
             if (timestamp == 20L) {
                 assertThat(dataPoints.size(), equalTo(1));
-                var histogramValue = (ResetDataPoints.HistogramResetValue) dataPoints.get(0).v2();
+                var histogramValue = (ResetDataPoints.HistogramResetValue) dataPoints.get("my-histogram");
                 assertThat(histogramValue.value().valueCount(), equalTo(h20.valueCount()));
             }
             if (timestamp == 30L) {
                 assertThat(dataPoints.size(), equalTo(1));
-                var histogramValue = (ResetDataPoints.HistogramResetValue) dataPoints.get(0).v2();
+                var histogramValue = (ResetDataPoints.HistogramResetValue) dataPoints.get("my-histogram");
                 assertThat(histogramValue.value().valueCount(), equalTo(h30.valueCount()));
             }
         });

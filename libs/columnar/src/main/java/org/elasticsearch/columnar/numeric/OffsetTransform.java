@@ -9,9 +9,6 @@
 
 package org.elasticsearch.columnar.numeric;
 
-import org.apache.lucene.store.DataInput;
-import org.apache.lucene.store.DataOutput;
-
 import java.io.IOException;
 
 /** Shifts a block into {@code [0, max - min]} by subtracting its minimum. Frozen id 1. */
@@ -28,7 +25,7 @@ public final class OffsetTransform implements BlockTransform {
     }
 
     @Override
-    public boolean tryEncode(long[] block, int valueCount, DataOutput params) throws IOException {
+    public boolean tryEncode(long[] block, int valueCount, MetadataWriter params) throws IOException {
         long min = Long.MAX_VALUE;
         long max = Long.MIN_VALUE;
         for (int i = 0; i < valueCount; ++i) {
@@ -56,7 +53,7 @@ public final class OffsetTransform implements BlockTransform {
     }
 
     @Override
-    public void decode(long[] block, int valueCount, DataInput params) throws IOException {
+    public void decode(long[] block, int valueCount, MetadataReader params) throws IOException {
         long min = params.readZLong();
         for (int i = 0; i < valueCount; ++i) {
             block[i] += min;

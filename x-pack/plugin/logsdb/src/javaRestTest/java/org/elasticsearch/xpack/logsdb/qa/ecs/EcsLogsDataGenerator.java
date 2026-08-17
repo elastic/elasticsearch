@@ -245,7 +245,7 @@ public final class EcsLogsDataGenerator {
     static {
         CONTAINER_NAMES = new String[200];
         for (int i = 0; i < CONTAINER_NAMES.length; i++) {
-            CONTAINER_NAMES[i] = "container-" + String.format("%03d", i + 1);
+            CONTAINER_NAMES[i] = "container-" + String.format(Locale.ROOT, "%03d", i + 1);
         }
     }
 

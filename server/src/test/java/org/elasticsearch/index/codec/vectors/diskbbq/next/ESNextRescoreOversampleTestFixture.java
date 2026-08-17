@@ -109,8 +109,8 @@ public final class ESNextRescoreOversampleTestFixture {
             dir,
             vectorDimensions,
             vectorsPerSegment,
-            new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, oversampleSegmentA),
-            new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, oversampleSegmentB),
+            IvfSegmentConfig.of(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, oversampleSegmentA),
+            IvfSegmentConfig.of(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, oversampleSegmentB),
             mergeConfigResolver
         );
     }
@@ -168,7 +168,7 @@ public final class ESNextRescoreOversampleTestFixture {
                 return Optional.empty();
             }
             float oversample = flushSequence.getAndIncrement() == 0 ? oversampleSegmentA : oversampleSegmentB;
-            return Optional.of(new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, oversample));
+            return Optional.of(IvfSegmentConfig.of(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, oversample));
         };
         Codec codec = createDiskBbqCodec(flushConfig, IvfMergeConfigResolver.useCodecDefault());
         IndexWriterConfig iwc = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
@@ -240,7 +240,7 @@ public final class ESNextRescoreOversampleTestFixture {
             int seq = flushSequence.getAndIncrement();
             boolean precondition = seq == 0 ? preconditionSegmentA : preconditionSegmentB;
             return Optional.of(
-                new IvfSegmentConfig(
+                IvfSegmentConfig.of(
                     CentroidIndexFormat.FLAT,
                     QuantEncoding.ONE_BIT_4BIT_QUERY,
                     precondition,
@@ -287,9 +287,9 @@ public final class ESNextRescoreOversampleTestFixture {
             }
             int seq = flushSequence.getAndIncrement();
             if (seq == 0) {
-                return Optional.of(new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, 2f));
+                return Optional.of(IvfSegmentConfig.of(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, 2f));
             }
-            return Optional.of(new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.TWO_BIT_4BIT_QUERY, false, 3f));
+            return Optional.of(IvfSegmentConfig.of(CentroidIndexFormat.FLAT, QuantEncoding.TWO_BIT_4BIT_QUERY, false, 3f));
         };
         Codec codec = createDiskBbqCodec(flushConfig, IvfAutoCalibration.mergeConfigResolver(vectorsPerCluster));
         IndexWriterConfig iwcNoMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
@@ -318,9 +318,9 @@ public final class ESNextRescoreOversampleTestFixture {
             }
             int seq = flushSequence.getAndIncrement();
             if (seq == 0) {
-                return Optional.of(new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, 2f));
+                return Optional.of(IvfSegmentConfig.of(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, 2f));
             }
-            return Optional.of(new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.TWO_BIT_4BIT_QUERY, false, 3f));
+            return Optional.of(IvfSegmentConfig.of(CentroidIndexFormat.FLAT, QuantEncoding.TWO_BIT_4BIT_QUERY, false, 3f));
         };
         Codec codec = createDiskBbqCodec(flushConfig, calibration::resolve);
         IndexWriterConfig iwcNoMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
@@ -348,7 +348,7 @@ public final class ESNextRescoreOversampleTestFixture {
         if (encoding == null) {
             return null;
         }
-        return new IvfSegmentConfig(CentroidIndexFormat.FLAT, encoding, persistedPreconditionOnLeaf(leaf), persistedOversampleOnLeaf(leaf));
+        return IvfSegmentConfig.of(CentroidIndexFormat.FLAT, encoding, persistedPreconditionOnLeaf(leaf), persistedOversampleOnLeaf(leaf));
     }
 
     public static QuantEncoding persistedQuantEncodingOnLeaf(LeafReader leaf) throws IOException {

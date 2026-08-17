@@ -467,6 +467,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         if (xOpaqueId != null) {
             spanBuilder.setAttribute("es.x-opaque-id", xOpaqueId);
         }
+
+        final String projectId = traceContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER);
+        if (projectId != null) {
+            spanBuilder.setAttribute("project.id", projectId);
+        }
     }
 
     @Override

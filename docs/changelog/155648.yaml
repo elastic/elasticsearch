@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 155563
+pr: 155648
+summary: Replace an IN subquery evaluated as a false filter with an empty local relation
+type: bug

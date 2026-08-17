@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
@@ -179,7 +180,11 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
         assertEquals(1, undesiredAllocationsTracker.getUndesiredAllocations().size());
 
         // start a relocation
-        shardRouting = shardRouting.relocate(randomIdentifier(), randomNonNegativeLong());
+        shardRouting = shardRouting.relocate(
+            randomIdentifier(),
+            randomNonNegativeLong(),
+            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+        );
         undesiredAllocationsTracker.trackUndesiredAllocation(shardRouting);
         assertEquals(1, undesiredAllocationsTracker.getUndesiredAllocations().size());
 
@@ -479,7 +484,8 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
             primary,
             primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, randomIdentifier()),
-            role
+            role,
+            ShardRoutingHelper.recoveryPriorityForNewlyCreatedShard(primary)
         ).initialize(nodeId, null, randomNonNegativeLong());
     }
 

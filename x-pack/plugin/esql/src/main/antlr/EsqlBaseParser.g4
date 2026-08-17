@@ -80,7 +80,7 @@ processingCommand
     | mmrCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
-    | {this.isDevVersion()}? dedupCommand
+    | dedupCommand
     | {this.isDevVersion()}? highlightCommand
     | {this.isDevVersion()}? denseVectorCommand
     ;
@@ -393,7 +393,7 @@ lookupCommand
     ;
 
 dedupCommand
-    : DEV_DEDUP
+    : DEDUP
     ;
 
 highlightCommand

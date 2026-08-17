@@ -23,7 +23,6 @@ import org.elasticsearch.index.translog.Translog;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -75,10 +74,11 @@ public class NodeTranslogBuffer implements Releasable {
     }
 
     /**
-     * Returns true if the write to the buffer succeeded. Otherwise, this buffer has been closed for writing and the user must try again
+     * Appends a record carrying one or more operations ({@code seqNos} has one entry per operation).
+     * Returns true if the write to the buffer succeeded. Otherwise, this buffer has been closed for writing and the caller must try again
      * on the next node buffer.
      */
-    boolean writeToBuffer(ShardSyncState shardSyncState, Translog.Serialized operation, long seqNo, Translog.Location location)
+    boolean writeToBuffer(ShardSyncState shardSyncState, Translog.Serialized operation, long[] seqNos, Translog.Location location)
         throws IOException {
         if (semaphore.tryAcquire()) {
             try {
@@ -95,41 +95,7 @@ public class NodeTranslogBuffer implements Releasable {
                         new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())
                     )
                 );
-                shardBuffer.append(operation, seqNo, location);
-                bufferSize.getAndAdd(operation.length());
-            } finally {
-                semaphore.release();
-            }
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    /**
-     * Batch variant of {@link #writeToBuffer}. Appends a single {@link Translog.IndexBatch} record to the shard buffer similar to single
-     * operation.
-     * Returns true if the write succeeded. Otherwise, this buffer
-     * has been closed for writing and the caller must try again on the next node buffer.
-     */
-    boolean writeBatchToBuffer(ShardSyncState shardSyncState, Translog.Serialized operation, List<Long> seqNos, Translog.Location location)
-        throws IOException {
-        if (semaphore.tryAcquire()) {
-            try {
-                Translog.Location newProcessedLocation = new Translog.Location(
-                    location.generation(),
-                    location.translogLocation() + location.size(),
-                    0
-                );
-                shardSyncState.updateProcessedLocation(newProcessedLocation);
-                ShardBuffer shardBuffer = buffers.computeIfAbsent(
-                    shardSyncState,
-                    (k) -> new ShardBuffer(
-                        shardSyncState.getStartingPrimaryTerm(),
-                        new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())
-                    )
-                );
-                shardBuffer.appendBatch(operation, seqNos, location);
+                shardBuffer.append(operation, seqNos, location);
                 bufferSize.getAndAdd(operation.length());
             } finally {
                 semaphore.release();
@@ -252,26 +218,14 @@ public class NodeTranslogBuffer implements Releasable {
             this.seqNos = new LongArrayList();
         }
 
-        private void append(Translog.Serialized operation, long seqNo, Translog.Location location) throws IOException {
-            operation.writeToTranslogBuffer(buffer);
-            seqNos.add(seqNo);
-            minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
-            maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
-            totalOps++;
-            this.location = location;
-        }
-
-        /**
-         * Exactly like append but tracking all seq nos in a batch.
-         */
-        private void appendBatch(Translog.Serialized operation, List<Long> seqNos, Translog.Location location) throws IOException {
+        private void append(Translog.Serialized operation, long[] seqNos, Translog.Location location) throws IOException {
             operation.writeToTranslogBuffer(buffer);
             for (long seqNo : seqNos) {
                 this.seqNos.add(seqNo);
                 minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
                 maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
             }
-            totalOps += seqNos.size();
+            totalOps += seqNos.length;
             this.location = location;
         }
 

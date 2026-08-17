@@ -273,6 +273,8 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
                                 updateOperationMetrics(operation);
                             }
                         }
+                    } else {
+                        throw new IllegalStateException("unknown translog record type [" + record.getClass().getName() + "]");
                     }
                 }
                 assert opsRead == numOps : "read " + opsRead + " ops but metadata declares " + numOps;

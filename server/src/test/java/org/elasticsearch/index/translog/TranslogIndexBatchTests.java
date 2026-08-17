@@ -233,26 +233,17 @@ public class TranslogIndexBatchTests extends ESTestCase {
     }
 
     public void testAddBatchNotifiesOperationListener() throws IOException {
-        final List<Long> singleOpSeqNos = new ArrayList<>();
-        final List<List<Long>> batchSeqNos = new ArrayList<>();
-        final List<Translog.Location> batchLocations = new ArrayList<>();
-        final List<BytesReference> batchRecords = new ArrayList<>();
-        final OperationListener listener = new OperationListener() {
-            @Override
-            public void operationAdded(Translog.Serialized operation, long seqNo, Translog.Location location) {
-                singleOpSeqNos.add(seqNo);
-            }
-
-            @Override
-            public void batchAdded(Translog.Serialized operation, List<Long> seqNos, Translog.Location location) {
-                batchSeqNos.add(seqNos);
-                batchLocations.add(location);
-                try (RecyclerBytesStreamOutput output = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
-                    operation.writeToTranslogBuffer(output);
-                    batchRecords.add(output.bytes());
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
+        final List<long[]> recordSeqNos = new ArrayList<>();
+        final List<Translog.Location> recordLocations = new ArrayList<>();
+        final List<BytesReference> records = new ArrayList<>();
+        final OperationListener listener = (operation, seqNos, location) -> {
+            recordSeqNos.add(seqNos);
+            recordLocations.add(location);
+            try (RecyclerBytesStreamOutput output = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+                operation.writeToTranslogBuffer(output);
+                records.add(output.bytes());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
         };
 
@@ -274,12 +265,18 @@ public class TranslogIndexBatchTests extends ESTestCase {
             final Translog.IndexBatch batch = new Translog.IndexBatch(encodeBatchData(sources), term, ops);
             final Translog.Location location = listeningTranslog.add(batch);
 
-            assertEquals(List.of(0L), singleOpSeqNos);
-            assertEquals(List.of(List.of(1L, 2L, 3L)), batchSeqNos);
-            assertEquals(List.of(location), batchLocations);
+            // Two records: the solo op (one seqNo) and the batch (one seqNo per contained op).
+            assertEquals(2, recordSeqNos.size());
+            assertArrayEquals(new long[] { 0L }, recordSeqNos.get(0));
+            assertArrayEquals(new long[] { 1L, 2L, 3L }, recordSeqNos.get(1));
+            assertEquals(location, recordLocations.get(1));
 
-            // The listener received the full framed record: it must round-trip through readRecord to an equal batch.
-            try (BufferedChecksumStreamInput in = new BufferedChecksumStreamInput(batchRecords.get(0).streamInput(), "test")) {
+            // The listener received the full framed records: they must round-trip through readRecord to equal records.
+            try (BufferedChecksumStreamInput in = new BufferedChecksumStreamInput(records.get(0).streamInput(), "test")) {
+                final Translog.Record record = Translog.readRecord(in);
+                assertEquals(solo, record);
+            }
+            try (BufferedChecksumStreamInput in = new BufferedChecksumStreamInput(records.get(1).streamInput(), "test")) {
                 final Translog.Record record = Translog.readRecord(in);
                 assertEquals(batch, record);
             }

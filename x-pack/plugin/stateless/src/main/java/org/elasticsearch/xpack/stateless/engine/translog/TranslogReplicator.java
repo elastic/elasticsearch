@@ -54,7 +54,6 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
@@ -293,43 +292,24 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     }
 
     public void add(final ShardId shardId, final Translog.Serialized operation, final long seqNo, final Translog.Location location) {
-        try {
-            ShardSyncState shardSyncState = getShardSyncStateSafe(shardId);
-            while (true) {
-                NodeTranslogBuffer nodeTranslogBuffer = getNodeTranslogBuffer();
-                if (nodeTranslogBuffer.writeToBuffer(shardSyncState, operation, seqNo, location)) {
-                    if (nodeTranslogBuffer.shouldFlushBufferDueToSize()) {
-                        executor.execute(new FlushTask(nodeTranslogBuffer));
-                    }
-                    break;
-                } else {
-                    assert nodeTranslogBuffer != currentBuffer.get();
-                }
-            }
-        } catch (IOException e) {
-            // TODO: IOException is required by the interface of BytesReference#write. However, it should never throw. If it were to throw,
-            // this exception would propogate to the TranslogWriter and I think fail the engine. However, we should discuss whether this is
-            // enough protection.
-            assert false;
-            throw new UncheckedIOException(e);
-        }
-
+        addRecord(shardId, operation, new long[] { seqNo }, location);
     }
 
     /**
-     * Batch variant of {@link #add}. Calls {@link NodeTranslogBuffer#writeBatchToBuffer}
+     * Adds a record carrying one or more operations ({@code seqNos} has one entry per operation).
+     * Calls {@link NodeTranslogBuffer#writeToBuffer}.
      */
-    public void addBatch(
+    public void addRecord(
         final ShardId shardId,
         final Translog.Serialized operation,
-        final List<Long> seqNos,
+        final long[] seqNos,
         final Translog.Location location
     ) {
         try {
             ShardSyncState shardSyncState = getShardSyncStateSafe(shardId);
             while (true) {
                 NodeTranslogBuffer nodeTranslogBuffer = getNodeTranslogBuffer();
-                if (nodeTranslogBuffer.writeBatchToBuffer(shardSyncState, operation, seqNos, location)) {
+                if (nodeTranslogBuffer.writeToBuffer(shardSyncState, operation, seqNos, location)) {
                     if (nodeTranslogBuffer.shouldFlushBufferDueToSize()) {
                         executor.execute(new FlushTask(nodeTranslogBuffer));
                     }
@@ -348,36 +328,12 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     }
 
     /**
-     * Returns an {@link OperationListener}, bound to the given shard, that forwards single-op and batch translog writes to this replicator.
+     * Returns an {@link OperationListener}, bound to the given shard, that forwards translog writes to this replicator. The
+     * {@code shardId} is captured because a single {@link TranslogReplicator} is shared by every shard on the node and must be told
+     * which shard each write belongs to.
      */
     public OperationListener listenerFor(ShardId shardId) {
-        return new StatelessOperationListener(shardId);
-    }
-
-    /**
-     * A concrete {@link OperationListener}, bound to a single shard, that forwards translog writes to the owning node-level
-     * {@link TranslogReplicator}. Unlike a lambda (which can only implement the single abstract {@code operationAdded}), this class also
-     * overrides {@code batchAdded}, so batch records are replicated to the object store rather than silently dropped. The {@code shardId}
-     * is captured because a single {@link TranslogReplicator} is shared by every shard on the node and must be told which shard each write
-     * belongs to.
-     */
-    private final class StatelessOperationListener implements OperationListener {
-
-        private final ShardId shardId;
-
-        StatelessOperationListener(ShardId shardId) {
-            this.shardId = shardId;
-        }
-
-        @Override
-        public void operationAdded(Translog.Serialized operation, long seqNo, Translog.Location location) {
-            add(shardId, operation, seqNo, location);
-        }
-
-        @Override
-        public void batchAdded(Translog.Serialized operation, List<Long> seqNos, Translog.Location location) {
-            addBatch(shardId, operation, seqNos, location);
-        }
+        return (operation, seqNos, location) -> addRecord(shardId, operation, seqNos, location);
     }
 
     private NodeTranslogBuffer getNodeTranslogBuffer() {

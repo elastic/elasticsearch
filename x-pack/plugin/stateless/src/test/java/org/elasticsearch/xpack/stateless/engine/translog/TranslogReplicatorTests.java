@@ -272,7 +272,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.add(shardId, serializedSingles[1], 1, new Translog.Location(0, currentLocation, serializedSingles[1].length()));
         currentLocation += serializedSingles[1].length();
         Translog.Location finalLocation = new Translog.Location(0, currentLocation, serializedBatch.length());
-        translogReplicator.addBatch(shardId, serializedBatch, List.of(2L, 3L, 4L), finalLocation);
+        translogReplicator.addRecord(shardId, serializedBatch, new long[] { 2, 3, 4 }, finalLocation);
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, finalLocation, future);
@@ -318,15 +318,15 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         int docCount = randomIntBetween(2, 5);
         List<Map<String, Object>> docs = new ArrayList<>(docCount);
-        List<Long> seqNos = new ArrayList<>(docCount);
+        long[] seqNos = new long[docCount];
         for (int i = 0; i < docCount; i++) {
             docs.add(Map.of("k", "v" + i));
-            seqNos.add((long) i);
+            seqNos[i] = i;
         }
         Translog.IndexBatch batch = buildBatch(docs, 0L, primaryTerm);
         Translog.Serialized serializedBatch = serializeBatch(batch);
         Translog.Location location = new Translog.Location(0, 0, serializedBatch.length());
-        translogReplicator.addBatch(shardId, serializedBatch, seqNos, location);
+        translogReplicator.addRecord(shardId, serializedBatch, seqNos, location);
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, location, future);

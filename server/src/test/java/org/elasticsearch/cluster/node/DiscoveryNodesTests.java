@@ -164,7 +164,9 @@ public class DiscoveryNodesTests extends ESTestCase {
             "master_only",
             Set.of(DiscoveryNodeRole.MASTER_ROLE),
             "ingest_only",
-            Set.of(DiscoveryNodeRole.INGEST_ROLE)
+            Set.of(DiscoveryNodeRole.INGEST_ROLE),
+            "custom_role_only",
+            Set.of(new DiscoveryNodeRole("custom_role", "cr"))
         );
 
         final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();

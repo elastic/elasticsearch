@@ -5,7 +5,6 @@
 * `count_values`
 * `double_exponential_smoothing`
 * `group`
-* `histogram_fraction`
 * `histogram_stddev`
 * `histogram_stdvar`
 * `holt_winters`

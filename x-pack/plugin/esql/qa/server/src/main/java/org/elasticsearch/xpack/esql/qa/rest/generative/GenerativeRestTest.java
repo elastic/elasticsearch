@@ -14,6 +14,9 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
+import org.elasticsearch.xpack.esql.datasources.BackendFixture;
+import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
+import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
 import org.elasticsearch.xpack.esql.generator.AllowedGeneratorFailureException;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
@@ -112,6 +115,21 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             "argument of \\[.*\\] must be \\[unsupported\\], found value",
             // https://github.com/elastic/elasticsearch/issues/146074
             "Input for REGISTERED_DOMAIN must be of type \\[string\\] but is \\[unsupported\\]"
+        ),
+        GenerativeFeature.PARQUET_DATASET,
+        Set.of(
+            // Mixed FROM patterns (e.g. "FROM parquet_employees, employees") may produce type conflicts
+            // when the same field has different types across an ES index and a parquet dataset.
+            "has conflicting data types in subqueries",
+            // Full-text and QSTR functions are not supported on federated (external) data sources.
+            "function is not supported on federated data sources \\[.*\\]",
+            // A wildcard FROM pattern that expands to include an external dataset creates a
+            // federated/subquery-like structure internally; FORK cannot follow such a source.
+            "FORK after subquery is not supported",
+            // Full-text functions and the [:] operator are not allowed when the FROM clause resolves
+            // to include external (parquet) datasets — the verifier rejects them with a message of the
+            // form "[X] function/operator cannot be used after from <pattern>".
+            "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after from .*"
         )
     );
 
@@ -324,6 +342,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     throw e;
                 }
             }
+        }
+    }
+
+    @AfterClass
+    public static void cleanupExternalDatasets() throws IOException {
+        try {
+            DatasetRegistry.cleanup(adminClient());
+        } finally {
+            DatasetRegistry.clearCaches();
         }
     }
 
@@ -1405,10 +1432,72 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     protected List<String> availableIndices() throws IOException {
-        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries(), cap -> false).stream()
-            .filter(x -> x.inferenceEndpoints().isEmpty())
-            .map(x -> x.indexName())
-            .toList();
+        List<String> indices = new ArrayList<>(
+            availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries(), cap -> false).stream()
+                .filter(x -> x.inferenceEndpoints().isEmpty())
+                .map(x -> x.indexName())
+                .toList()
+        );
+        if (isFeatureEnabled(GenerativeFeature.PARQUET_DATASET)) {
+            List<String> externalDatasets = ensureExternalDatasets();
+            if (externalDatasets.isEmpty()) {
+                return indices;
+            }
+            // Repeat each external dataset enough times to give it roughly a 20% per-slot selection
+            // probability alongside the regular ES index pool. Without boosting, a single external
+            // dataset competes with ~80+ indices and would almost never appear in generated FROM commands.
+            // The repetition lets the generator produce mixed patterns like "FROM parquet_employees, employees"
+            // as well as pure-parquet FROM clauses.
+            int repeat = Math.max(1, indices.size() / (4 * externalDatasets.size()));
+            for (int i = 0; i < repeat; i++) {
+                indices.addAll(externalDatasets);
+            }
+        }
+        return indices;
+    }
+
+    /**
+     * Registers a data source and one dataset per fixture file with the cluster, returning the
+     * resulting dataset names (e.g. {@code ["parquet_employees"]}). {@link DatasetRegistry} caches
+     * registrations by content signature, so repeated calls within a suite are cheap map lookups.
+     * Returns an empty list when {@link #externalDatasetStorageBackend()} returns {@code null}.
+     */
+    protected List<String> ensureExternalDatasets() throws IOException {
+        BackendFixture backend = externalDatasetStorageBackend();
+        if (backend == null) {
+            return List.of();
+        }
+        String dataSourceName = "esql_generative_" + backend.dataSourceType();
+        DatasetRegistry.ensureDataSource(adminClient(), dataSourceName, backend.dataSourceType(), backend.dataSourceSettings());
+        List<String> datasetNames = new ArrayList<>();
+        for (String fixtureName : externalParquetDatasets()) {
+            String datasetName = "parquet_" + fixtureName;
+            DatasetRegistry.ensureDataset(
+                adminClient(),
+                datasetName,
+                dataSourceName,
+                backend.resourceUri("warehouse/standalone/" + fixtureName + ".parquet"),
+                null
+            );
+            datasetNames.add(datasetName);
+        }
+        return datasetNames;
+    }
+
+    /**
+     * Returns the backend fixture to use for external dataset registration, or {@code null} to skip
+     * external datasets entirely. Subclasses override to supply a concrete backend (LOCAL or S3).
+     */
+    protected BackendFixture externalDatasetStorageBackend() {
+        return null;
+    }
+
+    /**
+     * Parquet fixture base names (without path or extension) to register as {@code FROM} sources.
+     * Subclasses override to expose the fixtures available in their cluster's backend.
+     */
+    protected List<String> externalParquetDatasets() {
+        return List.of();
     }
 
     protected List<LookupIdx> lookupIndices() {

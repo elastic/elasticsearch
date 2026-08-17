@@ -415,28 +415,36 @@ public class EcsEsqlQueryGenerator {
     }
 
     /**
-     * Simple predicate restricted to always-present, pool-backed keyword fields and
-     * the always-present {@code @timestamp}. Used as an {@code AND} operand so that two
-     * independently-selective predicates cannot produce an empty conjunction due to
-     * document-flavor gating.
+     * Simple predicate restricted to always-present, pool-backed keyword fields. Used as an
+     * {@code AND} operand so that two independently-selective predicates cannot produce an empty
+     * conjunction due to document-flavor gating.
+     *
+     * <p>Uses {@code IN (v1, v2)} rather than equality so that the predicate covers at least two
+     * distinct modular residues of the corpus ordinal, which dramatically reduces the chance of a
+     * structurally-empty conjunction when the first {@code WHERE} clause has already narrowed the
+     * ordinal to a specific residue class (e.g. {@code log.level LIKE "DE*"} implicitly selects
+     * {@code ordinal % 5 == 0}).
+     *
+     * <p>{@code @timestamp} lower bounds are intentionally excluded: if the first clause already
+     * contains an upper-bound timestamp filter, adding an independent lower bound can produce an
+     * impossible conjunction ({@code @timestamp >= T2 AND @timestamp < T1} where {@code T2 > T1}).
      */
     private String simpleCompoundPredicate() {
-        int choice = random.nextInt(3);
+        int choice = random.nextInt(2);
         return switch (choice) {
             case 0 -> {
+                // IN (v1, v2) on an always-present field: covers two ordinal residues so the
+                // conjunction with a narrowing first-clause predicate is rarely vacuous.
                 EcsLogsDataGenerator.Field f = pick(compoundKeywords);
-                yield f.name() + " == \"" + randomKeywordValue(f) + "\"";
+                String v1 = randomKeywordValue(f);
+                String v2 = randomKeywordValue(f);
+                yield f.name() + " IN (\"" + v1 + "\", \"" + v2 + "\")";
             }
             case 1 -> {
-                // IS NOT NULL on an always-present field: always TRUE, so this operand widens
-                // the AND to whatever the other operand selects.
+                // IS NOT NULL on an always-present field: always TRUE, so this operand is a no-op
+                // that leaves whatever the first clause selected fully intact.
                 EcsLogsDataGenerator.Field f = pick(compoundKeywords);
                 yield f.name() + " IS NOT NULL";
-            }
-            case 2 -> {
-                // Lower bound on @timestamp: matches a random suffix of the always-present field.
-                int o = random.nextInt(corpusSize);
-                yield "@timestamp >= \"" + EcsLogsDataGenerator.timestampAt(o) + "\"";
             }
             default -> throw new AssertionError("unexpected choice: " + choice);
         };

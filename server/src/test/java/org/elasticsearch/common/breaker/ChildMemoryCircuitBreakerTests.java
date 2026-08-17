@@ -27,11 +27,13 @@ public class ChildMemoryCircuitBreakerTests extends ESTestCase {
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_REGEXP, ChildMemoryCircuitBreaker.categoryFor("regexp"));
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_RANGE, ChildMemoryCircuitBreaker.categoryFor("range"));
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_PREALLOCATE, ChildMemoryCircuitBreaker.categoryFor("preallocate"));
+        assertEquals(ChildMemoryCircuitBreaker.CATEGORY_MSEARCH, ChildMemoryCircuitBreaker.categoryFor("msearch"));
     }
 
     public void testCategoryForCompositeLabelsBracket() {
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_PREALLOCATE, ChildMemoryCircuitBreaker.categoryFor("preallocate[aggregations]"));
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_PREALLOCATE, ChildMemoryCircuitBreaker.categoryFor("preallocate[test]"));
+        assertEquals(ChildMemoryCircuitBreaker.CATEGORY_MSEARCH, ChildMemoryCircuitBreaker.categoryFor("msearch[response]"));
     }
 
     public void testCategoryForCompositeLabelsColon() {

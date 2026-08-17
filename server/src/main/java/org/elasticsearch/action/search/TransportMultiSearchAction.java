@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.document.DocumentField;
@@ -60,6 +61,9 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     public static final String NAME = "indices:data/read/msearch";
     public static final ActionType<MultiSearchResponse> TYPE = new ActionType<>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportMultiSearchAction.class);
+
+    /** Breaker label for a buffered sub-search response; maps to {@link ChildMemoryCircuitBreaker#CATEGORY_MSEARCH}. */
+    static final String MSEARCH_RESPONSE_BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_MSEARCH + "[response]";
 
     /**
      * Fixed per-response overhead charged against the circuit breaker for every sub-search
@@ -588,7 +592,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             try {
                 bytes = estimateActualBytes(searchResponse);
                 try {
-                    circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, "<msearch_response>");
+                    circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, MSEARCH_RESPONSE_BREAKER_LABEL);
                 } catch (CircuitBreakingException e) {
                     if (queryPhaseAggHandoff > 0) {
                         circuitBreaker.addWithoutBreaking(-queryPhaseAggHandoff);
@@ -677,9 +681,15 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         }
 
         void releaseAll() {
-            long release = incrementalBytes.get() + queryPhaseAggregationHandoffBytes.get();
-            if (release > 0) {
-                circuitBreaker.addWithoutBreaking(-release);
+            // Release incremental estimates under the same label they were admitted with; handoff bytes were admitted
+            // elsewhere (query-phase reduce) so they stay unlabeled.
+            long incremental = incrementalBytes.get();
+            if (incremental > 0) {
+                circuitBreaker.addWithoutBreaking(-incremental, MSEARCH_RESPONSE_BREAKER_LABEL);
+            }
+            long handoff = queryPhaseAggregationHandoffBytes.get();
+            if (handoff > 0) {
+                circuitBreaker.addWithoutBreaking(-handoff);
             }
         }
     }

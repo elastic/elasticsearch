@@ -135,7 +135,9 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         }
 
         int findOptimalAllocations(int maxAllocations, long availableMemoryBytes) {
-            if (perDeploymentMemoryBytes > 0 && perAllocationMemoryBytes > 0) {
+            // As soon as we know the per-allocation memory (whether from model metadata or from observed runtime memory)
+            // we can bound the number of allocations by the memory available on the node. A zero per-deployment base is fine.
+            if (perAllocationMemoryBytes > 0) {
                 return (int) Math.max(
                     Math.min(maxAllocations, Math.floorDiv(availableMemoryBytes - estimateMemoryUsageBytes(0), perAllocationMemoryBytes)),
                     0
@@ -145,7 +147,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         }
 
         int findExcessAllocations(int maxAllocations, long availableMemoryBytes) {
-            if (perDeploymentMemoryBytes > 0 && perAllocationMemoryBytes > 0) {
+            if (perAllocationMemoryBytes > 0) {
                 return (int) Math.min(maxAllocations, Math.floorDiv(availableMemoryBytes, perAllocationMemoryBytes));
             }
             return maxAllocations;

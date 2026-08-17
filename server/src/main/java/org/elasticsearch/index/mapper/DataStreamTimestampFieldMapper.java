@@ -306,8 +306,12 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
 
         boolean shouldValidateTimestamp = context.indexSettings().getMode().shouldValidateTimestamp();
-        TimestampBounds bounds = shouldValidateTimestamp ? context.indexSettings().getTimestampBounds() : null;
-        boolean isDateNanos = context.mappingLookup().getMapper(DEFAULT_PATH).typeName().equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE);
+        TimestampBounds bounds = null;
+        boolean isDateNanos = false;
+        if (shouldValidateTimestamp) {
+            bounds = context.indexSettings().getTimestampBounds();
+            isDateNanos = context.mappingLookup().getMapper(DEFAULT_PATH).typeName().equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE);
+        }
 
         LongTupleCursor cursor = timestampColumn.tuples();
         int docCount = context.docCount();

@@ -149,7 +149,7 @@ class BuildPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         file("licenses/junit-NOTICE.txt").text = "mock notice"
         buildFile << """
             dependencies {
-              api "junit:junit:4.12"
+              api "junit:junit:4.13"
               // missing classes in thirdparty audit
               api 'org.hamcrest:hamcrest-core:1.3'
             }
@@ -189,7 +189,7 @@ class BuildPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         file("licenses/junit-NOTICE.txt").text = "mock notice"
         buildFile << """
         dependencies {
-            api "junit:junit:4.12"
+            api "junit:junit:4.13"
         }
         """
         when:

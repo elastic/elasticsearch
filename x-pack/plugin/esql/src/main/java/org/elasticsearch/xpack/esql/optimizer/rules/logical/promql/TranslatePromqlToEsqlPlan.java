@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
-import org.elasticsearch.xpack.esql.expression.function.scalar.promql.PromqlRegexExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -62,6 +61,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry.PromqlContext;
+import org.elasticsearch.xpack.esql.expression.promql.function.RegexExpand;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.Header;
@@ -651,7 +651,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
         /**
          * The {@code label_replace} destination value:
-         * {@code COALESCE(PromqlRegexExtract(COALESCE(src, ""), regex, repl), existingDst)}.
+         * {@code COALESCE(RegexExpand(COALESCE(src, ""), regex, repl), existingDst)}.
          * The inner coalesce feeds the empty string when the source label is absent (so the regex matches against {@code ""}
          * like Prometheus). The outer coalesce implements Prometheus's no-match semantics: a no-match ({@code null}) leaves
          * the destination label unchanged, so it falls back to the destination's existing value - the stored label when the
@@ -665,7 +665,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             Expression regex = params.get(3);
             Expression replacement = params.get(1);
             Expression src = sourceLabelValue(source, header, srcLabel, destination);
-            Expression extracted = new PromqlRegexExtract(source, src, regex, replacement);
+            Expression extracted = new RegexExpand(source, src, regex, replacement);
             Expression existingDst = sourceLabelValue(source, header, destination.name(), destination);
             return new Coalesce(source, extracted, List.of(existingDst));
         }

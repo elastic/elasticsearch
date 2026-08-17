@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
-import org.elasticsearch.xpack.esql.expression.function.scalar.promql.PromqlRegexExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.BitLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chicken;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
@@ -147,7 +146,7 @@ public class ScalarFunctionWritables {
         entries.add(HistogramFraction.ENTRY);
         entries.add(HistogramPercentile.ENTRY);
         entries.add(ExtractHistogramComponent.ENTRY);
-        entries.add(PromqlRegexExtract.ENTRY);
+        entries.add(RegexExpand.ENTRY);
         entries.add(WindowFilter.ENTRY);
 
         entries.addAll(GroupingWritables.getNamedWriteables());

@@ -15,11 +15,11 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
-import org.elasticsearch.xpack.esql.expression.function.scalar.promql.PromqlRegexExtract;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.promql.function.RegexExpand;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -222,8 +222,8 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
         if (metadata == PromqlBuiltinFunctionDefinitions.LABEL_REPLACE) {
             String regex = literalString(extraParams.get(3));
             // Validate exactly as the evaluator/Prometheus compiles it, so a bad pattern fails at analysis rather than
-            // execution. The anchoring and RE2/J compilation live in PromqlRegexExtract, keeping that dependency out of here.
-            String regexError = PromqlRegexExtract.validateRegex(regex);
+            // execution. The anchoring and RE2/J compilation live in RegexExpand, keeping that dependency out of here.
+            String regexError = RegexExpand.validateRegex(regex);
             if (regexError != null) {
                 throw new VerificationException(
                     List.of(

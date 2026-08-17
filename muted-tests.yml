@@ -58,9 +58,6 @@ tests:
 - class: org.elasticsearch.gradle.reaper.ReaperPluginFuncTest
   method: can launch reaper
   issue: https://github.com/elastic/elasticsearch/issues/156707
-- class: org.elasticsearch.common.xcontent.builder.XContentBuilderTests
-  method: testCloseAllowIllFormedDoesNotValidateStructuralCorrectness
-  issue: https://github.com/elastic/elasticsearch/issues/156563
 
 # Examples:
 #

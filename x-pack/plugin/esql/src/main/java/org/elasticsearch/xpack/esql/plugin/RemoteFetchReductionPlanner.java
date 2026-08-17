@@ -141,7 +141,7 @@ final class RemoteFetchReductionPlanner {
         List<Attribute> expectedDataOutput = planningContext.expectedDataOutput();
 
         List<Attribute> exchangeOutput = new ArrayList<>();
-        Attribute handle = handleAttribute(topN.source());
+        Attribute handle = handleAttribute();
         exchangeOutput.add(handle);
         for (Attribute attr : expectedDataOutput) {
             if (EsQueryExec.isDocAttribute(attr) == false) {
@@ -182,6 +182,8 @@ final class RemoteFetchReductionPlanner {
                 replacedTopN.set(true);
                 ExchangeSourceExec updatedSource = new ExchangeSourceExec(source.source(), exchangeOutput, source.isIntermediateAgg());
                 TopNExec updatedTopN = t.replaceChild(updatedSource);
+                // The fetched fields and the appended output are identical until fetch plans perform pushdown work
+                // that derives new columns.
                 return new RemoteFetchExec(t.source(), updatedTopN, handle, attributesToFetch, attributesToFetch, fetchPlan);
             }
             return t;
@@ -248,16 +250,16 @@ final class RemoteFetchReductionPlanner {
         return Optional.of(new ReductionPlan(originalPlan.replaceChild(sizedReductionPlan), updatedDataPlan));
     }
 
-    /**
-     * Detects the serialized signal that coordinator planning inserted a remote-fetch reduction. Until the exchange plan carries a
-     * dedicated marker, the synthetic handle attribute is the cross-node contract.
-     */
-    static boolean needsRetainedSearchContexts(PhysicalPlan plan) {
-        return plan.anyMatch(p -> p.output().stream().anyMatch(RemoteFetchHandle::isAttribute));
-    }
-
-    private static Attribute handleAttribute(Source source) {
-        return new ReferenceAttribute(source, null, RemoteFetchHandle.ATTRIBUTE_NAME, DataType.KEYWORD, Nullability.FALSE, null, true);
+    private static Attribute handleAttribute() {
+        return new ReferenceAttribute(
+            Source.EMPTY,
+            null,
+            RemoteFetchHandle.ATTRIBUTE_NAME,
+            DataType.KEYWORD,
+            Nullability.FALSE,
+            null,
+            true
+        );
     }
 
     private static Optional<Attribute> remoteFetchHandleAttribute(List<Attribute> attributes) {

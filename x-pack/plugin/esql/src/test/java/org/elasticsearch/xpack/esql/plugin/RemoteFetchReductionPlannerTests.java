@@ -219,7 +219,8 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
             new ExchangeSourceExec(Source.EMPTY, List.of(userColumn), false)
         );
 
-        assertFalse(RemoteFetchReductionPlanner.needsRetainedSearchContexts(plan));
+        // A non-synthetic user column with the reserved name must not satisfy the internal handle contract.
+        assertFalse(RemoteFetchHandle.isAttribute(userColumn));
         assertTrue(
             RemoteFetchReductionPlanner.planReduceDriverTopN(
                 contextFactory(),

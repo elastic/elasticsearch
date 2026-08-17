@@ -30,6 +30,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -129,7 +130,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         OriginalIndices originalIndices,
         ExchangeSourceHandler exchangeSource,
         boolean retainSearchContexts,
-        RemoteFetchService.RetainedSessionReleaser remoteFetchRetainedSessionReleaser,
+        // Non-null iff retainSearchContexts: every request that asks a data node to retain contexts must have a releaser tracking it.
+        @Nullable RemoteFetchService.RetainedSessionReleaser remoteFetchRetainedSessionReleaser,
         Runnable runOnTaskFailure,
         ActionListener<ComputeResponse> outListener
     ) {
@@ -226,7 +228,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 );
                                 return;
                             }
-                            if (retainSearchContexts && remoteFetchRetainedSessionReleaser != null) {
+                            if (retainSearchContexts) {
+                                assert remoteFetchRetainedSessionReleaser != null : "retainSearchContexts requires a session releaser";
                                 remoteFetchRetainedSessionReleaser.track(connection.getNode(), nodeReduceSessionId(childSessionId));
                             }
                             var dataNodeRequest = new DataNodeRequest(
@@ -840,7 +843,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         final String sessionId = request.sessionId();
         final String nodeReduceSessionId = nodeReduceSessionId(sessionId);
         if (request.plan() instanceof ExchangeSinkExec plan) {
-            var remoteFetchContext = request.retainSearchContexts() && request.pragmas().remoteFetchTopN()
+            var remoteFetchContext = request.retainSearchContexts()
                 ? new RemoteFetchReductionPlanner.RemoteFetchContext(clusterService.localNode().getId(), nodeReduceSessionId)
                 : null;
             reductionPlan = ReductionPlanner.plan(

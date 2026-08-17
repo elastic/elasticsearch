@@ -76,6 +76,7 @@ public final class ReductionPlanner {
         long startTime = planTimeProfile == null ? 0 : System.nanoTime();
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
         ReductionPlan passThroughReduction = new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
+        // Remote fetch must still get a chance to plan its reduction even when both node-level reduction flags are off.
         if (remoteFetchContext == null && reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
             return passThroughReduction;
         }

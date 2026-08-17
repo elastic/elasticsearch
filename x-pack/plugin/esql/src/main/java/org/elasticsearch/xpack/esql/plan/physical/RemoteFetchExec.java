@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -168,9 +169,13 @@ public class RemoteFetchExec extends BinaryExec implements EstimatesRowSize {
         return attributesToFetch;
     }
 
+    /**
+     * The plan the fetch target must execute in addition to loading the fetched fields, or {@code null} when the fetch
+     * plan is a bare {@link RemoteFetchSource} that only describes the fields to fetch.
+     */
+    @Nullable
     public PhysicalPlan pushdownPlan() {
         FragmentExec fragmentExec = fetchPlan();
-        // A bare source describes only the fields to fetch. A wrapper means that the target must also execute pushdown work.
         return fragmentExec.fragment() instanceof RemoteFetchSource ? null : fragmentExec;
     }
 

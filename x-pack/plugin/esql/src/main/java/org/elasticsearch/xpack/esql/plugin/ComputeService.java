@@ -1041,8 +1041,9 @@ public class ComputeService {
          */
         List<Attribute> outputAttributes = resolvedPlan.output();
         var exchangeSource = new ExchangeSourceHandler(configuration.pragmas().exchangeBufferSize(), searchExecutor);
-        final RemoteFetchService.RetainedSessionReleaser remoteFetchRetainedSessionReleaser = remoteFetchService != null
-            && retainSearchContexts ? remoteFetchService.newRetainedSessionReleaser() : null;
+        final RemoteFetchService.RetainedSessionReleaser remoteFetchRetainedSessionReleaser = retainSearchContexts
+            ? remoteFetchService.newRetainedSessionReleaser()
+            : null;
         listener = ActionListener.runBefore(listener, () -> {
             if (remoteFetchRetainedSessionReleaser != null) {
                 remoteFetchRetainedSessionReleaser.close();

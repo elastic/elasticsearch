@@ -444,6 +444,8 @@ public class PlannerUtils {
         @Nullable Consumer<LogicalPlan> onLogicalPlanOptimized
     ) {
         var isCoordPlan = new Holder<>(Boolean.TRUE);
+        // Possible future improvement: both are BinaryExec nodes excluded for the same reason, so one collect
+        // over a shared predicate could build a single set. Kept separate for now to preserve the history of each case.
         Set<PhysicalPlan> lookupJoinExecRightChildren = plan.collect(LookupJoinExec.class::isInstance)
             .stream()
             .map(x -> ((LookupJoinExec) x).right())

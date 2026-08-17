@@ -48,6 +48,7 @@ final class DistributedPlanPlanner {
         PhysicalPlan dataNodePlan = splitPlan.v2();
         boolean hasConcreteIndices = clusterToConcreteIndices.values().stream().anyMatch(indices -> indices.indices().length > 0);
 
+        boolean retainSearchContexts = false;
         if (configuration.pragmas().remoteFetchTopN()
             && hasConcreteIndices
             && clusterToConcreteIndices.size() == 1
@@ -63,10 +64,11 @@ final class DistributedPlanPlanner {
                 var rewrittenPlan = remoteFetchPlan.get();
                 coordinatorPlan = rewrittenPlan.coordinatorPlan();
                 dataNodePlan = rewrittenPlan.dataNodePlan();
+                // The rewrite is the only source of remote-fetch handles, so it alone decides whether contexts are retained.
+                retainSearchContexts = true;
             }
         }
 
-        boolean retainSearchContexts = dataNodePlan != null && RemoteFetchReductionPlanner.needsRetainedSearchContexts(dataNodePlan);
         return new DistributedPlan(coordinatorPlan, dataNodePlan, hasConcreteIndices, retainSearchContexts);
     }
 

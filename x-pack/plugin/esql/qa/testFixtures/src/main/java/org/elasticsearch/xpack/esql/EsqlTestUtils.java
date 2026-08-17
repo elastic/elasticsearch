@@ -1667,6 +1667,10 @@ public final class EsqlTestUtils {
      * <p>
      * Names are resolved against the snapshot registry so functions still under development are recognized. A query that
      * cannot be parsed (e.g. an intentionally invalid test case) yields an empty set — this is a best-effort extractor.
+     * <p>
+     * The parse runs in the caller's JVM and can emit parse-time deprecation warnings (e.g. for {@code INLINESTATS})
+     * onto the calling thread's {@code HeaderWarning} context; {@code ESTestCase} callers must consume or stash them
+     * or the end-of-test {@code ensureNoWarnings()} check attributes them to the test.
      */
     public static Set<String> functionCapabilitiesUsedBy(String query) {
         LogicalPlan plan;

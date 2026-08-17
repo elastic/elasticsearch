@@ -13,6 +13,7 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -187,7 +188,7 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     }
 
     private void failIfQueryUsesFunctionMissingOnOldNode(String testName) {
-        Set<String> functionCapabilities = EsqlTestUtils.functionCapabilitiesUsedBy(testCase.query);
+        Set<String> functionCapabilities = functionCapabilitiesIgnoringParseWarnings(testCase.query);
         if (functionCapabilities.isEmpty()) {
             return;
         }
@@ -220,6 +221,21 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
             }
         } catch (IOException e) {
             // Skip rather than introduce a new flake when the older node is unreachable.
+        }
+    }
+
+    /**
+     * {@link EsqlTestUtils#functionCapabilitiesUsedBy} parses the query in this JVM, and parsing a deprecated construct
+     * (e.g. INLINESTATS) emits a {@code HeaderWarning} onto the test thread that {@code ensureNoWarnings()} would blame
+     * on the test. Stash the context around the parse so that warning is discarded. A null {@code threadContext} means
+     * the warnings check is disabled, so nothing is registered to leak into and a plain call is safe.
+     */
+    private Set<String> functionCapabilitiesIgnoringParseWarnings(String query) {
+        if (threadContext == null) {
+            return EsqlTestUtils.functionCapabilitiesUsedBy(query);
+        }
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            return EsqlTestUtils.functionCapabilitiesUsedBy(query);
         }
     }
 

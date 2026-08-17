@@ -30,6 +30,24 @@ public class EsqlTestUtilsTests extends ESTestCase {
         assertThat(EsqlTestUtils.functionCapabilitiesUsedBy("ROW x = 1 | EVAL s = TO_STR(x)"), contains("fn_to_string"));
     }
 
+    public void testFunctionCapabilitiesUsedByEmitsParseWarningsOnCallingThread() {
+        assertThat(EsqlTestUtils.functionCapabilitiesUsedBy("ROW city = \"Raleigh\"\n| INLINESTATS c = COUNT(city)"), contains("fn_count"));
+        // Pins the side effect documented on functionCapabilitiesUsedBy: parse-time deprecation warnings land on the
+        // calling thread, so ESTestCase callers must consume or stash them (see AbstractMixedClusterEsqlSpecIT).
+        assertWarnings("Line 2:3: INLINESTATS is deprecated, use INLINE STATS instead");
+    }
+
+    public void testFunctionCapabilitiesUsedByParseWarningsAreContainedWhenStashed() {
+        // The mixed-cluster guard's fix: stashing the thread context around the parse discards the parse-time warning.
+        // No assertWarnings here on purpose — teardown ensureNoWarnings() fails if the stash ever stops containing it.
+        try (var ignored = threadContext.stashContext()) {
+            assertThat(
+                EsqlTestUtils.functionCapabilitiesUsedBy("ROW city = \"Raleigh\"\n| INLINESTATS c = COUNT(city)"),
+                contains("fn_count")
+            );
+        }
+    }
+
     public void testFunctionCapabilitiesUsedByHandlesNoFunctionsAndBadQueries() {
         // A query with no function calls (operators are not functions).
         assertThat(EsqlTestUtils.functionCapabilitiesUsedBy("FROM x | WHERE a > 1 | KEEP a"), empty());

@@ -9,11 +9,13 @@
 
 package org.elasticsearch.index.codec.vectors.ash;
 
+import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
-import java.util.function.IntFunction;
+import java.util.Set;
 import java.util.function.IntUnaryOperator;
 
 /**
@@ -53,6 +55,9 @@ public final class AsymmetricHashingQuantizer {
     private final long seed;
     private final AshSphericalScalarQuantizer quantizer;
 
+    /** Supported values for bits per dimension. */
+    public static final Set<Integer> SUPPORTED_BITS_PER_DIM = Set.of(1, 2, 3, 4, 8);
+
     /**
      * Creates an ASH quantizer with the given configuration.
      *
@@ -74,8 +79,8 @@ public final class AsymmetricHashingQuantizer {
         if (projectedDimsFraction <= 0 || projectedDimsFraction > 1.0f) {
             throw new IllegalArgumentException("projectedDimsFraction must be in (0, 1]");
         }
-        if (bitsPerDim <= 0) {
-            throw new IllegalArgumentException("bitsPerDim must be positive");
+        if (bitsPerDim <= 0 || SUPPORTED_BITS_PER_DIM.contains(bitsPerDim) == false) {
+            throw new IllegalArgumentException("bitsPerDim must be one of " + SUPPORTED_BITS_PER_DIM + ", got: " + bitsPerDim);
         }
         this.projectedDimsFraction = projectedDimsFraction;
         this.method = method;
@@ -97,12 +102,15 @@ public final class AsymmetricHashingQuantizer {
 
     /**
      * Trains the projection matrix W on the given vectors and their cluster assignments.
+     * <p>
+     * This method consumes draws from a per-call RNG seeded with the instance's seed, so
+     * successive calls on the same instance will produce identical results.
      *
      * @param vectors all vectors in the segment, shape (nVectors, originalDim)
      * @param centroids cluster centroids, fetched by vector ordinal
      * @return the learned projection matrix W in row-major order, shape (originalDim, nDims)
      */
-    public float[] train(float[][] vectors, IntFunction<float[]> centroids) {
+    public float[] train(float[][] vectors, CheckedIntFunction<float[], IOException> centroids) throws IOException {
         int originalDim = vectors[0].length;
         int nDims = nDims(originalDim);
 

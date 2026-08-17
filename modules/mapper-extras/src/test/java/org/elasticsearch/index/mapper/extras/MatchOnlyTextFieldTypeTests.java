@@ -17,6 +17,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -63,7 +64,6 @@ import org.elasticsearch.index.mapper.extras.MatchOnlyTextFieldMapper.MatchOnlyT
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
-import org.elasticsearch.lucene.search.XDocValuesRewriteMethod;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
@@ -596,7 +596,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         // SortedSet DV, case-sensitive: native PrefixQuery with DOC_VALUES_REWRITE
         assertThat(
             sortedSet.prefixQuery("foo", null, false, MOCK_CONTEXT),
-            Matchers.equalTo(new PrefixQuery(new Term("field", "foo"), XDocValuesRewriteMethod.DOC_VALUES_REWRITE))
+            Matchers.equalTo(new PrefixQuery(new Term("field", "foo"), MultiTermQuery.DOC_VALUES_REWRITE))
         );
 
         // SortedSet DV, case-insensitive: script-backed query
@@ -621,11 +621,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         assertThat(
             sortedSet.wildcardQuery("foo*", null, false, MOCK_CONTEXT),
             Matchers.equalTo(
-                new WildcardQuery(
-                    new Term("field", "foo*"),
-                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                    XDocValuesRewriteMethod.DOC_VALUES_REWRITE
-                )
+                new WildcardQuery(new Term("field", "foo*"), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE)
             )
         );
 
@@ -654,14 +650,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         assertThat(
             sortedSet.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT),
             Matchers.equalTo(
-                new RegexpQuery(
-                    new Term("field", "foo.*"),
-                    0,
-                    0,
-                    RegexpQuery.DEFAULT_PROVIDER,
-                    10,
-                    XDocValuesRewriteMethod.DOC_VALUES_REWRITE
-                )
+                new RegexpQuery(new Term("field", "foo.*"), 0, 0, RegexpQuery.DEFAULT_PROVIDER, 10, MultiTermQuery.DOC_VALUES_REWRITE)
             )
         );
 
@@ -683,7 +672,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         // SortedSet DV → RegexpQuery with DOC_VALUES_REWRITE and ASCII_CASE_INSENSITIVE matchFlag
         Query q = sortedSetDocValuesOnly().regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
         assertThat(q, Matchers.instanceOf(RegexpQuery.class));
-        assertEquals(XDocValuesRewriteMethod.DOC_VALUES_REWRITE, ((RegexpQuery) q).getRewriteMethod());
+        assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((RegexpQuery) q).getRewriteMethod());
 
         // Binary DV → ScanningBinaryDocValuesRegexpQuery with ASCII_CASE_INSENSITIVE matchFlag
         assertThat(

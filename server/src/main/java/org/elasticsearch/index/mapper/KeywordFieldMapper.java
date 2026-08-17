@@ -955,7 +955,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 terms = MultiTerms.getTerms(reader, name());
             } else if (hasDocValues()) {
                 if (usesBinaryDocValues) {
-                    // Not possible to support terms enum api as underlying doc values doesn't support it.
+                    // Not possible to support terms enum api as underlying doc values lacks the capabilities to support it.
                     throw new IllegalArgumentException("terms enum is unsupported for field [" + name() + "]");
                 } else {
                     terms = SortedSetDocValuesTerms.getTerms(reader, name());

@@ -907,6 +907,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             responseListener = ActionListener.wrap(response -> {
                 boolean success = false;
                 try {
+                    // TODO: Keep a coordinator-owned lease or refresh this registration while global TopN is active. The idle reaper
+                    // must still clean abandoned sessions, but it currently cannot distinguish abandonment from waiting on a slower
+                    // data node.
                     retainedSearchContexts.finishRegistration();
                     listener.onResponse(response);
                     success = true;

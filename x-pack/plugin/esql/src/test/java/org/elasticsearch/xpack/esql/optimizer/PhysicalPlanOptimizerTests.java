@@ -307,23 +307,28 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         List<Object[]> params = new ArrayList<>();
         for (Tuple<String, Map<String, Object>> setting : settings()) {
             var settings = Settings.builder().loadFromMap(setting.v2()).build();
-            for (Tuple<String, Supplier<TransportVersion>> mode : minimumVersionModes()) {
-                params.add(new Object[] { setting.v1() + " " + mode.v1(), configuration(new QueryPragmas(settings)), mode.v2() });
+            for (VersionMode mode : minimumVersionModes()) {
+                params.add(new Object[] { setting.v1() + " " + mode.name(), configuration(new QueryPragmas(settings)), mode.version() });
             }
         }
         return params;
     }
 
+    private record VersionMode(String name, Supplier<TransportVersion> version) {}
+
     /**
      * The two runs of each test. {@code current} pins {@link TransportVersion#current()} so a version-gated plan change is
      * exercised in its own PR; {@code historical} keeps the pre-existing per-build random version.
      */
-    private static List<Tuple<String, Supplier<TransportVersion>>> minimumVersionModes() {
-        return asList(new Tuple<>("current", TransportVersion::current), new Tuple<>("historical", EsqlTestUtils::randomMinimumVersion));
+    private static List<VersionMode> minimumVersionModes() {
+        return List.of(
+            new VersionMode("current", TransportVersion::current),
+            new VersionMode("historical", EsqlTestUtils::randomMinimumVersion)
+        );
     }
 
     private static List<Tuple<String, Map<String, Object>>> settings() {
-        return asList(new Tuple<>("default", Map.of()));
+        return List.of(new Tuple<>("default", Map.of()));
     }
 
     public PhysicalPlanOptimizerTests(String name, Configuration config, Supplier<TransportVersion> minimumVersion) {

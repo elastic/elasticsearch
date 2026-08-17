@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -45,6 +46,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.InvalidRepository;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryDeprecationInfo;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.VerifyNodeRepositoryCoordinationAction;
@@ -66,6 +68,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -295,6 +298,62 @@ public class S3RepositoryTests extends ESTestCase {
                     containsString("unless you can demonstrate that the same issue exists when using a genuine AWS S3 repository"),
                     containsString(ReferenceDocs.SNAPSHOT_REPOSITORY_ANALYSIS.toString()),
                     containsString(ReferenceDocs.S3_COMPATIBLE_REPOSITORIES.toString())
+                )
+            );
+        }
+    }
+
+    public void testDeprecationInfosForInsecureCredentials() {
+        final var metadata = new RepositoryMetadata(
+            "dummy-repo",
+            "mock",
+            Settings.builder()
+                .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
+                .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "aws_key")
+                .put(S3Repository.SECRET_KEY_SETTING.getKey(), "aws_secret")
+                .build()
+        );
+        try (var repo = createS3Repo(metadata)) {
+            assertThat(
+                repo.getDeprecationInfos(),
+                contains(
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        "S3 repository stores credentials in insecure repository settings",
+                        ReferenceDocs.SECURE_SETTINGS,
+                        S3Repository.INSECURE_CREDENTIALS_DEPRECATION_WARNING,
+                        false
+                    )
+                )
+            );
+        }
+        assertWarnings(S3Repository.INSECURE_CREDENTIALS_DEPRECATION_WARNING);
+    }
+
+    public void testDeprecationInfosForUnsupportedConditionalWrites() {
+        final var metadata = new RepositoryMetadata(
+            "dummy-repo",
+            "mock",
+            Settings.builder()
+                .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
+                .put(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey(), true)
+                .build()
+        );
+        try (var repo = createS3Repo(metadata)) {
+            assertThat(
+                repo.getDeprecationInfos(),
+                contains(
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        "S3 repository disables conditional writes",
+                        ReferenceDocs.S3_COMPATIBLE_REPOSITORIES,
+                        Strings.format("""
+                            This repository is configured to unsafely avoid conditional writes which may lead to repository corruption. \
+                            Upgrade your storage to a system that is fully compatible with AWS S3 and then remove the [%s] repository \
+                            setting.\
+                            """, S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey()),
+                        false
+                    )
                 )
             );
         }

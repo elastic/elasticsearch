@@ -5,23 +5,9 @@
  * 2.0.
  */
 
-apply plugin: 'elasticsearch.java'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
-  testImplementation project(':modules:repository-s3')
-  testImplementation project(':test:framework')
-  testImplementation project(':server')
-
-  testImplementation "software.amazon.awssdk:auth:${versions.awsv2sdk}"
-  testImplementation "software.amazon.awssdk:aws-core:${versions.awsv2sdk}"
-  testImplementation "software.amazon.awssdk:http-client-spi:${versions.awsv2sdk}"
-  testImplementation "software.amazon.awssdk:identity-spi:${versions.awsv2sdk}"
-  testImplementation "software.amazon.awssdk:regions:${versions.awsv2sdk}"
-  testImplementation "software.amazon.awssdk:s3:${versions.awsv2sdk}"
-  testImplementation "software.amazon.awssdk:sdk-core:${versions.awsv2sdk}"
-  testImplementation "software.amazon.awssdk:utils:${versions.awsv2sdk}"
-
   javaRestTestImplementation project(':modules:repository-s3')
   javaRestTestImplementation project(':test:fixtures:aws-fixture-utils')
   javaRestTestImplementation project(':test:fixtures:s3-fixture')
@@ -36,8 +22,4 @@ dependencies {
   clusterModules project(':x-pack:plugin:mapper-constant-keyword')
   clusterModules project(':x-pack:plugin:stack')
   clusterModules project(':x-pack:plugin:transform')
-}
-
-tasks.named("test").configure {
-  systemProperty 'es.allow_insecure_settings', 'true'
 }

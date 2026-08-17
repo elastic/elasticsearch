@@ -35,6 +35,7 @@ NETWORK_THREADING_MODEL                                         reference/elasti
 ALLOCATION_EXPLAIN_API                                          api/doc/elasticsearch/v9/operation/operation-cluster-allocation-explain
 NETWORK_BINDING_AND_PUBLISHING                                  reference/elasticsearch/configuration-reference/networking-settings#modules-network-binding-publishing
 SNAPSHOT_REPOSITORY_ANALYSIS                                    api/doc/elasticsearch/v9/operation/operation-snapshot-repository-analyze
+TROUBLESHOOT_REPOSITORY                                         troubleshoot/elasticsearch/add-repository
 S3_COMPATIBLE_REPOSITORIES                                      deploy-manage/tools/snapshot-and-restore/s3-repository#repository-s3-compatible-services
 LUCENE_MAX_DOCS_LIMIT                                           deploy-manage/production-guidance/optimize-performance/size-shards#troubleshooting-max-docs-limit
 MAX_SHARDS_PER_NODE                                             deploy-manage/production-guidance/optimize-performance/size-shards#troubleshooting-max-shards-open

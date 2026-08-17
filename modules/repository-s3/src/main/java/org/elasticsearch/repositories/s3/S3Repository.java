@@ -40,6 +40,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.RepositoryDeprecationInfo;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
@@ -50,7 +51,9 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -392,6 +395,38 @@ class S3Repository extends MeteredBlobStoreRepository {
         This repository's settings include a S3 access key and secret key, but repository settings are stored in plaintext and must not be \
         used for security-sensitive information. Instead, store all secure settings in the keystore. See [%s] for more information.\
         """, ReferenceDocs.SECURE_SETTINGS);
+
+    @Override
+    public Collection<RepositoryDeprecationInfo> getDeprecationInfos() {
+        final List<RepositoryDeprecationInfo> deprecationInfos = new ArrayList<>();
+        // The constructor already validates these settings, so this check cannot fail on a successfully-created S3Repository.
+        if (S3ClientSettings.checkDeprecatedCredentials(getMetadata().settings())) {
+            deprecationInfos.add(
+                new RepositoryDeprecationInfo(
+                    RepositoryDeprecationInfo.Level.CRITICAL,
+                    "S3 repository stores credentials in insecure repository settings",
+                    ReferenceDocs.SECURE_SETTINGS,
+                    INSECURE_CREDENTIALS_DEPRECATION_WARNING,
+                    false
+                )
+            );
+        }
+        if (supportsConditionalWrites == false) {
+            deprecationInfos.add(
+                new RepositoryDeprecationInfo(
+                    RepositoryDeprecationInfo.Level.CRITICAL,
+                    "S3 repository disables conditional writes",
+                    ReferenceDocs.S3_COMPATIBLE_REPOSITORIES,
+                    Strings.format("""
+                        This repository is configured to unsafely avoid conditional writes which may lead to repository corruption. \
+                        Upgrade your storage to a system that is fully compatible with AWS S3 and then remove the [%s] repository setting.\
+                        """, UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey()),
+                    false
+                )
+            );
+        }
+        return deprecationInfos;
+    }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
         return Map.of("base_path", BASE_PATH_SETTING.get(metadata.settings()), "bucket", BUCKET_SETTING.get(metadata.settings()));

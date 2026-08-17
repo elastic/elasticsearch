@@ -858,6 +858,7 @@ public class StatelessPlugin extends Plugin
                 settings,
                 clusterService,
                 commitService,
+                indicesService,
                 services.telemetryProvider()
             );
             components.add(uploadQueueControllerService);

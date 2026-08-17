@@ -87,8 +87,6 @@ public class TransportUpdateActionTests extends ESTestCase {
     private static UpdateResponse RESPONSE = new UpdateResponse(new ShardId("index", "index_uuid", 0), "id", -2, 0, 0, NOT_FOUND);
 
     class TestTransportUpdateAction extends TransportUpdateAction {
-        private final Map<ShardId, Object> shards = new HashMap<>();
-
         TestTransportUpdateAction(
             String actionName,
             TransportService transportService,

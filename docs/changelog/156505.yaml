@@ -1,5 +1,5 @@
 area: Inference
 issues: []
 pr: 156505
-summary: "[Inference API] Support reasoning effort for OpenAI chat completion"
+summary: "[Inference API] Pass reasoning effort through to OpenAI chat completion"
 type: enhancement

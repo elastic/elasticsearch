@@ -89,7 +89,7 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
             taskType,
             service,
             OpenAiChatCompletionServiceSettings.fromMap(serviceSettings, context),
-            OpenAiChatCompletionTaskSettings.fromMap(taskSettings, taskType),
+            new OpenAiChatCompletionTaskSettings(taskSettings),
             OpenAiSecretSettings.fromMap(secrets),
             threadPool,
             tokenCache,

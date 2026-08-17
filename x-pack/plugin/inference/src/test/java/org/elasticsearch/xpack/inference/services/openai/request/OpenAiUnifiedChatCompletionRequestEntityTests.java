@@ -122,4 +122,47 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
         );
         assertThat(exception.getMessage(), containsString("requires [reasoning.effort]"));
     }
+
+    public void testMaxCompletionTokens_IsSerialized() throws IOException {
+        Message message = new Message(new ContentString("Hello, world!"), ROLE, null, null);
+        var unifiedRequest = new UnifiedCompletionRequest(
+            java.util.List.of(message),
+            null,
+            128L,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, false);
+        OpenAiChatCompletionModel model = createChatCompletionModel("test-url", "organizationId", "api-key", "gpt-5.6", USER);
+
+        OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model);
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        String jsonString = Strings.toString(builder);
+        String expectedJson = """
+            {
+                "messages": [
+                    {
+                        "content": "Hello, world!",
+                        "role": "user"
+                    }
+                ],
+                "max_completion_tokens": 128,
+                "model": "gpt-5.6",
+                "n": 1,
+                "stream": false,
+                "user": "a_user"
+            }
+            """;
+        assertJsonEquals(jsonString, expectedJson);
+    }
 }

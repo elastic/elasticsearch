@@ -27,7 +27,6 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -51,7 +50,6 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionCreator;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelCreator;
-import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
@@ -244,9 +242,6 @@ public class OpenAiService extends SenderService<OpenAiModel> {
             oauth2ClusterSettings
         );
 
-        // Merge reasoning from stored task settings with the request body (body wins).
-        var effectiveInputs = getUnifiedInputs(overriddenModel, inputs);
-
         var manager = new GenericRequestManager<>(
             getServiceComponents().threadPool(),
             overriddenModel,
@@ -258,44 +253,7 @@ public class OpenAiService extends SenderService<OpenAiModel> {
         var errorMessage = constructFailedToSendRequestMessage(COMPLETION_ERROR_PREFIX);
         var action = new SenderExecutableAction(getSender(), manager, errorMessage);
 
-        action.execute(effectiveInputs, timeout, listener);
-    }
-
-    private static UnifiedChatInput getUnifiedInputs(OpenAiChatCompletionModel model, UnifiedChatInput inputs) {
-        if (model.getTaskType() != TaskType.CHAT_COMPLETION) {
-            if (inputs.getRequest().reasoning() != null || model.getTaskSettings().reasoning() != null) {
-                throw new IllegalArgumentException(
-                    Strings.format("Only chat completion models support reasoning, but model task type is: [%s]", model.getTaskType())
-                );
-            }
-            return inputs;
-        }
-
-        var mergedReasoning = OpenAiChatCompletionTaskSettings.mergeReasoning(
-            inputs.getRequest().reasoning(),
-            model.getTaskSettings().reasoning()
-        );
-
-        if (mergedReasoning != null && Objects.equals(mergedReasoning, inputs.getRequest().reasoning()) == false) {
-            return new UnifiedChatInput(
-                new UnifiedCompletionRequest(
-                    inputs.getRequest().messages(),
-                    inputs.getRequest().model(),
-                    inputs.getRequest().maxCompletionTokens(),
-                    inputs.getRequest().stop(),
-                    inputs.getRequest().temperature(),
-                    inputs.getRequest().toolChoice(),
-                    inputs.getRequest().tools(),
-                    inputs.getRequest().topP(),
-                    mergedReasoning,
-                    inputs.getRequest().cacheControl(),
-                    inputs.getRequest().sessionId()
-                ),
-                inputs.stream()
-            );
-        }
-
-        return inputs;
+        action.execute(inputs, timeout, listener);
     }
 
     @Override

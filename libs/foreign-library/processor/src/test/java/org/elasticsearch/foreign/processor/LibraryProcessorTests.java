@@ -363,6 +363,120 @@ public class LibraryProcessorTests extends ProcessorTestCase {
     }
 
     /**
+     * {@code @CaptureSystemError} names a single error channel, but {@code errno} and {@code GetLastError}
+     * are distinct: a library reachable on both a POSIX platform and Windows cannot resolve which one
+     * to capture, so this must be a compile error. Here the library leaves any POSIX platform (Darwin
+     * aarch64) available alongside Windows.
+     */
+    public void testSystemErrorOnCrossPlatformLibraryEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Platform;
+            import org.elasticsearch.foreign.CaptureSystemError;
+            @LibrarySpecification(
+                name = "testlib",
+                unavailableOn = { Platform.LINUX_X64, Platform.LINUX_AARCH64, Platform.DARWIN_X64 }
+            )
+            public interface BadLib {
+                @CaptureSystemError
+                @Function("native_fn")
+                int fn(int x);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail when @CaptureSystemError spans both platform families", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("@CaptureSystemError") && msg.contains("both"));
+        assertTrue("Expected error about unresolvable @CaptureSystemError mechanism but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * A {@code @StructFactory} method must not be annotated with {@code @CaptureSystemError} —
+     * struct factories don't perform native calls that could set a system-error value.
+     */
+    public void testSystemErrorOnStructFactoryEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructFactory;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.CaptureSystemError;
+            @LibrarySpecification
+            public interface BadLib {
+                @StructSpecification
+                interface Point {
+                    int x();
+                }
+
+                @CaptureSystemError
+                @StructFactory
+                Point newPoint();
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail when @StructFactory has @CaptureSystemError", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("must not have @CaptureSystemError"));
+        assertTrue("Expected error about @StructFactory with @CaptureSystemError but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * {@code @CaptureSystemError} on a Windows-only library (every POSIX platform listed in
+     * {@code unavailableOn}) resolves to the {@code GetLastError} channel and must compile clean.
+     */
+    public void testSystemErrorOnWindowsOnlyLibraryCompilesClean() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Platform;
+            import org.elasticsearch.foreign.CaptureSystemError;
+            @LibrarySpecification(
+                name = "testlib",
+                unavailableOn = {
+                    Platform.LINUX_X64,
+                    Platform.LINUX_AARCH64,
+                    Platform.DARWIN_X64,
+                    Platform.DARWIN_AARCH64
+                }
+            )
+            public interface GoodLib {
+                @CaptureSystemError
+                @Function("native_fn")
+                int fn(int x);
+            }
+            """;
+
+        CompilationResult result = compile("test.GoodLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+    }
+
+    /**
+     * {@code @CaptureSystemError} on a POSIX-only library ({@code WINDOWS_X64} listed in
+     * {@code unavailableOn}) resolves to the {@code errno} channel and must compile clean.
+     */
+    public void testSystemErrorOnPosixLibraryCompilesClean() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Platform;
+            import org.elasticsearch.foreign.CaptureSystemError;
+            @LibrarySpecification(name = "testlib", unavailableOn = { Platform.WINDOWS_X64 })
+            public interface GoodLib {
+                @CaptureSystemError
+                @Function("native_fn")
+                int fn(int x);
+            }
+            """;
+
+        CompilationResult result = compile("test.GoodLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+    }
+
+    /**
      * A {@code @StructSpecification} interface that does NOT declare {@code extends Addressable}
      * must compile cleanly — the processor no longer requires it.
      */

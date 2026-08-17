@@ -78,17 +78,11 @@ public final class NumericColumnWriter {
         long numBlocks = (numValues + blockSize - 1) / blockSize;
         long valuesOffset = data.getFilePointer();
 
-        MonotonicWriter blockOffsets = new MonotonicWriter(directory, context, data.getName(), numBlocks + 1L, MonotonicWriter.BLOCK_SHIFT);
+        MonotonicWriter blockOffsets = new MonotonicWriter(directory, context, data.getName(), numBlocks + 1L);
         MonotonicWriter valueAddresses = null;
         try {
             if (multiValued) {
-                valueAddresses = new MonotonicWriter(
-                    directory,
-                    context,
-                    data.getName(),
-                    numDocsWithField + 1L,
-                    MonotonicWriter.BLOCK_SHIFT
-                );
+                valueAddresses = new MonotonicWriter(directory, context, data.getName(), numDocsWithField + 1L);
             }
 
             NumericBlockEncoder encoder = new NumericBlockEncoder(pipeline, blockSize);

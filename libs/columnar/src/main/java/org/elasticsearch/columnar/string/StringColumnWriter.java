@@ -80,15 +80,7 @@ public final class StringColumnWriter {
         long numBlocks = (numValues + blockSize - 1) / blockSize;
         long valuesOffset = data.getFilePointer();
 
-        try (
-            MonotonicWriter blockOffsets = new MonotonicWriter(
-                directory,
-                context,
-                data.getName(),
-                numBlocks + 1L,
-                MonotonicWriter.BLOCK_SHIFT
-            )
-        ) {
+        try (MonotonicWriter blockOffsets = new MonotonicWriter(directory, context, data.getName(), numBlocks + 1L)) {
             BlockWriter blockWriter = layout == StringColumnLayout.DICTIONARY
                 ? new DictionaryBlockWriter(dictionary, blockSize)
                 : new PlainBlockWriter(blockSize);

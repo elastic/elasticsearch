@@ -33,8 +33,8 @@ import java.io.IOException;
  */
 public final class MonotonicWriter implements Closeable {
 
-    /** Monotonic block shift used by every ColumNAR offset table. Frozen: readers assume this value. */
-    public static final int BLOCK_SHIFT = 16;
+    /** Monotonic block shift for every ColumNAR offset table. Not persisted, so the reader must use the same value. */
+    static final int BLOCK_SHIFT = 16;
 
     /** Location of a finished table in the data file, plus its {@code DirectMonotonic} metadata. */
     public record Table(long dataOffset, long dataLength, byte[] meta) {
@@ -50,13 +50,13 @@ public final class MonotonicWriter implements Closeable {
     private final DirectMonotonicWriter writer;
     private boolean dataClosed = false;
 
-    public MonotonicWriter(Directory directory, IOContext context, String prefix, long numValues, int blockShift) throws IOException {
+    public MonotonicWriter(Directory directory, IOContext context, String prefix, long numValues) throws IOException {
         this.directory = directory;
         this.context = context;
         this.metaOut = new ByteBuffersIndexOutput(metaBuffer, "monotonic-meta", "monotonic-meta");
         this.dataTemp = directory.createTempOutput(prefix, "columnar-monotonic", context);
         this.tempName = dataTemp.getName();
-        this.writer = DirectMonotonicWriter.getInstance(metaOut, dataTemp, numValues, blockShift);
+        this.writer = DirectMonotonicWriter.getInstance(metaOut, dataTemp, numValues, BLOCK_SHIFT);
     }
 
     public void add(long value) throws IOException {

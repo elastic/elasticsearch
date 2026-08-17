@@ -336,7 +336,13 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                 CacheBlobReaderService cacheBlobReaderService,
                 MutableObjectStoreUploadTracker objectStoreUploadTracker
             ) {
-                var customCacheBlobReaderService = new CacheBlobReaderService(nodeSettings, sharedCacheService, client, threadPool) {
+                var customCacheBlobReaderService = new CacheBlobReaderService(
+                    nodeSettings,
+                    sharedCacheService,
+                    client,
+                    threadPool,
+                    TestUtils.unmeteredFillCacheMemoryPressure(nodeSettings, threadPool)
+                ) {
                     @Override
                     public CacheBlobReader getCacheBlobReader(
                         ShardId shardId,
@@ -347,7 +353,8 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                         LongConsumer bytesReadFromIndexing,
                         BlobCacheMetrics.CachePopulationReason cachePopulationReason,
                         Executor objectStoreFetchExecutor,
-                        String fileName
+                        String fileName,
+                        boolean speculativeFill
                     ) {
                         var originalCacheBlobReader = cacheBlobReaderService.getCacheBlobReader(
                             shardId,
@@ -359,7 +366,8 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                             bytesReadFromIndexing,
                             cachePopulationReason,
                             objectStoreFetchExecutor,
-                            fileName
+                            fileName,
+                            speculativeFill
                         );
                         return new CacheBlobReader() {
                             @Override

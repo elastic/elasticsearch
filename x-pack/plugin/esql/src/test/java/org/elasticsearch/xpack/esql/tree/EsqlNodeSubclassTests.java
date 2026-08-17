@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.fulltext.FullTextPredic
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -74,6 +75,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
@@ -132,7 +134,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomEsIndex;
-import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomIndexNameWithModes;
+import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomIndexProperties;
 import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomRemotesWithIndices;
 import static org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests.randomFieldAttributes;
 import static org.elasticsearch.xpack.esql.plan.physical.LookupJoinExecSerializationTests.randomJoinOnExpression;
@@ -421,6 +423,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return JoinTypes.ANTI;
         } else if (toBuildClass == MarkJoin.class) {
             return JoinTypes.MARK;
+        } else if (toBuildClass == InnerJoin.class) {
+            return JoinTypes.INNER;
         } else if (toBuildClass == Join.class || toBuildClass == LookupJoin.class || toBuildClass == InlineJoin.class) {
             return JoinTypes.LEFT;
         }
@@ -643,6 +647,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         }
         if (argClass == EsIndex.class) {
             return randomEsIndex();
+        }
+        if (argClass == IndexProperties.class) {
+            IndexMode mode = randomFrom(IndexMode.availableModes());
+            return new IndexProperties(mode, between(0, 10));
         }
         if (argClass == JoinConfig.class) {
             return new JoinConfig(
@@ -952,7 +960,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             randomFrom(IndexMode.availableModes()),
             randomRemotesWithIndices(),
             randomRemotesWithIndices(),
-            randomIndexNameWithModes(),
+            randomIndexProperties(),
             randomFieldAttributes(0, 10, false)
         );
     }

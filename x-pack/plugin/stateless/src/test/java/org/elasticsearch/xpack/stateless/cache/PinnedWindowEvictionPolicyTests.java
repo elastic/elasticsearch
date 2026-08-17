@@ -62,8 +62,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     private ClusterSettings clusterSettings;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initTaskQueueAndClusterService() throws Exception {
         taskQueue = new DeterministicTaskQueue();
         taskQueue.runTasksUpToTimeInOrder(System.currentTimeMillis());
         clusterSettings = createClusterSettings(Settings.EMPTY);
@@ -71,9 +70,8 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeClusterService() throws Exception {
         clusterService.close();
-        super.tearDown();
     }
 
     public void testDurationBelowMinimumRejected() {

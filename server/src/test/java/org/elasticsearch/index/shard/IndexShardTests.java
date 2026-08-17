@@ -2775,8 +2775,7 @@ public class IndexShardTests extends IndexShardTestCase {
             assertTrue(ex.getMessage().contains("failed to fetch index version after copying it over"));
         }
 
-        routing = ShardRoutingHelper.moveToUnassigned(
-            routing,
+        routing = routing.moveToUnassigned(
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "because I say so"),
             ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         );
@@ -5606,6 +5605,12 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(thirdForceMergeUUID, notNullValue());
         assertThat(thirdForceMergeUUID, not(equalTo(secondForceMergeUUID)));
         assertThat(thirdForceMergeUUID, equalTo(secondForceMergeRequest.forceMergeUUID()));
+        final ForceMergeRequest onlyExpungeDeletesRequest = new ForceMergeRequest().onlyExpungeDeletes(true);
+        shard.forceMerge(onlyExpungeDeletesRequest);
+        final String fourthForceMergeUUID = ((InternalEngine) shard.getEngine()).getForceMergeUUID();
+        assertThat(fourthForceMergeUUID, notNullValue());
+        assertThat(fourthForceMergeUUID, not(equalTo(thirdForceMergeUUID)));
+        assertThat(fourthForceMergeUUID, equalTo(onlyExpungeDeletesRequest.forceMergeUUID()));
         closeShards(shard);
     }
 

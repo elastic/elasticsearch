@@ -892,6 +892,17 @@ public class FileSplitProviderTests extends ESTestCase {
         CsvFormatOptions baselineOptions,
         String lineContent
     ) {
+        return discoverRealDelimitedSplits(config, fileName, extension, baselineOptions, lineContent, CSV_MIN_SEGMENT_BYTES);
+    }
+
+    private List<ExternalSplit> discoverRealDelimitedSplits(
+        Map<String, Object> config,
+        String fileName,
+        String extension,
+        CsvFormatOptions baselineOptions,
+        String lineContent,
+        long targetStrideBytes
+    ) {
         StringBuilder sb = new StringBuilder();
         // ~3.5 MiB: above 2 x CSV_MIN_SEGMENT_BYTES so plain data yields several macro-splits.
         while (sb.length() < 3 * CSV_MIN_SEGMENT_BYTES + CSV_MIN_SEGMENT_BYTES / 2) {
@@ -912,7 +923,7 @@ public class FileSplitProviderTests extends ESTestCase {
 
         StorageProviderRegistry storageRegistry = createPayloadStorageRegistry(payload);
         FileSplitProvider splitter = new FileSplitProvider(
-            CSV_MIN_SEGMENT_BYTES,
+            targetStrideBytes,
             new DecompressionCodecRegistry(),
             storageRegistry,
             formatRegistry,
@@ -1089,21 +1100,22 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
-     * A stride small enough to cut one file into more than the ceiling of splits is widened to the stride that
-     * lands on the ceiling, and the file is cut at that. Every offset of a strided file is materialized before
-     * any read and each becomes a probe task and a queued listener after that, so an extreme target split size
-     * would otherwise cost planning-time heap and a probe read per offset for splits too small to pay for it.
-     * The widening is what the user did not ask for, so it must be warned about.
+     * A stride small enough to ask for more record-boundary probes than the budget is widened to the stride
+     * that spends exactly the budget, and the file is cut at that. Every offset of a strided file is
+     * materialized before any read and each becomes a probe task, a queued listener and a blocking ranged read
+     * after that, so an extreme target split size would otherwise cost planning latency and planning-time heap
+     * for splits too small to pay for either. The widening is what the user did not ask for, so it must be
+     * warned about.
      */
-    public void testATargetStrideAskingForTooManySplitsIsWidened() {
+    public void testATargetStrideAskingForTooManyProbesIsWidened() {
         byte[] payload = delimitedPayload("a,b,c\n");
         Map<String, byte[]> payloads = Map.of("swarm.csv", payload);
-        long stride = payload.length / (4 * FileSplitProvider.MAX_SPLITS_PER_FILE);
+        long stride = payload.length / (4 * FileSplitProvider.MAX_SPLIT_PROBES_PER_QUERY);
         assertThat("the stride under test must be usable at all", stride, greaterThan(0L));
         assertThat(
-            "the stride under test must ask for more splits than the ceiling",
+            "the stride under test must ask for more probes than the budget",
             RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size(),
-            greaterThan(FileSplitProvider.MAX_SPLITS_PER_FILE)
+            greaterThan(FileSplitProvider.MAX_SPLIT_PROBES_PER_QUERY)
         );
 
         List<ExternalSplit> splits;
@@ -1113,17 +1125,192 @@ public class FileSplitProviderTests extends ESTestCase {
                     "widened stride warning",
                     FileSplitProvider.class.getName(),
                     Level.WARN,
-                    "*would cut*into more than 1000 splits*"
+                    "*would probe more than 1000 record boundaries*"
                 )
             );
             splits = discoverPlainCsvSplits(payloads, stride, null, null);
             mockLog.assertAllExpectationsMatched();
         }
 
-        long widened = Math.ceilDiv(payload.length, FileSplitProvider.MAX_SPLITS_PER_FILE);
+        long widened = Math.ceilDiv(payload.length, FileSplitProvider.MAX_SPLIT_PROBES_PER_QUERY);
         int probes = RecordBoundaryProbe.stridedPositions(payload.length, widened, CSV_MIN_SEGMENT_BYTES).size();
         assertEquals("the file must be cut at the widened stride, not the requested one", probes + 1, splits.size());
-        assertThat(splits.size(), lessThanOrEqualTo(FileSplitProvider.MAX_SPLITS_PER_FILE));
+        assertThat(probes, lessThanOrEqualTo(FileSplitProvider.MAX_SPLIT_PROBES_PER_QUERY));
+    }
+
+    /**
+     * The budget is spent by the query, not by each file on its own: a stride that asks for a modest number of
+     * probes per file still asks for more than the budget once enough files want it, and every file's probes go
+     * into one batch. A ceiling that each file passed separately would let the count be multiplied by the file
+     * count, which is the same unbounded batch it was meant to prevent.
+     */
+    public void testAStrideAskingForTooManyProbesAcrossFilesIsWidened() {
+        byte[] payload = delimitedPayload("a,b,c\n");
+        Map<String, byte[]> payloads = new HashMap<>();
+        for (int i = 0; i < 4; i++) {
+            payloads.put("swarm-" + i + ".csv", payload);
+        }
+        long stride = payload.length / (FileSplitProvider.MAX_SPLIT_PROBES_PER_QUERY / 2);
+        int probesPerFile = RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size();
+        assertThat(
+            "no single file may reach the budget, or this would pass on a per-file ceiling too",
+            probesPerFile,
+            lessThan(FileSplitProvider.MAX_SPLIT_PROBES_PER_QUERY)
+        );
+        assertThat(
+            "but the files together must ask for more than it",
+            probesPerFile * payloads.size(),
+            greaterThan(FileSplitProvider.MAX_SPLIT_PROBES_PER_QUERY)
+        );
+
+        // Serial discovery, so the overlap latch of one is satisfied by the first stream and never delays a probe.
+        StreamTracking tracking = new StreamTracking(1);
+        List<ExternalSplit> splits;
+        try (MockLog mockLog = MockLog.capture(FileSplitProvider.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "widened stride warning",
+                    FileSplitProvider.class.getName(),
+                    Level.WARN,
+                    "*would probe more than 1000 record boundaries*"
+                )
+            );
+            splits = discoverPlainCsvSplits(payloads, stride, null, tracking);
+            mockLog.assertAllExpectationsMatched();
+        }
+
+        long widened = Math.ceilDiv((long) payload.length * payloads.size(), FileSplitProvider.MAX_SPLIT_PROBES_PER_QUERY);
+        int probesPerWidenedFile = RecordBoundaryProbe.stridedPositions(payload.length, widened, CSV_MIN_SEGMENT_BYTES).size();
+        assertEquals(
+            "every file must be cut at the stride the whole query was widened to",
+            payloads.size() * (probesPerWidenedFile + 1),
+            splits.size()
+        );
+        // A plain CSV file needs no planning read, so every stream this discovery opened was a probe.
+        assertThat(
+            "and the probe reads they actually issued must be within the budget",
+            tracking.opens.get(),
+            lessThanOrEqualTo(FileSplitProvider.MAX_SPLIT_PROBES_PER_QUERY)
+        );
+        assertEquals("one probe per split past each file's first", splits.size() - payloads.size(), tracking.opens.get());
+    }
+
+    /**
+     * A query whose probes fit the budget is cut at exactly the size asked for, and says nothing. The widening is
+     * a last resort for a scan large enough to plan its way into trouble, so an ordinary one must not pay for it,
+     * nor be told about a limit it never came near.
+     */
+    public void testAQueryWithinTheProbeBudgetIsNotWidened() {
+        byte[] payload = delimitedPayload("a,b,c\n");
+        Map<String, byte[]> payloads = Map.of("modest.csv", payload);
+        long stride = 256 * 1024;
+        assertThat(
+            "the stride under test must ask for fewer probes than the budget",
+            RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size(),
+            lessThan(FileSplitProvider.MAX_SPLIT_PROBES_PER_QUERY)
+        );
+
+        List<ExternalSplit> splits;
+        try (MockLog mockLog = MockLog.capture(FileSplitProvider.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no widened stride warning",
+                    FileSplitProvider.class.getName(),
+                    Level.WARN,
+                    "*would probe more than*"
+                )
+            );
+            splits = discoverPlainCsvSplits(payloads, stride, null, null);
+            mockLog.assertAllExpectationsMatched();
+        }
+
+        int probes = RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size();
+        assertEquals("the file must be cut at the size asked for", probes + 1, splits.size());
+    }
+
+    /**
+     * The budget is shared between the files that will be probed, and a file of an extension that cannot be
+     * newline macro-split is not one of them however large it is. Counting its bytes would widen the stride of
+     * the files that are probed, cutting them coarser to pay for probes nobody issues.
+     */
+    public void testAnUnsplittableExtensionDoesNotDrawOnTheProbeBudget() {
+        byte[] csv = delimitedPayload("a,b,c\n");
+        // Large enough that its bytes alone would widen the stride, were they counted.
+        byte[] opaque = new byte[csv.length * 4];
+        long stride = csv.length / (FileSplitProvider.MAX_SPLIT_PROBES_PER_QUERY / 2);
+
+        Map<String, byte[]> alone = Map.of("data.csv", csv);
+        Map<String, byte[]> withOpaqueFile = new HashMap<>(alone);
+        withOpaqueFile.put("blob.dat", opaque);
+
+        List<ExternalSplit> aloneSplits = discoverPlainCsvSplits(alone, stride, null, null);
+        List<ExternalSplit> withOpaqueSplits = discoverPlainCsvSplits(withOpaqueFile, stride, null, null);
+
+        assertEquals("the unsplittable file must be read whole", aloneSplits.size() + 1, withOpaqueSplits.size());
+        assertEquals(
+            "and the CSV file must be cut exactly as it was without it",
+            describe(aloneSplits),
+            describe(withOpaqueSplits).stream().filter(s -> s.contains("data.csv")).toList()
+        );
+    }
+
+    /**
+     * The proven walk a quoted CSV needs is bounded by the same budget as the strided one. It resumes a stride
+     * past each boundary it finds, so the stride caps its boundary count the same way, and it costs more per
+     * boundary than a strided probe does: its reads are sequential, each one waiting on the one before it.
+     */
+    public void testTheProvenWalkIsAlsoBoundedByTheProbeBudget() {
+        String quotedLine = "1,\"embedded\nnewline\",\"has \"\"quote\"\"\"\n";
+        long stride = 1024;
+
+        List<ExternalSplit> splits;
+        try (MockLog mockLog = MockLog.capture(FileSplitProvider.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "widened stride warning",
+                    FileSplitProvider.class.getName(),
+                    Level.WARN,
+                    "*would probe more than 1000 record boundaries*"
+                )
+            );
+            splits = discoverRealDelimitedSplits(Map.of(), "quoted.csv", ".csv", CsvFormatOptions.DEFAULT, quotedLine, stride);
+            mockLog.assertAllExpectationsMatched();
+        }
+
+        assertThat("the file must still be macro-split", splits.size(), greaterThan(1));
+        assertThat(
+            "but into no more boundaries than the budget",
+            splits.size(),
+            lessThanOrEqualTo(FileSplitProvider.MAX_SPLIT_PROBES_PER_QUERY)
+        );
+    }
+
+    /**
+     * A file at or below the stride is cut into nothing and probed not at all, so it neither draws on the probe
+     * budget nor is starved by it. The whole-file splits such files yield are bounded by the discovered-file
+     * limit instead, which is what keeps a scan of many small files from having to widen anything. A file whose
+     * length the listing did not carry reads as zero and takes the same path.
+     */
+    public void testSmallFilesNeitherProbeNorDrawOnTheBudget() {
+        byte[] big = delimitedPayload("a,b,c\n");
+        byte[] small = "a,b,c\n".getBytes(StandardCharsets.UTF_8);
+        long stride = big.length / (FileSplitProvider.MAX_SPLIT_PROBES_PER_QUERY / 2);
+
+        Map<String, byte[]> alone = Map.of("big.csv", big);
+        Map<String, byte[]> withSmallFiles = new HashMap<>(alone);
+        for (int i = 0; i < 8; i++) {
+            withSmallFiles.put("small-" + i + ".csv", small);
+        }
+        withSmallFiles.put("unsized.csv", new byte[0]);
+
+        List<ExternalSplit> aloneSplits = discoverPlainCsvSplits(alone, stride, null, null);
+        List<ExternalSplit> withSmallSplits = discoverPlainCsvSplits(withSmallFiles, stride, null, null);
+
+        assertEquals(
+            "the big file must be cut the same either way",
+            aloneSplits.size() + withSmallFiles.size() - alone.size(),
+            withSmallSplits.size()
+        );
     }
 
     /**

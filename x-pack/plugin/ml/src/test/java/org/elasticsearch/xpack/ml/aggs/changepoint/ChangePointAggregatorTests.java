@@ -32,7 +32,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.stream.DoubleStream;
 
 import static org.hamcrest.Matchers.anyOf;
@@ -210,9 +210,9 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
             22118.0,
             22165.0,
             21388.0 };
-        testChangeType(bucketValues, changeType -> {
-            assertThat(changeType, instanceOf(ChangeType.StepChange.class));
-            assertThat(Arrays.toString(bucketValues), changeType.changePoint(), equalTo(11));
+        testChangeType(bucketValues, (changeType, msg) -> {
+            assertThat(msg, changeType, instanceOf(ChangeType.StepChange.class));
+            assertThat(msg, changeType.changePoint(), equalTo(11));
         });
     }
 
@@ -368,7 +368,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    void testChangeType(double[] bucketValues, Consumer<ChangeType> changeTypeAssertions) throws IOException {
+    void testChangeType(double[] bucketValues, BiConsumer<ChangeType, String> changeTypeAssertions) throws IOException {
         FilterAggregationBuilder dummy = AggregationBuilders.filter("dummy", new MatchAllQueryBuilder())
             .subAggregation(
                 new DateHistogramAggregationBuilder("time").field(TIME_FIELD_NAME)

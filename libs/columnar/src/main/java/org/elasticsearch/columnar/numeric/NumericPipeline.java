@@ -14,18 +14,25 @@ package org.elasticsearch.columnar.numeric;
  * adaptively per block; the terminal always runs. A pipeline is described on disk by its stage ids, so
  * a reader that knows more stages than were written still decodes old data.
  *
- * <p>Stage ids are frozen once shipped. Adding a stage is additive: define a new id, register it in
- * {@link Registry}, and append it to a pipeline; existing columns list only their old ids and are
- * unaffected.
+ * <p>Stage ids are frozen once shipped. Adding a stage requires a {@link org.elasticsearch.columnar.FormatVersion}
+ * bump; once bumped, define a new id, register it in {@link Registry}, and append it to a pipeline.
+ * Existing columns list only their old ids and are unaffected on read.
  */
 public final class NumericPipeline {
 
     private final BlockTransform[] transforms;
     private final BlockTerminal terminal;
+    private final int blockSize;
 
-    public NumericPipeline(BlockTransform[] transforms, BlockTerminal terminal) {
+    public NumericPipeline(BlockTransform[] transforms, BlockTerminal terminal, int blockSize) {
         this.transforms = transforms;
         this.terminal = terminal;
+        this.blockSize = blockSize;
+    }
+
+    /** The block size this pipeline was built for. */
+    public int blockSize() {
+        return blockSize;
     }
 
     /** The default chain: delta, offset, GCD, then FOR bit-packing. */
@@ -34,7 +41,8 @@ public final class NumericPipeline {
             // Transforms are stateless, so the shared singletons are reused; the terminal owns scratch
             // buffers and must stay per-pipeline.
             new BlockTransform[] { DeltaTransform.INSTANCE, OffsetTransform.INSTANCE, GcdTransform.INSTANCE },
-            new ForTerminal(blockSize)
+            new ForTerminal(blockSize),
+            blockSize
         );
     }
 
@@ -45,7 +53,8 @@ public final class NumericPipeline {
     public static NumericPipeline monotonicLongPipeline(int blockSize) {
         return new NumericPipeline(
             new BlockTransform[] { new SplitDeltaTransform(), DeltaTransform.INSTANCE, OffsetTransform.INSTANCE, GcdTransform.INSTANCE },
-            new ForTerminal(blockSize)
+            new ForTerminal(blockSize),
+            blockSize
         );
     }
 
@@ -61,7 +70,8 @@ public final class NumericPipeline {
                 DeltaTransform.INSTANCE,
                 OffsetTransform.INSTANCE,
                 GcdTransform.INSTANCE },
-            new ForTerminal(blockSize)
+            new ForTerminal(blockSize),
+            blockSize
         );
     }
 
@@ -78,7 +88,8 @@ public final class NumericPipeline {
                 DeltaTransform.INSTANCE,
                 OffsetTransform.INSTANCE,
                 GcdTransform.INSTANCE },
-            new ForTerminal(blockSize)
+            new ForTerminal(blockSize),
+            blockSize
         );
     }
 
@@ -118,7 +129,7 @@ public final class NumericPipeline {
             for (int i = 0; i < transformIds.length; i++) {
                 transforms[i] = transform(transformIds[i], blockSize);
             }
-            return new NumericPipeline(transforms, terminal(terminalId, blockSize));
+            return new NumericPipeline(transforms, terminal(terminalId, blockSize), blockSize);
         }
 
         private static BlockTransform transform(byte id, int blockSize) {

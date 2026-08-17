@@ -81,8 +81,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initMocks() throws Exception {
         ActionFilters actionFilters = mock();
         threadPool = mock();
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));

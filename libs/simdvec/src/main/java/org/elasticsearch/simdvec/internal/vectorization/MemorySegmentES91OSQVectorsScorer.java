@@ -20,8 +20,8 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
-import org.elasticsearch.simdvec.IndexInputUtils;
 import org.elasticsearch.simdvec.internal.BufferScratch;
 
 import java.io.IOException;

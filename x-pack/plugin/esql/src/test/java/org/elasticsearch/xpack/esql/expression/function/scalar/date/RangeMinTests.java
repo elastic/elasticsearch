@@ -16,15 +16,12 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -83,19 +80,16 @@ public class RangeMinTests extends AbstractScalarFunctionTestCase {
             }));
         }
 
-        if (DataType.DOUBLE_RANGE.supportedVersion().supportedLocally()) {
-            FunctionAppliesTo doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
-            suppliers.add(new TestCaseSupplier("double range", List.of(DataType.DOUBLE_RANGE), () -> {
-                double from = -12.5;
-                var range = new DoubleRangeBlockBuilder.DoubleRange(from, 42.25);
-                return new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(range, DataType.DOUBLE_RANGE, "field").withAppliesTo(doubleRangeAppliesTo)),
-                    "RangeMinDoubleEvaluator[range=" + read + "]",
-                    DataType.DOUBLE,
-                    equalTo(from)
-                );
-            }));
-        }
+        suppliers.add(new TestCaseSupplier("double range", List.of(DataType.DOUBLE_RANGE), () -> {
+            double from = -12.5;
+            var range = new DoubleRangeBlockBuilder.DoubleRange(from, 42.25);
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(range, DataType.DOUBLE_RANGE, "field")),
+                "RangeMinDoubleEvaluator[range=" + read + "]",
+                DataType.DOUBLE,
+                equalTo(from)
+            );
+        }));
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
     }

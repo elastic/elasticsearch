@@ -32,6 +32,7 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.LinearDecayFunctionBuilder;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -130,7 +131,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testSerialization() throws IOException {
-        SearchSourceBuilder original = createSearchSourceBuilder();
+        SearchSourceBuilder original = createInternalSearchSourceBuilder();
         SearchSourceBuilder copy = copyBuilder(original);
         assertEquals(copy, original);
         assertEquals(copy.hashCode(), original.hashCode());
@@ -139,7 +140,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testShallowCopy() {
         for (int i = 0; i < 10; i++) {
-            SearchSourceBuilder original = createSearchSourceBuilder();
+            SearchSourceBuilder original = createInternalSearchSourceBuilder();
             SearchSourceBuilder copy = original.shallowCopy();
             assertEquals(original, copy);
         }
@@ -147,7 +148,28 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testEqualsAndHashcode() throws IOException {
         // TODO add test checking that changing any member of this class produces an object that is not equal to the original
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createSearchSourceBuilder(), this::copyBuilder);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createInternalSearchSourceBuilder(), this::copyBuilder);
+    }
+
+    /**
+     * Creates a random {@link SearchSourceBuilder} that may also have options set which can only be set
+     * programmatically, i.e. options that are not parsed from or serialized to XContent. Builders returned by this
+     * method are therefore not suitable for XContent round-trip tests; use {@link #createSearchSourceBuilder()} there.
+     */
+    private SearchSourceBuilder createInternalSearchSourceBuilder() {
+        SearchSourceBuilder builder = createSearchSourceBuilder();
+        if (randomBoolean()) {
+            builder.skipInnerHits(randomBoolean());
+        }
+        if (randomBoolean()) {
+            int numEmbeddingsFields = randomIntBetween(1, 5);
+            for (int i = 0; i < numEmbeddingsFields; i++) {
+                builder.fetchEmbeddingsField(
+                    new EmbeddingsField(randomAlphaOfLengthBetween(5, 10), randomBoolean() ? null : randomFrom(VectorType.values()))
+                );
+            }
+        }
+        return builder;
     }
 
     private SearchSourceBuilder copyBuilder(SearchSourceBuilder original) throws IOException {

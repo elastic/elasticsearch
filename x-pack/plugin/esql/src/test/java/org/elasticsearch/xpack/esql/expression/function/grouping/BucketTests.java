@@ -752,9 +752,11 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
     }
 
     private static Matcher<String> histogramEvaluatorMatcher(DataType histogramType) {
-        return Matchers.startsWith("Bucket"
-            + (histogramType == DataType.TDIGEST ? "TDigest" : "ExponentialHistogram")
-            + "Evaluator[histogram=Attribute[channel=0], roundTo=");
+        return Matchers.startsWith(
+            "Bucket"
+                + (histogramType == DataType.TDIGEST ? "TDigest" : "ExponentialHistogram")
+                + "Evaluator[histogram=Attribute[channel=0], roundTo="
+        );
     }
 
     /**

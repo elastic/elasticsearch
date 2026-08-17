@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 156964
+summary: Managed sa run as from roles poc
+type: enhancement

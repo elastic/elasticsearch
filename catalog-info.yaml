@@ -54,7 +54,7 @@ spec:
       name: elasticsearch / check serverless submodule
     spec:
       repository: elastic/elasticsearch
-      pipeline_file: .buildkite/check-es-serverless.yml
+      pipeline_file: .buildkite/check-es-serverless.sh
       branch_configuration: main
       teams:
         elasticsearch-team: {}

@@ -98,7 +98,7 @@ public class DataStreamLifecycleHealthInfoPublisher {
             client.execute(
                 UpdateHealthInfoCacheAction.INSTANCE,
                 new UpdateHealthInfoCacheAction.Request(
-                    healthNodeId,
+                    clusterService.localNode().getId(),
                     new DataStreamLifecycleHealthInfo(errorEntriesToSignal, errorStore.getTotalErrorEntries())
                 ),
                 actionListener

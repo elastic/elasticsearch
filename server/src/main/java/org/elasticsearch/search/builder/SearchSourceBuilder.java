@@ -135,7 +135,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private static final boolean RANK_SUPPORTED = Booleans.parseBoolean(System.getProperty("es.search.rank_supported"), true);
 
-    private static final TransportVersion SEARCH_SOURCE_EMBEDDINGS_FIELDS = TransportVersion.fromName("search_source_embeddings_fields");
+    public static final TransportVersion SEARCH_SOURCE_EMBEDDINGS_FIELDS = TransportVersion.fromName("search_source_embeddings_fields");
 
     /**
      * A static factory method to construct a new search source.

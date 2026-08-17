@@ -44,6 +44,7 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilderTests;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
@@ -60,6 +61,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -72,8 +74,10 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -84,6 +88,7 @@ import java.util.function.ToLongFunction;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
@@ -136,6 +141,52 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         assertEquals(copy, original);
         assertEquals(copy.hashCode(), original.hashCode());
         assertNotSame(copy, original);
+    }
+
+    public void testEmbeddingsFieldsSerializationBwc() throws IOException {
+        SearchSourceBuilder original = new SearchSourceBuilder();
+
+        List<FieldAndFormat> originalFetchFields = null;
+        if (randomBoolean()) {
+            originalFetchFields = new ArrayList<>();
+            for (int i = 0; i < randomIntBetween(1, 5); i++) {
+                FieldAndFormat field = new FieldAndFormat(
+                    randomAlphaOfLengthBetween(5, 10),
+                    randomBoolean() ? randomAlphaOfLengthBetween(5, 10) : null
+                );
+                originalFetchFields.add(field);
+                original.fetchField(field);
+            }
+        }
+
+        List<EmbeddingsField> embeddingsFields = new ArrayList<>();
+        for (int i = 0; i < randomIntBetween(1, 5); i++) {
+            EmbeddingsField field = new EmbeddingsField(
+                randomAlphaOfLengthBetween(5, 10),
+                randomBoolean() ? null : randomFrom(VectorType.values())
+            );
+            embeddingsFields.add(field);
+            original.fetchEmbeddingsField(field);
+        }
+
+        List<FieldAndFormat> expectedFetchFields = originalFetchFields == null ? new ArrayList<>() : new ArrayList<>(originalFetchFields);
+        embeddingsFields.forEach(f -> expectedFetchFields.add(new FieldAndFormat(f.field(), null)));
+
+        for (int i = 0; i < 20; i++) {
+            TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(
+                SearchSourceBuilder.SEARCH_SOURCE_EMBEDDINGS_FIELDS
+            );
+            SearchSourceBuilder copy = copyBuilder(original, oldVersion);
+
+            // embeddings fields are not sent to old nodes
+            assertThat(copy.fetchEmbeddingsFields(), empty());
+            // they are downgraded to plain fetch fields (in insertion order, without their vector type)
+            assertThat(copy.fetchFields(), equalTo(expectedFetchFields));
+
+            // writeTo must not mutate the builder it serializes
+            assertThat(original.fetchFields(), equalTo(originalFetchFields));
+            assertThat(original.fetchEmbeddingsFields(), equalTo(new LinkedHashSet<>(embeddingsFields)));
+        }
     }
 
     public void testShallowCopy() {

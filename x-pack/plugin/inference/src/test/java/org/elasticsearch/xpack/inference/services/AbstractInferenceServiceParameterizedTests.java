@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services;
 
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
@@ -40,19 +41,21 @@ public abstract class AbstractInferenceServiceParameterizedTests extends ESTestC
     protected ThreadPool threadPool;
     protected HttpClientManager clientManager;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void startWebServerAndCreateHttpClient() throws Exception {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        clientManager = HttpClientManager.create(
+            Settings.EMPTY,
+            threadPool,
+            mockClusterServiceEmpty(),
+            mock(ThrottlerManager.class),
+            new TestCircuitBreaker()
+        );
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownHttpClientAndWebServer() throws Exception {
         clientManager.close();
         terminate(threadPool);
         webServer.close();

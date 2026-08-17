@@ -53,6 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Semaphore;
 
 /// Master-side service that proactively cancels shard recoveries that are no longer wanted.
 ///
@@ -99,6 +100,11 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
     private final Executor genericExecutor;
     private volatile boolean enableDirectRecoveryCancellations = false;
     private volatile boolean relocationDuringSnapshotEnabled = false;
+
+    /// Single permit used to coalesce snapshot-cancellation runs.
+    /// Acquired when a run is queued, released at the start of each run (or on rejection).
+    private final Semaphore pendingSnapshotCancellationPermit = new Semaphore(1);
+    private final CancelRecoveriesBlockingSnapshotRunnable snapshotCancellationRunnable = new CancelRecoveriesBlockingSnapshotRunnable();
 
     /// LRU bounded cache of allocation IDs for which a cancellation request was recently sent. Used to deduplicate
     /// requests, e.g. when multiple desired balance computations arrive in quick succession before prior cancellations
@@ -182,28 +188,7 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
     /// @param routingAllocation the routing allocation snapshot the desired balance was derived from, used to identify
     /// which shards are currently initializing on an undesired node
     public void cancelUndesiredRecoveries(DesiredBalance desiredBalance, RoutingAllocation routingAllocation) {
-        genericExecutor.execute(new AbstractRunnable() {
-            @Override
-            protected void doRun() {
-                final var requests = computeUndesiredRecoveryCancellations(desiredBalance, routingAllocation);
-                if (requests.isEmpty()) {
-                    return;
-                }
-                sendCancellations(requests);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.warn(
-                    () -> "failed to compute or send direct recovery cancellations for desired balance ["
-                        + desiredBalance.lastConvergedIndex()
-                        + "] and cluster state version ["
-                        + routingAllocation.getClusterState().version()
-                        + "]",
-                    e
-                );
-            }
-        });
+        genericExecutor.execute(new CancelUndesiredRecoveriesRunnable(desiredBalance, routingAllocation));
     }
 
     /// Returns a map of [CancelRecoveriesAction.Request] per relevant data node. Each request lists the initializing
@@ -261,26 +246,48 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
             .anyMatch(s -> s.role().equals(ShardRouting.Role.SEARCH_ONLY));
     }
 
-    /// Grabs the latest cluster state and checks for WAITING snapshot shards blocked by queued primary relocations.
-    /// Cancels those recoveries if they have not started yet.
-    private void cancelRecoveriesBlockingSnapshots() {
-        // TODO: we should probably coalesce runs since we are always checking the latest cluster state
-        genericExecutor.execute(new AbstractRunnable() {
-            @Override
-            protected void doRun() {
-                final ClusterState currentState = clusterService.state();
-                final var requests = computeCancellationCandidatesForSnapshots(currentState);
-                if (requests.isEmpty()) {
-                    return;
-                }
-                sendCancellations(requests);
-            }
+    private class CancelUndesiredRecoveriesRunnable extends AbstractRunnable {
+        private final DesiredBalance desiredBalance;
+        private final RoutingAllocation routingAllocation;
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.warn("failed to compute or send snapshot recovery cancellations", e);
+        CancelUndesiredRecoveriesRunnable(DesiredBalance desiredBalance, RoutingAllocation routingAllocation) {
+            this.desiredBalance = desiredBalance;
+            this.routingAllocation = routingAllocation;
+        }
+
+        @Override
+        protected void doRun() {
+            final Map<DiscoveryNode, CancelRecoveriesAction.Request> requests = computeUndesiredRecoveryCancellations(
+                desiredBalance,
+                routingAllocation
+            );
+            if (requests.isEmpty()) {
+                return;
             }
-        });
+            sendCancellations(requests);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            logger.warn(
+                () -> "failed to compute or send direct recovery cancellations for desired balance ["
+                    + desiredBalance.lastConvergedIndex()
+                    + "] and cluster state version ["
+                    + routingAllocation.getClusterState().version()
+                    + "]",
+                e
+            );
+        }
+    }
+
+    /// Grabs the latest cluster state and checks for WAITING snapshot shards blocked by queued primary relocations.
+    /// Cancels those recoveries if they have not yet started. Concurrent triggers are coalesced via
+    /// [pendingSnapshotCancellationPermit].
+    private void cancelRecoveriesBlockingSnapshots() {
+        if (pendingSnapshotCancellationPermit.tryAcquire() == false) {
+            return;
+        }
+        genericExecutor.execute(snapshotCancellationRunnable);
     }
 
     // visible for testing
@@ -359,6 +366,33 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
         logger.debug("sending direct cancellation requests {}", deduplicatedRequests);
         for (var nodeRequest : deduplicatedRequests.entrySet()) {
             sendDirectCancelRecoveriesRequest(nodeRequest.getKey(), nodeRequest.getValue());
+        }
+    }
+
+    /// Reused across schedule attempts. Releases [pendingSnapshotCancellationPermit] at the start of each run so a
+    /// concurrent trigger can queue a follow-up against a (possibly) fresher cluster state.
+    /// Each run ([#doRun]) is synchronized, in order to serialize close-in-time executions.
+    private class CancelRecoveriesBlockingSnapshotRunnable extends AbstractRunnable {
+        @Override
+        protected synchronized void doRun() {
+            pendingSnapshotCancellationPermit.release();
+            final ClusterState currentState = clusterService.state();
+            final Map<DiscoveryNode, CancelRecoveriesAction.Request> requests = computeCancellationCandidatesForSnapshots(currentState);
+            if (requests.isEmpty()) {
+                return;
+            }
+            sendCancellations(requests);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            logger.warn("failed to compute or send snapshot recovery cancellations", e);
+        }
+
+        @Override
+        public void onRejection(Exception e) {
+            pendingSnapshotCancellationPermit.release();
+            onFailure(e);
         }
     }
 

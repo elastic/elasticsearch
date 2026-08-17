@@ -252,7 +252,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             .setClusterService(clusterService)
             .setIndexNameExpressionResolver(resolver)
             .setTransformExtension(transformExtension)
-            .setTransformServices(transformServices);
+            .setTransformServices(transformServices)
+            .setInitialDelay(params.getInitialDelay());
 
         final SetOnce<TransformState> stateHolder = new SetOnce<>();
         // Set once the config has loaded (step <4> below); read by the checkpoint/state-load listeners further down so they can
@@ -265,6 +266,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         ActionListener<StartTransformAction.Response> startTaskListener = ActionListener.wrap(response -> {
             logger.info("[{}] successfully completed and scheduled task in node operation", transformId);
             transformServices.scheduler().registerTransform(params, buildTask);
+            transformServices.transformNode().registerTransform(buildTask);
         }, failure -> {
             // If the transform is failed then there is no need to log an error on every node restart as the error had already been
             // logged when the transform first failed.
@@ -684,7 +686,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 params.getVersion(),
                 params.from(),
                 retryTimer,
-                params.requiresRemote()
+                params.requiresRemote(),
+                params.getInitialDelay()
             );
             logger.debug("Failed to start Transform, retrying in [{}] seconds.", retryTimer.seconds());
             // tell the user when and why the retries are happening and how to stop them

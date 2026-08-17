@@ -328,8 +328,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return selfReportedShardMemoryOverheadEnabled;
     }
 
-    private record NodeHeapEstimateSnapshot(String nodeId, String nodeName, NodeHeapEstimates nodeHeapEstimates) {}
-
     /**
      * Estimates a shard's fixed/adaptive memory overhead (segment, field, live-doc byte counts, and points memory metrics),
      * <b>excluding</b> postings memory ({@link ShardMemoryMetrics#getPostingsInMemoryBytes()}); callers that need the full shard heap

@@ -66,6 +66,7 @@ public class RangeFieldMapper extends FieldMapper {
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
 
     public static final TransportVersion ESQL_LONG_RANGES = TransportVersion.fromName("esql_long_ranges");
+    public static final TransportVersion ESQL_DOUBLE_RANGES = TransportVersion.fromName("esql_double_ranges");
 
     public static class Defaults {
         public static final DateFormatter DATE_FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;

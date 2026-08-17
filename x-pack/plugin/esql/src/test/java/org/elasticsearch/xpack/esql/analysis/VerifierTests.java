@@ -1628,7 +1628,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testDoubleRangeUnsupportedOperations() {
-        assumeTrue("Requires DOUBLE_RANGE_FIELD_TYPE capability", EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V6.isEnabled());
         analyzer().addIndex("heights", "mapping-heights.json")
             .stripErrorPrefix(true)
             .error("FROM heights | SORT height_range", containsString("cannot sort on double_range"));
@@ -4708,6 +4707,11 @@ public class VerifierTests extends ESTestCase {
             "FROM test | HIGHLIGHT MATCH_PHRASE(title, \"quick fox\", {\"analyzer\": \"whitespace\"}) ON title"
                 + " WITH { \"analyzer\": \"whitespace\" }"
         );
+        // The default analyzer is registered as "standard", so nested full-text functions can select it by name.
+        fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title");
+        fullText().query(
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title WITH { \"analyzer\": \"standard\" }"
+        );
     }
 
     public void testHighlightAnalyzerOption() {
@@ -4753,11 +4757,10 @@ public class VerifierTests extends ESTestCase {
             "FROM test | HIGHLIGHT category > 5 ON title",
             containsString("HIGHLIGHT query must be a full-text function (MATCH, MATCH_PHRASE, QSTR, KQL) or a boolean combination of them")
         );
-        // The runtime context registers only the highlight analyzer (under "default" and its own name), so a
-        // full-text function's analyzer option must name that analyzer; anything else is not resolvable.
+        // A nested full-text function must use the same analyzer as HIGHLIGHT.
         fullText().error(
-            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title",
-            allOf(containsString("in HIGHLIGHT:"), containsString("[match] analyzer [standard] not found"))
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title",
+            allOf(containsString("in HIGHLIGHT:"), containsString("[match] analyzer [whitespace] not found"))
         );
         fullText().error(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title WITH { \"analyzer\": \"keyword\" }",

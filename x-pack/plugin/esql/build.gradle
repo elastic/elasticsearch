@@ -55,6 +55,7 @@ dependencies {
   api project(":libs:h3")
   implementation "org.apache.commons:commons-math3:${versions.commons_math3}"
   implementation 'com.carrotsearch:hppc:0.8.1'
+  implementation 'com.google.re2j:re2j:1.8'
 
   testImplementation(project('qa:testFixtures')) {
     exclude(group: "org.elasticsearch.plugin", module: "esql")
@@ -567,6 +568,11 @@ tasks.named('stringTemplates').configure {
     it.properties = longRangeProperties
     it.inputFile = coalesceInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceLongRangeEvaluator.java"
+  }
+  template {
+    it.properties = doubleRangeProperties
+    it.inputFile = coalesceInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceDoubleRangeEvaluator.java"
   }
 
   File roundToInput = file("src/main/java/org/elasticsearch/xpack/esql/expression/function/scalar/math/X-RoundTo.java.st")

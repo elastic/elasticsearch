@@ -157,7 +157,7 @@ public class ImplClassWriterTests extends ProcessorTestCase {
      * Verifies that a {@code String} parameter is accepted and generates a class whose method
      * takes a {@code String} on the Java side. The generated method body must open a confined
      * {@code Arena}, allocate the String into native memory via
-     * {@code MemorySegmentUtil.allocateString}, pass the resulting {@code MemorySegment} to
+     * {@code MemorySegmentAdapter.allocateString}, pass the resulting {@code MemorySegment} to
      * {@code invokeExact}, and close the arena in both normal and exceptional paths.
      *
      * <p>We verify structurally: the generated class must have a {@code sandbox_init$mh} field

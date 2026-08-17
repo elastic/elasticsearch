@@ -124,7 +124,12 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
     @Override
     public final DeferringBucketCollector buildDeferringCollector() {
-        deferringCollector = new BestBucketsDeferringCollector(topLevelQuery(), searcher(), descendsFromGlobalAggregator(parent()));
+        deferringCollector = new BestBucketsDeferringCollector(
+            topLevelQuery(),
+            searcher(),
+            descendsFromGlobalAggregator(parent()),
+            this::addRequestCircuitBreakerBytes
+        );
         return deferringCollector;
     }
 

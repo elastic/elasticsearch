@@ -1508,6 +1508,11 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_WITH_CASE_COALESCE_IS_NULL,
 
         /**
+         * Support multi-column IN subqueries in WHERE: WHERE (field1, field2) IN (FROM index | KEEP field1, field2).
+         */
+        WHERE_IN_MULTI_COLUMN_SUBQUERY(Build.current().isSnapshot()),
+
+        /**
          * Support for views in cluster state (and REST API).
          */
         VIEWS_IN_CLUSTER_STATE,
@@ -3396,9 +3401,8 @@ public class EsqlCapabilities {
 
         /**
          * Support for the {@code DEDUP} command, which removes duplicate rows from the result set.
-         * Snapshot-only.
          */
-        DEDUP_COMMAND(Build.current().isSnapshot()),
+        DEDUP_COMMAND,
 
         /**
          * Support for VALUES with date_range type.
@@ -3615,6 +3619,11 @@ public class EsqlCapabilities {
         PROMQL_LIMITK,
 
         /**
+         * Support for PromQL {@code histogram_fraction()} on native histograms.
+         */
+        PROMQL_HISTOGRAM_FRACTION,
+
+        /**
          * Fix PromQL {@code topk()} over an already-aggregated vector (e.g. {@code topk(k, sum by (...) (...))}).
          * The outer aggregate must wrap the passthrough value in {@code VALUES} so physical planning registers it
          * in the layout; without that, execution fails with {@code can't find input for [topk(...)]}.
@@ -3679,6 +3688,17 @@ public class EsqlCapabilities {
          * implementation.
          */
         CHANGE_POINT_MULTIPLE_EVENTS,
+
+        /**
+         * Fix for {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource} pushing only a
+         * pushable <em>prefix</em> of a compound {@code SORT}'s keys together with the full {@code LIMIT}. Lucene then
+         * truncated to {@code LIMIT} documents ordered by that prefix alone, so when the prefix had ties straddling the
+         * limit boundary, documents the full sort would have ranked into the top-N were dropped at the source and could
+         * never be recovered - returning wrong results (e.g. {@code SORT score, ABS(x) | LIMIT n}). The compound TopN is
+         * now pushed only when every sort key is pushable.
+         * See <a href="https://github.com/elastic/elasticsearch/pull/155923">#155923</a>.
+         */
+        FIX_PARTIAL_PREFIX_COMPOUND_TOPN_PUSHDOWN,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

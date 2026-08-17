@@ -110,19 +110,17 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
         AshSphericalScalarQuantizer ssq = new AshSphericalScalarQuantizer(randomIntBetween(1, 4));
         int d = 16;
         int n = randomIntBetween(2, 5);
-        float[] batchInput = new float[n * d];
-        for (int i = 0; i < n * d; i++) {
-            batchInput[i] = (float) random().nextGaussian();
-        }
+        float[] batchInput = randomGaussianVector(n * d);
 
         AshSphericalScalarQuantizer.QuantizeResult batch = ssq.encode(batchInput, n, d);
         assertEquals(n * d, batch.centeredCodes().length);
         assertEquals(n, batch.codeNorms().length);
 
         for (int i = 0; i < n; i++) {
-            float[] row = ArrayUtil.copyOfSubArray(batchInput, i * d, (i + 1) * d);
+            int rowIdx = i * d;
+            float[] row = ArrayUtil.copyOfSubArray(batchInput, rowIdx, rowIdx + d);
             AshSphericalScalarQuantizer.SingleQuantizeResult single = ssq.encodeOne(row);
-            assertArrayEquals("row " + i, single.centeredCode(), ArrayUtil.copyOfSubArray(batch.centeredCodes(), i * d, (i + 1) * d), 0f);
+            assertArrayEquals("row " + i, single.centeredCode(), ArrayUtil.copyOfSubArray(batch.centeredCodes(), rowIdx, rowIdx + d), 0f);
             assertEquals("row " + i, single.codeNorm(), batch.codeNorms()[i], 0f);
         }
     }
@@ -250,10 +248,6 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
     }
 
     private float[] randomGaussianVector(int d) {
-        float[] v = new float[d];
-        for (int j = 0; j < d; j++) {
-            v[j] = (float) random().nextGaussian();
-        }
-        return v;
+        return SvdUtil.randomGaussians(random(), d);
     }
 }

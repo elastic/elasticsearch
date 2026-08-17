@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.notNullValue;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class SearchWithRejectionsIT extends ESIntegTestCase {
 
-    public static final int SEARCH_QUEUE_SIZE = 1;
+    private static final int SEARCH_QUEUE_SIZE = 1;
 
     @Override
     public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {

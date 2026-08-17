@@ -357,7 +357,8 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         MaxClauseCountQueryVisitor clauseVisitor = new MaxClauseCountQueryVisitor(
             IndexSearcher.getMaxClauseCount(),
             context.getCircuitBreaker(),
-            context::isQueryMemoryPreCharged
+            context::isQueryMemoryPreCharged,
+            MaxClauseCountQueryVisitor.segmentCountOrDefault(context.getIndexReader())
         );
         Set<Query> deduplicate = new HashSet<>();
         for (QueryBuilder query : clauses) {

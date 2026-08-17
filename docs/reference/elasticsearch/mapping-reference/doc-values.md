@@ -49,7 +49,7 @@ PUT my-index-000001
 For all fields that support them, `doc_values` are turned on by default. If you're certain you don't need to sort or aggregate on a field, or access its value from a script, you can turn off `doc_values` in order to save disk space.
 
 ::::{note}
-You cannot turn off doc values for [`wildcard`](/reference/elasticsearch/mapping-reference/keyword.md#wildcard-field-type) fields, or for fields in a [`columnar`](/reference/columnar/index.md) index.
+You cannot turn off doc values for [`wildcard`](/reference/elasticsearch/mapping-reference/keyword.md#wildcard-field-type) fields, or for fields in a [`columnar`](/reference/elasticsearch/columnar/index.md) index.
 
 In some field types, such as [`search_as_you_type`](/reference/elasticsearch/mapping-reference/search-as-you-type.md), doc values appear in API responses but can't be configured. Turning `doc_values` on or off for these fields might result in an error or have no effect.
 ::::
@@ -84,7 +84,7 @@ serverless: preview
 ```
 
 ::::{note}
-This setting requires a [`columnar`](/reference/columnar/index.md) mode index.
+This setting requires a [`columnar`](/reference/elasticsearch/columnar/index.md) mode index.
 ::::
 
 By default, all fields allow multiple values per document. In columnar indices, you can restrict a field to at most one value per document by setting `multi_value: false` in the `doc_values` object. If a document is indexed with more than one value for that field, the indexing request is rejected.
@@ -115,7 +115,7 @@ serverless: preview
 ```
 
 ::::{note}
-This setting requires a [`columnar`](/reference/columnar/index.md) mode index.
+This setting requires a [`columnar`](/reference/elasticsearch/columnar/index.md) mode index.
 ::::
 
 
@@ -157,7 +157,7 @@ stack: ga 9.3
 Doc values skippers are an additional data structure on doc values fields that store summary information for multi-level blocks of documents (currently minimum value, maximum value and doc count).
 They can assist fast querying and aggregation over a field without the need for a terms or points index structure, significantly reducing its disk footprint. This is particularly true when the field in question is correlated with the index sort.  For example, timestamp filtered queries in time series indexes can use skippers to filter out large blocks of documents without having to inspect individual field values.
 
-Skippers can be enabled for all fields in an index that are marked as `doc_values: true` and `index: false` by using the index-level setting `index.mapping.use_doc_values_skippers`.  They are enabled by default for [`time_series`](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-mode) and [`columnar`](/reference/columnar/index.md) index modes.
+Skippers can be enabled for all fields in an index that are marked as `doc_values: true` and `index: false` by using the index-level setting `index.mapping.use_doc_values_skippers`.  They are enabled by default for [`time_series`](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-mode) and [`columnar`](/reference/elasticsearch/columnar/index.md) index modes.
 
 
 

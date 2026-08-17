@@ -19,6 +19,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
@@ -28,6 +29,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
+import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
+import static org.elasticsearch.columnar.ColumnarTestUtils.readNumericMeta;
+import static org.elasticsearch.columnar.ColumnarTestUtils.singleValuedCursor;
 
 /**
  * Correctness of the dense single-valued fast paths on {@link ColumnarNumericBinaryDocValues}: the
@@ -268,12 +273,13 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
         random().nextBytes(segmentId);
         NumericColumnMetadata written;
         try (IndexOutput out = dir.createOutput("num.cnd", IOContext.DEFAULT)) {
-            ColumnarCodecUtil.writeHeader(out, "ColumnarNumericData", segmentId, "");
+            ColumnarCodecUtil.writeHeader(out, "ColumNARData", FormatVersion.CURRENT, segmentId, "");
             written = NumericColumnWriter.write(
                 values.length,
                 values.length,
                 values.length,
                 () -> singleValuedCursor(values),
+                NumericPipeline.defaultPipeline(randomValidBlockSize()),
                 BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
                 withSkipper ? SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID) : null,
                 dir,
@@ -283,7 +289,7 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
             ColumnarCodecUtil.writeFooter(out);
         }
         try (IndexOutput meta = dir.createOutput("num.cnm", IOContext.DEFAULT)) {
-            ColumnarCodecUtil.writeHeader(meta, "ColumnarNumericMeta", segmentId, "");
+            ColumnarCodecUtil.writeHeader(meta, "ColumNARMeta", FormatVersion.CURRENT, segmentId, "");
             written.writeTo(meta);
             ColumnarCodecUtil.writeFooter(meta);
         }
@@ -291,16 +297,11 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
     }
 
     private Opened open(Directory dir, int maxDoc) throws IOException {
-        NumericColumnMetadata read;
-        try (var meta = dir.openChecksumInput("num.cnm")) {
-            ColumnarCodecUtil.checkHeader(meta, "ColumnarNumericMeta", segmentId, "");
-            read = NumericColumnMetadata.readFrom(meta, maxDoc);
-            ColumnarCodecUtil.checkFooter(meta);
-        }
+        final NumericColumnMetadata read = readNumericMeta(dir, "num.cnm", segmentId, maxDoc);
         IndexInput data = dir.openInput("num.cnd", IOContext.DEFAULT);
         opened.add(data);
         CodecUtil.checksumEntireFile(data);
-        ColumnarCodecUtil.checkHeader(data, "ColumnarNumericData", segmentId, "");
+        ColumnarCodecUtil.checkHeader(data, "ColumNARData", segmentId, "");
         NumericColumnReader reader = new NumericColumnReader(read, data);
         ColumnIterator iterator = reader.iterator();
         boolean vectorizable = iterator.isDense() && read.multiValued() == false;
@@ -317,39 +318,4 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
         return new NumericColumnSkipper(opened.meta().skipper(), opened.data());
     }
 
-    private static NumericColumnValues singleValuedCursor(long[] values) {
-        return new NumericColumnValues() {
-            private int doc = -1;
-
-            @Override
-            public int valueCount() {
-                return 1;
-            }
-
-            @Override
-            public long nextValue() {
-                return values[doc];
-            }
-
-            @Override
-            public int docID() {
-                return doc;
-            }
-
-            @Override
-            public int nextDoc() {
-                return advance(doc + 1);
-            }
-
-            @Override
-            public int advance(int target) {
-                return doc = target >= values.length ? DocIdSetIterator.NO_MORE_DOCS : target;
-            }
-
-            @Override
-            public long cost() {
-                return values.length;
-            }
-        };
-    }
 }

@@ -22,7 +22,7 @@ public abstract class MetadataDocValuesFieldMapper extends MetadataFieldMapper {
     }
 
     private static MappedFieldType requireMetadataField(MappedFieldType mappedFieldType) {
-        if (isPermittedFieldName(mappedFieldType.typeName())) {
+        if (isPermittedFieldName(mappedFieldType.name())) {
             return mappedFieldType;
         }
         throw new IllegalArgumentException("expected `_` prefix for field [" + mappedFieldType.name() + "]");

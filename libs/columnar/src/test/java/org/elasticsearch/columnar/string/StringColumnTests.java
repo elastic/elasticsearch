@@ -26,6 +26,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 import static org.elasticsearch.columnar.ColumnarTestUtils.readStringMeta;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * End-to-end round-trip of string columns through a {@link Directory}, covering both layouts. Each case
@@ -71,7 +72,7 @@ public class StringColumnTests extends ESTestCase {
         }
     }
 
-    public void testSparseColumn() throws IOException {
+    public void testSparseColumnLowCardinality() throws IOException {
         int maxDoc = between(100, 4000);
         BytesRef[] docs = new BytesRef[maxDoc];
         for (int d = 0; d < maxDoc; d++) {
@@ -82,14 +83,19 @@ public class StringColumnTests extends ESTestCase {
         assertColumn(docs, StringColumnLayout.DICTIONARY);
     }
 
-    public void testSparseHighCardinality() throws IOException {
-        int maxDoc = between(1000, 4000);
+    public void testSparseColumnHighCardinality() throws IOException {
+        int maxDoc = between(StringDictionary.MAX_SIZE * 4, StringDictionary.MAX_SIZE * 16);
+        int valueCount = 0;
         BytesRef[] docs = new BytesRef[maxDoc];
         for (int d = 0; d < maxDoc; d++) {
-            if (random().nextDouble() < 0.5) {
+            // Skipping is only allowed while the cap is still reachable: the second term is the best count
+            // achievable if this document is skipped, so falling to it forces the value in.
+            if (random().nextDouble() < 0.5 || (maxDoc - d - 1) + valueCount <= StringDictionary.MAX_SIZE) {
                 docs[d] = new BytesRef("term-" + d);
+                valueCount++;
             }
         }
+        assertThat(valueCount, greaterThan(StringDictionary.MAX_SIZE));
         assertColumn(docs, StringColumnLayout.PLAIN);
     }
 

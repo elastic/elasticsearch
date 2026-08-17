@@ -39,12 +39,13 @@ import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
  * Drives string columns through the real Lucene write path — {@link IndexWriter}, several segments, deletions,
  * then a force-merge — so both the ingest path (payloads from the mapper) and the merge path (values read in
  * bulk off a source segment via the column's own reader) are exercised end to end at the {@code BINARY}
- * surface.
+ * surface. {@code StringColumnTests} covers the writer and reader directly against a {@code Directory}; this is
+ * the same column driven by Lucene, and the counterpart of {@link NumericColumnMergeTests}.
  *
  * <p>Run at both ends of the cardinality range, because the two {@code StringColumnLayout}s take different code
  * paths through the writer and reader, and a merge can also change which layout a segment picks.
  */
-public class StringColumnFormatTests extends ESTestCase {
+public class StringColumnMergeTests extends ESTestCase {
 
     private static final String FIELD = "keyword";
     private static final String ID = "id";

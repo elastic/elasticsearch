@@ -35,7 +35,7 @@ import java.io.IOException;
 public record NumericColumnMetadata(
     ColumnIteratorMetadata iterator,
     int numDocsWithField,
-    int numValues,
+    long numValues,
     int blockSize,
     byte blockBytesCodecId,
     byte terminalId,
@@ -156,7 +156,7 @@ public record NumericColumnMetadata(
         if (numDocsWithField == 0) {
             return;
         }
-        out.writeVInt(numValues);
+        out.writeVLong(numValues);
         out.writeVInt(blockSize);
         out.writeByte(blockBytesCodecId);
         out.writeByte(terminalId);
@@ -196,7 +196,7 @@ public record NumericColumnMetadata(
         if (numDocsWithField == 0) {
             return empty(iterator, BlockBytesCodec.IDENTITY_ID);
         }
-        int numValues = in.readVInt();
+        long numValues = in.readVLong();
         int blockSize = in.readVInt();
         byte blockBytesCodecId = in.readByte();
         byte terminalId = in.readByte();
@@ -246,7 +246,7 @@ public record NumericColumnMetadata(
         return bytes;
     }
 
-    int numBlocks() {
-        return numValues == 0 ? 0 : (int) ((numValues + (long) blockSize - 1) / blockSize);
+    long numBlocks() {
+        return numValues == 0 ? 0 : (numValues + blockSize - 1) / blockSize;
     }
 }

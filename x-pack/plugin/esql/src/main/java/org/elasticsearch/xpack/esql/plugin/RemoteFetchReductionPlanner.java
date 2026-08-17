@@ -137,7 +137,6 @@ final class RemoteFetchReductionPlanner {
         }
         FragmentExec fragmentExec = planningContext.fragmentExec();
         Project topLevelProject = planningContext.topLevelProject();
-        TopN topN = planningContext.topN();
         List<Attribute> expectedDataOutput = planningContext.expectedDataOutput();
 
         List<Attribute> exchangeOutput = new ArrayList<>();

@@ -259,9 +259,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=aggregations/terms/Double test}
   issue: https://github.com/elastic/elasticsearch/issues/151793
-- class: org.elasticsearch.snapshots.SnapshotStressTestsIT
-  method: testRandomActivities
-  issue: https://github.com/elastic/elasticsearch/issues/152005
 - class: org.elasticsearch.upgrades.MlMappingsUpgradeIT
   method: testMappingsUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/152115
@@ -667,9 +664,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testTargetRecoversAfterMasterRestartDuringHandoff
   issue: https://github.com/elastic/elasticsearch/issues/156561
-- class: org.elasticsearch.common.xcontent.builder.XContentBuilderTests
-  method: testCloseAllowIllFormedDoesNotValidateStructuralCorrectness
-  issue: https://github.com/elastic/elasticsearch/issues/156563
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationOrObjectStoreFailures
   issue: https://github.com/elastic/elasticsearch/issues/156569
@@ -753,9 +747,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerInSubqueryGoldenTests
   method: testRowMainMultiColumnInSubqueryWithTsSource {current}
   issue: https://github.com/elastic/elasticsearch/issues/156833
-- class: org.elasticsearch.xpack.stateless.recovery.PointInTimeRelocationIT
-  method: testPointInTimeRelocationReferencingTheSameCommit
-  issue: https://github.com/elastic/elasticsearch/issues/156835
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerInSubqueryGoldenTests
   method: testTsMainMultiColumnInSubqueryWithRowSource {historical}
   issue: https://github.com/elastic/elasticsearch/issues/156842

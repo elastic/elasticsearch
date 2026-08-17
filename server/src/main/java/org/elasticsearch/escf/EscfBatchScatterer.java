@@ -121,10 +121,6 @@ public final class EscfBatchScatterer implements Releasable {
         releaseInFlight();
     }
 
-    // -------------------------------------------------------------------------
-    // Per-kind scatter dispatch
-    // -------------------------------------------------------------------------
-
     private void scatterColumn(EscfColumn col, int[] selectors, int docCount, int[] destCounts, int[] destRow, int columnIndex) {
         // Reset per-partition row counters for this column pass.
         Arrays.fill(destRow, 0, destCounts.length, 0);
@@ -293,28 +289,20 @@ public final class EscfBatchScatterer implements Releasable {
         }
     }
 
-    /**
-     * Scatters a UNION column as a bytes-to-bytes copy. The cursor is dense (one entry per row
-     * including absent rows) because the offset vector has one slot per row regardless of validity.
-     * Payload width comes from the offset vector, not the type byte, so promoted numeric absent rows
-     * (8-byte slots) copy correctly.
-     */
     private void scatterUnion(EscfUnionColumn col, int[] selectors, int docCount, int[] destRow) {
-        BytesRef typeVec = col.typeVec();
-        byte[] typeVecBytes = typeVec.bytes;
-        int typeVecOffset = typeVec.offset;
-        AbstractVarColumn.DenseBytesRefValuesCursor payloads = col.payloadCursor();
+        var cursor = col.bytesRefCursor(false);
+        int nextPresentDoc = cursor.nextDoc();
         for (int row = 0; row < docCount; row++) {
             int p = selectors[row];
-            byte type = typeVecBytes[typeVecOffset + row];
-            BytesRef payload = payloads.nextValue();
-            builders[p].addRawUnionRow(type, payload);
+            if (row == nextPresentDoc) {
+                builders[p].addRawUnionRow(col.typeByteForPresent(row), cursor.value());
+                nextPresentDoc = cursor.nextDoc();
+            } else {
+                builders[p].addAbsent();
+            }
+            destRow[p]++;
         }
     }
-
-    // -------------------------------------------------------------------------
-    // Failure handling
-    // -------------------------------------------------------------------------
 
     private void releaseInFlight() {
         // discard() on a builder is idempotent after finish() (the stream is already moved/nulled).

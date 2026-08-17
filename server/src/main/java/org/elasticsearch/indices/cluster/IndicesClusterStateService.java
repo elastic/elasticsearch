@@ -530,6 +530,37 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     /**
+     * Detects the cluster-state transition published when a snapshot is restored in place over an index that is already open, so that the
+     * node recreates the index service instead of trying to update it.
+     * <p>
+     * A restore assigns the destination a new history UUID (see {@code RestoreService#restoreOverClosedIndex}) while preserving its index
+     * UUID. The public restore API requires the destination to be closed, so today that always reaches this node as a CLOSE-to-OPEN
+     * transition, which already removes and recreates the index service. An in-place restore over an open index instead publishes an
+     * OPEN-to-OPEN transition, which would normally keep the existing index service and merely update its metadata. That is unsafe: the
+     * restored metadata changes the history UUID and may change static index settings, and {@link IndexSettings#updateIndexMetadata}
+     * rejects an in-place history UUID change.
+     * <p>
+     * The caller therefore removes the index with {@link IndexRemovalReason#REOPENED}, giving the same semantics as reopening a closed
+     * index: the index service is torn down and recreated, but the shard store is kept on disk so that the restore recovery diff can reuse
+     * identical local Lucene files.
+     *
+     * @param existingMetadata the metadata backing the index service currently loaded on this node
+     * @param newIndexMetadata the metadata for the same {@link Index}, i.e. with the same index UUID, in the new cluster state
+     */
+    private static boolean isRestoreHistoryUuidTransition(IndexMetadata existingMetadata, IndexMetadata newIndexMetadata) {
+        assert existingMetadata.getIndexUUID().equals(newIndexMetadata.getIndexUUID())
+            : "expected the same index but got [" + existingMetadata.getIndex() + "] and [" + newIndexMetadata.getIndex() + "]";
+        if (newIndexMetadata.getState() != IndexMetadata.State.OPEN) {
+            return false;
+        }
+        return historyUUID(existingMetadata).equals(historyUUID(newIndexMetadata)) == false;
+    }
+
+    private static String historyUUID(IndexMetadata indexMetadata) {
+        return indexMetadata.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID, IndexMetadata.INDEX_UUID_NA_VALUE);
+    }
+
+    /**
      * Removes indices that have no shards allocated to this node or indices whose state has changed. This does not delete the shard data
      * as we wait for enough shard copies to exist in the cluster before deleting shard data (triggered by
      * {@link org.elasticsearch.indices.store.IndicesStore}).
@@ -552,6 +583,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             IndexRemovalReason reason = null;
             if (indexMetadata != null && indexMetadata.getState() != existingMetadata.getState()) {
                 reason = indexMetadata.getState() == IndexMetadata.State.CLOSE ? CLOSED : REOPENED;
+            } else if (indexMetadata != null && isRestoreHistoryUuidTransition(existingMetadata, indexMetadata)) {
+                reason = REOPENED;
             } else if (localRoutingNode == null || localRoutingNode.hasIndex(index) == false) {
                 // if the cluster change indicates a brand new cluster, we only want
                 // to remove the in-memory structures for the index and not delete the

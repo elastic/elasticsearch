@@ -139,7 +139,7 @@ public class DataStreamTimestampFieldMapperColumnarTests extends MapperServiceTe
             IllegalArgumentException.class,
             () -> DataStreamTimestampFieldMapper.ENABLED_INSTANCE.postColumnarParse(context)
         );
-        assertThat(ex.getMessage(), equalTo("data stream timestamp field [" + DEFAULT_PATH + "] is missing"));
+        assertThat(ex.getMessage(), equalTo("document [1] is missing data stream timestamp field [" + DEFAULT_PATH + "]"));
     }
 
     /** When all documents in the batch have a @timestamp value, postColumnarParse succeeds. */
@@ -183,7 +183,7 @@ public class DataStreamTimestampFieldMapperColumnarTests extends MapperServiceTe
             IllegalArgumentException.class,
             () -> DataStreamTimestampFieldMapper.ENABLED_INSTANCE.postColumnarParse(context)
         );
-        assertThat(ex.getMessage(), equalTo("data stream timestamp field [" + DEFAULT_PATH + "] is missing"));
+        assertThat(ex.getMessage(), equalTo("document [0] is missing data stream timestamp field [" + DEFAULT_PATH + "]"));
     }
 
     /** A timestamp before the time-series window start is rejected. */

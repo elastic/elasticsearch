@@ -313,15 +313,22 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             isDateNanos = context.mappingLookup().getMapper(DEFAULT_PATH).typeName().equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE);
         }
 
+        // Unlike the row-based postParse (called per-document, failures isolated by the engine's bulk
+        // loop), this method runs once for the entire batch. Any violation rejects the whole batch.
+        // This is intentional: the columnar write path has no partial-commit mechanism.
         LongTupleCursor cursor = timestampColumn.tuples();
         int docCount = context.docCount();
         int nextPresent = cursor.nextDoc();
         for (int doc = 0; doc < docCount; doc++) {
             if (nextPresent != doc) {
-                throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is missing");
+                throw new IllegalArgumentException("document [" + doc + "] is missing data stream timestamp field [" + DEFAULT_PATH + "]");
             }
             if (shouldValidateTimestamp) {
-                validateTimestampValue(bounds, cursor.longValue(), isDateNanos);
+                try {
+                    validateTimestampValue(bounds, cursor.longValue(), isDateNanos);
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException("document [" + doc + "]: " + e.getMessage(), e);
+                }
             }
             nextPresent = cursor.nextDoc();
         }

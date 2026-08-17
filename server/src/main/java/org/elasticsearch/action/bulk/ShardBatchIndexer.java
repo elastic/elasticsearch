@@ -170,7 +170,6 @@ public final class ShardBatchIndexer {
             return new ReplicaBatchResult(0, null);
         }
 
-
         Translog.Location location = null;
         int processedItems = 0;
 

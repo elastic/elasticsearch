@@ -82,6 +82,18 @@ The direction, the decisions that constrain it, and the build order. Update as d
 - **Server-side selector wiring**: implement a concrete `NumericPipelineSelector` in server that
   inspects `FieldType`, `IndexMode`, and `MetricType` to route each field to the correct pipeline
   factory, and wire it into `PerFieldFormatSupplier`.
+- **Multi-valued string columns** — required for real keyword fields, which are commonly arrays. The
+  column is single-valued today: `ColumNARDocValuesConsumer.writeStringColumn` rejects a document
+  carrying more than one value, and `StringColumnReader` asserts the same. The substrate already
+  supplies presence and a value-address table, so this mirrors what `NumericColumnWriter` does — the
+  string metadata already carries `numValues` separately from `numDocsWithField` for exactly this.
+
+  Two things to carry over rather than rediscover. `ColumnarStringBinaryDocValues.binaryValue` relies on
+  a `PLAIN` column handing back one reused `BytesRef` per call, so collecting several values before
+  encoding would alias them onto the last one; either copy each value out or encode into the payload
+  while walking the value addresses. An assert marks the spot. And a multi-valued column is what makes
+  `numValues` able to overflow an `int`, so it lands with or after the width decision above.
+
 - **Sort the string terms dictionary** — decided, not yet built, and wanted before the format ships
   because it changes a frozen on-disk layout. Terms are currently stored in first-seen order (the POC's
   `LinkedHashMap`), so an ordinal carries no ordering relative to the term bytes. Sorting the dictionary
@@ -135,22 +147,18 @@ The direction, the decisions that constrain it, and the build order. Update as d
 - **String column follow-ups** — the initial column is a faithful port of the POC's dict-binary path;
   each of these was deliberately left out to keep that port reviewable, and each is an open question on
   the porting PR rather than a settled decision:
-  1. **Multi-valued string columns**: single-valued only today (the writer rejects a document with more
-     than one value). The substrate already supplies presence and a value-address table, so this mirrors
-     what `NumericColumnWriter` does; note `ColumnarStringBinaryDocValues.binaryValue` currently relies
-     on one reused `BytesRef` per document and has to copy once several values are collected.
-  2. **Cardinality policy**: the probe accepts a dictionary purely on distinct count
+  1. **Cardinality policy**: the probe accepts a dictionary purely on distinct count
      (`StringDictionary.MAX_SIZE`, 256) with no ratio guard, so a small column whose values are nearly
      all distinct still pays for a dictionary that cannot pay for itself. A ratio guard
      (`distinct * 2 <= numValues`) and a larger cap are both worth measuring — the cap and the
      dictionary layout are the tuning knobs. Raising the cap is also a heap decision, since the
      dictionary is the column's one heap-resident structure.
-  3. **Skip index and a string range query**: the string column writes no skip index, so there is no
+  2. **Skip index and a string range query**: the string column writes no skip index, so there is no
      `ColumnarStringRangeQuery` counterpart yet. The `DICTIONARY` half depends on the sorted dictionary
      above and can then reuse numeric-style min/max skipping over ordinals; the `PLAIN` half cannot, and
      needs a byte-oriented structure (min/max term per interval) that does not exist yet. Worth deciding
      whether `PLAIN` gets a skip index at all, or whether high-cardinality string columns simply scan.
-  4. **Ordinal pipeline selection**: the ordinal stream is hardcoded to
+  3. **Ordinal pipeline selection**: the ordinal stream is hardcoded to
      `NumericPipeline.defaultPipeline`. Routing it through `NumericPipelineSelector`, or giving it a
      dedicated ordinal pipeline, is untested either way. `NumericBlockEncoder.encodeOrdinals` /
      `decodeOrdinals` (the run / two-run / cycle / bit-packed codec) is present but unused, is

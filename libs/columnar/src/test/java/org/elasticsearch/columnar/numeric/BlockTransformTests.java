@@ -9,8 +9,7 @@
 
 package org.elasticsearch.columnar.numeric;
 
-import org.apache.lucene.store.ByteArrayDataInput;
-import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -18,16 +17,22 @@ import java.util.Arrays;
 
 /**
  * Directly round-trips each {@link BlockTransform} stage ({@link DeltaTransform}, {@link OffsetTransform},
- * {@link GcdTransform}) over a range of block shapes: {@code tryEncode} into a params buffer, then
- * {@code decode} back, asserting the block is restored exactly. When a stage declines ({@code tryEncode}
- * returns {@code false}) the block and its params must be left untouched.
+ * {@link GcdTransform}, {@link SplitDeltaTransform}, {@link AlpDoubleTransform}) over a range of block
+ * shapes: {@code tryEncode} into a params buffer, then {@code decode} back, asserting the block is
+ * restored exactly. When a stage declines ({@code tryEncode} returns {@code false}) the block and its
+ * params must be left untouched.
  */
 public class BlockTransformTests extends ESTestCase {
 
     private static final int BLOCK = 128;
 
     private static BlockTransform[] stages() {
-        return new BlockTransform[] { DeltaTransform.INSTANCE, OffsetTransform.INSTANCE, GcdTransform.INSTANCE };
+        return new BlockTransform[] {
+            DeltaTransform.INSTANCE,
+            OffsetTransform.INSTANCE,
+            GcdTransform.INSTANCE,
+            new SplitDeltaTransform(),
+            new AlpDoubleTransform(BLOCK) };
     }
 
     public void testConstant() throws IOException {
@@ -98,6 +103,16 @@ public class BlockTransformTests extends ESTestCase {
         }
     }
 
+    public void testSortableDoubles() throws IOException {
+        // Sortable longs encoding IEEE doubles with a one-decimal stride: ALP fires and round-trips.
+        long[] block = new long[BLOCK];
+        double base = 20.0 + randomDoubleBetween(0.0, 5.0, true);
+        for (int i = 0; i < BLOCK; i++) {
+            block[i] = NumericUtils.doubleToSortableLong(base + i * 0.1);
+        }
+        assertAllStages(block);
+    }
+
     private void assertAllStages(long[] original) throws IOException {
         for (BlockTransform stage : stages()) {
             // Full block, then a partial count: the stage must fit and round-trip only the real prefix,
@@ -110,11 +125,11 @@ public class BlockTransformTests extends ESTestCase {
     private static void assertStageRoundTrip(BlockTransform stage, long[] original, int valueCount) throws IOException {
         String name = stage.getClass().getSimpleName() + "[valueCount=" + valueCount + "]";
         long[] work = original.clone();
-        ByteBuffersDataOutput params = new ByteBuffersDataOutput();
+        MetadataBuffer params = new MetadataBuffer();
         boolean fired = stage.tryEncode(work, valueCount, params);
         if (fired) {
             long[] decoded = work.clone();
-            stage.decode(decoded, valueCount, new ByteArrayDataInput(params.toArrayCopy()));
+            stage.decode(decoded, valueCount, DataInputMetadataReader.wrap(params));
             for (int i = 0; i < valueCount; i++) {
                 assertEquals(name + " must round-trip value " + i + " when it fires", original[i], decoded[i]);
             }

@@ -143,6 +143,10 @@ dependencies {
     implementation buildLibs.jackson.core
     implementation buildLibs.jackson.databind
     implementation "io.opentelemetry.proto:opentelemetry-proto:1.7.0-alpha"
+    // gRPC server for MockApmServer's OTLP receiver.
+    implementation "io.grpc:grpc-stub:1.78.0"
+    implementation "io.grpc:grpc-protobuf:1.78.0"
+    runtimeOnly "io.grpc:grpc-netty-shaded:1.78.0"
 
     testFixturesApi buildLibs.commmons.io
     testFixturesApi gradleApi()
@@ -188,7 +192,12 @@ tasks.register("integTest", Test) {
     // The nested Gradle TestKit runners require an absolute path, so a relative value is not an option here.
     // A CommandLineArgumentProvider keeps that absolute path out of the task inputs so it stays cache relocatable.
     def tempDir = temporaryDir
-    jvmArgumentProviders.add({ ["-Djava.io.tmpdir=${tempDir}"] as List<String> } as CommandLineArgumentProvider)
+    // Pin the TestKit Gradle user home instead of letting TestKit derive it from java.io.tmpdir, so that
+    // AbstractGradleFuncTest knows exactly where to seed its cache-cleanup init script.
+    def testKitDir = new File(temporaryDir, ".gradle-test-kit")
+    jvmArgumentProviders.add({
+        ["-Djava.io.tmpdir=${tempDir}", "-Dorg.gradle.testkit.dir=${testKitDir}"] as List<String>
+    } as CommandLineArgumentProvider)
     useJUnitPlatform()
 }
 

@@ -19,7 +19,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.cache.StatelessCacheEvictionPolicyType;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
@@ -105,6 +106,7 @@ import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
 import org.elasticsearch.xpack.stateless.reshard.ReshardUnownedBitsetCache;
+import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -150,10 +152,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     protected NodeEnvironment nodeEnvironment;
 
     @SuppressWarnings("unchecked")
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initEngineResources() throws Exception {
         threadPools = ConcurrentCollections.newConcurrentMap();
         sharedBlobCacheService = mock(StatelessSharedBlobCacheService.class);
         int cacheRegionSize = BlobCacheUtils.toIntBytes(SHARED_CACHE_REGION_SIZE_SETTING.get(Settings.EMPTY).getBytes());
@@ -168,8 +168,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         nodeEnvironment = newNodeEnvironment();
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void cleanupEngineResources() throws Exception {
         var iterator = threadPools.entrySet().iterator();
         while (iterator.hasNext()) {
             var entry = iterator.next();
@@ -186,7 +186,6 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 breaker.getUsed()
             );
         }
-        super.tearDown();
     }
 
     private ThreadPool registerThreadPool(final ThreadPool threadPool) {
@@ -491,19 +490,32 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(indexSettings.getNodeSettings()),
             nodeEnvironment
         );
+        var cacheClusterService = TestUtils.mockClusterService(indexSettings.getSettings());
         var cache = new StatelessSharedBlobCacheService(
             nodeEnvironment,
             indexSettings.getSettings(),
+            cacheClusterService.getClusterSettings(),
             threadPool,
             BlobCacheMetrics.NOOP,
-            mock(ClusterService.class),
-            TestUtils.mockIndicesService(mock(ClusterService.class)),
+            StatelessCacheEvictionPolicyType.createEvictionPolicy(
+                indexSettings.getSettings(),
+                cacheClusterService,
+                TestUtils.mockIndicesService(cacheClusterService),
+                threadPool
+            ),
             System::nanoTime,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
-        );
+        ) {};
         SearchDirectory directory = new SearchDirectory(
             cache,
-            new CacheBlobReaderService(indexSettings.getSettings(), cache, mock(Client.class), threadPool) {
+            new CacheBlobReaderService(
+                indexSettings.getSettings(),
+                cache,
+                mock(Client.class),
+                threadPool,
+                TestUtils.unmeteredFillCacheMemoryPressure(indexSettings.getSettings(), threadPool)
+            ) {
                 @Override
                 public CacheBlobReader getCacheBlobReader(
                     ShardId shardId,
@@ -514,7 +526,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                     LongConsumer totalBytesReadFromIndexing,
                     BlobCacheMetrics.CachePopulationReason cachePopulationReason,
                     Executor objectStoreFetchExecutor,
-                    String fileName
+                    String fileName,
+                    boolean speculativeFill
                 ) {
                     getBlobReader.accept(this, blobFile);
                     return super.getCacheBlobReader(
@@ -526,7 +539,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                         totalBytesReadFromIndexing,
                         cachePopulationReason,
                         objectStoreFetchExecutor,
-                        fileName
+                        fileName,
+                        speculativeFill
                     );
                 }
             },
@@ -654,7 +668,13 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         );
         var directory = new SearchDirectory(
             sharedBlobCacheService,
-            new CacheBlobReaderService(indexSettings.getSettings(), sharedBlobCacheService, mock(Client.class), threadPool),
+            new CacheBlobReaderService(
+                indexSettings.getSettings(),
+                sharedBlobCacheService,
+                mock(Client.class),
+                threadPool,
+                TestUtils.unmeteredFillCacheMemoryPressure(indexSettings.getSettings(), threadPool)
+            ),
             objectStoreUploadTracker,
             shardId,
             randomBoolean()

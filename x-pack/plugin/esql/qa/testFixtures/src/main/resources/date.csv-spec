@@ -293,7 +293,6 @@ date1:date               | dd_ms:integer
 ;
 
 dateDiffTestWarnings
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: functions_source_serialization_warnings
 
 FROM employees
@@ -408,6 +407,19 @@ ROW diff = DATE_DIFF("months", "2010-10-07T00:00:00-03:00"::date, "2010-11-06T23
 
 diff:integer
 0
+;
+
+dateDiffUnitFromField
+FROM date_extract_fields
+| EVAL diff = DATE_DIFF(inner_val, "2022-01-01T00:00:00.000Z"::date, "2023-01-01T00:00:00.000Z"::date)
+| KEEP inner_val, diff
+| SORT inner_val;
+
+inner_val:keyword | diff:integer
+day               | 365
+hour              | 8760
+month             | 12
+year              | 1
 ;
 
 evalDateParseWithSimpleDate

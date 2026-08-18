@@ -249,7 +249,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             int bucketSize,
             BucketedSort.ExtraData extra
         ) {
-            throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
+            throw new IllegalArgumentException("Can't sort on the [" + CONTENT_TYPE + "] field");
         }
 
         private static LeafFieldData wrap(LeafFieldData in) {
@@ -392,6 +392,14 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     public static IndexableField columnarIdField(String id) {
         BytesRef encoded = Uid.encodeId(id);
         return new ColumnarIdField(NAME, encoded);
+    }
+
+    /**
+     * Columnar {@code _id} field for an already-encoded uid. Used by slice-enabled indices, whose identity term is the
+     * compound {@code (slice, id)} uid rather than a plain {@link Uid#encodeId(String)}.
+     */
+    public static IndexableField columnarIdField(BytesRef uid) {
+        return new ColumnarIdField(NAME, uid);
     }
 
     static final class ColumnarIdField extends Field {

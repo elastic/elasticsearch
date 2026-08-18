@@ -12,11 +12,14 @@ package org.elasticsearch.action.update;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.UntypedActionRequest;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
-import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -26,6 +29,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
@@ -46,11 +50,20 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
-public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
+public class UpdateRequest extends UntypedActionRequest
     implements
+        IndicesRequest,
         DocWriteRequest<UpdateRequest>,
         WriteRequest<UpdateRequest>,
         ToXContentObject {
+
+    private TimeValue timeout = TimeValue.timeValueMinutes(1);
+
+    private String index;
+    // null means its not set, allows to explicitly direct a request to a specific shard
+    protected ShardId shardId = null;
+
+    private String concreteIndex;
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(UpdateRequest.class);
 
@@ -132,7 +145,23 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     public UpdateRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
-        super(shardId, in);
+        super(in);
+        // Do a full read if no shard id is given (indicating that this instance isn't read as part of a BulkShardRequest or that `in` is of
+        // an older version) and is in the format used by #writeTo.
+        if (shardId == null) {
+            index = in.readString();
+            this.shardId = in.readOptionalWriteable(ShardId::new);
+        } else {
+            // We know a shard id so we read the format given by #writeThin
+            this.shardId = shardId;
+            if (in.readBoolean()) {
+                index = in.readString();
+            } else {
+                index = shardId.getIndexName();
+            }
+        }
+        timeout = in.readTimeValue();
+        concreteIndex = in.readOptionalString();
         waitForActiveShards = ActiveShardCount.readFrom(in);
         id = in.readString();
         routing = in.readOptionalString();
@@ -157,13 +186,17 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     public UpdateRequest(String index, String id) {
-        super(index);
+        this.index = index;
         this.id = id;
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = super.validate();
+        ActionRequestValidationException validationException = null;
+        if (index == null) {
+            validationException = ValidateActions.addValidationError("index is missing", validationException);
+        }
+
         if (upsertRequest != null && upsertRequest.version() != Versions.MATCH_ANY) {
             validationException = addValidationError("can't provide version in upsert request", validationException);
         }
@@ -243,7 +276,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     /**
-     * Marks whether the effective routing value was provided via the {@code _slice} API parameter.
+     * Marks whether the effective routing value was provided via the {@code slice} API parameter.
      */
     @Override
     public UpdateRequest setRoutingFromSlice(boolean routingFromSlice) {
@@ -252,7 +285,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     /**
-     * Returns {@code true} when this request routing came from the {@code _slice} API parameter.
+     * Returns {@code true} when this request routing came from the {@code slice} API parameter.
      */
     @Override
     public boolean isRoutingFromSlice() {
@@ -655,6 +688,47 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return this;
     }
 
+    @Override
+    public String index() {
+        return index;
+    }
+
+    @Override
+    public String[] indices() {
+        return new String[] { index };
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+    }
+
+    @Override
+    public final UpdateRequest index(String index) {
+        this.index = index;
+        return this;
+    }
+
+    public TimeValue timeout() {
+        return timeout;
+    }
+
+    /**
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
+     */
+    public final UpdateRequest timeout(TimeValue timeout) {
+        this.timeout = timeout;
+        return this;
+    }
+
+    public String concreteIndex() {
+        return concreteIndex;
+    }
+
+    void concreteIndex(String concreteIndex) {
+        this.concreteIndex = concreteIndex;
+    }
+
     /**
      * Should this update attempt to detect if it is a noop? Defaults to true.
      */
@@ -713,12 +787,23 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeString(index);
+        out.writeOptionalWriteable(shardId);
+        out.writeTimeValue(timeout);
+        out.writeOptionalString(concreteIndex);
         doWrite(out, false);
     }
 
-    @Override
     public void writeThin(StreamOutput out) throws IOException {
-        super.writeThin(out);
+        super.writeTo(out);
+        if (shardId != null && index.equals(shardId.getIndexName())) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeString(index);
+        }
+        out.writeTimeValue(timeout);
+        out.writeOptionalString(concreteIndex);
         doWrite(out, true);
     }
 

@@ -25,6 +25,7 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
+import static org.elasticsearch.rest.action.admin.indices.RestPutComponentTemplateAction.FAILURE_STORE_LIFECYCLE_REJECTS_FROZEN_AFTER;
 import static org.elasticsearch.rest.action.admin.indices.RestPutComponentTemplateAction.SUPPORTS_DOWNSAMPLING_METHOD;
 import static org.elasticsearch.rest.action.admin.indices.RestPutComponentTemplateAction.SUPPORTS_FAILURE_STORE;
 import static org.elasticsearch.rest.action.admin.indices.RestPutComponentTemplateAction.SUPPORTS_FAILURE_STORE_LIFECYCLE;
@@ -40,7 +41,8 @@ public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
         SUPPORTS_FAILURE_STORE_LIFECYCLE,
         INDEX_TEMPLATE_TRACKING_INFO,
         SUPPORTS_DOWNSAMPLING_METHOD,
-        SUPPORTS_FROZEN_AFTER
+        SUPPORTS_FROZEN_AFTER,
+        FAILURE_STORE_LIFECYCLE_REJECTS_FROZEN_AFTER
     );
 
     @Override

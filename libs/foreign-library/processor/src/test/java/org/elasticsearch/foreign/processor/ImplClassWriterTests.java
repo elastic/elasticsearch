@@ -157,7 +157,7 @@ public class ImplClassWriterTests extends ProcessorTestCase {
      * Verifies that a {@code String} parameter is accepted and generates a class whose method
      * takes a {@code String} on the Java side. The generated method body must open a confined
      * {@code Arena}, allocate the String into native memory via
-     * {@code MemorySegmentUtil.allocateString}, pass the resulting {@code MemorySegment} to
+     * {@code MemorySegmentAdapter.allocateString}, pass the resulting {@code MemorySegment} to
      * {@code invokeExact}, and close the arena in both normal and exceptional paths.
      *
      * <p>We verify structurally: the generated class must have a {@code sandbox_init$mh} field
@@ -194,11 +194,12 @@ public class ImplClassWriterTests extends ProcessorTestCase {
     }
 
     /**
-     * A {@code @CaptureErrno @Function} method must generate a class WITHOUT a per-class
-     * {@code errnoState} field — the shared {@code LinkerHelper.ERRNO_STATE} is used instead.
-     * Also initializes the class to exercise the emitted {@code Linker.Option.captureCallState}
-     * (and {@code firstVariadicArg} in the {@code @Variadic} case) bytecode against the real FFM
-     * API, catching descriptor mismatches that {@code loadClassNoInit} would miss.
+     * A {@code @CaptureSystemError @Function} method on a POSIX-targeting library (errno channel) must
+     * generate a class WITHOUT a per-class {@code systemErrorState} field — the shared
+     * {@code LinkerHelper.SYSTEM_ERROR_STATE} is used instead. Also initializes the class to exercise the
+     * emitted {@code Linker.Option.captureCallState} (and {@code firstVariadicArg} in the
+     * {@code @Variadic} case) bytecode against the real FFM API, catching descriptor mismatches that
+     * {@code loadClassNoInit} would miss.
      *
      * <p>The custom {@link org.elasticsearch.foreign.SymbolResolver} returns a fake non-null
      * address so {@code linker.downcallHandle} succeeds at class-init time without needing a
@@ -206,24 +207,25 @@ public class ImplClassWriterTests extends ProcessorTestCase {
      * (e.g. {@code captureCallState} declared as varargs but emitted as a single {@code String})
      * still surfaces here because it fires before {@code downcallHandle} is even called.
      */
-    public void testCaptureErrnoAndVariadicInitializeAgainstFfmApi() throws Exception {
+    public void testSystemErrorErrnoAndVariadicInitializeAgainstFfmApi() throws Exception {
         String source = """
             package test;
             import java.lang.foreign.MemorySegment;
             import java.lang.foreign.SymbolLookup;
-            import org.elasticsearch.foreign.CaptureErrno;
             import org.elasticsearch.foreign.Function;
             import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Platform;
             import org.elasticsearch.foreign.ResolvedSymbol;
             import org.elasticsearch.foreign.SymbolResolver;
+            import org.elasticsearch.foreign.CaptureSystemError;
             import org.elasticsearch.foreign.Variadic;
-            @LibrarySpecification(symbolResolver = ErrnoLib.FakeResolver.class)
+            @LibrarySpecification(unavailableOn = { Platform.WINDOWS_X64 }, symbolResolver = ErrnoLib.FakeResolver.class)
             public interface ErrnoLib {
-                @CaptureErrno
+                @CaptureSystemError
                 @Function("foo")
                 int foo(int x);
 
-                @CaptureErrno
+                @CaptureSystemError
                 @Variadic(firstArg = 1)
                 @Function("bar")
                 long bar(long a, int b);
@@ -249,10 +251,10 @@ public class ImplClassWriterTests extends ProcessorTestCase {
         Class<?> implClass = result.loadClass("test.ErrnoLib$Impl");
         assertNotNull("Generated ErrnoLib$Impl class not found", implClass);
 
-        // Must NOT have a per-class errnoState field — the shared LinkerHelper.ERRNO_STATE is used.
+        // Must NOT have a per-class systemErrorState field — the shared LinkerHelper.SYSTEM_ERROR_STATE is used.
         try {
-            implClass.getDeclaredField("errnoState");
-            fail("ErrnoLib$Impl must not have a per-class errnoState field");
+            implClass.getDeclaredField("systemErrorState");
+            fail("ErrnoLib$Impl must not have a per-class systemErrorState field");
         } catch (NoSuchFieldException expected) {
             // expected
         }
@@ -260,6 +262,75 @@ public class ImplClassWriterTests extends ProcessorTestCase {
         // Both MethodHandle fields must exist.
         assertEquals(MethodHandle.class, implClass.getDeclaredField("foo$mh").getType());
         assertEquals(MethodHandle.class, implClass.getDeclaredField("bar$mh").getType());
+    }
+
+    /**
+     * A {@code @CaptureSystemError @Function} method on a Windows-only library (GetLastError channel) must
+     * generate a class WITHOUT a per-class {@code systemErrorState} field — the shared segment is
+     * obtained at call-time via {@code LinkerHelper.systemErrorState()}. Verified structurally via
+     * {@code loadClassNoInit}: class-init cannot be driven on non-Windows because
+     * {@code Linker.Option.captureCallState("GetLastError")} throws
+     * {@code IllegalArgumentException} before any descriptor is even built. On Windows, class-init
+     * is exercised by the Windows-gated {@code LinkerHelperTests} test.
+     *
+     * <p>The library marks every POSIX platform unavailable, which is what makes {@code @CaptureSystemError}
+     * resolve to the {@code GetLastError} channel rather than {@code errno}.
+     *
+     * <p>The custom {@link org.elasticsearch.foreign.SymbolResolver} returns a fake non-null
+     * address so a hypothetical {@code linker.downcallHandle} call would succeed without needing a
+     * real native symbol on the classpath; it is unused by the {@code loadClassNoInit} path but
+     * kept for parity with the errno test and to keep the fixture realistic.
+     */
+    public void testSystemErrorLastErrorInitializesAgainstFfmApi() throws Exception {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import java.lang.foreign.SymbolLookup;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Platform;
+            import org.elasticsearch.foreign.ResolvedSymbol;
+            import org.elasticsearch.foreign.SymbolResolver;
+            import org.elasticsearch.foreign.CaptureSystemError;
+            @LibrarySpecification(
+                unavailableOn = {
+                    Platform.LINUX_X64,
+                    Platform.LINUX_AARCH64,
+                    Platform.DARWIN_X64,
+                    Platform.DARWIN_AARCH64
+                },
+                symbolResolver = LastErrorLib.FakeResolver.class
+            )
+            public interface LastErrorLib {
+                @CaptureSystemError
+                @Function("foo")
+                int foo(int x);
+
+                class FakeResolver implements SymbolResolver {
+                    public FakeResolver() {}
+                    public ResolvedSymbol resolve(String name, SymbolLookup lookup) {
+                        // downcallHandle validates the address is non-NULL; any positive value works.
+                        return new ResolvedSymbol(name, MemorySegment.ofAddress(1L));
+                    }
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.LastErrorLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Class<?> implClass = result.loadClassNoInit("test.LastErrorLib$Impl");
+        assertNotNull("Generated LastErrorLib$Impl class not found", implClass);
+
+        // Must NOT have a per-class systemErrorState field — shared via LinkerHelper.systemErrorState().
+        try {
+            implClass.getDeclaredField("systemErrorState");
+            fail("LastErrorLib$Impl must not have a per-class systemErrorState field");
+        } catch (NoSuchFieldException expected) {
+            // expected
+        }
+
+        assertEquals(MethodHandle.class, implClass.getDeclaredField("foo$mh").getType());
     }
 
     /**
@@ -950,18 +1021,19 @@ public class ImplClassWriterTests extends ProcessorTestCase {
             package test;
             import java.lang.foreign.MemorySegment;
             import java.lang.foreign.SymbolLookup;
-            import org.elasticsearch.foreign.CaptureErrno;
             import org.elasticsearch.foreign.Function;
             import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Platform;
             import org.elasticsearch.foreign.ResolvedSymbol;
             import org.elasticsearch.foreign.SymbolResolver;
+            import org.elasticsearch.foreign.CaptureSystemError;
             import org.elasticsearch.foreign.Variadic;
-            @LibrarySpecification(symbolResolver = OpenLib.FakeResolver.class)
+            @LibrarySpecification(unavailableOn = { Platform.WINDOWS_X64 }, symbolResolver = OpenLib.FakeResolver.class)
             public interface OpenLib {
-                @CaptureErrno @Variadic(firstArg = 2) @Function("open")
+                @CaptureSystemError @Variadic(firstArg = 2) @Function("open")
                 int open(String pathname, int flags);
 
-                @CaptureErrno @Variadic(firstArg = 2) @Function("open")
+                @CaptureSystemError @Variadic(firstArg = 2) @Function("open")
                 int open(String pathname, int flags, int mode);
 
                 class FakeResolver implements SymbolResolver {

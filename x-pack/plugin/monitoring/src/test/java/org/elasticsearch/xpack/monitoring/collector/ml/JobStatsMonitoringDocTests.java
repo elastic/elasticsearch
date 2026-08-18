@@ -45,10 +45,8 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
 
     private JobStats mockJobStats;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initJobStatsMock() throws Exception {
         mockJobStats = mock(JobStats.class);
     }
 

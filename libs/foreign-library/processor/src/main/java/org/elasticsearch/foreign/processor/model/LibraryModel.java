@@ -13,9 +13,12 @@ import org.elasticsearch.foreign.DefaultMethodHandleResolver;
 import org.elasticsearch.foreign.DefaultSymbolResolver;
 import org.elasticsearch.foreign.LibrarySpecification;
 import org.elasticsearch.foreign.MethodHandleResolver;
+import org.elasticsearch.foreign.Platform;
 import org.elasticsearch.foreign.SymbolResolver;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -47,7 +50,7 @@ import javax.tools.Diagnostic.Kind;
  * @param libraryName the native library name from {@code @LibrarySpecification.name()} (may be empty)
  * @param methods all native methods in declaration order
  * @param unavailableOn enum constant names of platforms where this library is unavailable (empty means available everywhere)
- * @param structs all {@code @StructSpecification} types enclosed in this interface, in declaration order
+ * @param structs every {@code @StructSpecification} type enclosed in this interface, in declaration order
  * @param symbolResolverClassName fully-qualified name of the {@link SymbolResolver} implementation
  *        (defaults to {@code org.elasticsearch.foreign.DefaultSymbolResolver})
  * @param methodHandleResolverClassName fully-qualified name of the {@link MethodHandleResolver} implementation
@@ -67,14 +70,12 @@ public record LibraryModel(
     boolean isAbstractClass
 ) {
 
-    /** All known platform names — used to detect a library that can never be natively loaded. */
-    private static final Set<String> ALL_PLATFORM_NAMES = Set.of(
-        "LINUX_X64",
-        "LINUX_AARCH64",
-        "DARWIN_X64",
-        "DARWIN_AARCH64",
-        "WINDOWS_X64"
-    );
+    /**
+     * All known platform names in {@link Platform} enum (ordinal) order — used to detect a library
+     * that can never be natively loaded, and as the canonical iteration order for the supported
+     * platform set so generated output is deterministic. Derived from the enum so it stays in sync.
+     */
+    private static final List<String> ALL_PLATFORM_NAMES = Arrays.stream(Platform.values()).map(Enum::name).toList();
 
     public static final String SYMBOL_RESOLVER_INTERFACE_FQN = SymbolResolver.class.getName();
     public static final String DEFAULT_SYMBOL_RESOLVER_FQN = DefaultSymbolResolver.class.getName();
@@ -124,21 +125,24 @@ public record LibraryModel(
 
         boolean hasError = false;
         if (unavailableOn.containsAll(ALL_PLATFORM_NAMES)) {
+            // No supported platforms means no layout can be resolved, so bail out before parsing
+            // structs (which would otherwise operate over an empty platform set). This is an
+            // invalid specification, not a degraded-but-usable one.
             messager.printMessage(
                 Kind.ERROR,
                 "@LibrarySpecification.unavailableOn lists all known platforms; the library will never be natively loaded",
                 element,
                 specMirror
             );
-            hasError = true;
+            return null;
         }
 
-        String symbolResolverClassName = resolveAndValidateSymbolResolver(element, messager, env.getTypeUtils());
+        String symbolResolverClassName = resolveAndValidateSymbolResolver(element, messager, env.getTypeUtils(), packageName);
         if (symbolResolverClassName == null) {
             hasError = true;
         }
 
-        String methodHandleResolverClassName = resolveAndValidateMethodHandleResolver(element, messager, env.getTypeUtils());
+        String methodHandleResolverClassName = resolveAndValidateMethodHandleResolver(element, messager, env.getTypeUtils(), packageName);
         if (methodHandleResolverClassName == null) {
             hasError = true;
         }
@@ -147,6 +151,10 @@ public record LibraryModel(
             messager.printMessage(Kind.ERROR, "@LibrarySpecification abstract class must have a callable no-arg constructor", element);
             hasError = true;
         }
+
+        // Compute the set of platforms this library is available on.
+        Set<String> supportedPlatforms = new LinkedHashSet<>(ALL_PLATFORM_NAMES);
+        supportedPlatforms.removeAll(unavailableOn);
 
         // First pass: collect struct specifications in declaration order
         List<StructModel> structs = new ArrayList<>();
@@ -178,8 +186,8 @@ public record LibraryModel(
             }
 
             StructModel structModel = kind == ElementKind.RECORD
-                ? StructSpecParser.fromRecord(typeElement, messager)
-                : StructSpecParser.fromInterface(typeElement, structSimpleNames, env, messager);
+                ? StructSpecParser.fromRecord(typeElement, supportedPlatforms, messager)
+                : StructSpecParser.fromInterface(typeElement, structSimpleNames, supportedPlatforms, env, messager);
             if (structModel == null) {
                 hasError = true;
             } else {
@@ -207,7 +215,7 @@ public record LibraryModel(
                 }
             }
 
-            MethodModel methodModel = MethodModel.from(method, env, structSimpleNames);
+            MethodModel methodModel = MethodModel.from(method, env, structSimpleNames, unavailableOn);
             if (methodModel == null) {
                 hasError = true;
             } else {
@@ -234,12 +242,12 @@ public record LibraryModel(
     /**
      * Resolves and validates the {@code symbolResolver} attribute from {@link LibrarySpecification}.
      * Returns the default ({@link DefaultSymbolResolver}) when no custom resolver is specified.
-     * The resolver class must implement {@link SymbolResolver} and have a public no-arg constructor.
+     * The resolver class must implement {@link SymbolResolver} and be instantiable from the spec's package.
      *
      * @return the resolver's fully-qualified name (never null on success), or {@code null} if validation failed
      *         (error already emitted).
      */
-    private static String resolveAndValidateSymbolResolver(TypeElement element, Messager messager, Types types) {
+    private static String resolveAndValidateSymbolResolver(TypeElement element, Messager messager, Types types, String specPackageName) {
         AnnotationMirror specMirror = ModelUtil.findAnnotationMirror(element, LIBRARY_SPECIFICATION_FQN);
         if (specMirror == null) {
             return DEFAULT_SYMBOL_RESOLVER_FQN;
@@ -275,10 +283,15 @@ public record LibraryModel(
             return null;
         }
 
-        if (hasPublicNoArgConstructor(resolverElement) == false) {
+        if (isTypeReachableFrom(resolverElement, specPackageName) == false
+            || hasReachableNoArgConstructor(resolverElement, specPackageName) == false) {
             messager.printMessage(
                 Kind.ERROR,
-                "symbolResolver class [" + resolverFqn + "] must have a public no-arg constructor",
+                "symbolResolver class ["
+                    + resolverFqn
+                    + "] must have a no-arg constructor reachable from package ["
+                    + specPackageName
+                    + "]",
                 element,
                 specMirror
             );
@@ -291,12 +304,17 @@ public record LibraryModel(
     /**
      * Resolves and validates the {@code methodHandleResolver} attribute from {@link LibrarySpecification}.
      * Returns the default ({@link DefaultMethodHandleResolver}) when no custom resolver is specified.
-     * The resolver class must implement {@link MethodHandleResolver} and have a public no-arg constructor.
+     * The resolver class must implement {@link MethodHandleResolver} and be instantiable from the spec's package.
      *
      * @return the resolver's fully-qualified name (never null on success), or {@code null} if validation failed
      *         (error already emitted).
      */
-    private static String resolveAndValidateMethodHandleResolver(TypeElement element, Messager messager, Types types) {
+    private static String resolveAndValidateMethodHandleResolver(
+        TypeElement element,
+        Messager messager,
+        Types types,
+        String specPackageName
+    ) {
         AnnotationMirror specMirror = ModelUtil.findAnnotationMirror(element, LIBRARY_SPECIFICATION_FQN);
         TypeMirror resolverTypeMirror = ModelUtil.annotationClassValue(specMirror, "methodHandleResolver");
         if (resolverTypeMirror == null) {
@@ -328,10 +346,15 @@ public record LibraryModel(
             return null;
         }
 
-        if (hasPublicNoArgConstructor(resolverElement) == false) {
+        if (isTypeReachableFrom(resolverElement, specPackageName) == false
+            || hasReachableNoArgConstructor(resolverElement, specPackageName) == false) {
             messager.printMessage(
                 Kind.ERROR,
-                "methodHandleResolver class [" + resolverFqn + "] must have a public no-arg constructor",
+                "methodHandleResolver class ["
+                    + resolverFqn
+                    + "] must have a no-arg constructor reachable from package ["
+                    + specPackageName
+                    + "]",
                 element,
                 specMirror
             );
@@ -377,17 +400,17 @@ public record LibraryModel(
         return name.toString();
     }
 
-    private static boolean hasPublicNoArgConstructor(TypeElement type) {
-        for (var enclosed : type.getEnclosedElements()) {
-            if (enclosed.getKind() != ElementKind.CONSTRUCTOR) {
-                continue;
-            }
-            ExecutableElement ctor = (ExecutableElement) enclosed;
-            if (ctor.getParameters().isEmpty() && ctor.getModifiers().contains(Modifier.PUBLIC)) {
-                return true;
-            }
+    private static boolean isTypeReachableFrom(TypeElement type, String specPackageName) {
+        return type.getModifiers().contains(Modifier.PUBLIC) || packageNameOf(type).equals(specPackageName);
+    }
+
+    /** Returns the package name of the given type, or the empty string for the unnamed package. */
+    private static String packageNameOf(TypeElement type) {
+        var enclosing = type.getEnclosingElement();
+        while (enclosing instanceof TypeElement enclosingType) {
+            enclosing = enclosingType.getEnclosingElement();
         }
-        return false;
+        return enclosing instanceof javax.lang.model.element.PackageElement pkg ? pkg.getQualifiedName().toString() : "";
     }
 
     /**
@@ -410,6 +433,22 @@ public record LibraryModel(
             }
         }
         // No explicit constructors → Java provides an implicit public no-arg constructor.
+        return foundAnyConstructor == false;
+    }
+
+    /** true if {@code new type()} is legal from {@code specPackageName}. */
+    private static boolean hasReachableNoArgConstructor(TypeElement type, String specPackageName) {
+        boolean samePackage = packageNameOf(type).equals(specPackageName);
+        boolean foundAnyConstructor = false;
+        for (var enclosed : type.getEnclosedElements()) {
+            if (enclosed.getKind() != ElementKind.CONSTRUCTOR) continue;
+            foundAnyConstructor = true;
+            var ctor = (ExecutableElement) enclosed;
+            if (ctor.getParameters().isEmpty() == false) continue;
+            var mods = ctor.getModifiers();
+            // protected/package-private reach `new` only from within the same package
+            if (mods.contains(Modifier.PRIVATE) == false && (mods.contains(Modifier.PUBLIC) || samePackage)) return true;
+        }
         return foundAnyConstructor == false;
     }
 

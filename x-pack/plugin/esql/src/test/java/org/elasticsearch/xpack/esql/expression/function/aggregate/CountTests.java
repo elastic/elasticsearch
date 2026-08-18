@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -81,6 +82,12 @@ public class CountTests extends AbstractAggregationTestCase {
                 .toList()
         ).flatMap(List::stream).map(CountTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
+        Stream.of(MultiRowTestCaseSupplier.tdigestCases(1, 1000), MultiRowTestCaseSupplier.exponentialHistogramCases(1, 1000))
+            .flatMap(List::stream)
+            .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
+            .map(CountTests::makeBucketSupplier)
+            .forEach(suppliers::add);
+
         // No rows
         List<DataType> types = List.of(
             DataType.NULL,
@@ -131,7 +138,7 @@ public class CountTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Count(source, args.get(0));
+        return args.size() == 1 ? new Count(source, args.get(0)) : new Count(source, args.get(0), args.get(1));
     }
 
     static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
@@ -162,4 +169,28 @@ public class CountTests extends AbstractAggregationTestCase {
             return new TestCaseSupplier.TestCase(List.of(fieldTypedData), evaluatorToString, DataType.LONG, equalTo(count));
         });
     }
+
+    private static TestCaseSupplier makeBucketSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
+        return new TestCaseSupplier(fieldSupplier.name() + ", bucket", List.of(fieldSupplier.type(), DataType.DOUBLE_RANGE), () -> {
+            var fieldTypedData = fieldSupplier.get();
+            var bucket = new TestCaseSupplier.TypedData(
+                new DoubleRangeBlockBuilder.DoubleRange(-Double.MAX_VALUE, Double.MAX_VALUE),
+                DataType.DOUBLE_RANGE,
+                "bucket"
+            );
+            long count = fieldTypedData.multiRowData().stream().mapToLong(value -> {
+                if (fieldSupplier.type() == DataType.TDIGEST) {
+                    return ((TDigestHolder) value).size();
+                }
+                return ((ExponentialHistogram) value).valueCount();
+            }).sum();
+            return new TestCaseSupplier.TestCase(
+                List.of(fieldTypedData, bucket),
+                standardAggregatorName("HistogramMerge", fieldSupplier.type()),
+                DataType.LONG,
+                equalTo(count)
+            );
+        });
+    }
+
 }

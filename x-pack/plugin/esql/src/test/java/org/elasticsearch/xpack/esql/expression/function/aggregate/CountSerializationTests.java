@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
 import java.io.IOException;
@@ -14,11 +15,22 @@ import java.io.IOException;
 public class CountSerializationTests extends AbstractExpressionSerializationTests<Count> {
     @Override
     protected Count createTestInstance() {
-        return new Count(randomSource(), randomChild());
+        return new Count(randomSource(), randomChild(), randomOptionalChild());
     }
 
     @Override
     protected Count mutateInstance(Count instance) throws IOException {
-        return new Count(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
+        Expression field = instance.field();
+        Expression bucket = instance.bucket();
+        if (randomBoolean()) {
+            field = randomValueOtherThan(field, AbstractExpressionSerializationTests::randomChild);
+        } else {
+            bucket = randomValueOtherThan(bucket, CountSerializationTests::randomOptionalChild);
+        }
+        return new Count(instance.source(), field, bucket);
+    }
+
+    private static Expression randomOptionalChild() {
+        return randomBoolean() ? null : randomChild();
     }
 }

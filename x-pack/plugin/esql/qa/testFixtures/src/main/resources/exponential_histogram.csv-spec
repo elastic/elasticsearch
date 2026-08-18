@@ -814,6 +814,129 @@ cnt:long
 
 // -------------------------------------------------------------------------------
 
+Count buckets ungrouped (standard mode)
+required_capability: fn_count_histogram_bucket
+
+FROM exp_histo_sample
+ | WHERE NOT STARTS_WITH(instance, "dummy")
+ | STATS b1 = COUNT(responseTime, TO_RANGE(0.0, 0.001)),
+         b2 = COUNT(responseTime, TO_RANGE(0.001, 0.01)),
+         b3 = COUNT(responseTime, TO_RANGE(0.01, 0.1)),
+         b4 = COUNT(responseTime, TO_RANGE(0.1, 1.0)),
+         b5 = COUNT(responseTime, TO_RANGE(1.0, 7.0)),
+         total = COUNT(responseTime)
+ | EVAL matches = total == b1 + b2 + b3 + b4 + b5
+;
+
+b1:long    | b2:long    | b3:long    | b4:long    | b5:long | total:long  | matches:boolean
+6200..6300 | 3820..3920 | 2050..2160 | 3050..3180 | 120..145 | 15471      | true
+;
+
+Count buckets grouped (standard mode)
+required_capability: fn_count_histogram_bucket
+
+FROM exp_histo_sample
+ | WHERE NOT STARTS_WITH(instance, "dummy")
+ | STATS b1 = COUNT(responseTime, TO_RANGE(0.0, 0.001)),
+         b2 = COUNT(responseTime, TO_RANGE(0.001, 0.01)),
+         b3 = COUNT(responseTime, TO_RANGE(0.01, 0.1)),
+         b4 = COUNT(responseTime, TO_RANGE(0.1, 1.0)),
+         b5 = COUNT(responseTime, TO_RANGE(1.0, 7.0)),
+         total = COUNT(responseTime)
+   BY instance
+ | EVAL matches = total == b1 + b2 + b3 + b4 + b5
+ | SORT instance
+;
+
+b1:long    | b2:long    | b3:long    | b4:long    | b5:long  | total:long | instance:keyword | matches:boolean
+1950..2050 | 1880..1980 | 1680..1790 | 3000..3120 | 105..130 | 8841       | instance-0       | true
+2020..2130 | 900..1000  | 160..220   | 25..45     | 5..15    | 3250       | instance-1       | true
+2120..2230 | 945..1045  | 150..210   | 15..35     | 2..10    | 3380       | instance-2       | true
+;
+
+Count buckets ungrouped (timeseries mode)
+required_capability: fn_count_histogram_bucket
+required_capability: ts_command_v0
+
+TS exp_histo_sample
+ | WHERE NOT STARTS_WITH(instance, "dummy")
+ | STATS b1 = COUNT(responseTime, TO_RANGE(0.0, 0.001)),
+         b2 = COUNT(responseTime, TO_RANGE(0.001, 0.01)),
+         b3 = COUNT(responseTime, TO_RANGE(0.01, 0.1)),
+         b4 = COUNT(responseTime, TO_RANGE(0.1, 1.0)),
+         b5 = COUNT(responseTime, TO_RANGE(1.0, 7.0)),
+         total = COUNT(responseTime)
+ | EVAL matches = total == b1 + b2 + b3 + b4 + b5
+;
+
+b1:long    | b2:long    | b3:long    | b4:long    | b5:long  | total:long | matches:boolean
+6200..6300 | 3820..3920 | 2050..2160 | 3050..3180 | 120..145 | 15471      | true
+;
+
+Count buckets grouped (timeseries mode)
+required_capability: fn_count_histogram_bucket
+required_capability: ts_command_v0
+
+TS exp_histo_sample
+ | WHERE NOT STARTS_WITH(instance, "dummy")
+ | STATS b1 = COUNT(responseTime, TO_RANGE(0.0, 0.001)),
+         b2 = COUNT(responseTime, TO_RANGE(0.001, 0.01)),
+         b3 = COUNT(responseTime, TO_RANGE(0.01, 0.1)),
+         b4 = COUNT(responseTime, TO_RANGE(0.1, 1.0)),
+         b5 = COUNT(responseTime, TO_RANGE(1.0, 7.0)),
+         total = COUNT(responseTime)
+   BY instance
+ | EVAL matches = total == b1 + b2 + b3 + b4 + b5
+ | SORT instance
+;
+
+b1:long    | b2:long    | b3:long    | b4:long    | b5:long  | total:long | instance:keyword | matches:boolean
+1950..2050 | 1880..1980 | 1680..1790 | 3000..3120 | 105..130 | 8841       | instance-0       | true
+2020..2130 | 900..1000  | 160..220   | 25..45     | 5..15    | 3250       | instance-1       | true
+2120..2230 | 945..1045  | 150..210   | 15..35     | 2..10    | 3380       | instance-2       | true
+;
+
+// -------------------------------------------------------------------------------
+
+Count bucket with empty exponential histogram
+required_capability: fn_count_histogram_bucket
+
+FROM exp_histo_sample
+ | WHERE instance == "dummy-empty"
+ | STATS cnt = COUNT(responseTime, TO_RANGE(-1.0, 1.0))
+;
+
+cnt:long
+0
+;
+
+Count bucket with null exponential histogram
+required_capability: fn_count_histogram_bucket
+
+FROM exp_histo_sample
+ | WHERE instance == "dummy-full"
+ | EVAL histogram = CASE(instance == "does-not-exist", responseTime)
+ | STATS cnt = COUNT(histogram, TO_RANGE(-1.0, 1.0))
+;
+
+cnt:long
+0
+;
+
+Count exponential histogram with null bucket
+required_capability: fn_count_histogram_bucket
+
+FROM exp_histo_sample
+ | WHERE instance == "dummy-full"
+ | STATS cnt = COUNT(responseTime, TO_RANGE(null, 1.0))
+;
+
+cnt:long
+null
+;
+
+// -------------------------------------------------------------------------------
+
 Count grouped (standard mode)
 required_capability: count_of_histogram_types
 

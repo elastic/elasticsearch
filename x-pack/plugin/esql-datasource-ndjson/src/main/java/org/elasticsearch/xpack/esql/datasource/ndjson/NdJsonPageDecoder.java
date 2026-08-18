@@ -838,6 +838,11 @@ public class NdJsonPageDecoder implements Closeable {
      * Counts one error against the current record. Keeps the running total and the per-record "already paid"
      * flag in step, so the two cannot drift apart as sinks are added: every non-strict sink in this class
      * charges here and nowhere else.
+     * <p>
+     * This method does not itself enforce once-per-record -- it records that the record has paid. Two guards
+     * consume that: {@link BlockDecoder#coercionFailure} suppresses further per-cell charges on a record already
+     * dropped by {@code skip_row} via {@link #rowDroppedBySkipRow}, and {@link #onNdjsonLineParseError} skips its
+     * charge when {@link #recordChargedToBudget} is already set. A new sink must decide which of the two it is.
      */
     private void chargeErrorBudget() {
         errorCount++;
@@ -847,10 +852,11 @@ public class NdJsonPageDecoder implements Closeable {
     /**
      * Throws when the non-strict error budget ({@code max_errors}/{@code max_error_ratio}) has been
      * exceeded, after first surfacing a client warning describing what tripped it. Shared by every
-     * non-strict error path ({@link #onNdjsonLineParseError} and {@link BlockDecoder#shapeConflict})
-     * so the budget is enforced consistently regardless of which kind of error incremented
-     * {@link #errorCount}. Callers must have already incremented {@link #errorCount} for the
-     * current error.
+     * non-strict error path ({@link #onNdjsonLineParseError}, {@link BlockDecoder#coercionFailure} and
+     * {@link BlockDecoder#shapeConflict}) so the budget is enforced consistently regardless of which kind of
+     * error incremented {@link #errorCount}. Callers must have already settled the current error's charge --
+     * normally by calling {@link #chargeErrorBudget}, but a caller that deliberately suppresses a duplicate
+     * charge still calls this, where it re-checks an unchanged count and cannot newly trip.
      */
     private void checkErrorBudgetOrThrow() {
         if (errorPolicy.isBudgetExceeded(errorCount, totalRowCount)) {

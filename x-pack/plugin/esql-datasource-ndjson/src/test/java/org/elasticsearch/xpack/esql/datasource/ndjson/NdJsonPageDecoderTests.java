@@ -989,12 +989,12 @@ public class NdJsonPageDecoderTests extends ESTestCase {
 
     /** null_field: the offending line is dropped (not null-filled) and both good lines survive. */
     public void testOversizedNumberTokenDropsLineUnderNullField() throws IOException {
-        assertConstraintViolationDropsLine(oversizedNumberRecord(), ErrorPolicy.PERMISSIVE, "Number value length (1200)");
+        assertConstraintViolationDropsLine(oversizedNumberRecord(), ErrorPolicy.PERMISSIVE, "Number value length");
     }
 
     /** skip_row: identical outcome to null_field — the whole-line class cannot null a cell. */
     public void testOversizedNumberTokenDropsLineUnderSkipRow() throws IOException {
-        assertConstraintViolationDropsLine(oversizedNumberRecord(), ErrorPolicy.LENIENT, "Number value length (1200)");
+        assertConstraintViolationDropsLine(oversizedNumberRecord(), ErrorPolicy.LENIENT, "Number value length");
     }
 
     /**
@@ -1002,7 +1002,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * in principle — the case that rules a per-cell treatment out for this class.
      */
     public void testOversizedFieldNameDropsLineUnderNullField() throws IOException {
-        assertConstraintViolationDropsLine(oversizedFieldNameRecord(), ErrorPolicy.PERMISSIVE, "Name length (60000)");
+        assertConstraintViolationDropsLine(oversizedFieldNameRecord(), ErrorPolicy.PERMISSIVE, "Name length");
     }
 
     /** The depth limit trips on structure rather than on any value; same whole-line outcome. */
@@ -1024,16 +1024,12 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * a user who does not project {@code other} would expect its contents not to matter at all.
      */
     public void testOversizedNumberInAnUnprojectedFieldDropsLine() throws IOException {
-        assertConstraintViolationDropsLine(
-            "{\"v\":5,\"other\":" + "1".repeat(1200) + "}",
-            ErrorPolicy.LENIENT,
-            "Number value length (1200)"
-        );
+        assertConstraintViolationDropsLine("{\"v\":5,\"other\":" + "1".repeat(1200) + "}", ErrorPolicy.LENIENT, "Number value length");
     }
 
     /** Same, for a token nested inside an array rather than sitting directly under a field. */
     public void testOversizedNumberInsideAnArrayDropsLine() throws IOException {
-        assertConstraintViolationDropsLine("{\"v\":[9," + "1".repeat(1200) + "]}", ErrorPolicy.LENIENT, "Number value length (1200)");
+        assertConstraintViolationDropsLine("{\"v\":[9," + "1".repeat(1200) + "]}", ErrorPolicy.LENIENT, "Number value length");
     }
 
     /**
@@ -1274,8 +1270,9 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * Asserted differentially against a bare scalar that is perfectly VALID, because recovery from a bare
      * (non-object) top-level record overshoots and swallows the line after it. That overshoot is pre-existing and
      * has nothing to do with constraints — the valid scalar loses its successor identically — so this pins the two
-     * as equivalent rather than blessing the overshoot as correct. A future fix to bare-record recovery should make
-     * both arms keep the trailing row, and this test will then fail as a pair, which is the intent.
+     * as equivalent rather than blessing the overshoot as correct (tracked as elastic/esql-planning#1731). A fix
+     * to bare-record recovery keeps this test passing so long as it corrects both arms; it fails only if one arm
+     * is fixed and the other is left behind, which is what the pairing is for.
      */
     public void testConstraintViolationOnRecordOpeningTokenMatchesBareScalarRecovery() throws IOException {
         String oversized = "{\"v\":1}\n" + "1".repeat(1200) + "\n{\"v\":3}\n";
@@ -1301,6 +1298,13 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * line is dropped, both good lines decode, and the client sees SkipWarnings' summary plus a detail
      * carrying Jackson's own limit text (the same passthrough {@code CsvFormatReader} does for its own
      * constraint violation).
+     */
+    /**
+     * {@code expectedDetail} names the limit but deliberately omits the numbers Jackson interpolates into its
+     * message. Jackson formats them with the default locale, so under a locale with non-Western digits (the
+     * randomized runner picks one often enough — {@code -Dtests.locale=fa-IR} reproduces it) "1200" arrives as
+     * "\u06F1\u06F2\u06F0\u06F0" and a digit-bearing assertion fails for no real reason. The limit name alone still proves the
+     * passthrough this is checking.
      */
     private void assertConstraintViolationDropsLine(String badRecord, ErrorPolicy policy, String expectedDetail) throws IOException {
         String ndjson = "{\"v\":1}\n" + badRecord + "\n{\"v\":3}\n";

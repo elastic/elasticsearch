@@ -9,7 +9,6 @@
 
 package org.elasticsearch.escf;
 
-import org.apache.lucene.document.column.LongValuesCursor;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.SourceValueType;
@@ -41,7 +40,7 @@ public final class EscfLongColumn extends AbstractFixed64Column {
     }
 
     /**
-     * Returns a new dense {@link LongValuesCursor} positioned before the first row of this column's
+     * Returns a new dense {@link DenseLongValuesCursor} positioned before the first row of this column's
      * window. The column must be fully present ({@link #validity} {@code == null}); call this only on
      * dense columns.
      */

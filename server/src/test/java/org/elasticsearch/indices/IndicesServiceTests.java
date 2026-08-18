@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -71,6 +72,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -94,6 +96,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -286,7 +289,17 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
     public static class TestPlugin extends Plugin implements MapperPlugin {
 
+        private static final List<IndexEventListener> indexEventListeners = new CopyOnWriteArrayList<>();
+
         public TestPlugin() {}
+
+        static void addIndexEventListener(IndexEventListener listener) {
+            indexEventListeners.add(listener);
+        }
+
+        static void removeIndexEventListener(IndexEventListener listener) {
+            indexEventListeners.remove(listener);
+        }
 
         @Override
         public Map<String, Mapper.TypeParser> getMappers() {
@@ -302,6 +315,16 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         public void onIndexModule(IndexModule indexModule) {
             super.onIndexModule(indexModule);
             indexModule.addSimilarity("fake-similarity", (settings, indexCreatedVersion, scriptService) -> new BM25Similarity());
+            indexModule.addIndexEventListener(new IndexEventListener() {
+                @Override
+                public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+                    for (IndexEventListener indexEventListener : indexEventListeners) {
+                        indexEventListener.beforeIndexShardRecovery(indexShard, indexSettings, listener);
+                        return;
+                    }
+                    listener.onResponse(null);
+                }
+            });
         }
     }
 
@@ -1091,6 +1114,49 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
         // For the test's thread context we just handle the expected warning.
         assertWarnings("Parameter [deprecated_field] is deprecated and will be removed in a future version");
+    }
+
+    /**
+     * Verifies that {@link IndicesService#createShard} retains a store reference for the duration of
+     * {@link IndexShard#startRecovery}. Without that ref, deleting the index while recovery is starting
+     * can drop the store to zero refs and cause assertion errors when recovery tries to grab its own refs.
+     */
+    public void testStartRecoveryHoldsRefOnStore() throws Exception {
+        final var recovering = new CountDownLatch(1);
+        final var proceedRecovering = new CountDownLatch(1);
+        final IndexEventListener indexListener = new IndexEventListener() {
+            @Override
+            public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+                recovering.countDown();
+                safeAwait(proceedRecovering);
+                listener.onResponse(null);
+            }
+        };
+        TestPlugin.addIndexEventListener(indexListener);
+        try {
+            final String indexName = randomIndexName();
+            assertAcked(
+                indicesAdmin().prepareCreate(indexName).setSettings(indexSettings(1, 0)).setWaitForActiveShards(ActiveShardCount.NONE)
+            );
+            safeAwait(recovering);
+
+            final IndexShard shard = getIndicesService().indexServiceSafe(resolveIndex(indexName)).getShard(0);
+            assertThat(shard.state(), equalTo(IndexShardState.RECOVERING));
+
+            final var deleteFuture = indicesAdmin().prepareDelete(indexName).execute();
+            assertBusy(() -> assertThat(shard.state(), equalTo(IndexShardState.CLOSED)));
+
+            // Store.close() has run, but createShard's tryIncRef must still keep the store usable.
+            assertAcked(deleteFuture.actionGet());
+            assertTrue(shard.store().isClosing());
+            assertTrue("startRecovery must retain a store ref until it returns", shard.store().hasReferences());
+
+            proceedRecovering.countDown();
+
+        } finally {
+            proceedRecovering.countDown();
+            TestPlugin.removeIndexEventListener(indexListener);
+        }
     }
 
     private Set<ResolvedExpression> resolvedExpressions(String... expressions) {

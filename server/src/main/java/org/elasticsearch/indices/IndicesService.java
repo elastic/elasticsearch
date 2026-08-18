@@ -145,7 +145,6 @@ import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
-import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
@@ -1020,15 +1019,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 final var store = indexShard.store();
                 if (store.tryIncRef() == false) {
                     assert indexShard.state() == IndexShardState.CLOSED : indexShard.state();
-                    listener.onRecoveryFailure(
-                        new RecoveryFailedException(
-                            recoveryState,
-                            "store closed before recovery started",
-                            new AlreadyClosedException("store is already closed")
-                        ),
-                        // The master should already always be informed of the shard closure.
-                        false
-                    );
+                    listener.onRecoveryAborted();
                     return;
                 }
                 try {

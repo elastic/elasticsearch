@@ -201,6 +201,16 @@ Use the following advanced settings to configure the HTTP interface independentl
 `http.max_header_size`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), [byte value](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units)) Maximum size of allowed headers. Defaults to `16kb`.
 
+$$$http-headers-cluster-name-enabled$$$
+
+`http.headers.cluster_name.enabled`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), boolean) When `true`, HTTP responses include an `Elastic-Cluster-Name` header set to this node's `cluster.name`. This is the self-managed equivalent of the `X-Found-Handling-Cluster` header that {{ecloud}} adds, and lets clients capture the cluster name for telemetry without an extra request. Defaults to `false`.
+
+    ::::{note}
+    The header is not returned on unauthenticated responses, and is not exposed via CORS by default (see [`http.cors.expose-headers`](#http-cors-expose-headers)). Because `cluster.name` is operator-defined, enable this setting only if exposing the cluster name in responses is acceptable for your deployment.
+    ::::
+
+
 $$$http-compression$$$
 
 `http.compression` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")

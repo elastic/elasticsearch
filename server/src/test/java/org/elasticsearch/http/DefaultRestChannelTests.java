@@ -387,12 +387,14 @@ public class DefaultRestChannelTests extends ESTestCase {
         )) {
             try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
                 threadPool.getThreadContext().addResponseHeader("X-elastic-product", "some product response header");
+                threadPool.getThreadContext().addResponseHeader("Elastic-Cluster-Name", "some-cluster-name");
                 threadPool.getThreadContext().addResponseHeader("Warning", "some product response header");
                 String someRandomResponseHeader = "some-random-response-header-" + randomAlphaOfLength(8);
                 threadPool.getThreadContext().addResponseHeader(someRandomResponseHeader, "should transpire to http response");
                 channel.sendResponse(response);
                 assertThat(responseReference.get().containsHeader(someRandomResponseHeader), is(true));
                 assertThat(responseReference.get().containsHeader("X-elastic-product"), is(false));
+                assertThat(responseReference.get().containsHeader("Elastic-Cluster-Name"), is(false));
                 assertThat(responseReference.get().containsHeader("Warning"), is(false));
             }
         }

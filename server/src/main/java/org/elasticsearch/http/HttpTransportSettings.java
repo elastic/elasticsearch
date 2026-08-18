@@ -55,6 +55,18 @@ public final class HttpTransportSettings {
         10000,
         Property.NodeScope
     );
+    /**
+     * When enabled, every REST response includes the {@code Elastic-Cluster-Name} header carrying this node's
+     * {@code cluster.name}. It is opt-in and disabled by default: the header exposes the (potentially sensitive,
+     * operator-chosen) cluster name unconditionally, including on pre-authentication and error responses, so operators
+     * must explicitly turn it on. It mirrors the {@code X-Found-Handling-Cluster} header that the Elastic Cloud proxy
+     * adds for hosted deployments, allowing self-managed clusters to surface the cluster name for client telemetry.
+     */
+    public static final Setting<Boolean> SETTING_HTTP_CLUSTER_NAME_HEADER_ENABLED = Setting.boolSetting(
+        "http.headers.cluster_name.enabled",
+        false,
+        Property.NodeScope
+    );
     public static final Setting<Boolean> SETTING_HTTP_COMPRESSION = Setting.boolSetting("http.compression", true, Property.NodeScope);
     // we intentionally use a different compression level as Netty here as our benchmarks have shown that a compression level of 3 is the
     // best compromise between reduction in network traffic and added latency. For more details please check #7309.

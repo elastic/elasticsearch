@@ -72,6 +72,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.rest.RestController.CLUSTER_NAME_HTTP_HEADER;
 import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER;
 import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER_VALUE;
 import static org.elasticsearch.rest.RestController.HANDLER_NAME_KEY;
@@ -170,6 +171,33 @@ public class RestControllerTests extends ESTestCase {
         List<String> expectedProductResponseHeader = new ArrayList<>();
         expectedProductResponseHeader.add(ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
         assertEquals(expectedProductResponseHeader, threadContext.getResponseHeaders().getOrDefault(ELASTIC_PRODUCT_HTTP_HEADER, null));
+    }
+
+    public void testClusterNameResponseHeaderNotEmittedByDefault() {
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        // no cluster name value is supplied, mirroring the disabled-by-default setting
+        final RestController restController = new RestController(null, null, circuitBreakerService, usageService, telemetryProvider);
+        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).build();
+        AssertingChannel channel = new AssertingChannel(fakeRequest, randomBoolean(), RestStatus.BAD_REQUEST);
+        restController.dispatchRequest(fakeRequest, channel, threadContext);
+        assertNull(threadContext.getResponseHeaders().get(CLUSTER_NAME_HTTP_HEADER));
+    }
+
+    public void testClusterNameResponseHeaderEmittedWhenEnabled() {
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        final String clusterName = randomAlphaOfLengthBetween(3, 12);
+        final RestController restController = new RestController(
+            null,
+            null,
+            circuitBreakerService,
+            usageService,
+            telemetryProvider,
+            clusterName
+        );
+        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).build();
+        AssertingChannel channel = new AssertingChannel(fakeRequest, randomBoolean(), RestStatus.BAD_REQUEST);
+        restController.dispatchRequest(fakeRequest, channel, threadContext);
+        assertEquals(List.of(clusterName), threadContext.getResponseHeaders().getOrDefault(CLUSTER_NAME_HTTP_HEADER, null));
     }
 
     public void testRequestWithDisallowedMultiValuedHeader() {

@@ -90,6 +90,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
     static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
+    /**
+     * Response header carrying this node's {@code cluster.name}, emitted only when
+     * {@link org.elasticsearch.http.HttpTransportSettings#SETTING_HTTP_CLUSTER_NAME_HEADER_ENABLED} is enabled. This is
+     * the self-managed equivalent of the {@code X-Found-Handling-Cluster} header added by the Elastic Cloud proxy, and
+     * deliberately avoids the discouraged {@code X-} prefix (RFC 6648). Like {@link #ELASTIC_PRODUCT_HTTP_HEADER} it is
+     * added to the thread context so that {@link RestResponse#filterHeaders} can strip it from unauthenticated
+     * responses.
+     */
+    static final String CLUSTER_NAME_HTTP_HEADER = "Elastic-Cluster-Name";
     static final Set<String> RESERVED_PATHS = Set.of("/__elb_health__", "/__elb_health__/zk", "/_health", "/_health/zk");
     private static final BytesReference FAVICON_RESPONSE;
     public static final String STATUS_CODE_KEY = "es_rest_status_code";
@@ -120,6 +129,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private final LongCounter requestsCounter;
     // If true, the ServerlessScope annotations will be enforced
     private final ServerlessApiProtections apiProtections;
+    // The cluster name to emit in the Elastic-Cluster-Name response header, or null when the header is disabled.
+    @Nullable
+    private final String clusterNameHeaderValue;
 
     public static final String METRIC_REQUESTS_TOTAL = "es.rest.requests.total";
 
@@ -130,6 +142,23 @@ public class RestController implements HttpServerTransport.Dispatcher {
         UsageService usageService,
         TelemetryProvider telemetryProvider
     ) {
+        this(restInterceptor, client, circuitBreakerService, usageService, telemetryProvider, null);
+    }
+
+    /**
+     * @param clusterNameHeaderValue the value to emit in the {@code Elastic-Cluster-Name} response header, or
+     *                               {@code null} to disable the header (see
+     *                               {@link org.elasticsearch.http.HttpTransportSettings#SETTING_HTTP_CLUSTER_NAME_HEADER_ENABLED}).
+     */
+    public RestController(
+        RestInterceptor restInterceptor,
+        NodeClient client,
+        CircuitBreakerService circuitBreakerService,
+        UsageService usageService,
+        TelemetryProvider telemetryProvider,
+        @Nullable String clusterNameHeaderValue
+    ) {
+        this.clusterNameHeaderValue = clusterNameHeaderValue;
         this.usageService = usageService;
         this.instrumentation = telemetryProvider.getHttpServerInstrumentation();
         this.requestsCounter = telemetryProvider.getMeterRegistry()
@@ -424,6 +453,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
     @Override
     public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
         threadContext.addResponseHeader(ELASTIC_PRODUCT_HTTP_HEADER, ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
+        if (clusterNameHeaderValue != null) {
+            threadContext.addResponseHeader(CLUSTER_NAME_HTTP_HEADER, clusterNameHeaderValue);
+        }
         try {
             tryAllHandlers(request, channel, threadContext);
         } catch (Exception e) {
@@ -439,6 +471,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
     @Override
     public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
         threadContext.addResponseHeader(ELASTIC_PRODUCT_HTTP_HEADER, ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
+        if (clusterNameHeaderValue != null) {
+            threadContext.addResponseHeader(CLUSTER_NAME_HTTP_HEADER, clusterNameHeaderValue);
+        }
         try {
             final Exception e;
             if (cause == null) {

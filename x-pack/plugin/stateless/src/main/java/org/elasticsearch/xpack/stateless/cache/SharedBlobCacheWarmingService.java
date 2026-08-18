@@ -636,6 +636,8 @@ public class SharedBlobCacheWarmingService {
                             }
                         }),
                     uploadPrewarmFetchExecutor,
+                    // This is only executed by indexing shards, while cache-region timestamps are implemented only for search shards
+                    SharedBlobCacheService.UNKNOWN_TIMESTAMP,
                     listeners.acquire().map(b -> null)
                 );
             }
@@ -1829,6 +1831,9 @@ public class SharedBlobCacheWarmingService {
 
             @Override
             public void onResponse(Releasable releasable) {
+                // Indexing-only warmer. Thus, can pass UNKNOWN cache-region timestamps in maybeFetchRegion later as timestamps are only
+                // used by search shards.
+                assert warmingRun.type == Type.INDEXING_MERGE || warmingRun.type == Type.INDEXING_BCC_HEADER_PREWARM : warmingRun.type;
                 var cacheKey = new FileCacheKey(warmingRun.shardId(), blobFile.primaryTerm(), blobFile.blobName());
                 int endingRegion = cacheService.getEndingRegion(blobLocation.fileLength());
 
@@ -1857,6 +1862,7 @@ public class SharedBlobCacheWarmingService {
                                 )
                             ),
                             fetchExecutor,
+                            SharedBlobCacheService.UNKNOWN_TIMESTAMP,
                             ref.acquire().map(b -> null)
                         );
                     }

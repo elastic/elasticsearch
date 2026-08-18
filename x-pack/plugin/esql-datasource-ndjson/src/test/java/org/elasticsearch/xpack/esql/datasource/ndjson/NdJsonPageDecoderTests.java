@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
@@ -1234,7 +1233,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT));
         assertThat(e.getMessage(), Matchers.containsString("Over-limit NDJSON at logical row [2] (nextToken)"));
         assertThat(e.getMessage(), Matchers.containsString("Number value length"));
-        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        assertEquals(RestStatus.BAD_REQUEST, e.status());
     }
 
     /**

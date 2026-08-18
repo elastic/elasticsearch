@@ -25,8 +25,8 @@ import java.util.stream.Collectors;
  *   <tr><td>{@link Mode#SKIP_ROW SKIP_ROW}</td><td>DROPMALFORMED</td><td>ignore_errors</td>
  *       <td>errors_num&gt;0</td><td>Drop the entire bad row</td></tr>
  *   <tr><td>{@link Mode#NULL_FIELD NULL_FIELD}</td><td>PERMISSIVE</td><td>—</td>
- *       <td>—</td><td>Null-fill unparseable fields, keep the row (per-value failures only;
- *       see {@link Mode#NULL_FIELD})</td></tr>
+ *       <td>—</td><td>Null-fill unparseable fields, keep the row (per-value failures only; a row whose
+ *       structure cannot be parsed is dropped)</td></tr>
  * </table>
  *
  * <h2>Error budget</h2>

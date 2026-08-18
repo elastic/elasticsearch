@@ -246,16 +246,7 @@ public class NdJsonPageDecoder implements Closeable {
      */
     private boolean rowDroppedBySkipRow;
 
-    /**
-     * Whether the record being decoded has already been charged to the error budget. {@code max_errors} and
-     * {@code max_error_ratio} are documented in records ("maximum malformed rows"), so a record that fails
-     * twice -- a per-cell coercion failure and then a whole-line failure while the rest of the record is
-     * drained -- must still cost one. {@link BlockDecoder#coercionFailure} enforces this among per-cell
-     * failures via {@link #rowDroppedBySkipRow}, but that flag is set only under {@code skip_row}; this one
-     * holds for every non-strict mode and across both sinks. Reset per record by {@link #decodePageLenient},
-     * before the record-opening token is read, so a whole-line failure on the record that FOLLOWS a charged
-     * one is still charged.
-     */
+    /** Whether the current record has already been charged to the error budget; see {@link #chargeErrorBudget}. */
     private boolean recordChargedToBudget;
 
     /** Number of malformed records observed during decoding (lenient policies swallow these). */
@@ -767,14 +758,24 @@ public class NdJsonPageDecoder implements Closeable {
      * <p>
      * Two Jackson failures belong to this class, which is why the parameter is their common supertype rather
      * than {@link JsonParseException}: malformed JSON, and a {@link StreamConstraintsException} from a token
-     * that trips one of {@code StreamReadConstraints}' limits (an over-long number or field name, nesting past
-     * the depth cap). Both are raised by the token scanner, so neither reaches {@link BlockDecoder#coercionFailure}
-     * -- the per-cell sink, which needs a decoded value to attribute. A constraint violation frequently has no
-     * cell to attribute at all: the name-length limit trips on a field that may not even be projected, and the
-     * depth limit trips on structure rather than on a value. Dropping the line is therefore the only outcome
-     * available to every member of the class, and it matches how {@code CsvFormatReader} routes its own
-     * constraint violation (a field over {@code max_field_size}) through {@code onRowError} rather than
-     * {@code onFieldError}.
+     * that trips one of {@code StreamReadConstraints}' limits.
+     * <p>
+     * Three of the four limits enabled by default -- number length, field-name length and nesting depth -- are
+     * raised by the token scanner, before the decoder has dispatched on a type, so they cannot reach
+     * {@link BlockDecoder#coercionFailure}, the per-cell sink, which needs a decoded value to attribute. Often
+     * there is no cell to attribute at all: the name-length limit trips on a field that may not even be
+     * projected, and the depth limit trips on structure rather than on a value.
+     * <p>
+     * String length is the exception and is worth knowing about before trusting "the scanner raised it" as an
+     * invariant of this class. Jackson validates it lazily, on {@code getValueAsString()} and
+     * {@code getTextCharacters()} -- the accessors the string-shaped decode arms call -- so the token has
+     * already been returned and dispatched on, and for a projected column there IS a cell to attribute. It is
+     * given the whole-line treatment anyway, deliberately: splitting one limit off into a per-cell null-fill
+     * would make the outcome depend on which limit the record happened to trip.
+     * <p>
+     * Dropping the line is therefore the outcome for every member of the class, and it matches how
+     * {@code CsvFormatReader} routes its own constraint violation (a field over {@code max_field_size}) through
+     * {@code onRowError} rather than {@code onFieldError}.
      */
     private void onNdjsonLineParseError(JsonProcessingException e, long logicalRowIndex, String phaseLabel) {
         // Described once, for the strict message, the client warning and the log alike. The row index is the
@@ -803,10 +804,11 @@ public class NdJsonPageDecoder implements Closeable {
             );
         }
         if (recordChargedToBudget == false) {
-            // Once per record, not once per failure: a per-cell coercion failure earlier in this same record
-            // may already have charged it, and the budget is denominated in records. Warn either way -- under
-            // null_field that earlier warning said the cell was nulled and the record kept, which this failure
-            // overrides by dropping the record whole.
+            // Once per record across the two sinks: a per-cell coercion failure earlier in this same record may
+            // already have charged it. (Per-cell charges among themselves are still per-cell under null_field --
+            // see coercionFailure, whose own suppression is gated on skip_row.) Warn either way: under null_field
+            // that earlier warning said the cell was nulled and the record kept, which this failure overrides by
+            // dropping the record whole.
             chargeErrorBudget();
         }
         skipWarnings.add(description);
@@ -835,14 +837,16 @@ public class NdJsonPageDecoder implements Closeable {
     }
 
     /**
-     * Counts one error against the current record. Keeps the running total and the per-record "already paid"
-     * flag in step, so the two cannot drift apart as sinks are added: every non-strict sink in this class
-     * charges here and nowhere else.
+     * Counts one error against the current record. Every non-strict sink in this class charges here and nowhere
+     * else, so the running total and the per-record "already paid" flag cannot drift apart as sinks are added.
      * <p>
-     * This method does not itself enforce once-per-record -- it records that the record has paid. Two guards
-     * consume that: {@link BlockDecoder#coercionFailure} suppresses further per-cell charges on a record already
-     * dropped by {@code skip_row} via {@link #rowDroppedBySkipRow}, and {@link #onNdjsonLineParseError} skips its
-     * charge when {@link #recordChargedToBudget} is already set. A new sink must decide which of the two it is.
+     * {@code max_errors} and {@code max_error_ratio} are documented in records ("maximum malformed rows"), so a
+     * record that fails twice -- a per-cell coercion failure, then a whole-line failure raised while the rest of
+     * the record is drained -- must still cost one. This method does not enforce that itself; it records that the
+     * record has paid, and two guards consume the flag: {@link BlockDecoder#coercionFailure} suppresses further
+     * per-cell charges on a record already dropped by {@code skip_row} (via {@link #rowDroppedBySkipRow}), and
+     * {@link #onNdjsonLineParseError} skips its charge when {@link #recordChargedToBudget} is set. A new sink
+     * must decide which of the two it is.
      */
     private void chargeErrorBudget() {
         errorCount++;
@@ -854,9 +858,8 @@ public class NdJsonPageDecoder implements Closeable {
      * exceeded, after first surfacing a client warning describing what tripped it. Shared by every
      * non-strict error path ({@link #onNdjsonLineParseError}, {@link BlockDecoder#coercionFailure} and
      * {@link BlockDecoder#shapeConflict}) so the budget is enforced consistently regardless of which kind of
-     * error incremented {@link #errorCount}. Callers must have already settled the current error's charge --
-     * normally by calling {@link #chargeErrorBudget}, but a caller that deliberately suppresses a duplicate
-     * charge still calls this, where it re-checks an unchanged count and cannot newly trip.
+     * error incremented {@link #errorCount}. Callers must have already settled the current error's charge via
+     * {@link #chargeErrorBudget}, or deliberately suppressed it.
      */
     private void checkErrorBudgetOrThrow() {
         if (errorPolicy.isBudgetExceeded(errorCount, totalRowCount)) {

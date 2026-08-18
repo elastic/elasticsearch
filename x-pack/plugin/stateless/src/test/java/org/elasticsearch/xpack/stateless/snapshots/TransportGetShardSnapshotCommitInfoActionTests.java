@@ -114,7 +114,7 @@ public class TransportGetShardSnapshotCommitInfoActionTests extends ESTestCase {
         action = new TransportGetShardSnapshotCommitInfoAction(
             clusterService,
             transportService,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             snapshotsCommitService,
             maxInFlightSendRequests
         );

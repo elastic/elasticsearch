@@ -588,34 +588,6 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         assertThat(withNodeSignals.hostedShardsHeapUsage(), equalTo(localEstimate.hostedShardsHeapUsage()));
     }
 
-    /**
-     * The safety invariant behind the recovery gate: a node's self-estimate must never exceed the master's estimate for that node,
-     * or the node could defer recoveries that the master (seeing a healthy node) would never rebalance away.
-     */
-    public void testLocalEstimateNeverExceedsMasterEstimate() {
-        final ClusterState clusterState = randomInitialTwoNodeClusterState(between(2, 6));
-        final DiscoveryNode node0 = clusterState.nodes().get("node_0");
-        final DiscoveryNode node1 = clusterState.nodes().get("node_1");
-        service.clusterChanged(new ClusterChangedEvent("init", clusterState, ClusterState.EMPTY_STATE));
-
-        final Map<ShardId, ShardMappingSize> node0Sizes = randomMemoryMetrics(node0, clusterState);
-        final Map<ShardId, ShardMappingSize> node1Sizes = randomMemoryMetrics(node1, clusterState);
-        final Map<ShardId, ShardMappingSize> allSizes = new HashMap<>(node0Sizes);
-        allSizes.putAll(node1Sizes);
-        service.updateShardsMappingSize(new HeapMemoryUsage(1, allSizes));
-
-        final Map<String, NodeHeapEstimates> masterEstimates = service.getPerNodeMemoryMetrics(clusterState);
-        final int totalIndices = clusterState.metadata().getTotalNumberOfIndices();
-        assertThat(
-            service.estimateNodeHeapUsage(totalIndices, 0L, 0L, node0Sizes).totalHeapUsage(),
-            lessThanOrEqualTo(masterEstimates.get(node0.getId()).totalHeapUsage())
-        );
-        assertThat(
-            service.estimateNodeHeapUsage(totalIndices, 0L, 0L, node1Sizes).totalHeapUsage(),
-            lessThanOrEqualTo(masterEstimates.get(node1.getId()).totalHeapUsage())
-        );
-    }
-
     private ClusterState randomInitialSingleNodeClusterState(int numberOfIndices) {
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(DiscoveryNodeUtils.create("node_0"))

@@ -68,7 +68,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 
@@ -160,7 +159,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
             mock(TransportService.class),
             threadPool,
             mock(MetadataCreateIndexService.class),
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             persistentTaskService,
             downsampleMetrics,

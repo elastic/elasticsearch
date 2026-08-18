@@ -30,8 +30,6 @@ import static org.mockito.Mockito.mock;
 
 public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
 
-    private static final ActionFilters EMPTY_FILTERS = new ActionFilters(Collections.emptySet());
-
     @Override
     protected Client buildClient(Settings headersSettings, ActionType<?>[] testedActions) {
         Settings settings = HEADER_SETTINGS;
@@ -56,7 +54,7 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
     private static class InternalTransportAction extends TransportAction<ActionRequest, ActionResponse> {
 
         private InternalTransportAction(String actionName, TaskManager taskManager) {
-            super(actionName, EMPTY_FILTERS, taskManager, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            super(actionName, ActionFilters.EMPTY, taskManager, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
 
         @Override

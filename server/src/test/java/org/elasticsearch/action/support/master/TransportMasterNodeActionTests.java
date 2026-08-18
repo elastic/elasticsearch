@@ -75,7 +75,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -250,16 +249,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             ThreadPool threadPool,
             Executor executor
         ) {
-            super(
-                actionName,
-                transportService,
-                clusterService,
-                threadPool,
-                new ActionFilters(new HashSet<>()),
-                Request::new,
-                Response::new,
-                executor
-            );
+            super(actionName, transportService, clusterService, threadPool, ActionFilters.EMPTY, Request::new, Response::new, executor);
         }
 
         @Override
@@ -297,7 +287,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                 transportService,
                 clusterService,
                 threadPool,
-                new ActionFilters(new HashSet<>()),
+                ActionFilters.EMPTY,
                 ClusterUpdateSettingsRequest::new,
                 Response::new,
                 executor

@@ -174,7 +174,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
             transportService,
             clusterService,
             client,
-            new ActionFilters(emptySet()),
+            ActionFilters.EMPTY,
             new Resolver(),
             mock(IndicesService.class)
         ) {
@@ -207,7 +207,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
             transportService,
             clusterService,
             client,
-            new ActionFilters(emptySet()),
+            ActionFilters.EMPTY,
             new Resolver(),
             mock(IndicesService.class)
         ) {

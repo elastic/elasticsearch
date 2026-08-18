@@ -155,7 +155,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 ingestService,
                 mockFeatureService,
                 new NodeClient(Settings.EMPTY, TransportBulkActionIngestTests.this.threadPool),
-                new ActionFilters(Collections.emptySet()),
+                ActionFilters.EMPTY,
                 TestIndexNameExpressionResolver.newInstance(),
                 new IndexingPressure(SETTINGS),
                 EmptySystemIndices.INSTANCE,
@@ -190,7 +190,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             super(
                 TransportIndexAction.NAME,
                 TransportBulkActionIngestTests.this.transportService,
-                new ActionFilters(Collections.emptySet()),
+                ActionFilters.EMPTY,
                 IndexRequest::new,
                 bulkAction
             );

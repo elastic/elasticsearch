@@ -152,7 +152,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             transportService,
             clusterService,
             threadPool,
-            new ActionFilters(new HashSet<>()),
+            ActionFilters.EMPTY,
             indexNameExpressionResolver,
             new AllocationService(null, new TestGatewayAllocator(), null, null, null, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
         );

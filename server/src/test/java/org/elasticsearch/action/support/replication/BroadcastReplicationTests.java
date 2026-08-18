@@ -55,7 +55,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -112,7 +111,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         broadcastReplicationAction = new TestBroadcastReplicationAction(
             clusterService,
             transportService,
-            new ActionFilters(new HashSet<>()),
+            ActionFilters.EMPTY,
             TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext())
         );
     }

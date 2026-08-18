@@ -88,7 +88,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                 transportService,
                 TransportSimulateBulkActionTests.this.clusterService,
                 null,
-                new ActionFilters(Set.of()),
+                ActionFilters.EMPTY,
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE,
                 indicesService,

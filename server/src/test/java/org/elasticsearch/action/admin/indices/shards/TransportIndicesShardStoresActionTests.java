@@ -236,7 +236,7 @@ public class TransportIndicesShardStoresActionTests extends ESTestCase {
                 transportService,
                 clusterService,
                 threadPool,
-                new ActionFilters(Set.of()),
+                ActionFilters.EMPTY,
                 new IndexNameExpressionResolver(threadPool.getThreadContext(), new SystemIndices(List.of())),
                 null
             ) {

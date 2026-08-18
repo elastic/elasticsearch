@@ -172,7 +172,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
             transportService,
             clusterService,
             client,
-            new ActionFilters(emptySet()),
+            ActionFilters.EMPTY,
             new Resolver()
         ) {
             @Override
@@ -204,7 +204,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
             transportService,
             clusterService,
             client,
-            new ActionFilters(emptySet()),
+            ActionFilters.EMPTY,
             new Resolver()
         ) {
             @Override

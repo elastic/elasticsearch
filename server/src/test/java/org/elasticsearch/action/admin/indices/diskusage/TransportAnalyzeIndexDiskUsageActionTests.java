@@ -288,7 +288,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
             clusterService,
             transportService,
             mock(IndicesService.class),
-            new ActionFilters(new HashSet<>()),
+            ActionFilters.EMPTY,
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE) {
                 @Override
                 public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {

@@ -130,7 +130,8 @@ public class KnnIndexTester {
             }
             return switch (name.toLowerCase(Locale.ROOT)) {
                 case "ash" -> ASH;
-                default -> OSQ;
+                case "osq" -> OSQ;
+                default -> throw new IllegalArgumentException("Unknown quantization_type: '" + name + "'. Known types: ash, osq");
             };
         }
     }

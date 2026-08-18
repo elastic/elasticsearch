@@ -92,10 +92,18 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         TimeValue.ZERO
     );
 
+    // When the JVM property that overrides LARGE_BLOB_THRESHOLD_BYTE_SIZE is set (typically in tests to
+    // exercise the resumable-upload path with small blobs), lower the minimum to that value so that it can
+    // also be set explicitly as a repository setting.
+    private static final ByteSizeValue MULTIPART_UPLOAD_SIZE_THRESHOLD_MIN = ByteSizeValue.of(
+        Math.min((long) GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE, ByteSizeUnit.MB.toBytes(5)),
+        ByteSizeUnit.BYTES
+    );
+
     static final Setting<ByteSizeValue> MULTIPART_UPLOAD_SIZE_THRESHOLD = byteSizeSetting(
         "multipart_upload_size_threshold",
         ByteSizeValue.of(GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE, ByteSizeUnit.BYTES),
-        ByteSizeValue.ofMb(5),
+        MULTIPART_UPLOAD_SIZE_THRESHOLD_MIN,
         ByteSizeValue.of(5, ByteSizeUnit.TB)
     );
 

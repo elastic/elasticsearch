@@ -14,9 +14,11 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InvertableType;
 import org.apache.lucene.document.StoredValue;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
@@ -24,6 +26,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -44,6 +47,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.sourcebatch.MappedColumns;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -245,7 +249,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             int bucketSize,
             BucketedSort.ExtraData extra
         ) {
-            throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
+            throw new IllegalArgumentException("Can't sort on the [" + CONTENT_TYPE + "] field");
         }
 
         private static LeafFieldData wrap(LeafFieldData in) {
@@ -320,6 +324,25 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     }
 
     @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        return true;
+    }
+
+    @Override
+    public void preColumnarParse(BatchMappingContext context) {
+        // Mirror preParse: in columnar storage mode _id is indexed + BINARY doc values; otherwise it
+        // is indexed + stored.
+        final IndexableFieldType idFieldType = mode == Mode.COLUMNAR ? ColumnarIdField.TYPE : StringField.TYPE_STORED;
+        context.addColumn(MappedColumns.binaryColumn(context.uids(), NAME, idFieldType));
+    }
+
+    @Override
+    public void postColumnarParse(BatchMappingContext context) throws IOException {
+        super.postColumnarParse(context);
+        // TODO: Need to implement the id propagation to non-root documents when we support nested fields.
+    }
+
+    @Override
     public FieldMapper.Builder getMergeBuilder() {
         Builder builder = new Builder(columnarIdByDefault);
         builder.init(this);
@@ -369,6 +392,14 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     public static IndexableField columnarIdField(String id) {
         BytesRef encoded = Uid.encodeId(id);
         return new ColumnarIdField(NAME, encoded);
+    }
+
+    /**
+     * Columnar {@code _id} field for an already-encoded uid. Used by slice-enabled indices, whose identity term is the
+     * compound {@code (slice, id)} uid rather than a plain {@link Uid#encodeId(String)}.
+     */
+    public static IndexableField columnarIdField(BytesRef uid) {
+        return new ColumnarIdField(NAME, uid);
     }
 
     static final class ColumnarIdField extends Field {

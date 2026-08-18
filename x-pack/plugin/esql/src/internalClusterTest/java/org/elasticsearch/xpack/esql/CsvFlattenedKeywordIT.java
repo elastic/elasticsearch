@@ -51,6 +51,7 @@ import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -918,6 +919,73 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         }
 
         /**
+         * Matches a single injected {@code field_extract(<field>, "v")} call inside a warning
+         * string so it can be collapsed back to the bare {@code <field>} the unmodified query
+         * would have named. The first argument is always a bare (possibly backtick-quoted)
+         * attribute &mdash; the rewriter never nests a call there &mdash; so it contains neither a
+         * comma nor a parenthesis; the second argument is always the constant wrapper sub-key
+         * {@link KeywordToFlattenedTransformer#WRAPPER_SUBKEY}. Group 1 captures the field.
+         * <p>
+         * The double quotes around the sub-key may be backslash-escaped in the warning: warning
+         * headers are RFC 7234 quoted-strings, so {@code HeaderWarning.escapeAndEncode} escapes
+         * every {@code "} to {@code \"}, and {@code HeaderWarning.extractWarningValueFromWarningHeader}
+         * (called by {@link CsvIT}) does not undo that escaping. The csv-spec expected warnings are
+         * written in the same escaped form, so the optional {@code \\?} before each quote lets this
+         * pattern match the value as it actually appears.
+         */
+        private static final Pattern FIELD_EXTRACT_CALL = Pattern.compile(
+            "field_extract\\(([^,()]+),\\s*\\\\?\"" + Pattern.quote(KeywordToFlattenedTransformer.WRAPPER_SUBKEY) + "\\\\?\"\\)"
+        );
+
+        /**
+         * Matches a {@code Line <line>:<col>} source position in a warning. Wrapping a field
+         * reference in {@code field_extract(field, "v")} lengthens the query line, so any position
+         * that points <em>after</em> the first wrap on the same line reports a shifted column. Both
+         * the leading {@code Line l:c:} prefix ES|QL prepends to evaluation warnings and the
+         * lowercase {@code at line l:c} references embedded inside some analyzer messages (e.g. the
+         * field-shadowing warning) shift this way, so the match is case-insensitive on the leading
+         * word. The position carries no meaning once the query has been mechanically rewritten, so
+         * it is replaced with a constant placeholder on both the expected and the actual warning and
+         * thereby dropped from the comparison.
+         * <p>
+         * The placeholder is the numeric literal {@code 0:0} rather than a symbolic token so that a
+         * {@code warningRegex:} spec whose position is written as the wildcard {@code \d+:\d+} (which
+         * this pattern deliberately leaves untouched in the expected regex, since it matches literal
+         * digits, not the backslash-{@code d} regex source) still matches the normalized actual
+         * warning: {@code 0:0} satisfies {@code \d+:\d+}. A symbolic placeholder would not.
+         */
+        private static final Pattern LINE_POSITION = Pattern.compile("[Ll]ine \\d+:\\d+");
+        private static final String LINE_POSITION_PLACEHOLDER = "Line 0:0";
+
+        /**
+         * Reconciles the two purely mechanical differences the keyword&rarr;flattened rewrite
+         * introduces into ES|QL warning strings, so a silenced test whose only failure was a
+         * warning mismatch can be re-enabled by deleting its {@code skip_flattened_rewrite}
+         * directive:
+         * <ol>
+         *   <li>the wrapped expression text &mdash; {@code field_extract(field, "v")} is collapsed
+         *       back to {@code field}, matching the expression the original query named, and</li>
+         *   <li>the {@code Line <line>:<col>} source position &mdash; normalized to a placeholder
+         *       so the column shift caused by the longer wrapped line does not fail the match.</li>
+         * </ol>
+         * Everything else in the warning (the function name, the offending value, the exception
+         * class and message) is left untouched, so the assertion still verifies that the same
+         * warning fired for the same reason. Applying this symmetrically to the expected and the
+         * actual warnings (see the warning comparison in {@link CsvIT}) means an
+         * {@code AllowedRegexes} spec whose
+         * pattern collapses to {@code Line LINE:COL: ...} still matches, and an {@code ExactStrings}
+         * spec matches after both sides are collapsed identically. The transform is idempotent.
+         */
+        @Override
+        public String normalizeWarning(String warning) {
+            if (warning == null) {
+                return null;
+            }
+            String unwrapped = FIELD_EXTRACT_CALL.matcher(warning).replaceAll("$1");
+            return LINE_POSITION.matcher(unwrapped).replaceAll(LINE_POSITION_PLACEHOLDER);
+        }
+
+        /**
          * Parses {@code json} as a JSON object, and for every key that appears in
          * {@code convertedPaths} wraps the value {@code V} as
          * {@code {"v": V}} (where {@code "v"} is
@@ -1018,7 +1086,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 case ENRICH_BODY -> "ENRICH ON / WITH grammar slots accept only attributes, not expressions";
                 case MATCH_OPERATOR_LHS -> "match operator [:] LHS accepts only an attribute, not an expression";
                 case LOOKUP_JOIN_ON -> "LOOKUP JOIN ... ON ... accepts only an attribute, not an expression";
-                case INSIST_BODY -> "INSIST_🐔 grammar slot accepts only attributes, not expressions";
                 case QUALIFIED_NAME_BRACKETS -> "[<index>].[<field>] qualified-reference brackets accept only an identifier";
             };
         }
@@ -1306,36 +1373,15 @@ public class CsvFlattenedKeywordIT extends CsvIT {
     }
 
     public static final java.util.List<String> EXPECTED_ERRORS = java.util.List.of(
-        "ABSENT_OVER_TIME:field is missing",
-        "CIDR_MATCH:blockX is missing",
-        "CLAMP:field is missing",
-        "CLAMP:max is missing",
-        "CLAMP:min is missing",
-        "CLAMP_MAX:field is missing",
-        "CLAMP_MAX:max is missing",
-        "CLAMP_MIN:field is missing",
-        "CLAMP_MIN:min is missing",
-        "COUNT_DISTINCT_OVER_TIME:field is missing",
-        "COUNT_OVER_TIME:field is missing",
-        "DATE_DIFF:unit is missing",
+        // EMBEDDING requires an inference service unavailable in the csv-spec test cluster.
         "EMBEDDING:value is missing",
         "FIELD_EXTRACT:path is missing",
-        "FIRST_OVER_TIME:field is missing",
-        "FROM_BASE64:string is missing",
-        "GREATEST:first is missing",
-        "GREATEST:rest is missing",
-        "JSON_EXTRACT:string is missing",
-        "KNN:field is missing",
-        "KQL:query is missing",
-        "LAST_OVER_TIME:field is missing",
-        "LEAST:first is missing",
-        "LEAST:rest is missing",
-        "LIKE:pattern is missing",
-        "MATCH:query is missing",
+
+        // MATCH_OPERATOR's field is a FieldAttribute, not a literal — we intentionally
+        // do not add an ENTITY hint to it, so the csv-spec test cluster never exercises
+        // this parameter via flattened-keyword field extraction.
         "MATCH_OPERATOR:field is missing",
-        "MATCH_OPERATOR:query is missing",
-        "MAX_OVER_TIME:field is missing",
-        "MIN_OVER_TIME:field is missing",
+
         // mv_in_range's bounds are literals in the csv-specs (like the comparison operators below), so its
         // keyword/text parameters are not exercised via flattened-keyword field extraction.
         "MV_IN_RANGE:field is missing",
@@ -1344,30 +1390,15 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         // MV_SORT's order argument is now marked as a CONSTANT hint in the function's docs
         // metadata, so it is excluded from the candidate set entirely (see the "constant".equals(kind)
         // check below) and never appears here as missing.
-        "NETWORK_DIRECTION:internal_networks is missing",
-        "NOT_LIKE:pattern is missing",
-        "NOT_LIKE:str is missing",
-        "NOT_RLIKE:pattern is missing",
-        "NOT_RLIKE:str is missing",
-        "PRESENT_OVER_TIME:field is missing",
-        "QSTR:query is missing",
-        "RLIKE:pattern is missing",
+
         "SPARKLINE:from is missing",
         "SPARKLINE:to is missing",
+        // TEXT_EMBEDDING requires an inference service unavailable in the csv-spec test cluster.
         "TEXT_EMBEDDING:text is missing",
-        "TO_CARTESIANPOINT:field is missing",
-        "TO_CARTESIANSHAPE:field is missing",
-        "TO_DATETIME:field is missing",
-        "TO_DATE_NANOS:field is missing",
-        "TO_DATE_RANGE:field is missing",
-        "TO_DENSE_VECTOR:field is missing",
-        "TO_DOUBLE:field is missing",
-        "TO_GEOHASH:field is missing",
-        "TO_GEOHEX:field is missing",
-        "TO_GEOSHAPE:field is missing",
-        "TO_GEOTILE:field is missing",
-        "TO_UNSIGNED_LONG:field is missing",
-        "TO_VERSION:field is missing",
+        // WITHOUT is a time-series grouping helper valid only inside TS queries, and its dimension arguments
+        // must be real index dimension fields. Rewriting a dimension to a flattened subfield destroys its
+        // dimension nature, and TS tests are skipped by the coverage check entirely (see the ts_info_command
+        // / metrics_info_command guard above), so this slot can never be exercised via field extraction.
         "WITHOUT:dimension is missing"
     );
 
@@ -1414,10 +1445,12 @@ public class CsvFlattenedKeywordIT extends CsvIT {
 
                         /*
                          * The parser just refuses to build these real looking functions, instead building something
-                         * like NOT(IN()). So we skip tracking them here - though we do actually test them.
+                         * like NOT(IN()). So we skip tracking them here - though we do actually test them. NOT_LIKE
+                         * and NOT_RLIKE fall into the same bucket: they parse to Not(WildcardLike(...))/Not(RLike(...)),
+                         * so there is no distinct AST node to track coverage against.
                          */
                         boolean rewrittenAwayAtParseTime = switch (name) {
-                            case "NOT_EQUALS", "NOT_IN" -> true;
+                            case "NOT_EQUALS", "NOT_IN", "NOT_LIKE", "NOT_RLIKE" -> true;
                             default -> false;
                         };
                         if (rewrittenAwayAtParseTime) {
@@ -1450,7 +1483,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                                     Object typeObj = params.get(i).get("type");
                                     if (typeObj instanceof String) {
                                         String t = (String) typeObj;
-                                        if ("keyword".equals(t) || "text".equals(t)) {
+                                        if ("keyword".equals(t)) {
                                             candidates.add(indexKey);
                                         }
                                     }

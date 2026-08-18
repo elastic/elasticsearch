@@ -13,6 +13,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.LeafQueryBuilder;
@@ -30,9 +31,13 @@ import java.util.Objects;
  */
 public class ExactKnnQueryBuilder extends LeafQueryBuilder<ExactKnnQueryBuilder> {
     public static final String NAME = "exact_knn";
+
+    static final TransportVersion EXACT_KNN_OVERSAMPLE = TransportVersion.fromName("exact_knn_oversample");
+
     private final String field;
     private final VectorData query;
     private final Float vectorSimilarity;
+    private final Float oversample;
 
     /**
      * Creates a query builder.
@@ -41,9 +46,23 @@ public class ExactKnnQueryBuilder extends LeafQueryBuilder<ExactKnnQueryBuilder>
      * @param field the field that was used for the kNN query
      */
     public ExactKnnQueryBuilder(VectorData query, String field, Float vectorSimilarity) {
+        this(query, field, vectorSimilarity, null);
+    }
+
+    /**
+     * Creates a query builder.
+     *
+     * @param query      the query vector
+     * @param field      the field that was used for the kNN query
+     * @param oversample the {@code rescore_vector.oversample} the originating query specified, or {@code null} to use the
+     *                   field's configured value. Selects the scoring fidelity; see
+     *                   {@link DenseVectorFieldMapper.DenseVectorFieldType#createIndexedExactKnnQuery(VectorData, Float, Float)}.
+     */
+    public ExactKnnQueryBuilder(VectorData query, String field, Float vectorSimilarity, Float oversample) {
         this.query = query;
         this.field = field;
         this.vectorSimilarity = vectorSimilarity;
+        this.oversample = oversample;
     }
 
     public ExactKnnQueryBuilder(StreamInput in) throws IOException {
@@ -51,6 +70,7 @@ public class ExactKnnQueryBuilder extends LeafQueryBuilder<ExactKnnQueryBuilder>
         this.query = in.readOptionalWriteable(VectorData::new);
         this.field = in.readString();
         this.vectorSimilarity = in.readOptionalFloat();
+        this.oversample = in.getTransportVersion().supports(EXACT_KNN_OVERSAMPLE) ? in.readOptionalFloat() : null;
     }
 
     String getField() {
@@ -65,6 +85,10 @@ public class ExactKnnQueryBuilder extends LeafQueryBuilder<ExactKnnQueryBuilder>
         return vectorSimilarity;
     }
 
+    Float oversample() {
+        return oversample;
+    }
+
     @Override
     public String getWriteableName() {
         return NAME;
@@ -75,6 +99,9 @@ public class ExactKnnQueryBuilder extends LeafQueryBuilder<ExactKnnQueryBuilder>
         out.writeOptionalWriteable(query);
         out.writeString(field);
         out.writeOptionalFloat(vectorSimilarity);
+        if (out.getTransportVersion().supports(EXACT_KNN_OVERSAMPLE)) {
+            out.writeOptionalFloat(oversample);
+        }
     }
 
     @Override
@@ -85,6 +112,9 @@ public class ExactKnnQueryBuilder extends LeafQueryBuilder<ExactKnnQueryBuilder>
         if (vectorSimilarity != null) {
             builder.field("similarity", vectorSimilarity);
         }
+        if (oversample != null) {
+            builder.field("oversample", oversample);
+        }
         boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
@@ -93,7 +123,7 @@ public class ExactKnnQueryBuilder extends LeafQueryBuilder<ExactKnnQueryBuilder>
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         final MappedFieldType fieldType = context.getFieldType(field);
         if (fieldType == null) {
-            throw new IllegalArgumentException("field [" + field + "] does not exist in the mapping");
+            return Queries.NO_DOCS_INSTANCE;
         }
         if (fieldType instanceof DenseVectorFieldMapper.DenseVectorFieldType == false) {
             throw new IllegalArgumentException(
@@ -101,17 +131,20 @@ public class ExactKnnQueryBuilder extends LeafQueryBuilder<ExactKnnQueryBuilder>
             );
         }
         final DenseVectorFieldMapper.DenseVectorFieldType vectorFieldType = (DenseVectorFieldMapper.DenseVectorFieldType) fieldType;
-        return vectorFieldType.createIndexedExactKnnQuery(query, vectorSimilarity);
+        return vectorFieldType.createIndexedExactKnnQuery(query, vectorSimilarity, oversample);
     }
 
     @Override
     protected boolean doEquals(ExactKnnQueryBuilder other) {
-        return field.equals(other.field) && Objects.equals(query, other.query) && Objects.equals(vectorSimilarity, other.vectorSimilarity);
+        return field.equals(other.field)
+            && Objects.equals(query, other.query)
+            && Objects.equals(vectorSimilarity, other.vectorSimilarity)
+            && Objects.equals(oversample, other.oversample);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(field, Objects.hashCode(query), vectorSimilarity);
+        return Objects.hash(field, Objects.hashCode(query), vectorSimilarity, oversample);
     }
 
     @Override

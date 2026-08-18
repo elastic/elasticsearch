@@ -7,18 +7,143 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class LongRangeBlockTests extends ESTestCase {
+public class LongRangeBlockTests extends BlockTestCase<LongRangeBlock, LongRangeBlock.Builder, LongRangeBlockBuilder.LongRange> {
+    @Override
+    protected LongRangeBlock.Builder createBuilder(BlockFactory blockFactory, int estimatedSize) {
+        return blockFactory.newLongRangeBlockBuilder(estimatedSize);
+    }
+
+    @Override
+    protected void appendNull(LongRangeBlock.Builder builder) {
+        builder.appendNull();
+    }
+
+    @Override
+    protected void appendSingle(LongRangeBlock.Builder builder, LongRangeBlockBuilder.LongRange value) {
+        builder.appendLongRange(value);
+    }
+
+    @Override
+    protected void appendMultivalued(LongRangeBlock.Builder builder, List<LongRangeBlockBuilder.LongRange> values) {
+        builder.beginPositionEntry();
+        for (LongRangeBlockBuilder.LongRange value : values) {
+            builder.appendLongRange(value);
+        }
+        builder.endPositionEntry();
+    }
+
+    @Override
+    protected LongRangeBlock build(LongRangeBlock.Builder builder) {
+        return builder.build();
+    }
+
+    @Override
+    protected List<LongRangeBlockBuilder.LongRange> valuesAt(LongRangeBlock block, int position) {
+        if (block.isNull(position)) {
+            return null;
+        }
+        int start = block.getFirstValueIndex(position);
+        int end = start + block.getValueCount(position);
+        List<LongRangeBlockBuilder.LongRange> values = new ArrayList<>(end - start);
+        LongRangeBlockBuilder.LongRange scratch = new LongRangeBlockBuilder.LongRange();
+        for (int i = start; i < end; i++) {
+            block.getLongRange(i, scratch);
+            values.add(new LongRangeBlockBuilder.LongRange(scratch.from(), scratch.to()));
+        }
+        return values;
+    }
+
+    @Override
+    protected LongRangeBlockBuilder.LongRange randomValue() {
+        long from = randomLong();
+        long to = randomValueOtherThan(from, () -> randomLong());
+        return new LongRangeBlockBuilder.LongRange(Math.min(from, to), Math.max(from, to));
+    }
+
+    @Override
+    protected boolean positionHasValue(LongRangeBlock block, int position, LongRangeBlockBuilder.LongRange value) {
+        return block.hasValue(position, value, new LongRangeBlockBuilder.LongRange());
+    }
+
+    @Override
+    protected ElementType expectedElementType() {
+        return ElementType.LONG_RANGE;
+    }
+
+    @Override
+    protected TransportVersion minimumSerializationTransportVersion() {
+        return RangeFieldMapper.ESQL_LONG_RANGES;
+    }
+
+    @Override
+    protected boolean supportsLookup() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsDenseVector() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsConfigurableMvOrdering() {
+        return false;
+    }
+
+    @Override
+    protected void assertSingleValueBlockRepresentation(LongRangeBlock block) {
+        assertThat(block, instanceOf(LongRangeArrayBlock.class));
+    }
+
+    @Override
+    protected void assertDenseVectorBlockRepresentation(LongRangeBlock block) {
+        assertThat(block, instanceOf(LongRangeArrayBlock.class));
+    }
+
+    @Override
+    protected void assertArrayBlockRepresentation(LongRangeBlock block) {
+        assertThat(block, instanceOf(LongRangeArrayBlock.class));
+    }
+
+    @Override
+    protected void assertBigArrayVectorBlockRepresentation(LongRangeBlock block) {
+        assertThat(block, instanceOf(LongRangeArrayBlock.class));
+    }
+
+    @Override
+    protected void assertBigArrayBlockRepresentation(LongRangeBlock block) {
+        assertThat(block, instanceOf(LongRangeArrayBlock.class));
+    }
+
+    @Override
+    protected void assertEmptyBlockRepresentation(LongRangeBlock block) {
+        assertThat(block, instanceOf(LongRangeArrayBlock.class));
+    }
+
+    @Override
+    protected void assertAllNullBlockRepresentation(LongRangeBlock block) {
+        assertThat(block, instanceOf(LongRangeArrayBlock.class));
+    }
+
+    @Override
+    protected void assertAdditionalInvariants(LongRangeBlock block, List<List<LongRangeBlockBuilder.LongRange>> expected) {
+        assertThat(block.valueMaxByteSize(), equalTo(block instanceof ConstantNullBlock ? 0 : Long.BYTES * 2));
+    }
 
     public void testGetLongRangeMutatesScratchAcrossValueIndices() {
-        BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofMb(16));
-        try (LongRangeBlockBuilder builder = blockFactory.newLongRangeBlockBuilder(3)) {
+        try (LongRangeBlockBuilder builder = blockFactory().newLongRangeBlockBuilder(3)) {
             // Position 0: single-valued [10, 20)
             builder.appendLongRange(10L, 20L);
             // Position 1: multi-valued [30, 40), [50, 60), [70, 80)
@@ -62,81 +187,6 @@ public class LongRangeBlockTests extends ESTestCase {
         }
     }
 
-    public void testExpandSingleValueBlock() {
-        BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofMb(16));
-        try (LongRangeBlockBuilder builder = blockFactory.newLongRangeBlockBuilder(2)) {
-            builder.appendLongRange(10L, 20L);
-            builder.appendLongRange(30L, 40L);
-            try (LongRangeBlock block = builder.build()) {
-                assertThat(block.doesHaveMultivaluedFields(), equalTo(false));
-                try (LongRangeBlock expanded = block.expand()) {
-                    assertThat("no MVs: expand must return the same instance", expanded, sameInstance(block));
-                    assertThat(expanded.getPositionCount(), equalTo(2));
-                }
-            }
-        }
-    }
-
-    public void testExpandMultiValueBlock() {
-        BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofMb(16));
-        try (LongRangeBlockBuilder builder = blockFactory.newLongRangeBlockBuilder(2)) {
-            // Position 0: single [10, 20)
-            builder.appendLongRange(10L, 20L);
-            // Position 1: multi-valued [30, 40), [50, 60)
-            builder.from().beginPositionEntry();
-            builder.from().appendLong(30L);
-            builder.from().appendLong(50L);
-            builder.from().endPositionEntry();
-            builder.to().beginPositionEntry();
-            builder.to().appendLong(40L);
-            builder.to().appendLong(60L);
-            builder.to().endPositionEntry();
-
-            try (LongRangeBlock block = builder.build()) {
-                assertThat(block.getPositionCount(), equalTo(2));
-                assertThat(block.doesHaveMultivaluedFields(), equalTo(true));
-                try (LongRangeBlock expanded = block.expand()) {
-                    assertThat("with MVs: expand must return a new instance", expanded, not(sameInstance(block)));
-                    assertThat(expanded.getPositionCount(), equalTo(3));
-                    assertThat(expanded.getValueCount(0), equalTo(1));
-                    assertThat(expanded.getValueCount(1), equalTo(1));
-                    assertThat(expanded.getValueCount(2), equalTo(1));
-                    LongRangeBlockBuilder.LongRange scratch = new LongRangeBlockBuilder.LongRange();
-                    assertThat(expanded.getLongRange(0, scratch).from(), equalTo(10L));
-                    assertThat(expanded.getLongRange(0, scratch).to(), equalTo(20L));
-                    assertThat(expanded.getLongRange(1, scratch).from(), equalTo(30L));
-                    assertThat(expanded.getLongRange(1, scratch).to(), equalTo(40L));
-                    assertThat(expanded.getLongRange(2, scratch).from(), equalTo(50L));
-                    assertThat(expanded.getLongRange(2, scratch).to(), equalTo(60L));
-                }
-            }
-        }
-    }
-
-    public void testGetTotalValueCount() {
-        BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofMb(16));
-        try (LongRangeBlockBuilder builder = blockFactory.newLongRangeBlockBuilder(3)) {
-            // Position 0: single value
-            builder.appendLongRange(10L, 20L);
-            // Position 1: two values
-            builder.from().beginPositionEntry();
-            builder.from().appendLong(30L);
-            builder.from().appendLong(50L);
-            builder.from().endPositionEntry();
-            builder.to().beginPositionEntry();
-            builder.to().appendLong(40L);
-            builder.to().appendLong(60L);
-            builder.to().endPositionEntry();
-            // Position 2: single value
-            builder.appendLongRange(100L, 200L);
-
-            try (LongRangeBlock block = builder.build()) {
-                // 1 + 2 + 1 = 4 total values, not 8 (which the bug would return by summing from+to counts)
-                assertThat(block.getTotalValueCount(), equalTo(4));
-            }
-        }
-    }
-
     public void testLongRangeValueSemantics() {
         var a = new LongRangeBlockBuilder.LongRange(1L, 2L);
         var b = new LongRangeBlockBuilder.LongRange(1L, 2L);
@@ -152,5 +202,22 @@ public class LongRangeBlockTests extends ESTestCase {
         assertThat(a.from(), equalTo(7L));
         assertThat(a.to(), equalTo(9L));
         assertThat(a, not(equalTo(b)));
+    }
+
+    public void testLookupUnsupported() {
+        try (LongRangeBlock block = buildBlock(blockFactory(), List.of(List.of(randomValue()))); IntBlock positions = positions()) {
+            UnsupportedOperationException e = expectThrows(
+                UnsupportedOperationException.class,
+                () -> block.lookup(positions, ByteSizeValue.ofKb(100))
+            );
+            assertThat(e.getMessage(), equalTo("can't lookup values from LongRangeBlock"));
+        }
+    }
+
+    private IntBlock positions() {
+        try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(1)) {
+            builder.appendInt(0);
+            return builder.build();
+        }
     }
 }

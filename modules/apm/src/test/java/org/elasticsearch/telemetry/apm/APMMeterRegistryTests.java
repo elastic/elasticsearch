@@ -10,6 +10,7 @@
 package org.elasticsearch.telemetry.apm;
 
 import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.data.LongPointData;
@@ -21,6 +22,7 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.APMMeterService;
 import org.elasticsearch.telemetry.apm.internal.TestAPMMeterService;
+import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
@@ -194,6 +196,33 @@ public class APMMeterRegistryTests extends ESTestCase {
         assertThat(longPoints(reEnabled, gaugeName), contains(7L));
 
         meterProvider.close();
+    }
+
+    public void testInstrumentTimingRecordsPerInstrument() {
+        Settings timingEnabled = Settings.builder()
+            .put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), true)
+            .put(OtelSdkSettings.TELEMETRY_METRICS_INSTRUMENT_TIMING_ENABLED.getKey(), true)
+            .build();
+
+        InMemoryMetricReader reader = InMemoryMetricReader.create();
+        SdkMeterProvider provider = SdkMeterProvider.builder().registerMetricReader(reader).build();
+        Meter otelMeter = provider.get("elasticsearch");
+        APMMeterRegistry registry = new APMMeterService(timingEnabled, () -> otelMeter, () -> noopOtel).getMeterRegistry();
+
+        registry.registerLongGauge("es.test.timed.current", "", "", () -> new LongWithAttributes(7L, Collections.emptyMap()));
+
+        List<String> timedInstruments = collectionTimeInstruments(reader.collectAllMetrics());
+        assertThat(timedInstruments, contains("es.test.timed.current"));
+
+        provider.close();
+    }
+
+    private static List<String> collectionTimeInstruments(Collection<MetricData> metrics) {
+        return metrics.stream()
+            .filter(m -> m.getName().equals("es.apm.metrics.instrument.collection_time.histogram"))
+            .flatMap(m -> m.getData().getPoints().stream())
+            .map(p -> p.getAttributes().get(AttributeKey.stringKey("es_instrument_name")))
+            .toList();
     }
 
     private static List<Long> longPoints(Collection<MetricData> metrics, String name) {

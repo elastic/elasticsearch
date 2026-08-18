@@ -23,14 +23,14 @@ import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
  * <p>{@code vectors} is a single {@link FloatVectorValues} from which both query and corpus
  * vectors are read via disjoint ordinal sets ({@code queryOrdinals} and {@code corpusOrdinals}).
  *
- * <p>{@code baseDim} is the raw embedding dimension. {@code dim} is the working dimension used
+ * <p>{@code baseDim} is the raw embedding dimension. {@code workingDim} is the dimension used
  * for KMeans, scratch allocation, and quantization: equal to {@code baseDim} normally, or
  * {@code baseDim + 1} when {@code neyshabur} is {@code true} (Neyshabur lift appends a zero
  * component to each query before preconditioner application).
  */
 public record CalibrationSource(
     VectorSimilarityFunction similarityFunction,
-    int dim,
+    int workingDim,
     FloatVectorValues vectors,
     int[] queryOrdinals,
     int baseDim,
@@ -38,5 +38,6 @@ public record CalibrationSource(
     boolean neyshabur,
     Preconditioner preconditioner,
     int[] corpusOrdinals,
-    int k
+    int k,
+    int numVectors
 ) {}

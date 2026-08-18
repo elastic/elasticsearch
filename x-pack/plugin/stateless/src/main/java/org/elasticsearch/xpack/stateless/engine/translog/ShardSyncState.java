@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.stateless.engine.translog;
 
+import org.apache.lucene.internal.hppc.LongArrayList;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -15,11 +17,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.NavigableMap;
 import java.util.PriorityQueue;
 import java.util.TreeMap;
-import java.util.function.LongConsumer;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 class ShardSyncState {
@@ -27,7 +28,7 @@ class ShardSyncState {
     private final ShardId shardId;
     private final long startingPrimaryTerm;
     private final LongSupplier currentPrimaryTerm;
-    private final LongConsumer persistedSeqNoConsumer;
+    private final Consumer<LongsRef> persistedSeqNosConsumer;
     private final ThreadContext threadContext;
     private final PriorityQueue<SyncListener> listeners = new PriorityQueue<>();
     private final TreeMap<Long, TranslogReplicator.BlobTranslogFile> translogFiles = new TreeMap<>();
@@ -41,13 +42,13 @@ class ShardSyncState {
         ShardId shardId,
         long primaryTerm,
         LongSupplier currentPrimaryTerm,
-        LongConsumer persistedSeqNoConsumer,
+        Consumer<LongsRef> persistedSeqNosConsumer,
         ThreadContext threadContext
     ) {
         this.shardId = shardId;
         this.startingPrimaryTerm = primaryTerm;
         this.currentPrimaryTerm = currentPrimaryTerm;
-        this.persistedSeqNoConsumer = persistedSeqNoConsumer;
+        this.persistedSeqNosConsumer = persistedSeqNosConsumer;
         this.threadContext = threadContext;
     }
 
@@ -149,7 +150,8 @@ class ShardSyncState {
             assert syncMarker.location().compareTo(syncedLocation) > 0;
             // We mark the seqNos of persisted before exposing the synced location. This matches what we do in the TranlogWriter.
             // Some assertions in TransportVerifyShardBeforeCloseAction depend on the seqNos marked as persisted before the sync is exposed.
-            syncMarker.syncedSeqNos().forEach(persistedSeqNoConsumer::accept);
+            final LongArrayList syncedSeqNos = syncMarker.syncedSeqNos();
+            persistedSeqNosConsumer.accept(new LongsRef(syncedSeqNos.buffer, 0, syncedSeqNos.size()));
             syncedLocation = syncMarker.location();
             return true;
         } else {
@@ -279,6 +281,6 @@ class ShardSyncState {
         }
     }
 
-    record SyncMarker(long primaryTerm, Translog.Location location, List<Long> syncedSeqNos) {}
+    record SyncMarker(long primaryTerm, Translog.Location location, LongArrayList syncedSeqNos) {}
 
 }

@@ -76,7 +76,7 @@ public class PrimaryReplicaSyncer {
         try {
             final long startingSeqNo = indexShard.getLastKnownGlobalCheckpoint() + 1;
             assert startingSeqNo >= 0 : "startingSeqNo must be non-negative; got [" + startingSeqNo + "]";
-            final long maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
+            final long maxSeqNo = indexShard.getMaxSeqNo();
             final ShardId shardId = indexShard.shardId();
             // Wrap translog snapshot to make it synchronized as it is accessed by different threads through SnapshotSender.
             // Even though those calls are not concurrent, snapshot.next() uses non-synchronized state and is not multi-thread-compatible

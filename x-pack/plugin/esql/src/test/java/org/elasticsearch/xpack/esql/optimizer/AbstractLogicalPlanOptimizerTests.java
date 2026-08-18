@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
@@ -125,7 +126,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         var multiIndex = new EsIndex(
             "multi_index",
             multiIndexMapping,
-            Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
+            Map.of("test1", new IndexProperties(IndexMode.STANDARD, 0), "test2", new IndexProperties(IndexMode.STANDARD, 0)),
             Map.of(),
             Map.of()
         );
@@ -157,7 +158,12 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         var unionIndex = new EsIndex(
             "union_types_index*",
             Map.of("languages", languages, "last_name", lastName, "salary_change", salaryChange, "first_name", firstName, "id", idField),
-            Map.of("union_types_index", IndexMode.STANDARD, "union_types_index_incompatible", IndexMode.STANDARD),
+            Map.of(
+                "union_types_index",
+                new IndexProperties(IndexMode.STANDARD, 0),
+                "union_types_index_incompatible",
+                new IndexProperties(IndexMode.STANDARD, 0)
+            ),
             Map.of("", List.of("union_types_index*")),
             Map.of("", List.of("union_types_index_incompatible", "union_types_index"))
         );

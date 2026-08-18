@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.cache;
 
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,9 +27,8 @@ public class ParsedFooterCacheTests extends ESTestCase {
 
     private ParsedFooterCache<String> cache;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initCache() {
         cache = new ParsedFooterCache<>(8);
     }
 

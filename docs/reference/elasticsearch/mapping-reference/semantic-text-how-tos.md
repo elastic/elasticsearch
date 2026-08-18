@@ -11,7 +11,7 @@ applies_to:
 
 These guides provide procedure descriptions and examples for common tasks when working with `semantic_text` fields:
 
-- [Set up and configure `semantic_text` fields](./semantic-text-setup-configuration.md): Learn how to configure {{infer}} endpoints, including default and preconfigured options, ELSER on EIS, custom endpoints, and dedicated endpoints for ingestion and search operations.
+- [Set up and configure `semantic_text` fields](./semantic-text-setup-configuration.md): Learn how to configure {{infer}} endpoints, including default endpoints, Jina on EIS, ELSER on EIS, third-party models on EIS, external {{infer}}, and dedicated endpoints for ingestion and search operations.
 
 - [Ingest data with `semantic_text` fields](./semantic-text-ingestions.md): Learn how to index pre-chunked content, use `copy_to` and multi-fields to collect values from multiple fields, and perform updates and partial updates to optimize ingestion costs.
 

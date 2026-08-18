@@ -16,11 +16,37 @@ To give you insight into what deprecated features you’re using, {{es}}:
 
 % ## Next version [elasticsearch-nextversion-deprecations]
 
-## 9.4.3 [elasticsearch-9.4.3-deprecations]
+## 9.5.1 [elasticsearch-9.5.1-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.4.5 [elasticsearch-9.4.5-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.5.0 [elasticsearch-9.5.0-deprecations]
+
+Infra/Logging:
+* Implicit configuration of child loggers on logger setting updates is deprecated, this behavior will be removed in 10.0. [#151637](https://github.com/elastic/elasticsearch/pull/151637)
+
+Monitoring:
+* Using the Elasticsearch Monitoring plugin to collect and ship monitoring data is deprecated and will be removed in 10.0. [#151617](https://github.com/elastic/elasticsearch/pull/151617)
+
+
+
+## 9.4.4 [elasticsearch-9.4.4-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.3.8 [elasticsearch-9.3.8-deprecations]
 
 There are no deprecations associated with this release.
 
 ## 9.3.7 [elasticsearch-9.3.7-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.4.3 [elasticsearch-9.4.3-deprecations]
 
 There are no deprecations associated with this release.
 

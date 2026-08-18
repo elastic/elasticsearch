@@ -15,6 +15,8 @@ import org.apache.parquet.compression.CompressionCodecFactory.BytesInputDecompre
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.compress.PanamaZstd;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -26,16 +28,14 @@ public class PlainCompressionCodecFactoryTests extends ESTestCase {
 
     private PlainCompressionCodecFactory factory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initFactory() {
         factory = new PlainCompressionCodecFactory();
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void releaseFactory() {
         factory.release();
-        super.tearDown();
     }
 
     public void testUncompressedRoundTrip() throws IOException {

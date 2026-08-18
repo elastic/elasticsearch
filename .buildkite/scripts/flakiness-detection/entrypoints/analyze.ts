@@ -6,7 +6,7 @@ import { join, resolve } from "path";
 import { analyzeReports } from "../analyzer/analyze.ts";
 import { deriveOutcome } from "../analyzer/outcome.ts";
 import { renderMarkdown, severity } from "../analyzer/render.ts";
-import { DEFAULT_AGENT_CONFIG } from "../domain.ts";
+import { DEFAULT_AGENT_CONFIG, KIND_KEYS, type ClassifiedTest, type TestKind } from "../domain.ts";
 import { NEVER_FAIL_GRACE_MINUTES } from "../runners/buildkite.ts";
 
 const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../../..`);
@@ -37,6 +37,17 @@ const MAX_FAILING_CLASSES = 50;
 // Keep this filename in sync with FLAKINESS_OUTCOMES_ARTIFACT in runners/buildkite.ts.
 const OUTCOMES_ARTIFACT_FILE = "flakiness-outcomes.json";
 
+// Written by the bootstrap step (entrypoints/pr.ts): tests that could not be
+// re-run (BWC projects). Downloaded next to this script and folded into the
+// outcomes as `not_applicable`. Keep in sync with FLAKINESS_SKIPPED_ARTIFACT in
+// runners/buildkite.ts and entrypoints/pr.ts.
+const SKIPPED_FILE = "flakiness-skipped.json";
+
+// Written by the pre-flight compile step only when compilation fails; folded in
+// as a single `build_failed` outcome (the skipped batches produce none). Keep in
+// sync with FLAKINESS_PRECOMPILE_ARTIFACT in runners/buildkite.ts.
+const PRECOMPILE_FILE = "flakiness-precompile.json";
+
 // Self-reported by each batch job's never-fail wrapper (runners/buildkite.ts).
 interface JobStatus {
   jobId: string;
@@ -45,6 +56,12 @@ interface JobStatus {
   rc: number;
   durationSec: number;
 }
+
+// A JobStatus plus the raw signals the wrapper reports that are inputs to
+// classification but are not themselves payload fields (the payload's
+// `infraSubtype` comes from deriveOutcome, not the wrapper). Kept separate so it
+// is not spread into the payload.
+type JobStatusWithSignals = JobStatus & { oomDetected: boolean };
 
 // One element of the `data-flakiness` annotation array.
 interface FlakinessPayload extends JobStatus {
@@ -55,16 +72,19 @@ interface FlakinessPayload extends JobStatus {
   timedOut: boolean;
   infraSubtype?: string;
   failingClasses: string[];
+  // Set only on `not_applicable` records: why the test could not be re-run
+  // (currently always "bwc").
+  reason?: string;
 }
 
-async function readJobStatuses(): Promise<JobStatus[]> {
+async function readJobStatuses(): Promise<JobStatusWithSignals[]> {
   let entries;
   try {
     entries = await readdir(STATUS_DIR, { withFileTypes: true });
   } catch {
     return [];
   }
-  const statuses: JobStatus[] = [];
+  const statuses: JobStatusWithSignals[] = [];
   for (const e of entries) {
     if (!e.isFile() || !e.name.endsWith(".json")) continue;
     try {
@@ -76,6 +96,9 @@ async function readJobStatuses(): Promise<JobStatus[]> {
           kind: String(parsed.kind ?? ""),
           rc: Number(parsed.rc ?? 0),
           durationSec: Number(parsed.durationSec ?? 0),
+          // The wrapper reports `infraSubtype: "oom"` when a heap dump was found;
+          // it is a classification input, not a payload field.
+          oomDetected: parsed.infraSubtype === "oom",
         });
       }
     } catch (err) {
@@ -112,7 +135,10 @@ function downloadJobReports(jobId: string): string {
 // job's XML fails, fall back to classifying from rc/duration alone (zero test
 // counts) so a single bad job can never block the whole annotation. The status
 // file's rc is the most important signal anyway.
-async function buildPayload(status: JobStatus): Promise<FlakinessPayload> {
+async function buildPayload(statusWithSignals: JobStatusWithSignals): Promise<FlakinessPayload> {
+  // Split the classification-only signals from the fields that belong in the
+  // payload (spread below).
+  const { oomDetected, ...status } = statusWithSignals;
   let realFailures = 0;
   let suiteTimeouts = 0;
   let totalCases = 0;
@@ -127,7 +153,7 @@ async function buildPayload(status: JobStatus): Promise<FlakinessPayload> {
   } catch (err) {
     console.error(`Failed to analyze reports for job ${status.jobId}; classifying from rc/duration only:`, err);
   }
-  const derived = deriveOutcome({ rc: status.rc, durationSec: status.durationSec, realFailures, totalCases, timeoutThresholdSec: INNER_TIMEOUT_SEC });
+  const derived = deriveOutcome({ rc: status.rc, durationSec: status.durationSec, realFailures, totalCases, timeoutThresholdSec: INNER_TIMEOUT_SEC, oomDetected });
   const payload: FlakinessPayload = {
     ...status,
     realFailures,
@@ -141,6 +167,86 @@ async function buildPayload(status: JobStatus): Promise<FlakinessPayload> {
     payload.infraSubtype = derived.infraSubtype;
   }
   return payload;
+}
+
+// Read the BWC skip list the bootstrap step wrote. Absent = nothing skipped.
+async function readSkippedTests(): Promise<ClassifiedTest[]> {
+  try {
+    const parsed = JSON.parse(await readFile(join(PROJECT_ROOT, SKIPPED_FILE), "utf8"));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+// A skipped BWC test never ran as a job, so it has no rc/duration/XML. It is
+// recorded as a `not_applicable` payload with zeroed counts and a synthetic
+// jobId so downstream keyed on jobId stays well-formed.
+export function notApplicablePayload(t: ClassifiedTest): FlakinessPayload {
+  const target = t.yamlTest ? `${t.fqcn}.${t.yamlTest}` : (t.fqcn ?? t.suitePath ?? "");
+  return {
+    jobId: `not-applicable:${t.kind}:${t.gradleProject}:${target}`,
+    stepKey: KIND_KEYS[t.kind as TestKind] ?? "",
+    kind: t.kind,
+    rc: 0,
+    durationSec: 0,
+    realFailures: 0,
+    suiteTimeouts: 0,
+    totalCases: 0,
+    outcome: "not_applicable",
+    timedOut: false,
+    failingClasses: [],
+    reason: "bwc",
+  };
+}
+
+// Pure: does the pre-flight compile step's marker signal a build failure?
+// `markerText` is the marker file's contents, or `null` when the file is absent.
+// Absent, unreadable, malformed, or any non-`build_failed` outcome all mean "no".
+export function isPrecompileFailure(markerText: string | null): boolean {
+  if (markerText === null) {
+    return false;
+  }
+  try {
+    const parsed = JSON.parse(markerText);
+    return parsed?.outcome === "build_failed";
+  } catch {
+    return false;
+  }
+}
+
+// True when the pre-flight compile step left a failure marker. A missing file
+// (the gate passed or never ran) reads as `null` -> not failed.
+async function precompileFailed(): Promise<boolean> {
+  let markerText: string | null = null;
+  try {
+    markerText = await readFile(join(PROJECT_ROOT, PRECOMPILE_FILE), "utf8");
+  } catch {
+    markerText = null;
+  }
+  return isPrecompileFailure(markerText);
+}
+
+// A single record standing in for the batches that were skipped because the
+// pre-flight compile gate failed. `reason` names the gate, not a specific cause:
+// the gate exits non-zero on a genuine compile error but also on an infra failure
+// within it (dependency download, build-scan upload, OOM), and it does not read
+// its own log to tell them apart.
+export function buildFailedPayload(): FlakinessPayload {
+  return {
+    jobId: "build-failed:precompile",
+    stepKey: "flakiness-detection:precompile",
+    kind: "",
+    rc: 1,
+    durationSec: 0,
+    realFailures: 0,
+    suiteTimeouts: 0,
+    totalCases: 0,
+    outcome: "build_failed",
+    timedOut: false,
+    failingClasses: [],
+    reason: "precompile",
+  };
 }
 
 function annotate(context: string, style: string, body: string): void {
@@ -169,6 +275,26 @@ async function run(): Promise<void> {
       console.error(`Failed to build payload for job ${status.jobId}:`, err);
     }
   }
+
+  // Fold in the tests the bootstrap step could not re-run (BWC): recorded as
+  // `not_applicable` so they are counted separately from `hang`/`infra_fail`.
+  const skipped = await readSkippedTests();
+  for (const t of skipped) {
+    payloads.push(notApplicablePayload(t));
+  }
+  if (skipped.length > 0) {
+    console.log(`Recorded ${skipped.length} not_applicable (BWC, not re-runnable via the bare task).`);
+  }
+
+  // If the pre-flight compile gate failed, the batches were skipped and produced
+  // no statuses; record a single `build_failed` so a non-compiling PR does not
+  // read as zero problems.
+  const buildFailed = await precompileFailed();
+  if (buildFailed) {
+    payloads.push(buildFailedPayload());
+    console.log("Recorded build_failed (PR did not compile; re-runs were skipped).");
+  }
+
   if (process.env.CI && payloads.length > 0) {
     // Written at PROJECT_ROOT (the step cwd / checkout root) so the analyze
     // step's `artifact_paths` glob picks it up for upload.
@@ -181,10 +307,10 @@ async function run(): Promise<void> {
 
   // Human-readable report aggregated across every downloaded job.
   const report = await analyzeReports([JOBS_DIR]);
-  const md = renderMarkdown(report);
+  const md = renderMarkdown(report, buildFailed);
   console.log(md);
   if (process.env.CI) {
-    annotate("flakiness-detection-report", severity(report), md);
+    annotate("flakiness-detection-report", severity(report, buildFailed), md);
   }
 }
 

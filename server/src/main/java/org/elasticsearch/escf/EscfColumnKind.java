@@ -21,9 +21,10 @@ import org.elasticsearch.sourcebatch.SourceValueType;
  * ARRAY:         offsets[(docCount+1) * 4] (per-row element ranges) | child_kind(1) | child_values
  * UNION:         type_vec[docCount] | offsets[(docCount+1) * 4] | dense_values
  * </pre>
- * A validity bitset (LE longs, bit set = absent) is prepended to any kind only when at least one
- * document is absent. ARRAY uses a columnar list layout: the {@code offsets} delimit each row's
- * element range within a single dense primitive {@code child} sub-column (never inline arrays).
+ * A validity bitset (LE longs, bit set = present/valid) is prepended to any kind only
+ * when at least one document is absent. ARRAY uses a columnar list layout: the {@code offsets}
+ * delimit each row's element range within a single dense primitive {@code child} sub-column
+ * (never inline arrays).
  */
 public final class EscfColumnKind {
 

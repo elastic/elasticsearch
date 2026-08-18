@@ -351,8 +351,17 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     public void testValidateDatasetSchemaSampleSize() {
         assertEquals(50, validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 50)).get("schema_sample_size"));
         expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 0)));
-        // upper bound: SCHEMA_SAMPLE_SIZE_MAX = 1000
-        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 1001)));
+        // The bound must admit the readers' own default (20000); it used to stop at 1000, which made every value
+        // from 1001 up -- including the default -- unregisterable. See FileDataSourceValidatorSampleSizeBoundTests.
+        assertEquals(1001, validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 1001)).get("schema_sample_size"));
+        assertEquals(
+            20_000,
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 20_000)).get("schema_sample_size")
+        );
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 20_001))
+        );
     }
 
     public void testValidateDatasetSchemaSampleSizeNonNumber() {

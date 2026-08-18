@@ -16,9 +16,9 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
-import org.elasticsearch.simdvec.IndexInputUtils;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
 import org.elasticsearch.simdvec.internal.vectorization.ScoreCorrections;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
     Int7uOSQVectorScorerSupplier.DotProductSupplier, Int7uOSQVectorScorerSupplier.EuclideanSupplier,
     Int7uOSQVectorScorerSupplier.MaxInnerProductSupplier {
 
-    private static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
+    private static final SimdVecLibrary DISTANCE_FUNCS = NativeAccess.instance()
         .getVectorSimilarityFunctions()
         .orElseThrow(AssertionError::new);
 
@@ -76,13 +76,24 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
     ) {}
 
     protected QueryContext createQueryContext(int ord) throws IOException {
-        var correctiveTerms = values.getCorrectiveTerms(ord);
-        return new QueryContext(
-            ord,
-            correctiveTerms.lowerInterval(),
-            correctiveTerms.upperInterval(),
-            correctiveTerms.additionalCorrection(),
-            correctiveTerms.quantizedComponentSum()
+        // Read the full per-vector record (vector + corrections) in a single slice, matching the read
+        // pattern in scoreFromOrds/bulkScoreFromOrds, instead of a separate getCorrectiveTerms(ord) I/O
+        // on the values' own channel. Only the corrections trailer is extracted here.
+        long offset = (long) ord * vectorPitch;
+        input.seek(offset);
+        // The corrections trailer starts at byte offset dims within the record; read the 3 floats + 1 int
+        // directly from the slice rather than materializing a short-lived sub-slice.
+        return IndexInputUtils.withSlice(
+            input,
+            vectorPitch,
+            firstScratch::getScratch,
+            seg -> new QueryContext(
+                ord,
+                seg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims),
+                seg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims + Float.BYTES),
+                seg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims + 2L * Float.BYTES),
+                seg.get(ValueLayout.JAVA_INT_UNALIGNED, dims + 3L * Float.BYTES)
+            )
         );
     }
 

@@ -114,9 +114,14 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput implements
     }
 
     @Override
-    public boolean withMemorySegmentSlices(long[] offsets, int length, int count, CheckedConsumer<MemorySegment[], IOException> action)
-        throws IOException {
-        if (DirectAccessInput.checkSlicesArgs(offsets, count)) {
+    public boolean withSliceAddresses(
+        long[] offsets,
+        int length,
+        int count,
+        MemorySegment addressesScratch,
+        CheckedConsumer<MemorySegment, IOException> action
+    ) throws IOException {
+        if (DirectAccessInput.checkSlicesArgs(offsets, count, addressesScratch)) {
             return false;
         }
         long[] adjusted = offsets;
@@ -126,7 +131,7 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput implements
                 adjusted[i] = offsets[i] + this.offset;
             }
         }
-        return cacheFile.withMemorySegmentSlices(adjusted, length, count, action);
+        return cacheFile.withSliceAddresses(adjusted, length, count, addressesScratch, action);
     }
 
     @Override

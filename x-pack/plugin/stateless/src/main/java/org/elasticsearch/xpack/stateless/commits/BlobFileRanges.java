@@ -217,16 +217,25 @@ public class BlobFileRanges implements Writeable {
     }
 
     /**
-     * Returns a positive epoch millis timestamp representing the midpoint of the given range, or
-     * {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP} if the range is null.
+     * Returns an epoch millis timestamp representing the midpoint of the given range, floored to
+     * {@link SharedBlobCacheService#MINIMAL_CACHE_TIMESTAMP}, or {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP} if
+     * the range is null (no timestamp field / no range recorded).
      */
     public static long midpointMillisOrUnknownForCache(@Nullable StatelessCompoundCommit.TimestampFieldValueRange range) {
         if (range == null) {
             return SharedBlobCacheService.UNKNOWN_TIMESTAMP;
         }
-        long midpointMillis = range.midpointMillis();
-        // Cache-region timestamps must be positive epoch millis or a negative sentinel value.
-        return midpointMillis > 0L ? midpointMillis : 1L;
+        // Cache-region timestamps must be non-negative epoch millis or a negative sentinel value.
+        return Math.max(range.midpointMillis(), SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP);
+    }
+
+    /**
+     * Returns {@code first} when it is known, otherwise returns {@code second}.
+     */
+    public static long firstKnownTimestamp(long first, long second) {
+        assert first >= SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP || first == SharedBlobCacheService.UNKNOWN_TIMESTAMP : first;
+        assert second >= SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP || second == SharedBlobCacheService.UNKNOWN_TIMESTAMP : second;
+        return first != SharedBlobCacheService.UNKNOWN_TIMESTAMP ? first : second;
     }
 
     /**
@@ -234,6 +243,8 @@ public class BlobFileRanges implements Writeable {
      * lesser-known value so any known timestamp wins.
      */
     public static long mostRecentKnownTimestamp(long a, long b) {
+        assert a >= SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP || a == SharedBlobCacheService.UNKNOWN_TIMESTAMP : a;
+        assert b >= SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP || b == SharedBlobCacheService.UNKNOWN_TIMESTAMP : b;
         if (a == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
             return b;
         }

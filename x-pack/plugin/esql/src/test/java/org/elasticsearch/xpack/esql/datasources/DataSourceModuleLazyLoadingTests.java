@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.junit.Before;
 
 import java.time.Instant;
 import java.util.List;
@@ -52,9 +53,8 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
     private static final AtomicBoolean OTHER_FORMAT_FACTORY_CALLED = new AtomicBoolean(false);
     private static final EncryptionService ENCRYPTION_SERVICE = mock(EncryptionService.class);
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
         SPY_STORAGE_FACTORY_CALLED.set(false);
         SPY_FORMAT_FACTORY_CALLED.set(false);

@@ -11,6 +11,7 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -24,9 +25,8 @@ public class ExternalSourceMetricsTests extends ESTestCase {
     private RecordingMeterRegistry registry;
     private ExternalSourceMetrics metrics;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initMetrics() {
         registry = new RecordingMeterRegistry();
         metrics = new ExternalSourceMetrics(registry);
     }

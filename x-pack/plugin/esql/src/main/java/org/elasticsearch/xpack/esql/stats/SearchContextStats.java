@@ -109,7 +109,7 @@ public class SearchContextStats implements SearchStats {
         // even if there are deleted documents, check the existence of a field
         // since if it's missing, deleted documents won't change that
         for (SearchExecutionContext context : contexts) {
-            if (context.isFieldMapped(field)) {
+            if (context.isMappedField(field)) {
                 MappedFieldType type = context.getFieldType(field);
                 if (fieldType == null) {
                     fieldType = type;
@@ -139,7 +139,7 @@ public class SearchContextStats implements SearchStats {
 
     private boolean fastNoCacheFieldExists(String field) {
         for (SearchExecutionContext context : contexts) {
-            if (context.isFieldMapped(field)) {
+            if (context.isMappedField(field)) {
                 return true;
             }
         }
@@ -208,15 +208,33 @@ public class SearchContextStats implements SearchStats {
     @Override
     public long count(FieldName field) {
         var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
-        if (stat.count == null) {
-            var count = new long[] { 0 };
-            boolean completed = doWithContexts(r -> {
-                count[0] += countEntries(r, field.string());
-                return true;
-            }, false);
-            stat.count = completed ? count[0] : -1;
+        if (stat.count != null) {
+            return stat.count;
         }
-        return stat.count;
+        long count = 0;
+        for (SearchExecutionContext context : contexts) {
+            // Skip shards where this field is a dynamic sub-key of a flattened field rather
+            // than an explicitly mapped field; those shards store the field's terms in Lucene
+            // even though it is absent from the mapping, so counting without this guard
+            // inflates the result.
+            if (context.isMappedField(field.string()) == false) {
+                continue;
+            }
+            for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
+                LeafReader reader = leafContext.reader();
+                if (reader.hasDeletions()) {
+                    // Can't use the count
+                    return stat.count = -1L;
+                }
+                long c = countEntries(reader, field.string());
+                if (c < 0) {
+                    // Can't use the count
+                    return stat.count = -1L;
+                }
+                count += c;
+            }
+        }
+        return stat.count = count;
     }
 
     @Override
@@ -241,7 +259,7 @@ public class SearchContextStats implements SearchStats {
             Long result = null;
             try {
                 for (final SearchExecutionContext context : contexts) {
-                    if (context.isFieldMapped(field.string()) == false) {
+                    if (context.isMappedField(field.string()) == false) {
                         continue;
                     }
                     final MappedFieldType ctxFieldType = context.getFieldType(field.string());
@@ -272,7 +290,7 @@ public class SearchContextStats implements SearchStats {
             Long result = null;
             try {
                 for (final SearchExecutionContext context : contexts) {
-                    if (context.isFieldMapped(field.string()) == false) {
+                    if (context.isMappedField(field.string()) == false) {
                         continue;
                     }
                     final MappedFieldType ctxFieldType = context.getFieldType(field.string());

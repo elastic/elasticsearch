@@ -1789,7 +1789,7 @@ a:unsigned_long
 matchOperatorFunctionOnLhsConcatKeyword
 skip_flattened_rewrite: concat_rejects_flattened_fields
 required_capability: match_operator_colon
-required_capability: match_runtime_search
+required_capability: fn_match_runtime_filter
 required_capability: match_operator_lhs_expression
 
 FROM employees
@@ -1803,7 +1803,7 @@ emp_no:integer | first_name:keyword | last_name:keyword
 
 matchOperatorFunctionOnLhsNestedFunctionCalls
 required_capability: match_operator_colon
-required_capability: match_runtime_search
+required_capability: fn_match_runtime_filter
 required_capability: match_operator_lhs_expression
 
 FROM books
@@ -1821,7 +1821,7 @@ book_no:keyword | title:text
 
 matchOperatorFunctionOnLhsConstantFolded
 required_capability: match_operator_colon
-required_capability: match_runtime_search
+required_capability: fn_match_runtime_filter
 required_capability: match_operator_lhs_expression
 
 ROW a = "test"
@@ -1834,7 +1834,7 @@ test
 
 matchOperatorFunctionOnLhsFromRow
 required_capability: match_operator_colon
-required_capability: match_runtime_search
+required_capability: fn_match_runtime_filter
 required_capability: match_operator_lhs_expression
 
 ROW a = "Anneke", b = "Preusig"

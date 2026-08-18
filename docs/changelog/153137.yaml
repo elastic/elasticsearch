@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 141990
-pr: 153137
-summary: Fix unmapped fields optimized incorrectly bug on empty mappings
-type: bug

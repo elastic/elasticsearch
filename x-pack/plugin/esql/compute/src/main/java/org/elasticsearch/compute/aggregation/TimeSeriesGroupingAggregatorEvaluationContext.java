@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasables;
 
 import java.util.function.IntConsumer;
 
@@ -27,8 +28,20 @@ public abstract class TimeSeriesGroupingAggregatorEvaluationContext extends Grou
         return allGroupIds;
     }
 
+    /**
+     * Stores the full set of group IDs so window aggregators can reach every internal group during output filtering.
+     * The context takes its own reference to {@code allGroupIds} and releases it in {@link #close()}, so the caller may
+     * release its own reference independently.
+     */
     public void setAllGroupIds(IntVector allGroupIds) {
+        allGroupIds.incRef();
+        Releasables.close(this.allGroupIds);
         this.allGroupIds = allGroupIds;
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(allGroupIds, super::close);
     }
 
     /**

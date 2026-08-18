@@ -17,6 +17,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -25,17 +26,23 @@ import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.LongBounds;
+import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.xpack.ml.MachineLearningTests;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.DoubleStream;
 
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ChangePointAggregatorTests extends AggregatorTestCase {
@@ -53,71 +60,61 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
 
     public void testConstant() throws IOException {
         double[] bucketValues = DoubleStream.generate(() -> 10).limit(100).toArray();
-        testChangeType(
-            bucketValues,
-            changeType -> assertThat(Arrays.toString(bucketValues), changeType, instanceOf(ChangeType.Stationary.class))
-        );
+        testChangeType(bucketValues, (changeType, msg) -> assertThat(msg, changeType, instanceOf(ChangeType.Stationary.class)));
     }
 
     public void testSlopeUp() throws IOException {
-        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 2);
+        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 0.1);
         AtomicInteger i = new AtomicInteger();
         double[] bucketValues = DoubleStream.generate(() -> i.addAndGet(1) + normal.sample()).limit(40).toArray();
-        testChangeType(bucketValues, changeType -> {
+        testChangeType(bucketValues, (changeType, msg) -> {
             if (changeType instanceof ChangeType.NonStationary) {
-                assertThat(Arrays.toString(bucketValues), ((ChangeType.NonStationary) changeType).getTrend(), equalTo("increasing"));
+                assertThat(msg, ((ChangeType.NonStationary) changeType).getTrend(), equalTo("increasing"));
             } else {
                 // Handle infrequent false positives.
-                assertThat(changeType, instanceOf(ChangeType.TrendChange.class));
+                assertThat(msg, changeType, instanceOf(ChangeType.TrendChange.class));
             }
         });
     }
 
     public void testSlopeDown() throws IOException {
-        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 2);
+        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 0.1);
         AtomicInteger i = new AtomicInteger(40);
         double[] bucketValues = DoubleStream.generate(() -> i.decrementAndGet() + normal.sample()).limit(40).toArray();
-        testChangeType(bucketValues, changeType -> {
+        testChangeType(bucketValues, (changeType, msg) -> {
             if (changeType instanceof ChangeType.NonStationary) {
-                assertThat(Arrays.toString(bucketValues), ((ChangeType.NonStationary) changeType).getTrend(), equalTo("decreasing"));
+                assertThat(msg, ((ChangeType.NonStationary) changeType).getTrend(), equalTo("decreasing"));
             } else {
                 // Handle infrequent false positives.
-                assertThat(changeType, instanceOf(ChangeType.TrendChange.class));
+                assertThat(msg, changeType, instanceOf(ChangeType.TrendChange.class));
             }
         });
+
     }
 
     public void testSlopeChange() throws IOException {
-        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 1);
+        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 0.1);
         AtomicInteger i = new AtomicInteger();
         double[] bucketValues = DoubleStream.concat(
             DoubleStream.generate(() -> 10 + normal.sample()).limit(30),
             DoubleStream.generate(() -> (11 + 2 * i.incrementAndGet()) + normal.sample()).limit(20)
         ).toArray();
-        testChangeType(bucketValues, changeType -> {
-            assertThat(
-                Arrays.toString(bucketValues),
-                changeType,
-                anyOf(instanceOf(ChangeType.TrendChange.class), instanceOf(ChangeType.NonStationary.class))
-            );
+        testChangeType(bucketValues, (changeType, msg) -> {
+            assertThat(msg, changeType, anyOf(instanceOf(ChangeType.TrendChange.class), instanceOf(ChangeType.NonStationary.class)));
             if (changeType instanceof ChangeType.NonStationary nonStationary) {
-                assertThat(nonStationary.getTrend(), equalTo("increasing"));
+                assertThat(msg, nonStationary.getTrend(), equalTo("increasing"));
             }
         });
     }
 
     public void testSpike() throws IOException {
-        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 2);
+        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 0.1);
         double[] bucketValues = DoubleStream.concat(
             DoubleStream.generate(() -> 10 + normal.sample()).limit(40),
             DoubleStream.concat(DoubleStream.of(30 + normal.sample()), DoubleStream.generate(() -> 10 + normal.sample()).limit(40))
         ).toArray();
-        testChangeType(bucketValues, changeType -> {
-            assertThat(
-                Arrays.toString(bucketValues),
-                changeType,
-                anyOf(instanceOf(ChangeType.Spike.class), instanceOf(ChangeType.DistributionChange.class))
-            );
+        testChangeType(bucketValues, (changeType, msg) -> {
+            assertThat(msg, changeType, anyOf(instanceOf(ChangeType.Spike.class), instanceOf(ChangeType.DistributionChange.class)));
             if (changeType instanceof ChangeType.Spike) {
                 assertThat(changeType.changePoint(), equalTo(40));
             }
@@ -125,17 +122,13 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
     }
 
     public void testDip() throws IOException {
-        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 1);
+        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 0.1);
         double[] bucketValues = DoubleStream.concat(
             DoubleStream.generate(() -> 100 + normal.sample()).limit(40),
             DoubleStream.concat(DoubleStream.of(30 + normal.sample()), DoubleStream.generate(() -> 100 + normal.sample()).limit(40))
         ).toArray();
-        testChangeType(bucketValues, changeType -> {
-            assertThat(
-                Arrays.toString(bucketValues),
-                changeType,
-                anyOf(instanceOf(ChangeType.Dip.class), instanceOf(ChangeType.DistributionChange.class))
-            );
+        testChangeType(bucketValues, (changeType, msg) -> {
+            assertThat(msg, changeType, anyOf(instanceOf(ChangeType.Dip.class), instanceOf(ChangeType.DistributionChange.class)));
             if (changeType instanceof ChangeType.Dip) {
                 assertThat(changeType.changePoint(), equalTo(40));
             }
@@ -143,14 +136,14 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
     }
 
     public void testStepChange() throws IOException {
-        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 1);
+        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 0.1);
         double[] bucketValues = DoubleStream.concat(
             DoubleStream.generate(() -> 10 + normal.sample()).limit(20),
             DoubleStream.generate(() -> 30 + normal.sample()).limit(20)
         ).toArray();
-        testChangeType(bucketValues, changeType -> {
+        testChangeType(bucketValues, (changeType, msg) -> {
             assertThat(
-                Arrays.toString(bucketValues),
+                msg,
                 changeType,
                 anyOf(
                     // Due to the random nature of the values generated, either of these could be detected
@@ -171,8 +164,8 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
         ).toArray();
         testChangeType(
             bucketValues,
-            changeType -> assertThat(
-                Arrays.toString(bucketValues),
+            (changeType, msg) -> assertThat(
+                msg,
                 changeType,
                 anyOf(
                     // Due to the random nature of the values generated, any of these could be detected
@@ -190,15 +183,18 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
     public void testZeroDeviation() throws IOException {
         {
             double[] bucketValues = DoubleStream.generate(() -> 4243.1621621621625).limit(30).toArray();
-            testChangeType(bucketValues, changeType -> { assertThat(changeType, instanceOf(ChangeType.Stationary.class)); });
+            testChangeType(bucketValues, (changeType, msg) -> assertThat(msg, changeType, instanceOf(ChangeType.Stationary.class)));
         }
         {
             double[] bucketValues = DoubleStream.generate(() -> -4243.1621621621625).limit(30).toArray();
-            testChangeType(bucketValues, changeType -> { assertThat(changeType, instanceOf(ChangeType.Stationary.class)); });
+            testChangeType(bucketValues, (changeType, msg) -> assertThat(msg, changeType, instanceOf(ChangeType.Stationary.class)));
         }
     }
 
     public void testStepChangeEdgeCaseScenarios() throws IOException {
+        // A large clean step down. With minSegmentLength = 12 a verifiable change needs at least that many points
+        // on each side (and the series at least 2*minSegmentLength + 2 buckets), so both regimes are >= 14 long
+        // and the break sits at index 14, well away from either edge.
         double[] bucketValues = new double[] {
             214505.0,
             193747.0,
@@ -211,6 +207,9 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
             214807.0,
             224819.0,
             214245.0,
+            198432.0,
+            205611.0,
+            209873.0,
             21482.0,
             22264.0,
             21972.0,
@@ -222,10 +221,12 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
             23105.0,
             22118.0,
             22165.0,
-            21388.0 };
-        testChangeType(bucketValues, changeType -> {
-            assertThat(changeType, instanceOf(ChangeType.StepChange.class));
-            assertThat(Arrays.toString(bucketValues), changeType.changePoint(), equalTo(11));
+            21388.0,
+            21744.0,
+            22010.0 };
+        testChangeType(bucketValues, (changeType, msg) -> {
+            assertThat(msg, changeType, instanceOf(ChangeType.StepChange.class));
+            assertThat(msg, changeType.changePoint(), anyOf(equalTo(13), equalTo(14), equalTo(15)));
         });
     }
 
@@ -375,13 +376,96 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
             3469.0,
             3393.0,
             3302.0 };
-        testChangeType(bucketValues, changeType -> {
-            assertThat(changeType, instanceOf(ChangeType.Spike.class));
-            assertThat(Arrays.toString(bucketValues), changeType.changePoint(), equalTo(72));
+        testChangeType(bucketValues, (changeType, msg) -> {
+            assertThat(msg, changeType, instanceOf(ChangeType.Spike.class));
+            assertThat(msg, changeType.changePoint(), equalTo(72));
         });
     }
 
-    void testChangeType(double[] bucketValues, Consumer<ChangeType> changeTypeAssertions) throws IOException {
+    public void testGapPolicySkipDropsEmptyBuckets() throws IOException {
+        testGapPolicy(BucketHelpers.GapPolicy.SKIP, changeType -> {
+            assertThat(changeType, instanceOf(ChangeType.Indeterminable.class));
+            // Only the eight populated buckets reach the detector, well short of the 22 it requires.
+            assertThat(((ChangeType.Indeterminable) changeType).getReason(), containsString("found [8]"));
+        });
+    }
+
+    public void testGapPolicyKeepValuesIncludesEmptyBuckets() throws IOException {
+        // A sum over an empty bucket is a finite 0.0, which KEEP_VALUES preserves. With the empty buckets kept
+        // the high plateau is a four-bucket excursion above an otherwise all-zero background: too short to be a
+        // regime (minSegmentLength), so it is reported as a spike peaking on its largest bucket (index 14).
+        testGapPolicy(BucketHelpers.GapPolicy.KEEP_VALUES, changeType -> {
+            assertThat(changeType, instanceOf(ChangeType.Spike.class));
+            assertThat(changeType.changePoint(), equalTo(14));
+        });
+    }
+
+    public void testGapPolicyInsertZerosIncludesEmptyBuckets() throws IOException {
+        // INSERT_ZEROS is the only non-skippable policy, so this also covers that nothing throws. It fills the
+        // empty buckets with 0.0, giving the same series as KEEP_VALUES here, hence the same spike at index 14.
+        testGapPolicy(BucketHelpers.GapPolicy.INSERT_ZEROS, changeType -> {
+            assertThat(changeType, instanceOf(ChangeType.Spike.class));
+            assertThat(changeType.changePoint(), equalTo(14));
+        });
+    }
+
+    /**
+     * Runs the sparse series from {@link #sparseBucketValues()} through the aggregation under the given
+     * gap policy. The series only clears the detector's 22-value minimum when the empty buckets are kept,
+     * so the change type doubles as an assertion on how many buckets survived the policy.
+     */
+    private void testGapPolicy(BucketHelpers.GapPolicy gapPolicy, Consumer<ChangeType> changeTypeAssertions) throws IOException {
+        Double[] bucketValues = sparseBucketValues();
+        FilterAggregationBuilder dummy = AggregationBuilders.filter("dummy", new MatchAllQueryBuilder())
+            .subAggregation(
+                new DateHistogramAggregationBuilder("time").field(TIME_FIELD_NAME)
+                    .fixedInterval(INTERVAL)
+                    .minDocCount(0)
+                    .extendedBounds(new LongBounds(0L, (bucketValues.length - 1) * INTERVAL.estimateMillis()))
+                    .subAggregation(AggregationBuilders.sum("sum").field(NUMERIC_FIELD_NAME))
+            )
+            .subAggregation(new ChangePointAggregationBuilder("changes", "time>sum", gapPolicy));
+        testCase(w -> writeSparseTestDocs(w, bucketValues), (InternalFilter result) -> {
+            InternalDateHistogram histogram = result.getAggregations().get("time");
+            assertThat("the empty buckets under test were not materialized", histogram.getBuckets(), hasSize(bucketValues.length));
+            InternalChangePointAggregation agg = result.getAggregations().get("changes");
+            changeTypeAssertions.accept(agg.getChangeType());
+        }, new AggTestConfig(dummy, longField(TIME_FIELD_NAME), doubleField(NUMERIC_FIELD_NAME)));
+    }
+
+    /**
+     * Builds the sparse series from issue #154973: two short plateaus separated by a run of intervals
+     * that contain no documents at all. A {@code sum} over an empty bucket still reports a real, finite
+     * {@code 0.0}, so whether those buckets reach the detector is decided purely by the gap policy.
+     * A {@code null} entry means no document is written for that interval.
+     */
+    private static Double[] sparseBucketValues() {
+        Double[] bucketValues = new Double[30];
+        double[] lowPlateau = { 3.0, 4.0, 3.0, 5.0 };
+        double[] highPlateau = { 80.0, 75.0, 90.0, 85.0 };
+        for (int i = 0; i < lowPlateau.length; i++) {
+            bucketValues[i] = lowPlateau[i];
+            bucketValues[12 + i] = highPlateau[i];
+        }
+        return bucketValues;
+    }
+
+    private static void writeSparseTestDocs(RandomIndexWriter w, Double[] bucketValues) throws IOException {
+        long epochTimestamp = 0;
+        for (Double bucketValue : bucketValues) {
+            if (bucketValue != null) {
+                w.addDocument(
+                    Arrays.asList(
+                        new NumericDocValuesField(NUMERIC_FIELD_NAME, NumericUtils.doubleToSortableLong(bucketValue)),
+                        new SortedNumericDocValuesField(TIME_FIELD_NAME, epochTimestamp)
+                    )
+                );
+            }
+            epochTimestamp += INTERVAL.estimateMillis();
+        }
+    }
+
+    void testChangeType(double[] bucketValues, BiConsumer<ChangeType, String> changeTypeAssertions) throws IOException {
         FilterAggregationBuilder dummy = AggregationBuilders.filter("dummy", new MatchAllQueryBuilder())
             .subAggregation(
                 new DateHistogramAggregationBuilder("time").field(TIME_FIELD_NAME)
@@ -391,7 +475,8 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
             .subAggregation(new ChangePointAggregationBuilder("changes", "time>max"));
         testCase(w -> writeTestDocs(w, bucketValues), (InternalFilter result) -> {
             InternalChangePointAggregation agg = result.getAggregations().get("changes");
-            changeTypeAssertions.accept(agg.getChangeType());
+            ChangeType changeType = agg.getChangeType();
+            changeTypeAssertions.accept(changeType, changePointExplanationMessage(changeType, bucketValues));
         }, new AggTestConfig(dummy, longField(TIME_FIELD_NAME), doubleField(NUMERIC_FIELD_NAME)));
     }
 
@@ -406,5 +491,18 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
             );
             epoch_timestamp += INTERVAL.estimateMillis();
         }
+    }
+
+    private static String changePointExplanationMessage(ChangeType changeType, double[] bucketValues) {
+        if (changeType.changePoint() >= 0) {
+            return Strings.format(
+                "Found a \"%s\" at values[%d] (%s), where values=%s",
+                changeType.getName(),
+                changeType.changePoint(),
+                bucketValues[changeType.changePoint()],
+                Arrays.toString(bucketValues)
+            );
+        }
+        return "No changepoint, values=" + Arrays.toString(bucketValues);
     }
 }

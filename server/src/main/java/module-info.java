@@ -33,6 +33,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.iplocation.api;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.exponentialhistogram;
+    requires org.elasticsearch.lucene.store;
     requires org.elasticsearch.simdvec;
     requires org.elasticsearch.entitlement;
 
@@ -149,7 +150,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.support.nodes;
     exports org.elasticsearch.action.support.local;
     exports org.elasticsearch.action.support.replication;
-    exports org.elasticsearch.action.support.single.instance;
     exports org.elasticsearch.action.support.single.shard;
     exports org.elasticsearch.action.support.tasks;
     exports org.elasticsearch.action.termvectors;
@@ -231,6 +231,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.discovery;
     exports org.elasticsearch.eirf;
     exports org.elasticsearch.env;
+    exports org.elasticsearch.escf;
     exports org.elasticsearch.features;
     exports org.elasticsearch.gateway;
     exports org.elasticsearch.health;
@@ -322,7 +323,11 @@ module org.elasticsearch.server {
     exports org.elasticsearch.repositories.blobstore;
     exports org.elasticsearch.repositories.fs;
     exports org.elasticsearch.reservedstate;
-    exports org.elasticsearch.reservedstate.service to org.elasticsearch.multiproject, org.elasticsearch.serverless.multiproject;
+    exports org.elasticsearch.reservedstate.service
+        to
+            org.elasticsearch.multiproject,
+            org.elasticsearch.serverless.multiproject,
+            org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.rest;
     exports org.elasticsearch.rest.action;
     exports org.elasticsearch.rest.action.admin.cluster;
@@ -407,6 +412,7 @@ module org.elasticsearch.server {
             org.elasticsearch.settings.secure,
             org.elasticsearch.serverless.constants,
             org.elasticsearch.serverless.apifiltering,
+            org.elasticsearch.serverless.multiproject,
             org.elasticsearch.serverless.stateless,
             org.elasticsearch.internal.security,
             org.elasticsearch.xpack.core,
@@ -449,7 +455,8 @@ module org.elasticsearch.server {
             org.elasticsearch.search.retriever.RetrieversFeatures,
             org.elasticsearch.action.admin.cluster.stats.ClusterStatsFeatures,
             org.elasticsearch.ingest.IngestFeatures,
-            org.elasticsearch.action.admin.indices.resolve.ResolveIndexFeatures;
+            org.elasticsearch.action.admin.indices.resolve.ResolveIndexFeatures,
+            org.elasticsearch.indices.recovery.RecoveryFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;
@@ -483,6 +490,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat,
             org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat,
             org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat,
+            org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93ScalarQuantizedVectorsFormat,

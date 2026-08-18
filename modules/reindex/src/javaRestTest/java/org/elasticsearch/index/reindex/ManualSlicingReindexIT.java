@@ -12,7 +12,6 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
@@ -41,7 +40,7 @@ import static org.junit.Assert.assertTrue;
  * calls eventually covers the same document set as a single unsliced reindex, as long as the source query and slice
  * parameters are consistent across calls.
  */
-public class ManualSlicingReindexIT extends ESRestTestCase {
+public class ManualSlicingReindexIT extends AbstractReindexIT {
 
     /**
      * Tests that reindexing can handle bulk updates to the source index during reindexing.

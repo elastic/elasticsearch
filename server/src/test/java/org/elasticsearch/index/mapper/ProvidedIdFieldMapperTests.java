@@ -9,19 +9,32 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.column.BinaryColumn;
+import org.apache.lucene.document.column.Column;
+import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -72,6 +85,19 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
         ft.fielddataBuilder(FieldDataContext.noRuntimeFields(idFieldDataEnabled, "index", "test")).build(null, null);
         assertWarnings(ProvidedIdFieldMapper.ID_FIELD_DATA_DEPRECATION_MESSAGE);
         assertTrue(ft.isAggregatable(idFieldDataEnabled));
+    }
+
+    // Regular sorting on _id is supported, but bucketed sorting (e.g. top_metrics) is not and must be a 400, not a 500.
+    public void testBucketedSortOnIdThrowsIllegalArgument() {
+        var fieldData = ProvidedIdFieldMapper.COLUMNAR_ID.fieldType()
+            .fielddataBuilder(FieldDataContext.noRuntimeFields("index", "test"))
+            .build(null, null);
+        assertNotNull(fieldData.sortField(null, MultiValueMode.MIN, null, false));
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> fieldData.newBucketedSort(null, null, MultiValueMode.MIN, null, SortOrder.ASC, DocValueFormat.RAW, 1, null)
+        );
+        assertThat(e.getMessage(), containsString("_id"));
     }
 
     public void testFetchIdFieldValue() throws IOException {
@@ -210,5 +236,42 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(topMapping(b -> b.startObject("_id").field("mode", "document").endObject()));
         IdLoader idLoader = IdLoader.create(mapperService.getIndexSettings(), mapperService.mappingLookup());
         assertThat(idLoader, instanceOf(IdLoader.StoredIdLoader.class));
+    }
+
+    public void testColumnarParseRegistersIdColumn() throws Exception {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        ProvidedIdFieldMapper mapper = (ProvidedIdFieldMapper) mapperService.documentMapper().mappers().getMapper(IdFieldMapper.NAME);
+        assertNotNull(mapper);
+        assertTrue("supportsColumnarParse must be true for _id", mapper.supportsColumnarParse(mapperService.getIndexSettings()));
+
+        IndexRequest[] requests = new IndexRequest[] { new IndexRequest("index").id("doc-1"), new IndexRequest("index").id("doc-2") };
+        IndexOperationBatch batch = EngineTestCase.initFromRequests(requests);
+        BatchMappingContext context = new BatchMappingContext(
+            batch,
+            mapperService.mappingLookup(),
+            mapperService.getIndexSettings(),
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
+
+        mapper.preColumnarParse(context);
+
+        final MappedColumns mappedColumns = context.columns();
+        Column idColumn = null;
+        for (Column column : mappedColumns.toColumnBatch().columns()) {
+            if (column.name().equals(IdFieldMapper.NAME)) {
+                idColumn = column;
+            }
+        }
+        assertNotNull("expected an _id column", idColumn);
+        assertEquals("must have DOCS inverted index (stored mode)", IndexOptions.DOCS, idColumn.fieldType().indexOptions());
+        assertTrue("must be stored", idColumn.fieldType().stored());
+
+        BinaryColumn binaryColumn = (BinaryColumn) idColumn;
+        ObjectTupleCursor<BytesRef> cursor = binaryColumn.tuples();
+        assertEquals(0, cursor.nextDoc());
+        assertEquals(Uid.encodeId("doc-1"), cursor.value());
+        assertEquals(1, cursor.nextDoc());
+        assertEquals(Uid.encodeId("doc-2"), cursor.value());
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, cursor.nextDoc());
     }
 }

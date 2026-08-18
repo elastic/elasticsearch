@@ -290,7 +290,12 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME,
                 ".deprecation-indexing-template",
                 ".deprecation-indexing-settings",
-                ".deprecation-indexing-mappings"
+                ".deprecation-indexing-mappings",
+                // AI index components
+                "ai-index-idx",
+                "ai-index-ds",
+                "ai-index@mappings",
+                "ai-index@ds-settings"
             )
         );
     }

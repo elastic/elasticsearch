@@ -40,6 +40,23 @@ public class HighlightOptionsTests extends ESTestCase {
         assertThat(options.boundaryScannerLocale(), equalTo(HighlightOptions.DEFAULT_BOUNDARY_SCANNER_LOCALE));
         assertThat(options.order(), equalTo(HighlightOptions.DEFAULT_ORDER));
         assertThat(options.maxAnalyzedOffset(), equalTo(HighlightOptions.DEFAULT_MAX_ANALYZED_OFFSET));
+        assertThat(options.analyzerName(), equalTo(null));
+    }
+
+    public void testAnalyzerOptionIsParsed() {
+        HighlightOptions options = HighlightOptions.from(
+            map(Highlight.ANALYZER, Literal.keyword(Source.EMPTY, "english")),
+            FoldContext.small()
+        );
+        assertThat(options.analyzerName(), equalTo("english"));
+    }
+
+    public void testAnalyzerOptionRejectsNonString() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HighlightOptions.from(map(Highlight.ANALYZER, Literal.integer(Source.EMPTY, 123)), FoldContext.small())
+        );
+        assertThat(e.getMessage(), containsString("Option [analyzer] must be a string"));
     }
 
     public void testBoundaryAndOrderOptionsAreParsed() {

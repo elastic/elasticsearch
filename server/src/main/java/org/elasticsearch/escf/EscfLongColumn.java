@@ -9,6 +9,7 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.document.column.LongValuesCursor;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.SourceValueType;
@@ -16,22 +17,42 @@ import org.elasticsearch.sourcebatch.SourceValueType;
 /** An ESCF column whose values are all {@code long}s (JSON ints and longs upcast to 64-bit). */
 final class EscfLongColumn extends AbstractFixed64Column {
 
-    EscfLongColumn(int docCount, FixedBitSet absent, BytesReference data) {
-        super(docCount, absent, data);
+    EscfLongColumn(int docCount, FixedBitSet validity, BytesReference data) {
+        super(docCount, validity, data);
     }
 
     @Override
-    byte kind() {
+    public byte kind() {
         return EscfColumnKind.LONG;
     }
 
     @Override
-    byte typeByteForPresent(int d) {
+    byte typeByteForPresent(int row) {
         return SourceValueType.LONG;
     }
 
     @Override
-    long getLongValue(int d) {
-        return rawLong(d);
+    long getLongValue(int row) {
+        return rawLong(row);
+    }
+
+    /**
+     * Returns a new dense {@link LongValuesCursor} positioned before the first row of this column's
+     * window. The column must be fully present ({@link #validity} {@code == null}); call this only on
+     * dense columns.
+     */
+    DenseLongValuesCursor longValuesCursor() {
+        assert validity == null : "values cursor is only valid for dense (fully-present) columns";
+        return new DenseLongValuesCursor(docCount, this);
+    }
+
+    @Override
+    EscfColumn sliceInternal(int from, int count) {
+        return new EscfLongColumn(count, windowValidity(validity, from, count), data.slice(from * 8, count * 8));
+    }
+
+    @Override
+    EscfColumnData toColumnData() {
+        return EscfColumnData.ofFixed64(kind(), docCount, validity, data);
     }
 }

@@ -507,16 +507,63 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         assertEquals(expected, actual, 1e-3f * length);
     }
 
+    public void testSquareDistanceByteFloat() {
+        int vectorSize = randomIntBetween(64, 2048);
+        byte[] a = randomByteArrayOfLength(vectorSize);
+        float[] b = randomFloatVector(vectorSize);
+        float expected = defaultedProvider.getVectorUtilSupport().squareDistance(a, b);
+        float actual = panamaProvider.getVectorUtilSupport().squareDistance(a, b);
+        assertEquals(expected, actual, Math.abs(expected) * 1e-5f);
+        actual = nativeProvider.getVectorUtilSupport().squareDistance(a, b);
+        assertEquals(expected, actual, Math.abs(expected) * 1e-5f);
+    }
+
     public void testDotProductRange() {
         int vectorSize = randomIntBetween(64, 2048);
         int offset = randomIntBetween(0, vectorSize - 1);
         int length = randomIntBetween(1, vectorSize - offset);
         float[] a = randomFloatVector(vectorSize);
         float[] b = randomFloatVector(vectorSize);
-        float expected = defaultedProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
-        float actual = panamaProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
+        float expected = defaultedProvider.getVectorUtilSupport().dotProduct(a, offset, b, offset, length);
+        float actual = panamaProvider.getVectorUtilSupport().dotProduct(a, offset, b, offset, length);
         assertEquals(expected, actual, 1e-3f * length);
-        actual = nativeProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
+        actual = nativeProvider.getVectorUtilSupport().dotProduct(a, offset, b, offset, length);
+        assertEquals(expected, actual, 1e-3f * length);
+    }
+
+    public void testDotProductOffsetRange() {
+        int vectorSize = randomIntBetween(64, 2048);
+        int aOffset = randomIntBetween(0, vectorSize - 1);
+        int bOffset = randomIntBetween(0, vectorSize - 1);
+        int length = randomIntBetween(1, vectorSize - Math.max(aOffset, bOffset));
+        float[] a = randomFloatVector(vectorSize);
+        float[] b = randomFloatVector(vectorSize);
+        float expected = defaultedProvider.getVectorUtilSupport().dotProduct(a, aOffset, b, bOffset, length);
+        float actual = panamaProvider.getVectorUtilSupport().dotProduct(a, aOffset, b, bOffset, length);
+        assertEquals(expected, actual, 1e-3f * length);
+        actual = nativeProvider.getVectorUtilSupport().dotProduct(a, aOffset, b, bOffset, length);
+        assertEquals(expected, actual, 1e-3f * length);
+    }
+
+    public void testDotProductOffsetDifferentLengthArrays() {
+        // Regression test: the offset-based dotProduct must work when a and b have different total
+        // lengths. A previous short-circuit optimization incorrectly delegated to dotProduct(a, b)
+        // which requires a.length == b.length.
+        int aSize = randomIntBetween(16, 128);
+        int bSize = randomIntBetween(aSize + 1, aSize * 4);
+        int length = aSize; // dot over the full extent of a, but only a prefix of b
+        float[] a = randomFloatVector(aSize);
+        float[] b = randomFloatVector(bSize);
+        // Manual reference dot product
+        float expected = 0f;
+        for (int i = 0; i < length; i++) {
+            expected += a[i] * b[i];
+        }
+        float actual = defaultedProvider.getVectorUtilSupport().dotProduct(a, 0, b, 0, length);
+        assertEquals(expected, actual, 1e-3f * length);
+        actual = panamaProvider.getVectorUtilSupport().dotProduct(a, 0, b, 0, length);
+        assertEquals(expected, actual, 1e-3f * length);
+        actual = nativeProvider.getVectorUtilSupport().dotProduct(a, 0, b, 0, length);
         assertEquals(expected, actual, 1e-3f * length);
     }
 
@@ -776,7 +823,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         assertArrayEquals(new byte[] { 10, 20, 99 }, dst);
     }
 
-    public void testPackAsBinary() {
+    public void testPack1BitValues() {
         int dims = randomIntBetween(16, 2048);
         int[] toPack = new int[dims];
         for (int i = 0; i < dims; i++) {
@@ -785,38 +832,38 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         int length = BQVectorUtils.discretize(dims, 64) / 8;
         byte[] packed = new byte[length];
         byte[] packedLegacy = new byte[length];
-        defaultedProvider.getVectorUtilSupport().packAsBinary(toPack, packedLegacy);
-        panamaProvider.getVectorUtilSupport().packAsBinary(toPack, packed);
+        defaultedProvider.getVectorUtilSupport().pack1BitValues(toPack, packedLegacy);
+        panamaProvider.getVectorUtilSupport().pack1BitValues(toPack, packed);
         assertArrayEquals(packedLegacy, packed);
     }
 
-    public void testPackAsBinaryCorrectness() {
+    public void testPack1BitValuesCorrectness() {
         // 5 bits
         int[] toPack = new int[] { 1, 1, 0, 0, 1 };
         byte[] packed = new byte[1];
-        ESVectorUtil.packAsBinary(toPack, packed);
+        ESVectorUtil.pack1BitValues(toPack, packed);
         assertArrayEquals(new byte[] { (byte) 0b11001000 }, packed);
 
         // 8 bits
         toPack = new int[] { 1, 1, 0, 0, 1, 0, 1, 0 };
         packed = new byte[1];
-        ESVectorUtil.packAsBinary(toPack, packed);
+        ESVectorUtil.pack1BitValues(toPack, packed);
         assertArrayEquals(new byte[] { (byte) 0b11001010 }, packed);
 
         // 10 bits
         toPack = new int[] { 1, 1, 0, 0, 1, 0, 1, 0, 1, 1 };
         packed = new byte[2];
-        ESVectorUtil.packAsBinary(toPack, packed);
+        ESVectorUtil.pack1BitValues(toPack, packed);
         assertArrayEquals(new byte[] { (byte) 0b11001010, (byte) 0b11000000 }, packed);
 
         // 16 bits
         toPack = new int[] { 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0 };
         packed = new byte[2];
-        ESVectorUtil.packAsBinary(toPack, packed);
+        ESVectorUtil.pack1BitValues(toPack, packed);
         assertArrayEquals(new byte[] { (byte) 0b11001010, (byte) 0b11100110 }, packed);
     }
 
-    public void testPackAsBinaryDuel() {
+    public void testPack1BitValuesDuel() {
         int dims = random().nextInt(16, 2049);
         int[] toPack = new int[dims];
         for (int i = 0; i < dims; i++) {
@@ -825,12 +872,12 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         int length = BQVectorUtils.discretize(dims, 64) / 8;
         byte[] packed = new byte[length];
         byte[] packedLegacy = new byte[length];
-        packAsBinaryLegacy(toPack, packedLegacy);
-        ESVectorUtil.packAsBinary(toPack, packed);
+        pack1BitValuesLegacy(toPack, packedLegacy);
+        ESVectorUtil.pack1BitValues(toPack, packed);
         assertArrayEquals(packedLegacy, packed);
     }
 
-    public void testIntegerTransposeHalfByte() {
+    public void testStride4BitValuesDuel() {
         int dims = randomIntBetween(16, 2048);
         int[] toPack = new int[dims];
         for (int i = 0; i < dims; i++) {
@@ -839,12 +886,12 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         int length = 4 * BQVectorUtils.discretize(dims, 64) / 8;
         byte[] packed = new byte[length];
         byte[] packedLegacy = new byte[length];
-        transposeHalfByteLegacy(toPack, packedLegacy);
-        ESVectorUtil.transposeHalfByte(toPack, packed);
+        stride4BitValuesLegacy(toPack, packedLegacy);
+        ESVectorUtil.stride4BitValues(toPack, packed);
         assertArrayEquals(packedLegacy, packed);
     }
 
-    public void testTransposeHalfByte() {
+    public void testStride4BitValues() {
         int dims = randomIntBetween(16, 2048);
         int[] toPack = new int[dims];
         for (int i = 0; i < dims; i++) {
@@ -853,12 +900,12 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         int length = 4 * BQVectorUtils.discretize(dims, 64) / 8;
         byte[] packed = new byte[length];
         byte[] packedLegacy = new byte[length];
-        defaultedProvider.getVectorUtilSupport().transposeHalfByte(toPack, packedLegacy);
-        panamaProvider.getVectorUtilSupport().transposeHalfByte(toPack, packed);
+        defaultedProvider.getVectorUtilSupport().stride4BitValues(toPack, packedLegacy);
+        panamaProvider.getVectorUtilSupport().stride4BitValues(toPack, packed);
         assertArrayEquals(packedLegacy, packed);
     }
 
-    public void testPackAsDibit() {
+    public void testStride2BitValues() {
         int dims = randomIntBetween(16, 2048);
         int[] toPack = new int[dims];
         for (int i = 0; i < dims; i++) {
@@ -867,12 +914,12 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         int length = ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_STRIPED.getDocPackedLength(dims);
         byte[] packed = new byte[length];
         byte[] packedLegacy = new byte[length];
-        defaultedProvider.getVectorUtilSupport().packDibit(toPack, packedLegacy);
-        panamaProvider.getVectorUtilSupport().packDibit(toPack, packed);
+        defaultedProvider.getVectorUtilSupport().stride2BitValues(toPack, packedLegacy);
+        panamaProvider.getVectorUtilSupport().stride2BitValues(toPack, packed);
         assertArrayEquals(packedLegacy, packed);
     }
 
-    public void testPackAsDibitPacked() {
+    public void testPack2BitValues() {
         int dims = randomIntBetween(16, 2048);
         int[] toPack = new int[dims];
         for (int i = 0; i < dims; i++) {
@@ -881,19 +928,19 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         int length = ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_PACKED.getDocPackedLength(dims);
         byte[] packed = new byte[length];
         byte[] packedLegacy = new byte[length];
-        defaultedProvider.getVectorUtilSupport().packDibitQuad(toPack, packedLegacy);
-        panamaProvider.getVectorUtilSupport().packDibitQuad(toPack, packed);
+        defaultedProvider.getVectorUtilSupport().pack2BitValues(toPack, packedLegacy);
+        panamaProvider.getVectorUtilSupport().pack2BitValues(toPack, packed);
         assertArrayEquals(packedLegacy, packed);
     }
 
-    public void testPackDibitCorrectness() {
+    public void testStride2BitValuesCorrectness() {
         // 5 bits
         // binary lower bits 1 1 0 0 1
         // binary upper bits 0 1 1 0 0
         // resulting dibit 1 3 2 0 1
         int[] toPack = new int[] { 1, 3, 2, 0, 1 };
         byte[] packed = new byte[2];
-        ESVectorUtil.packDibit(toPack, packed);
+        ESVectorUtil.stride2BitValues(toPack, packed);
         assertArrayEquals(new byte[] { (byte) 0b11001000, (byte) 0b01100000 }, packed);
 
         // 8 bits
@@ -902,19 +949,19 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         // resulting dibit 1 3 2 0 1 2 1 2
         toPack = new int[] { 1, 3, 2, 0, 1, 2, 1, 2 };
         packed = new byte[2];
-        ESVectorUtil.packDibit(toPack, packed);
+        ESVectorUtil.stride2BitValues(toPack, packed);
         assertArrayEquals(new byte[] { (byte) 0b11001010, (byte) 0b01100101 }, packed);
     }
 
-    public void testpackDibitQuadCorrectness() {
+    public void testPack2BitValuesCorrectness() {
         int[] toPack = new int[] { 1, 3, 2, 0, 1 };
         byte[] packed = new byte[2];
-        ESVectorUtil.packDibitQuad(toPack, packed);
+        ESVectorUtil.pack2BitValues(toPack, packed);
         assertArrayEquals(new byte[] { (byte) 0b01111000, (byte) 0b01000000 }, packed);
 
         toPack = new int[] { 1, 3, 2, 0, 1, 2, 1, 2 };
         packed = new byte[2];
-        ESVectorUtil.packDibitQuad(toPack, packed);
+        ESVectorUtil.pack2BitValues(toPack, packed);
         assertArrayEquals(new byte[] { (byte) 0b01111000, (byte) 0b01100110 }, packed);
     }
 
@@ -1351,7 +1398,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         return -1;
     }
 
-    private static void packAsBinaryLegacy(int[] vector, byte[] packed) {
+    private static void pack1BitValuesLegacy(int[] vector, byte[] packed) {
         for (int i = 0; i < vector.length;) {
             byte result = 0;
             for (int j = 7; j >= 0 && i < vector.length; j--) {
@@ -1365,25 +1412,25 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
     }
 
-    private static void transposeHalfByteLegacy(int[] q, byte[] quantQueryByte) {
-        for (int i = 0; i < q.length;) {
-            assert q[i] >= 0 && q[i] <= 15;
+    private static void stride4BitValuesLegacy(int[] vector, byte[] packed) {
+        for (int i = 0; i < vector.length;) {
+            assert vector[i] >= 0 && vector[i] <= 15;
             int lowerByte = 0;
             int lowerMiddleByte = 0;
             int upperMiddleByte = 0;
             int upperByte = 0;
-            for (int j = 7; j >= 0 && i < q.length; j--) {
-                lowerByte |= (q[i] & 1) << j;
-                lowerMiddleByte |= ((q[i] >> 1) & 1) << j;
-                upperMiddleByte |= ((q[i] >> 2) & 1) << j;
-                upperByte |= ((q[i] >> 3) & 1) << j;
+            for (int j = 7; j >= 0 && i < vector.length; j--) {
+                lowerByte |= (vector[i] & 1) << j;
+                lowerMiddleByte |= ((vector[i] >> 1) & 1) << j;
+                upperMiddleByte |= ((vector[i] >> 2) & 1) << j;
+                upperByte |= ((vector[i] >> 3) & 1) << j;
                 i++;
             }
             int index = ((i + 7) / 8) - 1;
-            quantQueryByte[index] = (byte) lowerByte;
-            quantQueryByte[index + quantQueryByte.length / 4] = (byte) lowerMiddleByte;
-            quantQueryByte[index + quantQueryByte.length / 2] = (byte) upperMiddleByte;
-            quantQueryByte[index + 3 * quantQueryByte.length / 4] = (byte) upperByte;
+            packed[index] = (byte) lowerByte;
+            packed[index + packed.length / 4] = (byte) lowerMiddleByte;
+            packed[index + packed.length / 2] = (byte) upperMiddleByte;
+            packed[index + 3 * packed.length / 4] = (byte) upperByte;
         }
     }
 
@@ -1399,41 +1446,40 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
     }
 
     public void testLinearCombination() {
-        float[] x = new float[19];
-        float[] y1 = new float[19];
+        int xLength = randomIntBetween(10, 50);
+        int yLength = randomIntBetween(10, 50);
+        float[] x = VectorTestUtils.randomFloatVector(xLength);
+        float[] y1 = VectorTestUtils.randomFloatVector(yLength);
+        float[] y2 = y1.clone();
 
-        for (int i = 0; i < x.length; i++) {
-            x[i] = randomFloat();
-            y1[i] = randomFloat();
-        }
-        float[] y2 = new float[19];
-        System.arraycopy(y1, 0, y2, 0, 19);
+        int xOffset = randomIntBetween(0, xLength - 5);
+        int yOffset = randomIntBetween(0, yLength - 5);
+        int length = Math.min(xLength - xOffset, yLength - yOffset);
 
         float scaleX = randomFloat();
         float scaleY = randomFloat();
 
-        defaultedProvider.getVectorUtilSupport().linearCombination(scaleX, x, scaleY, y1);
-        panamaProvider.getVectorUtilSupport().linearCombination(scaleX, x, scaleY, y2);
+        defaultedProvider.getVectorUtilSupport().linearCombination(scaleX, x, xOffset, scaleY, y1, yOffset, length);
+        panamaProvider.getVectorUtilSupport().linearCombination(scaleX, x, xOffset, scaleY, y2, yOffset, length);
 
         assertArrayEquals(y1, y2, 1e-5f);
     }
 
     public void testLinearCombinationNoScaleDest() {
-        // Choosing 19 dimensions so that it is a rugged number that does not align with any SIMD length
-        float[] x = new float[19];
-        float[] y1 = new float[19];
+        int xLength = randomIntBetween(10, 50);
+        int yLength = randomIntBetween(10, 50);
+        float[] x = VectorTestUtils.randomFloatVector(xLength);
+        float[] y1 = VectorTestUtils.randomFloatVector(yLength);
+        float[] y2 = y1.clone();
 
-        for (int i = 0; i < x.length; i++) {
-            x[i] = randomFloat();
-            y1[i] = randomFloat();
-        }
-        float[] y2 = new float[19];
-        System.arraycopy(y1, 0, y2, 0, 19);
+        int xOffset = randomIntBetween(0, xLength - 5);
+        int yOffset = randomIntBetween(0, yLength - 5);
+        int length = Math.min(xLength - xOffset, yLength - yOffset);
 
         float scaleX = randomFloat();
 
-        defaultedProvider.getVectorUtilSupport().linearCombination(scaleX, x, y1);
-        panamaProvider.getVectorUtilSupport().linearCombination(scaleX, x, y2);
+        defaultedProvider.getVectorUtilSupport().linearCombination(scaleX, x, xOffset, y1, yOffset, length);
+        panamaProvider.getVectorUtilSupport().linearCombination(scaleX, x, xOffset, y2, yOffset, length);
 
         assertArrayEquals(y1, y2, 1e-5f);
     }

@@ -36,6 +36,7 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
@@ -97,7 +98,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -125,6 +125,7 @@ import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -847,36 +848,45 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             + randomAlphaOfLengthBetween(4, 8)
             + "="
             + randomAlphaOfLengthBetween(4, 8);
-        final Settings settings = createBuilderWithPort().put(HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(), "1mb")
-            .build();
         final String requestString = randomAlphaOfLength(2 * 1024 * 1024); // request size is twice the limit
-        final HttpServerTransport.Dispatcher dispatcher = new AggregatingDispatcher() {
-            @Override
-            public void dispatchAggregatedRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
-                throw new AssertionError("Request dispatched but shouldn't");
-            }
-
-            @Override
-            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
-                throw new AssertionError("Request dispatched but shouldn't");
-            }
-        };
         try (
-            Netty4HttpServerTransport transport = getTestNetty4HttpServerTransport(
-                settings,
-                dispatcher,
+            var transport = getTestNetty4HttpServerTransport(
+                createBuilderWithPort().put(HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(), "1mb").build(),
+                new AggregatingDispatcher() {
+                    @Override
+                    public void dispatchAggregatedRequest(
+                        final RestRequest request,
+                        final RestChannel channel,
+                        final ThreadContext threadContext
+                    ) {
+                        fail("should not have dispatched request");
+                    }
+
+                    @Override
+                    public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext1, final Throwable cause) {
+                        fail("should not have dispatched request");
+                    }
+                },
                 (r, c, l) -> l.onResponse(null),
-                (restRequest, threadContext) -> {
-                    throw new AssertionError("Request dispatched but shouldn't");
-                }
+                (restRequest, threadContext) -> fail("should not have dispatched request")
             )
         ) {
             transport.start();
-            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
+            final var remoteAddress = randomFrom(transport.boundAddress().boundAddresses()).address();
             try (Netty4HttpClient client = new Netty4HttpClient()) {
-                Collection<FullHttpResponse> response = client.post(remoteAddress.address(), List.of(Tuple.tuple(uri, requestString)));
-                assertThat(response, hasSize(1));
-                assertThat(response.stream().findFirst().get().status(), is(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE));
+                final var response = client.post(remoteAddress, List.of(Tuple.tuple(uri, requestString)));
+                // Sending body after close might yield RST, discarding response from TCP buffer before we read it:
+                assertThat(response, hasSize(lessThanOrEqualTo(1)));
+                assertTrue(response.stream().map(HttpResponse::status).allMatch(s -> s == HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE));
+
+                // Sending headers only yields no RST and triggers response because of Content-Length header
+                final var headersOnlyRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, uri);
+                if (randomBoolean()) {
+                    HttpUtil.set100ContinueExpected(headersOnlyRequest, true);
+                }
+                HttpUtil.setContentLength(headersOnlyRequest, requestString.length());
+                final FullHttpResponse headersOnlyResponse = client.send(remoteAddress, headersOnlyRequest);
+                assertThat(headersOnlyResponse.status(), is(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE));
             }
         }
     }

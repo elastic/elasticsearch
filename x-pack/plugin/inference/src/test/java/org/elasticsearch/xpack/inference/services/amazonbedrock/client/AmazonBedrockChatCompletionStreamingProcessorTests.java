@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage.PromptTokensDetails;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -52,8 +53,7 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
     private AmazonBedrockChatCompletionStreamingProcessor processor;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createProcessor() throws Exception {
         ThreadPool threadPool = mock();
         when(threadPool.executor(UTILITY_THREAD_POOL_NAME)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         processor = new AmazonBedrockChatCompletionStreamingProcessor(threadPool, "model");
@@ -240,17 +240,57 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
     }
 
     private ConverseStreamOutput metadataOutput() {
+        return metadataOutput(TokenUsage.builder().inputTokens(1).outputTokens(1).totalTokens(2).build());
+    }
+
+    private ConverseStreamOutput metadataOutput(TokenUsage tokenUsage) {
         ConverseStreamOutput output = mock();
         when(output.sdkEventType()).thenReturn(ConverseStreamOutput.EventType.METADATA);
         doAnswer(ans -> {
             ConverseStreamResponseHandler.Visitor visitor = ans.getArgument(0);
-            ConverseStreamMetadataEvent event = ConverseStreamMetadataEvent.builder()
-                .usage(TokenUsage.builder().inputTokens(1).outputTokens(1).totalTokens(2).build())
-                .build();
+            ConverseStreamMetadataEvent event = ConverseStreamMetadataEvent.builder().usage(tokenUsage).build();
             visitor.visitMetadata(event);
             return null;
         }).when(output).accept(any());
         return output;
+    }
+
+    /**
+     * Bedrock omits the cache token fields when prompt caching is unused; the usage must omit prompt_tokens_details
+     * so the response shape matches deployments that predate cache_write_tokens support.
+     */
+    public void testMetadataWithoutCacheTokensOmitsPromptTokensDetails() {
+        var usage = usageFromMetadataEvent(TokenUsage.builder().inputTokens(1).outputTokens(2).totalTokens(3).build());
+
+        assertThat(usage.promptTokens(), is(1));
+        assertThat(usage.completionTokens(), is(2));
+        assertThat(usage.totalTokens(), is(3));
+        assertNull(usage.promptTokensDetails());
+    }
+
+    public void testMetadataWithCacheTokensPopulatesPromptTokensDetails() {
+        var usage = usageFromMetadataEvent(
+            TokenUsage.builder().inputTokens(1).outputTokens(2).totalTokens(11).cacheReadInputTokens(3).cacheWriteInputTokens(5).build()
+        );
+
+        // prompt tokens include the bedrock input tokens plus both cache token counts
+        assertThat(usage.promptTokens(), is(9));
+        assertThat(usage.promptTokensDetails(), equalTo(new PromptTokensDetails(3, 5)));
+    }
+
+    private StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage usageFromMetadataEvent(TokenUsage tokenUsage) {
+        var upstream = mock(Flow.Subscription.class);
+        processor.onSubscribe(upstream);
+        Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream = mock();
+        processor.subscribe(downstream);
+
+        processor.onNext(metadataOutput(tokenUsage));
+
+        ArgumentCaptor<StreamingUnifiedChatCompletionResults.Results> argument = ArgumentCaptor.forClass(
+            StreamingUnifiedChatCompletionResults.Results.class
+        );
+        verify(downstream).onNext(argument.capture());
+        return argument.getValue().chunks().getFirst().usage();
     }
 
     public void verifyCompleteBeforeRequest() {

@@ -94,6 +94,13 @@ birth_date:date         |bd:date
 1964-06-02T00:00:00.000Z|1964-06-02T00:00:00.000Z
 ;
 
+convertFromKeywordField
+FROM conv_from_keyword | EVAL dt = TO_DATETIME(datetime_str) | KEEP datetime_str, dt;
+
+datetime_str:keyword     | dt:date
+2023-01-01T00:00:00.000Z | 2023-01-01T00:00:00.000Z
+;
+
 convert with zones
 ROW str = "2025-04-11T05:00:00+0400"
 | EVAL dt = TO_DATETIME(str);
@@ -286,7 +293,6 @@ date1:date               | dd_ms:integer
 ;
 
 dateDiffTestWarnings
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: functions_source_serialization_warnings
 
 FROM employees
@@ -401,6 +407,19 @@ ROW diff = DATE_DIFF("months", "2010-10-07T00:00:00-03:00"::date, "2010-11-06T23
 
 diff:integer
 0
+;
+
+dateDiffUnitFromField
+FROM date_extract_fields
+| EVAL diff = DATE_DIFF(inner_val, "2022-01-01T00:00:00.000Z"::date, "2023-01-01T00:00:00.000Z"::date)
+| KEEP inner_val, diff
+| SORT inner_val;
+
+inner_val:keyword | diff:integer
+day               | 365
+hour              | 8760
+month             | 12
+year              | 1
 ;
 
 evalDateParseWithSimpleDate

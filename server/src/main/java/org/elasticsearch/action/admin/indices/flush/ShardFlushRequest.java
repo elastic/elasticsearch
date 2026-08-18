@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.action.support.replication.ReshardSplitAwareReplicationRequest;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,9 +19,10 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-public class ShardFlushRequest extends ReplicationRequest<ShardFlushRequest> {
+public class ShardFlushRequest extends ReplicationRequest<ShardFlushRequest> implements ReshardSplitAwareReplicationRequest {
 
     private final FlushRequest request;
+    private final SplitShardCountSummary splitShardCountSummary;
 
     /**
      * Creates a request for a resolved shard id and SplitShardCountSummary (used
@@ -28,7 +30,8 @@ public class ShardFlushRequest extends ReplicationRequest<ShardFlushRequest> {
      * coordinator that sent the request)
      */
     public ShardFlushRequest(FlushRequest request, ShardId shardId, SplitShardCountSummary splitShardCountSummary) {
-        super(shardId, splitShardCountSummary);
+        super(shardId);
+        this.splitShardCountSummary = splitShardCountSummary;
         this.request = request;
         this.waitForActiveShards = ActiveShardCount.NONE; // don't wait for any active shards before proceeding, by default
     }
@@ -36,6 +39,7 @@ public class ShardFlushRequest extends ReplicationRequest<ShardFlushRequest> {
     public ShardFlushRequest(StreamInput in) throws IOException {
         super(in);
         request = new FlushRequest(in);
+        this.splitShardCountSummary = readReshardSplitAwareSummary(in, legacySplitShardCountSummary);
     }
 
     FlushRequest getRequest() {
@@ -43,9 +47,15 @@ public class ShardFlushRequest extends ReplicationRequest<ShardFlushRequest> {
     }
 
     @Override
+    public SplitShardCountSummary splitShardCountSummary() {
+        return splitShardCountSummary;
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         request.writeTo(out);
+        writeReshardSplitAwareSummary(out, splitShardCountSummary);
     }
 
     @Override

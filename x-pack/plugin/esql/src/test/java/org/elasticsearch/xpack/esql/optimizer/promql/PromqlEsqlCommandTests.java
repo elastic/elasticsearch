@@ -25,9 +25,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
@@ -125,10 +127,21 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(3));
 
-        var aggregate = plan.collect(Aggregate.class).getFirst();
+        var unpack = plan.collect(UnpackDims.class).getFirst();
+        assertThat(unpack.dims(), hasSize(1));
+        assertThat(Expressions.name(unpack.dims().getFirst()), equalTo("pod"));
+
+        var outerProject = as(unpack.child(), Project.class);
+        var outerEval = as(outerProject.child(), Eval.class);
+        var aggregate = as(outerEval.child(), Aggregate.class);
         assertThat(aggregate.groupings(), hasSize(2));
 
-        var evalMiddle = as(aggregate.child(), Eval.class);
+        var pack = as(aggregate.child(), PackDims.class);
+        assertThat(pack.dims(), hasSize(1));
+        assertThat(Expressions.name(pack.dims().getFirst()), equalTo("pod"));
+
+        var innerProject = as(pack.child(), Project.class);
+        var evalMiddle = as(innerProject.child(), Eval.class);
 
         var tsAggregate = as(evalMiddle.child(), TimeSeriesAggregate.class);
         assertThat(tsAggregate.groupings(), hasSize(2));
@@ -157,6 +170,48 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(in.list(), hasSize(3));
 
         as(filter.child(), EsRelation.class);
+    }
+
+    /**
+     * Regression test for the {@code date_nanos} variant of the "Output has changed" failure surfaced by the PromQL
+     * generative tests (e.g. {@code PROMQL index=datenanos-k8s step=1h ...(avg_over_time(...[1h]))}); see
+     * <a href="https://github.com/elastic/elasticsearch/issues/146923">#146923</a>.
+     * <p>
+     * The built-in {@code step} column is a {@code TStep} time bucket over {@code @timestamp}, so on a
+     * {@code date_nanos} {@code @timestamp} index the bucket is naturally {@code date_nanos}. The {@code step} column,
+     * however, is always declared as {@code datetime} (epoch-millis). When the produced type does not match the
+     * declared type, {@link #planPromql(String)} (which runs the {@code LogicalPlanOptimizer} and hence its
+     * post-optimization output verifier) throws a {@code datetime -> date_nanos} {@code VerificationException}. The
+     * {@code step} column must be exposed as {@code datetime} regardless of the index timestamp resolution.
+     */
+    public void testDateNanosIndexStepColumnIsDatetime() {
+        var plan = planPromql("PROMQL index=datenanos-k8s step=1h avg=(avg_over_time(network.eth0.tx{cluster!=\"qa\"}[1h]))");
+
+        var step = plan.output().stream().filter(a -> a.name().equals("step")).findFirst().orElseThrow();
+        assertThat(step.dataType(), equalTo(DataType.DATETIME));
+    }
+
+    /** The same query over a plain {@code date} {@code @timestamp} index keeps the {@code step} column as {@code datetime}. */
+    public void testDatetimeIndexStepColumnIsDatetime() {
+        var plan = planPromql("PROMQL index=k8s step=1h avg=(avg_over_time(network.eth0.tx{cluster!=\"qa\"}[1h]))");
+
+        var step = plan.output().stream().filter(a -> a.name().equals("step")).findFirst().orElseThrow();
+        assertThat(step.dataType(), equalTo(DataType.DATETIME));
+    }
+
+    /**
+     * Same guarantee as {@link #testDateNanosIndexStepColumnIsDatetime()} but through the top-level {@code or} (union)
+     * path, whose {@code step} column is built separately from the single-branch path. This path is not reachable by
+     * the generative tests (which never emit {@code or}), so it is covered explicitly here.
+     */
+    public void testDateNanosIndexUnionStepColumnIsDatetime() {
+        var plan = planPromql(
+            "PROMQL index=datenanos-k8s step=1h "
+                + "u=(max by (cluster) (network.total_bytes_in{cluster=\"prod\"}) or max by (cluster) (network.total_bytes_in))"
+        );
+
+        var step = plan.output().stream().filter(a -> a.name().equals("step")).findFirst().orElseThrow();
+        assertThat(step.dataType(), equalTo(DataType.DATETIME));
     }
 
     public void testImplicitRangeSelectorUsesStepWindow() {

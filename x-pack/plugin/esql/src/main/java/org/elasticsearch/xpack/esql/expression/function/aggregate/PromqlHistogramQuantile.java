@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -81,7 +83,11 @@ public class PromqlHistogramQuantile extends AggregateFunction implements ToAggr
     private final Expression upperBound;
     private final Expression quantile;
 
-    @FunctionInfo(returnType = "double", type = FunctionType.AGGREGATE)
+    @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
+        returnType = "double",
+        type = FunctionType.AGGREGATE
+    )
     public PromqlHistogramQuantile(
         Source source,
         @Param(name = "count", type = { "double" }) Expression field,

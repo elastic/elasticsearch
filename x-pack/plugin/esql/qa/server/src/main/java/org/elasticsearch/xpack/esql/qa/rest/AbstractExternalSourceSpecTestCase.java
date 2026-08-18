@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.DataSourcesAzureHttpFixture;
 import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
+import org.elasticsearch.xpack.esql.datasources.EsqlDataSourcesCapabilities;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.GcsFixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.GcsFixtureUtils.DataSourcesGcsHttpFixture;
@@ -308,6 +309,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             }
         } finally {
             DatasetRegistry.clearCaches();
+            declaredSchemaSupported = null;
         }
     }
 
@@ -550,6 +552,33 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     protected boolean forceExternalRebuild() {
         return false;
+    }
+
+    /**
+     * Memoized support for a declared schema on {@code PUT /_query/dataset/<name>}.
+     * <p>
+     * The declared-schema capability is advertised on the dataset PUT/GET routes, NOT on {@code POST /_query}, so a
+     * spec file cannot gate on it: a {@code required_capability:} line resolves against the query endpoint and would
+     * skip such a case on every cluster, forever. The harness therefore asks the dataset route directly.
+     * <p>
+     * Cached because the sibling {@code dataset_in_from_command} check resolves through {@code hasCapabilities},
+     * which caches, and an uncached {@code GET _capabilities} per declaring test would add a round trip to each of
+     * them. Reset in the same {@code @AfterClass} that clears the registry's caches, so a later suite in the JVM
+     * fork cannot inherit a verdict about a cluster it is not talking to.
+     */
+    private static Boolean declaredSchemaSupported;
+
+    protected static synchronized boolean clusterSupportsDeclaredSchema() throws IOException {
+        if (declaredSchemaSupported == null) {
+            declaredSchemaSupported = clusterHasCapability(
+                client(),
+                "PUT",
+                "/_query/dataset/{name}",
+                List.of(),
+                List.of(EsqlDataSourcesCapabilities.DATASET_DECLARED_SCHEMA)
+            ).orElse(false);
+        }
+        return declaredSchemaSupported;
     }
 
     /**

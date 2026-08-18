@@ -12,6 +12,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -96,6 +97,33 @@ public final class DatasetRegistry {
     }
 
     /**
+     * Ensures a {@code dataset} named {@code name} bound to {@code dataSource} + {@code resource} with the given
+     * format {@code settings} and, when non-null, a declared schema, issuing
+     * {@code PUT /_query/dataset/<name>} only when the content differs from the cached one. The owning
+     * {@code data_source} must already exist.
+     * <p>
+     * The content signature is the request body itself, which is deterministic and ordered. That is what makes a
+     * declaration part of the identity of a registration: re-registering the same name with a different schema — or
+     * with the same columns in a different order — differs in the body and so re-issues the create-or-replace PUT,
+     * where a signature built only from {@code dataSource}/{@code resource}/{@code settings} would collapse the two
+     * and silently serve the first declaration to the second caller.
+     */
+    public static synchronized void ensureDataset(
+        RestClient client,
+        String name,
+        String dataSource,
+        String resource,
+        Map<String, Object> settings,
+        @Nullable Map<String, Object> mappings
+    ) throws IOException {
+        String signature = datasetRequestBody(dataSource, resource, settings, mappings);
+        if (signature.equals(datasets.get(name)) == false) {
+            putDataset(client, name, dataSource, resource, settings, mappings);
+            datasets.put(name, signature);
+        }
+    }
+
+    /**
      * Derives a valid (lowercase, index-name-safe) dataset name from an arbitrary resource path/URL by
      * lowercasing it and collapsing every run of non-alphanumeric characters to a single underscore, then
      * prepending {@code prefix} to guarantee a letter-led, collision-free name across callers.
@@ -104,13 +132,19 @@ public final class DatasetRegistry {
         return prefix + resourcePath.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "_");
     }
 
-    /** Parses a {@code dataset:} directive's {@code WITH {...}} JSON into a settings map ({@code null} maps to empty). */
+    /**
+     * Parses a {@code dataset:} directive's {@code WITH {...}} JSON into a settings map ({@code null} maps to empty).
+     * <p>
+     * Ordered, because every map on the path to the PUT bytes has to be: a declared schema's {@code properties} order
+     * IS its column order, and a strict declared read emits its columns in declaration order. An unordered parse
+     * anywhere on that path would reorder the emitted columns from one JVM to the next.
+     */
     private static Map<String, Object> parseSettings(String withJson) throws IOException {
         if (withJson == null) {
             return Map.of();
         }
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, withJson)) {
-            return parser.map();
+            return parser.mapOrdered();
         }
     }
 
@@ -140,16 +174,54 @@ public final class DatasetRegistry {
      */
     public static void putDataset(RestClient client, String name, String dataSource, String resource, Map<String, Object> settings)
         throws IOException {
+        putDataset(client, name, dataSource, resource, settings, null);
+    }
+
+    /**
+     * Issues an uncached {@code PUT /_query/dataset/<name>} bound to {@code dataSource} + {@code resource} with the
+     * given format {@code settings} and, when non-null, {@code mappings} as the body's top-level declared schema.
+     * The owning {@code data_source} must already exist.
+     * <p>
+     * A declaration has to be a sibling of {@code settings}, not an entry inside it: dataset settings are validated
+     * at PUT time against each format's accepted keys, so a schema smuggled into {@code settings} is rejected as an
+     * unknown setting on every file-backed provider.
+     */
+    public static void putDataset(
+        RestClient client,
+        String name,
+        String dataSource,
+        String resource,
+        Map<String, Object> settings,
+        @Nullable Map<String, Object> mappings
+    ) throws IOException {
         Request req = new Request("PUT", "/_query/dataset/" + name);
+        req.setJsonEntity(datasetRequestBody(dataSource, resource, settings, mappings));
+        assertOk(client.performRequest(req), "PUT dataset [" + name + "]");
+    }
+
+    /**
+     * The {@code PUT /_query/dataset/<name>} body: {@code data_source}, {@code resource}, {@code settings} when
+     * non-empty, then the declared {@code mappings} when there is one. {@code mappings} is appended last, so for a
+     * given settings map a body without a declaration is byte-for-byte what this registry emitted before declared
+     * schemas were reachable. Doubles as {@link #ensureDataset}'s content signature.
+     */
+    static String datasetRequestBody(
+        String dataSource,
+        String resource,
+        Map<String, Object> settings,
+        @Nullable Map<String, Object> mappings
+    ) throws IOException {
         try (XContentBuilder b = jsonBuilder()) {
             b.startObject().field("data_source", dataSource).field("resource", resource);
             if (settings.isEmpty() == false) {
                 b.field("settings", settings);
             }
+            if (mappings != null) {
+                b.field("mappings", mappings);
+            }
             b.endObject();
-            req.setJsonEntity(Strings.toString(b));
+            return Strings.toString(b);
         }
-        assertOk(client.performRequest(req), "PUT dataset [" + name + "]");
     }
 
     /**

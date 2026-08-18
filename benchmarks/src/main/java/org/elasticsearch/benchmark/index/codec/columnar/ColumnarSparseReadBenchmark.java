@@ -20,11 +20,11 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
-import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
@@ -110,9 +110,7 @@ public class ColumnarSparseReadBenchmark {
 
         tempPath = Files.createTempDirectory("columnar-sparse-");
         directory = FSDirectory.open(tempPath);
-        final IndexWriterConfig config = new IndexWriterConfig().setCodec(
-            NumericFormat.COLUMNAR.codec("RANDOM_FULL", blockSize)
-        );
+        final IndexWriterConfig config = new IndexWriterConfig().setCodec(NumericFormat.COLUMNAR.codec("RANDOM_FULL", blockSize));
         final BytesRefBuilder builder = new BytesRefBuilder();
         final int[] present = new int[docCount];
         int presentCount = 0;

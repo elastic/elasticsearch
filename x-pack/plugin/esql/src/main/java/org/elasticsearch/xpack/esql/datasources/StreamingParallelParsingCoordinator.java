@@ -616,14 +616,23 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         /**
-         * Closes {@link #decompressedStream} exactly once regardless of which path reaches it first
+         * Releases {@link #decompressedStream} exactly once regardless of which path reaches it first
          * ({@link #runSegmentator}'s finally, {@link #onSegmentatorLaunchRejected}, or {@link #close()}).
+         * Uses abort semantics via {@link StorageObject#abortStream} when a {@link #storageObject} is
+         * available, so providers such as S3 can discard the underlying HTTP connection without draining
+         * the remaining response body.
          */
         private void closeStream() {
             if (streamClosed.compareAndSet(false, true)) {
                 try {
-                    decompressedStream.close();
-                } catch (IOException ignored) {}
+                    if (storageObject != null) {
+                        storageObject.abortStream(decompressedStream);
+                    } else {
+                        decompressedStream.close();
+                    }
+                } catch (IOException e) {
+                    logger.warn("Failed to release stream for [{}]", storageObject != null ? storageObject.path() : "<stream>", e);
+                }
             }
         }
 
@@ -1546,9 +1555,10 @@ public final class StreamingParallelParsingCoordinator {
             drainAllQueues();
             // Backstop: if the segmentator was never promoted from the admission queue (still pending
             // when the timeout fired) or if any code path did not call closeStream() themselves,
-            // release the stream now. By this point tasksOutstanding reached 0 (or the timeout
-            // expired), so any in-flight runSegmentator has already exited and its own closeStream()
-            // call is either already complete or will lose the CAS — either way the close is safe.
+            // release the stream now. In the timeout and interrupt paths tasksOutstanding may still
+            // be above 0, meaning the segmentator (or parsers) can be concurrently executing — the
+            // CAS in streamClosed is the safety mechanism that prevents a double-release race with a
+            // still-running segmentator's own closeStream() call.
             closeStream();
             // Now safe to evaluate: chunksDispatched is final (the drain loop waited for every spawned
             // parser, including any dispatched in the close race window) and the consumer's currentChunk

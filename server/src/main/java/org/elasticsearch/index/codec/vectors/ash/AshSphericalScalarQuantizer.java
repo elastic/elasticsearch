@@ -131,7 +131,8 @@ final class AshSphericalScalarQuantizer {
         Arrays.sort(absZ);
 
         double normSq = 0.25 * d;
-        double bestValue = dot / Math.sqrt(normSq);
+        double bestDot = dot;
+        double bestNormSq = normSq;
 
         // iterate dims in |z| descending order
         int bestK = 0; // number of dimensions to upgrade to level 1.5
@@ -145,9 +146,11 @@ final class AshSphericalScalarQuantizer {
                 continue;
             }
 
-            double value = dot / Math.sqrt(normSq);
-            if (value > bestValue) {
-                bestValue = value;
+            // dot / sqrt(normSq) > bestDot / sqrt(bestNormSq), cross-multiplied to avoid a divide
+            // and a square root per dimension
+            if (dot * dot * bestNormSq > bestDot * bestDot * normSq) {
+                bestDot = dot;
+                bestNormSq = normSq;
                 bestK = k + 1;
             }
         }
@@ -169,8 +172,9 @@ final class AshSphericalScalarQuantizer {
             }
         }
 
-        // vector is now (d - bestK) x 0.5, and bestK x 1.5 (squares = 0.25, 2.25)
-        return (float) Math.sqrt(0.25 * (d - bestK) + 2.25 * bestK);
+        // vector is now (d - bestK) x 0.5, and bestK x 1.5 (squares = 0.25, 2.25), which is what the
+        // sweep accumulated into bestNormSq
+        return (float) Math.sqrt(bestNormSq);
     }
 
     /**

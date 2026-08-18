@@ -267,10 +267,20 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     public void testMaxConcurrencyBoundWithAsynchronousTasks() {
         final var taskQueue = new DeterministicTaskQueue();
         final int maxConcurrentRecoveries = between(2, 5);
+        Settings.Builder settings = Settings.builder()
+            .put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), maxConcurrentRecoveries);
+        if (randomBoolean()) {
+            // Set INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING to a value equal to or greater than
+            // INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING, which has no effect:
+            settings.put(
+                INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING.getKey(),
+                randomIntBetween(maxConcurrentRecoveries, Integer.MAX_VALUE)
+            );
+        }
         final var service = newStartedService(
             taskQueue.getThreadPool(),
             DefaultProjectResolver.INSTANCE,
-            newClusterService(maxConcurrentRecoveries)
+            newClusterService(settings.build())
         );
         final var running = new AtomicInteger();
         final var completed = new AtomicInteger();

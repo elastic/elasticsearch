@@ -63,6 +63,14 @@ public final class SearchFeatures implements FeatureSpecification {
     public static final NodeFeature DEFAULT_DISK_BBQ = new NodeFeature("search.default_disk_bbq");
     public static final NodeFeature DENSE_VECTOR_QUERY = new NodeFeature("search.vectors.dense_vector_query");
     /**
+     * Test-only gate for REST tests asserting that {@code inner_hits} of a nested kNN query score with the same
+     * fidelity the query phase used. Older nodes score the fetch phase against the quantized vectors while the query
+     * phase rescores against the full-precision ones, so those tests cannot pass on a mixed BWC cluster.
+     */
+    public static final NodeFeature NESTED_KNN_INNER_HITS_MATCH_QUERY_PHASE_SCORING = new NodeFeature(
+        "search.vectors.nested_knn_inner_hits_match_query_phase_scoring"
+    );
+    /**
      * Test-only gate for REST tests that assert coordinator {@code profile.request} metadata; that response shape
      * depends on {@code TransportVersion} {@code include_original_query_indices_in_search_profile_results}, which
      * is not supported on mixed BWC clusters that still contain pre-9.5 nodes.
@@ -123,7 +131,8 @@ public final class SearchFeatures implements FeatureSpecification {
             SCROLL_EMPTY_CONTEXT_RETURNS_200,
             DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX,
             COUNT_STATS_PARAMETER,
-            FETCH_FIELDS_EXCLUDES_NON_METADATA_TYPE
+            FETCH_FIELDS_EXCLUDES_NON_METADATA_TYPE,
+            NESTED_KNN_INNER_HITS_MATCH_QUERY_PHASE_SCORING
         );
     }
 }

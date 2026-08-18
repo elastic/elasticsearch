@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 154417
-summary: Fix `MV_SORT` incorrectly allowing geospatial types, which are not sortable
-type: bug

@@ -215,7 +215,7 @@ public record LibraryModel(
                 }
             }
 
-            MethodModel methodModel = MethodModel.from(method, env, structSimpleNames);
+            MethodModel methodModel = MethodModel.from(method, env, structSimpleNames, unavailableOn);
             if (methodModel == null) {
                 hasError = true;
             } else {

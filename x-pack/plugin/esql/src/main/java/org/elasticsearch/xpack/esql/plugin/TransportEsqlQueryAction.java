@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.ActivityLogger;
 import org.elasticsearch.common.logging.activity.QueryLogger;
@@ -573,6 +574,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             if (result.executionInfo() != null) {
                 result.executionInfo().markPartial();
             }
+        }
+        /*
+         * Shift all of ESQL's carefully maintained Warnings onto the spooky ThreadLocal
+         * for render.
+         */
+        for (String warning : result.completionInfo().warnings()) {
+            HeaderWarning.addWarning(warning);
         }
         List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
             List<String> originalTypes;

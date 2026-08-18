@@ -37,7 +37,8 @@ public class ShardDocSortField extends SortField {
 
     @Override
     public FieldComparator<?> getComparator(int numHits, Pruning enableSkipping) {
-        final DocComparator delegate = new DocComparator(numHits, getReverse(), Pruning.NONE);
+        // Intra-shard order is _doc, so pruning is safe.
+        final DocComparator delegate = new DocComparator(numHits, getReverse(), enableSkipping);
 
         return new FieldComparator<Long>() {
             @Override

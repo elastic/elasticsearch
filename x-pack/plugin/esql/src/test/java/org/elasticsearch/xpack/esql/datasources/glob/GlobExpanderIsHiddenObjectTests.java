@@ -25,7 +25,7 @@ public class GlobExpanderIsHiddenObjectTests extends ESTestCase {
         assertTrue(GlobExpander.isHiddenObject("/"));
     }
 
-    // -- underscore-prefixed names --
+    // -- underscore-prefixed names (no '=' → not a Hive partition segment) --
 
     public void testUnderscorePrefixedNameIsHidden() {
         assertTrue(GlobExpander.isHiddenObject("_SUCCESS"));
@@ -37,6 +37,15 @@ public class GlobExpanderIsHiddenObjectTests extends ESTestCase {
         assertTrue(GlobExpander.isHiddenObject("_delta_log/00000000000000000001.json"));
         assertTrue(GlobExpander.isHiddenObject("_temporary/part-00001.parquet"));
         assertTrue(GlobExpander.isHiddenObject("year=2024/_hidden/file.parquet"));
+    }
+
+    // -- underscore-prefixed Hive partition directories (contain '=' → not hidden) --
+
+    public void testUnderscorePrefixedHivePartitionIsNotHidden() {
+        // Hive partition directories use key=value; a '_'-prefixed key is valid (e.g. _index=alpha).
+        assertFalse(GlobExpander.isHiddenObject("_index=alpha/part1.csv"));
+        assertFalse(GlobExpander.isHiddenObject("_index=beta/part1.parquet"));
+        assertFalse(GlobExpander.isHiddenObject("year=2024/_index=alpha/data.parquet"));
     }
 
     // -- dot-prefixed names --

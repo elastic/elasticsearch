@@ -531,9 +531,12 @@ public final class GlobExpander {
      * during recursive traversal. In a flat object-store listing the same effect is achieved by inspecting every
      * segment of the relative path:
      * <ul>
-     *   <li>Any segment starting with {@code _} or {@code .} is hidden: covers {@code _SUCCESS}, {@code _metadata},
-     *       {@code .part-r-*.crc} sidecars, and entire subtrees such as {@code _delta_log/…} and
-     *       {@code _temporary/…}.</li>
+     *   <li>A segment starting with {@code .} is hidden: covers {@code .part-r-*.crc} sidecars and
+     *       {@code .hidden/} subtrees.</li>
+     *   <li>A segment starting with {@code _} is hidden <em>unless</em> it is a Hive partition key=value segment
+     *       (contains {@code =}): covers {@code _SUCCESS}, {@code _metadata}, and entire subtrees such as
+     *       {@code _delta_log/…} and {@code _temporary/…}, while leaving valid partition directories such as
+     *       {@code _index=alpha/} intact.</li>
      *   <li>A path ending with {@code /} is a zero-byte directory placeholder key (e.g. the S3 console "folder"
      *       object).</li>
      * </ul>
@@ -549,8 +552,16 @@ public final class GlobExpander {
             if (i == relativePath.length() || relativePath.charAt(i) == '/') {
                 if (i > start) {
                     char first = relativePath.charAt(start);
-                    if (first == '_' || first == '.') {
+                    if (first == '.') {
                         return true;
+                    }
+                    if (first == '_') {
+                        // Hive partition directories use key=value notation; a segment starting with '_'
+                        // that contains '=' is a legitimate partition directory, not metadata litter.
+                        boolean isPartitionSegment = relativePath.indexOf('=', start) < i && relativePath.indexOf('=', start) >= start;
+                        if (isPartitionSegment == false) {
+                            return true;
+                        }
                     }
                 }
                 start = i + 1;

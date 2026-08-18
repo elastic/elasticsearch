@@ -48,12 +48,12 @@ final class MSDibitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVect
 
     private long quantizeScore256(byte[] q) throws IOException {
         int size = length / 2;
-        return IndexInputUtils.withSlice(in, size, scratch::get, segment -> fourStripeBitDotProduct256(q, segment, 0L, size));
+        return IndexInputUtils.withSlice(in, size, scratch, segment -> fourStripeBitDotProduct256(q, segment, 0L, size));
     }
 
     private long quantizeScore128(byte[] q) throws IOException {
         int size = length / 2;
-        return IndexInputUtils.withSlice(in, size, scratch::get, segment -> fourStripeBitDotProduct128(q, segment, 0L, size));
+        return IndexInputUtils.withSlice(in, size, scratch, segment -> fourStripeBitDotProduct128(q, segment, 0L, size));
     }
 
     @Override

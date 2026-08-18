@@ -117,7 +117,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             checkOrdinal(node);
             long byteOffset = (long) node * vectorPitch;
             input.seek(byteOffset);
-            return IndexInputUtils.withSlice(input, vectorPitch, scratch::getScratch, seg -> {
+            return IndexInputUtils.withSlice(input, vectorPitch, scratch, seg -> {
                 int dotProduct = DISTANCE_FUNCS.dotProductI7u(query, seg.asSlice(0, vectorByteSize), vectorByteSize);
                 assert dotProduct >= 0;
                 float nodeCorrection = Float.intBitsToFloat(seg.get(ValueLayout.JAVA_INT_UNALIGNED, vectorByteSize));
@@ -133,7 +133,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             }
             long[] offsets = getOffsets(nodes, numNodes);
             float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
-            boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, vectorPitch, numNodes, addrsScratch::get, addrs -> {
+            boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, vectorPitch, numNodes, addrsScratch, addrs -> {
                 DISTANCE_FUNCS.dotProductI7uBulkSparse(addrs, query, vectorByteSize, numNodes, MemorySegment.ofArray(scores));
                 for (int i = 0; i < numNodes; ++i) {
                     float adjustedDistance = scores[i] * scoreCorrectionConstant + queryCorrection + getNodeCorrection(addrs, i);
@@ -161,7 +161,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             int sqDist = IndexInputUtils.withSlice(
                 input,
                 vectorPitch,
-                scratch::getScratch,
+                scratch,
                 seg -> DISTANCE_FUNCS.squareDistanceI7u(query, seg.asSlice(0, vectorByteSize), vectorByteSize)
             );
             float adjustedDistance = sqDist * scoreCorrectionConstant;
@@ -175,7 +175,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             }
             long[] offsets = getOffsets(nodes, numNodes);
             float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
-            boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, vectorPitch, numNodes, addrsScratch::get, addrs -> {
+            boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, vectorPitch, numNodes, addrsScratch, addrs -> {
                 DISTANCE_FUNCS.squareDistanceI7uBulkSparse(addrs, query, vectorByteSize, numNodes, MemorySegment.ofArray(scores));
                 for (int i = 0; i < numNodes; ++i) {
                     var squareDistance = scores[i];
@@ -202,7 +202,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             checkOrdinal(node);
             long byteOffset = (long) node * vectorPitch;
             input.seek(byteOffset);
-            return IndexInputUtils.withSlice(input, vectorPitch, scratch::getScratch, seg -> {
+            return IndexInputUtils.withSlice(input, vectorPitch, scratch, seg -> {
                 int dotProduct = DISTANCE_FUNCS.dotProductI7u(query, seg.asSlice(0, vectorByteSize), vectorByteSize);
                 assert dotProduct >= 0;
                 float nodeCorrection = Float.intBitsToFloat(seg.get(ValueLayout.JAVA_INT_UNALIGNED, vectorByteSize));
@@ -218,7 +218,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             }
             long[] offsets = getOffsets(nodes, numNodes);
             float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
-            boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, vectorPitch, numNodes, addrsScratch::get, addrs -> {
+            boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, vectorPitch, numNodes, addrsScratch, addrs -> {
                 DISTANCE_FUNCS.dotProductI7uBulkSparse(addrs, query, vectorByteSize, numNodes, MemorySegment.ofArray(scores));
                 for (int i = 0; i < numNodes; ++i) {
                     float adjustedDistance = scores[i] * scoreCorrectionConstant + queryCorrection + getNodeCorrection(addrs, i);

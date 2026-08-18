@@ -91,7 +91,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
             float dotProduct = IndexInputUtils.withSlice(
                 input,
                 vectorByteSize,
-                scratch::getScratch,
+                scratch,
                 memorySegment -> DISTANCE_FUNCS.dotProductF32(query, memorySegment, dimensions)
             );
 
@@ -113,7 +113,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
                 offsets,
                 vectorByteSize,
                 numNodes,
-                addrsScratch::get,
+                addrsScratch,
                 addrs -> DISTANCE_FUNCS.dotProductF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
             );
             if (resolved) {
@@ -141,7 +141,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
             float sqDist = IndexInputUtils.withSlice(
                 input,
                 vectorByteSize,
-                scratch::getScratch,
+                scratch,
                 memorySegment -> DISTANCE_FUNCS.squareDistanceF32(query, memorySegment, dimensions)
             );
             return VectorUtil.normalizeDistanceToUnitInterval(sqDist);
@@ -162,7 +162,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
                 offsets,
                 vectorByteSize,
                 numNodes,
-                addrsScratch::get,
+                addrsScratch,
                 addrs -> DISTANCE_FUNCS.squareDistanceF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
             );
             if (resolved) {
@@ -190,7 +190,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
             float dotProduct = IndexInputUtils.withSlice(
                 input,
                 vectorByteSize,
-                scratch::getScratch,
+                scratch,
                 memorySegment -> DISTANCE_FUNCS.dotProductF32(query, memorySegment, dimensions)
             );
             return VectorUtil.scaleMaxInnerProductScore(dotProduct);
@@ -211,7 +211,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
                 offsets,
                 vectorByteSize,
                 numNodes,
-                addrsScratch::get,
+                addrsScratch,
                 addrs -> DISTANCE_FUNCS.dotProductF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
             );
             if (resolved) {

@@ -35,11 +35,11 @@ final class MSBitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVector
     }
 
     private long quantizeScore256(byte[] q) throws IOException {
-        return IndexInputUtils.withSlice(in, length, scratch::get, segment -> fourStripeBitDotProduct256(q, segment, 0L, length));
+        return IndexInputUtils.withSlice(in, length, scratch, segment -> fourStripeBitDotProduct256(q, segment, 0L, length));
     }
 
     private long quantizeScore128(byte[] q) throws IOException {
-        return IndexInputUtils.withSlice(in, length, scratch::get, segment -> fourStripeBitDotProduct128(q, segment, 0L, length));
+        return IndexInputUtils.withSlice(in, length, scratch, segment -> fourStripeBitDotProduct128(q, segment, 0L, length));
     }
 
     @Override
@@ -59,7 +59,7 @@ final class MSBitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVector
 
     private void quantizeScore256Bulk(byte[] q, int count, float[] scores) throws IOException {
         var datasetLengthInBytes = (long) length * count;
-        IndexInputUtils.withSlice(in, datasetLengthInBytes, scratch::get, segment -> {
+        IndexInputUtils.withSlice(in, datasetLengthInBytes, scratch, segment -> {
             for (int i = 0; i < count; i++) {
                 scores[i] = fourStripeBitDotProduct256(q, segment, (long) i * length, length);
             }
@@ -69,7 +69,7 @@ final class MSBitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVector
 
     private void quantizeScore128Bulk(byte[] q, int count, float[] scores) throws IOException {
         var datasetLengthInBytes = (long) length * count;
-        IndexInputUtils.withSlice(in, datasetLengthInBytes, scratch::get, segment -> {
+        IndexInputUtils.withSlice(in, datasetLengthInBytes, scratch, segment -> {
             for (int i = 0; i < count; i++) {
                 scores[i] = fourStripeBitDotProduct128(q, segment, (long) i * length, length);
             }

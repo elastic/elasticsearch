@@ -72,7 +72,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
     }
 
     private long quantizeScore256(byte[] q) throws IOException {
-        return IndexInputUtils.withSlice(in, length, scratch::get, segment -> quantizeScore256Impl(q, segment, length));
+        return IndexInputUtils.withSlice(in, length, scratch, segment -> quantizeScore256Impl(q, segment, length));
     }
 
     private static long quantizeScore256Impl(byte[] q, MemorySegment memorySegment, int length) {
@@ -138,7 +138,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
     }
 
     private long quantizeScore128(byte[] q) throws IOException {
-        return IndexInputUtils.withSlice(in, length, scratch::get, segment -> quantizeScore128Impl(q, segment, length));
+        return IndexInputUtils.withSlice(in, length, scratch, segment -> quantizeScore128Impl(q, segment, length));
     }
 
     private static long quantizeScore128Impl(byte[] q, MemorySegment memorySegment, int length) {
@@ -197,7 +197,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
 
     private void quantizeScore128Bulk(byte[] q, int count, float[] scores) throws IOException {
         var datasetLengthInBytes = (long) length * count;
-        IndexInputUtils.withSlice(in, datasetLengthInBytes, scratch::get, segment -> {
+        IndexInputUtils.withSlice(in, datasetLengthInBytes, scratch, segment -> {
             quantizeScore128BulkImpl(q, count, scores, segment, length);
             return null;
         });
@@ -246,7 +246,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
 
     private void quantizeScore256Bulk(byte[] q, int count, float[] scores) throws IOException {
         var datasetLengthInBytes = (long) length * count;
-        IndexInputUtils.withSlice(in, datasetLengthInBytes, scratch::get, segment -> {
+        IndexInputUtils.withSlice(in, datasetLengthInBytes, scratch, segment -> {
             quantizeScore256BulkImpl(q, count, scores, segment, length);
             return null;
         });
@@ -335,7 +335,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
                 return IndexInputUtils.withSlice(
                     in,
                     (14L + length) * this.bulkSize,
-                    scratch::get,
+                    scratch,
                     segment -> score256Bulk(
                         segment,
                         q,
@@ -352,7 +352,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
                 return IndexInputUtils.withSlice(
                     in,
                     (14L + length) * this.bulkSize,
-                    scratch::get,
+                    scratch,
                     segment -> score128Bulk(
                         segment,
                         q,

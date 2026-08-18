@@ -437,7 +437,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             return IndexInputUtils.withSlice(
                 in,
                 16L * bulkSize,
-                scratch::get,
+                scratch,
                 seg -> applyCorrections128BulkImpl(
                     seg,
                     queryAdditionalCorrection,
@@ -469,7 +469,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             return IndexInputUtils.withSlice(
                 in,
                 16L * bulkSize,
-                scratch::get,
+                scratch,
                 seg -> applyCorrections256BulkImpl(
                     seg,
                     queryAdditionalCorrection,

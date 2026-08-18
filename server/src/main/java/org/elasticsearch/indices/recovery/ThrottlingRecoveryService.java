@@ -138,14 +138,11 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     protected void doStart() {
         clusterService.addListener(this);
         clusterService.getClusterSettings()
-            .initializeAndWatchIfRegistered(
-                INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING,
-                recoveriesThrottle::setMaxRecoveriesThrottle
-            );
+            .initializeAndWatchIfRegistered(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING, this::setMaxConcurrentRecoveries);
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(
                 INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING,
-                recoveriesThrottle::setMaxRelocationRecoveriesThrottle
+                this::setMaxConcurrentRelocationRecoveries
             );
     }
 
@@ -444,6 +441,28 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         fillSlots();
     }
 
+    private void setMaxConcurrentRecoveries(int newMaxConcurrentRecoveries) {
+        final int previousLimit;
+        synchronized (this) {
+            previousLimit = recoveriesThrottle.maxConcurrentRecoveries;
+            recoveriesThrottle.maxConcurrentRecoveries = newMaxConcurrentRecoveries;
+        }
+        if (previousLimit < newMaxConcurrentRecoveries && lifecycle.started() /* calls before start can (must) be ignored */) {
+            fillSlots();
+        }
+    }
+
+    private void setMaxConcurrentRelocationRecoveries(int newMaxConcurrentRelocationRecoveries) {
+        final int previousLimit;
+        synchronized (this) {
+            previousLimit = recoveriesThrottle.maxConcurrentRelocationRecoveries;
+            recoveriesThrottle.maxConcurrentRelocationRecoveries = newMaxConcurrentRelocationRecoveries;
+        }
+        if (previousLimit < newMaxConcurrentRelocationRecoveries && lifecycle.started() /* calls before start can (must) be ignored */) {
+            fillSlots();
+        }
+    }
+
     private Supplier<ThreadContext.StoredContext> restorableContextForProject(ProjectId projectId) {
         final var context = new AtomicReference<ThreadContext.StoredContext>();
         projectResolver.executeOnProject(projectId, () -> context.set(threadContext.newStoredContext()));
@@ -476,7 +495,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     }
 
     /// Helper class which manages throttling the number of running recoveries.
-    private class RecoveriesThrottle {
+    private static class RecoveriesThrottle {
 
         /// The maximum number of concurrent recoveries, including recoveries from unassigned + relocations. See
         /// [#INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING].
@@ -508,29 +527,6 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         boolean shouldStartNextPendingRecovery(PendingRecovery nextPendingRecovery) {
             return runningRecoveries < maxConcurrentRecoveries
                 && (nextPendingRecovery.isUnassigned() || (runningRelocationRecoveries < maxConcurrentRelocationRecoveries));
-        }
-
-        public void setMaxRecoveriesThrottle(int newMaxConcurrentRecoveries) {
-            final int previousLimit;
-            synchronized (ThrottlingRecoveryService.this) {
-                previousLimit = this.maxConcurrentRecoveries;
-                this.maxConcurrentRecoveries = newMaxConcurrentRecoveries;
-            }
-            if (previousLimit < newMaxConcurrentRecoveries && lifecycle.started() /* calls before start can (must) be ignored */) {
-                fillSlots();
-            }
-        }
-
-        public void setMaxRelocationRecoveriesThrottle(int newMaxConcurrentRelocationRecoveries) {
-            final int previousLimit;
-            synchronized (ThrottlingRecoveryService.this) {
-                previousLimit = this.maxConcurrentRelocationRecoveries;
-                this.maxConcurrentRelocationRecoveries = newMaxConcurrentRelocationRecoveries;
-            }
-            if (previousLimit < newMaxConcurrentRelocationRecoveries
-                && lifecycle.started() /* calls before start can (must) be ignored */) {
-                fillSlots();
-            }
         }
     }
 

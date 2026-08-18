@@ -180,10 +180,7 @@ public final class AsymmetricHashingQuantizer {
     public static VectorAndNorm precomputeCentroid(float[] centroid, float[] wT) {
         int originalDim = centroid.length;
         int nDims = wT.length / originalDim;
-        float[] centroidProjected = new float[nDims];
-        for (int j = 0; j < nDims; j++) {
-            centroidProjected[j] = ESVectorUtil.dotProduct(centroid, 0, wT, j * originalDim, originalDim);
-        }
+        float[] centroidProjected = SvdUtil.matrixVectorMultiply(wT, nDims, originalDim, centroid);
         float centroidNormSq = ESVectorUtil.dotProduct(centroid, centroid);
         return new VectorAndNorm(centroidProjected, centroidNormSq);
     }
@@ -205,11 +202,8 @@ public final class AsymmetricHashingQuantizer {
         // Center and compute norm
         var centered = centralizeVector(vector, centroid);
 
-        // Project using transposed W: xLatent[j] = dot(centered, wT[j])
-        float[] xLatent = new float[nDims];
-        for (int j = 0; j < nDims; j++) {
-            xLatent[j] = ESVectorUtil.dotProduct(centered.vector(), 0, wT, j * originalDim, originalDim);
-        }
+        // Project using transposed W
+        float[] xLatent = SvdUtil.matrixVectorMultiply(wT, nDims, originalDim, centered.vector());
 
         // Quantize
         AshSphericalScalarQuantizer.SingleQuantizeResult qr = quantizer.encodeOne(xLatent);
@@ -237,12 +231,13 @@ public final class AsymmetricHashingQuantizer {
         // PCA initialization: extract top nDims right singular vectors via power iteration
         // This is much faster than full SVD when nDims << originalDim
         float[] topVectors = SvdUtil.topKRightSingularVectors(xTraining, nTraining, originalDim, nDims, seed);
+
         // P = top nDims right singular vectors transposed: rows of topVectors are the vectors
         // topVectors shape: (nDims x originalDim); P shape: (originalDim x nDims)
         float[] p = ESVectorUtil.transposeMatrix(topVectors, nDims, originalDim);
 
         // Project training data: X_ld = xTraining @ P (nTraining x nDims)
-        float[] xLd = matMul(xTraining, p, nTraining, originalDim, nDims);
+        float[] xLd = SvdUtil.matrixMultiply(xTraining, p, nTraining, originalDim, nDims);
 
         // Initialize random M (nDims x nDims)
         float[] m = SvdUtil.randomGaussians(new Random(seed), nDims * nDims);
@@ -255,7 +250,7 @@ public final class AsymmetricHashingQuantizer {
 
             if (epoch < nTrainingIterations) {
                 // X_transformed = X_ld @ R (nTraining x nDims)
-                float[] xTransformed = matMul(xLd, r, nTraining, nDims, nDims);
+                float[] xTransformed = SvdUtil.matrixMultiply(xLd, r, nTraining, nDims, nDims);
                 // Quantize
                 AshSphericalScalarQuantizer.QuantizeResult qr = quantizer.encode(xTransformed, nTraining, nDims);
                 float[] xEnc = qr.centeredCodes();
@@ -271,31 +266,17 @@ public final class AsymmetricHashingQuantizer {
                     }
                 }
                 // M = X_ld.T @ X_enc (nDims x nDims)
-                m = matMulTransposeA(xLd, xEnc, nTraining, nDims, nDims);
+                m = SvdUtil.matrixMultiplyTA(xLd, xEnc, nTraining, nDims, nDims);
             }
         }
 
         // W = P @ R (originalDim x nDims)
-        return matMul(p, r, originalDim, nDims, nDims);
+        return SvdUtil.matrixMultiply(p, r, originalDim, nDims, nDims);
     }
 
     private float[] randomOrthogonal(int originalDim, int nDims) {
-        // Generate random matrix and orthogonalize columns via modified Gram-Schmidt
         float[] q = SvdUtil.randomGaussians(new Random(seed), originalDim * nDims);
-        // Modified Gram-Schmidt: orthogonalize column by column
-        for (int j = 0; j < nDims; j++) {
-            // Subtract projections of previous columns
-            for (int prev = 0; prev < j; prev++) {
-                float dot = 0;
-                for (int i = 0; i < originalDim; i++) {
-                    dot = Math.fma(q[i * nDims + j], q[i * nDims + prev], dot);
-                }
-                for (int i = 0; i < originalDim; i++) {
-                    q[i * nDims + j] = Math.fma(-dot, q[i * nDims + prev], q[i * nDims + j]);
-                }
-            }
-            SvdUtil.normalizeColumn(q, j, nDims, originalDim);
-        }
+        SvdUtil.qrOrthogonalize(q, originalDim, nDims);
         return q;
     }
 
@@ -320,31 +301,4 @@ public final class AsymmetricHashingQuantizer {
         return Arrays.copyOf(indices, sampleSize);
     }
 
-    /** C = A @ B where A is flat (m x k), B is flat (k x n).
-     *  Uses row-broadcast accumulation; each inner loop is a contiguous SIMD axpy. */
-    private static float[] matMul(float[] a, float[] b, int m, int k, int n) {
-        float[] c = new float[m * n];
-        for (int i = 0; i < m; i++) {
-            int aBase = i * k;
-            int cBase = i * n;
-            for (int l = 0; l < k; l++) {
-                ESVectorUtil.linearCombination(a[aBase + l], b, l * n, c, cBase, n);
-            }
-        }
-        return c;
-    }
-
-    /** C = A.T @ B where A is flat (m x k), B is flat (m x n), result is flat (k x n).
-     *  Uses row-broadcast accumulation; each inner loop is a contiguous SIMD axpy. */
-    private static float[] matMulTransposeA(float[] a, float[] b, int m, int k, int n) {
-        float[] c = new float[k * n];
-        for (int l = 0; l < m; l++) {
-            int aBase = l * k;
-            int bBase = l * n;
-            for (int i = 0; i < k; i++) {
-                ESVectorUtil.linearCombination(a[aBase + i], b, bBase, c, i * n, n);
-            }
-        }
-        return c;
-    }
 }

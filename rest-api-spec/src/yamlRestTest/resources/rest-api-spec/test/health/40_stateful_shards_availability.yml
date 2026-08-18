@@ -1,5 +1,5 @@
 ---
-"Full red JSON when index allocation is disabled":
+"Red when index allocation is disabled on a stateful cluster":
   - requires:
       cluster_features: "gte_v8.7.0"
       reason: "the API path changed in 8.7"
@@ -53,7 +53,7 @@
   - match: { indicators.shards_availability.diagnosis.0.affected_resources.indices.0: "${_project_id_prefix_}red_index" }
 
 ---
-"Full red JSON when cluster allocation is disabled":
+"Red when cluster allocation is disabled on a stateful cluster":
   - requires:
       cluster_features: "gte_v8.7.0"
       reason: "the API path changed in 8.7"

@@ -50,7 +50,8 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * Multi-project integration tests for {@code shards_availability}, focused on multiple projects being unhealthy at once.
+ * Multi-project integration tests for the {@code shards_availability} indicator, focused on multiple projects being unhealthy at once.
+ * For multi-project green tests, see {@code 30_shards_availability}
  */
 public class MultiProjectShardsAvailabilityHealthIndicatorIT extends AbstractStatelessPluginIntegTestCase {
 

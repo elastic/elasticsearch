@@ -1,5 +1,5 @@
 ---
-"Full red JSON when index allocation is disabled":
+"Red when index allocation is disabled on a stateless cluster":
   - requires:
       cluster_features: "gte_v8.7.0"
       reason: "the API path changed in 8.7"

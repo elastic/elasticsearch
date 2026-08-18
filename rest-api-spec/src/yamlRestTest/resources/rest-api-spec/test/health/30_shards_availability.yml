@@ -15,11 +15,13 @@
   - match: { indicators.shards_availability.details.initializing_primaries: 0 }
   - match: { indicators.shards_availability.details.creating_primaries: 0 }
   - match: { indicators.shards_availability.details.restarting_primaries: 0 }
+    # exact values aren’t stable across runners because of system indices created by tests in runners such as security
   - gte: { indicators.shards_availability.details.started_primaries: 0 }
   - match: { indicators.shards_availability.details.unassigned_replicas: 0 }
   - match: { indicators.shards_availability.details.initializing_replicas: 0 }
   - match: { indicators.shards_availability.details.creating_replicas: 0 }
   - match: { indicators.shards_availability.details.restarting_replicas: 0 }
+    # exact values aren’t stable across runners because of system indices created by tests in runners such as security
   - gte: { indicators.shards_availability.details.started_replicas: 0 }
   - is_false: indicators.shards_availability.impacts
   - is_false: indicators.shards_availability.diagnosis
@@ -68,7 +70,7 @@
   - is_false: indicators.shards_availability.diagnosis
 
 ---
-"Soft red when index allocation is disabled":
+"Red when index allocation is disabled":
   - requires:
       cluster_features: "gte_v8.7.0"
       reason: "the API path changed in 8.7"
@@ -110,7 +112,7 @@
   - is_true: indicators.shards_availability.impacts
 
 ---
-"Soft red when cluster allocation is disabled":
+"Red when cluster allocation is disabled":
   - requires:
       cluster_features: "gte_v8.7.0"
       reason: "the API path changed in 8.7"

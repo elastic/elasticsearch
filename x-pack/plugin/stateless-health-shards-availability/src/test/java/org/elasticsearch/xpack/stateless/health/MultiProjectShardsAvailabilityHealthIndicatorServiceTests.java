@@ -84,7 +84,8 @@ import static org.mockito.Mockito.when;
  * This is a multi-project test suite for the `shards_availability` indicator. This indicator has a stateful and a
  * stateless implementation, with unit tests for both, {@code StatefulShardsAvailabilityHealthIndicatorServiceTests}
  * and {@link StatelessShardsAvailabilityHealthIndicatorServiceTests}. Since the multi-project behaviour is an extension
- * of the stateless implementation, this test suite has similar tests to both, extended to cover multi-project behaviour.
+ * of the stateless implementation, which is itself a wrapper of the stateful core, this test suite has handpicked tests
+ * from both, extended to cover multi-project behaviour.
  */
 public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 

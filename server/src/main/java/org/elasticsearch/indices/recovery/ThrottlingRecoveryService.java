@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -358,6 +359,12 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             if (isClosed()) {
                 return;
             }
+            // Pull pending recoveries from the priority queue up for as long as the RecoveriesThrottle will allow us to. Note that we just
+            // peek at the item at the head of the queue here. This relies on the connection of these two facts:
+            // 1. Recoveries from unassigned shards will always appear in the queue ahead of relocations;
+            // 2. We will never throttle unassigned recoveries more tightly than relocations.
+            // This means that the recoveriesThrottle.shouldStartNextPendingRecovery() will never return false for the item at the head of
+            // the queue when it might have returned true for an item lower down the queue.
             while (pendingRecoveries.isEmpty() == false && recoveriesThrottle.shouldStartNextPendingRecovery(pendingRecoveries.peek())) {
                 final PendingRecovery recovery = pendingRecoveries.poll();
                 assert recovery != null;
@@ -365,6 +372,17 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                 recoveriesThrottle.incrementRunning(recovery);
                 recovery.stats().targetRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType());
             }
+            // Assert on the postcondition described above:
+            assert pendingRecoveries.stream().noneMatch(recoveriesThrottle::shouldStartNextPendingRecovery)
+                : Strings.format(
+                    """
+                        The recovery at the head of the queue was throttled, but at least one recovery elsewhere in the queue would not have
+                        been. This violates the expectation that we will never have a category of recovery which is prioritized more highly
+                        but throttled more tightly than another. Highest priority recovery: %s. Non-throttled recoveries: %s.
+                        """,
+                    pendingRecoveries.peek(),
+                    pendingRecoveries.stream().filter(recoveriesThrottle::shouldStartNextPendingRecovery).toList()
+                );
         }
         for (PendingRecovery recovery : recoveriesToDispatch) {
             final RecoveryListener wrapped = wrapListenerForExecution(recovery.listener, recovery);

@@ -350,10 +350,7 @@ public class EsqlSession {
             statement,
             SettingsValidationContext.from(remoteClusterService)
         );
-        executionInfo.setProjectRoutingFlags(
-            QuerySettings.PROJECT_ROUTING.get(resolved) != null,
-            statement.setting("project_routing") != null
-        );
+        executionInfo.setSetClauseUsed(statement.setting("project_routing") != null);
         gatherSettingsMetrics(request, statement);
         if (QuerySettings.APPROXIMATION.get(resolved) != null) {
             EsqlLicenseChecker.checkQueryApproximation(verifier.licenseState());

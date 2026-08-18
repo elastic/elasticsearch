@@ -39,7 +39,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
-import org.elasticsearch.search.crossproject.ProjectRoutingRequestInfo;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -521,11 +520,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private void recordProjectRoutingTelemetry(EsqlExecutionInfo executionInfo) {
-        boolean hasLinkedProjects = executionInfo.isHasLinkedProjects();
-        ProjectRoutingRequestInfo routingInfo = executionInfo.isProjectRoutingUsed()
-            ? (executionInfo.getProjectRoutingInfo() != null ? executionInfo.getProjectRoutingInfo() : ProjectRoutingRequestInfo.NONE)
-            : null;
-        usageService.getProjectRoutingUsageHolder().recordEsql(routingInfo, executionInfo.isSetClauseUsed(), hasLinkedProjects);
+        usageService.getProjectRoutingUsageHolder()
+            .recordEsql(executionInfo.getProjectRoutingInfo(), executionInfo.isSetClauseUsed(), executionInfo.isHasLinkedProjects());
     }
 
     private CCSUsageTelemetry.Result classifyVerificationException(VerificationException exception) {

@@ -926,7 +926,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     /**
      * Computes the index-level heap usage for a shard. {@link #INDEX_MEMORY_OVERHEAD} is not included because all nodes include an overhead
      * for all indices regardless of shard assignments: see {@link #getNodeBaseHeapEstimateInBytes()}.
-     *
+     * <p>
      * Same computation as {@link EstimatedHeapUsageBuilder#add}, except excludes shard and node level overheads.
      * <p>
      * Called by {@link #getShardHeapUsageEstimates} — see that method's Javadoc for consumers.
@@ -954,11 +954,29 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         }
     }
 
-    public ShardHeapEstimator createShardHeapEstimator(PostingsInEstimate postingsInEstimate) {
+    public ShardHeapEstimator.ShardMetricsAggregation aggregateShardMetrics(
+        PostingsInEstimate postingsInEstimate,
+        SelfReportedShardOverhead selfReportedShardOverhead
+    ) {
+        return aggregateShardMetrics(postingsInEstimate, selfReportedShardOverhead, (shardId, shardMemoryMetrics) -> {});
+    }
+
+    public ShardHeapEstimator.ShardMetricsAggregation aggregateShardMetrics(
+        PostingsInEstimate postingsInEstimate,
+        SelfReportedShardOverhead selfReportedShardOverhead,
+        BiConsumer<ShardId, ShardMemoryMetrics> metricVisitor
+    ) {
+        final ShardHeapEstimator shardHeapEstimator = createShardHeapEstimator(selfReportedShardOverhead, postingsInEstimate);
+        return shardHeapEstimator.aggregateShardMetrics(shardMemoryMetrics, metricVisitor);
+    }
+
+    // visible for testing
+    ShardHeapEstimator createShardHeapEstimator(PostingsInEstimate postingsInEstimate) {
         return createShardHeapEstimator(SelfReportedShardOverhead.DEFAULT, postingsInEstimate);
     }
 
-    public ShardHeapEstimator createShardHeapEstimator(
+    // visible for testing
+    ShardHeapEstimator createShardHeapEstimator(
         SelfReportedShardOverhead selfReportedShardOverhead,
         PostingsInEstimate postingsInEstimate
     ) {
@@ -997,45 +1015,5 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         };
 
         abstract boolean isEnabled(boolean selfReportedShardMemoryOverheadEnabledSetting);
-    }
-
-    public record ShardMetricsAggregation(
-        long mappingSizeInBytes,
-        long totalShardHeapInBytes,
-        long maxShardHeapInBytes,
-        MetricQuality metricQuality
-    ) {}
-
-    public ShardMetricsAggregation aggregateShardMetrics(
-        PostingsInEstimate postingsInEstimate,
-        SelfReportedShardOverhead selfReportedShardOverhead
-    ) {
-        return aggregateShardMetrics(postingsInEstimate, selfReportedShardOverhead, (shardId, shardMemoryMetrics) -> {});
-    }
-
-    public ShardMetricsAggregation aggregateShardMetrics(
-        PostingsInEstimate postingsInEstimate,
-        SelfReportedShardOverhead selfReportedShardOverhead,
-        BiConsumer<ShardId, ShardMemoryMetrics> metricVisitor
-    ) {
-        final ShardHeapEstimator shardHeapEstimator = createShardHeapEstimator(selfReportedShardOverhead, postingsInEstimate);
-        long mappingSizeInBytes = 0;
-        long totalShardHeapInBytes = 0;
-        long maxShardHeapInBytes = 0;
-        MetricQuality metricQuality = MetricQuality.EXACT;
-
-        for (var entry : getShardMemoryMetrics().entrySet()) {
-            var metric = entry.getValue();
-            // Mapping overhead is incurred on each node that contains a shard from the index,
-            // assume each shard is on a different node, so total overhead = num shards.
-            // This will be an overestimate in either tier when there are fewer nodes than shards.
-            mappingSizeInBytes += computeIndexHeapUsage(metric);
-            long shardHeap = shardHeapEstimator.computeShardHeapUsage(metric);
-            totalShardHeapInBytes += shardHeap;
-            maxShardHeapInBytes = Math.max(maxShardHeapInBytes, shardHeap);
-            metricQuality = metric.getMetricQuality() == MetricQuality.EXACT ? metricQuality : metric.getMetricQuality();
-            metricVisitor.accept(entry.getKey(), metric);
-        }
-        return new ShardMetricsAggregation(mappingSizeInBytes, totalShardHeapInBytes, maxShardHeapInBytes, metricQuality);
     }
 }

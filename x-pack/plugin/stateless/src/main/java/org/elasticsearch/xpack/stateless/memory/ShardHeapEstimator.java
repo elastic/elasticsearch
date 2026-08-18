@@ -8,6 +8,11 @@
 package org.elasticsearch.xpack.stateless.memory;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.xpack.stateless.MetricQuality;
+
+import java.util.Map;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.stateless.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
 
@@ -53,6 +58,47 @@ public class ShardHeapEstimator {
         }
         final long postingsMemoryInBytes = includePostingsInEstimate ? shardMemoryMetrics.getPostingsInMemoryBytes() : 0;
         return estimateShardOverheadExcludingPostings(shardMemoryMetrics) + postingsMemoryInBytes;
+    }
+
+    public record ShardMetricsAggregation(
+        long mappingSizeInBytes,
+        long totalShardHeapInBytes,
+        long maxShardHeapInBytes,
+        MetricQuality metricQuality
+    ) {}
+
+    public ShardMetricsAggregation aggregateShardMetrics(
+        Map<ShardId, StatelessMemoryMetricsService.ShardMemoryMetrics> shardMemoryMetrics,
+        BiConsumer<ShardId, StatelessMemoryMetricsService.ShardMemoryMetrics> metricVisitor
+    ) {
+        long mappingSizeInBytes = 0;
+        long totalShardHeapInBytes = 0;
+        long maxShardHeapInBytes = 0;
+        MetricQuality metricQuality = MetricQuality.EXACT;
+
+        for (var entry : shardMemoryMetrics.entrySet()) {
+            var metric = entry.getValue();
+            // Mapping overhead is incurred on each node that contains a shard from the index,
+            // assume each shard is on a different node, so total overhead = num shards.
+            // This will be an overestimate in either tier when there are fewer nodes than shards.
+            mappingSizeInBytes += computeIndexHeapUsage(metric);
+            long shardHeap = computeShardHeapUsage(metric);
+            totalShardHeapInBytes += shardHeap;
+            maxShardHeapInBytes = Math.max(maxShardHeapInBytes, shardHeap);
+            metricQuality = metric.getMetricQuality() == MetricQuality.EXACT ? metricQuality : metric.getMetricQuality();
+            metricVisitor.accept(entry.getKey(), metric);
+        }
+        return new ShardMetricsAggregation(mappingSizeInBytes, totalShardHeapInBytes, maxShardHeapInBytes, metricQuality);
+    }
+
+    /**
+     * Computes the index-level heap usage for a shard. {@link StatelessMemoryMetricsService#INDEX_MEMORY_OVERHEAD} is not included because
+     * all nodes include an overhead for all indices regardless of shard assignments: see
+     * {@link StatelessMemoryMetricsService#getNodeBaseHeapEstimateInBytes()}.
+     */
+    // Visible for testing.
+    public long computeIndexHeapUsage(StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics) {
+        return shardMemoryMetrics.getMappingSizeInBytes();
     }
 
     /**

@@ -105,7 +105,7 @@ public class EcsLogsEsqlDuelRestIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .module("data-streams")
         // x-pack-stack is intentionally omitted: it registers hundreds of APM/fleet templates
-        // on startup, causing  GC pressure under the 512MB default heap. Our test provides
+        // on startup, causing GC pressure under the 512MB default heap. Our test provides
         // its own templates at priority 500 so built-in stack templates are not needed.
         .user(USER, PASS)
         .setting("xpack.security.autoconfiguration.enabled", "false")

@@ -145,6 +145,7 @@ import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
@@ -1013,27 +1014,49 @@ public class IndicesService extends AbstractLifecycleComponent
             indexService.getMetadata(),
             shardRouting.allocationId().getId(),
             indexShard.recoveryStats(),
-            listener -> indexShard.startRecovery(
-                recoveryState,
-                recoveryTargetService,
-                postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, listener),
-                repositoriesService,
-                (mapping, l) -> {
-                    assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
-                        : "mapping update consumer only required by local shards recovery";
-                    AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
-                        // concrete index - no name clash, it uses uuid
-                        .setConcreteIndex(shardRouting.index())
-                        .source(mapping.source().string(), XContentType.JSON);
-                    client.execute(
-                        TransportAutoPutMappingAction.TYPE,
-                        putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
-                        new RefCountAwareThreadedActionListener<>(threadPool.generic(), l.map(ignored -> null))
+            listener -> {
+                // Recovery will run on a generic thread after enqueue. The shard/store can close in that window before
+                // a RecoveryTarget (when relevant) calls mustIncRef during construction. Grab a ref to fill this gap.
+                final var store = indexShard.store();
+                if (store.tryIncRef() == false) {
+                    assert indexShard.state() == IndexShardState.CLOSED : indexShard.state();
+                    listener.onRecoveryFailure(
+                        new RecoveryFailedException(
+                            recoveryState,
+                            "store closed before recovery started",
+                            new AlreadyClosedException("store is already closed")
+                        ),
+                        // The master should already always be informed of the shard closure.
+                        false
                     );
-                },
-                this,
-                clusterStateVersion
-            )
+                    return;
+                }
+                try {
+                    indexShard.startRecovery(
+                        recoveryState,
+                        recoveryTargetService,
+                        postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, listener),
+                        repositoriesService,
+                        (mapping, l) -> {
+                            assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
+                                : "mapping update consumer only required by local shards recovery";
+                            AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
+                                // concrete index - no name clash, it uses uuid
+                                .setConcreteIndex(shardRouting.index())
+                                .source(mapping.source().string(), XContentType.JSON);
+                            client.execute(
+                                TransportAutoPutMappingAction.TYPE,
+                                putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
+                                new RefCountAwareThreadedActionListener<>(threadPool.generic(), l.map(ignored -> null))
+                            );
+                        },
+                        this,
+                        clusterStateVersion
+                    );
+                } finally {
+                    store.decRef();
+                }
+            }
         );
     }
 

@@ -189,7 +189,15 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                     break;
                 }
             }
-            if (pushableSorts.isEmpty() == false) {
+            // Only push down when every sort key is pushable. Pushing a strict prefix of the sort keys together with the
+            // limit (see PushableCompoundExec#rewrite) lets Lucene truncate to `limit` documents ordered by that prefix
+            // alone; any remaining, non-pushed sort keys are then applied only to the survivors. When the pushed prefix has
+            // ties that straddle the limit boundary, documents the full sort would have ranked into the top-N are dropped at
+            // the source and can never be recovered, so the query returns wrong results (e.g. a non-pushable trailing key
+            // such as `SORT score, ABS(x) | LIMIT n`). Requiring full coverage mirrors the all-or-nothing PushableQueryExec
+            // path (see canPushDownOrders) and keeps the compute-layer TopN authoritative whenever a non-pushable key is
+            // present.
+            if (pushableSorts.size() == orders.size()) {
                 return new PushableCompoundExec(evalExec, queryExec, pushableSorts);
             }
         }

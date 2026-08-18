@@ -285,10 +285,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     }
 
     /**
-     * Estimates the heap usage of a node hosting exactly the given shards, with the same summation as
-     * {@link #getPerNodeMemoryMetrics} (a parity test asserts the two agree). The recovery gate passes {@code 0} for both master-only
-     * signals and this method uses the shards' own postings (the master applies the cluster-wide maximum): each difference keeps the
-     * local estimate a lower bound of the master's, so a node never defers recoveries the master would not rebalance.
+     * Estimates the heap usage of a node hosting exactly the given shards.
      *
      * @param totalIndices              total indices in the cluster, per the caller's cluster-state view
      * @param largeIndexingOpsHeapBytes heap needed for recently rejected large indexing ops — not resident heap; local callers pass 0

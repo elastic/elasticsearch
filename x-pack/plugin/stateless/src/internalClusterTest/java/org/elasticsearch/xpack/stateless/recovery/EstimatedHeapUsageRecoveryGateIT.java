@@ -114,7 +114,8 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
         }
 
         // Index random data. The TOTAL shard count is bounded so that even a maximally skewed distribution stays below the low
-        // watermark on 512 MB test heaps (60 shards × 6MB fixed overhead ≈ 70% on a single node) — the decider and gate are enabled
+        // watermark on 512 MB test heaps (60 shards × 6MB fixed overhead ≈ 70% on a single node), and so below the high watermark
+        // the gate uses
         final int indexCount = between(1, 6);
         for (int i = 0; i < indexCount; i++) {
             final String indexName = randomIdentifier();

@@ -29,7 +29,7 @@ import java.util.function.ToLongFunction;
 /// shards away. The master's view ([org.elasticsearch.cluster.ClusterInfo]) refreshes only every few tens of seconds while data
 /// nodes start recoveries at their own pace — this gate is the fresher, local safety valve.
 ///
-/// The estimate covers only the shards already residing (started) on this node, computed from the exact values the node publishes
+/// The estimate covers only the shards already residing on this node, computed from the exact values the node publishes
 /// to the master ([ShardsMappingSizeCollector#collectShardMappingSizes]) — the same values that, once published, feed the estimates
 /// [EstimatedHeapUsageAllocationDecider] uses — through the master's own summation
 /// ([StatelessMemoryMetricsService#estimateNodeHeapUsage]).
@@ -38,7 +38,8 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate {
     private static final Logger logger = LogManager.getLogger(EstimatedHeapUsageRecoveryGate.class);
     static final String NAME = "estimated_heap";
 
-    /// How long a computed estimate is cached. Heap estimate needs to loops through every shard on the node, so result is cached
+    /// How long a computed estimate is cached. The heap estimate needs to loop through every shard on the node, so the result is
+    /// cached.
     private static final TimeValue ESTIMATE_VALIDITY = TimeValue.timeValueSeconds(1);
 
     private final Supplier<ClusterState> clusterStateSupplier;

@@ -40,7 +40,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
  *       with a gap between matched ordinals); returned {@code docID + 1} unconditionally.</li>
  *   <li>{@code BulkBlockRangeIterator} family — contiguous ordinal ranges and value-range queries
  *       (e.g. single-term {@code termQuery} on an {@code index=false} keyword); delegated to
- *       {@code SkipBlockRangeIterator.docIDRunEnd()} with returned {@code docID + 1}.</li>
+ *       {@code SkipBlockRangeIterator.docIDRunEnd()} which returned {@code docID + 1}.</li>
  * </ul>
  *
  * <p><b>Triggering conditions.</b> The bug fires when a scoring window is narrow enough that the
@@ -247,10 +247,9 @@ public class DocValuesRangeIteratorFalsePositiveReproductionTests extends ESSing
         // Shares skip block with docs 1+ (all num=5, in range), making the block MAYBE.
         // Without the fix, collectRange(0, 1) fires in the 1-doc window before the first MUST_NOT.
         indexDoc(INDEX, "num", "99", "flag", "included");
-        // Doc 1: first MUST_NOT — ReqExclBulkScorer calls req.score(0, 1): 1-doc window [0, 1).
-        indexDoc(INDEX, "num", "5", "flag", "excluded");
-        // Docs 2-2046: more MUST_NOT docs; total 2046 excluded docs (positions 1-2046).
-        for (int i = 2; i < 2047; i++) {
+        // Docs 1-2046: MUST_NOT. The first excluded doc at position 1 creates the critical
+        // 1-doc window [0, 1) that triggers the bug.
+        for (int i = 1; i < 2047; i++) {
             indexDoc(INDEX, "num", "5", "flag", "excluded");
         }
         // Doc 2047: num=5 (in range [1,10]), flag=included — the single correct hit.
@@ -298,10 +297,9 @@ public class DocValuesRangeIteratorFalsePositiveReproductionTests extends ESSing
         // SkipBlockRangeIterator.advance(1) slow-path: nextDoc = max(1, skipper.minDocID(0)=0) = 1.
         // YES_IF_PRESENT block: docIDRunEnd() = 2 = minRunEndThreshold → collectRange(1,2) fires.
         indexDoc(INDEX, "flag", "included");
-        // Doc 2: first MUST_NOT after the gap — creates window [1, 2).
-        indexDoc(INDEX, "num", "5", "flag", "excluded");
-        // Docs 3-2046: more MUST_NOT docs.
-        for (int i = 3; i < 2047; i++) {
+        // Docs 2-2046: MUST_NOT. The first excluded doc after the gap at position 2 creates
+        // the critical 1-doc window [1, 2) that triggers the bug.
+        for (int i = 2; i < 2047; i++) {
             indexDoc(INDEX, "num", "5", "flag", "excluded");
         }
         // Doc 2047: num=5 (in range [1,10]), flag=included — the single correct hit.
@@ -439,7 +437,7 @@ public class DocValuesRangeIteratorFalsePositiveReproductionTests extends ESSing
         client().admin().indices().prepareRefresh(INDEX).get();
         client().admin().indices().prepareForceMerge(INDEX).setMaxNumSegments(1).get();
 
-        // Correct count: 4096 ("aaa" and "ccc" docs; "bbb" doc doesn't match either filter).
+        // Correct count: 4096 ("aaa" and "ccc" docs; "bbb" doc rejected by filter 1 (regexp aaa|ccc)).
         // Bug count: 4097 ("bbb" doc at position 4096 falsely included via collectRange).
         var query = QueryBuilders.boolQuery()
             .filter(QueryBuilders.regexpQuery("value", "aaa|ccc"))       // non-contiguous {0,2}
@@ -499,8 +497,8 @@ public class DocValuesRangeIteratorFalsePositiveReproductionTests extends ESSing
      * This is a legacy reproduction test. The above queries should cover all cases, but these
      * are left in just to be extra careful.
      * Exercises term queries bug: {@code termQuery} on a TSDB dimension field is executed as
-     * a doc-values numeric range lookup. Indexes 2048 docs so the mixed {@code dimension} block has
-     * {@code YES_IF_PRESENT} status. 2046 docs have {@code dimension=required, label=excluded},
+     * a doc-values ordinal range lookup. Indexes 2048 docs so the mixed {@code dimension} block has
+     * {@code MAYBE} status. 2046 docs have {@code dimension=required, label=excluded},
      * one has {@code dimension=required, label=included} (expected hit), and one has
      * {@code dimension=other, label=included} (false positive without the fix).
      */
@@ -568,7 +566,7 @@ public class DocValuesRangeIteratorFalsePositiveReproductionTests extends ESSing
     /**
      * This is a legacy reproduction test. The above queries should cover all cases, but these
      * are left in just to be extra careful.
-     * Exercises a {@code termsQuery} filter (multi-value) alongside a {@code termQuery} filter and
+     * Exercises a {@code termsQuery} filter alongside a {@code termQuery} filter and
      * {@code mustNot} on a force-merged single segment. Also checks that {@code profile:true} and
      * {@code profile:false} agree — the original symptom was that profiling bypassed the bulk
      * scorer and returned correct results while the normal path returned false positives.

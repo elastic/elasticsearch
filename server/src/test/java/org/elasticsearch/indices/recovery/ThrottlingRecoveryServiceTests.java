@@ -969,7 +969,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     }
 
     /// Stress one [ThrottlingRecoveryService] by enqueueing many tasks with randomized completion times,
-    /// alternating bursty submits and completion periods, and randomly changing the max concurrent limits.
+    /// alternating bursty submits and completion periods, and randomly changing the max concurrent limits
+    /// (both the overall limit and the relocation-specific limit).
     /// Verify that all tasks finish and that concurrent execution never exceeds the limit applied.
     public void testStressConcurrentEnqueueMaintainsBoundsAndCompleteness() {
         final var taskQueue = new DeterministicTaskQueue();

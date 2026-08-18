@@ -112,7 +112,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                 // Create the coordination action that will be called for chunked fetch
                 TransportFetchPhaseCoordinationAction fetchCoordinationAction = new TransportFetchPhaseCoordinationAction(
                     mockTransportService,
-                    new ActionFilters(Collections.emptySet()),
+                    ActionFilters.EMPTY,
                     new ActiveFetchPhaseTasks(),
                     newLimitedBreakerService(ByteSizeValue.ofMb(10)),
                     new NamedWriteableRegistry(Collections.emptyList())
@@ -197,7 +197,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                 AtomicBoolean chunkedFetchUsed = new AtomicBoolean(false);
                 TransportFetchPhaseCoordinationAction fetchCoordinationAction = new TransportFetchPhaseCoordinationAction(
                     mockTransportService,
-                    new ActionFilters(Collections.emptySet()),
+                    ActionFilters.EMPTY,
                     new ActiveFetchPhaseTasks(),
                     newLimitedBreakerService(ByteSizeValue.ofMb(10)),
                     new NamedWriteableRegistry(Collections.emptyList())
@@ -283,7 +283,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                 AtomicBoolean chunkedFetchUsed = new AtomicBoolean(false);
                 TransportFetchPhaseCoordinationAction fetchCoordinationAction = new TransportFetchPhaseCoordinationAction(
                     mockTransportService,
-                    new ActionFilters(Collections.emptySet()),
+                    ActionFilters.EMPTY,
                     new ActiveFetchPhaseTasks(),
                     newLimitedBreakerService(ByteSizeValue.ofMb(10)),
                     new NamedWriteableRegistry(Collections.emptyList())
@@ -366,7 +366,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
 
                 TransportFetchPhaseCoordinationAction fetchCoordinationAction = new TransportFetchPhaseCoordinationAction(
                     mockTransportService,
-                    new ActionFilters(Collections.emptySet()),
+                    ActionFilters.EMPTY,
                     new ActiveFetchPhaseTasks(),
                     newLimitedBreakerService(ByteSizeValue.ofMb(10)),
                     new NamedWriteableRegistry(Collections.emptyList())

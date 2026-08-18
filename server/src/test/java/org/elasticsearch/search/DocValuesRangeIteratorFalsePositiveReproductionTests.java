@@ -91,12 +91,15 @@ public class DocValuesRangeIteratorFalsePositiveReproductionTests extends ESSing
      * Base settings for all non-TSDB reproduction tests.
      *
      * <ul>
-     * <li>{@code index.mode=standard}: prevents columnar-mode randomization from switching keyword
-     * fields to BinaryDocValues (which suppresses SortedSetDocValues and prevents
-     * DocValuesBlockRangeIterator from forming).
-     * <li>{@code use_columnar_id_mode_by_default=false}: prevents the test framework's
-     * RandomizeColumnarIdModePlugin from enabling columnar _id storage, which may reorder documents
-     * within segments.
+     * <li>{@code USE_DOC_VALUES_SKIPPER = true}: required to activate the
+     *     {@code DocValuesRangeIterator} code path; without it, doc-values queries fall back to
+     *     per-doc iteration and never reach {@code DenseConjunctionBulkScorer}'s fast path.
+     * <li>{@code USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING = randomBoolean()}: randomizes the
+     *     on-disk codec across test runs to cover both the standard and TSDB formats.
+     * <li>{@code index.queries.cache.enabled = false}: prevents a cached result from masking a
+     *     false positive on repeated runs.
+     * <li>{@code index.sort.field/order}: fixes document insertion order so doc IDs are
+     *     deterministic, keeping the window geometry stable across runs.
      * </ul>
      */
     private static Settings baseSettings() {

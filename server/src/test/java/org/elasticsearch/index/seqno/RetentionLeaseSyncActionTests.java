@@ -110,7 +110,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             new IndexingPressure(Settings.EMPTY),
             EmptySystemIndices.INSTANCE,
             TestProjectResolvers.DEFAULT_PROJECT_ONLY
@@ -148,7 +148,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             new IndexingPressure(Settings.EMPTY),
             EmptySystemIndices.INSTANCE,
             TestProjectResolvers.DEFAULT_PROJECT_ONLY
@@ -190,7 +190,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             new IndexingPressure(Settings.EMPTY),
             EmptySystemIndices.INSTANCE,
             TestProjectResolvers.DEFAULT_PROJECT_ONLY

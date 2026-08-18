@@ -34,8 +34,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.empty;
@@ -71,6 +69,21 @@ abstract class AbstractEmbeddingsFieldIT extends ESIntegTestCase {
         return List.of(LocalStateInferencePlugin.class, TestInferenceServicePlugin.class, ReindexPlugin.class, FakeMlPlugin.class);
     }
 
+    @Override
+    protected int minimumNumberOfShards() {
+        return cluster().numDataNodes();
+    }
+
+    @Override
+    protected int maximumNumberOfShards() {
+        return cluster().numDataNodes();
+    }
+
+    @Override
+    protected int maximumNumberOfReplicas() {
+        return 0;
+    }
+
     @After
     private void cleanUp() {
         if (indexName != null) {
@@ -91,10 +104,7 @@ abstract class AbstractEmbeddingsFieldIT extends ESIntegTestCase {
         indexName = randomIndexName();
         final Map<String, String> fields = getFields();
 
-        assertAcked(
-            prepareCreate(indexName).setMapping(generateMapping(fields))
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, cluster().numDataNodes()).put(SETTING_NUMBER_OF_REPLICAS, 0))
-        );
+        assertAcked(prepareCreate(indexName).setMapping(generateMapping(fields)));
 
         BulkRequestBuilder bulk = client().prepareBulk(indexName);
         Map<String, Object> source = new HashMap<>();
@@ -147,10 +157,7 @@ abstract class AbstractEmbeddingsFieldIT extends ESIntegTestCase {
         indexName = randomIndexName();
         final Map<String, String> fields = getFields();
 
-        assertAcked(
-            prepareCreate(indexName).setMapping(generateMapping(fields))
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, cluster().numDataNodes()).put(SETTING_NUMBER_OF_REPLICAS, 0))
-        );
+        assertAcked(prepareCreate(indexName).setMapping(generateMapping(fields)));
         ensureGreen(indexName);
 
         for (var entry : fields.entrySet()) {

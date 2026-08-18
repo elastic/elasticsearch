@@ -15,7 +15,6 @@ import java.util.Arrays;
 import java.util.function.IntUnaryOperator;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Tests for {@link IndirectSorter}.

@@ -228,7 +228,8 @@ import java.util.function.Consumer;
  *   <tr><th>ES/ESQL key</th><th>Behaviour</th></tr>
  *   <tr><td>{@code fail_fast}</td><td>Abort on first error (default)</td></tr>
  *   <tr><td>{@code skip_row}</td><td>Drop the entire bad row</td></tr>
- *   <tr><td>{@code null_field}</td><td>Null-fill unparseable fields, keep the row</td></tr>
+ *   <tr><td>{@code null_field}</td><td>Null-fill unparseable fields, keep the row; structural failures
+ *       (tokeniser error, row-shape mismatch, field over {@code max_field_size}) still drop the row</td></tr>
  * </table>
  *
  * <h2>Examples</h2>

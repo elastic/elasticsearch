@@ -19,32 +19,85 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 /// they care about.
 public interface RecoverySchedulingListener {
 
+    /// Enumerates the priority groups for a recovery. These groups can affect throttling, e.g. we can throttle relocations more tightly
+    /// than recoveries from unassigned shards. Applies only to the target (in the [RecoveryRole] sense), not the source.
+    enum PriorityGroup {
+        /// Recovering an unassigned shard
+        UNASSIGNED,
+        /// Recovering a shard to relocate it
+        RELOCATION,
+    }
+
     /// Listener that ignores every lifecycle event.
     RecoverySchedulingListener NOOP = new RecoverySchedulingListener() {};
 
     /// Called when a recovery is directly cancelled by the master node, before it even reached the queue.
+    ///
+    /// @param type The type of source being recovered from.
+    /// @param role Whether this is the `SOURCE` or `TARGET` of the recovery. `SOURCE` is allowed only when `type` is `PEER`. `TARGET` is
+    /// allowed for all `type` values.
     default void onRecoveryCancelledBeforeQueuing(RecoverySource.Type type, RecoveryRole role) {}
 
     /// Called when a recovery is queued on this data node.
-    default void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role) {}
+    ///
+    /// @param type The type of source being recovered from.
+    /// @param role Whether this is the `SOURCE` or `TARGET` of the recovery. `SOURCE` is allowed only when `type` is `PEER`. `TARGET` is
+    /// allowed for all `type` values.
+    /// @param priorityGroup When `role` is `TARGET`, indicates whether this is an `UNASSIGNED` or `RELOCATION` recovery. When `role` is
+    /// `SOURCE`, must be null.
+    default void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {}
 
     /// Called when a queued recovery is discarded without having ever run.
-    default void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {}
+    ///
+    /// @param type The type of source being recovered from.
+    /// @param role Whether this is the `SOURCE` or `TARGET` of the recovery. `SOURCE` is allowed only when `type` is `PEER`. `TARGET` is
+    /// allowed for all `type` values.
+    /// @param priorityGroup When `role` is `TARGET`, indicates whether this is an `UNASSIGNED` or `RELOCATION` recovery. When `role` is
+    /// `SOURCE`, must be null.
+    default void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {}
 
     /// Called when a queued recovery is directly cancelled by the master node, before it started running.
-    default void onQueuedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {}
+    ///
+    /// @param type The type of source being recovered from.
+    /// @param role Whether this is the `SOURCE` or `TARGET` of the recovery. `SOURCE` is allowed only when `type` is `PEER`. `TARGET` is
+    /// allowed for all `type` values.
+    /// @param priorityGroup When `role` is `TARGET`, indicates whether this is an `UNASSIGNED` or `RELOCATION` recovery. When `role` is
+    /// `SOURCE`, must be null.
+    default void onQueuedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {}
 
     /// Called when a recovery has been dispatched for execution on this data node.
-    default void onRecoveryStarted(RecoverySource.Type type, RecoveryRole role) {}
+    ///
+    /// @param type The type of source being recovered from.
+    /// @param role Whether this is the `SOURCE` or `TARGET` of the recovery. `SOURCE` is allowed only when `type` is `PEER`. `TARGET` is
+    /// allowed for all `type` values.
+    /// @param priorityGroup When `role` is `TARGET`, indicates whether this is an `UNASSIGNED` or `RELOCATION` recovery. When `role` is
+    /// `SOURCE`, must be null.
+    default void onRecoveryStarted(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {}
 
     /// Called when a previously queued recovery is dequeued and dispatched for execution on this data node.
-    default void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {}
+    ///
+    /// @param type The type of source being recovered from.
+    /// @param role Whether this is the `SOURCE` or `TARGET` of the recovery. `SOURCE` is allowed only when `type` is `PEER`. `TARGET` is
+    /// allowed for all `type` values.
+    /// @param priorityGroup When `role` is `TARGET`, indicates whether this is an `UNASSIGNED` or `RELOCATION` recovery. When `role` is
+    /// `SOURCE`, must be null.
+    default void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {}
 
     /// Called when started recovery is directly cancelled by the master node.
+    ///
+    /// @param type The type of source being recovered from.
+    /// @param role Whether this is the `SOURCE` or `TARGET` of the recovery. `SOURCE` is allowed only when `type` is `PEER`. `TARGET` is
+    /// allowed for all `type` values.
     default void onStartedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {}
 
     /// Called when a running recovery finishes (success, failure or aborted).
-    default void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {}
+    ///
+    /// @param type The type of source being recovered from.
+    /// @param role Whether this is the `SOURCE` or `TARGET` of the recovery. `SOURCE` is allowed only when `type` is `PEER`. `TARGET` is
+    /// allowed for all `type` values.
+    /// @param priorityGroup When `role` is `TARGET`, indicates whether this is an `UNASSIGNED` or `RELOCATION` recovery. When `role` is
+    /// `SOURCE`, must be null.
+    default void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {}
 
     /// Called when this node starts holding new recoveries back due to a recovery gate; `gateName` identifies the gate. Paired with
     /// [#onRecoveriesUnblocked].

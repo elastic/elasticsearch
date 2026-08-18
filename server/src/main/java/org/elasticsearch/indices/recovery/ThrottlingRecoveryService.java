@@ -361,7 +361,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             if (isClosed()) {
                 return;
             }
-            while (!pendingRecoveries.isEmpty() && recoveriesThrottle.shouldStartNextPendingRecovery(pendingRecoveries.peek())) {
+            while (pendingRecoveries.isEmpty() == false && recoveriesThrottle.shouldStartNextPendingRecovery(pendingRecoveries.peek())) {
                 final PendingRecovery recovery = pendingRecoveries.poll();
                 assert recovery != null;
                 recoveriesToDispatch.add(recovery);

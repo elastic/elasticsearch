@@ -238,10 +238,10 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
                         FormatReadContext.of(null, 1024)
                     )
                 ) {
-                    if (iter.hasNext()) {
-                        Page page = iter.next();
-                        page.releaseBlocks();
-                    }
+                    assertTrue("optimized reader must produce a page before early close", iter.hasNext());
+                    Page page = iter.next();
+                    assertTrue("page must contain rows", page.getPositionCount() > 0);
+                    page.releaseBlocks();
                     hold.await(30, TimeUnit.SECONDS);
                 }
             } catch (Exception e) {
@@ -254,6 +254,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
             pipeline.allocBaseline,
             pipeline.blockFactory.arrowAllocator().getAllocatedMemory()
         );
+        assertTrue("Prefetch should have reserved breaker bytes before early close", pipeline.breaker.peakUsed.get() > 0);
     }
 
     // --- Helpers ---

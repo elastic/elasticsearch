@@ -49,7 +49,6 @@ public class PrefetchedPageReaderLeakRegressionTests extends ESTestCase {
     private static final int PAGES_PER_ITERATION = 50;
     private static final int PAGE_PAYLOAD_BYTES = 64 * 1024;          // 64 KB decompressed
     private static final long MAX_DIRECT_GROWTH_BYTES = 64L * 1024 * 1024; // 64 MB ceiling
-    private static final int STABILIZE_CYCLES = 100;
     private static final int CONCURRENT_READERS = 4;
     private static final int CONCURRENT_ITERS_PER_READER = 50;
 
@@ -72,7 +71,8 @@ public class PrefetchedPageReaderLeakRegressionTests extends ESTestCase {
     public void testRepeatedZstdDecompressionStaysWithinDirectMemoryBudget() throws IOException {
         ZstdPageFixture fixture = compressedZstdPages();
 
-        long baseline = directMemoryUsedBytes();
+        long directBaseline = directMemoryUsedBytes();
+        long allocBaseline = allocator.getAllocatedMemory();
 
         for (int i = 0; i < ITERATIONS; i++) {
             try (
@@ -89,10 +89,11 @@ public class PrefetchedPageReaderLeakRegressionTests extends ESTestCase {
                     consume(page);
                 }
             }
+            assertEquals("allocator must return to baseline after cycle " + i, allocBaseline, allocator.getAllocatedMemory());
         }
 
         long after = directMemoryUsedBytes();
-        long grew = after - baseline;
+        long grew = after - directBaseline;
         assertThat(
             "direct-memory grew "
                 + (grew >>> 20)
@@ -107,33 +108,6 @@ public class PrefetchedPageReaderLeakRegressionTests extends ESTestCase {
             grew,
             lessThanOrEqualTo(MAX_DIRECT_GROWTH_BYTES)
         );
-    }
-
-    /**
-     * Full open-read-close cycles must return Arrow allocator accounting to the exact baseline
-     * after every cycle. A slow per-query leak (e.g. 0.5 MB per drop) is invisible in a single
-     * run but fails this loop immediately.
-     */
-    public void testAllocatorMemoryStabilizes() throws IOException {
-        ZstdPageFixture fixture = compressedZstdPages();
-        long baseline = allocator.getAllocatedMemory();
-        for (int i = 0; i < STABILIZE_CYCLES; i++) {
-            try (
-                PrefetchedPageReader reader = new PrefetchedPageReader(
-                    codecFactory.getDecompressor(CompressionCodecName.ZSTD),
-                    allocator,
-                    fixture.copyPages(),
-                    null,
-                    (long) PAGE_PAYLOAD_BYTES * PAGES_PER_ITERATION
-                )
-            ) {
-                DataPage page;
-                while ((page = reader.readPage()) != null) {
-                    consume(page);
-                }
-            }
-            assertEquals("allocator must return to baseline after cycle " + i, baseline, allocator.getAllocatedMemory());
-        }
     }
 
     /**

@@ -182,23 +182,20 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
     /**
      * N concurrent optimized readers share one breaker and one Arrow allocator. After every
      * thread finishes iterating, both accounts must return to baseline. Uses zstd so the
-     * decompress path (bug #1) is exercised under concurrency, not only uncompressed prefetch.
+     * decompress path is exercised under concurrency, not only uncompressed prefetch.
+     * Peak is not compared to N times a single-reader peak: N concurrent windows can
+     * legitimately reach about N times one window. Sharing is the accounts returning to zero.
      */
     public void testConcurrentReadersShareBreaker() throws Exception {
         int readers = 4;
-        MessageType wideSchema = buildWideSchema(8);
-        byte[] parquetData = createMultiRowGroupFile(wideSchema, 3000, 2048, CompressionCodecName.ZSTD);
-        var breaker = new TrackingBreaker("test", ByteSizeValue.ofMb(256));
-        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
-        long allocBaseline = blockFactory.arrowAllocator().getAllocatedMemory();
+        ConcurrentPipeline pipeline = newConcurrentPipeline(3000);
 
         startInParallel(readers, i -> {
-            StorageObject storage = new InMemoryStorageObject(parquetData);
             int totalRows = 0;
             try {
                 try (
-                    CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(
-                        storage,
+                    CloseableIterator<Page> iter = new ParquetFormatReader(pipeline.blockFactory, true).read(
+                        pipeline.storage(),
                         FormatReadContext.of(null, 1024)
                     )
                 ) {
@@ -213,35 +210,31 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
             }
             assertTrue("Should have read rows", totalRows > 0);
         });
-        assertEquals("Breaker should return to zero after concurrent readers finish", 0, breaker.getUsed());
+        assertEquals("Breaker should return to zero after concurrent readers finish", 0, pipeline.breaker.getUsed());
         assertEquals(
             "Arrow allocator should return to baseline after concurrent readers finish",
-            allocBaseline,
-            blockFactory.arrowAllocator().getAllocatedMemory()
+            pipeline.allocBaseline,
+            pipeline.blockFactory.arrowAllocator().getAllocatedMemory()
         );
-        assertTrue("Prefetch should have reserved breaker bytes", breaker.peakUsed.get() > 0);
+        assertTrue("Prefetch should have reserved breaker bytes", pipeline.breaker.peakUsed.get() > 0);
     }
 
     /**
-     * N concurrent readers each consume one page, wait together so prefetch is in-flight,
-     * then close on the iterating thread (query cancel on the driver thread). Breaker and
-     * allocator must return to baseline.
+     * Concurrent early close of the optimized iterator after a synchronized partial read.
+     * Each worker consumes one page, waits so all hold an open iterator, then closes on the
+     * iterating thread. This is not {@code AsyncExternalSourceBuffer.discardPages} cancel
+     * (covered in {@code AsyncExternalSourceBufferTests}) and not other-thread close.
      */
-    public void testConcurrentCancelReclaimsMemory() throws Exception {
+    public void testConcurrentEarlyCloseReclaimsMemory() throws Exception {
         int readers = 4;
-        MessageType wideSchema = buildWideSchema(8);
-        byte[] parquetData = createMultiRowGroupFile(wideSchema, 5000, 2048, CompressionCodecName.ZSTD);
-        var breaker = new TrackingBreaker("test", ByteSizeValue.ofMb(256));
-        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
-        long allocBaseline = blockFactory.arrowAllocator().getAllocatedMemory();
+        ConcurrentPipeline pipeline = newConcurrentPipeline(5000);
 
         CyclicBarrier hold = new CyclicBarrier(readers);
         startInParallel(readers, i -> {
-            StorageObject storage = new InMemoryStorageObject(parquetData);
             try {
                 try (
-                    CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(
-                        storage,
+                    CloseableIterator<Page> iter = new ParquetFormatReader(pipeline.blockFactory, true).read(
+                        pipeline.storage(),
                         FormatReadContext.of(null, 1024)
                     )
                 ) {
@@ -255,14 +248,12 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
                 throw new AssertionError(e);
             }
         });
-        assertBusy(() -> {
-            assertEquals("Breaker should return to zero after concurrent cancel", 0, breaker.getUsed());
-            assertEquals(
-                "Arrow allocator should return to baseline after concurrent cancel",
-                allocBaseline,
-                blockFactory.arrowAllocator().getAllocatedMemory()
-            );
-        });
+        assertEquals("Breaker should return to zero after concurrent early close", 0, pipeline.breaker.getUsed());
+        assertEquals(
+            "Arrow allocator should return to baseline after concurrent early close",
+            pipeline.allocBaseline,
+            pipeline.blockFactory.arrowAllocator().getAllocatedMemory()
+        );
     }
 
     // --- Helpers ---
@@ -406,8 +397,10 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
     }
 
     /**
-     * In-memory {@link StorageObject} that uses the default {@code readBytesAsync} path so
-     * prefetch buffers are allocated through the supplied {@link DirectBufferFactory}.
+     * Allocator-backed in-memory storage: default {@code readBytesAsync} allocates through
+     * {@link DirectBufferFactory}. Distinct from {@link #createAsyncStorageObject}, which uses a
+     * heap {@code ByteBuffer} and a no-op closer so older breaker tests do not charge Arrow for
+     * prefetch bytes. Do not merge the two stubs.
      */
     private static final class InMemoryStorageObject implements StorageObject {
         private final byte[] data;
@@ -444,6 +437,19 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         @Override
         public StoragePath path() {
             return StoragePath.of("memory://breaker-concurrent.parquet");
+        }
+    }
+
+    private ConcurrentPipeline newConcurrentPipeline(int rowCount) throws IOException {
+        byte[] parquetData = createMultiRowGroupFile(buildWideSchema(8), rowCount, 2048, CompressionCodecName.ZSTD);
+        var breaker = new TrackingBreaker("test", ByteSizeValue.ofMb(256));
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+        return new ConcurrentPipeline(parquetData, breaker, blockFactory, blockFactory.arrowAllocator().getAllocatedMemory());
+    }
+
+    private record ConcurrentPipeline(byte[] parquetData, TrackingBreaker breaker, BlockFactory blockFactory, long allocBaseline) {
+        StorageObject storage() {
+            return new InMemoryStorageObject(parquetData);
         }
     }
 

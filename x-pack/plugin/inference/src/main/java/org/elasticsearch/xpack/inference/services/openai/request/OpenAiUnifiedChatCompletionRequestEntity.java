@@ -20,11 +20,9 @@ import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCo
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CACHE_CONTROL_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MAX_COMPLETION_TOKENS_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MESSAGES_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MODEL_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.SESSION_ID_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.STOP_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEMPERATURE_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_FIELD;
@@ -38,6 +36,9 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOP_
  * that {@code reasoning.effort} can be mapped to a top-level {@code reasoning_effort} string.
  * Fields such as {@code summary}, {@code exclude}, and {@code enabled} are accepted by the unified
  * API for forward compatibility but are not forwarded on this path.
+ * Unified {@code cache_control} and {@code session_id} are also omitted: OpenAI Chat Completions
+ * does not accept those fields (prompt caching uses a different shape), and sticky sessions are
+ * an Elastic Inference Service feature.
  */
 public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObject {
 
@@ -84,12 +85,6 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
             builder.field(MAX_COMPLETION_TOKENS_FIELD, unifiedRequest.maxCompletionTokens());
         }
         builder.field(MODEL_FIELD, model.getServiceSettings().modelId());
-        if (unifiedRequest.cacheControl() != null) {
-            builder.field(CACHE_CONTROL_FIELD, unifiedRequest.cacheControl());
-        }
-        if (unifiedRequest.sessionId() != null) {
-            builder.field(SESSION_ID_FIELD, unifiedRequest.sessionId());
-        }
 
         // Underlying providers expect OpenAI to only return 1 possible choice.
         builder.field(NUMBER_OF_RETURNED_CHOICES_FIELD, 1);

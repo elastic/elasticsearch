@@ -186,7 +186,11 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         assertThat((double) panamaProvider.getVectorUtilSupport().ipFloatByte(q, d), closeTo(expected, delta));
     }
 
-    public void testBitAndCount() {
+    public void testIntBitAndCount() {
+        testBasicBitAndImpl(ESVectorUtil::andBitCountInt);
+    }
+
+    public void testLongBitAndCount() {
         testBasicBitAndImpl(ESVectorUtil::andBitCountLong);
     }
 
@@ -206,17 +210,21 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         testBasicIpByteBinImpl(panamaProvider.getVectorUtilSupport()::ipByteBinByte);
     }
 
-    void testBasicBitAndImpl(ToLongBiFunction<byte[], byte[]> bitAnd) {
-        assertEquals(0, bitAnd.applyAsLong(new byte[] { 0 }, new byte[] { 0 }));
-        assertEquals(0, bitAnd.applyAsLong(new byte[] { 1 }, new byte[] { 0 }));
-        assertEquals(0, bitAnd.applyAsLong(new byte[] { 0 }, new byte[] { 1 }));
-        assertEquals(1, bitAnd.applyAsLong(new byte[] { 1 }, new byte[] { 1 }));
-        byte[] a = new byte[31];
-        byte[] b = new byte[31];
+    private interface BitAnd {
+        int bitAnd(byte[] a, int aOffset, byte[] b, int bOffset, int length);
+    }
+
+    void testBasicBitAndImpl(BitAnd bitAnd) {
+        assertEquals(0, bitAnd.bitAnd(new byte[] { 0 }, 0, new byte[] { 0 }, 0, 1));
+        assertEquals(0, bitAnd.bitAnd(new byte[] { 1 }, 0, new byte[] { 0 }, 0, 1));
+        assertEquals(0, bitAnd.bitAnd(new byte[] { 0 }, 0, new byte[] { 1 }, 0, 1));
+        assertEquals(1, bitAnd.bitAnd(new byte[] { 1 }, 0, new byte[] { 1 }, 0, 1));
+        byte[] a = new byte[33];
+        byte[] b = new byte[33];
         random().nextBytes(a);
         random().nextBytes(b);
-        int expected = scalarBitAnd(a, b);
-        assertEquals(expected, bitAnd.applyAsLong(a, b));
+        int expected = scalarBitAnd(a, 1, b, 1, 31);
+        assertEquals(expected, bitAnd.bitAnd(a, 1, b, 1, 31));
     }
 
     void testBasicIpByteBinImpl(ToLongBiFunction<byte[], byte[]> ipByteBinFunc) {
@@ -1160,10 +1168,10 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         return res;
     }
 
-    static int scalarBitAnd(byte[] a, byte[] b) {
+    static int scalarBitAnd(byte[] a, int aOffset, byte[] b, int bOffset, int length) {
         int res = 0;
-        for (int i = 0; i < a.length; i++) {
-            res += Integer.bitCount((a[i] & b[i]) & 0xFF);
+        for (int i = 0; i < length; i++) {
+            res += Integer.bitCount((a[aOffset + i] & b[bOffset + i]) & 0xFF);
         }
         return res;
     }

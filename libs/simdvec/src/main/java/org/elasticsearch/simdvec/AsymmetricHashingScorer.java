@@ -227,11 +227,8 @@ public final class AsymmetricHashingScorer {
         int rawDot = 0;
         for (int qp = 0; qp < queryBitsPerDim; qp++) {
             for (int dp = 0; dp < bitsPerDim; dp++) {
+                int pc = ESVectorUtil.andBitCount(queryQuantized, qp * planeBytes, packedCodes, codeOffset + dp * planeBytes, planeBytes);
                 int weight = (1 << qp) * (1 << dp);
-                int pc = 0;
-                for (int b = 0; b < planeBytes; b++) {
-                    pc += Integer.bitCount((queryQuantized[qp * planeBytes + b] & packedCodes[codeOffset + dp * planeBytes + b]) & 0xFF);
-                }
                 rawDot += weight * pc;
             }
         }

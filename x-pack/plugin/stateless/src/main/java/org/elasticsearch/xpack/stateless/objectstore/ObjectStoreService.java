@@ -345,7 +345,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     /**
      * Multipart upload threshold for the stateless object store. When set, this value is injected into the native multipart threshold
-     * setting for the configured backend ({@code buffer_size} for S3, {@code large_blob_threshold} for GCS,
+     * setting for the configured backend ({@code buffer_size} for S3, {@code multipart_upload_size_threshold} for GCS,
      * {@code max_single_part_upload_size} for Azure). Blobs smaller than this threshold use a single-part PUT; larger blobs use
      * multipart. The minimum is 5 MB, matching the smallest valid part size across all supported object store backends.
      * When unset, each backend uses its own default.

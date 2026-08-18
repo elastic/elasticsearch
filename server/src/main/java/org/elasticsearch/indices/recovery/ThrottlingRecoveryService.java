@@ -74,10 +74,14 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// node is the source, see [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING]. Includes both
     /// recoveries of unassigned shards and relocations.
     ///
-    /// If this is set to a value less than [#INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING] then
-    /// - This setting gives the number of slots which can be used for either recoveries of unassigned shards or relocations;
-    /// - The difference between the two settings gives the number of additional slots which can only be used for recoveries of unassigned
-    /// shards.
+    /// If this is set to a value less than [#INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING] then:
+    /// - The total number of slots will be [#INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING] slots.
+    /// - Recoveries from unassigned shards can use any of those slots.
+    /// - Relocations can only use a subset of those slots given by [#INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING].
+    /// - Therefore, there will be a number of slots given by [#INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING] which can be
+    /// used by either type of recovery...
+    /// - ...while there will be an additional number of slots given by the difference between the two settings that can only be used by
+    /// recoveries from unassigned shards.
     ///
     /// If this is set to a value equal to or greater than [#INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING] then this
     /// setting has no effect.

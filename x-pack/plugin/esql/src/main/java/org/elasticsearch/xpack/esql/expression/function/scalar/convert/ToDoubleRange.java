@@ -51,7 +51,7 @@ public class ToDoubleRange extends AbstractConvertFunction {
     @FunctionInfo(
         returnType = "double_range",
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.6.0") },
         briefSummary = "Converts a value to a double_range.",
         description = """
             Converts an input value to a `double_range` value.

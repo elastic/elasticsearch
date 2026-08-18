@@ -34,7 +34,11 @@ public class StatelessMemoryMetricsServiceTestUtils {
         StatelessMemoryMetricsService statelessMemoryMetricsService,
         StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics
     ) {
-        return computeShardHeapEstimate(statelessMemoryMetricsService, shardMemoryMetrics, StatelessMemoryMetricsService.PostingsInEstimate.INCLUDE);
+        return computeShardHeapEstimate(
+            statelessMemoryMetricsService,
+            shardMemoryMetrics,
+            StatelessMemoryMetricsService.PostingsInEstimate.INCLUDE
+        );
     }
 
     /// Convenience method for computing the shard estimate excluding postings
@@ -43,7 +47,11 @@ public class StatelessMemoryMetricsServiceTestUtils {
         StatelessMemoryMetricsService statelessMemoryMetricsService,
         StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics
     ) {
-        return computeShardHeapEstimate(statelessMemoryMetricsService, shardMemoryMetrics, StatelessMemoryMetricsService.PostingsInEstimate.EXCLUDE);
+        return computeShardHeapEstimate(
+            statelessMemoryMetricsService,
+            shardMemoryMetrics,
+            StatelessMemoryMetricsService.PostingsInEstimate.EXCLUDE
+        );
     }
 
     /// Convenience method for computing the shard estimate with the specified parameters

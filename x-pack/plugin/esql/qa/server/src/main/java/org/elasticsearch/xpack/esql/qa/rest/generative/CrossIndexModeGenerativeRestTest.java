@@ -613,12 +613,14 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
         // VARIANCE / STD_DEV are computed with Welford's algorithm, whose parallel-merge step
         // (WelfordAlgorithm#add(mean, m2, count)) is not associative in floating point: it
         // recombines the mean as (mean*count + meanValue*countValue)/(count+countValue), which
-        // rounds for non-power-of-two partial counts and leaves a residual delta. Standard and
-        // columnar indices partition the same data across different shards/segments, so the two
-        // sides merge partial states in different orders. For a group whose values are all equal
-        // the true result is 0, but one side can return 0.0 while the other returns ~1e-32 —
-        // a difference that the 6-significant-figure rounding in canonicalValue cannot absorb,
-        // because relative rounding is meaningless at zero.
+        // rounds for non-power-of-two partial counts and leaves a residual delta. The streaming
+        // add(double) is exact for a constant column, so the result depends on how a group's rows
+        // are split across partial states and on the order those partials are merged — and that
+        // order is page arrival order out of ExchangeBuffer (a ConcurrentLinkedQueue), which is
+        // not pinned by the data. For a group whose values are all equal the true result is 0,
+        // but one side can return 0.0 while the other returns ~1e-32 — a difference that the
+        // 6-significant-figure rounding in canonicalValue cannot absorb, because relative rounding
+        // is meaningless at zero.
         // See: https://github.com/elastic/elasticsearch/issues/156988
         if (cmdText.contains("VARIANCE(") || cmdText.contains("STD_DEV(")) {
             return false;

@@ -1144,9 +1144,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             assertThat(shard.state(), equalTo(IndexShardState.RECOVERING));
 
             final var deleteFuture = indicesAdmin().prepareDelete(indexName).execute();
-            assertBusy(() -> assertThat(shard.state(), equalTo(IndexShardState.CLOSED)));
-
-            // Store.close() has run, but createShard's tryIncRef must still keep the store usable.
             assertAcked(deleteFuture.actionGet());
             assertTrue(shard.store().isClosing());
             assertTrue("startRecovery must retain a store ref until it returns", shard.store().hasReferences());

@@ -11,6 +11,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,7 +55,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *                               {@code SourceStatisticsSerializer.mergeStatistics} which depends on
  *                               esql-module types this compute module cannot reach.
  * @param partial Whether any driver returned partial results because a lenient policy dropped data during
- *                the read (e.g. a {@code max_record_size} truncation under a non-strict {@code error_mode}).
+ *                the read (e.g. a {@code external_max_record_size} truncation under a non-strict {@code error_mode}).
  *                OR-aggregated across drivers/nodes and consumed by the coordinator to flip the response's
  *                {@code is_partial} flag — the structured counterpart of the client-visible truncation warning.
  * @param warnings Fully-formatted warning strings accumulated per driver into each {@link DriverContext}'s sink
@@ -221,7 +223,7 @@ public record DriverCompletionInfo(
 
     /**
      * ORs the {@link CapturingExternalSourceStatus#partial()} flag across every completed operator. True when
-     * any external-source read on any driver dropped data under a lenient policy (e.g. {@code max_record_size}
+     * any external-source read on any driver dropped data under a lenient policy (e.g. {@code external_max_record_size}
      * truncation), so the coordinator can flip the response's {@code is_partial} flag.
      */
     private static boolean collectPartial(List<Driver> drivers) {
@@ -261,7 +263,7 @@ public record DriverCompletionInfo(
     private static final TransportVersion ESQL_EXTERNAL_PARTIAL_RESULTS = TransportVersion.fromName("esql_external_partial_results");
     public static final TransportVersion ESQL_DRIVER_WARNINGS = TransportVersion.fromName("esql_driver_warnings");
 
-    public static DriverCompletionInfo readFrom(StreamInput in) throws IOException {
+    public static DriverCompletionInfo readFrom(StreamInput in, ThreadContext threadContext) throws IOException {
         long documentsFound = in.readVLong();
         long valuesLoaded = in.readVLong();
         long rowsEmitted = 0;
@@ -304,7 +306,17 @@ public record DriverCompletionInfo(
         if (in.getTransportVersion().supports(ESQL_DRIVER_WARNINGS)) {
             warnings = Collections.unmodifiableSet(in.readCollection(LinkedHashSet::new, (stream, set) -> set.add(stream.readString())));
         } else {
-            warnings = Set.of();
+            List<String> headerWarnings = threadContext.takeResponseHeaders("Warning");
+            if (headerWarnings.isEmpty()) {
+                warnings = Set.of();
+            } else {
+                LinkedHashSet<String> parsed = new LinkedHashSet<>(headerWarnings.size());
+                for (String header : headerWarnings) {
+                    String extracted = HeaderWarning.extractWarningValueFromWarningHeader(header, false);
+                    parsed.add(HeaderWarning.decodeAndUnescape(extracted));
+                }
+                warnings = parsed;
+            }
         }
         return new DriverCompletionInfo(
             documentsFound,

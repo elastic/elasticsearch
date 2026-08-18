@@ -1076,6 +1076,8 @@ class NodeConstruction {
         );
         modules.bindToInstance(TimeSeriesEligibleWriteWindowLocator.class, timeSeriesEligibleWriteWindowLocator);
 
+        final UsageService usageService = createUsageService();
+
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
             clusterService,
@@ -1107,7 +1109,8 @@ class NodeConstruction {
             crossProjectModeDecider,
             taskLifecycleManager,
             dlmErrorStore,
-            ipLocationService
+            ipLocationService,
+            usageService
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -1164,7 +1167,7 @@ class NodeConstruction {
             pluginsService.filterPlugins(ActionPlugin.class).toList(),
             client,
             circuitBreakerService,
-            createUsageService(),
+            usageService,
             systemIndices,
             telemetryProvider,
             clusterService,

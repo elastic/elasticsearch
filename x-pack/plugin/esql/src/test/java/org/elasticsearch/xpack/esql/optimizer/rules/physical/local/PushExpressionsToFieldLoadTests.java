@@ -846,6 +846,25 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         );
     }
 
+    // ---- field_extract into a function that requires an exact string argument ----
+
+    public void testFieldExtractIntoExactStringArgumentIsNotFused() {
+        assumeTrue("field_extract must be part of this build", FieldExtract.isFnFieldExtractCapabilityMet());
+        // DATE_UNIT_COUNT type-checks its unit arguments with isStringAndExact. Fusing field_extract would replace
+        // them with attributes backed by an intentionally-inexact FunctionEsField, leaving DATE_UNIT_COUNT unresolved
+        // and tripping post-optimization plan verification. The rule must instead skip the fusion
+        // and keep the per-row field_extract evaluator, producing a valid plan.
+        PhysicalPlan plan = flattenedPlannerOptimizer.plan("""
+            FROM test
+            | EVAL n = DATE_UNIT_COUNT(field_extract(data, "to"), field_extract(data, "from"), "2024-01-01T00:00:00Z"::datetime)
+            | SORT id
+            | KEEP n
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "data", BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD);
+        assertThat("field_extract feeding an exact-string argument must not fuse", pushed, hasSize(0));
+    }
+
     // ---- Lookup join test (Primaries check) ----
 
     public void testPushDownFunctionsLookupJoin() {

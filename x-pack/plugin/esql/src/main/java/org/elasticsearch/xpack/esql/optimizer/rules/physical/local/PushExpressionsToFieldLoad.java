@@ -164,6 +164,10 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<PhysicalPlan, 
         }
 
         private PhysicalPlan transformPotentialInvocation(PhysicalPlan plan) {
+            // Snapshot the pushed-attribute bookkeeping so we can roll back cleanly if the fusion
+            // below turns out to break resolution (see the guard after the transform).
+            Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrsBefore = new HashMap<>(addedAttrs);
+
             PhysicalPlan transformedPlan = plan.transformExpressionsOnly(Expression.class, e -> {
                 if (e instanceof BlockLoaderExpression ble) {
                     return transformExpression(plan, e, ble);
@@ -177,8 +181,26 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<PhysicalPlan, 
                  */
                 return plan;
             }
+            /*
+             * Fusion replaces a field_extract(...) invocation with a FieldAttribute backed by an
+             * intentionally "inexact" FunctionEsField (inexact so predicates like WHERE LENGTH(kwd) > 2
+             * are not pushed down to Lucene). Some consuming functions type-check that argument with
+             * isStringAndExact, which then fails, leaving the enclosing expression unresolved. A physical
+             * rewrite must not invalidate an expression that resolved during analysis, so if fusing broke
+             * resolution we roll back and keep the per-row evaluator, which loads and evaluates correctly.
+             */
+            if (allExpressionsResolved(plan) && allExpressionsResolved(transformedPlan) == false) {
+                addedAttrs.clear();
+                addedAttrs.putAll(addedAttrsBefore);
+                addedNewAttribute = false;
+                return plan;
+            }
             // return new ProjectExec(Source.EMPTY, transformedPlan, transformedPlan.output());
             return transformedPlan;
+        }
+
+        private static boolean allExpressionsResolved(PhysicalPlan plan) {
+            return plan.expressions().stream().allMatch(Expression::resolved);
         }
 
         private Expression transformExpression(PhysicalPlan nodeWithExpression, Expression e, BlockLoaderExpression ble) {

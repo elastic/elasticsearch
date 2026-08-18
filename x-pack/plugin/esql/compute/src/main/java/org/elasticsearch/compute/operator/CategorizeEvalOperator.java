@@ -100,7 +100,7 @@ public class CategorizeEvalOperator extends AbstractPageMappingOperator {
 
     @Override
     protected Page process(Page page) {
-        IntBlock categorized = categorize((BytesRefBlock) page.getBlock(textChannel));
+        IntBlock categorized = categorize(page.getBlock(textChannel));
         boolean success = false;
         try {
             Page result = page.appendBlock(categorized);

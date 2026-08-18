@@ -1177,11 +1177,7 @@ public class LocalExecutionPlanner {
      *
      * @return updated {@code source} (may have extra channels) and the resolved channel indices
      */
-    private GroupKeysResult resolveGroupKeys(
-        List<Expression> groupings,
-        PhysicalOperation source,
-        LocalExecutionPlannerContext context
-    ) {
+    private GroupKeysResult resolveGroupKeys(List<Expression> groupings, PhysicalOperation source, LocalExecutionPlannerContext context) {
         List<Integer> groupKeys = new ArrayList<>(groupings.size());
         for (Expression grouping : groupings) {
             if (Alias.unwrap(grouping) instanceof Categorize categorize) {

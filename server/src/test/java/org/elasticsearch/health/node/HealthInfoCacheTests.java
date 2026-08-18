@@ -83,14 +83,9 @@ public class HealthInfoCacheTests extends ESTestCase {
         healthInfoCache.clusterChanged(new ClusterChangedEvent("test", previous, previous));
         DataStreamLifecycleHealthInfo latestDslHealthInfo = randomDslHealthInfo();
         var repoHealthInfo = randomRepoHealthInfo();
-        // DSL health info is published by the master (node1), disk/repo health from node2healthInfoCache.updateNodeHealth(
-            node1.getId(),
-            GREEN,
-            latestDslHealthInfo,
-            repoHealthInfo,
-            FileSettingsHealthInfo.INDETERMINATE,
-            null
-        );healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, FileSettingsHealthInfo.INDETERMINATE);
+        // DSL health info is published by the master (node1), disk/repo health from node2
+        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, latestDslHealthInfo, repoHealthInfo, FileSettingsHealthInfo.INDETERMINATE);
+        healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, FileSettingsHealthInfo.INDETERMINATE);
 
         ClusterState current = ClusterStateCreationUtils.state(node1, node1, node1, new DiscoveryNode[] { node1 });
         healthInfoCache.clusterChanged(new ClusterChangedEvent("test", current, previous));

@@ -181,6 +181,11 @@ public class AnthropicService extends SenderService<AnthropicModel> {
         return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
     }
 
+    @Override
+    public boolean usesParserForServiceSettings() {
+        return true;
+    }
+
     public static class Configuration {
         public static InferenceServiceConfiguration get() {
             return CONFIGURATION.getOrCompute();

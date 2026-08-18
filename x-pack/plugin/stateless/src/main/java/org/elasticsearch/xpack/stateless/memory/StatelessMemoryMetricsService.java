@@ -36,8 +36,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.xpack.stateless.EstimatedHeapSettings;
 import org.elasticsearch.xpack.stateless.MetricQuality;
-import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;

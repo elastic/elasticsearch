@@ -24,6 +24,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.stateless.EstimatedHeapSettings;
 
 /**
  * The allocation decider is similar to {@link org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider}
@@ -92,8 +93,8 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
     private final FrequencyCappedAction logCanAllocateMessage;
     private final EstimatedHeapSettings heapSettings;
 
-    public EstimatedHeapUsageAllocationDecider(ClusterSettings clusterSettings) {
-        heapSettings = new EstimatedHeapSettings(clusterSettings);
+    public EstimatedHeapUsageAllocationDecider(EstimatedHeapSettings heapSettings, ClusterSettings clusterSettings) {
+        this.heapSettings = heapSettings;
         logCanRemainMessage = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
         logCanAllocateMessage = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
         clusterSettings.initializeAndWatch(MINIMUM_LOGGING_INTERVAL, timeValue -> {

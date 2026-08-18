@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.stateless.allocation;
+package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -14,10 +14,11 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
+import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider;
 
 /// The estimated-heap intervention settings, shared by [EstimatedHeapUsageAllocationDecider] (master) and the data-node
 /// recovery gate (`EstimatedHeapUsageRecoveryGate`) so applicability, enablement, and watermark semantics cannot drift between
-/// the two. All instances watch the same cluster settings and answer identically.
+/// the two. [StatelessPlugin] creates a single instance and injects it into consumers.
 public final class EstimatedHeapSettings {
 
     private volatile boolean enabled;

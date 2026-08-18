@@ -132,7 +132,6 @@ import org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseA
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.allocation.DisableSimulationRebalancingDecider;
-import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapSettings;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor;
 import org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityAllocationDecider;
@@ -535,6 +534,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<StatelessMemoryMetricsService> statelessMemoryMetricsService = new SetOnce<>();
     private final SetOnce<ShardsMappingSizeCollector> shardsMappingSizeCollector = new SetOnce<>();
     private final SetOnce<EstimatedHeapUsageRecoveryGate> estimatedHeapUsageRecoveryGate = new SetOnce<>();
+    private final SetOnce<EstimatedHeapSettings> estimatedHeapSettings = new SetOnce<>();
     private final SetOnce<Client> clientRef = new SetOnce<>();
 
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(
@@ -1001,8 +1001,15 @@ public class StatelessPlugin extends Plugin
         }
         if (EstimatedHeapSettings.appliesToNode(settings)) {
             this.estimatedHeapUsageRecoveryGate.set(
-                EstimatedHeapUsageRecoveryGate.create(clusterService, memoryMetricsService, shardsMappingSizeCollector)
+                EstimatedHeapUsageRecoveryGate.create(
+                    clusterService,
+                    memoryMetricsService,
+                    shardsMappingSizeCollector,
+                    threadPool,
+                    estimatedHeapSettings.get()
+                )
             );
+            components.add(estimatedHeapUsageRecoveryGate.get());
         }
         components.add(
             setAndGet(
@@ -1924,10 +1931,11 @@ public class StatelessPlugin extends Plugin
 
     @Override
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+        estimatedHeapSettings.set(new EstimatedHeapSettings(clusterSettings));
         return List.of(
             new DisableSimulationRebalancingDecider(clusterSettings),
             new StatelessAllocationDecider(),
-            new EstimatedHeapUsageAllocationDecider(clusterSettings),
+            new EstimatedHeapUsageAllocationDecider(estimatedHeapSettings.get(), clusterSettings),
             new SharedCacheCapacityAllocationDecider(clusterSettings),
             new StatelessThrottlingConcurrentRecoveriesAllocationDecider(clusterSettings)
         );

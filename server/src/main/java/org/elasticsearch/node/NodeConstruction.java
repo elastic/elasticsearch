@@ -1424,6 +1424,7 @@ class NodeConstruction {
 
             b.bind(RecoveryMetricsCollector.class).toInstance(recoveryMetricsCollector);
             b.bind(CompositeRecoverySchedulingListener.class).toInstance(recoverySchedulingListeners);
+            b.bind(RecoveryGateMonitor.class).toInstance(recoveryGateMonitor);
             b.bind(ThrottlingRecoveryService.class).toInstance(throttlingRecoveryService);
             b.bind(PeerRecoverySourceService.class).toInstance(peerRecovery);
             b.bind(PeerRecoveryTargetService.class)

@@ -47,6 +47,13 @@ import static org.hamcrest.Matchers.not;
  * mapping never produces {@code nested} for an array of objects, and a {@code nested} query against an
  * {@code object} field throws rather than under-matching.
  * <p>
+ * <b>Alias, not a concrete index.</b> The mapping and documents live on {@code ai-index-idx-sml-data-000001};
+ * every request here names the alias {@code ai-index-idx-sml-data}, which is the only name the implicit
+ * grant covers. That mirrors what the Kibana storage adapter builds, and it is the arrangement worth
+ * testing: it proves the nested DLS filter reaches the backing index when the request is authorized
+ * through the alias. Do not collapse the two into one concrete index — the test would still pass, but
+ * it would no longer exercise the production path.
+ * <p>
  * <b>The user's grant.</b> {@code ai_index:dashboard/read} in {@code space:marketing} and
  * {@code ai_index:workflow/read} in {@code space:finance} — deliberately <em>different</em> actions in
  * two spaces, which is what makes the cross-space leak case below testable at all. The fixtures cover:
@@ -93,9 +100,11 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
     // Registered alongside the ai_index: action to prove non-ai_index: actions are filtered out of the DLS query.
     private static final String SAVED_OBJECT_GET_ACTION = "saved_object:dashboard/get";
 
-    // Must be exactly the index named in ELASTIC_AI_INDICES: the provider grants read on that
-    // single index, so any other name would leave the user with no privilege on it at all.
-    private static final String ELASTIC_AI_INDEX = "ai-index-idx-sml-data";
+    // The alias must be exactly the name in ELASTIC_AI_INDICES.
+    // The SML storage adapter creates a CONCRETE index "<name>-000001" and fronts it with an ALIAS named "<name>".
+    // So "ai-index-idx-sml-data" is never a concrete index in production.
+    private static final String ELASTIC_AI_INDEX_ALIAS = "ai-index-idx-sml-data";
+    private static final String ELASTIC_AI_INDEX_BACKING = ELASTIC_AI_INDEX_ALIAS + "-000001";
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -211,9 +220,14 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
         // shape, so this test owns the mapping the provider is written against. Dynamic mapping
         // cannot substitute — it never produces `nested` for an array of objects, and a nested
         // query against an `object` field throws rather than under-matching.
-        final Request create = new Request("PUT", "/" + ELASTIC_AI_INDEX);
-        create.setJsonEntity("""
+        //
+        // The mapping lives on the CONCRETE index; the grant and every request name the ALIAS. That
+        // split is deliberate: it is the production arrangement, and it is what proves the nested
+        // DLS filter is applied to the backing index when the request is authorized via the alias.
+        final Request create = new Request("PUT", "/" + ELASTIC_AI_INDEX_BACKING);
+        create.setJsonEntity(Strings.format("""
             {
+              "aliases": { "%s": { "is_write_index": true } },
               "mappings": {
                 "properties": {
                   "type": { "type": "keyword" },
@@ -238,7 +252,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
                 }
               }
             }
-            """);
+            """, ELASTIC_AI_INDEX_ALIAS));
         assertOK(client().performRequest(create));
 
         // Documents deliberately carry no title/description/content: the template maps a semantic_text
@@ -335,8 +349,9 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
             """);
     }
 
+    /** Writes through the alias, as the SML storage adapter does (its bulk sets require_alias). */
     private void indexDoc(String id, String body) throws Exception {
-        final Request request = new Request("PUT", "/" + ELASTIC_AI_INDEX + "/_doc/" + id);
+        final Request request = new Request("PUT", "/" + ELASTIC_AI_INDEX_ALIAS + "/_doc/" + id);
         request.addParameter("refresh", "true");
         request.setJsonEntity(body);
         assertOK(client().performRequest(request));
@@ -379,7 +394,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     private void assertUserSeesOnlyAuthorizedDocs() throws Exception {
-        final Request search = new Request("GET", "/" + ELASTIC_AI_INDEX + "/_search");
+        final Request search = new Request("GET", "/" + ELASTIC_AI_INDEX_ALIAS + "/_search");
         search.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuth(SML_USER, SML_USER_PASSWORD)));
         final Response response = client().performRequest(search);
         assertOK(response);

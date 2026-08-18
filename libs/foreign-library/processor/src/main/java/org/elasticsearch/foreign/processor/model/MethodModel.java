@@ -283,10 +283,10 @@ public record MethodModel(
                 return null;
             }
             List<UpcallModel> builtUpcalls = new ArrayList<>();
-            for (int paramIndex : upcallIndices) {
-                var param = method.getParameters().get(paramIndex);
+            for (int upcallParamIndex : upcallIndices) {
+                var param = method.getParameters().get(upcallParamIndex);
                 TypeElement upcallType = (TypeElement) ((DeclaredType) param.asType()).asElement();
-                UpcallModel upcallModel = UpcallModel.from(paramIndex, upcallType, param, env.getTypeUtils(), messager);
+                UpcallModel upcallModel = UpcallModel.from(upcallParamIndex, upcallType, param, env.getTypeUtils(), messager);
                 if (upcallModel == null) {
                     return null;
                 }

@@ -37,8 +37,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:rolling-upgrade");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:rolling-upgrade-basic");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:rolling-upgrade-multi-cluster");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:runtime-fields:core-with-mapped");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:runtime-fields:core-with-search");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:security-example-spi-extension");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:security-setup-password-tests");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:xpack-prefix-rest-compat");

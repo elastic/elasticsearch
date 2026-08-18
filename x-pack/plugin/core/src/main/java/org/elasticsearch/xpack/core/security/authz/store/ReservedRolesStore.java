@@ -83,9 +83,21 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
 
     /** "Security Solutions" Entity Store and Asset Criticality indices for Asset Inventory and Entity Analytics */
     public static final String ENTITY_STORE_V1_LATEST_INDEX = ".entities.v1.latest.security_*";
-    public static final String ENTITY_STORE_V2_LATEST_INDEX = ".entities.v2.latest.security_*";
-    public static final String ENTITY_STORE_V2_UPDATES_INDEX = ".entities.v2.updates.security_*";
-    public static final String ENTITY_STORE_V2_METADATA_INDEX = ".entities.v2.metadata.security_*";
+    /**
+     * Entity Store v2 latest indices. Solution-neutral {@code .entities.v2.latest.{namespace}-*} names,
+     * including legacy {@code .entities.v2.latest.security_*} compatibility aliases.
+     */
+    public static final String ENTITY_STORE_V2_LATEST_INDEX = ".entities.v2.latest.*";
+    /**
+     * Entity Store v2 updates data streams. Solution-neutral {@code .entities.v2.updates.{namespace}} names,
+     * including legacy {@code .entities.v2.updates.security_*} names during migration.
+     */
+    public static final String ENTITY_STORE_V2_UPDATES_INDEX = ".entities.v2.updates.*";
+    /**
+     * Entity Store v2 metadata data streams. Solution-neutral {@code .entities.v2.metadata.{namespace}} names,
+     * including legacy {@code .entities.v2.metadata.security_*} compatibility aliases.
+     */
+    public static final String ENTITY_STORE_V2_METADATA_INDEX = ".entities.v2.metadata.*";
     public static final String ENTITY_STORE_HISTORY_INDEX = ".entities.*.history.*";
     public static final String ASSET_CRITICALITY_INDEX = ".asset-criticality.asset-criticality-*";
     public static final String PRIVILEGED_USER_MONITORING_INDEX = ".entity_analytics.monitoring*";

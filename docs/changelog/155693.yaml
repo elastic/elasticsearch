@@ -1,7 +1,0 @@
-area: Search
-issues:
- - 96594
- - 155678
-pr: 155693
-summary: Clamp merge scheduler thread count when it exceeds max merge count
-type: bug

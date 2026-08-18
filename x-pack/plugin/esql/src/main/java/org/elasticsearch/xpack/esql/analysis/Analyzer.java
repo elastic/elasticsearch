@@ -2110,19 +2110,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (Alias field : fields) {
                 Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> {
                     Attribute resolved = resolveAttribute(ua, allResolvedInputs);
-                    /* If the unresolved attribute references another EVAL field, give it another opportunity to resolve
-                       in the next pass. If we set customMessage() it won't try to resolve again
-
-                       This means if we have a query where we need an implicit casting ("127.0.0.1" to ip datatype in this example):
-
-                            FROM hosts
-                            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 == "127.0.0.1", TO_STRING(ip0), null),
-                                   field = CASE(ip IS NOT NULL, "a", "unknown")
-
-                        where ip would stay unresolved in a first pass (because the analyzer runs ResolveRefs -> ImplicitCasting)
-                        we need to give ip another chance to resolve
-                     */
-
+                    // If the unresolved attribute references another EVAL field, give it another opportunity to resolve
+                    // in the next pass (after implicit casting has run). If we set customMessage() it won't try to resolve again
                     if (resolved instanceof UnresolvedAttribute u && u.customMessage() && evalFieldNames.contains(ua.name())) {
                         return ua;
                     }

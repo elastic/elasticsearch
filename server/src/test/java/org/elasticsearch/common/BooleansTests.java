@@ -12,6 +12,8 @@ package org.elasticsearch.common;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.ESTestCase;
 
+import java.nio.charset.StandardCharsets;
+
 import static org.hamcrest.Matchers.is;
 
 public class BooleansTests extends ESTestCase {
@@ -35,19 +37,23 @@ public class BooleansTests extends ESTestCase {
         for (String b : BOOLEANS) {
             String t = "prefix" + b + "suffix";
             assertTrue("failed to recognize [" + b + "] as boolean", Booleans.isBoolean(t.toCharArray(), "prefix".length(), b.length()));
+            assertTrue("failed to recognize [" + b + "] as boolean", Booleans.isBoolean(t.getBytes(StandardCharsets.UTF_8), "prefix".length(), b.length()));
             assertTrue("failed to recognize [" + b + "] as boolean", Booleans.isBoolean(b));
         }
     }
 
     public void testIsNonBoolean() {
-        assertThat(Booleans.isBoolean(null, 0, 1), is(false));
+        assertThat(Booleans.isBoolean((char[]) null, 0, 1), is(false));
         assertFalse(Booleans.isBoolean(new char[] { 't', 'r', 'u', 'e' }, 0, 0));
         assertFalse(Booleans.isBoolean((String) null));
         assertFalse(Booleans.isBoolean(""));
+        assertFalse(Booleans.isBoolean((byte[]) null, 0, 1));
+        assertFalse(Booleans.isBoolean(new byte[] { 't', 'r', 'u', 'e' }, 0, 0));
 
         for (String nb : NON_BOOLEANS) {
             String t = "prefix" + nb + "suffix";
             assertFalse("recognized [" + nb + "] as boolean", Booleans.isBoolean(t.toCharArray(), "prefix".length(), nb.length()));
+            assertFalse("recognized [" + nb + "] as boolean", Booleans.isBoolean(t.getBytes(StandardCharsets.UTF_8), "prefix".length(), nb.length()));
             assertFalse("recognized [" + nb + "] as boolean", Booleans.isBoolean(t));
         }
     }
@@ -84,6 +90,10 @@ public class BooleansTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> Booleans.parseBoolean(nonBoolean.toCharArray(), 0, nonBoolean.length(), defaultValue)
             );
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> Booleans.parseBoolean(nonBoolean.getBytes(StandardCharsets.UTF_8), 0, nonBoolean.length(), defaultValue)
+            );
         }
     }
 
@@ -103,12 +113,15 @@ public class BooleansTests extends ESTestCase {
 
     public void testWhitespaceOnlyBehaviorDiffers() {
         // The String overload uses hasText(), so whitespace-only is treated as absent and the default is returned.
-        // The char[] overload only checks for null/length==0, so whitespace-only content is passed to the strict
-        // parser and throws -- the two overloads are NOT equivalent for whitespace-only input.
+        // The char[] and byte[] overloads only check for null/length==0, so whitespace-only content is passed to
+        // the strict parser and throws -- the array overloads are NOT equivalent to the String overload for
+        // whitespace-only input.
         assertFalse(Booleans.parseBoolean("   ", false));
         assertTrue(Booleans.parseBoolean("   ", true));
         expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean("   ".toCharArray(), 0, 3, false));
         expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean("   ".toCharArray(), 0, 3, true));
+        expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean("   ".getBytes(StandardCharsets.UTF_8), 0, 3, false));
+        expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean("   ".getBytes(StandardCharsets.UTF_8), 0, 3, true));
     }
 
     public void testParseBooleanCharArray() {
@@ -125,6 +138,22 @@ public class BooleansTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean((char[]) null, 0, 0));
         expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean(new char[] { 't', 'r', 'u', 'e' }, 0, 0));
         expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean(new char[] { 'x' }, 0, 1));
+    }
+
+    public void testParseBooleanByteArray() {
+        for (String b : BOOLEANS) {
+            String t = "prefix" + b + "suffix";
+            boolean expected = "true".equals(b);
+            assertEquals(expected, Booleans.parseBoolean(t.getBytes(StandardCharsets.UTF_8), "prefix".length(), b.length(), !expected));
+            assertEquals(expected, Booleans.parseBoolean(t.getBytes(StandardCharsets.UTF_8), "prefix".length(), b.length()));
+        }
+        assertFalse(Booleans.parseBoolean((byte[]) null, 0, 0, false));
+        assertTrue(Booleans.parseBoolean((byte[]) null, 0, 0, true));
+        assertFalse(Booleans.parseBoolean(new byte[] { 't', 'r', 'u', 'e' }, 0, 0, false));
+        assertTrue(Booleans.parseBoolean(new byte[] { 't', 'r', 'u', 'e' }, 0, 0, true));
+        expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean((byte[]) null, 0, 0));
+        expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean(new byte[] { 't', 'r', 'u', 'e' }, 0, 0));
+        expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean(new byte[] { 'x' }, 0, 1));
     }
 
     public void testIsFalse() {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.core;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 public final class Booleans {
@@ -60,6 +61,58 @@ public final class Booleans {
      * @param length length to check
      */
     public static boolean isBoolean(char[] text, int offset, int length) {
+        if (text == null || length == 0) {
+            return false;
+        }
+        return isFalse(text, offset, length) || isTrue(text, offset, length);
+    }
+
+    /**
+     * Parses a UTF-8 byte[] representation of a boolean value to <code>boolean</code>.
+     *
+     * @return <code>true</code> iff the sequence of bytes is "true", <code>false</code> iff the sequence of bytes is "false" or the
+     * provided default value iff either text is <code>null</code> or length == 0.
+     * @throws IllegalArgumentException if the bytes cannot be parsed to boolean.
+     */
+    public static boolean parseBoolean(byte[] text, int offset, int length, boolean defaultValue) {
+        if (text == null || length == 0) {
+            return defaultValue;
+        } else {
+            return parseBoolean(text, offset, length);
+        }
+    }
+
+    /**
+     * Parses a UTF-8 byte[] representation of a boolean value to <code>boolean</code>.
+     *
+     * @return <code>true</code> iff the provided value is "true". <code>false</code> iff the provided value is "false".
+     * @throws IllegalArgumentException if the bytes cannot be parsed to boolean.
+     */
+    public static boolean parseBoolean(byte[] text, int offset, int length) {
+        if (text == null) {
+            throw new IllegalArgumentException("Failed to parse value [null] as only [true] or [false] are allowed.");
+        }
+        if (isFalse(text, offset, length)) {
+            return false;
+        }
+        if (isTrue(text, offset, length)) {
+            return true;
+        }
+        throw new IllegalArgumentException(
+            "Failed to parse value ["
+                + new String(text, offset, length, StandardCharsets.UTF_8)
+                + "] as only [true] or [false] are allowed."
+        );
+    }
+
+    /**
+     * returns true iff the sequence of UTF-8 bytes is one of "true","false".
+     *
+     * @param text   sequence to check
+     * @param offset offset to start
+     * @param length length to check
+     */
+    public static boolean isBoolean(byte[] text, int offset, int length) {
         if (text == null || length == 0) {
             return false;
         }
@@ -156,5 +209,17 @@ public final class Booleans {
 
     private static boolean isTrue(char[] value, int offset, int length) {
         return Arrays.equals(TRUE_CHARS, 0, TRUE_CHARS.length, value, offset, offset + length);
+    }
+
+    private static final byte[] FALSE_BYTES = "false".getBytes(StandardCharsets.UTF_8);
+
+    private static final byte[] TRUE_BYTES = "true".getBytes(StandardCharsets.UTF_8);
+
+    private static boolean isFalse(byte[] value, int offset, int length) {
+        return Arrays.equals(FALSE_BYTES, 0, FALSE_BYTES.length, value, offset, offset + length);
+    }
+
+    private static boolean isTrue(byte[] value, int offset, int length) {
+        return Arrays.equals(TRUE_BYTES, 0, TRUE_BYTES.length, value, offset, offset + length);
     }
 }

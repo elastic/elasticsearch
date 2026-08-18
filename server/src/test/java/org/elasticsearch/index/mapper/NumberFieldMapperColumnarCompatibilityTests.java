@@ -109,6 +109,62 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         );
     }
 
+    public void testLongField_indexed() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "long").field("index", true).endObject()),
+            columnarSettings(),
+            batch("long indexed", 1L, doc("d1", 1L, "{\"f\":42}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":-7}"))
+        );
+    }
+
+    public void testIntegerField_indexed() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "integer").field("index", true).endObject()),
+            columnarSettings(),
+            batch("integer indexed", 1L, doc("d1", 1L, "{\"f\":100}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":-50}"))
+        );
+    }
+
+    public void testShortField_indexed() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "short").field("index", true).endObject()),
+            columnarSettings(),
+            batch("short indexed", 1L, doc("d1", 1L, "{\"f\":32767}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":-1}"))
+        );
+    }
+
+    public void testByteField_indexed() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "byte").field("index", true).endObject()),
+            columnarSettings(),
+            batch("byte indexed", 1L, doc("d1", 1L, "{\"f\":127}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":-128}"))
+        );
+    }
+
+    public void testFloatField_indexed() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "float").field("index", true).endObject()),
+            columnarSettings(),
+            batch("float indexed", 1L, doc("d1", 1L, "{\"f\":1.5}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":-2.25}"))
+        );
+    }
+
+    public void testDoubleField_indexed() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "double").field("index", true).endObject()),
+            columnarSettings(),
+            batch("double indexed", 1L, doc("d1", 1L, "{\"f\":1.5}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":-2.25}"))
+        );
+    }
+
+    public void testHalfFloatField_indexed() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "half_float").field("index", true).endObject()),
+            columnarSettings(),
+            batch("half_float indexed", 1L, doc("d1", 1L, "{\"f\":1.5}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":-2.25}"))
+        );
+    }
+
     public void testFloatField_doubleColumn() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "float").endObject()),

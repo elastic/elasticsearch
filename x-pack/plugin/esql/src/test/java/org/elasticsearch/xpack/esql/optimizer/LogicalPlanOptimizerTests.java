@@ -12,6 +12,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -90,6 +92,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
+import org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -113,15 +116,19 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConstantFolding;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineOrderBy;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownConjunctionsToKnnPrefilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEnrich;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownInferencePlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownRegexExtract;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushLimitToKnn;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteRuntimeKnnToTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SplitInWithFoldableValue;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
@@ -163,6 +170,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 
 import java.time.Duration;
@@ -218,6 +226,7 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.logical.DeduplicateAg
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.DOWN;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.UP;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumnsTests.assertCommonIncompatibleDataTypesEsRelation;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteRuntimeKnnToTopN.TEMP_COL_NAME;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEFAULT_PROMQL_INDEX_PATTERN;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -9679,6 +9688,147 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             typesError("from types metadata _score | where knn(dense_vector, [0, 1, 2]) | sort _score | limit 10 by keyword | limit 5"),
             containsString("Knn function must be used with a LIMIT clause")
         );
+    }
+
+    // --- Runtime KNN → TopN rewrite tests ---
+
+    /**
+     * Helper that builds a minimal optimizer running only the KNN-specific logical rules with a
+     * configuration that has {@code runtime_knn_search = true}, so that the inlining rules that would
+     * otherwise resolve {@code EVAL v = dense_vector} back to the underlying FieldAttribute don't run.
+     * That keeps {@code knn.field()} as a ReferenceAttribute, causing {@code isRuntimeSearch()} to
+     * return true and triggering {@link RewriteRuntimeKnnToTopN}.
+     */
+    private LogicalPlan optimizeWithRuntimeKnnRules(String query) {
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_KNN_SEARCH.getKey(), true).build());
+        var cfg = EsqlTestUtils.configuration(pragmas);
+        // Analyze (but don't optimize) using a configuration with runtime_knn_search=true so that
+        // the Knn expression stores that configuration, which isRuntimeSearch() later inspects.
+        var analyzed = typesAnalyzer().configuration(cfg).query(query);
+        // Custom optimizer: only the KNN rules. The inlining rules are intentionally omitted so that
+        // the EVAL'd v remains a ReferenceAttribute inside the KNN, not a FieldAttribute.
+        var ctx = new LogicalOptimizerContext(cfg, FoldContext.small(), TransportVersionUtils.randomCompatibleVersion());
+        var customOptimizer = new LogicalPlanOptimizer(ctx) {
+            @Override
+            protected List<RuleExecutor.Batch<LogicalPlan>> batches() {
+                return List.of(
+                    new RuleExecutor.Batch<>(
+                        "KNN rules",
+                        // Combine the analyzer-injected cap Limit with the user's LIMIT before
+                        // PushLimitToKnn runs, so it sees a single correct Limit value.
+                        new ConstantFolding(),
+                        new PushDownAndCombineLimits(),
+                        new PushLimitToKnn(),
+                        new PushDownConjunctionsToKnnPrefilters(),
+                        new RewriteRuntimeKnnToTopN()
+                    )
+                );
+            }
+        };
+        return customOptimizer.optimize(analyzed);
+    }
+
+    /**
+     * {@code EVAL v = dense_vector | WHERE knn(v, [...]) | LIMIT k} with runtime_knn_search enabled
+     * must be rewritten to a brute-force plan. After {@link PushDownAndCombineLimits} runs in the same
+     * batch, the outer Limit is pushed through the Project, producing:
+     * {@code Project(drop sim) → Limit(k) → TopN(sim DESC, k) → Eval(sim=v_cosine) → Eval(v) → EsRelation}.
+     */
+    public void testRuntimeKnnRewrittenToTopN() {
+        assumeTrue("requires snapshot build for runtime KNN", Build.current().isSnapshot());
+        var plan = optimizeWithRuntimeKnnRules("""
+            FROM types
+            | EVAL v = dense_vector
+            | WHERE knn(v, [0, 1, 2])
+            | LIMIT 5
+            """);
+
+        // Project drops the synthetic similarity column, keeping only what the Filter exposed
+        var project = as(plan, Project.class);
+        assertThat(project.projections().stream().anyMatch(a -> a.name().startsWith(TEMP_COL_NAME)), is(false));
+
+        // Limit (pushed through the Project by PushDownAndCombineLimits)
+        var limit = as(project.child(), Limit.class);
+        assertThat(Foldables.limitValue(limit.limit(), "LIMIT"), equalTo(5));
+
+        // TopN selects the k rows with highest similarity (DESC order)
+        var topN = as(limit.child(), TopN.class);
+        assertThat(Foldables.limitValue(topN.limit(), "TopN"), equalTo(5));
+        assertThat(topN.order().size(), equalTo(1));
+        var order = topN.order().getFirst();
+        assertThat(order.child(), instanceOf(ReferenceAttribute.class));
+        assertThat(as(order.child(), ReferenceAttribute.class).name(), equalTo(TEMP_COL_NAME));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+
+        // First Eval computes cosine similarity
+        var simEval = as(topN.child(), Eval.class);
+        assertThat(simEval.fields().size(), equalTo(1));
+
+        var alias = simEval.fields().getFirst();
+        assertThat(alias.name(), equalTo(TEMP_COL_NAME));
+        assertThat(alias.child() instanceof CosineSimilarity, is(true));
+
+        // Second Eval is the original EVAL v = dense_vector
+        var vEval = as(simEval.child(), Eval.class);
+        as(vEval.child(), EsRelation.class);
+    }
+
+    /**
+     * Non-KNN conjuncts in the WHERE become a prefilter below the TopN.
+     */
+    public void testRuntimeKnnPrefilterConjuncts() {
+        assumeTrue("requires snapshot build for runtime KNN", Build.current().isSnapshot());
+        var plan = optimizeWithRuntimeKnnRules("""
+            FROM types
+            | EVAL v = dense_vector
+            | WHERE knn(v, [0, 1, 2]) AND integer > 10
+            | LIMIT 5
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var topN = as(limit.child(), TopN.class);
+
+        // The prefilter (integer > 10) sits below the TopN, below the similarity Eval
+        var simEval = as(topN.child(), Eval.class);
+        var prefilter = as(simEval.child(), Filter.class);
+        assertThat(prefilter.condition(), instanceOf(GreaterThan.class));
+    }
+
+    /**
+     * A KNN inside a disjunction must NOT be rewritten: the Filter is left unchanged.
+     */
+    public void testRuntimeKnnInDisjunctionNotRewritten() {
+        assumeTrue("requires snapshot build for runtime KNN", Build.current().isSnapshot());
+        var plan = optimizeWithRuntimeKnnRules("""
+            FROM types
+            | EVAL v = dense_vector
+            | WHERE knn(v, [0, 1, 2]) OR integer > 10
+            | LIMIT 5
+            """);
+
+        // The plan should still contain a Filter (no TopN rewrite for OR conditions)
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        assertThat(filter.condition(), instanceOf(Or.class));
+    }
+
+    /**
+     * Multiple KNNs inside a disjunction is not supported yet.
+     */
+    public void testMutipleRuntimeKnnInConjuncts() {
+        assumeTrue("requires snapshot build for runtime KNN", Build.current().isSnapshot());
+        var plan = optimizeWithRuntimeKnnRules("""
+            FROM types
+            | EVAL v1 = dense_vector, v2 = dense_vector
+            | WHERE knn(v1, [0, 1, 2]) AND knn(v2, [1, 2, 3]) AND integer > 10
+            | LIMIT 5
+            """);
+
+        // The plan should still contain a Filter (no TopN rewrite for OR conditions)
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        assertThat(filter.condition(), instanceOf(And.class));
     }
 
     private LogicalPlanOptimizer getCustomRulesLogicalPlanOptimizer(

@@ -207,6 +207,10 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         return result;
     }
 
+    public Integer explicitK() {
+        return (Integer) queryOptions().get(K_FIELD.getPreferredName());
+    }
+
     public Integer implicitK() {
         return implicitK;
     }

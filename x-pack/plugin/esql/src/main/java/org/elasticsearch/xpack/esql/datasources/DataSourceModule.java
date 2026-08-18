@@ -13,6 +13,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -165,8 +166,9 @@ public final class DataSourceModule implements Closeable {
         List<Closeable> closeables = new ArrayList<>();
         Map<String, String> registeredSchemes = new HashMap<>();
 
+        CircuitBreakerService breakerService = blockFactory.bigArrays().breakerService();
         for (DataSourcePlugin plugin : dataSourcePlugins) {
-            LazyPluginState state = new LazyPluginState(plugin, settings, executor, environment, resourceWatcherService);
+            LazyPluginState state = new LazyPluginState(plugin, settings, executor, environment, resourceWatcherService, breakerService);
 
             // A DataSourcePlugin's storageProviders(StorageProviderServices) may allocate node-level
             // resources (e.g. token-file watchers). This SPI-discovery instance never receives the
@@ -362,12 +364,7 @@ public final class DataSourceModule implements Closeable {
      */
     static class LazyPluginState {
         private final DataSourcePlugin plugin;
-        private final Settings settings;
-        private final ExecutorService executor;
-        @Nullable
-        private final Environment environment;
-        @Nullable
-        private final ResourceWatcherService resourceWatcherService;
+        private final StorageProviderServices services;
         private volatile Map<String, StorageProviderFactory> storageFactoriesCache;
         private volatile Map<String, FormatReaderFactory> formatFactoriesCache;
         private volatile Map<String, ConnectorFactory> connectorFactoriesCache;
@@ -378,22 +375,18 @@ public final class DataSourceModule implements Closeable {
             Settings settings,
             ExecutorService executor,
             @Nullable Environment environment,
-            @Nullable ResourceWatcherService resourceWatcherService
+            @Nullable ResourceWatcherService resourceWatcherService,
+            @Nullable CircuitBreakerService circuitBreakerService
         ) {
             this.plugin = plugin;
-            this.settings = settings;
-            this.executor = executor;
-            this.environment = environment;
-            this.resourceWatcherService = resourceWatcherService;
+            this.services = new StorageProviderServices(settings, executor, environment, resourceWatcherService, circuitBreakerService);
         }
 
         Map<String, StorageProviderFactory> storageFactories() {
             if (storageFactoriesCache == null) {
                 synchronized (this) {
                     if (storageFactoriesCache == null) {
-                        storageFactoriesCache = plugin.storageProviders(
-                            new StorageProviderServices(settings, executor, environment, resourceWatcherService)
-                        );
+                        storageFactoriesCache = plugin.storageProviders(services);
                     }
                 }
             }
@@ -404,7 +397,7 @@ public final class DataSourceModule implements Closeable {
             if (formatFactoriesCache == null) {
                 synchronized (this) {
                     if (formatFactoriesCache == null) {
-                        formatFactoriesCache = plugin.formatReaders(settings);
+                        formatFactoriesCache = plugin.formatReaders(services.settings());
                     }
                 }
             }
@@ -415,7 +408,7 @@ public final class DataSourceModule implements Closeable {
             if (connectorFactoriesCache == null) {
                 synchronized (this) {
                     if (connectorFactoriesCache == null) {
-                        connectorFactoriesCache = plugin.connectors(settings);
+                        connectorFactoriesCache = plugin.connectors(services);
                     }
                 }
             }
@@ -426,7 +419,7 @@ public final class DataSourceModule implements Closeable {
             if (catalogFactoriesCache == null) {
                 synchronized (this) {
                     if (catalogFactoriesCache == null) {
-                        catalogFactoriesCache = plugin.tableCatalogs(settings);
+                        catalogFactoriesCache = plugin.tableCatalogs(services);
                     }
                 }
             }

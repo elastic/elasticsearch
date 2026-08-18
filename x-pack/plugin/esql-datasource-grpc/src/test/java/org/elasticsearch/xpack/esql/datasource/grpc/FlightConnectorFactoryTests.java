@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.datasource.grpc;
 
+import org.apache.arrow.memory.RootAllocator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
@@ -18,7 +21,19 @@ import java.util.Map;
 
 public class FlightConnectorFactoryTests extends ESTestCase {
 
-    private final FlightConnectorFactory factory = new FlightConnectorFactory();
+    private RootAllocator allocator;
+    private FlightConnectorFactory factory;
+
+    @Before
+    public void initFactory() {
+        allocator = new RootAllocator();
+        factory = new FlightConnectorFactory(allocator);
+    }
+
+    @After
+    public void closeAllocator() {
+        allocator.close();
+    }
 
     public void testType() {
         assertEquals("flight", factory.type());

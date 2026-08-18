@@ -7,15 +7,30 @@
 
 package org.elasticsearch.xpack.esql.datasource.grpc;
 
+import org.apache.arrow.memory.RootAllocator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 
 public class FlightStorageProviderTests extends ESTestCase {
+
+    private RootAllocator allocator;
+
+    @Before
+    public void initAllocator() {
+        allocator = new RootAllocator();
+    }
+
+    @After
+    public void closeAllocator() {
+        allocator.close();
+    }
 
     public void testFlightTargetFromPath() {
         StoragePath path = StoragePath.of("flight://localhost:47470/employees");
@@ -28,7 +43,7 @@ public class FlightStorageProviderTests extends ESTestCase {
     }
 
     public void testExistsTrueForKnownFlightDescriptor() throws IOException {
-        try (EmployeeFlightServer server = new EmployeeFlightServer(0); StorageProvider provider = new FlightStorageProvider()) {
+        try (EmployeeFlightServer server = new EmployeeFlightServer(0); StorageProvider provider = new FlightStorageProvider(allocator)) {
             StoragePath path = StoragePath.of("flight://localhost:" + server.port() + "/employees");
             assertTrue(provider.exists(path));
             assertTrue(provider.newObject(path).exists());
@@ -40,28 +55,28 @@ public class FlightStorageProviderTests extends ESTestCase {
         try (ServerSocket ss = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
             freePort = ss.getLocalPort();
         }
-        try (StorageProvider provider = new FlightStorageProvider()) {
+        try (StorageProvider provider = new FlightStorageProvider(allocator)) {
             StoragePath path = StoragePath.of("flight://127.0.0.1:" + freePort + "/employees");
             assertThrows(IOException.class, () -> provider.exists(path));
         }
     }
 
     public void testGrpcSchemeUsesSameProvider() throws IOException {
-        try (EmployeeFlightServer server = new EmployeeFlightServer(0); StorageProvider provider = new FlightStorageProvider()) {
+        try (EmployeeFlightServer server = new EmployeeFlightServer(0); StorageProvider provider = new FlightStorageProvider(allocator)) {
             StoragePath path = StoragePath.of("grpc://localhost:" + server.port() + "/employees");
             assertTrue(provider.exists(path));
         }
     }
 
     public void testListObjectsUnsupported() throws IOException {
-        try (StorageProvider provider = new FlightStorageProvider()) {
+        try (StorageProvider provider = new FlightStorageProvider(allocator)) {
             StoragePath path = StoragePath.of("flight://localhost:47470/employees");
             assertThrows(UnsupportedOperationException.class, () -> provider.listObjects(path, false));
         }
     }
 
     public void testNewStreamUnsupported() throws IOException {
-        try (StorageProvider provider = new FlightStorageProvider()) {
+        try (StorageProvider provider = new FlightStorageProvider(allocator)) {
             StoragePath path = StoragePath.of("flight://localhost:47470/employees");
             assertThrows(IOException.class, () -> provider.newObject(path).newStream());
         }
@@ -69,7 +84,10 @@ public class FlightStorageProviderTests extends ESTestCase {
 
     public void testRejectsNonFlightScheme() {
         StoragePath path = StoragePath.of("http://localhost:47470/employees");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new FlightStorageProvider().newObject(path));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new FlightStorageProvider(allocator).newObject(path)
+        );
         assertTrue(e.getMessage().contains("flight://"));
     }
 }

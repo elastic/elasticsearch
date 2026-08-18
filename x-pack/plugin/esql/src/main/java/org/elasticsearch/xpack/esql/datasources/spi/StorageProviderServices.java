@@ -10,12 +10,15 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.concurrent.ExecutorService;
 
 /**
- * Node-level services threaded into {@link DataSourcePlugin#storageProviders(StorageProviderServices)}.
+ * Node-level services threaded into {@link DataSourcePlugin#storageProviders(StorageProviderServices)},
+ * {@link DataSourcePlugin#connectors(StorageProviderServices)}, and
+ * {@link DataSourcePlugin#tableCatalogs(StorageProviderServices)}.
  *
  * <p>Exists so that a {@link DataSourcePlugin} can build storage providers that need node context
  * (e.g. resolving operator-managed token symlinks under {@code ${ES_PATH_CONF}} or watching them for
@@ -23,18 +26,21 @@ import java.util.concurrent.ExecutorService;
  * node {@code Plugin} instance receives {@code createComponents}, while a separate reflectively built
  * SPI-discovery instance is the one whose {@code storageProviders} actually runs.
  *
- * @param settings              node settings
- * @param executor              general-purpose executor for SPI coordination and async-I/O plugin
- *                              callbacks (e.g. the HTTP client); the {@code GENERIC} pool. NOT the file-read
- *                              path — blocking reads run on the {@code esql_worker} pool via
- *                              {@code OperatorFactoryRegistry#fileReadExecutor}, bounded by the per-scheme permit
- *                              semaphore in {@code StorageProviderRegistry}
- * @param environment           node {@link Environment}; {@code null} in tests that do not supply one
+ * @param settings               node settings
+ * @param executor               general-purpose executor for SPI coordination and async-I/O plugin
+ *                               callbacks (e.g. the HTTP client); the {@code GENERIC} pool. NOT the file-read
+ *                               path — blocking reads run on the {@code esql_worker} pool via
+ *                               {@code OperatorFactoryRegistry#fileReadExecutor}, bounded by the per-scheme permit
+ *                               semaphore in {@code StorageProviderRegistry}
+ * @param environment            node {@link Environment}; {@code null} in tests that do not supply one
  * @param resourceWatcherService node {@link ResourceWatcherService}; {@code null} in tests that do not supply one
+ * @param circuitBreakerService  node {@link CircuitBreakerService} for memory accounting. {@code null} in
+ *                               tests that do not supply one
  */
 public record StorageProviderServices(
     Settings settings,
     ExecutorService executor,
     @Nullable Environment environment,
-    @Nullable ResourceWatcherService resourceWatcherService
+    @Nullable ResourceWatcherService resourceWatcherService,
+    @Nullable CircuitBreakerService circuitBreakerService
 ) {}

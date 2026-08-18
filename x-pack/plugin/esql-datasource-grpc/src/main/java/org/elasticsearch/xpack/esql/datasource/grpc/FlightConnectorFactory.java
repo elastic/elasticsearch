@@ -11,7 +11,6 @@ import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.flight.FlightDescriptor;
 import org.apache.arrow.flight.Location;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
@@ -31,6 +30,12 @@ import java.util.Objects;
  * Handles {@code flight://} and {@code grpc://} URIs.
  */
 class FlightConnectorFactory implements ConnectorFactory {
+
+    private final BufferAllocator allocator;
+
+    FlightConnectorFactory(BufferAllocator allocator) {
+        this.allocator = allocator;
+    }
 
     @Override
     public String type() {
@@ -61,8 +66,8 @@ class FlightConnectorFactory implements ConnectorFactory {
         Location flightLocation = Location.forGrpcInsecure(uri.getHost(), port);
 
         try (
-            BufferAllocator allocator = new RootAllocator();
-            FlightClient client = FlightClient.builder(allocator, flightLocation).build()
+            BufferAllocator child = allocator.newChildAllocator("flight-resolve-metadata", 0, Long.MAX_VALUE);
+            FlightClient client = FlightClient.builder(child, flightLocation).build()
         ) {
             Schema arrowSchema = client.getSchema(FlightDescriptor.path(target)).getSchema();
             List<Attribute> attributes = FlightTypeMapping.toAttributes(arrowSchema);
@@ -88,7 +93,7 @@ class FlightConnectorFactory implements ConnectorFactory {
 
     @Override
     public SplitProvider splitProvider() {
-        return new FlightSplitProvider();
+        return new FlightSplitProvider(allocator);
     }
 
     private static String extractTarget(URI uri) {

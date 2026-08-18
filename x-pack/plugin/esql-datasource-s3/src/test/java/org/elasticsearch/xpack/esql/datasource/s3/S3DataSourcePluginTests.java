@@ -63,7 +63,8 @@ public class S3DataSourcePluginTests extends ESTestCase {
             Settings.EMPTY,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             environment,
-            mock(ResourceWatcherService.class)
+            mock(ResourceWatcherService.class),
+            null
         );
     }
 

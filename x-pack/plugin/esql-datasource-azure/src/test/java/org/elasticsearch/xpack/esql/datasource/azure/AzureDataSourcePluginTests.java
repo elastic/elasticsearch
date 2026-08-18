@@ -35,7 +35,7 @@ public class AzureDataSourcePluginTests extends ESTestCase {
         assumeTrue("requires Azure feature flag", azureEnabled());
         AzureDataSourcePlugin plugin = new AzureDataSourcePlugin();
         Map<String, StorageProviderFactory> providers = plugin.storageProviders(
-            new StorageProviderServices(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE, null, null)
+            new StorageProviderServices(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE, null, null, null)
         );
 
         assertTrue("Should register wasbs scheme", providers.containsKey("wasbs"));
@@ -66,7 +66,8 @@ public class AzureDataSourcePluginTests extends ESTestCase {
         assertTrue("no schemes when disabled", plugin.supportedSchemes().isEmpty());
         assertTrue(
             "no storage providers when disabled",
-            plugin.storageProviders(new StorageProviderServices(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE, null, null)).isEmpty()
+            plugin.storageProviders(new StorageProviderServices(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE, null, null, null))
+                .isEmpty()
         );
         assertTrue("no datasource validators when disabled", plugin.datasourceValidators(Settings.EMPTY).isEmpty());
     }
@@ -75,7 +76,7 @@ public class AzureDataSourcePluginTests extends ESTestCase {
         assumeTrue("requires Azure feature flag", azureEnabled());
         AzureDataSourcePlugin plugin = new AzureDataSourcePlugin();
         Map<String, StorageProviderFactory> providers = plugin.storageProviders(
-            new StorageProviderServices(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE, null, null)
+            new StorageProviderServices(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE, null, null, null)
         );
 
         StorageProviderFactory factory = providers.get("wasbs");
@@ -89,7 +90,7 @@ public class AzureDataSourcePluginTests extends ESTestCase {
         assumeTrue("requires Azure feature flag", azureEnabled());
         AzureDataSourcePlugin plugin = new AzureDataSourcePlugin();
         Map<String, StorageProviderFactory> providers = plugin.storageProviders(
-            new StorageProviderServices(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE, null, null)
+            new StorageProviderServices(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE, null, null, null)
         );
 
         StorageProviderFactory factory = providers.get("wasbs");
@@ -103,7 +104,7 @@ public class AzureDataSourcePluginTests extends ESTestCase {
         assumeTrue("requires Azure feature flag", azureEnabled());
         AzureDataSourcePlugin plugin = new AzureDataSourcePlugin();
         Map<String, StorageProviderFactory> providers = plugin.storageProviders(
-            new StorageProviderServices(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE, null, null)
+            new StorageProviderServices(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE, null, null, null)
         );
 
         StorageProviderFactory wasbsFactory = providers.get("wasbs");

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.grpc;
 
+import org.apache.arrow.memory.RootAllocator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -49,9 +50,9 @@ public class AsyncConnectorFactoryFlightTests extends ESTestCase {
     }
 
     public void testFullPipelineProducesCorrectPages() throws Exception {
-        try (EmployeeFlightServer server = new EmployeeFlightServer(0)) {
+        try (RootAllocator allocator = new RootAllocator(); EmployeeFlightServer server = new EmployeeFlightServer(0)) {
             String endpoint = "flight://localhost:" + server.port();
-            FlightConnectorFactory factory = new FlightConnectorFactory();
+            FlightConnectorFactory factory = new FlightConnectorFactory(allocator);
 
             List<Attribute> attributes = FlightTypeMapping.toAttributes(EmployeeFlightServer.SCHEMA);
             List<String> projectedColumns = new ArrayList<>();
@@ -97,9 +98,9 @@ public class AsyncConnectorFactoryFlightTests extends ESTestCase {
 
     public void testConnectorWithDrainUtils() throws Exception {
         ExecutorService executor = Executors.newSingleThreadExecutor(EsExecutors.daemonThreadFactory("test", "drain"));
-        try (EmployeeFlightServer server = new EmployeeFlightServer(0)) {
+        try (RootAllocator allocator = new RootAllocator(); EmployeeFlightServer server = new EmployeeFlightServer(0)) {
             String endpoint = "flight://localhost:" + server.port();
-            FlightConnectorFactory factory = new FlightConnectorFactory();
+            FlightConnectorFactory factory = new FlightConnectorFactory(allocator);
 
             List<Attribute> attributes = FlightTypeMapping.toAttributes(EmployeeFlightServer.SCHEMA);
             List<String> projectedColumns = new ArrayList<>();
@@ -162,9 +163,9 @@ public class AsyncConnectorFactoryFlightTests extends ESTestCase {
 
     public void testMultiSplitParallelExecution() throws Exception {
         int numEndpoints = 4;
-        try (EmployeeFlightServer server = new EmployeeFlightServer(0, numEndpoints)) {
+        try (RootAllocator allocator = new RootAllocator(); EmployeeFlightServer server = new EmployeeFlightServer(0, numEndpoints)) {
             String endpoint = "flight://localhost:" + server.port();
-            FlightConnectorFactory factory = new FlightConnectorFactory();
+            FlightConnectorFactory factory = new FlightConnectorFactory(allocator);
 
             List<Attribute> attributes = FlightTypeMapping.toAttributes(EmployeeFlightServer.SCHEMA);
             List<String> projectedColumns = new ArrayList<>();
@@ -206,9 +207,9 @@ public class AsyncConnectorFactoryFlightTests extends ESTestCase {
     public void testMultiSplitWithSliceQueue() throws Exception {
         int numEndpoints = 4;
         ExecutorService executor = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "drain"));
-        try (EmployeeFlightServer server = new EmployeeFlightServer(0, numEndpoints)) {
+        try (RootAllocator allocator = new RootAllocator(); EmployeeFlightServer server = new EmployeeFlightServer(0, numEndpoints)) {
             String endpoint = "flight://localhost:" + server.port();
-            FlightConnectorFactory factory = new FlightConnectorFactory();
+            FlightConnectorFactory factory = new FlightConnectorFactory(allocator);
 
             List<Attribute> attributes = FlightTypeMapping.toAttributes(EmployeeFlightServer.SCHEMA);
             List<String> projectedColumns = new ArrayList<>();
@@ -307,9 +308,9 @@ public class AsyncConnectorFactoryFlightTests extends ESTestCase {
 
     public void testMultiSplitWithNullLocationUsesDefaultClient() throws Exception {
         int numEndpoints = 3;
-        try (EmployeeFlightServer server = new EmployeeFlightServer(0, numEndpoints)) {
+        try (RootAllocator allocator = new RootAllocator(); EmployeeFlightServer server = new EmployeeFlightServer(0, numEndpoints)) {
             String endpoint = "flight://localhost:" + server.port();
-            FlightConnectorFactory factory = new FlightConnectorFactory();
+            FlightConnectorFactory factory = new FlightConnectorFactory(allocator);
 
             List<Attribute> attributes = FlightTypeMapping.toAttributes(EmployeeFlightServer.SCHEMA);
             List<String> projectedColumns = new ArrayList<>();
@@ -342,9 +343,13 @@ public class AsyncConnectorFactoryFlightTests extends ESTestCase {
     }
 
     public void testMultiSplitAcrossDifferentServers() throws Exception {
-        try (EmployeeFlightServer server1 = new EmployeeFlightServer(0, 2); EmployeeFlightServer server2 = new EmployeeFlightServer(0, 2)) {
+        try (
+            RootAllocator allocator = new RootAllocator();
+            EmployeeFlightServer server1 = new EmployeeFlightServer(0, 2);
+            EmployeeFlightServer server2 = new EmployeeFlightServer(0, 2)
+        ) {
             String endpoint = "flight://localhost:" + server1.port();
-            FlightConnectorFactory factory = new FlightConnectorFactory();
+            FlightConnectorFactory factory = new FlightConnectorFactory(allocator);
 
             List<Attribute> attributes = FlightTypeMapping.toAttributes(EmployeeFlightServer.SCHEMA);
             List<String> projectedColumns = new ArrayList<>();

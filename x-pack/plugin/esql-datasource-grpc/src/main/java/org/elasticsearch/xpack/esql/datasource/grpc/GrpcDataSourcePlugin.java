@@ -7,14 +7,19 @@
 
 package org.elasticsearch.xpack.esql.datasource.grpc;
 
+import org.apache.arrow.memory.BufferAllocator;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.compute.data.arrow.CircuitBreakingArrowAllocator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 
+import java.io.Closeable;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,13 +34,16 @@ import java.util.Set;
  * {@code grpc} schemes and connector are not registered, so a source targeting either resolves to
  * the generic "unsupported storage scheme" rejection.
  */
-public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin {
+public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin, Closeable {
 
     /**
      * Gates the gRPC/Flight storage providers and connector. Snapshot-on, release-off; override in
      * release with {@code -Des.esql_external_datasources_grpc_feature_flag_enabled=true}.
      */
     public static final FeatureFlag ESQL_EXTERNAL_DATASOURCES_GRPC_FEATURE_FLAG = new FeatureFlag("esql_external_datasources_grpc");
+
+    @Nullable
+    private volatile BufferAllocator allocator;
 
     private static boolean enabled() {
         return ESQL_EXTERNAL_DATASOURCES_GRPC_FEATURE_FLAG.isEnabled();
@@ -50,11 +58,12 @@ public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin {
     }
 
     @Override
-    public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+    public Map<String, StorageProviderFactory> storageProviders(StorageProviderServices services) {
         if (enabled() == false) {
             return Map.of();
         }
-        StorageProviderFactory factory = StorageProviderFactory.noConfigKeys(FlightStorageProvider::new);
+        BufferAllocator alloc = getOrCreateAllocator(services);
+        StorageProviderFactory factory = StorageProviderFactory.noConfigKeys(() -> new FlightStorageProvider(alloc));
         return Map.of("flight", factory, "grpc", factory);
     }
 
@@ -67,11 +76,27 @@ public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin {
     }
 
     @Override
-    public Map<String, ConnectorFactory> connectors(Settings settings) {
+    public Map<String, ConnectorFactory> connectors(StorageProviderServices services) {
         if (enabled() == false) {
             return Map.of();
         }
-        return Map.of("flight", new FlightConnectorFactory());
+        return Map.of("flight", new FlightConnectorFactory(getOrCreateAllocator(services)));
+    }
+
+    @Override
+    public void close() {
+        BufferAllocator alloc = this.allocator;
+        if (alloc != null) {
+            alloc.close();
+        }
+    }
+
+    private synchronized BufferAllocator getOrCreateAllocator(StorageProviderServices services) {
+        if (allocator == null) {
+            CircuitBreaker breaker = services.circuitBreakerService().getBreaker(CircuitBreaker.NATIVE_MEMORY);
+            allocator = CircuitBreakingArrowAllocator.create(breaker);
+        }
+        return allocator;
     }
 
     @Override

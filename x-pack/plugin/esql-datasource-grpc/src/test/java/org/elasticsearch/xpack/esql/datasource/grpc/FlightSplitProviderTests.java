@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.grpc;
 
+import org.apache.arrow.memory.RootAllocator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -20,8 +21,8 @@ import java.util.Map;
 public class FlightSplitProviderTests extends ESTestCase {
 
     public void testSingleEndpointProducesOneSplit() throws IOException {
-        try (EmployeeFlightServer server = new EmployeeFlightServer(0)) {
-            FlightSplitProvider provider = new FlightSplitProvider();
+        try (RootAllocator allocator = new RootAllocator(); EmployeeFlightServer server = new EmployeeFlightServer(0)) {
+            FlightSplitProvider provider = new FlightSplitProvider(allocator);
             String endpoint = "flight://localhost:" + server.port();
             Map<String, Object> config = Map.of("endpoint", endpoint, "target", "employees");
             SplitDiscoveryContext context = new SplitDiscoveryContext(null, FileList.UNRESOLVED, config, null, null);
@@ -42,8 +43,8 @@ public class FlightSplitProviderTests extends ESTestCase {
 
     public void testMultiEndpointProducesMultipleSplits() throws IOException {
         int numEndpoints = 4;
-        try (EmployeeFlightServer server = new EmployeeFlightServer(0, numEndpoints)) {
-            FlightSplitProvider provider = new FlightSplitProvider();
+        try (RootAllocator allocator = new RootAllocator(); EmployeeFlightServer server = new EmployeeFlightServer(0, numEndpoints)) {
+            FlightSplitProvider provider = new FlightSplitProvider(allocator);
             String endpoint = "flight://localhost:" + server.port();
             Map<String, Object> config = Map.of("endpoint", endpoint, "target", "employees");
             SplitDiscoveryContext context = new SplitDiscoveryContext(null, FileList.UNRESOLVED, config, null, null);
@@ -66,20 +67,24 @@ public class FlightSplitProviderTests extends ESTestCase {
     }
 
     public void testMissingEndpointReturnsEmpty() {
-        FlightSplitProvider provider = new FlightSplitProvider();
-        Map<String, Object> config = Map.of("target", "employees");
-        SplitDiscoveryContext context = new SplitDiscoveryContext(null, FileList.UNRESOLVED, config, null, null);
+        try (RootAllocator allocator = new RootAllocator()) {
+            FlightSplitProvider provider = new FlightSplitProvider(allocator);
+            Map<String, Object> config = Map.of("target", "employees");
+            SplitDiscoveryContext context = new SplitDiscoveryContext(null, FileList.UNRESOLVED, config, null, null);
 
-        List<ExternalSplit> splits = provider.discoverSplits(context).splits();
-        assertEquals(0, splits.size());
+            List<ExternalSplit> splits = provider.discoverSplits(context).splits();
+            assertEquals(0, splits.size());
+        }
     }
 
     public void testMissingTargetReturnsEmpty() {
-        FlightSplitProvider provider = new FlightSplitProvider();
-        Map<String, Object> config = Map.of("endpoint", "flight://localhost:12345");
-        SplitDiscoveryContext context = new SplitDiscoveryContext(null, FileList.UNRESOLVED, config, null, null);
+        try (RootAllocator allocator = new RootAllocator()) {
+            FlightSplitProvider provider = new FlightSplitProvider(allocator);
+            Map<String, Object> config = Map.of("endpoint", "flight://localhost:12345");
+            SplitDiscoveryContext context = new SplitDiscoveryContext(null, FileList.UNRESOLVED, config, null, null);
 
-        List<ExternalSplit> splits = provider.discoverSplits(context).splits();
-        assertEquals(0, splits.size());
+            List<ExternalSplit> splits = provider.discoverSplits(context).splits();
+            assertEquals(0, splits.size());
+        }
     }
 }

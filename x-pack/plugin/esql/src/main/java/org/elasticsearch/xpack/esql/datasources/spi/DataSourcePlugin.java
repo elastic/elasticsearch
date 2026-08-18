@@ -132,12 +132,20 @@ public interface DataSourcePlugin {
         return Map.of();
     }
 
+    default Map<String, TableCatalogFactory> tableCatalogs(StorageProviderServices services) {
+        return tableCatalogs(services.settings());
+    }
+
     default Map<String, SourceOperatorFactoryProvider> operatorFactories(Settings settings) {
         return Map.of();
     }
 
     default Map<String, ConnectorFactory> connectors(Settings settings) {
         return Map.of();
+    }
+
+    default Map<String, ConnectorFactory> connectors(StorageProviderServices services) {
+        return connectors(services.settings());
     }
 
     default List<NamedWriteableRegistry.Entry> namedWriteables() {

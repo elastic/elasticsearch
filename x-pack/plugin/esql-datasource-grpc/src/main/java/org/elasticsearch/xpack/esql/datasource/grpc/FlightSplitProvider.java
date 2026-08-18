@@ -13,7 +13,6 @@ import org.apache.arrow.flight.FlightEndpoint;
 import org.apache.arrow.flight.FlightInfo;
 import org.apache.arrow.flight.Location;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
@@ -32,6 +31,12 @@ import java.util.List;
  */
 class FlightSplitProvider implements SplitProvider {
 
+    private final BufferAllocator allocator;
+
+    FlightSplitProvider(BufferAllocator allocator) {
+        this.allocator = allocator;
+    }
+
     @Override
     public SplitDiscoveryResult discoverSplits(SplitDiscoveryContext context) {
         String endpoint = (String) context.config().get("endpoint");
@@ -44,7 +49,10 @@ class FlightSplitProvider implements SplitProvider {
         int port = uri.getPort() > 0 ? uri.getPort() : FlightConnectorFactory.DEFAULT_FLIGHT_PORT;
         Location location = Location.forGrpcInsecure(uri.getHost(), port);
 
-        try (BufferAllocator allocator = new RootAllocator(); FlightClient client = FlightClient.builder(allocator, location).build()) {
+        try (
+            BufferAllocator child = allocator.newChildAllocator("flight-discover-splits", 0, Long.MAX_VALUE);
+            FlightClient client = FlightClient.builder(child, location).build()
+        ) {
             FlightInfo info = client.getInfo(FlightDescriptor.path(target));
             List<FlightEndpoint> endpoints = info.getEndpoints();
             if (endpoints.isEmpty()) {

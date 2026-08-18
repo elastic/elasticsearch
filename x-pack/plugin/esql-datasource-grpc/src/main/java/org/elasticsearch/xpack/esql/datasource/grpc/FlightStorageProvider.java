@@ -12,7 +12,6 @@ import org.apache.arrow.flight.FlightDescriptor;
 import org.apache.arrow.flight.FlightInfo;
 import org.apache.arrow.flight.Location;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -35,22 +34,28 @@ import java.util.Locale;
  */
 public final class FlightStorageProvider implements StorageProvider {
 
+    private final BufferAllocator allocator;
+
+    FlightStorageProvider(BufferAllocator allocator) {
+        this.allocator = allocator;
+    }
+
     @Override
     public StorageObject newObject(StoragePath path) {
         validateScheme(path);
-        return new FlightStorageObject(path);
+        return new FlightStorageObject(path, allocator);
     }
 
     @Override
     public StorageObject newObject(StoragePath path, long length) {
         validateScheme(path);
-        return new FlightStorageObject(path, length);
+        return new FlightStorageObject(path, length, null, allocator);
     }
 
     @Override
     public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
         validateScheme(path);
-        return new FlightStorageObject(path, length, lastModified);
+        return new FlightStorageObject(path, length, lastModified, allocator);
     }
 
     @Override
@@ -61,7 +66,7 @@ public final class FlightStorageProvider implements StorageProvider {
     @Override
     public boolean exists(StoragePath path) throws IOException {
         validateScheme(path);
-        return flightExists(path);
+        return flightExists(path, allocator);
     }
 
     @Override
@@ -107,13 +112,16 @@ public final class FlightStorageProvider implements StorageProvider {
         return Location.forGrpcInsecure(host, port);
     }
 
-    private static boolean flightExists(StoragePath path) throws IOException {
+    private static boolean flightExists(StoragePath path, BufferAllocator allocator) throws IOException {
         String target = flightTarget(path);
         if (target.isEmpty()) {
             return false;
         }
         Location location = flightLocation(path);
-        try (BufferAllocator allocator = new RootAllocator(); FlightClient client = FlightClient.builder(allocator, location).build()) {
+        try (
+            BufferAllocator child = allocator.newChildAllocator("flight-exists", 0, Long.MAX_VALUE);
+            FlightClient client = FlightClient.builder(child, location).build()
+        ) {
             FlightInfo info = client.getInfo(FlightDescriptor.path(target));
             return info != null && info.getEndpoints().isEmpty() == false;
         } catch (InterruptedException e) {
@@ -132,19 +140,17 @@ public final class FlightStorageProvider implements StorageProvider {
         private final StoragePath path;
         private final long knownLength;
         private final Instant knownLastModified;
+        private final BufferAllocator allocator;
 
-        FlightStorageObject(StoragePath path) {
-            this(path, 0L, null);
+        FlightStorageObject(StoragePath path, BufferAllocator allocator) {
+            this(path, 0L, null, allocator);
         }
 
-        FlightStorageObject(StoragePath path, long length) {
-            this(path, length, null);
-        }
-
-        FlightStorageObject(StoragePath path, long length, Instant lastModified) {
+        FlightStorageObject(StoragePath path, long length, Instant lastModified, BufferAllocator allocator) {
             this.path = path;
             this.knownLength = length;
             this.knownLastModified = lastModified;
+            this.allocator = allocator;
         }
 
         @Override
@@ -173,7 +179,7 @@ public final class FlightStorageProvider implements StorageProvider {
 
         @Override
         public boolean exists() throws IOException {
-            return flightExists(path);
+            return flightExists(path, allocator);
         }
 
         @Override

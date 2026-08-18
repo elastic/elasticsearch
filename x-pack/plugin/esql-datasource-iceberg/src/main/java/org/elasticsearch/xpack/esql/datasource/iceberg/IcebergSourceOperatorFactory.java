@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasource.iceberg;
 
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.iceberg.CombinedScanTask;
@@ -21,6 +20,8 @@ import org.apache.iceberg.arrow.vectorized.ColumnarBatch;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.compute.data.arrow.CircuitBreakingArrowAllocator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -60,6 +61,7 @@ public class IcebergSourceOperatorFactory implements SourceOperator.SourceOperat
     private final List<Attribute> attributes;
     private final int pageSize;
     private final int maxBufferSize;
+    private final CircuitBreaker circuitBreaker;
 
     /**
      * @param executor Executor for running background S3/Iceberg reads
@@ -71,6 +73,7 @@ public class IcebergSourceOperatorFactory implements SourceOperator.SourceOperat
      * @param attributes ESQL attributes (schema)
      * @param pageSize Number of rows per page (batch size for Vectorized Reader)
      * @param maxBufferSize Maximum number of pages to buffer
+     * @param circuitBreaker circuit breaker for native-memory accounting of Arrow buffers
      */
     public IcebergSourceOperatorFactory(
         Executor executor,
@@ -81,7 +84,8 @@ public class IcebergSourceOperatorFactory implements SourceOperator.SourceOperat
         Schema schema,
         List<Attribute> attributes,
         int pageSize,
-        int maxBufferSize
+        int maxBufferSize,
+        CircuitBreaker circuitBreaker
     ) {
         this.executor = executor;
         this.tablePath = tablePath;
@@ -92,6 +96,7 @@ public class IcebergSourceOperatorFactory implements SourceOperator.SourceOperat
         this.attributes = attributes;
         this.pageSize = pageSize;
         this.maxBufferSize = maxBufferSize;
+        this.circuitBreaker = circuitBreaker;
     }
 
     @Override
@@ -163,8 +168,8 @@ public class IcebergSourceOperatorFactory implements SourceOperator.SourceOperat
         // reuseContainers=false for safety (true could reuse buffers across batches)
         ArrowReader arrowReader = new ArrowReader(scan, pageSize, /* reuseContainers */ false);
 
-        // Create a buffer allocator for Arrow memory management
-        BufferAllocator allocator = new RootAllocator(Long.MAX_VALUE);
+        // Create a circuit-breaking allocator for Arrow memory management
+        BufferAllocator allocator = CircuitBreakingArrowAllocator.create(circuitBreaker);
 
         // Open the reader to get an iterator of ColumnarBatch
         CloseableIterator<ColumnarBatch> batchIterator = arrowReader.open(tasks);

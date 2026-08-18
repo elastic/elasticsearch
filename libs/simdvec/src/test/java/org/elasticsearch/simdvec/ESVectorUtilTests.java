@@ -146,23 +146,26 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
     }
 
     public void testIpFloatBit() {
-        byte[] d = new byte[random().nextInt(128)];
-        float[] q = new float[d.length * 8];
+        float[] q = VectorTestUtils.randomFloatVector(randomIntBetween(8, 128));
+        byte[] d = new byte[(q.length + Byte.SIZE - 1) / Byte.SIZE];
         random().nextBytes(d);
 
+        int qOffset = randomInt(q.length / 2) & -Byte.SIZE;  // multiple of 8
+        int qLength = randomInt(q.length / 2 - randomInt(1));    // can be arbitrary
+        int dOffset = randomInt(d.length - qLength / Byte.SIZE - 1);
+
         float sum = 0;
-        for (int i = 0; i < q.length; i++) {
-            q[i] = random().nextFloat();
-            if (((d[i / 8] << (i % 8)) & 0x80) == 0x80) {
-                sum += q[i];
+        for (int i = 0; i < qLength; i++) {
+            if (((d[dOffset + i / 8] << (i % 8)) & 0x80) == 0x80) {
+                sum += q[qOffset + i];
             }
         }
 
-        double delta = 1e-5 * q.length;
+        double delta = 1e-5 * qLength;
 
-        assertEquals(sum, ESVectorUtil.ipFloatBit(q, d), delta);
-        assertEquals(sum, defaultedProvider.getVectorUtilSupport().ipFloatBit(q, d), delta);
-        assertEquals(sum, panamaProvider.getVectorUtilSupport().ipFloatBit(q, d), delta);
+        assertEquals(sum, ESVectorUtil.ipFloatBit(q, qOffset, d, dOffset, qLength), delta);
+        assertEquals(sum, defaultedProvider.getVectorUtilSupport().ipFloatBit(q, qOffset, d, dOffset, qLength), delta);
+        assertEquals(sum, panamaProvider.getVectorUtilSupport().ipFloatBit(q, qOffset, d, dOffset, qLength), delta);
     }
 
     public void testIpFloatByte() {

@@ -403,7 +403,21 @@ public class ESVectorUtil {
         if (q.length != d.length * Byte.SIZE) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!= " + Byte.SIZE + " x " + d.length);
         }
-        return IMPL.ipFloatBit(q, d);
+        return ipFloatBit(q, 0, d, 0, q.length);
+    }
+
+    /**
+     * Inner product of {@code q} where the respective bit in {@code d} is set
+     * @param q         Float values
+     * @param qOffset   Offset into q
+     * @param d         Bit values
+     * @param dOffset   Starting byte offset into d
+     * @param qLength    Number of float values to check
+     */
+    public static float ipFloatBit(float[] q, int qOffset, byte[] d, int dOffset, int qLength) {
+        Objects.checkFromIndexSize(qOffset, qLength, q.length);
+        Objects.checkFromIndexSize(dOffset, (qLength + Byte.SIZE - 1) / Byte.SIZE, d.length);    // round UP length/Byte.SIZE
+        return IMPL.ipFloatBit(q, qOffset, d, dOffset, qLength);
     }
 
     /**

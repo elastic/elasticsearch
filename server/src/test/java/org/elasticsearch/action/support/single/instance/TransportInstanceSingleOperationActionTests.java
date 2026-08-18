@@ -56,7 +56,6 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -182,7 +181,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         action = new TestTransportInstanceSingleOperationAction(
             "indices:admin/test",
             transportService,
-            new ActionFilters(new HashSet<>()),
+            ActionFilters.EMPTY,
             new MyResolver(),
             Request::new
         );
@@ -334,7 +333,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         action = new TestTransportInstanceSingleOperationAction(
             "indices:admin/test_unresolvable",
             transportService,
-            new ActionFilters(new HashSet<>()),
+            ActionFilters.EMPTY,
             new MyResolver(),
             Request::new
         ) {

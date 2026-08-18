@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.junit.Before;
@@ -139,6 +140,51 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                 output.releaseBlocks();
                 op.close();
             }
+        }
+    }
+
+    /**
+     * Empty pages go through {@code reshapeEmpty()}, whose only breaker-checked allocation is
+     * {@code newConstantNullBlock} per deferred column. A cranky breaker will eventually trip
+     * there — including after the first placeholder has already been allocated — and must not
+     * leak the input page or the pass-through refs already {@code incRef}'d. Input blocks are
+     * built on the leak-tracking factory so construction itself cannot trip; the operator uses
+     * the cranky factory. Leak detection is {@link ComputeTestCase}'s teardown plus a per-attempt
+     * breaker check.
+     */
+    public void testReshapeEmptyWithCrankyBreakerDoesNotLeak() {
+        BlockFactory cranky = crankyBlockFactory();
+        for (int attempt = 0; attempt < 100; attempt++) {
+            try (SourceExtractors registry = new SourceExtractors()) {
+                registry.register(new IntListExtractor(new int[] { 1 }));
+                // Two deferred columns so the breaker can trip after the first placeholder is live,
+                // exercising reshapeEmpty's cleanup of a partially filled outBlocks array.
+                Page empty = newPage(new long[0], new long[0], new int[0]);
+                ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+                    1,
+                    List.of(0, 2),
+                    List.of("colA", "colB"),
+                    List.of(DataType.INTEGER, DataType.INTEGER),
+                    registry,
+                    cranky
+                );
+                op.addInput(empty);
+                op.finish();
+                try {
+                    Page output = op.getOutput();
+                    try {
+                        assertEquals(4, output.getBlockCount());
+                        assertEquals(0, output.getPositionCount());
+                    } finally {
+                        output.releaseBlocks();
+                    }
+                } catch (CircuitBreakingException e) {
+                    assertEquals(CrankyCircuitBreakerService.ERROR_MESSAGE, e.getMessage());
+                } finally {
+                    op.close();
+                }
+            }
+            assertEquals("breaker leaked on attempt " + attempt, 0L, cranky.breaker().getUsed());
         }
     }
 

@@ -18,7 +18,7 @@ import org.elasticsearch.core.Releasables;
 import java.util.Arrays;
 
 /**
- * Scatters a single {@link EscfBatch} into per-partition batches, where {@code selectors[row]}
+ * Scatters a single {@link EscfBatch} into per-partition batches, where {@code partitionIds[row]}
  * gives the destination partition for each row.
  *
  * <p>Values are never decoded into Java scalars and re-encoded — BOOL uses bitset reads, fixed
@@ -52,24 +52,26 @@ public final class EscfBatchScatterer implements Releasable {
      * {@code null} entry. Each non-null batch owns its buffers and must be closed by the caller.
      * The schema is shared, not copied. The source may be closed immediately after this returns.
      *
-     * @throws IllegalArgumentException if any selector is outside {@code [0, partitionCount)} or
-     *                                  if {@code selectors.length < source.docCount()}
+     * @throws IllegalArgumentException if any partitionId is outside {@code [0, partitionCount)} or
+     *                                  if {@code partitionIds.length < source.docCount()}
      */
-    public EscfBatch[] scatter(EscfBatch source, int[] selectors, int partitionCount) {
+    public EscfBatch[] scatter(EscfBatch source, int[] partitionIds, int partitionCount) {
         if (partitionCount <= 0) {
             throw new IllegalArgumentException("partitionCount must be positive, got " + partitionCount);
         }
         final int docCount = source.docCount();
-        if (selectors.length < docCount) {
-            throw new IllegalArgumentException("selectors length " + selectors.length + " is shorter than source docCount " + docCount);
+        if (partitionIds.length < docCount) {
+            throw new IllegalArgumentException(
+                "partitionIds length " + partitionIds.length + " is shorter than source docCount " + docCount
+            );
         }
 
-        // Count pass: validate selectors and build per-partition row counts.
+        // Count pass: validate partitionIds and build per-partition row counts.
         int[] destCounts = new int[partitionCount];
         for (int row = 0; row < docCount; row++) {
-            int p = selectors[row];
+            int p = partitionIds[row];
             if (p < 0 || p >= partitionCount) {
-                throw new IllegalArgumentException("selectors[" + row + "] = " + p + " is out of [0, " + partitionCount + ")");
+                throw new IllegalArgumentException("partitionIds[" + row + "] = " + p + " is out of [0, " + partitionCount + ")");
             }
             destCounts[p]++;
         }
@@ -95,7 +97,7 @@ public final class EscfBatchScatterer implements Releasable {
         try {
             for (int c = 0; c < columnCount; c++) {
                 EscfColumn col = source.column(c);
-                scatterColumn(col, selectors, docCount, destCounts, destRow, c);
+                scatterColumn(col, partitionIds, docCount, destCounts, destRow, c);
             }
         } catch (Exception e) {
             releaseInFlight();
@@ -121,7 +123,7 @@ public final class EscfBatchScatterer implements Releasable {
         releaseInFlight();
     }
 
-    private void scatterColumn(EscfColumn col, int[] selectors, int docCount, int[] destCounts, int[] destRow, int columnIndex) {
+    private void scatterColumn(EscfColumn col, int[] partitionIds, int docCount, int[] destCounts, int[] destRow, int columnIndex) {
         // Reset per-partition row counters for this column pass.
         Arrays.fill(destRow, 0, destCounts.length, 0);
 
@@ -139,13 +141,13 @@ public final class EscfBatchScatterer implements Releasable {
         byte kind = col.kind();
         switch (kind) {
             // Branch 1: bitset
-            case EscfColumnKind.BOOL -> scatterBool(col, selectors, docCount, destRow);
+            case EscfColumnKind.BOOL -> scatterBool(col, partitionIds, docCount, destRow);
             // Branch 2: fixed 64-bit words (LONG and DOUBLE share one loop via setRawFixed64)
-            case EscfColumnKind.LONG, EscfColumnKind.DOUBLE -> scatterFixed64(col, selectors, docCount, destRow);
-            case EscfColumnKind.ARRAY -> scatterArray((EscfArrayColumn) col, selectors, docCount, destRow);
+            case EscfColumnKind.LONG, EscfColumnKind.DOUBLE -> scatterFixed64(col, partitionIds, docCount, destRow);
+            case EscfColumnKind.ARRAY -> scatterArray((EscfArrayColumn) col, partitionIds, docCount, destRow);
             // Branch 3: var-width byte ranges (STRING, BINARY, UNION)
-            case EscfColumnKind.STRING, EscfColumnKind.BINARY -> scatterVarWidth(col, selectors, docCount, destRow);
-            case EscfColumnKind.UNION -> scatterUnion((EscfUnionColumn) col, selectors, docCount, destRow);
+            case EscfColumnKind.STRING, EscfColumnKind.BINARY -> scatterVarWidth(col, partitionIds, docCount, destRow);
+            case EscfColumnKind.UNION -> scatterUnion((EscfUnionColumn) col, partitionIds, docCount, destRow);
             default -> throw new IllegalStateException("Unknown column kind: " + EscfColumnKind.name(kind));
         }
 
@@ -172,10 +174,10 @@ public final class EscfBatchScatterer implements Releasable {
         }
     }
 
-    private void scatterBool(EscfColumn col, int[] selectors, int docCount, int[] destRow) {
+    private void scatterBool(EscfColumn col, int[] partitionIds, int docCount, int[] destRow) {
         // EscfBoolColumn is a FixedBitSet — random access is cheaper than a cursor.
         for (int row = 0; row < docCount; row++) {
-            int p = selectors[row];
+            int p = partitionIds[row];
             if (col.isPresent(row)) {
                 builders[p].setBoolean(destRow[p], col.getBooleanValue(row));
             }
@@ -188,12 +190,12 @@ public final class EscfBatchScatterer implements Releasable {
      * Scatters a LONG or DOUBLE column. Both store raw 64-bit LE words, so they share a loop via
      * {@link EscfColumnBuilder#setRawFixed64} with no decode/re-encode.
      */
-    private void scatterFixed64(EscfColumn col, int[] selectors, int docCount, int[] destRow) {
+    private void scatterFixed64(EscfColumn col, int[] partitionIds, int docCount, int[] destRow) {
         byte kind = col.kind();
         var cursor = col.longCursor();
         int nextPresentDoc = cursor.nextDoc();
         for (int row = 0; row < docCount; row++) {
-            int p = selectors[row];
+            int p = partitionIds[row];
             if (row == nextPresentDoc) {
                 builders[p].setRawFixed64(destRow[p], kind, cursor.longValue());
                 nextPresentDoc = cursor.nextDoc();
@@ -203,7 +205,7 @@ public final class EscfBatchScatterer implements Releasable {
         }
     }
 
-    private void scatterArray(EscfArrayColumn col, int[] selectors, int docCount, int[] destRow) {
+    private void scatterArray(EscfArrayColumn col, int[] partitionIds, int docCount, int[] destRow) {
         EscfColumn child = col.child();
         byte childKind = child.kind();
 
@@ -223,7 +225,7 @@ public final class EscfBatchScatterer implements Releasable {
                     childCursor.skip(startElem);
                 }
                 for (int row = 0; row < docCount; row++) {
-                    int p = selectors[row];
+                    int p = partitionIds[row];
                     int elemCount = offs[base + row + 1] - offs[base + row];
                     if (col.isPresent(row)) {
                         builders[p].beginArray(destRow[p]);
@@ -243,7 +245,7 @@ public final class EscfBatchScatterer implements Releasable {
                     childCursor.skip(startElem);
                 }
                 for (int row = 0; row < docCount; row++) {
-                    int p = selectors[row];
+                    int p = partitionIds[row];
                     int elemCount = offs[base + row + 1] - offs[base + row];
                     if (col.isPresent(row)) {
                         builders[p].beginArray(destRow[p]);
@@ -270,12 +272,12 @@ public final class EscfBatchScatterer implements Releasable {
     }
 
     /** Scatters a STRING or BINARY column via the sparse cursor; bytes are copied verbatim. */
-    private void scatterVarWidth(EscfColumn col, int[] selectors, int docCount, int[] destRow) {
+    private void scatterVarWidth(EscfColumn col, int[] partitionIds, int docCount, int[] destRow) {
         boolean isString = col.kind() == EscfColumnKind.STRING;
         var cursor = col.bytesRefCursor(false);
         int nextPresentDoc = cursor.nextDoc();
         for (int row = 0; row < docCount; row++) {
-            int p = selectors[row];
+            int p = partitionIds[row];
             if (row == nextPresentDoc) {
                 BytesRef value = cursor.value();
                 if (isString) {
@@ -289,11 +291,11 @@ public final class EscfBatchScatterer implements Releasable {
         }
     }
 
-    private void scatterUnion(EscfUnionColumn col, int[] selectors, int docCount, int[] destRow) {
+    private void scatterUnion(EscfUnionColumn col, int[] partitionIds, int docCount, int[] destRow) {
         var cursor = col.bytesRefCursor(false);
         int nextPresentDoc = cursor.nextDoc();
         for (int row = 0; row < docCount; row++) {
-            int p = selectors[row];
+            int p = partitionIds[row];
             if (row == nextPresentDoc) {
                 builders[p].addRawUnionRow(col.typeByteForPresent(row), cursor.value());
                 nextPresentDoc = cursor.nextDoc();

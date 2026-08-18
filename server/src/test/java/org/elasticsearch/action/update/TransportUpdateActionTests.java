@@ -54,7 +54,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -162,12 +161,7 @@ public class TransportUpdateActionTests extends ESTestCase {
         );
         transportService.start();
         transportService.acceptIncomingRequests();
-        action = new TestTransportUpdateAction(
-            "indices:admin/test",
-            transportService,
-            new ActionFilters(new HashSet<>()),
-            new MyResolver()
-        );
+        action = new TestTransportUpdateAction("indices:admin/test", transportService, ActionFilters.EMPTY, new MyResolver());
     }
 
     @After
@@ -311,12 +305,7 @@ public class TransportUpdateActionTests extends ESTestCase {
     }
 
     public void testUnresolvableRequestDoesNotHang() throws InterruptedException, ExecutionException, TimeoutException {
-        action = new TestTransportUpdateAction(
-            "indices:admin/test_unresolvable",
-            transportService,
-            new ActionFilters(new HashSet<>()),
-            new MyResolver()
-        ) {
+        action = new TestTransportUpdateAction("indices:admin/test_unresolvable", transportService, ActionFilters.EMPTY, new MyResolver()) {
             @Override
             protected void resolveRequest(ProjectState state, UpdateRequest request) {
                 throw new IllegalStateException("request cannot be resolved");

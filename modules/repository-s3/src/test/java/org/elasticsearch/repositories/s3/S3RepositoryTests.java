@@ -108,12 +108,7 @@ public class S3RepositoryTests extends ESTestCase {
         client.initialize(
             Map.of(
                 VerifyNodeRepositoryCoordinationAction.TYPE,
-                new VerifyNodeRepositoryCoordinationAction.LocalAction(
-                    new ActionFilters(Set.of()),
-                    transportService,
-                    clusterService,
-                    client
-                )
+                new VerifyNodeRepositoryCoordinationAction.LocalAction(ActionFilters.EMPTY, transportService, clusterService, client)
             ),
             transportService.getTaskManager(),
             localNode::getId,

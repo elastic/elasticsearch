@@ -140,7 +140,9 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
             repoName
         ).setType("s3").setSettings(settings).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
-        assertWarnings(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_SETTING_DEPRECATION_WARNING);
+        assertWarnings("""
+            [unsafely_incompatible_with_s3_conditional_writes] setting was deprecated in Elasticsearch and will be removed in a future \
+            release. See the breaking changes documentation for the next major version.""");
     }
 
     @Override
@@ -176,6 +178,9 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 SnapshotMetrics.NOOP
             )
         ) {
+            assertWarnings("""
+                [unsafely_incompatible_with_s3_conditional_writes] setting was deprecated in Elasticsearch and will be removed in a future \
+                release. See the breaking changes documentation for the next major version.""");
             repository.start();
 
             final var blobStore = (S3BlobStore) repository.blobStore();

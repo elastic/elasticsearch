@@ -42,7 +42,7 @@ import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -235,7 +235,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         }
 
         @Override
-        public Builder setModelSettings(MinimalServiceSettings value) {
+        public Builder setModelSettings(EndpointClusterState value) {
             return (SemanticTextFieldMapper.Builder) super.setModelSettings(value);
         }
 
@@ -258,7 +258,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         }
 
         @Override
-        protected NestedObjectMapper.Builder createChunksField(@Nullable MinimalServiceSettings resolvedModelSettings) {
+        protected NestedObjectMapper.Builder createChunksField(@Nullable EndpointClusterState resolvedModelSettings) {
             NestedObjectMapper.Builder chunksField = new NestedObjectMapper.Builder(
                 SemanticTextField.CHUNKS_FIELD,
                 indexVersionCreated,
@@ -279,7 +279,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         }
 
         @Override
-        protected Mapper.Builder createEmbeddingsField(MinimalServiceSettings modelSettings) {
+        protected Mapper.Builder createEmbeddingsField(EndpointClusterState modelSettings) {
             return switch (modelSettings.taskType()) {
                 case SPARSE_EMBEDDING -> {
                     SparseVectorFieldMapper.Builder sparseVectorMapperBuilder = new SparseVectorFieldMapper.Builder(
@@ -354,13 +354,13 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         }
 
         @Override
-        protected void validateTaskType(MinimalServiceSettings modelSettings) {
+        protected void validateTaskType(EndpointClusterState modelSettings) {
             switch (modelSettings.taskType()) {
                 case SPARSE_EMBEDDING, TEXT_EMBEDDING, EMBEDDING -> {
                 }
                 default -> throw new IllegalArgumentException(
                     "Wrong ["
-                        + MinimalServiceSettings.TASK_TYPE_FIELD
+                        + EndpointClusterState.TASK_TYPE_FIELD
                         + "], expected "
                         + TEXT_EMBEDDING
                         + ", "
@@ -374,7 +374,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         }
 
         @Override
-        protected void validateIndexOptions(MinimalServiceSettings modelSettings) {
+        protected void validateIndexOptions(EndpointClusterState modelSettings) {
             SemanticIndexOptions indexOptions = this.indexOptions.get();
             String inferenceId = this.inferenceId.get();
 
@@ -619,7 +619,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
             String name,
             String inferenceId,
             String searchInferenceId,
-            MinimalServiceSettings modelSettings,
+            EndpointClusterState modelSettings,
             ChunkingSettings chunkingSettings,
             SemanticIndexOptions indexOptions,
             ObjectMapper inferenceField,
@@ -712,7 +712,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
 
     static DenseVectorFieldMapper.DenseVectorIndexOptions defaultDenseVectorIndexOptions(
         IndexVersion indexVersionCreated,
-        MinimalServiceSettings modelSettings
+        EndpointClusterState modelSettings
     ) {
         if (setExplicitIndexOptionsForSemanticText(indexVersionCreated) == false) {
             return null;
@@ -749,7 +749,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, false, rescoreVector, -1);
     }
 
-    static SemanticIndexOptions defaultIndexOptions(IndexVersion indexVersionCreated, MinimalServiceSettings modelSettings) {
+    static SemanticIndexOptions defaultIndexOptions(IndexVersion indexVersionCreated, EndpointClusterState modelSettings) {
         if (modelSettings == null) {
             return null;
         }

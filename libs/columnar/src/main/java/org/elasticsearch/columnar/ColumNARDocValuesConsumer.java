@@ -42,6 +42,10 @@ import java.util.List;
 /**
  * Writes tagged columns onto the binary substrate; numeric types decode their {@code NumericBinaryPayload}
  * into the long column. Field metadata is flushed on {@link #close()}.
+ *
+ * <p><b>Merge contract.</b> {@link #mergeBinaryField} re-encodes all source segments through the
+ * current writer's pipeline. There is no version-preserving merge and no mixed-version output
+ * segment: a force-merge is a silent format upgrade.
  */
 final class ColumNARDocValuesConsumer extends DocValuesConsumer {
 
@@ -52,12 +56,14 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     private final IndexOutput meta;
     private final List<FieldEntry> fields = new ArrayList<>();
     private final NumericPipelineSelector pipelineSelector;
+    private final int blockSize;
     private boolean closed = false;
 
     private record FieldEntry(int fieldNumber, byte fieldTypeId, NumericColumnMetadata metadata) {}
 
-    ColumNARDocValuesConsumer(SegmentWriteState state, NumericPipelineSelector pipelineSelector) throws IOException {
+    ColumNARDocValuesConsumer(SegmentWriteState state, NumericPipelineSelector pipelineSelector, int blockSize) throws IOException {
         this.pipelineSelector = pipelineSelector;
+        this.blockSize = blockSize;
         this.maxDoc = state.segmentInfo.maxDoc();
         this.directory = state.directory;
         this.context = state.context;
@@ -69,7 +75,13 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 ColumNARDocValuesFormat.DATA_EXTENSION
             );
             data = state.directory.createOutput(dataName, state.context);
-            ColumnarCodecUtil.writeHeader(data, ColumNARDocValuesFormat.DATA_CODEC, state.segmentInfo.getId(), state.segmentSuffix);
+            ColumnarCodecUtil.writeHeader(
+                data,
+                ColumNARDocValuesFormat.DATA_CODEC,
+                FormatVersion.CURRENT,
+                state.segmentInfo.getId(),
+                state.segmentSuffix
+            );
 
             String metaName = IndexFileNames.segmentFileName(
                 state.segmentInfo.name,
@@ -77,7 +89,13 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 ColumNARDocValuesFormat.META_EXTENSION
             );
             meta = state.directory.createOutput(metaName, state.context);
-            ColumnarCodecUtil.writeHeader(meta, ColumNARDocValuesFormat.META_CODEC, state.segmentInfo.getId(), state.segmentSuffix);
+            ColumnarCodecUtil.writeHeader(
+                meta,
+                ColumNARDocValuesFormat.META_CODEC,
+                FormatVersion.CURRENT,
+                state.segmentInfo.getId(),
+                state.segmentSuffix
+            );
             success = true;
         } finally {
             if (success == false) {
@@ -193,7 +211,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         // Count in one pass, then stream the values block by block from fresh cursors — never buffer
         // the whole field on-heap, so a large merge stays memory-bounded.
         int numDocsWithField = 0;
-        int numValues = 0;
+        long numValues = 0;
         NumericColumnValues counter = cursors.get();
         for (int doc = counter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = counter.nextDoc()) {
             numDocsWithField++;
@@ -202,7 +220,9 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
 
         // A BINARY field can't carry a skipper, so the column builds its own skip index inline
         // during the value-encode pass — no extra cursor over the data.
-        final NumericPipeline pipeline = pipelineSelector.select(field.name, type, NumericColumnWriter.BLOCK_SIZE);
+        final NumericPipeline pipeline = pipelineSelector.select(field.name, type).build(blockSize);
+        assert pipeline.blockSize() == blockSize
+            : "template ignored blockSize argument: built " + pipeline.blockSize() + ", expected " + blockSize;
         NumericColumnMetadata metadata = NumericColumnWriter.write(
             maxDoc,
             numDocsWithField,

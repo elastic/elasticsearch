@@ -481,7 +481,14 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
             ).boost(boost).queryName(queryName).addFilterQueries(rewrittenQueries).setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
         }
         if (ctx.convertToInnerHitsRewriteContext() != null) {
-            QueryBuilder exactKnnQuery = new ExactKnnQueryBuilder(queryVector, fieldName, vectorSimilarity);
+            // Carry the query-time oversample so the exact query scores inner hits with the same fidelity this
+            // approximate query uses; otherwise their scores disagree.
+            QueryBuilder exactKnnQuery = new ExactKnnQueryBuilder(
+                queryVector,
+                fieldName,
+                vectorSimilarity,
+                rescoreVectorBuilder == null ? null : rescoreVectorBuilder.oversample()
+            );
             if (filterQueries.isEmpty()) {
                 return exactKnnQuery;
             } else {

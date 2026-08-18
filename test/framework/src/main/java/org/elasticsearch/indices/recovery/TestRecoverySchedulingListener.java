@@ -57,4 +57,14 @@ public abstract class TestRecoverySchedulingListener implements RecoveryScheduli
     public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
         onRecoverySchedulingChange();
     }
+
+    @Override
+    public void onRecoveriesBlocked(String gateName) {
+        onRecoverySchedulingChange();
+    }
+
+    @Override
+    public void onRecoveriesUnblocked(long blockedTimeMillis) {
+        onRecoverySchedulingChange();
+    }
 }

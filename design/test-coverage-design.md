@@ -17,15 +17,9 @@
 
 ## 1. Motivation
 
-`TESTING.asciidoc:772-781` currently tells contributors that coverage is impossible:
-
-> *Generating test coverage reports for Elasticsearch is currently not possible through Gradle. […]
-> the code currently used to build Elasticsearch does not allow JaCoCo to recognize its tests.*
-
-That was true in 2018, when the custom `RandomizedTestingTask` did not extend Gradle's `Test`, so the
-JaCoCo plugin could not see test tasks ([#28867](https://github.com/elastic/elasticsearch/issues/28867)).
-The build has used standard `Test` tasks for years and the limitation went with it — but the
-documentation was never revisited, so nobody re-checked.
+The esql team has provided a PR for having esql specific test coverage capturing in https://github.com/elastic/elasticsearch/pull/155367 
+This design should superseed the proof of concept in the listed PR and provide a maintainable approach that is usable not just by the esql team but
+covers the whole elasticsearch codebase in the long run. 
 
 We want coverage measurement that is:
 

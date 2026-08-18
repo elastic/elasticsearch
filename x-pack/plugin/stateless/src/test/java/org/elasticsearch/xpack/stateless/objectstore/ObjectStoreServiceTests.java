@@ -112,6 +112,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
@@ -1178,8 +1179,15 @@ public class ObjectStoreServiceTests extends ESTestCase {
         value = "org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService:DEBUG"
     )
     public void testTranslogUploadTimesLogLevels() throws Exception {
+        var time = new AtomicLong(0);
         AtomicBoolean exceedThreshold = new AtomicBoolean(false);
-        final TimeValue slowTranslogUploadLogThreshold = TimeValue.timeValueMillis(200);
+        final TimeValue slowTranslogUploadLogThreshold = TimeValue.timeValueMillis(10);
+
+        final long fastUploadDuration = randomLongBetween(0, slowTranslogUploadLogThreshold.millis() - 1);
+        final long slowUploadDuration = randomLongBetween(
+            slowTranslogUploadLogThreshold.millis() + 1,
+            slowTranslogUploadLogThreshold.millis() + 100
+        );
 
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
             @Override
@@ -1204,15 +1212,24 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     @Override
                     public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
                         throws IOException {
-                        if (purpose == OperationPurpose.TRANSLOG && exceedThreshold.get()) {
-                            safeSleep(
-                                randomLongBetween(
-                                    slowTranslogUploadLogThreshold.millis() + 100,
-                                    slowTranslogUploadLogThreshold.millis() + 300
-                                )
-                            );
+                        if (purpose == OperationPurpose.TRANSLOG) {
+                            if (exceedThreshold.get()) {
+                                time.addAndGet(slowUploadDuration);
+                            } else {
+                                time.addAndGet(fastUploadDuration);
+                            }
                         }
                         super.writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
+                    }
+                };
+            }
+
+            @Override
+            protected ThreadPool createThreadPool(Settings nodeSettings) {
+                return new TestThreadPool("test", nodeSettings, StatelessPlugin.statelessExecutorBuilders(nodeSettings, true)) {
+                    @Override
+                    public long relativeTimeInMillis() {
+                        return time.get();
                     }
                 };
             }

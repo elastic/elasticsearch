@@ -70,7 +70,9 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
                 break;
             }
         }
-        assert docBlock != null : "LuceneQueryExpressionEvaluator expects a DocBlock";
+        if (docBlock == null) {
+            throw new IllegalStateException("LuceneQueryExpressionEvaluator requires a _doc block but the page has none");
+        }
         DocVector docs = (DocVector) docBlock.asVector();
         try {
             if (docs.singleSegmentNonDecreasing()) {

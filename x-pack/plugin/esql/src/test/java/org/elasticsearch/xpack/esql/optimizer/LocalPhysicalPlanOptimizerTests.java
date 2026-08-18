@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -68,6 +69,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateComm
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -147,6 +149,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -3300,5 +3303,74 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             )
         );
         assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
+    }
+
+    /** A nullified field and {@code MV_EXPAND} leave a projection that must retain {@code _doc} for {@code SCORE}. */
+    public void testNullifiedFieldDoesNotDropDocAttributeNeededForScoring() {
+        var stats = new TestSearchStats() {
+            @Override
+            public boolean exists(FieldAttribute.FieldName field) {
+                return field.string().equals("salary") == false;
+            }
+        };
+
+        var plan = plannerOptimizer.plan("""
+            from test
+            | eval x = salary
+            | mv_expand languages
+            | eval s = score(match(job, "engineer"))
+            """, stats);
+
+        Holder<Boolean> sawScoreEval = new Holder<>(false);
+        plan.forEachDown(EvalExec.class, evalExec -> {
+            boolean consumesDocVector = evalExec.fields().stream().anyMatch(f -> f.child() instanceof Score);
+            if (consumesDocVector) {
+                sawScoreEval.set(true);
+                assertThat(
+                    "EvalExec evaluating SCORE(...) must have a _doc attribute available in its input",
+                    evalExec.child().outputSet().stream().anyMatch(EsQueryExec::isDocAttribute),
+                    is(true)
+                );
+            }
+        });
+        assertThat("expected to find the EVAL evaluating SCORE(...) in the optimized plan", sawScoreEval.get(), is(true));
+    }
+
+    /** The verifier rejects a scoring expression whose input does not provide {@code _doc}. */
+    public void testVerifierRejectsScoringExpressionMissingDocAttribute() {
+        var stats = new TestSearchStats() {
+            @Override
+            public boolean exists(FieldAttribute.FieldName field) {
+                return field.string().equals("salary") == false;
+            }
+        };
+
+        var plan = plannerOptimizer.plan("""
+            from test
+            | eval s = score(match(job, "engineer"))
+            """, stats);
+
+        // Use the planned score expression with a source that omits _doc.
+        Holder<Alias> scoreField = new Holder<>();
+        plan.forEachDown(EvalExec.class, evalExec -> evalExec.fields().forEach(f -> {
+            if (f.child() instanceof Score) {
+                scoreField.set(f);
+            }
+        }));
+        assertThat("expected to find the EVAL evaluating SCORE(...) in the optimized plan", scoreField.get(), is(notNullValue()));
+
+        var source = scoreField.get().source();
+        // Keep SCORE's field references while omitting only _doc.
+        var docFreeSource = new LocalSourceExec(source, List.copyOf(scoreField.get().references()), EmptyLocalSupplier.EMPTY);
+        var mutated = new EvalExec(source, docFreeSource, List.of(scoreField.get()));
+
+        var localPhysicalOptimizer = new LocalPhysicalPlanOptimizer(
+            new LocalPhysicalOptimizerContext(PlannerSettings.DEFAULTS, new EsqlFlags(true), config, FoldContext.small(), stats)
+        );
+        var e = expectThrows(VerificationException.class, () -> localPhysicalOptimizer.verify(mutated, mutated.output()));
+        assertThat(
+            e.getMessage(),
+            containsString("Need a doc attribute to evaluate a scoring or full-text expression, but none is available")
+        );
     }
 }

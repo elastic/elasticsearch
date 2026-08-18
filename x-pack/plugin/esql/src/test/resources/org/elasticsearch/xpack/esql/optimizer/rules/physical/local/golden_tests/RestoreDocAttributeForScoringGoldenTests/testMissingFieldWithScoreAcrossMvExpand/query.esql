@@ -1,0 +1,4 @@
+FROM employees
+| EVAL x = salary
+| MV_EXPAND job_positions
+| EVAL s = SCORE(MATCH(first_name, "elasticsearch"))

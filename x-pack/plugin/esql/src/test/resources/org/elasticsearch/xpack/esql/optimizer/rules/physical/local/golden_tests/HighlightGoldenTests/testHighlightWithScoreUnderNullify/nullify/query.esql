@@ -1,0 +1,4 @@
+SET unmapped_fields="nullify"; FROM employees
+| EVAL x = does_not_exist
+| HIGHLIGHT "elasticsearch" ON first_name
+| EVAL s = SCORE(MATCH(first_name, "elasticsearch"))

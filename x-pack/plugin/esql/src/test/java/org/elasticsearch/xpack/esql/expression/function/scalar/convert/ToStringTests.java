@@ -245,18 +245,15 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
             )
         );
 
-        if (DataType.DOUBLE_RANGE.supportedVersion().supportedLocally()) {
-            FunctionAppliesTo doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
-            suppliers.add(new TestCaseSupplier("double_range", List.of(DataType.DOUBLE_RANGE), () -> {
-                var range = new DoubleRangeBlockBuilder.DoubleRange(-12.5, 42.25);
-                return new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(range, DataType.DOUBLE_RANGE, "range").withAppliesTo(doubleRangeAppliesTo)),
-                    "ToStringFromDoubleRangeEvaluator[range=" + read + "]",
-                    DataType.KEYWORD,
-                    matchesBytesRef("-12.5..42.25")
-                );
-            }));
-        }
+        suppliers.add(new TestCaseSupplier("double_range", List.of(DataType.DOUBLE_RANGE), () -> {
+            var range = new DoubleRangeBlockBuilder.DoubleRange(-12.5, 42.25);
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(range, DataType.DOUBLE_RANGE, "range")),
+                "ToStringFromDoubleRangeEvaluator[range=" + read + "]",
+                DataType.KEYWORD,
+                matchesBytesRef("-12.5..42.25")
+            );
+        }));
 
         List<TestCaseSupplier> fixedTimezoneSuppliers = new ArrayList<>();
         TestCaseSupplier.forUnaryDateTime(

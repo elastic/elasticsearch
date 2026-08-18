@@ -200,7 +200,7 @@ public class GoogleCloudStorageService {
             .setTransportOptions(httpTransportOptions)
             .setHeaderProvider(() -> {
                 return Strings.hasLength(gcsClientSettings.getApplicationName())
-                    ? Map.of("User-Agent", gcsClientSettings.getApplicationName())
+                    ? Map.of("user-agent", gcsClientSettings.getApplicationName())
                     : Map.of();
             })
             .setRetrySettings(

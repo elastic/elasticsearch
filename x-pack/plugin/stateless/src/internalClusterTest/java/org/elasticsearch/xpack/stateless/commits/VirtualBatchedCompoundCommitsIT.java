@@ -679,7 +679,8 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
             .addRequestHandlingBehavior(
                 TransportNewCommitNotificationAction.NAME + "[u]",
                 (handler, request, channel, task) -> searchNodeThreadPool.generic().execute(() -> {
-                    safeAwait(searchCompleted);
+                    // Wait longer than the assertBusy calls holding the chunk requests, which this latch depends on
+                    safeAwait(searchCompleted, TimeValue.timeValueMillis(SAFE_AWAIT_TIMEOUT.millis() * 2));
                     try {
                         handler.messageReceived(request, channel, task);
                     } catch (Exception e) {

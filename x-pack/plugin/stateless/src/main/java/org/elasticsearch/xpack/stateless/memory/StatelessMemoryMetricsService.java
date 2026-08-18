@@ -892,24 +892,21 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * {@link org.elasticsearch.cluster.ClusterInfoSimulator}.
      */
     public ShardHeapUsageEstimates getShardHeapUsageEstimates() {
-        final ShardHeapEstimator shardHeapEstimator = createShardHeapEstimator(
-            SelfReportedShardOverhead.DEFAULT,
-            PostingsInEstimate.INCLUDE
-        );
+        final var shardHeapEstimator = createShardHeapEstimator(SelfReportedShardOverhead.DEFAULT, PostingsInEstimate.INCLUDE);
         final Map<ShardId, ShardAndIndexHeapUsage> heapUsagePerShard = new HashMap<>();
         for (Map.Entry<ShardId, ShardMemoryMetrics> entry : shardMemoryMetrics.entrySet()) {
             heapUsagePerShard.put(
                 entry.getKey(),
                 new ShardAndIndexHeapUsage(
                     shardHeapEstimator.computeShardHeapUsage(entry.getValue()),
-                    computeIndexHeapUsage(entry.getValue())
+                    shardHeapEstimator.computeIndexHeapUsage(entry.getValue())
                 )
             );
         }
         ShardMemoryMetrics uninitialised = newUninitialisedShardMemoryMetrics(relativeTimeInNanos());
         ShardAndIndexHeapUsage defaultForShardsWithoutMetrics = new ShardAndIndexHeapUsage(
             shardHeapEstimator.computeShardHeapUsage(uninitialised),
-            computeIndexHeapUsage(uninitialised)
+            shardHeapEstimator.computeIndexHeapUsage(uninitialised)
         );
         return new ShardHeapUsageEstimates(heapUsagePerShard, defaultForShardsWithoutMetrics);
     }
@@ -921,19 +918,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     // visible for testing
     public Map<ShardId, ShardAndIndexHeapUsage> getShardHeapUsages() {
         return getShardHeapUsageEstimates().perShard();
-    }
-
-    /**
-     * Computes the index-level heap usage for a shard. {@link #INDEX_MEMORY_OVERHEAD} is not included because all nodes include an overhead
-     * for all indices regardless of shard assignments: see {@link #getNodeBaseHeapEstimateInBytes()}.
-     * <p>
-     * Same computation as {@link EstimatedHeapUsageBuilder#add}, except excludes shard and node level overheads.
-     * <p>
-     * Called by {@link #getShardHeapUsageEstimates} — see that method's Javadoc for consumers.
-     */
-    // Visible for testing.
-    public long computeIndexHeapUsage(ShardMemoryMetrics shardMemoryMetrics) {
-        return shardMemoryMetrics.getMappingSizeInBytes();
     }
 
     public record ShardMergeMemoryEstimate(String mergeId, long estimateInBytes) implements Writeable {

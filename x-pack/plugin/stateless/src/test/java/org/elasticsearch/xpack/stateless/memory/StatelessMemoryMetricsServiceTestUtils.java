@@ -30,7 +30,7 @@ public class StatelessMemoryMetricsServiceTestUtils {
 
     /// Convenience method for computing the shard estimate including postings
     /// and the current settings active on the [StatelessMemoryMetricsService]
-    public static long estimateShardOverheadIncludingPostings(
+    public static ShardAndIndexHeapEstimate estimateHeapUsageIncludingPostings(
         StatelessMemoryMetricsService statelessMemoryMetricsService,
         StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics
     ) {
@@ -43,7 +43,7 @@ public class StatelessMemoryMetricsServiceTestUtils {
 
     /// Convenience method for computing the shard estimate excluding postings
     /// and the current settings active on the [StatelessMemoryMetricsService]
-    public static long estimateShardOverheadExcludingPostings(
+    public static ShardAndIndexHeapEstimate estimateHeapUsageExcludingPostings(
         StatelessMemoryMetricsService statelessMemoryMetricsService,
         StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics
     ) {
@@ -56,11 +56,19 @@ public class StatelessMemoryMetricsServiceTestUtils {
 
     /// Convenience method for computing the shard estimate with the specified parameters
     /// and the current settings active on the [StatelessMemoryMetricsService]
-    private static long computeShardHeapEstimate(
+    private static ShardAndIndexHeapEstimate computeShardHeapEstimate(
         StatelessMemoryMetricsService statelessMemoryMetricsService,
         StatelessMemoryMetricsService.ShardMemoryMetrics memoryMetrics,
         StatelessMemoryMetricsService.PostingsInEstimate postingsInEstimate
     ) {
-        return statelessMemoryMetricsService.createShardHeapEstimator(postingsInEstimate).computeShardHeapUsage(memoryMetrics);
+        ShardHeapEstimator shardHeapEstimator = statelessMemoryMetricsService.createShardHeapEstimator(postingsInEstimate);
+        return new ShardAndIndexHeapEstimate(
+            shardHeapEstimator.computeShardHeapUsage(memoryMetrics),
+            shardHeapEstimator.computeIndexHeapUsage(memoryMetrics)
+        );
+    }
+
+    public record ShardAndIndexHeapEstimate(long shardHeapEstimate, long indexHeapEstimate) {
+
     }
 }

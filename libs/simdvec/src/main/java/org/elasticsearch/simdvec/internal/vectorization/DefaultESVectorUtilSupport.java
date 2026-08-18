@@ -450,7 +450,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         float acc1 = 0;
         float acc2 = 0;
         float acc3 = 0;
-        int limit = length / Byte.SIZE;
+        int limit = length >>> 3;
         for (int i = 0; i < limit; i++) {
             byte mask = d[dOffset + i];
             int base = qOffset + i * Byte.SIZE;
@@ -464,7 +464,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
             acc2 = fma(q[base + 6], (mask >> 1) & 1, acc2);
             acc3 = fma(q[base + 7], (mask >> 0) & 1, acc3);
         }
-        int tail = length % Byte.SIZE;
+        int tail = length & 7;
         if (tail > 0) {
             byte mask = d[dOffset + limit];
             int base = qOffset + limit * Byte.SIZE;

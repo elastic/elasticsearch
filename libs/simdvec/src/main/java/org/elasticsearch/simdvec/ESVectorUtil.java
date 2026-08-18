@@ -37,10 +37,8 @@ public class ESVectorUtil {
             // https://bugs.openjdk.org/browse/JDK-8336000
             MethodType type = MethodType.methodType(int.class, byte[].class, int.class, byte[].class, int.class, int.class);
             BIT_COUNT_MH = Constants.OS_ARCH.equals("aarch64")
-                ? MethodHandles.lookup()
-                    .findStatic(ESVectorUtil.class, "andBitCountInt", type)
-                : MethodHandles.lookup()
-                    .findStatic(ESVectorUtil.class, "andBitCountLong", type);
+                ? MethodHandles.lookup().findStatic(ESVectorUtil.class, "andBitCountInt", type)
+                : MethodHandles.lookup().findStatic(ESVectorUtil.class, "andBitCountLong", type);
         } catch (NoSuchMethodException | IllegalAccessException e) {
             throw new AssertionError(e);
         }
@@ -487,7 +485,7 @@ public class ESVectorUtil {
         }
         // tail:
         for (; i < length; i++) {
-            distance += Integer.bitCount((a[i] & b[i]) & 0xFF);
+            distance += Integer.bitCount((a[aOffset + i] & b[bOffset + i]) & 0xFF);
         }
         return distance;
     }
@@ -497,11 +495,13 @@ public class ESVectorUtil {
         int distance = 0, i = 0;
         // limit to number of long values in the array iterating by long byte views
         for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
-            distance += Long.bitCount((long) BitUtil.VH_NATIVE_LONG.get(a, aOffset + i) & (long) BitUtil.VH_NATIVE_LONG.get(b, bOffset + i));
+            distance += Long.bitCount(
+                (long) BitUtil.VH_NATIVE_LONG.get(a, aOffset + i) & (long) BitUtil.VH_NATIVE_LONG.get(b, bOffset + i)
+            );
         }
         // tail:
         for (; i < length; i++) {
-            distance += Integer.bitCount((a[i] & b[i]) & 0xFF);
+            distance += Integer.bitCount((a[aOffset + i] & b[bOffset + i]) & 0xFF);
         }
         return distance;
     }

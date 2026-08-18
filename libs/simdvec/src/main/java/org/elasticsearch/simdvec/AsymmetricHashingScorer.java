@@ -135,7 +135,7 @@ public final class AsymmetricHashingScorer {
             dot = Math.fma(1 << p, planeSum, dot);
         }
 
-        return dot * scale + queryConstants[QC_QUERY_DOT_CENTROID] + offset;
+        return Math.fma(dot, scale, queryConstants[QC_QUERY_DOT_CENTROID] + offset);
     }
 
     // --- queryConstants indices for scoreInteger ---

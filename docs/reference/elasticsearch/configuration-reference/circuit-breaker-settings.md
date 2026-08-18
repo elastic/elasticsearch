@@ -116,6 +116,34 @@ $$$script-painless-regex-limit-factor$$$
     {{es}} only applies this limit if [`script.painless.regex.enabled`](#script-painless-regex-enabled) is `limited`.
 
 
+### Script allocation circuit breaker [script-allocation-circuit-breaker]
+
+```{applies_to}
+stack: experimental 9.5
+serverless: unavailable
+```
+
+::::{warning}
+This feature is experimental. It is not intended for production use and there are no guarantees around performance, scale, or stability in this release. It may be changed or removed in a future release.
+::::
+
+A Painless script that builds a large string, list, or array can exhaust the heap before any other breaker observes it. The script allocation circuit breaker estimates how many bytes a single script execution allocates and fails the execution once that running total exceeds a limit.
+
+The estimate is heuristic. It is computed from the allocation sites {{es}} can size, so it approximates a script's allocation rather than measuring actual heap use, and it does not account for every allocation a script can cause. Treat it as a guard against runaway scripts, not as an exact accounting of memory.
+
+The running total resets at the start of every script execution, so the limit applies per execution and not to the lifetime of a script. When the limit is exceeded, the script fails with an error that cannot be caught from Painless.
+
+$$$script-painless-max-allocation-bytes$$$
+
+`script.painless.max_allocation_bytes.context.<context>.limit`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Maximum estimated bytes a single execution of a Painless script in the given [script context](/reference/scripting-languages/painless/painless-contexts.md) may allocate. Defaults to `-1b`, which disables tracking for that context.
+
+    Accepts `-1b` to disable, or a size from `1b` to `1gb` to enable tracking at that limit. Any other value is rejected and the node fails to start.
+
+    This is a per-node static setting. Set it in `elasticsearch.yml` and restart the node; it cannot be changed through the cluster settings API. Because it is a node setting, a node running a version that does not recognize the key fails to start if the key is present in its `elasticsearch.yml` — remove it before downgrading a node.
+
+    When tracking is disabled, {{es}} emits no allocation-tracking instructions at all, so scripts compiled for that context are unaffected.
+
 
 ## EQL circuit breaker [circuit-breakers-page-eql]
 

@@ -28,6 +28,18 @@ public class StatelessMemoryMetricsServiceTestUtils {
         return service.newUninitialisedShardMemoryMetrics(updateTimestampNanos);
     }
 
+    /// Calculates the shard heap estimate excluding postings and ignoring any self-reported overhead
+    /// even if the service is configured to use it
+    public static long estimateShardHeapUsageExcludingPostingsAndIgnoringSelfReportedOverheads(
+        StatelessMemoryMetricsService statelessMemoryMetricsService,
+        StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics
+    ) {
+        return statelessMemoryMetricsService.createShardHeapEstimator(
+            StatelessMemoryMetricsService.SelfReportedShardOverhead.DISABLE,
+            StatelessMemoryMetricsService.PostingsInEstimate.EXCLUDE
+        ).computeShardHeapUsage(shardMemoryMetrics);
+    }
+
     /// Convenience method for computing the shard estimate including postings
     /// and the current settings active on the [StatelessMemoryMetricsService]
     public static ShardAndIndexHeapEstimate estimateHeapUsageIncludingPostings(
@@ -39,18 +51,6 @@ public class StatelessMemoryMetricsServiceTestUtils {
             shardMemoryMetrics,
             StatelessMemoryMetricsService.PostingsInEstimate.INCLUDE
         );
-    }
-
-    /// Calculates the shard heap estimate excluding postings and ignoring any self-reported overhead
-    /// even if the service is configured to use it
-    public static long estimateShardHeapUsageExcludingPostingsAndIgnoringSelfReportedOverheads(
-        StatelessMemoryMetricsService statelessMemoryMetricsService,
-        StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics
-    ) {
-        return statelessMemoryMetricsService.createShardHeapEstimator(
-            StatelessMemoryMetricsService.SelfReportedShardOverhead.DISABLE,
-            StatelessMemoryMetricsService.PostingsInEstimate.EXCLUDE
-        ).computeShardHeapUsage(shardMemoryMetrics);
     }
 
     /// Convenience method for computing the shard estimate excluding postings

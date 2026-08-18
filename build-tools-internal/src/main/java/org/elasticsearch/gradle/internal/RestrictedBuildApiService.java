@@ -42,15 +42,11 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":qa:mixed-cluster");
         map.put(LegacyRestTestBasePlugin.class, ":qa:rolling-upgrade-legacy");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:rolling-upgrade-legacy");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:rolling-upgrade-basic");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:ccs-rolling-upgrade");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ml:qa:multi-cluster-tests-with-security");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:shutdown:qa:rolling-upgrade");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:transform:qa:multi-cluster-tests-with-security");
 
-        // Projects that inherit the legacy-yaml-rest-test plugin from their parent's subprojects { } configuration.
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:runtime-fields:core-with-mapped");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:runtime-fields:core-with-search");
         return map;
     }
 

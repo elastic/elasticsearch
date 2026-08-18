@@ -43,7 +43,7 @@
   - match: { indicators.shards_availability.impacts.0.severity: 1 }
   - match: { indicators.shards_availability.impacts.0.impact_areas.0: "ingest" }
   - match: { indicators.shards_availability.impacts.0.impact_areas.1: "search" }
-  - match: { indicators.shards_availability.impacts.0.description: "/Cannot add data to 1 index \\[.*red_index\\]. Searches might return incomplete results./" }
+  - match: { indicators.shards_availability.impacts.0.description: "Cannot add data to 1 index [${_project_id_prefix_}red_index]. Searches might return incomplete results." }
 
   - length: { indicators.shards_availability.diagnosis: 1 }
   - match: { indicators.shards_availability.diagnosis.0.id: "elasticsearch:health:shards_availability:diagnosis:enable_index_allocations" }
@@ -91,7 +91,7 @@
   - match: { indicators.shards_availability.impacts.0.severity: 1 }
   - match: { indicators.shards_availability.impacts.0.impact_areas.0: "ingest" }
   - match: { indicators.shards_availability.impacts.0.impact_areas.1: "search" }
-  - match: { indicators.shards_availability.impacts.0.description: "/Cannot add data to 1 index \\[.*red_cluster_index\\]. Searches might return incomplete results./" }
+  - match: { indicators.shards_availability.impacts.0.description: "Cannot add data to 1 index [${_project_id_prefix_}red_cluster_index]. Searches might return incomplete results." }
 
   - length: { indicators.shards_availability.diagnosis: 1 }
   - match: { indicators.shards_availability.diagnosis.0.id: "elasticsearch:health:shards_availability:diagnosis:enable_cluster_allocations" }

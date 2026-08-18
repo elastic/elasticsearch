@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 155243
+pr: 155580
+summary: Fix nested integer sort returning LONG sentinel and descending or "mode"-based sorts on multi-valued fields returned the wrong value  on pre-8.19/9.0.x indices 
+type: bug

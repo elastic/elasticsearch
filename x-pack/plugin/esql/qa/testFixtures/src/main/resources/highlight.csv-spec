@@ -645,6 +645,34 @@ The <em>quick brown fox</em> jumps over the lazy dog.
 ;
 
 
+# A phrase must not match across a multi-value boundary.
+highlightPhraseDoesNotCrossMultiValueBoundary
+required_capability: highlight_v6
+
+ROW positions = ["Senior Team Lead", "Lead Architect"]
+| HIGHLIGHT "\"lead lead\"" ON positions
+| KEEP highlight_positions
+;
+
+highlight_positions:keyword
+null
+;
+
+
+# A phrase contained in one value still matches.
+highlightPhraseMatchesWithinSingleMultiValue
+required_capability: highlight_v6
+
+ROW positions = ["Senior Team Lead", "Principal Architect"]
+| HIGHLIGHT "\"team lead\"" ON positions
+| KEEP highlight_positions
+;
+
+highlight_positions:keyword
+Senior <em>Team Lead</em>
+;
+
+
 # order=score with a number_of_fragments cap keeps the highest-scoring fragment: the last value wins despite its order.
 highlightOrderByScoreWithFragmentCap
 required_capability: highlight_v6

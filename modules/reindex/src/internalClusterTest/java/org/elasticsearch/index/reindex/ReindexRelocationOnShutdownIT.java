@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.node.ListenableShutdownPrepareService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.plugins.Plugin;
@@ -96,7 +97,12 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, ReindexManagementPlugin.class, MockTransportService.TestPlugin.class);
+        return Arrays.asList(
+            ReindexPlugin.class,
+            ReindexManagementPlugin.class,
+            MockTransportService.TestPlugin.class,
+            ListenableShutdownPrepareService.TestPlugin.class
+        );
     }
 
     @Override
@@ -702,7 +708,8 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             .setShouldStoreResult(true)
             .setEligibleForRelocationOnShutdown(true)
             .setRequestsPerSecond(requestsPerSecond);
-        request.getSearchRequest().source().size(5);
+        // Batches of 1 should only delay ~300ms, meaning the relocation should start sooner
+        request.getSearchRequest().source().size(1);
 
         final CountDownLatch listenerDone = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<>();
@@ -743,24 +750,27 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
                 )
             );
 
+            // Prevent the cancellation from beginning until the task is in HANDOFF_INITIATED state.
+            final var shutdownPrepareService = asInstanceOf(
+                ListenableShutdownPrepareService.class,
+                internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName)
+            );
+            shutdownPrepareService.addTaskTimeoutListener((taskName, tasks) -> {
+                if (ReindexAction.NAME.equals(taskName)) {
+                    safeAwait(resumeStarted);
+                }
+            });
+
             // Run prepareForShutdown in a background thread: it marks the task for relocation then blocks
             // waiting for the task to exit (which won’t happen until we release the transport block).
-            Future<?> shutdownFuture = executor.submit(
-                () -> internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName).prepareForShutdown()
-            );
-
-            // Wait until the ResumeReindexAction is in-flight: the task is now in HANDOFF_INITIATED state.
-            safeAwait(resumeStarted);
+            Future<?> shutdownFuture = executor.submit(shutdownPrepareService::prepareForShutdown);
 
             // Wait for the cancellation to fail
             mockLog.awaitAllExpectationsMatched();
 
             // Release the transport block. With the fix the task was NOT cancelled, so the destination
-            // handler runs and the relocation completes normally.
+            // handler runs, and the relocation completes normally.
             resumeBlocked.countDown();
-
-            // We've seen everything we need to see, rethrottle to allow the task to finish
-            rethrottleRunningRootReindex(numDocs);
 
             // The source task should complete via TaskRelocatedException (relocated, not cancelled).
             safeAwait(listenerDone);
@@ -769,6 +779,9 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
             // Wait for prepareForShutdown to return (it will see the task is gone and exit its inner loop).
             safeGet(shutdownFuture);
+
+            // We've seen everything we need to see, rethrottle to allow the task to finish
+            rethrottleRunningRootReindex(numDocs);
 
             // The relocated task should complete successfully on the data node.
             final GetTaskResponse relocatedResult = clusterAdmin().prepareGetTask(new TaskId(relocatedTaskIdString))

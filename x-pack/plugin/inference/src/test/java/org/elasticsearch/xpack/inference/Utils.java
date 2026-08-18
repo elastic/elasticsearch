@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.DataFormat;
@@ -312,5 +313,9 @@ public final class Utils {
 
     public static <K, V> Map<K, V> modifiableMap(Map<K, V> aMap) {
         return new HashMap<>(aMap);
+    }
+
+    public static Releasable noopReleasable() {
+        return () -> {/* no op */};
     }
 }

@@ -10,14 +10,10 @@
 package org.elasticsearch.columnar;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.DocValuesFormat;
-import org.apache.lucene.codecs.FilterCodec;
-import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
@@ -28,7 +24,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FixedBitSet;
@@ -36,6 +31,9 @@ import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+
+import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
+import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
 
 /**
  * Drives {@link ColumnarNumericRangeQuery} through a real {@link IndexSearcher} over a ColumNAR-coded
@@ -108,28 +106,8 @@ public class ColumnarNumericRangeQueryTests extends ESTestCase {
     }
 
     private void indexColumnar(Directory dir, long[] values) throws IOException {
-        final DocValuesFormat columnar = new ColumNARDocValuesFormat();
-        final Codec base = TestUtil.getDefaultCodec();
-        final Codec codec = new FilterCodec(base.getName(), base) {
-            private final DocValuesFormat perField = new PerFieldDocValuesFormat() {
-                @Override
-                public DocValuesFormat getDocValuesFormatForField(String field) {
-                    return columnar;
-                }
-            };
-
-            @Override
-            public DocValuesFormat docValuesFormat() {
-                return perField;
-            }
-        };
-
-        // A binary doc-values field tagged as a LONG column: the mapper's role, done by hand here.
-        final FieldType type = new FieldType();
-        type.setDocValuesType(DocValuesType.BINARY);
-        type.putAttribute(ColumNARDocValuesFormat.TYPE_ATTRIBUTE, ColumnarFieldType.LONG.name());
-        type.freeze();
-
+        final Codec codec = columnarCodec();
+        final FieldType type = columnarBinaryFieldType(ColumnarFieldType.LONG);
         final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codec);
         final BytesRefBuilder builder = new BytesRefBuilder();
         try (IndexWriter writer = new IndexWriter(dir, iwc)) {

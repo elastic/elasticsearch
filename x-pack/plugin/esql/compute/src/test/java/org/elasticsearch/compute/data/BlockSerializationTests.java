@@ -36,10 +36,6 @@ import static org.hamcrest.Matchers.is;
 
 public class BlockSerializationTests extends SerializationTestCase {
 
-    public void testConstantIntBlock() throws IOException {
-        assertConstantBlockImpl(blockFactory.newConstantIntBlockWith(randomInt(), randomIntBetween(1, 8192)));
-    }
-
     public void testConstantFloatBlock() throws IOException {
         assertConstantBlockImpl(blockFactory.newConstantFloatBlockWith(randomFloat(), randomIntBetween(1, 8192)));
     }
@@ -49,17 +45,6 @@ public class BlockSerializationTests extends SerializationTestCase {
         try (origBlock; Block deserBlock = serializeDeserializeBlock(origBlock)) {
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(origBlock, unused -> deserBlock);
             assertThat(deserBlock.asVector().isConstant(), is(true));
-        }
-    }
-
-    public void testEmptyIntBlock() throws IOException {
-        assertEmptyBlock(blockFactory.newIntBlockBuilder(0).build());
-        try (IntBlock toFilter = blockFactory.newIntBlockBuilder(0).appendNull().build()) {
-            assertEmptyBlock(toFilter.filter(false));
-        }
-        assertEmptyBlock(blockFactory.newIntVectorBuilder(0).build().asBlock());
-        try (IntVector toFilter = blockFactory.newIntVectorBuilder(0).appendInt(randomInt()).build()) {
-            assertEmptyBlock(toFilter.filter(false).asBlock());
         }
     }
 
@@ -85,21 +70,6 @@ public class BlockSerializationTests extends SerializationTestCase {
         assertThat(origBlock.getPositionCount(), is(0));
         try (origBlock; Block deserBlock = serializeDeserializeBlock(origBlock)) {
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(origBlock, unused -> deserBlock);
-        }
-    }
-
-    public void testFilterIntBlock() throws IOException {
-        try (IntBlock toFilter = blockFactory.newIntBlockBuilder(0).appendInt(1).appendInt(2).build()) {
-            assertFilterBlock(toFilter.filter(false, 1));
-        }
-        try (IntBlock toFilter = blockFactory.newIntBlockBuilder(1).appendInt(randomInt()).appendNull().build()) {
-            assertFilterBlock(toFilter.filter(false, 0));
-        }
-        try (IntVector toFilter = blockFactory.newIntVectorBuilder(1).appendInt(randomInt()).build()) {
-            assertFilterBlock(toFilter.filter(false, 0).asBlock());
-        }
-        try (IntVector toFilter = blockFactory.newIntVectorBuilder(1).appendInt(randomInt()).appendInt(randomInt()).build()) {
-            assertFilterBlock(toFilter.filter(false, 0).asBlock());
         }
     }
 

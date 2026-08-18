@@ -9,6 +9,8 @@
 
 package org.elasticsearch.inference;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -71,7 +73,7 @@ public record UnifiedCompletionRequest(
     @Nullable Reasoning reasoning,
     @Nullable CacheControl cacheControl,
     @Nullable String sessionId
-) implements Writeable, ToXContentFragment {
+) implements Accountable, Writeable, ToXContentFragment {
 
     /**
      * We currently allow providers to override the model id that is written to JSON.
@@ -144,6 +146,8 @@ public record UnifiedCompletionRequest(
     public static Params withMaxCompletionTokens(Params params) {
         return new DelegatingMapParams(Map.of(MAX_TOKENS_PARAM, MAX_COMPLETION_TOKENS_FIELD), params);
     }
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(UnifiedCompletionRequest.class);
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<UnifiedCompletionRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -313,12 +317,49 @@ public record UnifiedCompletionRequest(
         return reasoning() != null || messages().stream().anyMatch(m -> m.reasoning() != null || m.reasoningDetails() != null);
     }
 
+    /**
+     * Whether the caller asked for reasoning to be omitted from the response. An absent reasoning
+     * configuration, or an absent {@code exclude} flag, means reasoning is included.
+     */
+    public boolean excludeReasoning() {
+        return reasoning() != null && Boolean.TRUE.equals(reasoning().exclude());
+    }
+
     public boolean containsChatCompletionCacheControl() {
         return cacheControl() != null;
     }
 
     public boolean containsSessionId() {
         return sessionId() != null;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        // sizeOfCollection uses one NUM_BYTES_ARRAY_HEADER, but the actual JVM layout of immutable collections
+        // (List.of) has enough overhead that sizeOfCollection under-counts by ~8 bytes per list. The extra
+        // NUM_BYTES_ARRAY_HEADER keeps the estimate >= actual as required by the circuit-breaker contract.
+        var messagesRamBytesUsed = RamUsageEstimator.alignObjectSize(
+            RamUsageEstimator.shallowSizeOf(messages()) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) messages().size()
+                * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+        ) + messages().stream().mapToLong(Message::ramBytesUsed).sum();
+        var modelRamBytesUsed = RamUsageEstimator.sizeOf(model());
+        var toolChoicesRamBytesUsed = toolChoice() == null ? 0L : toolChoice().ramBytesUsed();
+        var stopRamBytesUsed = stop() == null
+            ? 0L
+            : RamUsageEstimator.alignObjectSize(
+                RamUsageEstimator.shallowSizeOf(stop()) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) stop().size()
+                    * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+            ) + stop().stream().mapToLong(RamUsageEstimator::sizeOf).sum();
+        var toolsRamBytesUsed = tools() == null
+            ? 0L
+            : RamUsageEstimator.alignObjectSize(
+                RamUsageEstimator.shallowSizeOf(tools()) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) tools().size()
+                    * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+            ) + tools().stream().mapToLong(Tool::ramBytesUsed).sum();
+        var reasoningRamBytesUsed = reasoning() == null ? 0L : reasoning().ramBytesUsed();
+
+        return SHALLOW_SIZE + messagesRamBytesUsed + modelRamBytesUsed + toolChoicesRamBytesUsed + stopRamBytesUsed + toolsRamBytesUsed
+            + reasoningRamBytesUsed;
     }
 
     private static ToolChoice parseToolChoice(XContentParser parser) throws IOException {

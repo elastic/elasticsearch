@@ -16,6 +16,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
@@ -41,7 +42,7 @@ import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStri
 /**
  * Splits a string on some delimiter into a multivalued string field.
  */
-public class Split extends BinaryScalarFunction implements EvaluatorMapper {
+public class Split extends BinaryScalarFunction implements EvaluatorMapper, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Split", Split::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Split.class).binary(Split::new).name("split");
 

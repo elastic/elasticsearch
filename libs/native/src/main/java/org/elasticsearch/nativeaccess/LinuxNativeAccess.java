@@ -91,7 +91,7 @@ public class LinuxNativeAccess extends PosixNativeAccess {
     private final Systemd systemd;
 
     LinuxNativeAccess(NativeLibraryProvider libraryProvider) {
-        super("Linux", libraryProvider, new PosixConstants(-1L, 9, 1, 8, 64, 144, 48, 64));
+        super("Linux", libraryProvider, new PosixConstants(-1L, 9, 1, 8, 64));
         this.linuxLibc = libraryProvider.getLibrary(LinuxCLibrary.class);
         String socketPath = System.getenv("NOTIFY_SOCKET");
         if (socketPath == null) {

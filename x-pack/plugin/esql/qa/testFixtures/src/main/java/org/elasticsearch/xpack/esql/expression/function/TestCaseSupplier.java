@@ -14,6 +14,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Nullable;
@@ -77,7 +78,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * This class exists to give a human-readable string representation of the test case.
  */
-public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestCase> supplier)
+public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestCase> supplier, boolean allowNullTypedFields)
     implements
         Supplier<TestCaseSupplier.TestCase> {
 
@@ -85,11 +86,23 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     private static final Logger logger = LogManager.getLogger(TestCaseSupplier.class);
 
+    public TestCaseSupplier(String name, List<DataType> types, Supplier<TestCase> supplier) {
+        this(name, types, supplier, false);
+    }
+
     /**
      * Build a test case named after the types it takes.
      */
     public TestCaseSupplier(List<DataType> types, Supplier<TestCase> supplier) {
         this(nameFromTypes(types), types, supplier);
+    }
+
+    /**
+     * Like the canonical constructor, but field columns may arrive NULL-typed. The NULL-typed signature cannot be
+     * declared up front: which positions are fields is only known once the data is built, after signatures are fixed.
+     */
+    public static TestCaseSupplier withNullTypedFieldsAllowed(String name, List<DataType> types, Supplier<TestCase> supplier) {
+        return new TestCaseSupplier(name, types, supplier, true);
     }
 
     public static String nameFromTypes(List<DataType> types) {
@@ -144,13 +157,26 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             throw new IllegalStateException(name + ": type/data size mismatch " + types.size() + "/" + supplied.getData().size());
         }
         for (int i = 0; i < types.size(); i++) {
-            if (supplied.getData().get(i).type() != types.get(i)) {
-                throw new IllegalStateException(
-                    name + ": supplier/data type mismatch " + supplied.getData().get(i).type() + "/" + types.get(i)
-                );
+            TypedData data = supplied.getData().get(i);
+            if (allowNullTypedFields && isNullTypedField(data)) {
+                continue;
+            }
+            if (data.type() != types.get(i)) {
+                throw new IllegalStateException(name + ": supplier/data type mismatch " + data.type() + "/" + types.get(i));
             }
         }
         return supplied;
+    }
+
+    /**
+     * A field column that arrived NULL-typed, the shape {@code unmapped_fields="nullify"} gives fields
+     * missing from all indices. Multi-row-ness is what marks a column as a field: agg tests supply
+     * fields as multi-row columns and constants as single-row literals. Only fields get nullified this
+     * way — a NULL-typed constant ({@code EVAL x = null}) is a different scenario, not covered here —
+     * so constants must still match their declared type exactly.
+     */
+    private static boolean isNullTypedField(TypedData data) {
+        return data.type() == DataType.NULL && data.isMultiRow();
     }
 
     @Override
@@ -406,6 +432,17 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         BiFunction<TypedData, TypedData, List<String>> warnings,
         boolean allowRhsZero
     ) {
+        return forBinaryComparisonWithWidening(typeStuff, lhsName, rhsName, warnings, allowRhsZero, false);
+    }
+
+    public static List<TestCaseSupplier> forBinaryComparisonWithWidening(
+        NumericTypeTestConfigs<Boolean> typeStuff,
+        String lhsName,
+        String rhsName,
+        BiFunction<TypedData, TypedData, List<String>> warnings,
+        boolean allowRhsZero,
+        boolean forceLiteralRhs
+    ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         List<DataType> numericTypes = List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE);
 
@@ -423,15 +460,24 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     + "="
                     + getCastEvaluator("Attribute[channel=1]", rhs, expected)
                     + "]";
+                List<TypedDataSupplier> rhsSuppliers = getSuppliersForNumericType(
+                    rhsType,
+                    expectedTypeStuff.min(),
+                    expectedTypeStuff.max(),
+                    allowRhsZero
+                );
+                if (forceLiteralRhs) {
+                    rhsSuppliers = rhsSuppliers.stream().map(s -> new TypedDataSupplier(s.name(), s.supplier(), s.type(), true)).toList();
+                }
                 casesCrossProduct(
                     (l, r) -> expectedTypeStuff.expected().apply((Number) l, (Number) r),
                     getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), allowRhsZero),
-                    getSuppliersForNumericType(rhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), allowRhsZero),
+                    rhsSuppliers,
                     (lhs, rhs) -> equalTo(evaluatorToString.apply(lhs, rhs)),
                     warnings,
                     suppliers,
                     DataType.BOOLEAN,
-                    true
+                    forceLiteralRhs == false
                 );
             }
         }
@@ -928,6 +974,23 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 warnings
             );
         }
+    }
+
+    public static void forUnaryDoubleRange(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<DoubleRangeBlockBuilder.DoubleRange, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(
+            suppliers,
+            expectedEvaluatorToString,
+            doubleRangeCases(),
+            expectedType,
+            v -> expectedValue.apply((DoubleRangeBlockBuilder.DoubleRange) v),
+            warnings
+        );
     }
 
     public static void forUnaryExponentialHistogram(
@@ -1712,10 +1775,23 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return List.of(new TypedDataSupplier("<random date range>", TestCaseSupplier::randomDateRange, DataType.DATE_RANGE));
     }
 
+    public static List<TypedDataSupplier> doubleRangeCases() {
+        return List.of(new TypedDataSupplier("<random double range>", TestCaseSupplier::randomDoubleRange, DataType.DOUBLE_RANGE));
+    }
+
     public static LongRangeBlockBuilder.LongRange randomDateRange() {
         var from = randomMillisUpToYear9999();
         var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
         return new LongRangeBlockBuilder.LongRange(from, to);
+    }
+
+    public static DoubleRangeBlockBuilder.DoubleRange randomDoubleRange() {
+        double first = randomDouble();
+        double second;
+        do {
+            second = randomDouble();
+        } while (first == second);
+        return new DoubleRangeBlockBuilder.DoubleRange(Math.min(first, second), Math.max(first, second));
     }
 
     /**

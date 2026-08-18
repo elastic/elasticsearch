@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.validation;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.TestPlainActionFuture;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -48,18 +49,20 @@ public class ModelValidatorBuilderTests extends ESTestCase {
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createHttpClient() throws Exception {
         threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        clientManager = HttpClientManager.create(
+            Settings.EMPTY,
+            threadPool,
+            mockClusterServiceEmpty(),
+            mock(ThrottlerManager.class),
+            new TestCircuitBreaker()
+        );
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownHttpClient() throws Exception {
         clientManager.close();
         terminate(threadPool);
     }

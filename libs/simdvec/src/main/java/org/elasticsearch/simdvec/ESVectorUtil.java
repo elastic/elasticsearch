@@ -101,7 +101,7 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
         }
         Objects.checkFromIndexSize(0, length, a.length);
-        return IMPL.dotProduct(a, b, 0, length);
+        return IMPL.dotProduct(a, 0, b, 0, length);
     }
 
     /**
@@ -112,33 +112,47 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
         }
         Objects.checkFromIndexSize(offset, length, a.length);
-        return IMPL.dotProduct(a, b, offset, length);
+        return IMPL.dotProduct(a, offset, b, offset, length);
+    }
+
+    /**
+     * Dot product over {@code [[ab]Offset, [ab]Offset + length)}.
+     */
+    public static float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length) {
+        Objects.checkFromIndexSize(aOffset, length, a.length);
+        Objects.checkFromIndexSize(bOffset, length, b.length);
+        return IMPL.dotProduct(a, aOffset, b, bOffset, length);
     }
 
     /**
      * L2-normalizes the prefix {@code v[0..length)} in place. Elements at indices {@code length} and
      * beyond are left unchanged. A zero prefix is a no-op; unlike {@link VectorUtil#l2normalize(float[])},
      * this method does not throw on a zero vector.
+     * @return the squared normalization factor
      */
-    public static void l2Normalize(float[] v, int length) {
-        l2Normalize(v, 0, length);
+    public static float l2Normalize(float[] v, int length) {
+        return l2Normalize(v, 0, length);
     }
 
     /**
      * L2-normalizes {@code v[offset:offset + length)} in place. Elements outside the range are left
      * unchanged. A zero range is a no-op.
+     * @return the squared normalization factor
      */
-    public static void l2Normalize(float[] v, int offset, int length) {
+    public static float l2Normalize(float[] v, int offset, int length) {
         if (length <= 0) {
-            return;
+            return 0;
         }
         Objects.checkFromIndexSize(offset, length, v.length);
-        IMPL.l2Normalize(v, offset, length);
+        return IMPL.l2Normalize(v, offset, length);
     }
 
-    /** L2-normalizes all components of {@code v} in place. */
-    public static void l2Normalize(float[] v) {
-        l2Normalize(v, 0, v.length);
+    /**
+     * L2-normalizes all components of {@code v} in place.
+     * @return the squared normalization factor
+     */
+    public static float l2Normalize(float[] v) {
+        return l2Normalize(v, 0, v.length);
     }
 
     public static float squareDistance(float[] a, float[] b) {
@@ -875,43 +889,47 @@ public class ESVectorUtil {
      * @param vector the int array to pack, must contain only "0" and "1" values.
      * @param packed the byte array to store the packed result, must be large enough to hold the packed data.
      */
-    public static void packAsBinary(int[] vector, byte[] packed) {
+    public static void pack1BitValues(int[] vector, byte[] packed) {
         if (packed.length * Byte.SIZE < vector.length) {
             throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE + " < " + vector.length);
         }
-        IMPL.packAsBinary(vector, packed);
-    }
-
-    public static void packDibit(int[] vector, byte[] packed) {
-        if (packed.length * Byte.SIZE / 2 < vector.length) {
-            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE / 2 + " < " + vector.length);
-        }
-        IMPL.packDibit(vector, packed);
-    }
-
-    public static void packDibitQuad(int[] vector, byte[] packed) {
-        if (packed.length * Byte.SIZE / 2 < vector.length) {
-            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE / 2 + " < " + vector.length);
-        }
-        IMPL.packDibitQuad(vector, packed);
+        IMPL.pack1BitValues(vector, packed);
     }
 
     /**
-     * The idea here is to organize the query vector bits such that the first bit
-     * of every dimension is in the first set dimensions bits, or (dimensions/8) bytes. The second,
-     * third, and fourth bits are in the second, third, and fourth set of dimensions bits,
-     * respectively. This allows for direct bitwise comparisons with the stored index vectors through
-     * summing the bitwise results with the relative required bit shifts.
-     *
-     * @param q the query vector, assumed to be half-byte quantized with values between 0 and 15
-     * @param quantQueryByte the byte array to store the transposed query vector.
-     *
-     **/
-    public static void transposeHalfByte(int[] q, byte[] quantQueryByte) {
-        if (quantQueryByte.length * Byte.SIZE < 4 * q.length) {
-            throw new IllegalArgumentException("packed array is too small: " + quantQueryByte.length * Byte.SIZE + " < " + 4 * q.length);
+     * Stride 2-bit values into a byte array
+     * @param vector    The input vector, each value should be 0-3
+     * @param packed    The output bytes - the first MSB of all values first, followed by the second MSB
+     */
+    public static void stride2BitValues(int[] vector, byte[] packed) {
+        if (packed.length * Byte.SIZE / 2 < vector.length) {
+            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE / 2 + " < " + vector.length);
         }
-        IMPL.transposeHalfByte(q, quantQueryByte);
+        IMPL.stride2BitValues(vector, packed);
+    }
+
+    /**
+     * Pack 2-bit values into a byte array
+     * @param vector    The input vector, each value should be 0-3
+     * @param packed    The output packed bytes, each byte containing 4 values concatenated together
+     */
+    public static void pack2BitValues(int[] vector, byte[] packed) {
+        if (packed.length * Byte.SIZE / 2 < vector.length) {
+            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE / 2 + " < " + vector.length);
+        }
+        IMPL.pack2BitValues(vector, packed);
+    }
+
+    /**
+     * Stride 4-bit values into a byte array
+     * @param vector    The input vector, each value should be 0-15
+     * @param packed    The output bytes - the first MSB of all values first, followed by the second MSB, then the third, and the fourth
+     */
+    public static void stride4BitValues(int[] vector, byte[] packed) {
+        if (packed.length * Byte.SIZE < 4 * vector.length) {
+            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE + " < " + 4 * vector.length);
+        }
+        IMPL.stride4BitValues(vector, packed);
     }
 
     /**
@@ -974,6 +992,32 @@ public class ESVectorUtil {
     }
 
     /**
+     * Computes {@code dest[destOffset..destOffset+length) = scaleOther * other[otherOffset..otherOffset+length)
+     *          + scaleDest * dest[destOffset..destOffset+length)}.
+     *
+     * @param scaleOther a multiplicative factor for other
+     * @param other the other vector
+     * @param otherOffset starting index into other
+     * @param scaleDest a multiplicative factor for dest
+     * @param dest the destination vector
+     * @param destOffset starting index into dest
+     * @param length number of elements to process
+     */
+    public static void linearCombination(
+        float scaleOther,
+        float[] other,
+        int otherOffset,
+        float scaleDest,
+        float[] dest,
+        int destOffset,
+        int length
+    ) {
+        Objects.checkFromIndexSize(otherOffset, length, other.length);
+        Objects.checkFromIndexSize(destOffset, length, dest.length);
+        IMPL.linearCombination(scaleOther, other, otherOffset, scaleDest, dest, destOffset, length);
+    }
+
+    /**
      * Computes dest = scale * other + scaledDes * dest
      *
      * @param scaleOther a multiplicative factor for other
@@ -985,7 +1029,23 @@ public class ESVectorUtil {
         if (other.length != dest.length) {
             throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
         }
-        IMPL.linearCombination(scaleOther, other, scaleDest, dest);
+        IMPL.linearCombination(scaleOther, other, 0, scaleDest, dest, 0, dest.length);
+    }
+
+    /**
+     * Computes {@code dest[destOffset..destOffset+length) += scaleOther * other[otherOffset..otherOffset+length)}.
+     *
+     * @param scaleOther a multiplicative factor for other
+     * @param other the other vector
+     * @param otherOffset starting index into other
+     * @param dest the destination vector
+     * @param destOffset starting index into dest
+     * @param length number of elements to process
+     */
+    public static void linearCombination(float scaleOther, float[] other, int otherOffset, float[] dest, int destOffset, int length) {
+        Objects.checkFromIndexSize(otherOffset, length, other.length);
+        Objects.checkFromIndexSize(destOffset, length, dest.length);
+        IMPL.linearCombination(scaleOther, other, otherOffset, dest, destOffset, length);
     }
 
     /**
@@ -999,7 +1059,7 @@ public class ESVectorUtil {
         if (other.length != dest.length) {
             throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
         }
-        IMPL.linearCombination(scaleOther, other, dest);
+        IMPL.linearCombination(scaleOther, other, 0, dest, 0, dest.length);
     }
 
     /**
@@ -1081,5 +1141,23 @@ public class ESVectorUtil {
      */
     public static void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
         IMPL.inRangeBitmask(values, lowerValue, upperValue, matches);
+    }
+
+    /**
+     * Transposes a row-major matrix from (rows x cols) to (cols x rows).
+     *
+     * @param m    input matrix in row-major order, length rows*cols
+     * @param rows number of rows in the input
+     * @param cols number of columns in the input
+     * @return transposed matrix in row-major order, length cols*rows
+     */
+    public static float[] transposeMatrix(float[] m, int rows, int cols) {
+        float[] t = new float[cols * rows];
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                t[j * rows + i] = m[i * cols + j];
+            }
+        }
+        return t;
     }
 }

@@ -228,7 +228,8 @@ import java.util.function.Consumer;
  *   <tr><th>ES/ESQL key</th><th>Behaviour</th></tr>
  *   <tr><td>{@code fail_fast}</td><td>Abort on first error (default)</td></tr>
  *   <tr><td>{@code skip_row}</td><td>Drop the entire bad row</td></tr>
- *   <tr><td>{@code null_field}</td><td>Null-fill unparseable fields, keep the row</td></tr>
+ *   <tr><td>{@code null_field}</td><td>Null-fill unparseable fields, keep the row; structural failures
+ *       (tokeniser error, row-shape mismatch, field over {@code max_field_size}) still drop the row</td></tr>
  * </table>
  *
  * <h2>Examples</h2>
@@ -244,6 +245,14 @@ import java.util.function.Consumer;
  * (HTTP, S3, local filesystem).
  */
 public class CsvFormatReader implements SegmentableFormatReader {
+
+    /**
+     * The schema-sampling default this reader applies when the setting is absent, surfaced from
+     * {@link CsvSchemaInferrer} so the registration-time bound on {@code schema_sample_size} can be pinned against
+     * it. The bound must never sit below any reader's default, or the validator forbids the very value the reader
+     * uses when the user says nothing.
+     */
+    public static final int DEFAULT_SCHEMA_SAMPLE_SIZE = CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE;
 
     private static final Logger logger = LogManager.getLogger(CsvFormatReader.class);
 
@@ -1043,7 +1052,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         CsvFormatOptions parsed = parseOptionsFromConfig(config, options);
         int newSampleSize = parseInt(config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
-        Check.isTrue(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
+        Check.clientError(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
         ErrorPolicy resolvedPolicy = ErrorPolicy.fromConfig(config, effectivePolicy);
         CsvFormatReader result = parsed != null ? withOptions(parsed) : this;
         // Pin the node-stable config identity from THIS query's WITH config. buildFormatConfig filters

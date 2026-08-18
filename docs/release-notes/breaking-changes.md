@@ -12,15 +12,45 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
+## 9.5.1 [elasticsearch-9.5.1-breaking-changes]
+
+ILM:
+* When `number_of_replicas` is specified in the ILM `allocate` action, `auto_expand_replicas` is now explicitly removed from the index settings. [#155279](https://github.com/elastic/elasticsearch/pull/155279) (issue: [#150407](https://github.com/elastic/elasticsearch/issues/150407))
+
+## 9.4.5 [elasticsearch-9.4.5-breaking-changes]
+
+ILM:
+* When `number_of_replicas` is specified in the ILM `allocate` action, `auto_expand_replicas` is now explicitly removed from the index settings. [#155279](https://github.com/elastic/elasticsearch/pull/155279) (issue: [#150407](https://github.com/elastic/elasticsearch/issues/150407))
+
+## 9.5.0 [elasticsearch-9.5.0-breaking-changes]
+
+CCS:
+* Correctly handle order for remote cluster exclusions in CCS. An exclusion affects targets listed before it and has no impact on targets listed after it. [#143338](https://github.com/elastic/elasticsearch/pull/143338)
+
+ES|QL:
+* Rewire FUSE to use FIRST for passthrough columns [#150220](https://github.com/elastic/elasticsearch/pull/150220) (issue: [#141596](https://github.com/elastic/elasticsearch/issues/141596))
+
+TSDB:
+* In standard data streams, when a rollover occurs the ingestion traffic is routed directly to the new backing index, this has two benefits: changes in the settings or mappings will take effect immediately, and the old index will not keep accepting new data if the rollover conditions were met.
+In time series data streams (TSDS) all backing indices are potentially write indices because the documents are being routed to the right backing index based on their `@timestamp`. Assuming that the majority of ingestion traffic has a current `@timestamp`, after a rollover occurs, there is a delay up to `index.look_ahead_time` for the majority of the ingestion traffic to be routed to the new index. This delays the benefits of writing to the new index.
+We reduce this delay from 30 minutes to 9 minutes. This will make the rollover more effective. The side-effect is that documents with `@timestamp` more than 9 minutes in the future will be rejected since their timestamp will be outside the look-forward time window.
+In order to revert this, you can set the `index.look_ahead_time` to an appropriate higher value in the data stream's composable or component templates. [#145552](https://github.com/elastic/elasticsearch/pull/145552) (issue: [#142602](https://github.com/elastic/elasticsearch/issues/142602))
+
+
+
 ## 9.4.4 [elasticsearch-9.4.4-breaking-changes]
 
 Inference:
 * [Inference API] Prevent overriding `secret_parameters` [#153309](https://github.com/elastic/elasticsearch/pull/153309)
 
+
+
 ## 9.3.8 [elasticsearch-9.3.8-breaking-changes]
 
 Inference:
-* [Inference API] Prevent overriding `secret_parameters` in the Inference API [#153309](https://github.com/elastic/elasticsearch/pull/153309)
+* Prevent overriding `secret_parameters` in the Inference API [#153309](https://github.com/elastic/elasticsearch/pull/153309)
+
+
 
 ## 9.3.7 [elasticsearch-9.3.7-breaking-changes]
 
@@ -405,4 +435,5 @@ Vector Search:
 
 Watcher:
 * Removing support for types field in watcher search [#120748](https://github.com/elastic/elasticsearch/pull/120748)
+
 

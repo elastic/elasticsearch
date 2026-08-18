@@ -452,4 +452,56 @@ public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
             assertEquals(0, cmp);
         }
     }
+
+    /**
+     * A negative element count must be rejected. Rounding the bit count up to whole bytes with
+     * {@code (bits + 7) / 8} would truncate a small negative product toward zero -- for
+     * {@code count = -1, elementBits = 8}, {@code (-8 + 7) / 8 == 0} -- and the check would pass a
+     * negative count straight through to the native call.
+     */
+    public void testVectorSegmentRejectsNegativeCount() throws Exception {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.VectorSegment;
+            @LibrarySpecification
+            public interface MemCmpLib {
+                @Function("memcmp")
+                int memcmp(
+                    @VectorSegment(countParam = "n", elementBits = 8) MemorySegment a,
+                    MemorySegment b,
+                    long n);
+            }
+            """;
+
+        CompilationResult result = compile("test.MemCmpLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Class<?> implClass = result.loadClass("test.MemCmpLib$Impl");
+        java.lang.reflect.Constructor<?> ctor = implClass.getDeclaredConstructor();
+        ctor.setAccessible(true);
+        Object instance = ctor.newInstance();
+        java.lang.reflect.Method memcmp = implClass.getMethod("memcmp", MemorySegment.class, MemorySegment.class, long.class);
+        memcmp.setAccessible(true);
+
+        try (var arena = java.lang.foreign.Arena.ofConfined()) {
+            MemorySegment a = arena.allocate(3);
+            MemorySegment b = arena.allocate(3);
+
+            // -1 is the value that survives the (bits + 7) / 8 form; -2 fails under both forms.
+            for (long n : new long[] { -1L, -2L }) {
+                try {
+                    memcmp.invoke(instance, a, b, n);
+                    fail("Expected IndexOutOfBoundsException for count " + n);
+                } catch (java.lang.reflect.InvocationTargetException e) {
+                    assertTrue(
+                        "Expected IndexOutOfBoundsException for count " + n + ", got: " + e.getCause(),
+                        e.getCause() instanceof IndexOutOfBoundsException
+                    );
+                }
+            }
+        }
+    }
 }

@@ -11,6 +11,7 @@ package org.elasticsearch.columnar.numeric;
 
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
+import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
 
@@ -34,7 +35,7 @@ import java.io.IOException;
 public record NumericColumnMetadata(
     ColumnIteratorMetadata iterator,
     int numDocsWithField,
-    int numValues,
+    long numValues,
     int blockSize,
     byte blockBytesCodecId,
     byte terminalId,
@@ -155,7 +156,7 @@ public record NumericColumnMetadata(
         if (numDocsWithField == 0) {
             return;
         }
-        out.writeVInt(numValues);
+        out.writeVLong(numValues);
         out.writeVInt(blockSize);
         out.writeByte(blockBytesCodecId);
         out.writeByte(terminalId);
@@ -172,13 +173,30 @@ public record NumericColumnMetadata(
         }
     }
 
-    public static NumericColumnMetadata readFrom(DataInput in, int maxDoc) throws IOException {
-        ColumnIteratorMetadata iterator = ColumnIteratorMetadata.readFrom(in, maxDoc);
+    /**
+     * Reads a column metadata record previously written by {@link #writeTo}.
+     *
+     * <p>{@code formatVersion} is the on-disk version returned by
+     * {@link org.elasticsearch.columnar.substrate.ColumnarCodecUtil#checkHeader}; it has already
+     * been validated to be in {@code [BASELINE, CURRENT]}. When a future version adds a field
+     * to this layout, gate the read on a {@code VERSION_*} constant from
+     * {@link org.elasticsearch.columnar.FormatVersion}:
+     * <pre>{@code
+     * int flags = 0;
+     * if (formatVersion.onOrAfter(FormatVersion.V1_EXTRA_FLAGS)) {
+     *     flags = in.readVInt();
+     * }
+     * }</pre>
+     * Without this branch, an old reader decoding a next-version segment would consume the flag
+     * bytes as part of the next field and corrupt every subsequent offset.
+     */
+    public static NumericColumnMetadata readFrom(DataInput in, int maxDoc, final FormatVersion formatVersion) throws IOException {
+        ColumnIteratorMetadata iterator = ColumnIteratorMetadata.readFrom(in, maxDoc, formatVersion);
         int numDocsWithField = in.readVInt();
         if (numDocsWithField == 0) {
             return empty(iterator, BlockBytesCodec.IDENTITY_ID);
         }
-        int numValues = in.readVInt();
+        long numValues = in.readVLong();
         int blockSize = in.readVInt();
         byte blockBytesCodecId = in.readByte();
         byte terminalId = in.readByte();
@@ -228,7 +246,7 @@ public record NumericColumnMetadata(
         return bytes;
     }
 
-    int numBlocks() {
+    long numBlocks() {
         return numValues == 0 ? 0 : (numValues + blockSize - 1) / blockSize;
     }
 }

@@ -95,9 +95,6 @@ public final class GenerativeFunctionCatalog {
         "to_timeduration",
         "embedding",
         "text_embedding",
-        // from_base64 throws "Last unit does not have enough valid bits" instead of returning null
-        // on non-base64 input — a real ES|QL bug (should return null gracefully); exclude until fixed.
-        "from_base64",
         // Numeric clamping functions: handled by MathFunctionGenerator with typed literal bounds;
         // their keyword overloads are undertested and may trigger server-side bugs.
         "clamp",

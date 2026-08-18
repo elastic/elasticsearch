@@ -14,3 +14,6 @@
 `to`
 :   End of the range. Can be a number, a date or a date expressed as a string.
 
+`options` {applies_to}`{"serverless": "ga", "stack": "ga 9.6.0"}`
+:   (Optional) Additional options as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params).
+

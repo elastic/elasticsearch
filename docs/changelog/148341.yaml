@@ -1,5 +1,0 @@
-area: Security
-issues: []
-pr: 148341
-summary: Record authc time histograms in milliseconds
-type: bug

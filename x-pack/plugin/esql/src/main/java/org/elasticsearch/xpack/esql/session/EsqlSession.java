@@ -87,6 +87,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadata;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -115,6 +116,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -946,7 +948,7 @@ public class EsqlSession {
     ) {
         SubPlanAndCallback subPlanAndCallback = null;
 
-        // Find the first (bottom-up) SemiJoin or InlineJoin that needs subplan execution.
+        // Find the first (bottom-up) SemiJoin/InnerJoin/InlineJoin that needs subplan execution.
         // Processing bottom-up ensures inner subplans (e.g. INLINE STATS inside IN subquery)
         // are resolved before outer ones that depend on them.
         LogicalPlan firstJoin = findFirstSubPlanJoin(mainPlan, subPlansResults);
@@ -970,6 +972,17 @@ public class EsqlSession {
                         blockFactory,
                         localRelationPage
                     );
+                }, () -> releaseLocalRelationBlocks(localRelationPage), true);
+            }
+        } else if (firstJoin instanceof InnerJoin) {
+            InnerJoin.LogicalPlanTuple subPlans = InnerJoin.firstSubPlan(mainPlan, subPlansResults);
+            if (subPlans != null) {
+                AtomicReference<Page> localRelationPage = new AtomicReference<>();
+                subPlanAndCallback = new SubPlanAndCallback(subPlans.subPlan(), result -> {
+                    LocalRelation resultWrapper = resultToPlan(subPlans.subPlan().source(), result);
+                    localRelationPage.set(resultWrapper.supplier().get());
+                    subPlansResults.add(resultWrapper);
+                    return InnerJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
                 }, () -> releaseLocalRelationBlocks(localRelationPage), true);
             }
         } else if (firstJoin instanceof InlineJoin) {
@@ -1005,23 +1018,30 @@ public class EsqlSession {
     }
 
     /**
-     * Finds the first (bottom-up) SemiJoin or InlineJoin in the plan that has an unresolved subplan.
+     * Finds the first (bottom-up) SemiJoin, InnerJoin or InlineJoin in the plan that has an unresolved subplan.
      * Returns the join node itself, or null if none found.
      */
     private static LogicalPlan findFirstSubPlanJoin(LogicalPlan plan, Set<LocalRelation> subPlansResults) {
         Holder<LogicalPlan> result = new Holder<>();
-        // Evaluate the right hand side of a SemiJoin or InlineJoin, unless it is a LocalRelation and registered in subPlansResults already
+        // Evaluate the right hand side of a SemiJoin/InnerJoin/InlineJoin, unless it is a LocalRelation and registered in subPlansResults
+        // already
         plan.forEachUp(p -> {
             if (result.get() != null) {
                 return;
             }
-            // Whether checking the subquery join or InlineJoin first does not matter, the plan is processed bottom up, looking for
+            // Whether checking the subquery join, InnerJoin or InlineJoin first does not matter, the plan is processed bottom up, looking
+            // for
             // joins whose right child haven't been evaluated yet
             if (p instanceof AbstractSubqueryJoin sj) {
                 if (sj.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) {
                     return; // already processed
                 }
                 result.set(sj);
+            } else if (p instanceof InnerJoin ej) {
+                if (ej.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) {
+                    return; // already processed
+                }
+                result.set(ej);
             } else if (p instanceof InlineJoin ij) {
                 if (ij.right().anyMatch(r -> r instanceof StubRelation)) {
                     result.set(ij);
@@ -1376,7 +1396,7 @@ public class EsqlSession {
         PreAnalysisResult result = FieldNameUtils.resolveFieldNames(
             parsed,
             preAnalysis.enriches().isEmpty() == false,
-            unmappedResolution == UnmappedResolution.LOAD
+            unmappedResolution.loadsUnmappedFields()
         ).withMinimumTransportVersion(localClusterMinimumVersion);
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
         // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer,
@@ -1416,7 +1436,7 @@ public class EsqlSession {
         executionInfo.queryProfile().indicesResolutionMarker().start();
         // TODO this is a quick hack to alleviate the pressure off of https://github.com/elastic/elasticsearch/issues/145920. A better
         // solution would be to just not track the unmapped indices at all, but that requires a more structural change.
-        boolean trackedUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD;
+        boolean trackedUnmappedFieldIndices = unmappedResolution.loadsUnmappedFields();
         boolean nullify = parsed.collectFirstChildren(p -> p instanceof PromqlCommand).isEmpty() == false;
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(preAnalysis, configuration, executionInfo, trackedUnmappedFieldIndices, result, requestFilter, l)
@@ -1834,26 +1854,25 @@ public class EsqlSession {
         }
         if (executionInfo.getClusters().isEmpty() || executionInfo.isCrossClusterSearch() == false) {
             // Local only case, still do some checks, since we moved analysis checks here
-            if (lookupIndexResolution.get().indexNameWithModes().isEmpty()) {
+            if (lookupIndexResolution.get().indexProperties().isEmpty()) {
                 // This is not OK, but we proceed with it as we do with invalid resolution, and it will fail on the verification
                 // because lookup field will be missing.
                 return result.addLookupIndexResolution(index, lookupIndexResolution);
             }
-        } else if (lookupIndexResolution.get().indexNameWithModes().isEmpty()
-            && lookupIndexResolution.resolvedIndices().isEmpty() == false) {
-                // This is a weird situation - we have empty index list but non-empty resolution. This is likely because IndexResolver
-                // got an empty map and pretends to have an empty resolution. This means this query will fail, since lookup fields will not
-                // match, but here we can pretend it's ok to pass it on to the verifier and generate a correct error message.
-                // Note this only happens if the map is completely empty, which means it's going to error out anyway, since we should have
-                // at least the key field there.
-                return result.addLookupIndexResolution(index, lookupIndexResolution);
-            }
+        } else if (lookupIndexResolution.get().indexProperties().isEmpty() && lookupIndexResolution.resolvedIndices().isEmpty() == false) {
+            // This is a weird situation - we have empty index list but non-empty resolution. This is likely because IndexResolver
+            // got an empty map and pretends to have an empty resolution. This means this query will fail, since lookup fields will not
+            // match, but here we can pretend it's ok to pass it on to the verifier and generate a correct error message.
+            // Note this only happens if the map is completely empty, which means it's going to error out anyway, since we should have
+            // at least the key field there.
+            return result.addLookupIndexResolution(index, lookupIndexResolution);
+        }
 
         // Collect resolved clusters from the index resolution, verify that each cluster has a single resolution for the lookup index
         Map<String, String> clustersWithResolvedIndices = new HashMap<>(lookupIndexResolution.resolvedIndices().size());
-        for (var entry : lookupIndexResolution.get().indexNameWithModes().entrySet()) {
+        for (var entry : lookupIndexResolution.get().indexProperties().entrySet()) {
             var indexName = entry.getKey();
-            var indexMode = entry.getValue();
+            var indexMode = entry.getValue().indexMode();
             String clusterAlias = RemoteClusterAware.splitIndexName(indexName).getClusterGroupingKey();
             // Check that all indices are in lookup mode
             if (indexMode != IndexMode.LOOKUP) {
@@ -1935,7 +1954,7 @@ public class EsqlSession {
             EsIndex newIndex = new EsIndex(
                 index,
                 lookupIndexResolution.get().mapping(),
-                Map.of(indexName, IndexMode.LOOKUP),
+                Map.of(indexName, new IndexProperties(IndexMode.LOOKUP, 0)),
                 lookupIndexResolution.get().originalIndices(),
                 lookupIndexResolution.get().concreteIndices()
             );
@@ -2297,7 +2316,10 @@ public class EsqlSession {
             LogicalPlan plan = analyzedPlan(parsed, unmappedResolution, configuration, result, executionInfo, timestampBounds);
             analysisProfile.stop();
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
-            // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
+            // Analysis succeeded on the first attempt. For unmapped_fields=nullify/load we intentionally do NOT re-resolve without the
+            // request filter to recover a field that is mapped only in a filter-pruned index: once the filter prunes an index we keep it
+            // gone. Resurrecting it would drop real data from surviving indices and turn working queries into errors. The retry
+            // below stays exception-triggered, so it only fires as a last resort to make an otherwise-failing query valid.
             listener.onResponse(new Versioned<>(plan, result.minimumTransportVersion()));
         } catch (VerificationException ve) {
             LOGGER.debug("Analyzing the plan ({}) failed with {}", description, ve.getDetailedMessage());

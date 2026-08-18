@@ -277,7 +277,8 @@ public class SecurityTests extends ESTestCase {
             TestProjectResolvers.alwaysThrow(),
             CrossProjectModeDecider.NOOP,
             ProjectRoutingResolver.NOOP,
-            new SystemIndices(List.of())
+            new SystemIndices(List.of()),
+            new UsageService()
         );
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 import org.apache.commons.io.IOUtils;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.network.InetAddresses;
@@ -29,12 +30,11 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.rest.RestResponseUtils;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -785,6 +786,78 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         assertTrue("Detail should mention the malformed row, got: " + warnings.get(1), warnings.get(1).contains("Malformed NDJSON"));
     }
 
+    /**
+     * End-to-end twin of {@link #testMalformedLineEmitsResponseWarningHeader} for a
+     * {@code StreamReadConstraints} violation, which reaches the same whole-line sink from the token scanner
+     * rather than from a decode arm. Exercised through {@code NdJsonFormatReader.read} so schema inference runs
+     * over the bad line too: inference has its own copy of the whole-line catch, and without it the read fails
+     * during sampling before {@code error_mode} is ever consulted. Asserts the surviving rows, not just the
+     * header, so a warning emitted while the trailing record was silently dropped would still be caught.
+     */
+    public void testStreamConstraintViolationEmitsResponseWarningHeaderAndKeepsGoodRows() throws IOException {
+        String ndjson = "{\"id\":1}\n{\"id\":" + "1".repeat(1200) + "}\n{\"id\":3}\n";
+        var object = new BytesStorageObject("memory://constraint.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Integer> ids = new ArrayList<>();
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(100).errorPolicy(ErrorPolicy.LENIENT).build()
+            )
+        ) {
+            while (iterator.hasNext()) {
+                try (Page page = iterator.next()) {
+                    // The surviving values are 1 and 3, so inference types `id` as INTEGER.
+                    IntBlock block = page.getBlock(0);
+                    for (int i = 0; i < block.getPositionCount(); i++) {
+                        ids.add(block.getInt(i));
+                    }
+                }
+            }
+        }
+        assertEquals("the constraint-violating line is dropped, both good rows survive", List.of(1, 3), ids);
+        List<String> warnings = drainWarnings();
+        // 1 summary + 1 detail
+        assertEquals(2, warnings.size());
+        assertTrue("Summary should mention skip_row, got: " + warnings.get(0), warnings.get(0).contains("policy: skip_row"));
+        assertTrue("Detail should mention the over-limit row, got: " + warnings.get(1), warnings.get(1).contains("Over-limit NDJSON"));
+        assertTrue("Detail should carry Jackson's limit text, got: " + warnings.get(1), warnings.get(1).contains("Number value length"));
+    }
+
+    /**
+     * The decoder-level test pins {@code status()} on the exception at its throw site; this pins what a caller
+     * actually observes, one layer out, where the exception has crossed {@code NdJsonPageIterator.hasNext} and
+     * could in principle have been re-wrapped. It asserts through {@link ExceptionsHelper#status} — the helper
+     * the REST layer itself uses — rather than calling {@code status()} on a known type, so it stays honest if
+     * the thrown type changes again.
+     * <p>
+     * Both arms matter. A malformed line reaches the whole-line sink from a decode arm; an over-limit token
+     * reaches it from the token scanner. Both are the user's data, so both must answer 400 rather than the 500
+     * the {@code QlServerException} family produces.
+     */
+    public void testStrictReadFailuresSurfaceAsBadRequestThroughTheIterator() throws IOException {
+        assertStrictReadFailureStatus("{\"id\":1}\n{{{not-an-object\n", "malformed line");
+        assertStrictReadFailureStatus("{\"id\":1}\n{\"id\":" + "1".repeat(1200) + "}\n", "over-limit token");
+    }
+
+    private void assertStrictReadFailureStatus(String ndjson, String what) throws IOException {
+        var object = new BytesStorageObject("memory://status.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(100).errorPolicy(ErrorPolicy.STRICT).build()
+            )
+        ) {
+            Exception e = expectThrows(Exception.class, () -> {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            });
+            assertEquals(what + " must surface as a client error, not a server error", RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        }
+    }
+
     public void testMalformedLinesOverflowEmitsCappedHeaders() throws IOException {
         // Mix valid and invalid lines so the SKIP_ROW path triggers more than MAX_ADDED_WARNINGS times.
         StringBuilder ndjson = new StringBuilder();
@@ -841,7 +914,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             Page first = iterator.next();
             assertEquals(1, first.getPositionCount());
             assertEquals(1, ((IntBlock) first.getBlock(0)).getInt(0));
-            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
+            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
         }
     }
@@ -869,7 +942,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertTrue(iterator.hasNext());
             Page first = iterator.next();
             assertEquals(batchSize, first.getPositionCount());
-            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
+            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
         }
     }
@@ -896,7 +969,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertTrue(iterator.hasNext());
             Page first = iterator.next();
             assertEquals(pageRows, first.getPositionCount());
-            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
+            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
         }
     }
@@ -1064,7 +1137,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             Page first = iterator.next();
             assertEquals(1, first.getPositionCount());
             assertEquals(1, ((IntBlock) first.getBlock(0)).getInt(0));
-            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
+            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
         }
     }
@@ -1141,7 +1214,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                     .build()
             )
         ) {
-            var e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            var e = expectThrows(ParsingException.class, () -> {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
@@ -1261,7 +1334,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         // column (previously the boolean was silently null). Lenient-mode behavior is covered by
         // testInferredCrossKindBooleanHonorsErrorMode.
         try (var iterator = reader.read(object, List.of("x", "y"), 100)) {
-            var e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            var e = expectThrows(ParsingException.class, () -> {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
@@ -1290,7 +1363,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                     .build()
             )
         ) {
-            var e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            var e = expectThrows(ParsingException.class, () -> {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
@@ -1534,7 +1607,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                 FormatReadContext.builder().projectedColumns(List.of("n")).batchSize(100).errorPolicy(ErrorPolicy.STRICT).build()
             )
         ) {
-            var e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            var e = expectThrows(ParsingException.class, () -> {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
@@ -1637,7 +1710,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                     .build()
             )
         ) {
-            var e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            var e = expectThrows(ParsingException.class, () -> {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
@@ -1853,7 +1926,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertTrue(iterator.hasNext());
             Page first = iterator.next();
             assertEquals(1, first.getPositionCount());
-            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
+            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("user"));
             assertThat(ex.getMessage(), Matchers.containsString("an object"));
         }
@@ -1873,7 +1946,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertTrue(iterator.hasNext());
             Page first = iterator.next();
             assertEquals(1, first.getPositionCount());
-            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
+            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("user"));
             assertThat(ex.getMessage(), Matchers.containsString("an object"));
         }
@@ -2246,7 +2319,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             Page first = iterator.next();
             assertEquals(0, first.getBlockCount());
             assertEquals(2, first.getPositionCount());
-            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
+            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
         }
     }
@@ -2420,7 +2493,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         var reader = new NdJsonFormatReader(null, blockFactory);
         var ctx = FormatReadContext.builder().projectedColumns(List.of("a", "c")).batchSize(100).errorPolicy(ErrorPolicy.STRICT).build();
         try (var iterator = reader.read(object, ctx)) {
-            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
+            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
         }
     }
@@ -2706,17 +2779,31 @@ public class NdJsonPageIteratorTests extends ESTestCase {
 
     public void testWithConfigSchemaSampleSizeZeroIsRejected() {
         NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        expectThrows(QlIllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "0")));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> reader.withConfig(Map.of("schema_sample_size", "0"))
+        );
+        assertThat(e.getMessage(), Matchers.containsString("schema_sample_size must be positive"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
     }
 
     public void testWithConfigSchemaSampleSizeNegativeIsRejected() {
         NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        expectThrows(QlIllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "-1")));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> reader.withConfig(Map.of("schema_sample_size", "-1"))
+        );
+        assertThat(e.getMessage(), Matchers.containsString("schema_sample_size must be positive"));
     }
 
     public void testWithConfigSchemaSampleSizeInvalidIsRejected() {
         NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        expectThrows(IllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "abc")));
+        // Distinct from the out-of-range cases: only the message separates unparseable from out-of-range now.
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> reader.withConfig(Map.of("schema_sample_size", "abc"))
+        );
+        assertThat(e.getMessage(), Matchers.containsString("Invalid integer value [abc]"));
     }
 
     public void testWithConfigNullOrEmptyReturnsThis() {
@@ -3029,16 +3116,10 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     /** Configurations that hurt more than they help (sub-64 KiB) must be rejected up front. */
     public void testSegmentSizeTooSmallIsRejected() {
         var settings = Settings.builder().put(NdJsonFormatReader.SEGMENT_SIZE_SETTING, "1kb").build();
-        QlIllegalArgumentException ex = expectThrows(
-            QlIllegalArgumentException.class,
-            () -> new NdJsonFormatReader(settings, blockFactory)
-        );
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new NdJsonFormatReader(settings, blockFactory));
         assertThat(ex.getMessage(), Matchers.containsString("segment_size"));
         var reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        QlIllegalArgumentException ex2 = expectThrows(
-            QlIllegalArgumentException.class,
-            () -> reader.withConfig(Map.of("segment_size", "1kb"))
-        );
+        IllegalArgumentException ex2 = expectThrows(IllegalArgumentException.class, () -> reader.withConfig(Map.of("segment_size", "1kb")));
         assertThat(ex2.getMessage(), Matchers.containsString("segment_size"));
     }
 

@@ -28,3 +28,6 @@ serverless: preview
 
 :::{include} ../examples/field_extract.md
 :::
+
+:::{include} ../appendix/field_extract.md
+:::

@@ -413,6 +413,13 @@ FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001
 ```
 
 
+## LOOKUP JOIN across clusters [ccq-lookup-join]
+
+{{esql}} [`LOOKUP JOIN`](/reference/query-languages/esql/esql-lookup-join.md#cross-cluster-support) is supported in cross-cluster queries. By default, {{esql}} resolves the lookup index on every cluster in the query and each cluster joins against its own local index with that name. In this case, the lookup index must exist on every cluster being queried. This follows the same pattern as [remote mode Enrich](#esql-enrich-remote).
+
+{applies_to}`stack: preview 9.6+` If the lookup index is missing from one or more remote clusters, use [coordinator mode](/reference/query-languages/esql/esql-lookup-join.md#coordinator-mode) to join against a local cluster lookup index copy.
+
+
 ## Excluding clusters or indices from {{esql}} query [ccq-exclude]
 
 Use exclusions in the `FROM` command to omit an entire remote cluster or specific indices from a query.
@@ -488,6 +495,15 @@ Running multiple versions of {{es}} in the same cluster beyond the duration of a
 
 For more information about upgrades, see [Upgrading {{es}}](docs-content://deploy-manage/upgrade/deployment-or-cluster.md).
 
+
+## Limitations
+
+### Datasets across clusters
+```{applies_to}
+stack: experimental =9.5
+```
+
+You can query datasets created through [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md) on the local cluster only. Querying a dataset on a remote cluster returns an error.
 
 ## Query across {{serverless-short}} projects [ccq-cps]
 

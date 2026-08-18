@@ -13,8 +13,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.codec.vectors.BFloat16;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
+import org.elasticsearch.nativeaccess.SimdVecLibraryTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -28,19 +28,15 @@ import java.util.function.IntFunction;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 import static org.hamcrest.Matchers.containsString;
 
-public class JDKVectorLibraryBFloat16Tests extends VectorSimilarityFunctionsTests {
+public class JDKVectorLibraryBFloat16Tests extends SimdVecLibraryTests {
 
     static final ValueLayout.OfFloat LAYOUT_LE_FLOAT = JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
     static final ValueLayout.OfShort LAYOUT_LE_BFLOAT16 = ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
 
-    final VectorSimilarityFunctions.BFloat16QueryType queryType;
+    final SimdVecLibrary.BFloat16QueryType queryType;
     final float delta;
 
-    public JDKVectorLibraryBFloat16Tests(
-        VectorSimilarityFunctions.BFloat16QueryType queryType,
-        VectorSimilarityFunctions.Function function,
-        int size
-    ) {
+    public JDKVectorLibraryBFloat16Tests(SimdVecLibrary.BFloat16QueryType queryType, SimdVecLibrary.SimilarityFunction function, int size) {
         super(function, size);
         this.queryType = queryType;
         this.delta = 1e-2f * size; // scale the delta with the size, bfloat16 has less precision
@@ -48,22 +44,22 @@ public class JDKVectorLibraryBFloat16Tests extends VectorSimilarityFunctionsTest
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
-        List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(VectorSimilarityFunctionsTests.parametersFactory());
+        List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(SimdVecLibraryTests.parametersFactory());
         // cosine is not used on bfloat16
-        baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.Function.COSINE);
-        return Arrays.stream(VectorSimilarityFunctions.BFloat16QueryType.values())
+        baseParams.removeIf(os -> os[0] == SimdVecLibrary.SimilarityFunction.COSINE);
+        return Arrays.stream(SimdVecLibrary.BFloat16QueryType.values())
             .flatMap(q -> baseParams.stream().map(os -> CollectionUtils.concatLists(List.of(q), Arrays.asList(os)).toArray()))
             .toList();
     }
 
     @BeforeClass
     public static void beforeClass() {
-        VectorSimilarityFunctionsTests.setup();
+        SimdVecLibraryTests.setup();
     }
 
     @AfterClass
     public static void afterClass() {
-        VectorSimilarityFunctionsTests.cleanup();
+        SimdVecLibraryTests.cleanup();
     }
 
     public void testAllZeroValues() {

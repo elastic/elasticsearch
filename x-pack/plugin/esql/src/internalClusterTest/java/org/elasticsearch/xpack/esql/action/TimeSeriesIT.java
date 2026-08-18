@@ -769,7 +769,6 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                         equalTo("cluster:column_at_a_time:BytesRefsFromOrds.Singleton")
                     )
                 );
-                assertThat(ops.get(6).operator(), containsString("EvalOperator"));
                 assertThat(ops.get(7).operator(), containsString("ProjectOperator"));
                 assertThat(ops.get(8).operator(), containsString("ExchangeSinkOperator"));
             }

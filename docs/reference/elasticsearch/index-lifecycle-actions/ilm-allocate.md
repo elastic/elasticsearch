@@ -20,7 +20,7 @@ You must specify the number of replicas or at least one `include`, `exclude`, or
 For more information about using custom attributes for shard allocation, refer to [](/reference/elasticsearch/index-settings/shard-allocation.md).
 
 `number_of_replicas`
-:   (Optional, integer) Number of replicas to assign to the index.
+:   (Optional, integer) Number of replicas to assign to the index. If set, the `index.auto_expand_replicas` setting is also removed from the index, since it would otherwise override the explicit replica count.
 
 `total_shards_per_node`
 :   (Optional, integer) The maximum number of shards for the index on a single {{es}} node. A value of `-1` is interpreted as unlimited. See [total shards](/reference/elasticsearch/index-settings/total-shards-per-node.md).
@@ -133,6 +133,3 @@ PUT _ilm/policy/my_policy
   }
 }
 ```
-
-
-

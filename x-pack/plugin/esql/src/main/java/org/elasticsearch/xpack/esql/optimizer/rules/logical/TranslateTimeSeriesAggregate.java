@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
@@ -56,6 +57,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * Time-series aggregation is special because it must be computed per time series, regardless of the grouping keys.
@@ -175,6 +177,14 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
 
     @Override
     protected LogicalPlan rule(TimeSeriesAggregate inputAggregate, AnalyzerContext context) {
+        LogicalPlan translated = translate(inputAggregate, context);
+        if (translated == inputAggregate) {
+            return translated;
+        }
+        return usePackDimsAgg(translated, context);
+    }
+
+    LogicalPlan translate(TimeSeriesAggregate inputAggregate, AnalyzerContext context) {
         if (inputAggregate.resolved() == false) {
             return inputAggregate;
         }
@@ -291,7 +301,19 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             if (group instanceof Attribute || group instanceof Alias) {
                 NamedExpression g = (NamedExpression) group;
                 if (timeBucket != null && g.id().equals(timeBucket.id())) {
-                    addBucket(g instanceof Attribute ? timeBucket.toAttribute() : timeBucket, g, firstPassGroupings, secondPassGroupings);
+                    var firstPassBucket = g instanceof Attribute ? timeBucket.toAttribute() : timeBucket;
+                    // use different name for bucket in the first pass if conflict
+                    if (firstPassBucket instanceof Alias alias
+                        && aggregate.child().output().stream().anyMatch(a -> a.name().equals(alias.name()))) {
+                        firstPassBucket = new Alias(
+                            timeBucket.source(),
+                            Attribute.rawTemporaryName(timeBucket.name(), "time_bucket"),
+                            Alias.unwrap(firstPassBucket),
+                            firstPassBucket.id()
+                        );
+                    }
+                    firstPassGroupings.add(firstPassBucket);
+                    secondPassGroupings.add(new Alias(group.source(), g.name(), firstPassBucket.toAttribute(), g.id()));
                 } else {
                     var unwrapped = Alias.unwrap(g);
                     if (unwrapped instanceof Attribute a) {
@@ -360,7 +382,12 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             );
             Alias packedGrouping = PackDims.newPackedGrouping(aggregate.source(), packDims.packed());
             secondPassGroupings.add(packedGrouping);
-            Aggregate secondPhase = new Aggregate(
+
+            // Drop second-pass aggs whose names collide with user groupings before building Aggregate/Project.
+            // PackDims would otherwise emit Project[[alias, grouping]]; optimizer RemoveStatsOverride cannot fix that.
+            shadowAggsOverriddenByGroupings(aggregate, context, secondPassAggs);
+
+            var secondPhase = new Aggregate(
                 aggregate.source(),
                 packDims,
                 secondPassGroupings,
@@ -384,6 +411,28 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         }
     }
 
+    private static void shadowAggsOverriddenByGroupings(
+        TimeSeriesAggregate inputAggregate,
+        AnalyzerContext context,
+        List<NamedExpression> secondPassAggs
+    ) {
+        var aggsThenGroupings = new ArrayList<NamedExpression>(secondPassAggs.size() + inputAggregate.groupings().size());
+        aggsThenGroupings.addAll(secondPassAggs);
+        for (var g : inputAggregate.groupings()) {
+            aggsThenGroupings.add(Expressions.attribute(g));
+        }
+
+        List<NamedExpression> unique = RemoveStatsOverride.keepLastNamedExpression(
+            aggsThenGroupings,
+            context.deferredHeaderWarnings()::add
+        );
+
+        Set<NameId> originalAggIds = secondPassAggs.stream().map(NamedExpression::id).collect(Collectors.toUnmodifiableSet());
+
+        secondPassAggs.clear();
+        secondPassAggs.addAll(unique.stream().filter(e -> originalAggIds.contains(e.id())).toList());
+    }
+
     private TimeSeriesAggregate replaceSurrogateTimeseriesAggs(TimeSeriesAggregate aggregate) {
         return (TimeSeriesAggregate) aggregate.transformExpressionsOnly(TimeSeriesAggregateFunction.class, aggFunc -> {
             if (aggFunc instanceof SurrogateExpression) {
@@ -394,16 +443,6 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             }
             return aggFunc;
         }).transformExpressionsUp(FilteredExpression.class, FilteredExpression::surrogate);
-    }
-
-    private void addBucket(
-        NamedExpression timeBucket,
-        NamedExpression group,
-        List<Expression> firstPassGroupings,
-        List<Expression> secondPassGroupings
-    ) {
-        firstPassGroupings.add(timeBucket);
-        secondPassGroupings.add(new Alias(group.source(), group.name(), timeBucket.toAttribute(), group.id()));
     }
 
     private void addAttribute(
@@ -552,6 +591,7 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             gcdInterval,
             null,
             null,
+            userBucket.options(),
             userBucket.configuration(),
             userBucket.offset(),
             userBucket.roundingConfiguration()
@@ -618,4 +658,28 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         });
     }
 
+    static LogicalPlan usePackDimsAgg(LogicalPlan plan, AnalyzerContext context) {
+        if (context.minimumVersion().supports(PackDimsAgg.PACK_DIMS_AGG_VERSION) == false) {
+            return plan;
+        }
+        return plan.transformDown(PackDims.class, packDims -> {
+            if (packDims.child() instanceof TimeSeriesAggregate aggs) {
+                List<NamedExpression> newAggregates = new ArrayList<>();
+                List<Attribute> dims = new ArrayList<>();
+                for (NamedExpression agg : aggs.aggregates()) {
+                    if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction fn) {
+                        if (fn instanceof DimensionValues dv) {
+                            dims.add((Attribute) dv.field());
+                        } else {
+                            newAggregates.add(agg);
+                        }
+                    }
+                }
+                Attribute packed = packDims.packed();
+                newAggregates.add(new Alias(packDims.source(), packed.name(), PackDimsAgg.create(aggs.source(), dims), packed.id()));
+                return aggs.with(aggs.child(), aggs.groupings(), mergeExpressions(newAggregates, aggs.groupings()));
+            }
+            return packDims;
+        });
+    }
 }

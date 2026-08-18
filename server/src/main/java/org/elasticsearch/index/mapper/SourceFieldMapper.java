@@ -16,7 +16,6 @@ import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -646,13 +645,18 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         final int docCount = context.docCount();
         final byte[] sizes = new byte[docCount * 8];
+        final XContentType[] contentTypes = context.contentTypes();
+        final BytesReference[] sources = context.sources();
         for (int d = 0; d < docCount; d++) {
-            final IndexRequest request = context.request(d);
-            final XContentType contentType = request.getContentType() != null ? request.getContentType() : XContentType.JSON;
-            ByteUtils.writeLongLE(SourceToParse.Source.fromBytes(request.source(), contentType).estimatedSizeInBytes(), sizes, d * 8);
+            ByteUtils.writeLongLE(SourceToParse.Source.fromBytes(sources[d], contentTypes[d]).estimatedSizeInBytes(), sizes, d * 8);
         }
         context.addColumn(
-            MappedColumns.longColumn(sizes, RECOVERY_SOURCE_SIZE_NAME, NumericDocValuesField.TYPE, LongColumn.NumericKind.LONG)
+            MappedColumns.longColumn(
+                new BytesRef(sizes),
+                RECOVERY_SOURCE_SIZE_NAME,
+                NumericDocValuesField.TYPE,
+                LongColumn.NumericKind.LONG
+            )
         );
     }
 

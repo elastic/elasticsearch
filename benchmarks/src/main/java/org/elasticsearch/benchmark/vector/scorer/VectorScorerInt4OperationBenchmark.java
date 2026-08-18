@@ -11,7 +11,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -100,13 +100,13 @@ public class VectorScorerInt4OperationBenchmark {
 
     @Benchmark
     public int nativeWithNativeSeg() {
-        return vectorSimilarityFunctions.dotProductI4(unpackedNativeSeg, packedNativeSeg, packedLen);
+        return VEC_LIBRARY.dotProductI4(unpackedNativeSeg, packedNativeSeg, packedLen);
     }
 
     @Benchmark
     public int nativeWithHeapSeg() {
-        return vectorSimilarityFunctions.dotProductI4(unpackedHeapSeg, packedHeapSeg, packedLen);
+        return VEC_LIBRARY.dotProductI4(unpackedHeapSeg, packedHeapSeg, packedLen);
     }
 
-    static final VectorSimilarityFunctions vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();
+    static final SimdVecLibrary VEC_LIBRARY = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();
 }

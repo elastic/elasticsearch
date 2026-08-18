@@ -964,11 +964,16 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         SelfReportedShardOverhead selfReportedShardOverhead,
         PostingsInEstimate postingsInEstimate
     ) {
+        final boolean useSelfReportedShardOverhead = switch (selfReportedShardOverhead) {
+            case ENABLE -> true;
+            case DISABLE -> false;
+            case DEFAULT -> selfReportedShardMemoryOverheadEnabled;
+        };
         return new ShardHeapEstimator(
             fixedShardMemoryOverhead,
             adaptiveExtraOverheadRatio,
             adaptiveShardMemoryEstimationMinThresholdEnabled ? getAdaptiveShardMemoryEstimationMinThreshold() : 0,
-            selfReportedShardOverhead.isEnabled(selfReportedShardMemoryOverheadEnabled),
+            useSelfReportedShardOverhead,
             postingsInEstimate == PostingsInEstimate.INCLUDE
         );
     }
@@ -979,25 +984,8 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     }
 
     public enum SelfReportedShardOverhead {
-        ENABLE {
-            @Override
-            boolean isEnabled(boolean ignored) {
-                return true;
-            }
-        },
-        DISABLE {
-            @Override
-            boolean isEnabled(boolean ignored) {
-                return false;
-            }
-        },
-        DEFAULT {
-            @Override
-            boolean isEnabled(boolean selfReportedShardMemoryOverheadEnabledSetting) {
-                return selfReportedShardMemoryOverheadEnabledSetting;
-            }
-        };
-
-        abstract boolean isEnabled(boolean selfReportedShardMemoryOverheadEnabledSetting);
+        ENABLE,
+        DISABLE,
+        DEFAULT;
     }
 }

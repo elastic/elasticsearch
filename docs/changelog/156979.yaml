@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 156979
+summary: Skip `field_extract` fusion that breaks type resolution
+type: bug

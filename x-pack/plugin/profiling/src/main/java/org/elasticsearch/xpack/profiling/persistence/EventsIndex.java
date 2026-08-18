@@ -57,8 +57,9 @@ public final class EventsIndex {
         return Math.pow(1.0d / samplingFactor, exponent);
     }
 
-    public EventsIndex getResampledIndex(long targetSampleSize, long currentSampleSize) {
-        return EventsIndex.getSampledIndex(targetSampleSize, currentSampleSize, this.getExponent());
+    public EventsIndex getResampledIndex(long targetSampleSize, long currentSampleSize, boolean otel) {
+        EventsIndex resampled = EventsIndex.getSampledIndex(targetSampleSize, currentSampleSize, this.getExponent());
+        return otel ? resampled.withOtelSuffix() : resampled;
     }
 
     @Override

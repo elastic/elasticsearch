@@ -25,6 +25,14 @@ tasks.named('javaRestTest').configure {
   def buildParams = project.rootProject.extensions.getByName('buildParams')
   it.onlyIf("snapshot build") { buildParams.snapshotBuild }
   usesDefaultDistribution("OtelAuditLogsIT requires xpack security + audit (default distribution)")
+  // disabling this specific assert in test to prevent the HTTP server from crashing
+  // where it receives a partial response during node shutdown on teardown (JVM27 specific).
+  jvmArgs '-da:sun.net.httpserver...'
+}
+
+tasks.named('test').configure {
+  // see javaRestTest above; RecordingApmServerTests exercises the truncated-chunked-body scenario
+  jvmArgs '-da:sun.net.httpserver...'
 }
 
 def otelVersion = '1.62.0'

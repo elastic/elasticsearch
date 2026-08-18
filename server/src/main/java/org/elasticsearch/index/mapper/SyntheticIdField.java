@@ -28,22 +28,9 @@ public final class SyntheticIdField extends Field {
     private static final String ENABLED_ATTRIBUTE_KEY = SyntheticIdField.class.getSimpleName() + ".enabled";
     private static final String ENABLED_ATTRIBUTE_VALUE = Boolean.TRUE.toString();
 
-    /** The Lucene {@link FieldType} for synthetic {@code _id} fields. Package-private so columnar mappers can build matching columns. */
-    static final FieldType TYPE;
+    private static final FieldType TYPE;
 
-    /**
-     * Field type for the doc-values-only aspect of the synthetic {@code _id} column in the columnar batch path.
-     * The companion {@link #COLUMNAR_INDEXED_TYPE} handles the inverted-index (empty token stream) aspect.
-     */
     static final FieldType COLUMNAR_DV_ONLY_TYPE;
-
-    /**
-     * Field type for the indexed (empty token stream) aspect of the synthetic {@code _id} in the columnar batch path.
-     * Requires {@code tokenized=true} so that {@link org.apache.lucene.document.column.TokenStreamColumn} accepts it;
-     * the tokenized flag is not stored in Lucene's {@code FieldInfo}, so there is no schema inconsistency with the
-     * row path's {@link #TYPE} which has {@code tokenized=false}. The TSDBSyntheticIdPostingsFormat attributes are
-     * copied from {@link #TYPE} so per-field postings format selection is consistent across segments.
-     */
     static final FieldType COLUMNAR_INDEXED_TYPE;
 
     static {

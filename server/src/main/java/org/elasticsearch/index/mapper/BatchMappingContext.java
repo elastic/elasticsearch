@@ -179,12 +179,6 @@ public final class BatchMappingContext {
      * (e.g. {@link DataStreamTimestampFieldMapper} and {@link TimeSeriesIdFieldMapper}) can read
      * per-document timestamp values without re-scanning the Lucene column list.
      *
-     * <p>Mirrors the row-path side channel ({@code DataStreamTimestampFieldMapper.storeTimestampValueForReuse}).
-     * The data is the same {@link EscfColumnData} that {@code DateFieldMapper.mapColumnBatch}
-     * already built; no copy is made. Only single-valued (non-array) timestamp columns are
-     * accepted — a multi-valued column (kind {@link EscfColumnKind#ARRAY}) rejects the same way
-     * the row path rejects multiple values for the same document.
-     *
      * @throws IllegalArgumentException if called more than once or if the column is multi-valued
      */
     public void recordTimestampColumn(EscfColumnData timestamps) {
@@ -202,33 +196,19 @@ public final class BatchMappingContext {
     }
 
     /**
-     * Returns {@code true} when {@link #recordTimestampColumn} has been called and the timestamp
-     * column is available for reading via {@link #timestampAt(int)}.
-     */
-    public boolean hasTimestamps() {
-        return timestampColumn != null;
-    }
-
-    /**
-     * Returns the parsed {@code @timestamp} millisecond value for document {@code doc}.
+     * Returns the {@code @timestamp} column for direct access.
      *
      * @throws IllegalArgumentException if no timestamp column was recorded (mirrors the row path's
      *     "data stream timestamp field [@timestamp] is missing" error from
      *     {@link DataStreamTimestampFieldMapper#extractTimestampValue})
-     * @throws IllegalArgumentException if the document is absent in the timestamp column
      */
-    public long timestampAt(int doc) {
+    public EscfLongColumn timestampColumn() {
         if (timestampColumn == null) {
             throw new IllegalArgumentException(
                 "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is missing"
             );
         }
-        if (timestampColumn.isPresent(doc) == false) {
-            throw new IllegalArgumentException(
-                "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is missing"
-            );
-        }
-        return timestampColumn.longValueAt(doc);
+        return timestampColumn;
     }
 
     /**

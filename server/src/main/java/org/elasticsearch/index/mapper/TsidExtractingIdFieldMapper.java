@@ -12,8 +12,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.document.column.BinaryColumn;
-import org.apache.lucene.document.column.BytesRefValuesCursor;
 import org.apache.lucene.document.column.Column;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.document.column.TokenStreamColumn;
@@ -26,6 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.hash.MurmurHash3.Hash128;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.escf.EscfLongColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -353,10 +352,16 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         final String indexName = context.indexSettings().getIndexMetadata().getIndex().getName();
         final BytesRef[] derivedUids = new BytesRef[docCount];
 
+        final EscfLongColumn timestamps = context.timestampColumn();
         for (int d = 0; d < docCount; d++) {
             final BytesRef tsid = tsids[d];
             assert tsid != null : "_tsid must not be null for doc [" + d + "]";
-            final long timestamp = context.timestampAt(d);
+            if (timestamps.isPresent(d) == false) {
+                throw new IllegalArgumentException(
+                    "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is missing"
+                );
+            }
+            final long timestamp = timestamps.longValueAt(d);
 
             final BytesRef routingBytes = routings != null ? routings[d] : null;
             if (routingBytes == null) {
@@ -402,7 +407,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
             // The fix is two separate columns for the same field name, as documented by TokenStreamColumn:
             // a BinaryColumn (DV) and a TokenStreamColumn (empty token streams, no actual terms).
             // The row-oriented fallback path (rowFieldCursor) emits a SyntheticIdField which handles both aspects.
-            context.addColumn(new SyntheticIdDvOnlyColumn(derivedUids, 0, docCount));
+            context.addColumn(MappedColumns.binaryDvOnlyColumn(derivedUids, SyntheticIdField.NAME, SyntheticIdField.COLUMNAR_DV_ONLY_TYPE));
             context.addColumn(new SyntheticIdTokenStreamColumn(derivedUids, 0, docCount));
         } else {
             context.addColumn(MappedColumns.binaryColumn(derivedUids, NAME, StringField.TYPE_STORED));
@@ -410,86 +415,10 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     }
 
     /**
-     * Doc-values-only column for the synthetic {@code _id} in the columnar batch path. Provides binary doc values
-     * (the uid bytes); the inverted-index (empty-term) aspect is handled by {@link SyntheticIdTokenStreamColumn}.
-     * The row-oriented fallback path ({@link LuceneColumn.RowFieldCursor}) emits nothing — the companion
-     * {@link SyntheticIdTokenStreamColumn} emits the full {@link SyntheticIdField} for that path.
-     */
-    private static final class SyntheticIdDvOnlyColumn extends BinaryColumn implements LuceneColumn {
-
-        private final BytesRef[] uids;
-        private final int from;
-        private final int count;
-
-        SyntheticIdDvOnlyColumn(BytesRef[] uids, int from, int count) {
-            super(SyntheticIdField.NAME, SyntheticIdField.COLUMNAR_DV_ONLY_TYPE, Density.DENSE);
-            this.uids = uids;
-            this.from = from;
-            this.count = count;
-        }
-
-        @Override
-        public LuceneColumn slice(int from, int count) {
-            Objects.checkFromIndexSize(from, count, this.count);
-            return new SyntheticIdDvOnlyColumn(uids, this.from + from, count);
-        }
-
-        @Override
-        public Column toLuceneColumn() {
-            return this;
-        }
-
-        @Override
-        public LuceneColumn.RowFieldCursor rowFieldCursor() {
-            // The companion SyntheticIdTokenStreamColumn emits the full SyntheticIdField in the row path.
-            return new LuceneColumn.RowFieldCursor() {
-                @Override
-                public int nextDoc() {
-                    return DocIdSetIterator.NO_MORE_DOCS;
-                }
-
-                @Override
-                public void appendCurrentFields(List<? super IndexableField> out) {
-                    throw new IllegalStateException("SyntheticIdDvOnlyColumn never has row-path fields");
-                }
-            };
-        }
-
-        @Override
-        public BytesRefValuesCursor values() {
-            return new BytesRefValuesCursor(count) {
-                private int doc = -1;
-
-                @Override
-                public BytesRef nextValue() {
-                    return uids[from + ++doc];
-                }
-            };
-        }
-
-        @Override
-        public ObjectTupleCursor<BytesRef> tuples() {
-            return new ObjectTupleCursor<>() {
-                private int doc = -1;
-
-                @Override
-                public int nextDoc() {
-                    return ++doc < count ? doc : DocIdSetIterator.NO_MORE_DOCS;
-                }
-
-                @Override
-                public BytesRef value() {
-                    return uids[from + doc];
-                }
-            };
-        }
-    }
-
-    /**
      * Inverted-index-only column for the synthetic {@code _id} in the columnar batch path. Provides an empty
      * {@link TokenStream} per document so the field is indexed with {@code IndexOptions.DOCS} but produces zero
      * terms — matching what {@link SyntheticIdField#tokenStream} does on the row path. Binary doc values are
-     * handled by the companion {@link SyntheticIdDvOnlyColumn}. In the row-oriented fallback path, this column
+     * handled by the companion {@code binaryDvOnlyColumn}. In the row-oriented fallback path, this column
      * emits a full {@link SyntheticIdField} (which covers both binary DV and the empty-token inverted index).
      */
     private static final class SyntheticIdTokenStreamColumn extends TokenStreamColumn implements LuceneColumn {

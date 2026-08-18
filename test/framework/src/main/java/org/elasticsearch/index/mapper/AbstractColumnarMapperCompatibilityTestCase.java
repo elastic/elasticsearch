@@ -144,12 +144,6 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         return new Doc(id, routing, seqNo, version, source, null);
     }
 
-    /**
-     * Creates a {@link Doc} with routing, a coordinator-computed tsid, and version {@code 1}.
-     * Use this for time-series batches where the tsid was computed on the coordinating node and
-     * both the row path ({@link SourceToParse#tsid()}) and the columnar path must see the same
-     * tsid bytes.
-     */
     protected static Doc doc(String id, @Nullable String routing, @Nullable BytesRef tsid, long seqNo, String source) {
         return new Doc(id, routing, seqNo, 1L, source, tsid);
     }

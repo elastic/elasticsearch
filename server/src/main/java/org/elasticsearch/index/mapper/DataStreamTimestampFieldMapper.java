@@ -249,19 +249,11 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     }
 
     private static void validateTimestamp(TimestampBounds bounds, long originValue, DocumentParserContext context) {
-        validateTimestamp(bounds, originValue, context.mappingLookup());
-    }
-
-    /**
-     * Validates that {@code originValue} falls within the index {@code bounds}.
-     * Shared between the row path ({@link #postParse}) and the columnar path
-     * ({@link #postColumnarParse}).
-     */
-    static void validateTimestamp(TimestampBounds bounds, long originValue, MappingLookup mappingLookup) {
         long value = originValue;
 
         Resolution resolution;
-        if (mappingLookup.getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH)
+        if (context.mappingLookup()
+            .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH)
             .typeName()
             .equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE)) {
             resolution = Resolution.NANOSECONDS;
@@ -299,20 +291,8 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     @Override
     public void postColumnarParse(BatchMappingContext context) throws IOException {
         super.postColumnarParse(context);
-        if (enabled == false) {
-            return;
-        }
-        final IndexSettings indexSettings = context.indexSettings();
-        final TimestampBounds bounds = indexSettings.getMode().shouldValidateTimestamp() ? indexSettings.getTimestampBounds() : null;
-        final MappingLookup mappingLookup = context.mappingLookup();
-        for (int doc = 0; doc < context.docCount(); doc++) {
-            // Throws if @timestamp is missing or absent for this document, mirroring the
-            // extractTimestampValue check in postParse.
-            long timestamp = context.timestampAt(doc);
-            if (bounds != null) {
-                validateTimestamp(bounds, timestamp, mappingLookup);
-            }
-        }
+        // TODO(columnar): validate timestamp bounds and missing-@timestamp here once
+        // BatchMappingContext exposes the mapped timestamp column.
     }
 
     @Override

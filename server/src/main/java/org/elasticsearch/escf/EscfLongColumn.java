@@ -39,16 +39,6 @@ public final class EscfLongColumn extends AbstractFixed64Column {
         return rawLong(row);
     }
 
-    /**
-     * Returns a new dense {@link DenseLongValuesCursor} positioned before the first row of this column's
-     * window. The column must be fully present ({@link #validity} {@code == null}); call this only on
-     * dense columns.
-     */
-    DenseLongValuesCursor longValuesCursor() {
-        assert validity == null : "values cursor is only valid for dense (fully-present) columns";
-        return new DenseLongValuesCursor(docCount, this);
-    }
-
     @Override
     EscfColumn sliceInternal(int from, int count) {
         return new EscfLongColumn(count, windowValidity(validity, from, count), data.slice(from * 8, count * 8));

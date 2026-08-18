@@ -140,7 +140,6 @@ import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.view.ViewCompaction;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
-import org.jspecify.annotations.NonNull;
 
 import java.time.Clock;
 import java.time.Duration;

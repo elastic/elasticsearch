@@ -18,7 +18,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.http.ResponseInjectingHttpHandler;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -50,11 +49,6 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
         );
     }
 
-    @TestIssueLogging(
-        value = "org.elasticsearch.repositories.azure:TRACE,org.elasticsearch.http:TRACE,"
-            + "fixture.azure.AzureHttpHandler:TRACE,reactor.netty.http.client:DEBUG",
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/145281"
-    )
     public void testRetriesAndOperationsAreTrackedSeparately() throws IOException {
         serverlessMode = true;
         final AzureBlobContainer blobContainer = asInstanceOf(AzureBlobContainer.class, createBlobContainer(between(1, 3)));

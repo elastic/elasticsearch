@@ -938,6 +938,10 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         }
     }
 
+    /// Compute the aggregated shard metrics for the whole tier
+    ///
+    /// @param postingsInEstimate Whether to include postings in the shard heap estimates
+    /// @param selfReportedShardOverhead Whether to use self-reported shard overhead in the shard heap estimates, when available
     public ShardHeapEstimator.ShardMetricsAggregation aggregateShardMetrics(
         PostingsInEstimate postingsInEstimate,
         SelfReportedShardOverhead selfReportedShardOverhead
@@ -945,6 +949,11 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return aggregateShardMetrics(postingsInEstimate, selfReportedShardOverhead, (shardId, shardMemoryMetrics) -> {});
     }
 
+    /// Compute the aggregated shard metrics for the whole tier
+    ///
+    /// @param postingsInEstimate Whether to include postings in the shard heap estimates
+    /// @param selfReportedShardOverhead Whether to use self-reported shard overhead in the shard heap estimates, when available
+    /// @param metricVisitor A callback that is called for each shard with its shard memory metrics
     public ShardHeapEstimator.ShardMetricsAggregation aggregateShardMetrics(
         PostingsInEstimate postingsInEstimate,
         SelfReportedShardOverhead selfReportedShardOverhead,

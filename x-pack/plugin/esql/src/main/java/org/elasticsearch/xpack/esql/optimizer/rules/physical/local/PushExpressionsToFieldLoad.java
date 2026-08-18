@@ -133,6 +133,13 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<PhysicalPlan, 
     private class PushRule {
         private final Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs = new HashMap<>();
 
+        /**
+         * Keys freshly inserted into {@link #addedAttrs} during the current
+         * {@link #transformPotentialInvocation} call, so we can roll just those back
+         * (rather than snapshotting the whole map) if the fusion breaks resolution.
+         */
+        private final List<Attribute.IdIgnoringWrapper> keysAddedThisInvocation = new ArrayList<>();
+
         private final LocalPhysicalOptimizerContext context;
         private final Primaries primaries = new Primaries();
 
@@ -164,9 +171,8 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<PhysicalPlan, 
         }
 
         private PhysicalPlan transformPotentialInvocation(PhysicalPlan plan) {
-            // Snapshot the pushed-attribute bookkeeping so we can roll back cleanly if the fusion
-            // below turns out to break resolution (see the guard after the transform).
-            Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrsBefore = new HashMap<>(addedAttrs);
+            // Records attributes added below so we can roll them back cheaply if fusion breaks resolution.
+            keysAddedThisInvocation.clear();
 
             PhysicalPlan transformedPlan = plan.transformExpressionsOnly(Expression.class, e -> {
                 if (e instanceof BlockLoaderExpression ble) {
@@ -190,8 +196,7 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<PhysicalPlan, 
              * resolution we roll back and keep the per-row evaluator, which loads and evaluates correctly.
              */
             if (allExpressionsResolved(plan) && allExpressionsResolved(transformedPlan) == false) {
-                addedAttrs.clear();
-                addedAttrs.putAll(addedAttrsBefore);
+                keysAddedThisInvocation.forEach(addedAttrs::remove);
                 addedNewAttribute = false;
                 return plan;
             }
@@ -265,6 +270,7 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<PhysicalPlan, 
             }
 
             addedAttrs.put(key, newFunctionAttr);
+            keysAddedThisInvocation.add(key);
             return newFunctionAttr;
         }
     }

@@ -33,6 +33,7 @@ import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -156,8 +157,8 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
             );
 
             var failureListener = getModelListenerForException(
-                ElasticsearchStatusException.class,
-                "Configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
+                XContentParseException.class,
+                "[service_settings] unknown field [extra_key]"
             );
             service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.COMPLETION, config, failureListener);
         }
@@ -194,8 +195,8 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
             );
 
             var failureListener = getModelListenerForException(
-                ElasticsearchStatusException.class,
-                "Configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
+                XContentParseException.class,
+                "[service_settings] unknown field [extra_key]"
             );
             service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.COMPLETION, config, failureListener);
         }

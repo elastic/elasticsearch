@@ -468,9 +468,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.ReservedRealmAuthIT
   method: testAuthenticationUsingReservedRealm
   issue: https://github.com/elastic/elasticsearch/issues/156884
-- class: org.elasticsearch.index.codec.vectors.cluster.FloatHierarchicalKMeansTests
-  method: testHKmeans
-  issue: https://github.com/elastic/elasticsearch/issues/156885
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexCloses
   issue: https://github.com/elastic/elasticsearch/issues/153888

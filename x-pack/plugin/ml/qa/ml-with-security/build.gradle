@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 dependencies {
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
@@ -250,16 +250,4 @@ tasks.named("yamlRestTest").configure {
     'ml/set_upgrade_mode/Test setting upgrade_mode to false when it is already false',
     'ml/update_trained_model_deployment/Test with unknown model id'
   ].join(',')
-}
-
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  rolesFile file('roles.yml')
-  user username: "x_pack_rest_user", password: "x-pack-test-password"
-  user username: "ml_admin", password: "x-pack-test-password", role: "minimal,machine_learning_admin,ingest_admin"
-  user username: "ml_user", password: "x-pack-test-password", role: "minimal,machine_learning_user"
-  user username: "no_ml", password: "x-pack-test-password", role: "minimal"
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.security.enabled', 'true'
-  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
 }

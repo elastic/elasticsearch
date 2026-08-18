@@ -12,8 +12,12 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.xpack.test.rest.AbstractXPackRestTest;
+import org.junit.ClassRule;
 
 import java.util.Collections;
 import java.util.Map;
@@ -22,8 +26,26 @@ public class MlWithSecurityIT extends AbstractXPackRestTest {
 
     private static final String TEST_ADMIN_USERNAME = "x_pack_rest_user";
 
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .rolesFile(Resource.fromClasspath("roles.yml"))
+        .user(TEST_ADMIN_USERNAME, "x-pack-test-password")
+        .user("ml_admin", "x-pack-test-password", "minimal,machine_learning_admin,ingest_admin", false)
+        .user("ml_user", "x-pack-test-password", "minimal,machine_learning_user", false)
+        .user("no_ml", "x-pack-test-password", "minimal", false)
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "true")
+        .systemProperty("es.queryable_built_in_roles_enabled", "false")
+        .build();
+
     public MlWithSecurityIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 
     protected String[] getCredentials() {

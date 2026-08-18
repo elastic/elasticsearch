@@ -218,6 +218,8 @@ teardown:
           - { query: { match_all: {} }, size: 80 }
           - index: msearch-cb-test
           - { query: { match_all: {} }, size: 80 }
+          - index: msearch-cb-test-missing
+          - { query: { match_all: {} } }
 
   # Sub-search 0 completes normally.
   - match: { responses.0.status: 200 }
@@ -225,3 +227,6 @@ teardown:
   # Sub-search 1 is rejected by the circuit breaker; the overall request still returns HTTP 200.
   - match: { responses.1.status: 429 }
   - match: { responses.1.error.type: circuit_breaking_exception }
+  # Sub-search 2 fails independently (missing index) and is still returned correctly.
+  - match: { responses.2.status: 404 }
+  - match: { responses.2.error.type: index_not_found_exception }

@@ -43,6 +43,7 @@ public class BooleansTests extends ESTestCase {
         assertThat(Booleans.isBoolean(null, 0, 1), is(false));
         assertFalse(Booleans.isBoolean(new char[] { 't', 'r', 'u', 'e' }, 0, 0));
         assertFalse(Booleans.isBoolean((String) null));
+        assertFalse(Booleans.isBoolean(""));
 
         for (String nb : NON_BOOLEANS) {
             String t = "prefix" + nb + "suffix";
@@ -93,6 +94,8 @@ public class BooleansTests extends ESTestCase {
 
     public void testParseNonBoolean() {
         expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean(null));
+        expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean(""));
+        expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean("   "));
         for (String nonBoolean : NON_BOOLEANS) {
             expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean(nonBoolean));
         }
@@ -113,12 +116,15 @@ public class BooleansTests extends ESTestCase {
             String t = "prefix" + b + "suffix";
             boolean expected = "true".equals(b);
             assertEquals(expected, Booleans.parseBoolean(t.toCharArray(), "prefix".length(), b.length(), !expected));
+            assertEquals(expected, Booleans.parseBoolean(t.toCharArray(), "prefix".length(), b.length()));
         }
         assertFalse(Booleans.parseBoolean((char[]) null, 0, 0, false));
         assertTrue(Booleans.parseBoolean((char[]) null, 0, 0, true));
         assertFalse(Booleans.parseBoolean(new char[] { 't', 'r', 'u', 'e' }, 0, 0, false));
         assertTrue(Booleans.parseBoolean(new char[] { 't', 'r', 'u', 'e' }, 0, 0, true));
         expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean((char[]) null, 0, 0));
+        expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean(new char[] { 't', 'r', 'u', 'e' }, 0, 0));
+        expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean(new char[] { 'x' }, 0, 1));
     }
 
     public void testIsFalse() {
@@ -143,6 +149,7 @@ public class BooleansTests extends ESTestCase {
         assertThat(Booleans.parseBooleanLenient(randomFrom("true", "TRUE", "True"), randomBoolean()), is(true));
         assertThat(Booleans.parseBooleanLenient(randomFrom("false", "FALSE", "anything"), randomBoolean()), is(false));
         assertThat(Booleans.parseBooleanLenient("", randomBoolean()), is(false));
+        assertThat(Booleans.parseBooleanLenient("   ", randomBoolean()), is(false));
         assertThat(Booleans.parseBooleanLenient(null, false), is(false));
         assertThat(Booleans.parseBooleanLenient(null, true), is(true));
     }

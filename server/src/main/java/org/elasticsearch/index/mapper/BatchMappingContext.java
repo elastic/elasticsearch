@@ -53,13 +53,6 @@ public final class BatchMappingContext {
     private DeduplicatingStringColumnAccumulator fieldNames;
     /** Accumulates {@code (doc, name)} pairs for {@code _ignored}. */
     private DeduplicatingStringColumnAccumulator ignoredFields;
-    /**
-     * The mapped {@code @timestamp} column, published by {@code DateFieldMapper.mapColumnBatch}
-     * when it maps the data-stream timestamp field. Readable in {@code postColumnarParse} via
-     * {@link #timestampAt(int)} / {@link #hasTimestamps()}; {@code null} before the column is
-     * mapped. Mirrors the per-document side channel that {@link DataStreamTimestampFieldMapper}
-     * uses on the row path ({@code LuceneDocument.onlyAddKey}).
-     */
     private EscfLongColumn timestampColumn;
 
     /**
@@ -150,11 +143,7 @@ public final class BatchMappingContext {
     }
 
     /**
-     * Returns the {@code _id} (Uid-encoded) array. For non-time-series indices, every entry is
-     * non-null (set on the coordinating node). For time-series indices, entries may be {@code null}
-     * until the {@code _id} mapper calls {@link #setDerivedId}; callers that require a fully
-     * populated uid array (e.g. {@link ProvidedIdFieldMapper}) must only call this after the id is
-     * known to be present.
+     * Returns the {@code _id} (Uid-encoded) array.
      */
     public BytesRef[] uids() {
         return batch.uids();
@@ -162,26 +151,24 @@ public final class BatchMappingContext {
 
     /**
      * Returns the plain-text id for document {@code doc}, or {@code null} if not yet assigned.
-     * For time-series indices the id is derived during mapping and set via {@link #setDerivedId}.
+     * For time-series indices the id is derived during mapping and set via {@link #setSyntheticId}.
      */
     public String id(int doc) {
         return batch.id(doc);
     }
 
     /**
-     * Sets the derived {@code _id} and uid for document {@code doc}. Called by the time-series
-     * columnar {@code _id} mapper during {@code postColumnarParse}, the columnar equivalent of
-     * {@link DocumentParserContext#id(String)}.
+     * Sets the synthetic {@code _id} and uid for document {@code doc}. Called by the time-series
+     * columnar {@code _id} mapper during {@code postColumnarParse}.
      */
-    public void setDerivedId(int doc, String id, BytesRef uid) {
+    public void setSyntheticId(int doc, String id, BytesRef uid) {
         assert frozen == false;
-        batch.setDerivedId(doc, id, uid);
+        batch.setSyntheticId(doc, id, uid);
     }
 
     /**
      * Returns the coordinator-computed tsid array, or {@code null} if no document in the batch
-     * carries a tsid (the common case for non-time-series indices). When non-null, individual
-     * entries may still be {@code null}. Callers must combine with {@link #docCount()}.
+     * carries a tsid (the common case for non-time-series indices).
      */
     public BytesRef[] tsids() {
         return batch.tsids();
@@ -245,9 +232,7 @@ public final class BatchMappingContext {
     }
 
     /**
-     * Whether {@code _data_stream_timestamp} is present and enabled for this index. Mirrors
-     * {@link MappingLookup#isDataStreamTimestampFieldEnabled()} which is the row-path equivalent
-     * used by {@code DateFieldMapper.indexValue}.
+     * Whether {@code _data_stream_timestamp} is present and enabled for this index..
      */
     public boolean isDataStreamTimestampFieldEnabled() {
         return mappingLookup.isDataStreamTimestampFieldEnabled();

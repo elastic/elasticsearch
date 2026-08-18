@@ -424,16 +424,13 @@ public final class IndexOperationBatch {
     }
 
     /**
-     * Sets the derived {@code _id} and uid for document {@code i} in this batch slice. Called
-     * by the columnar {@code _id} mapper for indices (e.g. time-series) where the id is derived
-     * during mapping rather than supplied by the client. Mutates the backing arrays shared
-     * across slices, so callers must ensure no two slices write to the same position.
+     * Sets the synthetic {@code _id} and uid for document {@code i} in this batch slice.
      *
      * @param i   document index within this slice ({@code 0..docCount-1})
      * @param id  the plain-text id
      * @param uid the Uid-encoded binary representation (from {@link Uid#encodeId(String)})
      */
-    public void setDerivedId(int i, String id, BytesRef uid) {
+    public void setSyntheticId(int i, String id, BytesRef uid) {
         final int absIdx = abs(i);
         this.ids[absIdx] = id;
         this.uids[absIdx] = uid;

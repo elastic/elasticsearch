@@ -236,17 +236,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         return context.indexSettings().getIndexVersionCreated();
     }
 
-    /**
-     * The {@link IndexableFieldType} for the {@code _tsid} doc-values field when the index uses a
-     * doc-values skipper (Lucene BKD skip index). Mirrors the {@code SortedDocValuesField.indexedField}
-     * call in {@link #postParse} and is shared by {@link #postColumnarParse}.
-     */
     private static final IndexableFieldType TSID_DV_INDEXED_FIELD_TYPE = SortedDocValuesField.indexedField("", new BytesRef()).fieldType();
-
-    /**
-     * The {@link IndexableFieldType} for the plain {@code _tsid} sorted doc-values field (no skip index).
-     * Mirrors the {@code new SortedDocValuesField} call in {@link #postParse}.
-     */
     private static final IndexableFieldType TSID_DV_FIELD_TYPE = new SortedDocValuesField("", new BytesRef()).fieldType();
 
     @Override

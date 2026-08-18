@@ -15,7 +15,6 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.column.BinaryColumn;
 import org.apache.lucene.document.column.BytesRefValuesCursor;
 import org.apache.lucene.document.column.Column;
-import org.apache.lucene.document.column.Column.Density;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.document.column.TokenStreamColumn;
 import org.apache.lucene.index.IndexableField;
@@ -391,7 +390,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
             }
 
             final BytesRef uid = Uid.encodeId(id);
-            context.setDerivedId(d, id, uid);
+            context.setSyntheticId(d, id, uid);
             derivedUids[d] = uid;
         }
 

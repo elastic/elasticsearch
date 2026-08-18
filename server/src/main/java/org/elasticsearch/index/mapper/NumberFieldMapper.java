@@ -2893,7 +2893,7 @@ public class NumberFieldMapper extends FieldMapper {
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
             && multiFields().iterator().hasNext() == false
-            && (indexSettings.getMode().isStrictColumnar() ? dimension == false : true)
+            && dimension == false
             && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
     }
 

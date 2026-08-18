@@ -29,7 +29,7 @@ public class RequestFilterIT extends AbstractEsqlIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
-        try (var view1 = createView("view-2", "FROM index-2"); var view2 = createView("view-3", "FROM index-3")) {
+        try (var view1 = createView("view-2", randomize("FROM index-2")); var view2 = createView("view-3", randomize("FROM index-3"))) {
             // match all
             try (var response = run(syncEsqlQueryRequest("FROM index-1,view-2,view-3").filter(new MatchAllQueryBuilder()))) {
                 assertColumnContainsInAnyOrder(response, "source", "index-1", "index-2", "index-3");
@@ -37,14 +37,15 @@ public class RequestFilterIT extends AbstractEsqlIntegTestCase {
             // match index from toplevel query
             try (var response = run(syncEsqlQueryRequest("FROM index-1,view-2,view-3").filter(new TermQueryBuilder("f1", 1)))) {
                 assertColumnContainsInAnyOrder(response, "source", "index-1");
-            }        // match index from view
+            }
+            // match index from view
             try (var response = run(syncEsqlQueryRequest("FROM index-1,view-2,view-3").filter(new TermQueryBuilder("f2", 2)))) {
                 assertColumnContainsInAnyOrder(response, "source", "index-2");
             }
         }
         try (
-            var view1 = createView("view-2", "FROM index-2 | EVAL f2=3");
-            var view2 = createView("view-3", "FROM index-3 | EVAL f2=2");
+            var view1 = createView("view-2", randomize("FROM index-2") + " | EVAL f2=3");
+            var view2 = createView("view-3", randomize("FROM index-3") + " | EVAL f2=2");
             var response = run(
                 syncEsqlQueryRequest("FROM index-1,view-2,view-3")//
                     .filter(new TermQueryBuilder("f2", 2))
@@ -65,27 +66,53 @@ public class RequestFilterIT extends AbstractEsqlIntegTestCase {
             .get();
 
         // match all
-        try (var response = run(syncEsqlQueryRequest("FROM index-1,(FROM index-2),(FROM index-3)").filter(new MatchAllQueryBuilder()))) {
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM index-1,(" + randomize("FROM index-2") + "),(" + randomize("FROM index-3") + ")") //
+                    .filter(new MatchAllQueryBuilder())
+            )
+        ) {
             assertColumnContainsInAnyOrder(response, "source", "index-1", "index-2", "index-3");
         }
         // match index from toplevel query
-        try (var response = run(syncEsqlQueryRequest("FROM index-1,(FROM index-2),(FROM index-3)").filter(new TermQueryBuilder("f1", 1)))) {
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM index-1,(" + randomize("FROM index-2") + "),(" + randomize("FROM index-3") + ")") //
+                    .filter(new TermQueryBuilder("f1", 1))
+            )
+        ) {
             assertColumnContainsInAnyOrder(response, "source", "index-1");
         }
         // match index from subquery
-        try (var response = run(syncEsqlQueryRequest("FROM index-1,(FROM index-2),(FROM index-3)").filter(new TermQueryBuilder("f2", 2)))) {
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM index-1,(" + randomize("FROM index-2") + "),(" + randomize("FROM index-3") + ")") //
+                    .filter(new TermQueryBuilder("f2", 2))
+            )
+        ) {
             assertColumnContainsInAnyOrder(response, "source", "index-2");
         }
         // match index from subquery with shadowed fields
         try (
             var response = run(
-                syncEsqlQueryRequest("FROM index-1,(FROM index-2 | EVAL f2=3),(FROM index-3 | EVAL f2=2)")//
-                    .filter(new TermQueryBuilder("f2", 2))
+                syncEsqlQueryRequest(
+                    "FROM index-1,(" + randomize("FROM index-2") + " | EVAL f2=3),(" + randomize("FROM index-3") + " | EVAL f2=2)"
+                ).filter(new TermQueryBuilder("f2", 2))
             )
         ) {
             // filter is executed against original index fields, not ones created by evals
             assertColumnContainsInAnyOrder(response, "source", "index-2");
         }
+    }
+
+    private static String randomize(String query) {
+        return switch (randomIntBetween(0, 3)) {
+            case 0 -> query;
+            case 1 -> query + " | WHERE true";
+            case 2 -> query + " | LIMIT 1";
+            case 3 -> query + " | LIMIT 1 BY source";
+            default -> throw new AssertionError("unreachable");
+        };
     }
 
     private static Releasable createView(String name, String query) {

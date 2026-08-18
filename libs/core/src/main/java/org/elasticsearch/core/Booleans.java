@@ -64,7 +64,7 @@ public final class Booleans {
     }
 
     private static boolean hasText(CharSequence str) {
-        if (str == null || str.length() == 0) {
+        if (str == null || str.isEmpty()) {
             return false;
         }
         int strLen = str.length();
@@ -98,7 +98,7 @@ public final class Booleans {
 
     /**
      * Wrapper around Boolean.parseBoolean for lenient parsing of booleans.
-     *
+     * <p>
      * Note: Lenient parsing is highly discouraged and should only be used if absolutely necessary.
      */
     @SuppressForbidden(reason = "allow lenient parsing of booleans")

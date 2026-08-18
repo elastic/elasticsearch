@@ -12,7 +12,7 @@ products:
 
 The data sources feature adds the following cluster settings. For general guidance on how to apply cluster settings across deployment types, refer to [configure Elasticsearch](docs-content://deploy-manage/stack-settings.md).
 
-The object-count limits and authentication gates are operator-managed and take effect without a restart. The remaining settings require a node restart.
+The object-count limits and authentication gates are operator-managed and take effect without a restart. Settings marked Dynamic can also be updated at runtime. The remaining settings require a node restart.
 
 :::{note}
 Some of these settings were renamed. Where a row lists two names, the badge on each shows which versions accept it. Unless a note says otherwise, the older name is no longer registered, and a node that still sets it in `elasticsearch.yml` fails to start.

@@ -98,6 +98,16 @@ public class BooleansTests extends ESTestCase {
         }
     }
 
+    public void testWhitespaceOnlyBehaviorDiffers() {
+        // The String overload uses hasText(), so whitespace-only is treated as absent and the default is returned.
+        // The char[] overload only checks for null/length==0, so whitespace-only content is passed to the strict
+        // parser and throws -- the two overloads are NOT equivalent for whitespace-only input.
+        assertFalse(Booleans.parseBoolean("   ", false));
+        assertTrue(Booleans.parseBoolean("   ", true));
+        expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean("   ".toCharArray(), 0, 3, false));
+        expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean("   ".toCharArray(), 0, 3, true));
+    }
+
     public void testParseBooleanCharArray() {
         for (String b : BOOLEANS) {
             String t = "prefix" + b + "suffix";

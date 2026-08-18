@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
@@ -21,7 +20,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -1050,27 +1048,39 @@ public class FileSplitProviderTests extends ESTestCase {
 
         ExecutorService executor = Executors.newFixedThreadPool(4);
         List<ExternalSplit> splits;
-        try (MockLog mockLog = MockLog.capture(FileSplitProvider.class)) {
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "no-boundary warning",
-                    FileSplitProvider.class.getName(),
-                    Level.WARN,
-                    "no record boundary found*"
-                )
-            );
-            try {
-                splits = discoverPlainCsvSplits(Map.of("long-lines.csv", payload), stride, executor, tracking);
-            } finally {
-                executor.shutdown();
-            }
-            mockLog.assertAllExpectationsMatched();
+        try {
+            splits = discoverPlainCsvSplits(Map.of("long-lines.csv", payload), stride, executor, tracking);
+        } finally {
+            executor.shutdown();
         }
+        assertWarnings(true, List.of(containsString("no record boundary found in 1 file(s)")));
 
         assertEquals("a file with no usable boundary is read whole", 1, splits.size());
         int probes = RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size();
         assertThat("the payload must offer several offsets to probe", probes, greaterThan(1));
         assertEquals("an offset that finds nothing must not suppress the others", probes, tracking.opens.get());
+    }
+
+    /**
+     * What leaves a file with no usable boundary is a property of the dataset, not of the file: records wider than
+     * the probe window make every file of a scan unsplittable at once. The query is told once, with the count and
+     * an example, rather than once per file, which for a scan of many files would bury its response in warnings.
+     */
+    public void testUnsplittableFilesAreWarnedAboutOncePerQuery() {
+        int window = Math.toIntExact(RecordBoundaryProbe.PROBE_WINDOW_BYTES);
+        long stride = 2L * window;
+        byte[] payload = ("y".repeat(4 * window - 1) + "\n").repeat(4).getBytes(StandardCharsets.UTF_8);
+        Map<String, byte[]> payloads = new HashMap<>();
+        for (int i = 0; i < 3; i++) {
+            payloads.put("long-lines-" + i + ".csv", payload);
+        }
+
+        List<ExternalSplit> splits = discoverPlainCsvSplits(payloads, stride, null, null);
+
+        assertEquals("each file with no usable boundary is read whole", payloads.size(), splits.size());
+        // assertWarnings fails on any warning left without a matcher, so one matcher is also the assertion that
+        // three unsplittable files raised one warning rather than three.
+        assertWarnings(true, List.of(containsString("no record boundary found in 3 file(s)")));
     }
 
     /**
@@ -1118,19 +1128,8 @@ public class FileSplitProviderTests extends ESTestCase {
             greaterThan(FileSplitProvider.MAX_SPLIT_PROBES_PER_QUERY)
         );
 
-        List<ExternalSplit> splits;
-        try (MockLog mockLog = MockLog.capture(FileSplitProvider.class)) {
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "widened stride warning",
-                    FileSplitProvider.class.getName(),
-                    Level.WARN,
-                    "*would probe more than 1000 record boundaries*"
-                )
-            );
-            splits = discoverPlainCsvSplits(payloads, stride, null, null);
-            mockLog.assertAllExpectationsMatched();
-        }
+        List<ExternalSplit> splits = discoverPlainCsvSplits(payloads, stride, null, null);
+        assertWarnings(true, List.of(containsString("would probe more than 1000 record boundaries")));
 
         long widened = Math.ceilDiv(payload.length, FileSplitProvider.MAX_SPLIT_PROBES_PER_QUERY);
         int probes = RecordBoundaryProbe.stridedPositions(payload.length, widened, CSV_MIN_SEGMENT_BYTES).size();
@@ -1165,19 +1164,8 @@ public class FileSplitProviderTests extends ESTestCase {
 
         // Serial discovery, so the overlap latch of one is satisfied by the first stream and never delays a probe.
         StreamTracking tracking = new StreamTracking(1);
-        List<ExternalSplit> splits;
-        try (MockLog mockLog = MockLog.capture(FileSplitProvider.class)) {
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "widened stride warning",
-                    FileSplitProvider.class.getName(),
-                    Level.WARN,
-                    "*would probe more than 1000 record boundaries*"
-                )
-            );
-            splits = discoverPlainCsvSplits(payloads, stride, null, tracking);
-            mockLog.assertAllExpectationsMatched();
-        }
+        List<ExternalSplit> splits = discoverPlainCsvSplits(payloads, stride, null, tracking);
+        assertWarnings(true, List.of(containsString("would probe more than 1000 record boundaries")));
 
         long widened = Math.ceilDiv((long) payload.length * payloads.size(), FileSplitProvider.MAX_SPLIT_PROBES_PER_QUERY);
         int probesPerWidenedFile = RecordBoundaryProbe.stridedPositions(payload.length, widened, CSV_MIN_SEGMENT_BYTES).size();
@@ -1210,19 +1198,9 @@ public class FileSplitProviderTests extends ESTestCase {
             lessThan(FileSplitProvider.MAX_SPLIT_PROBES_PER_QUERY)
         );
 
-        List<ExternalSplit> splits;
-        try (MockLog mockLog = MockLog.capture(FileSplitProvider.class)) {
-            mockLog.addExpectation(
-                new MockLog.UnseenEventExpectation(
-                    "no widened stride warning",
-                    FileSplitProvider.class.getName(),
-                    Level.WARN,
-                    "*would probe more than*"
-                )
-            );
-            splits = discoverPlainCsvSplits(payloads, stride, null, null);
-            mockLog.assertAllExpectationsMatched();
-        }
+        // No assertWarnings call: the test framework fails on any warning left unasserted, so the absence of one
+        // here is what pins that the requested stride was not overridden.
+        List<ExternalSplit> splits = discoverPlainCsvSplits(payloads, stride, null, null);
 
         int probes = RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size();
         assertEquals("the file must be cut at the size asked for", probes + 1, splits.size());
@@ -1263,24 +1241,22 @@ public class FileSplitProviderTests extends ESTestCase {
         String quotedLine = "1,\"embedded\nnewline\",\"has \"\"quote\"\"\"\n";
         long stride = 1024;
 
-        List<ExternalSplit> splits;
-        try (MockLog mockLog = MockLog.capture(FileSplitProvider.class)) {
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "widened stride warning",
-                    FileSplitProvider.class.getName(),
-                    Level.WARN,
-                    "*would probe more than 1000 record boundaries*"
-                )
-            );
-            splits = discoverRealDelimitedSplits(Map.of(), "quoted.csv", ".csv", CsvFormatOptions.DEFAULT, quotedLine, stride);
-            mockLog.assertAllExpectationsMatched();
-        }
+        List<ExternalSplit> splits = discoverRealDelimitedSplits(
+            Map.of(),
+            "quoted.csv",
+            ".csv",
+            CsvFormatOptions.DEFAULT,
+            quotedLine,
+            stride
+        );
+        assertWarnings(true, List.of(containsString("would probe more than 1000 record boundaries")));
 
         assertThat("the file must still be macro-split", splits.size(), greaterThan(1));
+        // The file start begins a split without being probed for, so the walk spends one probe per split past the
+        // first. Comparing the split count itself against the budget would allow one probe over it.
         assertThat(
             "but into no more boundaries than the budget",
-            splits.size(),
+            splits.size() - 1,
             lessThanOrEqualTo(FileSplitProvider.MAX_SPLIT_PROBES_PER_QUERY)
         );
     }

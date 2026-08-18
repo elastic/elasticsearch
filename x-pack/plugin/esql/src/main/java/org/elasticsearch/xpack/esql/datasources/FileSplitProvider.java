@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -462,6 +463,12 @@ public class FileSplitProvider implements SplitProvider {
         // Splits are emitted in file order: walking the plan results keeps a deferred file's macro-splits in the
         // same position its file occupied in the file list.
         List<ExternalSplit> splits = new ArrayList<>();
+        // Files big enough to macro-split whose every offset failed to find a record boundary, so one node reads
+        // each of them whole. What causes it is a property of the dataset rather than of one file, so a scan whose
+        // records are wider than the probe window hits it on every file it has: they are counted and reported once
+        // for the query instead of one warning per file.
+        int unsplittableFiles = 0;
+        DeferredNewlineSplits firstUnsplittable = null;
         for (PlanResult planResult : planResults) {
             switch (planResult) {
                 case PlanResult.Splits planned -> splits.addAll(planned.splits());
@@ -474,21 +481,29 @@ public class FileSplitProvider implements SplitProvider {
                         throw new IllegalStateException("no probed boundaries for deferred file " + deferred.filePath());
                     }
                     if (starts.size() <= 1) {
-                        // Every offset of a file big enough to macro-split failed to find a record boundary, so one
-                        // node reads all of it. Nothing else records that, and the remedies (a larger
-                        // target_split_size, or records that are not the size of the probe window) are the user's.
-                        LOGGER.warn(
-                            "no record boundary found in [{}] ({} bytes) at any of its {} probe offsets {} bytes "
-                                + "apart; reading it as a single whole-file split",
-                            deferred.filePath(),
-                            deferred.fileLength(),
-                            deferred.positions().size(),
-                            deferred.strideBytes()
-                        );
+                        unsplittableFiles++;
+                        if (firstUnsplittable == null) {
+                            firstUnsplittable = deferred;
+                        }
                     }
                     splits.addAll(buildNewlineMacroSplits(deferred, starts));
                 }
             }
+        }
+        if (firstUnsplittable != null) {
+            // Nothing else records this, and the remedies (a larger target_split_size, or records that are not the
+            // size of the probe window) are the user's, so it goes to the query's response rather than the node log
+            // where only an operator who cannot act on it would see it. Every file of a query is cut at the same
+            // stride, so the one reported here is the stride of all of them.
+            HeaderWarning.addWarning(
+                "no record boundary found in {} file(s) at any of their probe offsets {} bytes apart; each is read "
+                    + "as a single whole-file split, e.g. [{}] ({} bytes, {} offsets probed)",
+                unsplittableFiles,
+                firstUnsplittable.strideBytes(),
+                firstUnsplittable.filePath(),
+                firstUnsplittable.fileLength(),
+                firstUnsplittable.positions().size()
+            );
         }
         // Each surviving task produces at least one split, so the task count is the number of
         // distinct files that are actually scanned after coordinator-side pruning.
@@ -1262,16 +1277,23 @@ public class FileSplitProvider implements SplitProvider {
      * take a file below the stride, where it becomes a single whole-file split that costs no probe at all. The
      * budget is thus an upper bound on the probes actually issued, and errs towards spending less than it.
      * <p>
+     * It is an estimate off the file extension, not off the reader each file resolves to, so a candidate
+     * extension whose reader turns out to be unsplittable is counted even though it issues no probe. That only
+     * widens the stride, and only in a scan whose candidate bytes already exceed
+     * {@code MAX_SPLIT_PROBES_PER_QUERY} strides; resolving a reader per file to sharpen it would cost more than
+     * the coarser cut does.
+     * <p>
      * Widening rather than failing keeps a {@code target_split_size} that suits most of a scan from being
      * rejected because the scan as a whole is large; the warning is what tells the user that the size they
-     * asked for is not the size they got.
+     * asked for is not the size they got. It goes to the query's response because the setting it overrides is
+     * the query's, not the cluster's.
      */
     private static long strideBoundedByProbeBudget(long requestedStrideBytes, long probedFileBytes) {
         long minStride = Math.ceilDiv(probedFileBytes, MAX_SPLIT_PROBES_PER_QUERY);
         if (requestedStrideBytes >= minStride) {
             return requestedStrideBytes;
         }
-        LOGGER.warn(
+        HeaderWarning.addWarning(
             "[{}] of [{}] would probe more than {} record boundaries across [{}] of files; using [{}] instead",
             CONFIG_TARGET_SPLIT_SIZE,
             ByteSizeValue.ofBytes(requestedStrideBytes),

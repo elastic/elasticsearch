@@ -218,8 +218,8 @@ public class AstKeywordFieldRewriterTests extends ESTestCase {
         assertTrue(result.modified());
         // The LHS is rebound to keyword by a hoisted EVAL, so the in-place IN reference stays a bare attribute.
         assertThat(result.rewrittenQuery(), containsString("EVAL first_name = field_extract(first_name, \"v\")\n| WHERE first_name IN ("));
-        // The subquery's projected column is recovered to keyword by a tail EVAL before its closing paren.
-        assertThat(result.rewrittenQuery(), containsString("KEEP first_name\n| EVAL first_name = field_extract(first_name, \"v\"))"));
+        // The subquery's projected column is recovered to keyword before KEEP so its column order is preserved.
+        assertThat(result.rewrittenQuery(), containsString("EVAL first_name = field_extract(first_name, \"v\")\n| KEEP first_name)"));
         assertThat(result.rewrittenFieldNames(), hasItem("first_name"));
     }
 
@@ -237,7 +237,7 @@ public class AstKeywordFieldRewriterTests extends ESTestCase {
         );
         assertTrue(result.modified());
         // The subquery recovery uses "id" (its own scope), not the outer "first_name".
-        assertThat(result.rewrittenQuery(), containsString("KEEP id\n| EVAL id = field_extract(id, \"v\"))"));
+        assertThat(result.rewrittenQuery(), containsString("EVAL id = field_extract(id, \"v\")\n| KEEP id)"));
         assertThat(result.rewrittenFieldNames(), hasItem("id"));
         assertThat(result.rewrittenFieldNames(), hasItem("first_name"));
     }

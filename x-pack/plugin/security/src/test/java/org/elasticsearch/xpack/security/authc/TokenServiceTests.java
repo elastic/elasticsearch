@@ -256,8 +256,7 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeClusterServiceAndRecycler() throws Exception {
         clusterService.close();
         // wait for any async threads to release their recycler pages
         assertBusy(() -> assertEquals(0, bytesRefRecycler.activePageCount()));

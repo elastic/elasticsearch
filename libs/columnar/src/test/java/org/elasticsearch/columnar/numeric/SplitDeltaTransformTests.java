@@ -9,8 +9,6 @@
 
 package org.elasticsearch.columnar.numeric;
 
-import org.apache.lucene.store.ByteArrayDataInput;
-import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -141,7 +139,7 @@ public class SplitDeltaTransformTests extends ESTestCase {
 
         // Verify DeltaTransform declines: the up-jump at each boundary breaks monotonicity.
         long[] copy = block.clone();
-        ByteBuffersDataOutput deltaParams = new ByteBuffersDataOutput();
+        MetadataBuffer deltaParams = new MetadataBuffer();
         boolean deltaFired = DeltaTransform.INSTANCE.tryEncode(copy, BLOCK, deltaParams);
         assertFalse("DeltaTransform should decline piecewise-monotonic block with _tsid jumps", deltaFired);
 
@@ -162,12 +160,12 @@ public class SplitDeltaTransformTests extends ESTestCase {
 
     private static void assertRoundTrip(SplitDeltaTransform t, long[] original, int valueCount) throws IOException {
         long[] work = original.clone();
-        ByteBuffersDataOutput params = new ByteBuffersDataOutput();
+        MetadataBuffer params = new MetadataBuffer();
         boolean fired = t.tryEncode(work, valueCount, params);
         assertTrue("SplitDelta must fire on this input", fired);
 
         long[] decoded = work.clone();
-        t.decode(decoded, valueCount, new ByteArrayDataInput(params.toArrayCopy()));
+        t.decode(decoded, valueCount, DataInputMetadataReader.wrap(params));
         for (int i = 0; i < valueCount; i++) {
             assertEquals("round-trip failure at position " + i, original[i], decoded[i]);
         }
@@ -179,7 +177,7 @@ public class SplitDeltaTransformTests extends ESTestCase {
 
     private static void assertDeclines(SplitDeltaTransform t, long[] original, int valueCount) throws IOException {
         long[] work = original.clone();
-        ByteBuffersDataOutput params = new ByteBuffersDataOutput();
+        MetadataBuffer params = new MetadataBuffer();
         boolean fired = t.tryEncode(work, valueCount, params);
         assertFalse("SplitDelta must decline this input", fired);
         for (int i = 0; i < valueCount; i++) {
@@ -190,11 +188,11 @@ public class SplitDeltaTransformTests extends ESTestCase {
 
     private static void assertRoundTripOrUnchanged(SplitDeltaTransform t, long[] original, int valueCount) throws IOException {
         long[] work = original.clone();
-        ByteBuffersDataOutput params = new ByteBuffersDataOutput();
+        MetadataBuffer params = new MetadataBuffer();
         boolean fired = t.tryEncode(work, valueCount, params);
         if (fired) {
             long[] decoded = work.clone();
-            t.decode(decoded, valueCount, new ByteArrayDataInput(params.toArrayCopy()));
+            t.decode(decoded, valueCount, DataInputMetadataReader.wrap(params));
             for (int i = 0; i < valueCount; i++) {
                 assertEquals("round-trip failure at position " + i, original[i], decoded[i]);
             }

@@ -421,6 +421,7 @@ public class KnnIndexTester {
             throw new IllegalArgumentException("JSON config file does not exist: " + jsonConfigPath);
         }
 
+        reportMemoryAndProcesses();
         logger.info("Using configuration file: " + jsonConfigPath);
         String rawConfigJson = Files.readString(jsonConfigPath);
         // Parse the JSON config file to get command line arguments
@@ -660,6 +661,63 @@ public class KnnIndexTester {
         } catch (IOException e) {
             logger.warn("Failed to read /proc/diskstats: {}", e.getMessage());
         }
+    }
+
+    // Log system memory and other Java processes to help identify page-cache starvation early.
+    private static void reportMemoryAndProcesses() {
+        Path meminfo = Path.of("/proc/meminfo");
+        if (Files.exists(meminfo)) {
+            try {
+                String text = Files.readString(meminfo);
+                long totalMB = parseMeminfoKB(text, "MemTotal") / 1024;
+                long availMB = parseMeminfoKB(text, "MemAvailable") / 1024;
+                long cacheMB = parseMeminfoKB(text, "Cached") / 1024;
+
+                long myPid = ProcessHandle.current().pid();
+                List<String> otherJavaProcs = ProcessHandle.allProcesses()
+                    .filter(p -> p.pid() != myPid)
+                    .filter(p -> p.info().command().orElse("").contains("java"))
+                    .map(p -> {
+                        String cmdLine = p.info().commandLine().orElse("");
+                        return "  PID " + p.pid() + " (" + javaProcessLabel(cmdLine) + ")";
+                    })
+                    .toList();
+
+                logger.info(
+                    "MEMORY: total={}MB, available={}MB, page_cache={}MB, other_java_procs={}",
+                    totalMB,
+                    availMB,
+                    cacheMB,
+                    otherJavaProcs.size()
+                );
+                for (String proc : otherJavaProcs) {
+                    logger.info(proc);
+                }
+                if (availMB > 0 && availMB < 4096) {
+                    logger.warn("Only {}MB available — benchmark may be dominated by page faults!", availMB);
+                }
+            } catch (IOException e) {
+                logger.warn("Failed to read /proc/meminfo: {}", e.getMessage());
+            }
+        }
+    }
+
+    private static long parseMeminfoKB(String text, String key) {
+        int idx = text.indexOf(key + ":");
+        if (idx < 0) return -1;
+        int start = idx + key.length() + 1;
+        int end = text.indexOf('\n', start);
+        String line = text.substring(start, end).trim();
+        return Long.parseLong(line.split("\\s+")[0]);
+    }
+
+    private static String javaProcessLabel(String cmdLine) {
+        if (cmdLine.contains("GradleWorkerMain")) return "GradleWorker";
+        if (cmdLine.contains("GradleDaemon")) return "GradleDaemon";
+        if (cmdLine.contains("gradle-wrapper")) return "GradleWrapper";
+        if (cmdLine.contains("KnnIndexTester")) return "KnnIndexTester";
+        if (cmdLine.contains("org.elasticsearch")) return "Elasticsearch";
+        return "java[" + cmdLine.substring(0, Math.min(cmdLine.length(), 80)) + "]";
     }
 
     static void numSegments(Path indexPath, Results indexResults, Directory sharedDir) throws IOException {

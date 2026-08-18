@@ -48,6 +48,7 @@ class StructSpecParser {
     private static final String OFFSET_LIST_FQN = "org.elasticsearch.foreign.Offset.List";
     private static final String STRUCT_SIZE_FQN = "org.elasticsearch.foreign.StructSize";
     private static final String STRUCT_SIZE_LIST_FQN = "org.elasticsearch.foreign.StructSize.List";
+    private static final String SIZEOF_FQN = "org.elasticsearch.foreign.Sizeof";
 
     /**
      * Builds the {@link StructModel} for a {@code @StructSpecification} record. Record components are
@@ -110,7 +111,7 @@ class StructSpecParser {
         if (error) {
             return null;
         }
-        return buildStructModel(typeSimpleName, layout, byteSizes, supportedPlatforms, /* isRecord */ true, isSparse);
+        return buildStructModel(typeSimpleName, layout, byteSizes, supportedPlatforms, /* isRecord */ true, isSparse, null);
     }
 
     /**
@@ -140,8 +141,10 @@ class StructSpecParser {
         List<String> scalarFieldNames = new ArrayList<>();
 
         // Abstract instance methods in declaration order; a field is one such method (a getter or
-        // setter) or two adjacent ones sharing a name (a getter/setter pair).
+        // setter) or two adjacent ones sharing a name (a getter/setter pair). @Sizeof methods are
+        // pulled out separately below — they contribute no field.
         List<ExecutableElement> methods = new ArrayList<>();
+        String sizeofMethodName = null;
         for (var enclosedMember : typeElement.getEnclosedElements()) {
             if (enclosedMember.getKind() != ElementKind.METHOD) {
                 continue;
@@ -149,6 +152,30 @@ class StructSpecParser {
             ExecutableElement method = (ExecutableElement) enclosedMember;
             var mods = method.getModifiers();
             if (mods.contains(Modifier.DEFAULT) || mods.contains(Modifier.STATIC)) {
+                continue;
+            }
+            AnnotationMirror sizeofMirror = ModelUtil.findAnnotationMirror(method, SIZEOF_FQN);
+            if (sizeofMirror != null) {
+                if (sizeofMethodName != null) {
+                    messager.printMessage(
+                        Kind.ERROR,
+                        "Duplicate @Sizeof method on '"
+                            + typeSimpleName
+                            + "': '"
+                            + sizeofMethodName
+                            + "' and '"
+                            + method.getSimpleName()
+                            + "'",
+                        method
+                    );
+                    error = true;
+                    continue;
+                }
+                if (validateSizeofMethod(method, typeSimpleName, messager) == false) {
+                    error = true;
+                    continue;
+                }
+                sizeofMethodName = method.getSimpleName().toString();
                 continue;
             }
             methods.add(method);
@@ -235,7 +262,32 @@ class StructSpecParser {
         if (error) {
             return null;
         }
-        return buildStructModel(typeSimpleName, layout, byteSizes, supportedPlatforms, /* isRecord */ false, isSparse);
+        return buildStructModel(typeSimpleName, layout, byteSizes, supportedPlatforms, /* isRecord */ false, isSparse, sizeofMethodName);
+    }
+
+    /**
+     * Validates that a {@code @Sizeof} method has the required {@code int name()} shape: {@code int}
+     * return type, zero parameters. Returns {@code false} (with an error already emitted) if not.
+     */
+    private static boolean validateSizeofMethod(ExecutableElement method, String typeSimpleName, Messager messager) {
+        boolean valid = true;
+        if (method.getReturnType().getKind() != TypeKind.INT) {
+            messager.printMessage(
+                Kind.ERROR,
+                "@Sizeof method '" + method.getSimpleName() + "' on '" + typeSimpleName + "' must return int",
+                method
+            );
+            valid = false;
+        }
+        if (method.getParameters().isEmpty() == false) {
+            messager.printMessage(
+                Kind.ERROR,
+                "@Sizeof method '" + method.getSimpleName() + "' on '" + typeSimpleName + "' must take no parameters",
+                method
+            );
+            valid = false;
+        }
+        return valid;
     }
 
     // --- Layout accumulation ---
@@ -432,7 +484,8 @@ class StructSpecParser {
         Map<String, Long> byteSizes,
         Set<String> supportedPlatforms,
         boolean isRecord,
-        boolean isSparse
+        boolean isSparse,
+        String sizeofMethodName
     ) {
         List<StructFieldModel> fields = List.copyOf(layout.fields());
         List<StructLayoutModel> layouts;
@@ -451,7 +504,7 @@ class StructSpecParser {
         }
         return isRecord
             ? new StructRecordModel(typeSimpleName, fields, layouts)
-            : new StructInterfaceModel(typeSimpleName, fields, layouts);
+            : new StructInterfaceModel(typeSimpleName, fields, layouts, sizeofMethodName);
     }
 
     // --- Mode validation ---

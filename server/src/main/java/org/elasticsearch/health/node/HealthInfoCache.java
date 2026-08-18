@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.node.selection.HealthNode;
@@ -34,6 +35,8 @@ public class HealthInfoCache implements ClusterStateListener {
     private volatile DataStreamLifecycleHealthInfo dslHealthInfo = null;
     private volatile ConcurrentHashMap<String, RepositoriesHealthInfo> repositoriesInfoByNode = new ConcurrentHashMap<>();
     private volatile FileSettingsHealthInfo fileSettingsHealthInfo = INDETERMINATE;
+    @Nullable
+    private volatile String masterNodeId = null;
     @Nullable
     private volatile DlmFrozenTransitionsHealthInfo dlmFrozenTransitionsHealthInfo = null;
 
@@ -66,14 +69,18 @@ public class HealthInfoCache implements ClusterStateListener {
         if (diskHealthInfo != null) {
             diskInfoByNode.put(nodeId, diskHealthInfo);
         }
-        if (latestDslHealthInfo != null) {
-            dslHealthInfo = latestDslHealthInfo;
-        }
         if (repositoriesHealthInfo != null) {
             repositoriesInfoByNode.put(nodeId, repositoriesHealthInfo);
         }
-        if (fileSettingsHealthInfo != null) {
-            this.fileSettingsHealthInfo = fileSettingsHealthInfo;
+        // the following health infos must be published by the current master node only.
+        // discard stale responses from a previous master node.
+        if (nodeId.equals(masterNodeId)) {
+            if (latestDslHealthInfo != null) {
+                dslHealthInfo = latestDslHealthInfo;
+            }
+            if (fileSettingsHealthInfo != null) {
+                this.fileSettingsHealthInfo = fileSettingsHealthInfo;
+            }
         }
         if (latestDlmFrozenTransitionsHealthInfo != null) {
             this.dlmFrozenTransitionsHealthInfo = latestDlmFrozenTransitionsHealthInfo;
@@ -82,9 +89,13 @@ public class HealthInfoCache implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        DiscoveryNodes nodes = event.state().nodes();
         DiscoveryNode currentHealthNode = HealthNode.findHealthNode(event.state());
-        DiscoveryNode localNode = event.state().nodes().getLocalNode();
+        DiscoveryNode localNode = nodes.getLocalNode();
         if (currentHealthNode != null && localNode.getId().equals(currentHealthNode.getId())) {
+            if (nodes.getMasterNodeId() != null && (event.masterChanged() || masterNodeId == null)) {
+                masterNodeId = nodes.getMasterNodeId();
+            }
             if (event.nodesRemoved()) {
                 for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
                     diskInfoByNode.remove(removedNode.getId());
@@ -101,6 +112,7 @@ public class HealthInfoCache implements ClusterStateListener {
             dslHealthInfo = null;
             repositoriesInfoByNode = new ConcurrentHashMap<>();
             fileSettingsHealthInfo = INDETERMINATE;
+            masterNodeId = null;
             dlmFrozenTransitionsHealthInfo = null;
         }
     }
@@ -110,6 +122,7 @@ public class HealthInfoCache implements ClusterStateListener {
             || dslHealthInfo != null
             || repositoriesInfoByNode.isEmpty() == false
             || fileSettingsHealthInfo != INDETERMINATE
+            || masterNodeId != null
             || dlmFrozenTransitionsHealthInfo != null;
     }
 

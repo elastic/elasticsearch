@@ -101,7 +101,7 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
         }
         Objects.checkFromIndexSize(0, length, a.length);
-        return IMPL.dotProduct(a, b, 0, length);
+        return IMPL.dotProduct(a, 0, b, 0, length);
     }
 
     /**
@@ -112,7 +112,16 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
         }
         Objects.checkFromIndexSize(offset, length, a.length);
-        return IMPL.dotProduct(a, b, offset, length);
+        return IMPL.dotProduct(a, offset, b, offset, length);
+    }
+
+    /**
+     * Dot product over {@code [[ab]Offset, [ab]Offset + length)}.
+     */
+    public static float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length) {
+        Objects.checkFromIndexSize(aOffset, length, a.length);
+        Objects.checkFromIndexSize(bOffset, length, b.length);
+        return IMPL.dotProduct(a, aOffset, b, bOffset, length);
     }
 
     /**
@@ -983,6 +992,32 @@ public class ESVectorUtil {
     }
 
     /**
+     * Computes {@code dest[destOffset..destOffset+length) = scaleOther * other[otherOffset..otherOffset+length)
+     *          + scaleDest * dest[destOffset..destOffset+length)}.
+     *
+     * @param scaleOther a multiplicative factor for other
+     * @param other the other vector
+     * @param otherOffset starting index into other
+     * @param scaleDest a multiplicative factor for dest
+     * @param dest the destination vector
+     * @param destOffset starting index into dest
+     * @param length number of elements to process
+     */
+    public static void linearCombination(
+        float scaleOther,
+        float[] other,
+        int otherOffset,
+        float scaleDest,
+        float[] dest,
+        int destOffset,
+        int length
+    ) {
+        Objects.checkFromIndexSize(otherOffset, length, other.length);
+        Objects.checkFromIndexSize(destOffset, length, dest.length);
+        IMPL.linearCombination(scaleOther, other, otherOffset, scaleDest, dest, destOffset, length);
+    }
+
+    /**
      * Computes dest = scale * other + scaledDes * dest
      *
      * @param scaleOther a multiplicative factor for other
@@ -994,7 +1029,23 @@ public class ESVectorUtil {
         if (other.length != dest.length) {
             throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
         }
-        IMPL.linearCombination(scaleOther, other, scaleDest, dest);
+        IMPL.linearCombination(scaleOther, other, 0, scaleDest, dest, 0, dest.length);
+    }
+
+    /**
+     * Computes {@code dest[destOffset..destOffset+length) += scaleOther * other[otherOffset..otherOffset+length)}.
+     *
+     * @param scaleOther a multiplicative factor for other
+     * @param other the other vector
+     * @param otherOffset starting index into other
+     * @param dest the destination vector
+     * @param destOffset starting index into dest
+     * @param length number of elements to process
+     */
+    public static void linearCombination(float scaleOther, float[] other, int otherOffset, float[] dest, int destOffset, int length) {
+        Objects.checkFromIndexSize(otherOffset, length, other.length);
+        Objects.checkFromIndexSize(destOffset, length, dest.length);
+        IMPL.linearCombination(scaleOther, other, otherOffset, dest, destOffset, length);
     }
 
     /**
@@ -1008,7 +1059,7 @@ public class ESVectorUtil {
         if (other.length != dest.length) {
             throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
         }
-        IMPL.linearCombination(scaleOther, other, dest);
+        IMPL.linearCombination(scaleOther, other, 0, dest, 0, dest.length);
     }
 
     /**
@@ -1090,5 +1141,23 @@ public class ESVectorUtil {
      */
     public static void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
         IMPL.inRangeBitmask(values, lowerValue, upperValue, matches);
+    }
+
+    /**
+     * Transposes a row-major matrix from (rows x cols) to (cols x rows).
+     *
+     * @param m    input matrix in row-major order, length rows*cols
+     * @param rows number of rows in the input
+     * @param cols number of columns in the input
+     * @return transposed matrix in row-major order, length cols*rows
+     */
+    public static float[] transposeMatrix(float[] m, int rows, int cols) {
+        float[] t = new float[cols * rows];
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                t[j * rows + i] = m[i * cols + j];
+            }
+        }
+        return t;
     }
 }

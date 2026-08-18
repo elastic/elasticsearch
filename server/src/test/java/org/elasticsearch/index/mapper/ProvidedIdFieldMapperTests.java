@@ -34,6 +34,7 @@ import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -245,7 +246,12 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
 
         IndexRequest[] requests = new IndexRequest[] { new IndexRequest("index").id("doc-1"), new IndexRequest("index").id("doc-2") };
         IndexOperationBatch batch = EngineTestCase.initFromRequests(requests);
-        BatchMappingContext context = new BatchMappingContext(batch, mapperService.mappingLookup(), mapperService.getIndexSettings());
+        BatchMappingContext context = new BatchMappingContext(
+            batch,
+            mapperService.mappingLookup(),
+            mapperService.getIndexSettings(),
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
 
         mapper.preColumnarParse(context);
 

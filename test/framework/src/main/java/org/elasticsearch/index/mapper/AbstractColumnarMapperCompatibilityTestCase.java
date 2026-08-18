@@ -33,6 +33,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceSchema;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -41,9 +42,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Abstract base for compatibility tests that verify the columnar batch-mapping path produces the
@@ -88,6 +87,47 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         }
     }
 
+    /**
+     * Runs only {@code field}'s leaf {@link FieldMapper#mapColumnBatch} over the given JSON sources,
+     * discarding any columns produced. Intended exclusively for bail-out tests — scenarios where
+     * {@code mapColumnBatch} is expected to throw {@link UnsupportedOperationException} so
+     * {@code ShardBatchMapper} falls back to the row path.
+     *
+     * <p>Columns produced by a successful call are intentionally not returned. Any validation of
+     * correct column output must go through {@link #assertColumnarMatchesXContent}, which verifies
+     * parity with the x-content parse path.
+     */
+    protected final void mapColumnarLeaf(MapperService mapperService, String field, String... sources) throws IOException {
+        final int docCount = sources.length;
+        final BytesReference[] sourceBytesArray = new BytesReference[docCount];
+        final IndexRequest[] requests = new IndexRequest[docCount];
+        for (int i = 0; i < docCount; i++) {
+            sourceBytesArray[i] = new BytesArray(sources[i].getBytes(StandardCharsets.UTF_8));
+            requests[i] = new IndexRequest("test-index").id("d" + i).source(sourceBytesArray[i], XContentType.JSON);
+        }
+        final MappingLookup mappingLookup = mapperService.mappingLookup();
+        final IndexSettings indexSettings = mapperService.getIndexSettings();
+        final BatchMappingContext ctx = new BatchMappingContext(
+            EngineTestCase.initFromRequests(requests),
+            mappingLookup,
+            indexSettings,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
+        try (EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(sourceBytesArray), XContentType.JSON)) {
+            final SourceSchema schema = escfBatch.schema();
+            for (int c = 0; c < schema.leafCount(); c++) {
+                final String path = schema.getFullPath(c);
+                if (path.equals(field) == false) {
+                    continue;
+                }
+                final Mapper mapper = mappingLookup.getMapper(path);
+                if (mapper instanceof FieldMapper fm) {
+                    fm.mapColumnBatch(ctx, escfBatch.column(c));
+                }
+            }
+        }
+    }
+
     /** Creates a {@link Doc} with no routing and version {@code 1}. */
     protected static Doc doc(String id, long seqNo, String source) {
         return new Doc(id, null, seqNo, 1L, source);
@@ -129,7 +169,12 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         final IndexRequest[] requests = buildIndexRequests(docs, sourceBytesArray);
         final MappingLookup mappingLookup = mapperService.mappingLookup();
         final IndexSettings indexSettings = mapperService.getIndexSettings();
-        final BatchMappingContext ctx = new BatchMappingContext(EngineTestCase.initFromRequests(requests), mappingLookup, indexSettings);
+        final BatchMappingContext ctx = new BatchMappingContext(
+            EngineTestCase.initFromRequests(requests),
+            mappingLookup,
+            indexSettings,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
 
         // Drive all supported metadata mappers through their columnar hooks, mirroring the
         // preParse-all / postParse-all ordering of the row-major path.
@@ -144,9 +189,9 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         try (EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(sourceBytesArray), XContentType.JSON)) {
             final SourceSchema schema = escfBatch.schema();
 
-            // Leaves owned by a group mapper, keyed on the owning mapper's path. Insertion-ordered so groups are mapped in the order
-            // their first leaf appears in the schema, making the output column order deterministic.
-            final Map<String, ColumnGroup> groups = new LinkedHashMap<>();
+            // Accumulate leaves owned by a group mapper (e.g. flattened). Groups are ordered by first-seen
+            // leaf, making the output column order deterministic.
+            final ColumnGroupResolver.Builder groupBuilder = new ColumnGroupResolver.Builder();
             for (int c = 0; c < schema.leafCount(); c++) {
                 final String path = schema.getFullPath(c);
                 final Mapper mapper = mappingLookup.getMapper(path);
@@ -156,17 +201,23 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 } else if (mapper == null) {
                     // No mapper at this path: it may still belong to a mapper that owns a whole group of descendant leaves, such as
                     // a flattened field, whose object value the encoder explodes into one dotted leaf per key.
-                    final GroupMatch match = findColumnGroup(path, mappingLookup);
-                    if (match != null) {
-                        assertSupportsColumnarParse(match.mapper(), match.ownerPath(), indexSettings);
-                        groups.computeIfAbsent(match.ownerPath(), p -> new ColumnGroup(match.mapper()))
-                            .add(escfBatch.column(c), match.relativeKey());
+                    if (ColumnGroupResolver.findColumnGroup(
+                        path,
+                        mappingLookup
+                    ) instanceof ColumnGroupResolver.ColumnGroupLookup.Owned owned) {
+                        assertSupportsColumnarParse(owned.mapper(), owned.ownerPath(), indexSettings);
+                        groupBuilder.add(owned, c);
                     }
                 }
             }
 
-            for (ColumnGroup group : groups.values()) {
-                group.mapper().mapColumnGroupBatch(ctx, group.columns(), group.relativeKeys());
+            for (ColumnGroupResolver.ColumnGroupResolution group : groupBuilder.build()) {
+                final int[] leafIndexes = group.leafIndexes();
+                final EscfColumn[] groupColumns = new EscfColumn[leafIndexes.length];
+                for (int i = 0; i < leafIndexes.length; i++) {
+                    groupColumns[i] = escfBatch.column(leafIndexes[i]);
+                }
+                group.mapper().mapColumnGroupBatch(ctx, groupColumns, group.relativeKeys());
             }
 
             for (MetadataFieldMapper m : supportedMappers) {
@@ -246,58 +297,6 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                     + "test data must only include fields whose mappers support columnar"
             );
         }
-    }
-
-    /**
-     * A {@link FieldMapper#resolvesColumnGroup() group mapper} together with the schema leaves it owns, accumulated in schema order.
-     */
-    private static final class ColumnGroup {
-        private final FieldMapper mapper;
-        private final List<EscfColumn> columns = new ArrayList<>();
-        private final List<String> relativeKeys = new ArrayList<>();
-
-        ColumnGroup(FieldMapper mapper) {
-            this.mapper = mapper;
-        }
-
-        void add(EscfColumn column, String relativeKey) {
-            columns.add(column);
-            relativeKeys.add(relativeKey);
-        }
-
-        FieldMapper mapper() {
-            return mapper;
-        }
-
-        EscfColumn[] columns() {
-            return columns.toArray(EscfColumn[]::new);
-        }
-
-        String[] relativeKeys() {
-            return relativeKeys.toArray(String[]::new);
-        }
-    }
-
-    /** The group mapper that owns a leaf, its own path, and the leaf's path relative to it. */
-    private record GroupMatch(FieldMapper mapper, String ownerPath, String relativeKey) {}
-
-    /**
-     * Walks up the dotted ancestors of {@code leafPath}. If the nearest ancestor that has a mapper is a {@link FieldMapper} that
-     * {@link FieldMapper#resolvesColumnGroup() resolves a column group}, returns that match; otherwise returns {@code null}. A
-     * non-group {@link FieldMapper} ancestor cannot own descendant leaves, so the walk stops there.
-     */
-    // TODO: Work on combining this to the group resolution code that gets added in ShardBatchMapper
-    private static GroupMatch findColumnGroup(String leafPath, MappingLookup lookup) {
-        int dot = leafPath.lastIndexOf('.');
-        while (dot > 0) {
-            final String ancestorPath = leafPath.substring(0, dot);
-            final Mapper ancestor = lookup.getMapper(ancestorPath);
-            if (ancestor instanceof FieldMapper fieldMapper) {
-                return fieldMapper.resolvesColumnGroup() ? new GroupMatch(fieldMapper, ancestorPath, leafPath.substring(dot + 1)) : null;
-            }
-            dot = leafPath.lastIndexOf('.', dot - 1);
-        }
-        return null;
     }
 
     private void populateColumnBatchDescriptors(MappedColumns mc, List<List<FieldDescriptor>> perDoc) {
@@ -400,7 +399,11 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         final FieldType ft = new FieldType(field.fieldType());
         ft.freeze();
 
-        final Number numeric = field.numericValue();
+        // For 2-byte point fields (e.g. HalfFloatPoint), numericValue() returns a float whose longValue()
+        // is lossy: multiple half-float values can share the same truncated long. Use binaryValue() instead
+        // so the raw 2-byte sortable encoding is compared, which the BinaryColumn columnar path also emits.
+        final boolean useBinary = ft.pointDimensionCount() == 1 && ft.pointNumBytes() == 2;
+        final Number numeric = useBinary ? null : field.numericValue();
         final Long longValue = numeric != null ? numeric.longValue() : null;
         BytesRef bytesValue = null;
         if (longValue == null) {

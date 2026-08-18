@@ -95,13 +95,11 @@ final class AshSphericalScalarQuantizer {
         int numAbsLevels = 1 << (bitsPerDim - 1);
         int nSteps = numAbsLevels - 1;
 
-        if (nSteps == 0) {
-            return quantizeExact1Bit(z, zOffset, out, outOffset, d);
-        }
-        if (nSteps == 1) {
-            return quantizeExact2Bit(z, zOffset, out, outOffset, d);
-        }
-        return quantizeExactGeneral(z, zOffset, out, outOffset, d, numAbsLevels, nSteps);
+        return switch (nSteps) {
+            case 0 -> quantizeExact1Bit(z, zOffset, out, outOffset, d);
+            case 1 -> quantizeExact2Bit(z, zOffset, out, outOffset, d);
+            default -> quantizeExactGeneral(z, zOffset, out, outOffset, d, numAbsLevels, nSteps);
+        };
     }
 
     /**

@@ -201,6 +201,9 @@ final class StackTrace implements ToXContentObject {
             // If synthetic source is disabled, fallback to dotted field names.
             inputFrameTypes = (String) source.get(frameTypesFallback);
         }
+        if (inputFrameIDs == null || inputFrameTypes == null) {
+            return new StackTrace(new int[0], new String[0], new String[0], new int[0]);
+        }
         int countsFrameIDs = inputFrameIDs.length() / BASE64_FRAME_ID_LENGTH;
 
         String[] fileIDs = new String[countsFrameIDs];

@@ -28,7 +28,23 @@ public final class SyntheticIdField extends Field {
     private static final String ENABLED_ATTRIBUTE_KEY = SyntheticIdField.class.getSimpleName() + ".enabled";
     private static final String ENABLED_ATTRIBUTE_VALUE = Boolean.TRUE.toString();
 
-    private static final FieldType TYPE;
+    /** The Lucene {@link FieldType} for synthetic {@code _id} fields. Package-private so columnar mappers can build matching columns. */
+    static final FieldType TYPE;
+
+    /**
+     * Field type for the doc-values-only aspect of the synthetic {@code _id} column in the columnar batch path.
+     * The companion {@link #COLUMNAR_INDEXED_TYPE} handles the inverted-index (empty token stream) aspect.
+     */
+    static final FieldType COLUMNAR_DV_ONLY_TYPE;
+
+    /**
+     * Field type for the indexed (empty token stream) aspect of the synthetic {@code _id} in the columnar batch path.
+     * Requires {@code tokenized=true} so that {@link org.apache.lucene.document.column.TokenStreamColumn} accepts it;
+     * the tokenized flag is not stored in Lucene's {@code FieldInfo}, so there is no schema inconsistency with the
+     * row path's {@link #TYPE} which has {@code tokenized=false}. The TSDBSyntheticIdPostingsFormat attributes are
+     * copied from {@link #TYPE} so per-field postings format selection is consistent across segments.
+     */
+    static final FieldType COLUMNAR_INDEXED_TYPE;
 
     static {
         TYPE = new FieldType();
@@ -48,6 +64,21 @@ public final class SyntheticIdField extends Field {
         TYPE.setStored(false);
         TYPE.setDocValuesType(DocValuesType.BINARY);
         TYPE.freeze();
+
+        COLUMNAR_DV_ONLY_TYPE = new FieldType();
+        COLUMNAR_DV_ONLY_TYPE.setDocValuesType(DocValuesType.BINARY);
+        COLUMNAR_DV_ONLY_TYPE.setIndexOptions(IndexOptions.NONE);
+        COLUMNAR_DV_ONLY_TYPE.freeze();
+
+        COLUMNAR_INDEXED_TYPE = new FieldType();
+        COLUMNAR_INDEXED_TYPE.putAttribute(ENABLED_ATTRIBUTE_KEY, ENABLED_ATTRIBUTE_VALUE);
+        COLUMNAR_INDEXED_TYPE.putAttribute(PerFieldPostingsFormat.PER_FIELD_FORMAT_KEY, TSDBSyntheticIdPostingsFormat.FORMAT_NAME);
+        COLUMNAR_INDEXED_TYPE.putAttribute(PerFieldPostingsFormat.PER_FIELD_SUFFIX_KEY, TSDBSyntheticIdPostingsFormat.SUFFIX);
+        COLUMNAR_INDEXED_TYPE.setIndexOptions(IndexOptions.DOCS);
+        COLUMNAR_INDEXED_TYPE.setTokenized(true);
+        COLUMNAR_INDEXED_TYPE.setOmitNorms(true);
+        COLUMNAR_INDEXED_TYPE.setStored(false);
+        COLUMNAR_INDEXED_TYPE.freeze();
     }
 
     public SyntheticIdField(BytesRef bytes) {

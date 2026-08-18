@@ -43,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Abstract base for compatibility tests that verify the columnar batch-mapping path produces the
@@ -64,7 +65,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
      * A single document input for a compatibility scenario.
      */
     // We can add an x-content builder variant of this if String is too simple for complex scenarios.
-    protected record Doc(String id, @Nullable String routing, long seqNo, long version, String source) {}
+    protected record Doc(String id, @Nullable String routing, long seqNo, long version, String source, @Nullable BytesRef tsid) {}
 
     /**
      * A named batch of documents that are mapped together in a single columnar pass, then
@@ -130,17 +131,27 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
 
     /** Creates a {@link Doc} with no routing and version {@code 1}. */
     protected static Doc doc(String id, long seqNo, String source) {
-        return new Doc(id, null, seqNo, 1L, source);
+        return new Doc(id, null, seqNo, 1L, source, null);
     }
 
     /** Creates a {@link Doc} with a routing value and version {@code 1}. */
     protected static Doc doc(String id, @Nullable String routing, long seqNo, String source) {
-        return new Doc(id, routing, seqNo, 1L, source);
+        return new Doc(id, routing, seqNo, 1L, source, null);
     }
 
     /** Creates a {@link Doc} with explicit routing, seqNo, and version. */
     protected static Doc doc(String id, @Nullable String routing, long seqNo, long version, String source) {
-        return new Doc(id, routing, seqNo, version, source);
+        return new Doc(id, routing, seqNo, version, source, null);
+    }
+
+    /**
+     * Creates a {@link Doc} with routing, a coordinator-computed tsid, and version {@code 1}.
+     * Use this for time-series batches where the tsid was computed on the coordinating node and
+     * both the row path ({@link SourceToParse#tsid()}) and the columnar path must see the same
+     * tsid bytes.
+     */
+    protected static Doc doc(String id, @Nullable String routing, @Nullable BytesRef tsid, long seqNo, String source) {
+        return new Doc(id, routing, seqNo, 1L, source, tsid);
     }
 
     /** Creates a {@link Batch} with an explicit primary term from a varargs array of {@link Doc}s. */
@@ -236,7 +247,12 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
             final List<List<FieldDescriptor>> xcDescsPerDoc = new ArrayList<>(docCount);
             for (int i = 0; i < docCount; i++) {
                 final Doc doc = docs.get(i);
-                final SourceToParse sourceToParse = new SourceToParse(doc.id(), sourceBytesArray[i], XContentType.JSON, doc.routing());
+                // When the doc carries a coordinator-computed tsid (time-series path), pass it to
+                // SourceToParse so the row-path DocumentParser reads the same tsid bytes via
+                // SourceToParse#tsid() rather than re-building it from source dimensions.
+                final SourceToParse sourceToParse = doc.tsid() != null
+                    ? new SourceToParse(doc.id(), sourceBytesArray[i], XContentType.JSON, doc.routing(), Map.of(), doc.tsid())
+                    : new SourceToParse(doc.id(), sourceBytesArray[i], XContentType.JSON, doc.routing());
                 final ParsedDocument pd = mapperService.documentMapper().parse(sourceToParse);
                 // Apply the same engine values as the columnar path (mirrors InternalEngine lines 1910-1911).
                 pd.updateSeqID(doc.seqNo(), scenario.primaryTerm());
@@ -424,6 +440,9 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
             final IndexRequest req = new IndexRequest("test-index").id(doc.id()).source(sourceBytes[i], XContentType.JSON);
             if (doc.routing() != null) {
                 req.routing(doc.routing());
+            }
+            if (doc.tsid() != null) {
+                req.tsid(doc.tsid());
             }
             requests[i] = req;
         }

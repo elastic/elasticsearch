@@ -2882,14 +2882,18 @@ public class NumberFieldMapper extends FieldMapper {
         // Neither doc_values.multi_value nor ignore_malformed is implemented by mapColumnBatch, but
         // neither is rejected up front either: both only matter for documents the columnar path
         // already refuses, and refusing late falls back to row path.
-        return indexSettings.getMode().isStrictColumnar()
+        boolean modeOk = indexSettings.getMode().isStrictColumnar()
+            // Single-valued numeric dimensions in time_series mode use SortedNumericDocValuesField,
+            // which mapColumnBatch already emits — the only thing gating them was isStrictColumnar().
+            || (indexSettings.getMode().isTsdb() && dimension);
+        return modeOk
             && docValuesParameters.enabled()
             && stored == false
             && indexTerms == false
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
             && multiFields().iterator().hasNext() == false
-            && dimension == false
+            && (indexSettings.getMode().isStrictColumnar() ? dimension == false : true)
             && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
     }
 

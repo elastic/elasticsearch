@@ -249,11 +249,19 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     }
 
     private static void validateTimestamp(TimestampBounds bounds, long originValue, DocumentParserContext context) {
+        validateTimestamp(bounds, originValue, context.mappingLookup());
+    }
+
+    /**
+     * Validates that {@code originValue} falls within the index {@code bounds}.
+     * Shared between the row path ({@link #postParse}) and the columnar path
+     * ({@link #postColumnarParse}).
+     */
+    static void validateTimestamp(TimestampBounds bounds, long originValue, MappingLookup mappingLookup) {
         long value = originValue;
 
         Resolution resolution;
-        if (context.mappingLookup()
-            .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH)
+        if (mappingLookup.getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH)
             .typeName()
             .equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE)) {
             resolution = Resolution.NANOSECONDS;
@@ -285,21 +293,30 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // postParse rejects a document with no @timestamp and, only for TIME_SERIES, validates it
-        // against the index time bounds. Neither runs columnar, but refusing whenever enabled is too
-        // blunt: IndexMode#createDefaultMapping enables this mapper on every logsdb_columnar index,
-        // data stream or not. Gating on the mode keeps the bounds check enforced where it applies.
-        //
-        // TODO(columnar): re-instate the missing-@timestamp rejection in postColumnarParse, once
-        // BatchMappingContext exposes the mapped timestamp column.
-        return enabled == false || indexSettings.getMode().shouldValidateTimestamp() == false;
+        // The missing-@timestamp rejection and TIME_SERIES bounds check are both re-instated in
+        // postColumnarParse once BatchMappingContext exposes the mapped timestamp column (via
+        // DateFieldMapper.mapColumnBatch calling ctx.recordTimestampColumn). Returning true
+        // unconditionally allows the columnar path to be used for all modes including TIME_SERIES.
+        return true;
     }
 
     @Override
     public void postColumnarParse(BatchMappingContext context) throws IOException {
         super.postColumnarParse(context);
-        // TODO: see the TODO on supportsColumnarParse — the missing-@timestamp check belongs here
-        // once the batch context exposes the mapped timestamp column.
+        if (enabled == false) {
+            return;
+        }
+        final IndexSettings indexSettings = context.indexSettings();
+        final TimestampBounds bounds = indexSettings.getMode().shouldValidateTimestamp() ? indexSettings.getTimestampBounds() : null;
+        final MappingLookup mappingLookup = context.mappingLookup();
+        for (int doc = 0; doc < context.docCount(); doc++) {
+            // Throws if @timestamp is missing or absent for this document, mirroring the
+            // extractTimestampValue check in postParse.
+            long timestamp = context.timestampAt(doc);
+            if (bounds != null) {
+                validateTimestamp(bounds, timestamp, mappingLookup);
+            }
+        }
     }
 
     @Override

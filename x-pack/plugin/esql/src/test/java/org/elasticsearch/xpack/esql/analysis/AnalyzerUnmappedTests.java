@@ -1504,6 +1504,17 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(Expressions.names(plan.output()), equalTo(List.of("name", "x")));
     }
 
+    public void testLoadAllToleratesNonMatchingKeepWildcardThatLoadRejects() {
+        String query = "FROM test | KEEP emp_no, _inde*, first_name, * | SORT emp_no";
+
+        LogicalPlan loadAll = test().statement(setUnmappedLoadAll(query));
+        List<String> names = Expressions.names(loadAll.output());
+        assertThat(names.subList(0, 2), equalTo(List.of("emp_no", "first_name")));
+        assertThat(names, not(hasItem("_index")));
+
+        test().statementError(setUnmappedLoad(query), containsString("No matches found for pattern [_inde*]"));
+    }
+
     /**
      * PROMQL is rewritten into a TS aggregate before verification, so LOAD_ALL rejects it via the shared load-mode check - which names
      * the mode the user asked for - as well as via the allow-list.

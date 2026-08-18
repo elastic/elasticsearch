@@ -4202,7 +4202,7 @@ a-1            | hello
 // Exact match on the normalized keyword must stay in the compute engine; pushing it to Lucene would fold the literal through the normalizer and match case-insensitively.
 partiallyMappedNormalizedKeywordExactMatchIsCaseSensitive
 required_capability: optional_fields_v5
-required_capability: optional_fields_fix_load_object_from_synthetic_source
+required_capability: optional_fields_fix_load_partially_mapped
 
 SET unmapped_fields="load"\;
 FROM normalized_keyword, normalized_keyword_unmapped

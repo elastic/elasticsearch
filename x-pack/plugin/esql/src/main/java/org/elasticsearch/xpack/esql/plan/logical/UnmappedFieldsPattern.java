@@ -96,10 +96,9 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
     }
 
     /**
-     * The ordered projection terms of a {@code KEEP}, as written: a bare {@code *}, wildcard patterns, and explicit names, in their
-     * left-to-right order. Unlike {@link #forKeep}, which folds them into an unordered membership predicate (and short-circuits on
-     * {@code *}), this keeps the order the coordinator needs to replay {@code KEEP}'s column ordering over the expanded leaves via
-     * {@link #keepOrdered}. Reads the same still-unresolved projections {@link #forKeep} does, so the same three shapes are supported.
+     * The ordered projection terms of a {@code KEEP} command. Unlike {@link #forKeep}, which folds them into an unordered membership
+     * predicate, this keeps the order the coordinator needs to replay {@code KEEP}'s column ordering over the expanded leaves via
+     * {@link #keepOrdered}.
      */
     public static List<String> orderTerms(List<? extends NamedExpression> projections) {
         List<String> terms = new ArrayList<>(projections.size());
@@ -116,14 +115,7 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
 
     /**
      * Replays {@code KEEP}'s column-ordering contract over {@code childOutput} — the real columns followed by the discovered unmapped
-     * leaves (alphabetical) — using {@code keepTerms} from {@link #orderTerms}. This mirrors {@code Analyzer.keepResolver}: each term
-     * claims the columns it matches, a later term of equal-or-higher priority moves a column to the end, and priority is bare {@code *}
-     * (lowest) &lt; other wildcard &lt; explicit name (highest). It exists because a {@code LOAD_ALL} leaf is not a column when
-     * {@code KEEP} is resolved, so its position must be re-derived here, on the coordinator, from the same terms.
-     * <p>
-     * {@code childOutput} carries only what {@code KEEP} selected (its real columns plus the leaves it expands into); a column a later
-     * {@code EVAL} appended is trailed by the caller, not passed here. As a safety net any name no term matches still keeps its natural
-     * trailing position, so reordering is total and never drops a column.
+     * leaves (alphabetical) — using {@code keepTerms} from {@link #orderTerms}. This mirrors {@code Analyzer.keepResolver}.
      */
     public static List<String> keepOrdered(List<String> childOutput, List<String> keepTerms) {
         LinkedHashMap<String, Integer> priorities = new LinkedHashMap<>();
@@ -212,18 +204,6 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
     /**
      * Whether a top-level {@code _source} key whose value is an <em>object</em> should be shipped from the data node so the coordinator
      * can flatten it into dotted leaf columns and decide, per leaf, which survive.
-     *
-     * <p>An object has no {@code keyword} column of its own — only its leaves ({@code key.child}) become columns — and the coordinator
-     * applies the full pattern to each flattened leaf name via {@link #matches}. So the data node prunes a whole object only when an
-     * exclude provably covers the <em>entire</em> subtree: a wildcard that matches the parent name <em>and ends in {@code *}</em>, so its
-     * trailing wildcard also absorbs an arbitrarily long {@code .child} suffix ({@code DROP key*} drops {@code key} and every
-     * {@code key.leaf}). A fixed-suffix wildcard such as {@code *d} can match the parent {@code unmapped} yet miss
-     * {@code unmapped.deep.leaf}, and an exact include/exclude names a single column, so neither prunes here — the coordinator's per-leaf
-     * {@link #matches} enforces them. Over-shipping is always safe (the coordinator filters per leaf); only over-pruning would lose data.
-     *
-     * <p>Deferring the per-leaf decision to the coordinator is what makes a synthetic-source object — which rebuilds a dotted key such as
-     * {@code unmapped.deep.leaf} under an {@code unmapped} parent object — expand to the same columns as the equivalent stored-source
-     * literal dotted key, under every {@code KEEP}/{@code DROP} shape (exact or wildcard, parent or descendant).
      */
     public boolean matchesObjectPush(String name) {
         return isNone() == false && anySubtreeCoveringExcludeMatches(name) == false;

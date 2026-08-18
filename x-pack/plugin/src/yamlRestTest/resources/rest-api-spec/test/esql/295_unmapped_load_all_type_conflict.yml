@@ -1,0 +1,127 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all, report_original_types, suggested_cast, optional_fields_fix_load_object_from_synthetic_source ]
+      reason: "SET unmapped_fields=\"LOAD_ALL\" surfaces a field mapped as different types across indices as an unsupported type conflict, reported with original_types and suggested_cast"
+      #
+      # Simplified analogue of the unmapped-load-all.csv-spec multiIndexTypeConflict* tests: the dotted leaves under "unmapped" are mapped as
+      # keyword in one index and as text / version / ip in another, and are unmapped in a third. Under LOAD_ALL the two mapped legs disagree, so
+      # each leaf becomes an unsupported type conflict whose JSON column carries the conflicting original_types and a suggested_cast of keyword.
+      #
+  - do:
+      indices.create:
+        index: conflict_mapped_keyword
+        body:
+          mappings:
+            properties:
+              id:
+                type: keyword
+              unmapped:
+                properties:
+                  foo:
+                    type: keyword
+                  bar:
+                    type: keyword
+                  deep:
+                    properties:
+                      leaf:
+                        type: keyword
+  - do:
+      index:
+        index: conflict_mapped_keyword
+        id: "8"
+        refresh: true
+        body:
+          id: "8"
+          unmapped:
+            foo: "mfoo8"
+            bar: "mbar8"
+            deep:
+              leaf: "mleaf8"
+  - do:
+      indices.create:
+        index: conflict_mapped_mixed
+        body:
+          mappings:
+            properties:
+              id:
+                type: keyword
+              unmapped:
+                properties:
+                  foo:
+                    type: text
+                  bar:
+                    type: version
+                  deep:
+                    properties:
+                      leaf:
+                        type: ip
+  - do:
+      index:
+        index: conflict_mapped_mixed
+        id: "10"
+        refresh: true
+        body:
+          id: "10"
+          unmapped:
+            foo: "lazy fox"
+            bar: "1.2.3.4"
+            deep:
+              leaf: "192.168.1.10"
+  - do:
+      indices.create:
+        index: conflict_unmapped
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+  - do:
+      index:
+        index: conflict_unmapped
+        id: "1"
+        refresh: true
+        body:
+          id: "1"
+          unmapped:
+            foo: "foo1"
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: conflict_mapped_keyword,conflict_mapped_mixed,conflict_unmapped
+
+---
+'conflicting dotted leaves are reported as unsupported type conflicts under load_all':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM conflict_* | KEEP id, unmapped.foo, unmapped.bar, unmapped.deep.leaf | SORT id'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "keyword" }
+  - is_false: columns.0.original_types
+  - match: { columns.1.name: "unmapped.foo" }
+  - match: { columns.1.type: "unsupported" }
+  - match: { columns.1.original_types: [ "keyword", "text" ] }
+  - match: { columns.1.suggested_cast: "keyword" }
+  - match: { columns.2.name: "unmapped.bar" }
+  - match: { columns.2.type: "unsupported" }
+  - match: { columns.2.original_types: [ "keyword", "version" ] }
+  - match: { columns.2.suggested_cast: "keyword" }
+  - match: { columns.3.name: "unmapped.deep.leaf" }
+  - match: { columns.3.type: "unsupported" }
+  - match: { columns.3.original_types: [ "ip", "keyword" ] }
+  - match: { columns.3.suggested_cast: "keyword" }
+  - match: { values.0: [ "1", null, null, null ] }
+  - match: { values.1: [ "10", null, null, null ] }
+  - match: { values.2: [ "8", null, null, null ] }

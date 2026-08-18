@@ -463,12 +463,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             UNMAPPED_FIELD_TYPE.freeze();
         }
         private final String fullFieldName;
-        private final boolean sourceSynthetic;
 
         DefaultShardContextForUnmappedField(DefaultShardContext ctx, String fullFieldName) {
             super(ctx.index, ctx.releasable, ctx.ctx, ctx.aliasFilter);
             this.fullFieldName = fullFieldName;
-            this.sourceSynthetic = ctx.ctx.isSourceSynthetic();
         }
 
         @Override

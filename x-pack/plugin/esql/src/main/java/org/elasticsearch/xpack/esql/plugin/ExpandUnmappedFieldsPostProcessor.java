@@ -50,8 +50,7 @@ import java.util.function.BiConsumer;
  *
  * <p>The data node ships whole objects (it can only filter by top-level source key, pruning a subtree solely when a wildcard
  * {@code DROP} covers it), so this post-processor is where the {@link UnmappedFieldsPattern} is applied per flattened <em>leaf</em>
- * name. Testing each dotted leaf against the same pattern a stored source's literal dotted key would face is what keeps an exact or
- * wildcard {@code KEEP}/{@code DROP} of a descendant behaving identically across the two source modes.
+ * name.
  *
  * <p>A leaf is not a column when {@code KEEP} is resolved, so the plan cannot position it; the column order is re-derived here. When a
  * top {@code KEEP} governs the output (carried as {@link UnmappedFieldsAttribute#keepOrder()}), {@link UnmappedFieldsPattern#keepOrdered}
@@ -75,9 +74,6 @@ class ExpandUnmappedFieldsPostProcessor {
             return result;
         }
         double reservationFactor = plannerSettings.sourceReservationFactor();
-        // The data node ships whole objects, pruning only subtrees a wildcard DROP covers, and leaves the per-leaf KEEP/DROP decision
-        // to us: every flattened leaf name is tested against this pattern below, so a synthetic-source object and the equivalent
-        // stored-source dotted key survive (or not) alike, whatever KEEP/DROP shape the query used.
         UnmappedFieldsAttribute unmappedAttribute = (UnmappedFieldsAttribute) schema.get(unmappedIdx);
         UnmappedFieldsPattern pattern = unmappedAttribute.pattern();
 
@@ -86,10 +82,6 @@ class ExpandUnmappedFieldsPostProcessor {
         boolean success = false;
         try {
             var fieldNames = collectFieldNames(result, unmappedIdx, pattern, blockFactory.breaker(), reservationFactor);
-            // Drop any expanded leaf whose dotted name is already a query column. collectFieldNames already rejects names the pattern
-            // excludes, and DetermineUnmappedFieldsToKeep excludes every query-output name, so an ordinary LOAD_ALL never reaches here
-            // with a collision; this stays as a defensive guard for a caller that passes an unrestricted pattern (e.g. a unit test with
-            // pattern=ALL over a partially-mapped object). Also converts the SortedSet to a list for iteration.
             Set<String> existingNames = existingColumnNames(schema, unmappedIdx);
             List<String> leafNames = new ArrayList<>(fieldNames.size());
             for (String name : fieldNames) {
@@ -185,24 +177,11 @@ class ExpandUnmappedFieldsPostProcessor {
 
     /**
      * The expanded output layout: the reordered {@code schema} and, per output column, where its block comes from.
-     * <p>
-     * {@code blockOrder[pos]} is a retained column's index in the original {@code schema} when it is {@code < originalColumnCount}
-     * (never {@code unmappedIdx}), and {@code originalColumnCount + leafIndex} for an expanded leaf, where {@code leafIndex} is the
-     * leaf's position in {@code leafNames}. {@link #rewritePage} decodes it to place each block.
      */
     private record ExpandedLayout(List<Attribute> schema, int[] blockOrder) {}
 
     /**
      * Builds the expanded output layout: the final column order plus, per column, which block feeds it.
-     * <p>
-     * Real columns split around {@code _unmapped_fields}: those <em>before</em> it are the governing {@code KEEP}'s own selection (it
-     * pins the synthetic column right after its projections), those <em>after</em> it were appended by a later {@code EVAL}/generating
-     * command. Without a governing {@code KEEP} the order is natural — every real column in {@code schema} order, then the leaves
-     * (alphabetical, from {@code collectFieldNames}). With one, {@link UnmappedFieldsPattern#keepOrdered} replays {@code KEEP}'s
-     * left-to-right order over its selection plus the leaves (as if the leaves had been real columns when it was resolved) and the
-     * appended columns then trail, because {@code KEEP} never reorders a column that did not exist when it ran. {@code leafNames}
-     * already excludes any name colliding with a real column (see {@link #expand}), so real and leaf names are disjoint and each
-     * ordered name resolves to exactly one block.
      */
     private static ExpandedLayout computeLayout(List<Attribute> schema, int unmappedIdx, List<String> leafNames, List<String> keepOrder) {
         int originalColumnCount = schema.size();
@@ -397,9 +376,7 @@ class ExpandUnmappedFieldsPostProcessor {
     /**
      * Walks a parsed {@code _source} object, invoking {@code sink} once per leaf with its dotted path and value: a nested object
      * recurses (so {@code {"a":{"b":1}}} yields the leaf {@code a.b}), while everything else — a scalar, an array, or a literal dotted
-     * key — is a leaf as-is. This is what makes a synthetic-source object and the equivalent stored-source dotted key expand alike.
-     * Recursion depth is bounded by the JSON parser's maximum nesting depth ({@link #parseJson} already rejected anything deeper), so a
-     * pathologically deep object cannot overflow the stack here.
+     * key — is a leaf as-is.
      */
     private static void collectLeaves(String prefix, Map<?, ?> map, BiConsumer<String, Object> sink) {
         for (Map.Entry<?, ?> entry : map.entrySet()) {
@@ -412,11 +389,6 @@ class ExpandUnmappedFieldsPostProcessor {
         }
     }
 
-    /**
-     * Records one flattened leaf for the current row. A name normally appears once, but a row carrying both a literal dotted key and
-     * the equivalent nested path (e.g. {@code {"a.b":x,"a":{"b":y}}}) produces the same leaf twice; those values are combined into a
-     * multivalue (source order, preserved by {@link #parseJson}) so neither is silently dropped.
-     */
     private static void collectLeaf(Map<String, Object> leaves, String name, Object value) {
         if (leaves.containsKey(name) == false) {
             leaves.put(name, value);
@@ -428,7 +400,6 @@ class ExpandUnmappedFieldsPostProcessor {
         leaves.put(name, combined);
     }
 
-    /** Appends {@code value} to {@code combined}, flattening a list and dropping nulls (a null contributes no keyword anyway). */
     private static void flattenInto(List<Object> combined, Object value) {
         if (value instanceof List<?> list) {
             combined.addAll(list);

@@ -115,7 +115,6 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
             id().writeTo(out);
             out.writeBoolean(synthetic());
             out.writeNamedWriteable(pattern);
-            // No transport-version gate: unmapped_fields="LOAD_ALL" is snapshot-only, so no released node emits or parses this attribute.
             out.writeStringCollection(keepOrder);
         }
     }

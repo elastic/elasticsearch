@@ -749,19 +749,12 @@ null                 | deep6                      | null                 | null 
 bar7                 | null                       | null                 | null             | 7
 ;
 
-###########################################################
-# Mapped + unmapped combined over unmapped_multi_*         #
-###########################################################
-
-// unmapped.foo is keyword-mapped only in unmapped_multi_mapped and lives in _source in the other four indices, so FROM unmapped_multi_*
-// makes it partially mapped: LOAD_ALL merges the mapped leg (ids 8, 9) with the leg loaded from the siblings' _source (ids 1, 3, 5) into one
-// column. A mapped multivalue (id 9) and an unmapped array (id 5) both surface as multivalues.
+// unmapped.foo is keyword-mapped only in unmapped_multi_mapped and lives in _source in the other four indices
 multiIndexMappedFieldLoadsBothLegs
-required_capability: optional_fields_load_all
 required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM unmapped_multi_*
+FROM unmapped_multi_*, -unmapped_multi_mapped_mixed
 | KEEP id, unmapped.foo
 | SORT id
 ;
@@ -785,7 +778,7 @@ required_capability: optional_fields_load_all
 required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM unmapped_multi_*
+FROM unmapped_multi_*, -unmapped_multi_mapped_mixed
 | KEEP id, unmapped.foo, unmapped.bar, unmapped.deep.leaf
 | SORT id
 ;
@@ -809,7 +802,7 @@ required_capability: optional_fields_load_all
 required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM unmapped_multi_*
+FROM unmapped_multi_*, -unmapped_multi_mapped_mixed
 | KEEP id, unmapped, unmapped.foo
 | SORT id
 ;
@@ -833,7 +826,7 @@ required_capability: optional_fields_load_all
 required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM unmapped_multi_*
+FROM unmapped_multi_*, -unmapped_multi_mapped_mixed
 | SORT id
 ;
 
@@ -857,7 +850,7 @@ required_capability: optional_fields_load_all
 required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM unmapped_multi_*
+FROM unmapped_multi_*, -unmapped_multi_mapped_mixed
 | WHERE unmapped.foo == "mfoo8" OR unmapped.foo == "foo1"
 | KEEP id, unmapped.foo
 | SORT id
@@ -887,4 +880,173 @@ null                      |scalar4           |4           |null                 
 null                      |null              |5           |null                  |[arr1, arr2]   
 deep6                     |null              |6           |null                  |null           
 null                      |null              |7           |bar7                  |null           
+;
+
+multiIndexKeepOrdersRealColumnAfterExpandedLeaves_WithMultiWildcardNested_AndMetadataIndex
+required_capability: optional_fields_fix_load_object_from_synthetic_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_multi_mapped, unmapped_multi_synthetic METADATA _index
+| KEEP id, _inde*, unmapped, unmapped.foo, *
+| SORT id
+;
+
+  id:keyword   |       _index:keyword   | unmapped:keyword | unmapped.foo:keyword | unmapped.bar:keyword|unmapped.deep.leaf:keyword
+3              |unmapped_multi_synthetic|null              |foo3                  |null                 |null              
+6              |unmapped_multi_synthetic|null              |null                  |null                 |deep6             
+7              |unmapped_multi_synthetic|null              |null                  |bar7                 |null              
+8              |unmapped_multi_mapped   |null              |mfoo8                 |mbar8                |mleaf8            
+9              |unmapped_multi_mapped   |null              |[mfa, mfb]            |null                 |null              
+;
+
+multiIndexKeepOrdersRealColumnAfterExpandedLeaves_WithMultiWildcardNested_AndActualMappedFields
+required_capability: optional_fields_fix_load_object_from_synthetic_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_multi_* METADATA _index
+| KEEP id, _inde*, unmapped, unmapped.foo, *
+| SORT id
+;
+
+  id:keyword   |       _index:keyword      | unmapped:keyword | unmapped.foo:unsupported | unmapped.bar:unsupported|unmapped.deep.leaf:unsupported
+1              |unmapped_multi_stored_foo  |null              |null                      |null                     |null              
+10             |unmapped_multi_mapped_mixed|null              |null                      |null                     |null              
+11             |unmapped_multi_mapped_mixed|null              |null                      |null                     |null              
+12             |unmapped_multi_mapped_mixed|null              |null                      |null                     |null              
+2              |unmapped_multi_stored_bar  |null              |null                      |null                     |null              
+3              |unmapped_multi_synthetic   |null              |null                      |null                     |null              
+4              |unmapped_multi_stored_mixed|scalar4           |null                      |null                     |null              
+5              |unmapped_multi_stored_mixed|null              |null                      |null                     |null              
+6              |unmapped_multi_synthetic   |null              |null                      |null                     |null              
+7              |unmapped_multi_synthetic   |null              |null                      |null                     |null              
+8              |unmapped_multi_mapped      |null              |null                      |null                     |null              
+9              |unmapped_multi_mapped      |null              |null                      |null                     |null              
+;
+
+// unmapped.foo is mapped as keyword in unmapped_multi_mapped and as text in unmapped_multi_mapped_mixed. The two mapped legs disagree, so the
+// merged column is an unsupported type conflict whose values are all null - reading it requires a cast - even though the four sibling indices
+// could otherwise surface it from _source.
+multiIndexTypeConflictSingleLeafIsUnsupportedAndNull
+required_capability: optional_fields_fix_load_object_from_synthetic_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_multi_*
+| KEEP id, unmapped.foo
+| SORT id
+;
+
+id:keyword | unmapped.foo:unsupported
+1          | null
+10         | null
+11         | null
+12         | null
+2          | null
+3          | null
+4          | null
+5          | null
+6          | null
+7          | null
+8          | null
+9          | null
+;
+
+// Each dotted leaf is mapped as two different types across the mapped indices - unmapped.foo keyword vs text, unmapped.bar keyword vs version,
+// unmapped.deep.leaf keyword vs ip - so every one is an unsupported type conflict and stays null regardless of the values in the _source legs.
+multiIndexTypeConflictAllLeavesAreUnsupportedAndNull
+required_capability: optional_fields_fix_load_object_from_synthetic_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_multi_*
+| KEEP id, unmapped.foo, unmapped.bar, unmapped.deep.leaf
+| SORT id
+;
+
+id:keyword | unmapped.foo:unsupported | unmapped.bar:unsupported | unmapped.deep.leaf:unsupported
+1          | null                     | null                     | null
+10         | null                     | null                     | null
+11         | null                     | null                     | null
+12         | null                     | null                     | null
+2          | null                     | null                     | null
+3          | null                     | null                     | null
+4          | null                     | null                     | null
+5          | null                     | null                     | null
+6          | null                     | null                     | null
+7          | null                     | null                     | null
+8          | null                     | null                     | null
+9          | null                     | null                     | null
+;
+
+// The bare scalar unmapped is fully unmapped (an object in the two mapped indices, a keyword scalar only in unmapped_multi_stored_mixed at id 4), so
+// its expansion still surfaces scalar4, while the dotted unmapped.foo is a keyword-vs-text conflict that stays an unsupported null column alongside it.
+multiIndexTypeConflictScalarUnmappedCoexistsWithConflict
+required_capability: optional_fields_fix_load_object_from_synthetic_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_multi_*
+| KEEP id, unmapped, unmapped.foo
+| SORT id
+;
+
+id:keyword | unmapped:keyword | unmapped.foo:unsupported
+1          | null             | null
+10         | null             | null
+11         | null             | null
+12         | null             | null
+2          | null             | null
+3          | null             | null
+4          | scalar4          | null
+5          | null             | null
+6          | null             | null
+7          | null             | null
+8          | null             | null
+9          | null             | null
+;
+
+// Casting the conflicting unmapped.foo to keyword resolves the union type: both mapped legs (keyword and text) and the unmapped _source legs are
+// read as keyword, so the values that were null under the raw conflict now surface - the keyword leg (ids 1, 3, 5, 8, 9) and the text leg (ids 10, 11).
+multiIndexTypeConflictResolvedByExplicitCast
+required_capability: optional_fields_fix_load_object_from_synthetic_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_multi_*
+| EVAL foo = unmapped.foo::keyword
+| KEEP id, foo
+| SORT id
+;
+
+id:keyword | foo:keyword
+1          | foo1
+10         | lazy fox
+11         | [lazy fox, quick dog]
+12         | null
+2          | null
+3          | foo3
+4          | null
+5          | [arr1, arr2]
+6          | null
+7          | null
+8          | mfoo8
+9          | [mfa, mfb]
+;
+
+// WHERE on the cast-resolved union column filters the computed keyword value (not pushed to Lucene), keeping only ids with a value.
+multiIndexTypeConflictCastThenFilteredByWhere
+required_capability: optional_fields_fix_load_object_from_synthetic_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_multi_*
+| EVAL foo = unmapped.foo::keyword
+| WHERE foo IS NOT NULL
+| KEEP id, foo
+| SORT id
+;
+
+id:keyword | foo:keyword
+1          | foo1
+10         | lazy fox
+11         | [lazy fox, quick dog]
+3          | foo3
+5          | [arr1, arr2]
+8          | mfoo8
+9          | [mfa, mfb]
 ;

@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 /**
- * End-to-end coverage for {@code AiIndexImplicitPrivilegesProvider} against a real
+ * End-to-end coverage for {@code ElasticAiIndexImplicitPrivilegesProvider} against a real
  * default-distribution node. Unlike an in-JVM {@code internalClusterTest}, this exercises the
  * full production path: the plugin is bundled into the default distribution and auto-discovered
  * via the {@code SecurityExtension} SPI, so no test plugin is installed.
@@ -76,7 +76,7 @@ import static org.hamcrest.Matchers.not;
  * alongside the {@code ai_index:} actions, so the surfaced DLS query also demonstrates that actions
  * outside the {@code ai_index:} namespace never become DLS terms.
  */
-public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
+public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
 
     private static final String ADMIN_USER = "test-admin";
     private static final String ADMIN_PASSWORD = "x-pack-test-password";
@@ -88,18 +88,19 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
     private static final String DASHBOARDS_PRIVILEGE = "feature_dashboards.read";
     private static final String WORKFLOWS_PRIVILEGE = "feature_workflows.read";
     private static final String LOGIN_ACTION = "login:";
-    private static final String AI_INDEX_DASHBOARD_READ_ACTION = "ai_index:dashboard/read";
-    private static final String AI_INDEX_WORKFLOW_READ_ACTION = "ai_index:workflow/read";
+    private static final String ELASTIC_AI_INDEX_DASHBOARD_READ_ACTION = "ai_index:dashboard/read";
+    private static final String ELASTIC_AI_INDEX_WORKFLOW_READ_ACTION = "ai_index:workflow/read";
     // Registered alongside the ai_index: action to prove non-ai_index: actions are filtered out of the DLS query.
     private static final String SAVED_OBJECT_GET_ACTION = "saved_object:dashboard/get";
 
-    // Matches the ai-index-idx-* pattern so the provider's AI_INDEX_INDICES grant applies to it.
-    private static final String AI_INDEX = "ai-index-idx-test";
+    // Must be exactly the index named in ELASTIC_AI_INDICES: the provider grants read on that
+    // single index, so any other name would leave the user with no privilege on it at all.
+    private static final String ELASTIC_AI_INDEX = "ai-index-idx-sml-data";
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .name("kibana-ai-index-implicit-privileges-cluster")
+        .name("kibana-elastic-ai-index-implicit-privileges-cluster")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.license.self_generated.type", "basic")
         .setting("xpack.ml.enabled", "false")
@@ -127,13 +128,13 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
         // 3. A user that holds the role.
         putUser(SML_USER, SML_USER_PASSWORD, "ai_marketing_reader");
 
-        // 4. As admin, create the AI Index with explicit nested mappings and index the fixtures.
+        // 4. As admin, create the Elastic AI Index with explicit nested mappings and index the fixtures.
         createAiIndexWithDocs();
 
         // 5. The implicit grant surfaces through the get-role API, carrying the nested DLS query.
         assertImplicitGrantSurfaced("ai_marketing_reader");
 
-        // 6. The user can read the AI Index without any explicit index privilege, and DLS restricts the
+        // 6. The user can read the Elastic AI Index without any explicit index privilege, and DLS restricts the
         // visible documents to exactly the three that satisfy a whole nested element.
         assertUserSeesOnlyAuthorizedDocs();
     }
@@ -158,10 +159,10 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
                 DASHBOARDS_PRIVILEGE,
                 LOGIN_ACTION,
                 SAVED_OBJECT_GET_ACTION,
-                AI_INDEX_DASHBOARD_READ_ACTION,
+                ELASTIC_AI_INDEX_DASHBOARD_READ_ACTION,
                 WORKFLOWS_PRIVILEGE,
                 LOGIN_ACTION,
-                AI_INDEX_WORKFLOW_READ_ACTION
+                ELASTIC_AI_INDEX_WORKFLOW_READ_ACTION
             )
         );
         assertOK(client().performRequest(request));
@@ -210,7 +211,7 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
         // shape, so this test owns the mapping the provider is written against. Dynamic mapping
         // cannot substitute — it never produces `nested` for an array of objects, and a nested
         // query against an `object` field throws rather than under-matching.
-        final Request create = new Request("PUT", "/" + AI_INDEX);
+        final Request create = new Request("PUT", "/" + ELASTIC_AI_INDEX);
         create.setJsonEntity("""
             {
               "mappings": {
@@ -335,7 +336,7 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
     }
 
     private void indexDoc(String id, String body) throws Exception {
-        final Request request = new Request("PUT", "/" + AI_INDEX + "/_doc/" + id);
+        final Request request = new Request("PUT", "/" + ELASTIC_AI_INDEX + "/_doc/" + id);
         request.addParameter("refresh", "true");
         request.setJsonEntity(body);
         assertOK(client().performRequest(request));
@@ -356,7 +357,7 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
             .filter(entry -> Boolean.TRUE.equals(entry.get("implicitly_granted")))
             .filter(entry -> ((List<String>) entry.get("names")).stream().anyMatch(n -> n.startsWith("ai-index-")))
             .toList();
-        assertThat("expected exactly one implicit ai-index-* grant, got " + indices, implicitEntries, hasSize(1));
+        assertThat("expected exactly one implicit Elastic AI Index grant, got " + indices, implicitEntries, hasSize(1));
 
         final Map<String, Object> implicit = implicitEntries.get(0);
         assertThat((List<String>) implicit.get("privileges"), equalTo(List.of("read")));
@@ -366,8 +367,8 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
         assertThat(query, containsString("permissions.kibana.privileges.space"));
         assertThat(query, containsString("permissions.kibana.privileges.name"));
         assertThat(query, containsString("permissions.kibana.privileges.count"));
-        assertThat(query, containsString(AI_INDEX_DASHBOARD_READ_ACTION));
-        assertThat(query, containsString(AI_INDEX_WORKFLOW_READ_ACTION));
+        assertThat(query, containsString(ELASTIC_AI_INDEX_DASHBOARD_READ_ACTION));
+        assertThat(query, containsString(ELASTIC_AI_INDEX_WORKFLOW_READ_ACTION));
         assertThat(query, containsString("terms_set"));
         // No delimiter anywhere — space and action are separate fields now.
         assertThat(query, not(containsString("|")));
@@ -378,7 +379,7 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     private void assertUserSeesOnlyAuthorizedDocs() throws Exception {
-        final Request search = new Request("GET", "/" + AI_INDEX + "/_search");
+        final Request search = new Request("GET", "/" + ELASTIC_AI_INDEX + "/_search");
         search.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuth(SML_USER, SML_USER_PASSWORD)));
         final Response response = client().performRequest(search);
         assertOK(response);

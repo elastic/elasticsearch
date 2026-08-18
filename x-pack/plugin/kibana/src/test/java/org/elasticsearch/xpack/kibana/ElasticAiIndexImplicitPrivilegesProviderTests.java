@@ -24,10 +24,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.kibana.AiIndexImplicitPrivilegesProvider.AI_INDEX_INDICES;
-import static org.elasticsearch.xpack.kibana.AiIndexImplicitPrivilegesProvider.KIBANA_APPLICATION;
-import static org.elasticsearch.xpack.kibana.AiIndexImplicitPrivilegesProvider.NAME_FIELD;
-import static org.elasticsearch.xpack.kibana.AiIndexImplicitPrivilegesProvider.SPACE_FIELD;
+import static org.elasticsearch.xpack.kibana.ElasticAiIndexImplicitPrivilegesProvider.ELASTIC_AI_INDICES;
+import static org.elasticsearch.xpack.kibana.ElasticAiIndexImplicitPrivilegesProvider.KIBANA_APPLICATION;
+import static org.elasticsearch.xpack.kibana.ElasticAiIndexImplicitPrivilegesProvider.NAME_FIELD;
+import static org.elasticsearch.xpack.kibana.ElasticAiIndexImplicitPrivilegesProvider.SPACE_FIELD;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -40,11 +40,11 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
+public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
 
     private static final String ALL_SPACES = "*";
 
-    private final AiIndexImplicitPrivilegesProvider contributor = new AiIndexImplicitPrivilegesProvider();
+    private final ElasticAiIndexImplicitPrivilegesProvider contributor = new ElasticAiIndexImplicitPrivilegesProvider();
 
     /**
      * A user with actions in one space produces a nested query whose single should-clause
@@ -61,7 +61,7 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(result, hasSize(1));
 
         RoleDescriptor.IndicesPrivileges privilege = result.iterator().next();
-        assertThat(privilege.getIndices(), arrayContainingInAnyOrder(AI_INDEX_INDICES));
+        assertThat(privilege.getIndices(), arrayContainingInAnyOrder(ELASTIC_AI_INDICES));
         assertThat(privilege.getPrivileges(), arrayContainingInAnyOrder("read"));
 
         assertThat(privilege.getQuery().utf8ToString(), equalTo(EXPECTED_SINGLE_SPACE_QUERY));
@@ -120,7 +120,7 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(result, hasSize(1));
 
         RoleDescriptor.IndicesPrivileges privilege = result.iterator().next();
-        assertThat(privilege.getIndices(), arrayContainingInAnyOrder(AI_INDEX_INDICES));
+        assertThat(privilege.getIndices(), arrayContainingInAnyOrder(ELASTIC_AI_INDICES));
         // Must NOT be null — the wildcard is not a bypass; the action check still applies.
         assertThat(privilege.getQuery(), is(notNullValue()));
 
@@ -192,9 +192,9 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
     }
 
     /**
-     * A Kibana grant that carries no {@code ai_index:} action does not unlock AI Index at all — not even
+     * A Kibana grant that carries no {@code ai_index:} action does not unlock Elastic AI Index at all — not even
      * the public-document branch. Actions owned by other subsystems ({@code saved_object:}, {@code api:},
-     * {@code login:}) must never grant AI Index visibility on their own.
+     * {@code login:}) must never grant Elastic AI Index visibility on their own.
      */
     public void testGrantWithoutAiIndexActionsReturnsEmpty() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
@@ -337,14 +337,14 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
 
     /** Exact serialisation of the query built directly from a resource-to-actions map. */
     public void testBuildDlsQueryFormat() {
-        String query = AiIndexImplicitPrivilegesProvider.buildDlsQuery(Map.of("space:a", Set.of("ai_index:x/read")));
+        String query = ElasticAiIndexImplicitPrivilegesProvider.buildDlsQuery(Map.of("space:a", Set.of("ai_index:x/read")));
         assertThat(query, equalTo(EXPECTED_BUILD_DLS_QUERY));
     }
 
     /** No space-scoped and no global grant → no implicit privilege at all, rather than an unrestricted one. */
     public void testBuildDlsQueryReturnsNullWithoutAnyGrant() {
-        assertThat(AiIndexImplicitPrivilegesProvider.buildDlsQuery(Map.of()), is(nullValue()));
-        assertThat(AiIndexImplicitPrivilegesProvider.buildDlsQuery(Map.of("no-prefix", Set.of("ai_index:x/read"))), is(nullValue()));
+        assertThat(ElasticAiIndexImplicitPrivilegesProvider.buildDlsQuery(Map.of()), is(nullValue()));
+        assertThat(ElasticAiIndexImplicitPrivilegesProvider.buildDlsQuery(Map.of("no-prefix", Set.of("ai_index:x/read"))), is(nullValue()));
     }
 
     // -------------------------------------------------------------------------------------
@@ -493,7 +493,7 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         return clauses.stream()
             .filter(c -> spaceId.equals(spaceOfClause(c)))
             .findFirst()
-            .map(AiIndexImplicitPrivilegesProviderTests::termsOfClause)
+            .map(ElasticAiIndexImplicitPrivilegesProviderTests::termsOfClause)
             .orElseThrow(() -> new AssertionError("no clause for space [" + spaceId + "] in " + clauses));
     }
 
@@ -501,7 +501,7 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         return clauses.stream()
             .filter(c -> spaceOfClause(c) == null)
             .findFirst()
-            .map(AiIndexImplicitPrivilegesProviderTests::termsOfClause)
+            .map(ElasticAiIndexImplicitPrivilegesProviderTests::termsOfClause)
             .orElseThrow(() -> new AssertionError("no space-less clause in " + clauses));
     }
 }

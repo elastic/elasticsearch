@@ -29,8 +29,9 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
- * Implicitly grants read access to AI indices ({@code ai-index-*}) for users whose roles include a
- * Kibana application privilege grant carrying at least one {@code ai_index:} action.
+ * Implicitly grants read access to the Elastic AI Index ({@code ai-index-idx-sml-data}) for
+ * users whose roles include a Kibana application privilege grant carrying at least one
+ * {@code ai_index:} action.
  * <p>
  * <b>Document contract.</b> {@code permissions.kibana.privileges} is a {@code nested} field holding one
  * element per space the document is visible in. Each element lists the {@code ai_index:} actions that
@@ -45,7 +46,7 @@ import java.util.stream.Collectors;
  * A document with no elements at all is a public document, visible to every user this provider grants
  * an implicit privilege to. This shape is owned by the Kibana SML plugin's storage schema; the
  * {@code ai-index-*} index template deliberately does not declare it, so this Javadoc and
- * {@code AiIndexImplicitPrivilegesIT} are the de-facto contract.
+ * {@code ElasticAiIndexImplicitPrivilegesIT} are the de-facto contract.
  * <p>
  * <b>Why nested.</b> The required semantics are <em>OR across spaces, AND across actions within a
  * space</em>. A flat counted keyword field cannot express that: {@code terms_set} counts matching terms
@@ -70,13 +71,13 @@ import java.util.stream.Collectors;
  * The wildcard resource is therefore never a bypass: it widens which elements are eligible, but the
  * action check still applies.
  */
-public class AiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProvider {
+public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProvider {
 
     static final String KIBANA_APPLICATION = "kibana-.kibana";
     // Index pattern mirrors the Kibana-side definition; keep in sync if it changes.
-    static final String[] AI_INDEX_INDICES = { "ai-index-idx-sml-data" };
+    static final String[] ELASTIC_AI_INDICES = { "ai-index-idx-sml-data" };
     static final String RESOURCE_PREFIX = "space:";
-    // Action namespace owned by AI Index; mirrors the Kibana-side AiIndexActions definition, keep in sync if it changes.
+    // Action namespace owned by Elastic AI Index; mirrors the Kibana-side AiIndexActions definition, keep in sync if it changes.
     static final String AI_INDEX_ACTION_PREFIX = "ai_index:";
     static final String ALL_RESOURCES = "*";
     static final String INDEX_READ_PRIVILEGE = "read";
@@ -97,7 +98,7 @@ public class AiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProv
         }
 
         return List.of(
-            RoleDescriptor.IndicesPrivileges.builder().indices(AI_INDEX_INDICES).privileges(INDEX_READ_PRIVILEGE).query(dlsQuery).build()
+            RoleDescriptor.IndicesPrivileges.builder().indices(ELASTIC_AI_INDICES).privileges(INDEX_READ_PRIVILEGE).query(dlsQuery).build()
         );
     }
 
@@ -107,7 +108,7 @@ public class AiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProv
      *
      * The action strings (from {@link ApplicationPrivilege#getPatterns()}) are filtered down to the
      * {@code ai_index:} namespace before they populate the {@code terms_set} DLS clause.
-     * A grant that contributes no {@code ai_index:} action is skipped entirely, so it cannot open up AI Index on its own.
+     * A grant that contributes no {@code ai_index:} action is skipped entirely, so it cannot open up Elastic AI Index on its own.
      *
      * Returns a map from each resource string (e.g. {@code "space:marketing"} or {@code "*"}) to
      * the set of action strings held under that resource. Resources across multiple grants for the
@@ -139,7 +140,7 @@ public class AiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProv
     }
 
     /**
-     * Builds the DLS query gating AI Index document visibility.
+     * Builds the DLS query gating Elastic AI Index document visibility.
      * <p>
      * {@code permissions.kibana.privileges} is a {@code nested} field carrying one element per space,
      * each listing the actions that space requires plus a {@code count} of them. A {@code nested} query
@@ -163,8 +164,8 @@ public class AiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProv
      * nested subfield matches <em>every</em> document (the values live on child docs), which would turn
      * the whole DLS query into a no-op.
      * <p>
-     * {@code ignore_unmapped} is deliberately left at its default {@code false}. On an {@code ai-index-*}
-     * index that does not declare the nested mapping the search then fails loudly, rather than matching
+     * {@code ignore_unmapped} is deliberately left at its default {@code false}. If the granted index
+     * does not declare the nested mapping the search then fails loudly, rather than matching
      * the public-document branch for every document, which would be a silent fail-open.
      *
      * @return the serialised query, or {@code null} if the user holds no space-scoped or global grant,

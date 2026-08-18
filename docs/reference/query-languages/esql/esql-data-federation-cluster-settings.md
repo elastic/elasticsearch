@@ -62,21 +62,12 @@ These settings control the external-source cache, which stores inferred schemas 
 
 | Setting | Default | Description |
 |---|---|---|
-| `esql.source.cache.enabled` | true | Enables the external-source cache (inferred schemas and file listings). [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
-| `esql.source.cache.size` | 0.4% of heap | Memory budget for the cache. Applied at node startup only. |
-| `esql.source.cache.schema.ttl` | — | Deprecated and ignored. Inferred schemas are invalidated by file identity and bounded by `esql.source.cache.size`, not by a TTL. |
-| `esql.source.cache.listing.ttl` | 30s | How long a file-listing result is cached. Applied at node startup only. |
+| `esql.external.cache.enabled` {applies_to}`stack: experimental 9.6+`<br>`esql.source.cache.enabled` {applies_to}`stack: experimental 9.5, deprecated 9.6` | true | Enables the external-source cache (inferred schemas and file listings). [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
+| `esql.external.cache.size` {applies_to}`stack: experimental 9.6+`<br>`esql.source.cache.size` {applies_to}`stack: experimental 9.5, deprecated 9.6` | 0.4% of heap | Memory budget for the cache. Applied at node startup only. |
+| `esql.source.cache.schema.ttl` | — | Deprecated and ignored. Inferred schemas are invalidated by file identity and bounded by the cache memory budget, not by a TTL. |
+| `esql.external.cache.listing.ttl` {applies_to}`stack: experimental 9.6+`<br>`esql.source.cache.listing.ttl` {applies_to}`stack: experimental 9.5, deprecated 9.6` | 30s | How long a file-listing result is cached. Applied at node startup only. |
 
-::::{dropdown} Setting names in 9.6 and later
+:::{note}
 :applies_to: stack: experimental 9.6+
-
-The cache settings moved from the `esql.source.cache.` prefix to `esql.external.cache.` in 9.6. The 9.5 keys (`esql.source.cache.enabled`, `esql.source.cache.size`, `esql.source.cache.listing.ttl`) are still accepted as deprecated fallbacks in 9.6 and emit a deprecation warning; they can be set in `elasticsearch.yml` but not updated dynamically through the cluster settings API. Use the 9.6 keys for all new configuration.
-
-| Setting | Default | Description |
-|---|---|---|
-| `esql.external.cache.enabled` | true | Enables the external-source cache (inferred schemas and file listings). [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
-| `esql.external.cache.size` | 0.4% of heap | Memory budget for the cache. Applied at node startup only. |
-| `esql.source.cache.schema.ttl` | — | Deprecated and ignored. Inferred schemas are invalidated by file identity and bounded by `esql.external.cache.size`, not by a TTL. |
-| `esql.external.cache.listing.ttl` | 30s | How long a file-listing result is cached. Applied at node startup only. |
-::::
-
+The `esql.source.cache.*` keys are accepted as deprecated fallbacks and emit a deprecation warning. You can set them in `elasticsearch.yml`, but you can't update them through the cluster settings API. Use the `esql.external.cache.*` keys for new configuration.
+:::

@@ -33,9 +33,9 @@ import java.util.function.LongSupplier;
  * Reports health for the DLM frozen-tier transition feature.
  *
  * <p>Indicator reports YELLOW when frozen transitions are disabled but there is pending work, when the frozen transition
- * service is not running on the current master, or when indices are stuck in an error loop, eligible for frozen
- * conversion but unable to be marked, marked but not yet submitted to the executor, or submitted but queued for longer
- * than the configured stall threshold.
+ * service is not running on the current master, or when indices are eligible for frozen conversion but unable to be
+ * marked, marked but not yet submitted to the executor, or submitted but queued for longer than the configured stall
+ * threshold.
  *
  * <p>Indicator reports UNKNOWN when the health snapshot is older than {@link #STALE_AFTER_PUBLISH_INTERVALS} times the
  * publisher's configured interval, which indicates that publishing has stopped.
@@ -75,15 +75,6 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
         "The DLM frozen transition service is not running on the current master node.",
         "Check the current master node's logs for errors related to the DLM frozen transition service. A master "
             + "failover may resolve the issue.",
-        HELP_URL
-    );
-
-    public static final Diagnosis.Definition STUCK_IN_ERROR_LOOP_DIAGNOSIS_DEF = new Diagnosis.Definition(
-        NAME,
-        "stuck_in_error_loop",
-        "Some indices are repeatedly encountering errors while transitioning to the frozen tier.",
-        "Check the current status of the affected indices using the [GET /<affected_index_name>/_lifecycle/explain] API. Please "
-            + "replace the <affected_index_name> in the API with the actual index name.",
         HELP_URL
     );
 
@@ -195,18 +186,6 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
         }
 
         List<Diagnosis> diagnoses = new ArrayList<>();
-        if (info.stuckErrorTransitions().isEmpty() == false) {
-            addDiagnosis(
-                diagnoses,
-                STUCK_IN_ERROR_LOOP_DIAGNOSIS_DEF,
-                toIndexNames(
-                    info.stuckErrorTransitions(),
-                    e -> new ProjectIndexName(e.projectId(), e.indexName()),
-                    supportsMultipleProjects,
-                    maxAffectedResourcesCount
-                )
-            );
-        }
         if (info.eligibleUnmarked().isEmpty() == false) {
             addDiagnosis(
                 diagnoses,
@@ -295,15 +274,6 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
         details.put("eligible_unmarked_indices_count", info.eligibleUnmarked().totalCount());
         details.put("not_started_marked_indices_count", info.notStartedMarked().totalCount());
         details.put("queued_marked_indices_count", info.queuedMarked().totalCount());
-        if (info.stuckErrorTransitions().isEmpty() == false) {
-            details.put("stuck_error_transitions", info.stuckErrorTransitions().stream().map(error -> {
-                LinkedHashMap<String, Object> entry = new LinkedHashMap<>(3, 1.0f);
-                entry.put("index_name", new ProjectIndexName(error.projectId(), error.indexName()).toString(supportsMultipleProjects));
-                entry.put("first_occurrence_timestamp", error.firstOccurrence());
-                entry.put("retry_count", error.retryCount());
-                return entry;
-            }).toList());
-        }
         if (info.eligibleUnmarked().isEmpty() == false) {
             details.put("eligible_unmarked_indices", indexInfoDetails(info.eligibleUnmarked().sample(), supportsMultipleProjects));
         }

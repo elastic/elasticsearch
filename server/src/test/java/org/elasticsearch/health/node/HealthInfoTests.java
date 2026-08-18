@@ -113,15 +113,6 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
             randomBoolean(),
             randomBoolean(),
             randomIntBetween(0, 100),
-            randomList(
-                5,
-                () -> new DslErrorInfo(
-                    randomAlphaOfLength(10),
-                    randomNonNegativeLong(),
-                    randomIntBetween(0, 500),
-                    randomProjectIdOrDefault()
-                )
-            ),
             randomStalledIndices(),
             randomStalledIndices(),
             randomStalledIndices(),

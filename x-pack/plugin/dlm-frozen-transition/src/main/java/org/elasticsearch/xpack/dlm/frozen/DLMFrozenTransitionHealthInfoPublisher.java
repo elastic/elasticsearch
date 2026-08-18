@@ -21,10 +21,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
-import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.health.node.DlmFrozenTransitionIndexInfo;
 import org.elasticsearch.health.node.DlmFrozenTransitionsHealthInfo;
-import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.health.node.StalledIndices;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
 import org.elasticsearch.health.node.selection.HealthNode;
@@ -63,7 +61,6 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
     private final Client client;
     private final DLMFrozenTransitionService transitionService;
     private final DLMFrozenTransitionExecutor transitionExecutor;
-    private final DataStreamLifecycleErrorStore errorStore;
     private final DLMFrozenTransitionSettings transitionSettings;
     private final LongSupplier nowSupplier;
 
@@ -79,7 +76,6 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
         Client client,
         DLMFrozenTransitionService transitionService,
         DLMFrozenTransitionExecutor transitionExecutor,
-        DataStreamLifecycleErrorStore errorStore,
         DLMFrozenTransitionSettings transitionSettings
     ) {
         this(
@@ -87,7 +83,6 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
             client,
             transitionService,
             transitionExecutor,
-            errorStore,
             transitionSettings,
             System::currentTimeMillis,
             PUBLISH_INTERVAL_SETTING.get(clusterService.getSettings()).millis()
@@ -100,7 +95,6 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
         Client client,
         DLMFrozenTransitionService transitionService,
         DLMFrozenTransitionExecutor transitionExecutor,
-        DataStreamLifecycleErrorStore errorStore,
         DLMFrozenTransitionSettings transitionSettings,
         LongSupplier nowSupplier,
         long initialDelayMillis
@@ -110,7 +104,6 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
         this.client = client;
         this.transitionService = transitionService;
         this.transitionExecutor = transitionExecutor;
-        this.errorStore = errorStore;
         this.transitionSettings = transitionSettings;
         this.nowSupplier = nowSupplier;
     }
@@ -204,7 +197,7 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
                         if (now - eligibleSinceMillis > thresholdMillis) {
                             eligibleUnmarked.add(projectId, index.getName(), eligibleSinceMillis);
                         }
-                    } else if (errorStore.getError(projectId, index.getName()) == null) {
+                    } else {
                         long stalledSinceMillis = Math.max(eligibleSinceMillis, masterTenureStartMillis);
                         // Check the stall threshold before the executor status lookup: that lookup reads a
                         // synchronized map, and the common case is a marked index well inside its threshold.
@@ -228,33 +221,11 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
             }
         }
 
-        List<DslErrorInfo> stuckErrorTransitions = new ArrayList<>();
-        // Integer.MAX_VALUE is intentional: getErrorsInfo sorts all matching entries before applying the limit, and we post-filter by
-        // indexMarkedForFrozen below. A tighter pre-limit could cause us to miss marked-index errors that sort after the cutoff.
-        // Error stores are small in practice, so materialising all matching entries is not a concern.
-        for (DslErrorInfo candidate : errorStore.getErrorsInfo(
-            entry -> now - entry.firstOccurrenceTimestamp() > thresholdMillis,
-            Integer.MAX_VALUE
-        )) {
-            ProjectMetadata projectMetadata = state.metadata().projects().get(candidate.projectId());
-            if (projectMetadata == null) {
-                continue;
-            }
-            IndexMetadata indexMetadata = projectMetadata.index(candidate.indexName());
-            if (indexMetadata != null && DataStreamLifecycleService.indexMarkedForFrozen(indexMetadata)) {
-                stuckErrorTransitions.add(candidate);
-                if (stuckErrorTransitions.size() >= MAX_INDICES_TO_PUBLISH) {
-                    break;
-                }
-            }
-        }
-
         return new DlmFrozenTransitionsHealthInfo(
             transitionsEnabled,
             serviceRunning,
             defaultRepositoryConfigured,
             markedIndicesCount,
-            stuckErrorTransitions,
             eligibleUnmarked.build(),
             notStartedMarked.build(),
             queuedMarked.build(),

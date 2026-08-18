@@ -139,7 +139,6 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
             client,
             transitionService,
             transitionExecutor,
-            errorStore,
             transitionSettings,
             now::get,
             0
@@ -299,7 +298,9 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
         }
     }
 
-    public void testMarkedIndexNotStalledWhenErrorRecorded() {
+    public void testErroringMarkedIndexIsReportedAsStalled() {
+        // Recording an error against a marked index must not suppress the stall check; the index
+        // should appear in notStartedMarked once the stall threshold elapses.
         ProjectId projectId = randomProjectIdOrDefault();
         ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
         String markedIndexName = addDataStreamWithFrozenLifecycle(
@@ -312,38 +313,12 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
         setProjectState(projectBuilder);
         errorStore.recordError(projectId, markedIndexName, new RuntimeException("some failure"));
 
+        // Advance past the 24-hour stall threshold so the index is eligible for stall reporting.
+        now.addAndGet(TimeValue.timeValueHours(25).millis());
+
         DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
-        assertThat(info.notStartedMarked(), is(StalledIndices.EMPTY));
+        assertThat(info.notStartedMarked().totalCount(), is(1));
         assertThat(info.queuedMarked(), is(StalledIndices.EMPTY));
-    }
-
-    public void testStuckErrorTransitionsOnlyIncludeMarkedIndices() {
-        ProjectId projectId = randomProjectIdOrDefault();
-        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
-        String markedIndexName = addDataStreamWithFrozenLifecycle(
-            projectBuilder,
-            "marked-error-ds",
-            oldIndexTime(),
-            true,
-            TimeValue.timeValueDays(30)
-        );
-        String unmarkedIndexName = addDataStreamWithFrozenLifecycle(
-            projectBuilder,
-            "unmarked-error-ds",
-            oldIndexTime(),
-            false,
-            TimeValue.timeValueDays(30)
-        );
-        setProjectState(projectBuilder);
-
-        errorStore.recordError(projectId, markedIndexName, new RuntimeException("stuck error"));
-        errorStore.recordError(projectId, unmarkedIndexName, new RuntimeException("stuck error"));
-        // advance the clock so the recorded errors are now older than the default 24h stuck threshold
-        now.addAndGet(TimeValue.timeValueHours(48).millis());
-
-        DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
-        assertThat(info.stuckErrorTransitions().size(), is(1));
-        assertThat(info.stuckErrorTransitions().get(0).indexName(), is(markedIndexName));
     }
 
     public void testMasterTenureGracePeriodSuppressesStallReporting() {

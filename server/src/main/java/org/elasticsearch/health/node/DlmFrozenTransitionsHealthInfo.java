@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * Represents the health of the DLM (data stream lifecycle) frozen-tier transition feature, as evaluated on the
@@ -31,8 +30,6 @@ import java.util.List;
  * @param markedIndicesCount          Total number of indices currently marked for frozen-tier conversion across all
  *                                    projects, regardless of lifecycle configuration. Drives the "transitions disabled
  *                                    but pending work" YELLOW signal.
- * @param stuckErrorTransitions       A capped sample of indices that are marked and repeatedly encountering errors
- *                                    during transition. Each entry's stall clock starts at its first error occurrence.
  * @param eligibleUnmarked            Indices past their {@code frozen_after} age for longer than the configured stall
  *                                    threshold, but not yet marked — typically because no default repository is
  *                                    configured. {@link StalledIndices#totalCount()} may exceed the sample size.
@@ -53,7 +50,6 @@ public record DlmFrozenTransitionsHealthInfo(
     boolean serviceRunning,
     boolean defaultRepositoryConfigured,
     int markedIndicesCount,
-    List<DslErrorInfo> stuckErrorTransitions,
     StalledIndices eligibleUnmarked,
     StalledIndices notStartedMarked,
     StalledIndices queuedMarked,
@@ -67,7 +63,6 @@ public record DlmFrozenTransitionsHealthInfo(
             in.readBoolean(),
             in.readBoolean(),
             in.readVInt(),
-            in.readCollectionAsList(DslErrorInfo::new),
             new StalledIndices(in),
             new StalledIndices(in),
             new StalledIndices(in),
@@ -82,7 +77,6 @@ public record DlmFrozenTransitionsHealthInfo(
         out.writeBoolean(serviceRunning);
         out.writeBoolean(defaultRepositoryConfigured);
         out.writeVInt(markedIndicesCount);
-        out.writeCollection(stuckErrorTransitions);
         eligibleUnmarked.writeTo(out);
         notStartedMarked.writeTo(out);
         queuedMarked.writeTo(out);

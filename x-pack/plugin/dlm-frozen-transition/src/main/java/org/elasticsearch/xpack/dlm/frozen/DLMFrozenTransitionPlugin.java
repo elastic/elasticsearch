@@ -136,7 +136,6 @@ public class DLMFrozenTransitionPlugin extends Plugin implements HealthPlugin {
             originClient,
             transitionService,
             dlmFrozenTransitionExecutor,
-            services.dlmErrorStore(),
             transitionSettings
         );
         healthInfoPublisher.init();

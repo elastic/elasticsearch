@@ -17,7 +17,6 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.node.DlmFrozenTransitionIndexInfo;
 import org.elasticsearch.health.node.DlmFrozenTransitionsHealthInfo;
-import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.health.node.FileSettingsHealthInfo;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.health.node.ProjectIndexName;
@@ -37,7 +36,6 @@ import static org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionsHealthIndic
 import static org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionsHealthIndicatorService.MARKED_TRANSITIONS_QUEUED_DIAGNOSIS_DEF;
 import static org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionsHealthIndicatorService.SERVICE_NOT_RUNNING_DIAGNOSIS_DEF;
 import static org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionsHealthIndicatorService.STALE_AFTER_PUBLISH_INTERVALS;
-import static org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionsHealthIndicatorService.STUCK_IN_ERROR_LOOP_DIAGNOSIS_DEF;
 import static org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionsHealthIndicatorService.TRANSITIONS_DISABLED_DIAGNOSIS_DEF;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -121,27 +119,6 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
         assertThat(result.status(), is(HealthStatus.GREEN));
         assertThat(result.impacts(), is(List.of()));
         assertThat(result.diagnosisList(), is(List.of()));
-    }
-
-    public void testYellowWithStuckErrorTransitions() {
-        ProjectId projectId = randomProjectIdOrDefault();
-        DslErrorInfo stuckError = new DslErrorInfo("stuck-index", 1L, 42, projectId);
-        HealthIndicatorResult result = service.calculate(
-            true,
-            100,
-            constructHealthInfo(healthy().stuckErrorTransitions(List.of(stuckError)).build())
-        );
-        assertThat(result.status(), is(HealthStatus.YELLOW));
-        assertThat(
-            result.diagnosisList(),
-            containsInAnyOrder(
-                new Diagnosis(
-                    STUCK_IN_ERROR_LOOP_DIAGNOSIS_DEF,
-                    List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of("stuck-index")))
-                )
-            )
-        );
-        assertThat(Strings.toString(result.details()), containsString("\"stuck_error_transitions\""));
     }
 
     public void testYellowWithEligibleUnmarkedIndices() {
@@ -232,21 +209,16 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
     public void testMultipleConditionsProduceMultipleDiagnoses() {
         ProjectId projectId = randomProjectIdOrDefault();
         DlmFrozenTransitionsHealthInfo info = healthy().markedIndicesCount(3)
-            .stuckErrorTransitions(List.of(new DslErrorInfo("stuck-index", 1L, 42, projectId)))
             .eligibleUnmarked(new StalledIndices(1, List.of(new DlmFrozenTransitionIndexInfo(projectId, "eligible-index", 1L))))
             .notStartedMarked(new StalledIndices(1, List.of(new DlmFrozenTransitionIndexInfo(projectId, "stalled-index", 1L))))
             .queuedMarked(new StalledIndices(1, List.of(new DlmFrozenTransitionIndexInfo(projectId, "queued-index", 1L))))
             .build();
         HealthIndicatorResult result = service.calculate(true, 100, constructHealthInfo(info));
         assertThat(result.status(), is(HealthStatus.YELLOW));
-        assertThat(result.symptom(), containsString("4 issues"));
+        assertThat(result.symptom(), containsString("3 issues"));
         assertThat(
             result.diagnosisList(),
             containsInAnyOrder(
-                new Diagnosis(
-                    STUCK_IN_ERROR_LOOP_DIAGNOSIS_DEF,
-                    List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of("stuck-index")))
-                ),
                 new Diagnosis(
                     ELIGIBLE_INDICES_UNMARKED_DIAGNOSIS_DEF,
                     List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of("eligible-index")))
@@ -269,11 +241,7 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
         HealthIndicatorResult result = service.calculate(
             false,
             100,
-            constructHealthInfo(
-                healthy().stuckErrorTransitions(List.of(new DslErrorInfo("s", 1L, 1, projectId)))
-                    .eligibleUnmarked(new StalledIndices(1, List.of(eligible)))
-                    .build()
-            )
+            constructHealthInfo(healthy().eligibleUnmarked(new StalledIndices(1, List.of(eligible))).build())
         );
         assertThat(result.status(), is(HealthStatus.YELLOW));
         assertThat(result.details(), is(HealthIndicatorDetails.EMPTY));
@@ -331,7 +299,6 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
         private boolean serviceRunning = true;
         private boolean defaultRepositoryConfigured = true;
         private int markedIndicesCount = 0;
-        private List<DslErrorInfo> stuckErrorTransitions = List.of();
         private StalledIndices eligibleUnmarked = StalledIndices.EMPTY;
         private StalledIndices notStartedMarked = StalledIndices.EMPTY;
         private StalledIndices queuedMarked = StalledIndices.EMPTY;
@@ -355,11 +322,6 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
 
         InfoBuilder markedIndicesCount(int count) {
             markedIndicesCount = count;
-            return this;
-        }
-
-        InfoBuilder stuckErrorTransitions(List<DslErrorInfo> errors) {
-            stuckErrorTransitions = errors;
             return this;
         }
 
@@ -389,7 +351,6 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
                 serviceRunning,
                 defaultRepositoryConfigured,
                 markedIndicesCount,
-                stuckErrorTransitions,
                 eligibleUnmarked,
                 notStartedMarked,
                 queuedMarked,

@@ -1838,7 +1838,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 mockLog.addExpectation(
                     new MockLog.SeenEventExpectation("lag warning", LagDetector.class.getCanonicalName(), Level.WARN, Strings.format("""
                         node [%s] is lagging at cluster state version [*], although publication of cluster state version [*] \
-                        completed [*] ago; see https://*/troubleshoot/*-lagging for further information""", brokenNode))
+                        completed [*] ago; see https://*/troubleshooting-*-lagging for further information""", brokenNode))
                 );
 
                 mockLog.addExpectation(

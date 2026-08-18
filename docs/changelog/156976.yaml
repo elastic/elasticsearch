@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 156976
+summary: Declare `FIELD_EXTRACT` generally available
+type: enhancement

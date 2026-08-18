@@ -18,6 +18,7 @@ import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
@@ -26,6 +27,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.common.lucene.ShardCoreKeyMap;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
@@ -41,9 +43,12 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -231,6 +236,69 @@ public class IndicesQueryCacheTests extends ESTestCase {
         assertEquals(0L, stats.getMissCount());
 
         cache.close(); // this triggers some assertions
+    }
+
+    /**
+     * {@code ElasticsearchLRUQueryCache#onHit}/{@code #onMiss}/{@code #onDocIdSetCache}/
+     * {@code #onDocIdSetEviction} resolve the querying segment's shard via
+     * {@link ShardCoreKeyMap#getShardId}, which returns {@code null} if the segment's close listener
+     * raced ahead of the lookup (see the class javadoc on {@code ShardCoreKeyMap#getShardId}). That is
+     * an expected, documented outcome, not a bug, so these callbacks must degrade gracefully - skip
+     * the stats update - rather than throw.
+     * <p>
+     * Reproducing that exact race deterministically through the public search API would require
+     * racing a real thread against Lucene's internal locking around a single query lookup, which is
+     * impractical to pin down reliably. Instead this invokes the callbacks directly - the same ones
+     * Lucene's {@code LRUQueryCache} invokes internally - with a core key that was deliberately never
+     * registered with the shard key map, which is exactly what {@code getShardId} returns {@code null}
+     * for. Since the callbacks are declared {@code protected} on the public Lucene superclass, they
+     * are reached reflectively rather than by naming the private {@code ElasticsearchLRUQueryCache}.
+     */
+    public void testCallbacksTolerateUnresolvedShard() throws Exception {
+        Settings settings = Settings.builder().put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10).build();
+        IndicesQueryCache cache = new IndicesQueryCache(settings);
+
+        Field cacheField = IndicesQueryCache.class.getDeclaredField("cache");
+        cacheField.setAccessible(true);
+        LRUQueryCache lruCache = (LRUQueryCache) cacheField.get(cache);
+
+        Field writeLockField = LRUQueryCache.class.getDeclaredField("writeLock");
+        writeLockField.setAccessible(true);
+        Lock writeLock = (Lock) writeLockField.get(lruCache);
+
+        // Never registered with the shard key map, so ShardCoreKeyMap#getShardId(unresolvedCoreKey)
+        // returns null, exactly as it would for a segment that concurrently closed.
+        Object unresolvedCoreKey = new Object();
+        Query query = new DummyQuery(0);
+
+        invokeCallback(lruCache, "onMiss", new Class<?>[] { Object.class, Query.class }, unresolvedCoreKey, query);
+        invokeCallback(lruCache, "onHit", new Class<?>[] { Object.class, Query.class }, unresolvedCoreKey, query);
+        // Lucene asserts the write lock is held for these two, matching how its own internal call
+        // sites (putIfAbsent, clearCoreCacheKey) invoke them.
+        writeLock.lock();
+        try {
+            invokeCallback(lruCache, "onDocIdSetCache", new Class<?>[] { Object.class, long.class }, unresolvedCoreKey, 123L);
+            invokeCallback(
+                lruCache,
+                "onDocIdSetEviction",
+                new Class<?>[] { Object.class, int.class, long.class },
+                unresolvedCoreKey,
+                1,
+                123L
+            );
+        } finally {
+            writeLock.unlock();
+        }
+
+        // No shard was ever resolved, so nothing should have been recorded; this also exercises the
+        // assertions in #close.
+        cache.close();
+    }
+
+    private static void invokeCallback(Object target, String methodName, Class<?>[] parameterTypes, Object... args) throws Exception {
+        Method method = LRUQueryCache.class.getDeclaredMethod(methodName, parameterTypes);
+        method.setAccessible(true);
+        method.invoke(target, args);
     }
 
     /**

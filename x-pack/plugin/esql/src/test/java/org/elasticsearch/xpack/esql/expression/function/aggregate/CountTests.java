@@ -35,6 +35,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class CountTests extends AbstractAggregationTestCase {
     public CountTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -86,6 +87,11 @@ public class CountTests extends AbstractAggregationTestCase {
             .flatMap(List::stream)
             .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
             .map(CountTests::makeBucketSupplier)
+            .forEach(suppliers::add);
+        Stream.of(MultiRowTestCaseSupplier.tdigestCases(1, 1000), MultiRowTestCaseSupplier.exponentialHistogramCases(1, 1000))
+            .flatMap(List::stream)
+            .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
+            .map(CountTests::makeNullBucketSupplier)
             .forEach(suppliers::add);
 
         // No rows
@@ -189,6 +195,19 @@ public class CountTests extends AbstractAggregationTestCase {
                 standardAggregatorName("HistogramMerge", fieldSupplier.type()),
                 DataType.LONG,
                 equalTo(count)
+            );
+        });
+    }
+
+    private static TestCaseSupplier makeNullBucketSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
+        return new TestCaseSupplier(fieldSupplier.name() + ", null bucket", List.of(fieldSupplier.type(), DataType.NULL), () -> {
+            var fieldTypedData = fieldSupplier.get();
+            var bucket = new TestCaseSupplier.TypedData(null, DataType.NULL, "bucket");
+            return new TestCaseSupplier.TestCase(
+                List.of(fieldTypedData, bucket),
+                standardAggregatorName("HistogramMerge", fieldSupplier.type()),
+                DataType.LONG,
+                nullValue()
             );
         });
     }

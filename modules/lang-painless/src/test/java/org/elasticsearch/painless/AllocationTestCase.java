@@ -40,6 +40,17 @@ public abstract class AllocationTestCase extends ScriptTestCase {
         return factory.newInstance(Map.of());
     }
 
+    /**
+     * Compiles {@code source} with allocation metrics enabled and the limit left off, which is the metrics-only mode: the
+     * counter runs and each execution is recorded, but nothing enforces a threshold. Passes enablement to the engine
+     * directly rather than setting the system property, which tests sharing a JVM must treat as immutable.
+     */
+    protected PainlessTestScript compileWithMetrics(String source) {
+        PainlessScriptEngine engine = new PainlessScriptEngine(Settings.EMPTY, scriptContexts(), true);
+        PainlessTestScript.Factory factory = engine.compile("test", source, PainlessTestScript.CONTEXT, Map.of());
+        return factory.newInstance(Map.of());
+    }
+
     /** Runs {@code source} under a 1mb limit and returns the running allocation total afterwards. */
     protected long allocatedBytes(String source) {
         PainlessTestScript script = compile(source, "1mb");

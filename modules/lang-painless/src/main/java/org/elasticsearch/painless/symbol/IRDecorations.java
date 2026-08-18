@@ -383,6 +383,19 @@ public class IRDecorations {
         }
     }
 
+    /**
+     * describes the script context to attribute per-execution allocation metrics to. Attached to every protected function
+     * only when allocation metrics are enabled, so its presence is what tells the writer to record; the value is baked into
+     * the {@code execute} method's return path as a constant. Metrics enable the allocation counter on their own, with no
+     * limit enforced, so this is also part of the writer's "is tracking on" test alongside {@link IRDMaxAllocationBytes}.
+     */
+    public static class IRDAllocationMetricsContext extends IRDecoration<String> {
+
+        public IRDAllocationMetricsContext(String value) {
+            super(value);
+        }
+    }
+
     /** the resolved {@code @allocates} estimator for a call/construction site; attached only when tracking is enabled */
     public static class IRDAllocationEstimator extends IRDecoration<Method> {
 

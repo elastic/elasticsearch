@@ -12,6 +12,7 @@ package org.elasticsearch.painless;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.painless.api.Augmentation;
 
 import java.util.HashMap;
@@ -59,6 +60,23 @@ public final class CompilerSettings {
         "limit",
         key -> new Setting<>(key, MAX_ALLOCATION_BYTES_DISABLED.getStringRep(), s -> parseMaxAllocationBytes(s, key), Property.NodeScope)
     );
+
+    /**
+     * System property enabling per-execution allocation metrics, {@code -Des.painless.allocation_metrics.enabled=true}.
+     * Defaults to off.
+     * <p>
+     * Deliberately a system property rather than a registered {@link Setting}: a {@code NodeScope} setting cannot be
+     * withdrawn once released, because a node whose version no longer registers the key refuses to start if it is present
+     * in {@code elasticsearch.yml}. Nothing validates unknown {@code es.*} system properties, so this can be removed in a
+     * single follow-up and a stale {@code -D} left on an upgraded node is simply ignored. Serverless sets it in its
+     * deployment configuration; stateful leaves it off. Same approach {@code modules/apm} uses to gate its own metrics.
+     */
+    public static final String ALLOCATION_METRICS_ENABLED_PROPERTY = "es.painless.allocation_metrics.enabled";
+
+    /** Reads {@link #ALLOCATION_METRICS_ENABLED_PROPERTY}; a value that is neither {@code true} nor {@code false} is an error. */
+    public static boolean readAllocationMetricsEnabledProperty() {
+        return Booleans.parseBoolean(System.getProperty(ALLOCATION_METRICS_ENABLED_PROPERTY), false);
+    }
 
     /** Accepts the {@code -1b} sentinel or {@code [1b, 1gb]}; rejects {@code 0b} and (via {@link ByteSizeValue}) other negatives. */
     static ByteSizeValue parseMaxAllocationBytes(String value, String key) {
@@ -132,6 +150,16 @@ public final class CompilerSettings {
 
     /** Per-context limit in bytes from {@link #MAX_ALLOCATION_BYTES}; {@code -1} disables tracking, bytecode emitted only when positive. */
     private long maxAllocationBytes = MAX_ALLOCATION_BYTES_DISABLED.getBytes();
+
+    /**
+     * Whether to record how much each script execution allocated, as a histogram attributed by script context. Enables the
+     * allocation counter on its own, with nothing enforcing a limit — the mode that lets an operator see the real
+     * distribution before committing to a limit that might fail their scripts.
+     */
+    private boolean allocationMetricsEnabled = false;
+
+    /** The script context being compiled for, used as the attribute on allocation metrics. */
+    private String scriptContextName = "unknown";
 
     /**
      * Returns the value for the cumulative total number of statements that can be made in all loops
@@ -225,9 +253,37 @@ public final class CompilerSettings {
         this.maxAllocationBytes = maxAllocationBytes;
     }
 
-    /** Whether allocation tracking is enabled, i.e. the limit is positive. */
+    /**
+     * Whether the allocation counter is emitted at all. Either enforcing a limit or recording metrics needs it, and metrics
+     * alone is a supported mode: the counter runs with nothing comparing it against a threshold.
+     */
     public boolean isAllocationTrackingEnabled() {
+        return maxAllocationBytes > 0L || allocationMetricsEnabled;
+    }
+
+    /** Whether the limit is enforced, i.e. an execution that exceeds it fails. Independent of {@link #isAllocationMetricsEnabled}. */
+    public boolean isAllocationLimitEnabled() {
         return maxAllocationBytes > 0L;
+    }
+
+    /** @see #allocationMetricsEnabled */
+    public boolean isAllocationMetricsEnabled() {
+        return allocationMetricsEnabled;
+    }
+
+    /** @see #allocationMetricsEnabled */
+    public void setAllocationMetricsEnabled(boolean allocationMetricsEnabled) {
+        this.allocationMetricsEnabled = allocationMetricsEnabled;
+    }
+
+    /** @see #scriptContextName */
+    public String getScriptContextName() {
+        return scriptContextName;
+    }
+
+    /** @see #scriptContextName */
+    public void setScriptContextName(String scriptContextName) {
+        this.scriptContextName = scriptContextName;
     }
 
     /**

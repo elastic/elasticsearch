@@ -57,10 +57,20 @@ public final class PainlessScriptEngine implements ScriptEngine {
     private final Map<ScriptContext<?>, CompilerSettings> contextsToDefaultCompilerSettings;
 
     /**
-     * Constructor.
+     * Constructor. Reads whether to record allocation metrics from
+     * {@link CompilerSettings#ALLOCATION_METRICS_ENABLED_PROPERTY}.
      * @param settings The settings to initialize the engine with.
      */
     public PainlessScriptEngine(Settings settings, Map<ScriptContext<?>, List<Whitelist>> contexts) {
+        this(settings, contexts, CompilerSettings.readAllocationMetricsEnabledProperty());
+    }
+
+    /**
+     * Constructor taking allocation-metrics enablement directly rather than reading the system property, so a caller (in
+     * practice a test) can exercise the metrics-enabled path without mutating global state.
+     * @param settings The settings to initialize the engine with.
+     */
+    public PainlessScriptEngine(Settings settings, Map<ScriptContext<?>, List<Whitelist>> contexts, boolean allocationMetricsEnabled) {
         CompilerSettings.RegexEnabled regexEnabled = CompilerSettings.REGEX_ENABLED.get(settings);
         int regexLimitFactor = CompilerSettings.REGEX_LIMIT_FACTOR.get(settings);
 
@@ -80,6 +90,8 @@ public final class PainlessScriptEngine implements ScriptEngine {
             contextDefaults.setMaxAllocationBytes(
                 CompilerSettings.MAX_ALLOCATION_BYTES.getConcreteSettingForNamespace(context.name).get(settings).getBytes()
             );
+            contextDefaults.setAllocationMetricsEnabled(allocationMetricsEnabled);
+            contextDefaults.setScriptContextName(context.name);
 
             mutableContextsToCompilers.put(
                 context,
@@ -417,10 +429,12 @@ public final class PainlessScriptEngine implements ScriptEngine {
             // Use custom settings specified by params.
             compilerSettings = new CompilerSettings();
 
-            // Except node-level settings, which can't be changed in the request: regexes and the allocation limit.
+            // Except node-level settings, which can't be changed in the request: regexes and allocation tracking.
             compilerSettings.setRegexesEnabled(contextDefaults.areRegexesEnabled());
             compilerSettings.setRegexLimitFactor(contextDefaults.getAppliedRegexLimitFactor());
             compilerSettings.setMaxAllocationBytes(contextDefaults.getMaxAllocationBytes());
+            compilerSettings.setAllocationMetricsEnabled(contextDefaults.isAllocationMetricsEnabled());
+            compilerSettings.setScriptContextName(contextDefaults.getScriptContextName());
 
             Map<String, String> copy = new HashMap<>(params);
 

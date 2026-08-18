@@ -304,6 +304,17 @@ public final class WriterConstants {
         long.class
     );
 
+    /**
+     * {@link AllocationGuard#recordExecutionAllocation(String, long)} — called from the generated {@code execute} method's
+     * return path when metrics are enabled. The context name is a baked-in constant at the call site.
+     */
+    public static final Method RECORD_EXECUTION_ALLOCATION = getAsmMethod(
+        void.class,
+        "recordExecutionAllocation",
+        String.class,
+        long.class
+    );
+
     /** {@link AllocationGuard#sanitizeEstimate(long)} — normalizes an {@code @allocates} estimator's result. */
     public static final Method SANITIZE_ESTIMATE = getAsmMethod(long.class, "sanitizeEstimate", long.class);
 

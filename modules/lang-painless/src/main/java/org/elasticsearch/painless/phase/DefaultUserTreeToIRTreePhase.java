@@ -9,6 +9,7 @@
 
 package org.elasticsearch.painless.phase;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Def;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.FunctionRef;
@@ -212,6 +213,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRCStaticScriptCapture;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCSynthetic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCVarArgs;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDAllocationEstimator;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDAllocationMetricsContext;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDArrayName;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDArrayType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDBinaryType;
@@ -291,7 +293,13 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
      * independent concerns with different gating, mirroring how each rides its own decoration through to the writer.
      */
     protected static void attachAllocationLimit(FunctionNode irFunctionNode, ScriptScope scriptScope) {
-        irFunctionNode.attachDecoration(new IRDMaxAllocationBytes(scriptScope.getCompilerSettings().getMaxAllocationBytes()));
+        CompilerSettings compilerSettings = scriptScope.getCompilerSettings();
+        irFunctionNode.attachDecoration(new IRDMaxAllocationBytes(compilerSettings.getMaxAllocationBytes()));
+
+        // Attached only when metrics are on, so the writer can treat its presence as "record this execution's total".
+        if (compilerSettings.isAllocationMetricsEnabled()) {
+            irFunctionNode.attachDecoration(new IRDAllocationMetricsContext(compilerSettings.getScriptContextName()));
+        }
     }
 
     /** Attaches the member's resolved estimator (when tracking is on) so the ASM phase emits from the decoration. */

@@ -15,6 +15,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -523,6 +524,45 @@ public class IndexDirectoryTests extends ESTestCase {
             Map.of(),
             null
         );
+    }
+
+    public void testCopyFromTracksFileInLocalFiles() throws IOException {
+        final Path path = PathUtils.get(createTempDir().toString());
+        final IndexBlobStoreCacheDirectory cacheDirectory = new IndexBlobStoreCacheDirectory(mockedCacheService(), null);
+        cacheDirectory.setBlobContainer(ignore -> mock(BlobContainer.class));
+        try (
+            Directory sourceDir = newDirectory();
+            IndexDirectory directory = new IndexDirectory(FSDirectory.open(path), cacheDirectory, null, true)
+        ) {
+            try (IndexOutput out = sourceDir.createOutput("src", IOContext.DEFAULT)) {
+                out.writeBytes(new byte[8], 8);
+            }
+            directory.copyFrom(sourceDir, "src", "dest", IOContext.DEFAULT);
+            assertThat(Set.of(directory.listAll()), is(equalTo(Set.of("dest"))));
+        }
+    }
+
+    public void testCopyFromCleansUpDestOnFailure() throws IOException {
+        final Path path = PathUtils.get(createTempDir().toString());
+        final IndexBlobStoreCacheDirectory cacheDirectory = new IndexBlobStoreCacheDirectory(mockedCacheService(), null);
+        cacheDirectory.setBlobContainer(ignore -> mock(BlobContainer.class));
+        try (
+            Directory sourceDir = newDirectory();
+            IndexDirectory directory = new IndexDirectory(FSDirectory.open(path), cacheDirectory, null, true)
+        ) {
+            try (IndexOutput out = sourceDir.createOutput("src", IOContext.DEFAULT)) {
+                out.writeBytes(new byte[8], 8);
+            }
+            // Wrap source so openInput throws to simulate a mid-copy failure
+            Directory failingSource = new FilterDirectory(sourceDir) {
+                @Override
+                public IndexInput openInput(String name, IOContext context) throws IOException {
+                    throw new IOException("simulated read failure");
+                }
+            };
+            expectThrows(IOException.class, () -> directory.copyFrom(failingSource, "src", "dest", IOContext.DEFAULT));
+            assertFalse("dest should not be tracked in localFiles after a failed copy", List.of(directory.listAll()).contains("dest"));
+        }
     }
 
     private StatelessSharedBlobCacheService mockedCacheService() {

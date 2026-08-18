@@ -664,9 +664,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationOrObjectStoreFailures
   issue: https://github.com/elastic/elasticsearch/issues/156569
-- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/156572
 - class: org.elasticsearch.xpack.transform.integration.TransformCrossProjectMetricsIT
   method: testCpsGaugesPublishForRunningTransform
   issue: https://github.com/elastic/elasticsearch/issues/156575
@@ -693,9 +690,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.ash.AsymmetricHashingQuantizerTests
   method: testReconstructedDotProductApproximatesTrueDotProduct
   issue: https://github.com/elastic/elasticsearch/issues/156708
-- class: org.elasticsearch.reindex.RethrottleTests
-  method: testDeleteByQuery
-  issue: https://github.com/elastic/elasticsearch/issues/156709
 - class: org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationActionRequestTests
   method: testBwcSerialization
   issue: https://github.com/elastic/elasticsearch/issues/156714
@@ -817,3 +811,6 @@ tests:
 - class: org.elasticsearch.entitlement.qa.EntitlementAgentAttachLoggingIT
   method: testEntitlementAgentAttachLineIsLogged
   issue: https://github.com/elastic/elasticsearch/issues/156950
+- class: org.elasticsearch.foreign.LinkerHelperTests
+  method: testSystemErrorReturnsCapturedGetLastErrorAfterFailedCall
+  issue: https://github.com/elastic/elasticsearch/issues/156974

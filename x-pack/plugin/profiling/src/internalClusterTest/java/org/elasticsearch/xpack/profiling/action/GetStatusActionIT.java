@@ -46,7 +46,7 @@ public class GetStatusActionIT extends ProfilingTestCase {
         GetStatusAction.Response response = client().execute(GetStatusAction.INSTANCE, request).get();
         assertEquals(RestStatus.OK, response.status());
         // ECS templates are disabled; no ECS resources have been created
-        assertFalse(response.isResourcesCreated());
+        assertFalse(response.isEcsResourcesCreated());
         assertFalse(response.hasData());
     }
 
@@ -61,7 +61,7 @@ public class GetStatusActionIT extends ProfilingTestCase {
 
         GetStatusAction.Response response = client().execute(GetStatusAction.INSTANCE, request).get();
         assertEquals(RestStatus.OK, response.status());
-        assertTrue(response.isResourcesCreated());
+        assertTrue(response.isEcsResourcesCreated());
         assertFalse(response.hasData());
     }
 
@@ -70,7 +70,7 @@ public class GetStatusActionIT extends ProfilingTestCase {
         GetStatusAction.Request request = new GetStatusAction.Request(TEST_REQUEST_TIMEOUT, true, TEST_REQUEST_TIMEOUT);
         GetStatusAction.Response response = client().execute(GetStatusAction.INSTANCE, request).get();
         assertEquals(RestStatus.OK, response.status());
-        assertTrue(response.isResourcesCreated());
+        assertTrue(response.isEcsResourcesCreated());
         assertTrue(response.hasData());
     }
 }

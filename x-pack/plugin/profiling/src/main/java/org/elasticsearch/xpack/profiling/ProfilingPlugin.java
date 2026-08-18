@@ -58,7 +58,9 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     private static final Logger logger = LogManager.getLogger(ProfilingPlugin.class);
     // Controls whether the legacy ECS index templates, ILM policies, and k/v indices are installed and managed.
     // Defaults to false; OTel templates are managed unconditionally by the otel-data plugin.
-    // Set to true on clusters that use the ECS-based profiling schema.
+    // Set to true via PUT /_cluster/settings on clusters that use the ECS-based profiling schema,
+    // e.g. when migrating an existing ECS deployment or when Kibana's profiling setup guide
+    // configures the cluster for ECS mode.
     public static final Setting<Boolean> PROFILING_TEMPLATES_ENABLED = Setting.boolSetting(
         "xpack.profiling.templates.enabled",
         false,

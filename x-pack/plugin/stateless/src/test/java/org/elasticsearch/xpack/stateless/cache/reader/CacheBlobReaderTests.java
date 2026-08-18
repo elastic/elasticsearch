@@ -72,6 +72,7 @@ import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.elasticsearch.xpack.stateless.StatelessPlugin.SHARD_READ_THREAD_POOL;
@@ -292,7 +293,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                         sharedCacheService.getCacheFile(
                             new FileCacheKey(shardId, getPrimaryTerm(), virtualBatchedCompoundCommit.getBlobName()),
                             virtualBatchedCompoundCommit.getTotalSizeInBytes(),
-                            SharedBlobCacheService.CacheMissHandler.NOOP
+                            SharedBlobCacheService.CacheMissHandler.NOOP,
+                            randomRegionTimestampMillis()
                         ),
                         cacheBlobReaderService.getCacheBlobReader(
                             shardId,
@@ -675,7 +677,8 @@ public class CacheBlobReaderTests extends ESTestCase {
             final var cacheFile = node.sharedCacheService.getCacheFile(
                 fileCacheKey,
                 regionSize,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                randomRegionTimestampMillis()
             );
             final var cacheBlobReader = node.searchDirectory.getCacheBlobReader(
                 internalLocation.getKey(),

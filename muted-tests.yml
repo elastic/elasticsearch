@@ -238,9 +238,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testUnhollowOnUpdates
   issue: https://github.com/elastic/elasticsearch/issues/151100
-- class: org.elasticsearch.xpack.ccr.CcrTimeSeriesDataStreamsIT
-  method: testCrossClusterReplicationForTSDBWithSyntheticId
-  issue: https://github.com/elastic/elasticsearch/issues/151326
 - class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
   method: testBinaryWithDifferentSelectors
   issue: https://github.com/elastic/elasticsearch/issues/151327
@@ -586,9 +583,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecK8sTimeseriesFirstOverTimeIT
   method: test {csv-spec:k8s-timeseries-first-over-time.first_over_time_of_event}
   issue: https://github.com/elastic/elasticsearch/issues/156159
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.highlight/70_number_of_fragments/negative number_of_fragments should FAIL}
-  issue: https://github.com/elastic/elasticsearch/issues/155977
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecChangePointIT
   method: test {csv-spec:change_point.values int column with all nulls}
   issue: https://github.com/elastic/elasticsearch/issues/155124
@@ -637,9 +631,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/156415
-- class: org.elasticsearch.xpack.inference.external.http.HttpClientTests
-  method: testStream_CancelAfterPauseReleasesConnection
-  issue: https://github.com/elastic/elasticsearch/issues/156431
 - class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
   method: testAsyncSearchFailingQueryErrorTraceFalseOnSubmitAndTrueOnGet
   issue: https://github.com/elastic/elasticsearch/issues/156435
@@ -664,9 +655,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationOrObjectStoreFailures
   issue: https://github.com/elastic/elasticsearch/issues/156569
-- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/156572
 - class: org.elasticsearch.xpack.transform.integration.TransformCrossProjectMetricsIT
   method: testCpsGaugesPublishForRunningTransform
   issue: https://github.com/elastic/elasticsearch/issues/156575
@@ -693,9 +681,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.ash.AsymmetricHashingQuantizerTests
   method: testReconstructedDotProductApproximatesTrueDotProduct
   issue: https://github.com/elastic/elasticsearch/issues/156708
-- class: org.elasticsearch.reindex.RethrottleTests
-  method: testDeleteByQuery
-  issue: https://github.com/elastic/elasticsearch/issues/156709
 - class: org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationActionRequestTests
   method: testBwcSerialization
   issue: https://github.com/elastic/elasticsearch/issues/156714
@@ -714,9 +699,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/CASE}
   issue: https://github.com/elastic/elasticsearch/issues/156729
-- class: org.elasticsearch.xpack.stateless.objectstore.ObjectStoreServiceTests
-  method: testTranslogUploadTimesLogLevels
-  issue: https://github.com/elastic/elasticsearch/issues/156747
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=search.vectors/131_knn_query_nested_inner_hits_score/nested kNN inner_hits are scored like the query phase on a quantized field}
   issue: https://github.com/elastic/elasticsearch/issues/156753
@@ -820,3 +802,21 @@ tests:
 - class: org.elasticsearch.entitlement.qa.EntitlementAgentAttachLoggingIT
   method: testEntitlementAgentAttachLineIsLogged
   issue: https://github.com/elastic/elasticsearch/issues/156950
+- class: org.elasticsearch.foreign.LinkerHelperTests
+  method: testSystemErrorReturnsCapturedGetLastErrorAfterFailedCall
+  issue: https://github.com/elastic/elasticsearch/issues/156974
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
+  method: testMixedOperationsDuringSplitWithDisruption
+  issue: https://github.com/elastic/elasticsearch/issues/156982
+- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
+  method: testRelocatingIndexShardFetchesFirstRegionOnly
+  issue: https://github.com/elastic/elasticsearch/issues/152526
+- class: org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormatTests
+  method: testSortedDeleteTermsResolveAcrossSkipperBlocks
+  issue: https://github.com/elastic/elasticsearch/issues/157003
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecKnnFunctionIT
+  method: test {csv-spec:knn-function.knnBeforeMvExpandWithStats}
+  issue: https://github.com/elastic/elasticsearch/issues/157038
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecKnnFunctionIT
+  method: test {csv-spec:knn-function.knnAfterEvalAndRename}
+  issue: https://github.com/elastic/elasticsearch/issues/157039

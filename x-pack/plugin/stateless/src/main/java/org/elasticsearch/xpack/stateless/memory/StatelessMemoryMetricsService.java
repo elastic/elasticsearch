@@ -840,7 +840,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             // Postings are accumulated separately (instead of folding them into computeShardHeapUsage's result) because
             // getPerNodeMemoryMetrics later uses the maximum totalPostingsInMemoryBytes across all nodes.
             shardMemoryUsageInBytes += shardHeapEstimator.computeShardHeapUsage(shardMemoryMetrics);
-            totalPostingsInMemoryBytes += shardMemoryMetrics.getPostingsInMemoryBytes();
+            totalPostingsInMemoryBytes += shardHeapEstimator.getEffectiveShardPostingsInBytes(shardMemoryMetrics);
         }
 
         /**

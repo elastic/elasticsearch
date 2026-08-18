@@ -62,6 +62,18 @@ public class ShardHeapEstimator {
         return estimateShardOverheadExcludingPostings(shardMemoryMetrics) + postingsMemoryInBytes;
     }
 
+    /// Get the "effective postings". If we're tracking postings separately, and the shard doesn't have a self-reported
+    /// overhead, or self-reported overheads are disabled, [StatelessMemoryMetricsService.ShardMemoryMetrics#getPostingsInMemoryBytes()]
+    /// is returned. Otherwise, zero is returned, because any postings will be included in [#computeShardHeapUsage]
+    public long getEffectiveShardPostingsInBytes(StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics) {
+        if (includePostingsInEstimate == false
+            && (selfReportedShardMemoryOverheadEnabled == false
+                || shardMemoryMetrics.getShardMemoryOverheadBytes() == UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES)) {
+            return shardMemoryMetrics.getPostingsInMemoryBytes();
+        }
+        return 0;
+    }
+
     public record ShardMetricsAggregation(
         long mappingSizeInBytes,
         long totalShardHeapInBytes,

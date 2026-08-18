@@ -12,6 +12,10 @@ package org.elasticsearch.index.codec.vectors.ash;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
+import java.util.function.IntUnaryOperator;
+
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Tests for {@link IndirectSorter}.
@@ -50,7 +54,7 @@ public class IndirectSorterTests extends ESTestCase {
                 keys[i] = random().nextGaussian();
             }
             int[] indices = new int[n];
-            Arrays.setAll(indices, i -> i);
+            Arrays.setAll(indices, IntUnaryOperator.identity());
 
             IndirectSorter.sortAscendingByDouble(indices, keys, n);
 
@@ -67,7 +71,7 @@ public class IndirectSorterTests extends ESTestCase {
                 keys[i] = (float) random().nextGaussian();
             }
             int[] indices = new int[n];
-            Arrays.setAll(indices, i -> i);
+            Arrays.setAll(indices, IntUnaryOperator.identity());
 
             IndirectSorter.sortDescendingByFloat(indices, keys, n);
 
@@ -85,7 +89,7 @@ public class IndirectSorterTests extends ESTestCase {
                 keys[i] = randomIntBetween(0, 4);
             }
             int[] indices = new int[n];
-            Arrays.setAll(indices, i -> i);
+            Arrays.setAll(indices, IntUnaryOperator.identity());
 
             IndirectSorter.sortAscendingByDouble(indices, keys, n);
 
@@ -108,19 +112,13 @@ public class IndirectSorterTests extends ESTestCase {
 
     private static void assertSortedAscending(double[] keys, int[] indices) {
         for (int i = 0; i + 1 < indices.length; i++) {
-            assertTrue(
-                "Expected ascending order at position " + i + ": " + keys[indices[i]] + " > " + keys[indices[i + 1]],
-                keys[indices[i]] <= keys[indices[i + 1]]
-            );
+            assertThat("Expected ascending order at position " + i, keys[indices[i + 1]], greaterThanOrEqualTo(keys[indices[i]]));
         }
     }
 
     private static void assertSortedDescending(float[] keys, int[] indices) {
         for (int i = 0; i + 1 < indices.length; i++) {
-            assertTrue(
-                "Expected descending order at position " + i + ": " + keys[indices[i]] + " < " + keys[indices[i + 1]],
-                keys[indices[i]] >= keys[indices[i + 1]]
-            );
+            assertThat("Expected descending order at position " + i, keys[indices[i + 1]], lessThanOrEqualTo(keys[indices[i]]));
         }
     }
 

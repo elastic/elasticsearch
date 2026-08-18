@@ -27,6 +27,9 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.nativeaccess.SimdVecLibrary.SimilarityFunction.DOT_PRODUCT;
+import static org.elasticsearch.nativeaccess.SimdVecLibraryTests.notSupportedMsg;
+import static org.elasticsearch.nativeaccess.SimdVecLibraryTests.platformMsg;
+import static org.elasticsearch.nativeaccess.SimdVecLibraryTests.supported;
 
 /**
  * Tests that the native BBQ vector kernels do not read past the end of their input buffers.
@@ -80,9 +83,14 @@ public class JDKVectorLibraryBBQGuardPageTests extends ESTestCase {
     public static void beforeClass() {
         // a pass here must mean the guard page was real, so skip rather than run unguarded
         assumeTrue("guard pages are not supported on this platform", GuardPageAllocator.isSupported());
-        var vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions();
-        assumeTrue("native vector library is not available on this platform", vectorSimilarityFunctions.isPresent());
-        library = vectorSimilarityFunctions.get();
+
+        var simdVecSupported = supported();
+        if (simdVecSupported) {
+            var vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions();
+            assertTrue("native vector library must be available on [" + platformMsg() + "]", vectorSimilarityFunctions.isPresent());
+            library = vectorSimilarityFunctions.get();
+        }
+        assumeTrue(notSupportedMsg(), simdVecSupported);
     }
 
     @AfterClass

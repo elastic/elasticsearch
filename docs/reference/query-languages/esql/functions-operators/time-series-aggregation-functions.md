@@ -64,10 +64,17 @@ mapping:
   rarely what you want.
 - **Gauges**: point-in-time values that can move up or down. Use
   [`LAST_OVER_TIME`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/last_over_time.md)
-  (the implicit default when no inner function is given),
+  (the implicit default for numeric fields when no inner function is given),
   [`AVG_OVER_TIME`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/avg_over_time.md),
   [`MAX_OVER_TIME`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/max_over_time.md),
   and the other `*_OVER_TIME` variants. Counter functions like `RATE` reject gauge fields.
+- **Histograms** {applies_to}`stack: preview 9.3, ga 9.4`: distributions stored as `exponential_histogram`,
+  `tdigest`, or `histogram` fields. You usually don't need a time series aggregation function: apply a
+  regular aggregation such as `SUM`, `AVG`, or `PERCENTILE` directly to the field, and
+  `TS` implicitly merges the histograms per time series. Fields with the type `histogram` must first
+  be cast using `::exponential_histogram` or `::tdigest`. Refer to
+  [Work with histogram metrics](/reference/query-languages/esql/commands/ts.md#work-with-histogram-metrics)
+  for examples and guidance on mixed field types.
 
 For the conceptual context behind the counter/gauge split, refer to
 [When to use TS vs FROM](/reference/query-languages/esql/commands/ts.md#when-to-use-ts-vs-from).

@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -91,9 +92,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     // 3. Parsed string fields create new copies of their data, further increasing memory consumption.
     private static final int MAX_EXPANDED_OPERATION_MEMORY_OVERHEAD_FACTOR = 4;
 
+    // Include inference fields so that partial updates can still retrieve embeddings for fields that weren't updated.
+    private static final FetchSourceContext UPDATE_FETCH_SOURCE_CONTEXT = FetchSourceContext.FETCH_ALL_SOURCE;
+
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
-    private final boolean batchIndexingEnabled;
+    private final boolean preResolveBulkUpdates;
+    private final ShardBatchIndexer shardBatchIndexer;
 
     private final DocumentParsingProvider documentParsingProvider;
 
@@ -111,7 +116,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
         ProjectResolver projectResolver,
-        DocumentParsingProvider documentParsingProvider
+        DocumentParsingProvider documentParsingProvider,
+        BigArrays bigArrays
     ) {
         super(
             settings,
@@ -133,7 +139,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         );
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
-        this.batchIndexingEnabled = ShardBatchIndexer.BATCH_INDEXING.get(settings);
+        this.shardBatchIndexer = new ShardBatchIndexer(settings, bigArrays.bytesRefRecycler());
+        this.preResolveBulkUpdates = PreResolvedUpdates.PRE_RESOLVE_BULK_UPDATES.get(settings);
         this.documentParsingProvider = documentParsingProvider;
     }
 
@@ -196,11 +203,26 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             getMaxOperationMemoryOverhead(request),
             force(request)
         );
-        var listener = ActionListener.releaseBefore(pressureExpansionTracker, outerListener);
-        final BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary, pressureExpansionTracker);
+        final var mappingLookup = primary.mapperService().mappingLookup();
+        // Pre-resolution prefetches stored fields; skip it when source is rebuilt from doc values instead
+        final PreResolvedUpdates preResolvedUpdates = preResolveBulkUpdates
+            && mappingLookup.isSourceSynthetic() == false
+            && mappingLookup.isSourceColumnarStored() == false
+                ? PreResolvedUpdates.resolve(request, primary, updateHelper, threadPool::absoluteTimeInMillis, UPDATE_FETCH_SOURCE_CONTEXT)
+                : PreResolvedUpdates.EMPTY;
+        var listener = ActionListener.releaseBefore(
+            preResolvedUpdates,
+            ActionListener.releaseBefore(pressureExpansionTracker, outerListener)
+        );
+        final BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(
+            request,
+            primary,
+            pressureExpansionTracker,
+            preResolvedUpdates
+        );
         long startBatchTime = System.nanoTime();
-        if (ShardBatchIndexer.canUseBatchIndexing(request, batchIndexingEnabled)) {
-            ShardBatchIndexer.performBatchIndexOnPrimary(
+        if (shardBatchIndexer.canUseBatchIndexing(request)) {
+            shardBatchIndexer.performBatchIndexOnPrimary(
                 request.items(),
                 request.getBulkShardBatch().getBatch(),
                 context,
@@ -463,13 +485,21 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (opType == DocWriteRequest.OpType.UPDATE) {
             final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
             try {
-                updateResult = updateHelper.prepare(
-                    updateRequest,
-                    context.getPrimary(),
-                    nowInMillisSupplier,
-                    // Include inference fields so that partial updates can still retrieve embeddings for fields that weren't updated.
-                    FetchSourceContext.FETCH_ALL_SOURCE
-                );
+                final UpdateHelper.PreResolvedUpdate preResolvedUpdate = context.takePreResolvedUpdate();
+                if (preResolvedUpdate != null) {
+                    // releases the acquired searcher if complete() throws before consuming the get; a no-op otherwise
+                    try (preResolvedUpdate) {
+                        updateResult = preResolvedUpdate.complete();
+                    }
+                } else {
+                    updateResult = updateHelper.prepare(
+                        updateRequest,
+                        context.getPrimary(),
+                        nowInMillisSupplier,
+                        UPDATE_FETCH_SOURCE_CONTEXT,
+                        context.getBulkShardRequest().splitShardCountSummary()
+                    );
+                }
             } catch (Exception failure) {
                 // we may fail translating a update to index or delete operation
                 // we use index result to communicate failure while translating update request
@@ -762,8 +792,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ActionListener.completeWith(listener, () -> {
             final long startBulkTime = System.nanoTime();
             final Translog.Location location;
-            if (ShardBatchIndexer.canUseBatchIndexing(request, batchIndexingEnabled)) {
-                ShardBatchIndexer.ReplicaBatchResult batchResult = ShardBatchIndexer.performBatchIndexOnReplica(
+            if (shardBatchIndexer.canUseBatchIndexing(request)) {
+                ShardBatchIndexer.ReplicaBatchResult batchResult = shardBatchIndexer.performBatchIndexOnReplica(
                     request.items(),
                     request.getBulkShardBatch().getBatch(),
                     replica

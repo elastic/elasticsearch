@@ -32,8 +32,8 @@ public interface ESVectorUtilSupport {
     /** Calculates the dot product of the given float arrays. */
     float dotProduct(float[] a, float[] b);
 
-    /** Calculates the dot product over {@code [offset, offset + length)}. */
-    float dotProduct(float[] a, float[] b, int offset, int length);
+    /** Calculates the dot product over {@code [[ab]Offset, [ab]Offset + length)}. */
+    float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length);
 
     /**
      * L2-normalizes {@code v[offset:offset + length)} in place. A zero prefix is a no-op.
@@ -76,7 +76,7 @@ public interface ESVectorUtilSupport {
 
     /**
      * Compute dot product between {@code q} and {@code d}
-     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code ESVectorUtil.transposeHalfByte})
+     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code ESVectorUtil.stride4BitValues})
      * @param d data vector, 1-bit quantized
      */
     long ipByteBinByte(byte[] q, byte[] d);
@@ -168,13 +168,13 @@ public interface ESVectorUtilSupport {
         float[] distances
     );
 
-    void packAsBinary(int[] vector, byte[] packed);
+    void pack1BitValues(int[] vector, byte[] packed);
 
-    void packDibit(int[] vector, byte[] packed);
+    void stride2BitValues(int[] vector, byte[] packed);
 
-    void packDibitQuad(int[] vector, byte[] packed);
+    void pack2BitValues(int[] vector, byte[] packed);
 
-    void transposeHalfByte(int[] q, byte[] quantQueryByte);
+    void stride4BitValues(int[] vector, byte[] packed);
 
     int indexOf(byte[] bytes, int offset, int length, byte marker);
 
@@ -184,9 +184,9 @@ public interface ESVectorUtilSupport {
 
     void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches);
 
-    void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest);
+    void linearCombination(float scaleOther, float[] other, int otherOffset, float scaleDest, float[] dest, int destOffset, int length);
 
-    void linearCombination(float scaleOther, float[] other, float[] dest);
+    void linearCombination(float scaleOther, float[] other, int otherOffset, float[] dest, int destOffset, int length);
 
     void linearCombination(float scaleOther, byte[] other, float scaleDest, float[] dest);
 

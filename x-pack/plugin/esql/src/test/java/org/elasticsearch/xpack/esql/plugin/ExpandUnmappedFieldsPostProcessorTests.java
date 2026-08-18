@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.test.ComputeTestCase;
@@ -115,6 +116,89 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         }
     }
 
+    public void testNetZeroProjectionEmptyJsonProducesZeroColumns() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(unmappedAttr()),
+            List.of(page(bf, List.of(row(jsonObject("{}")), row(jsonObject("{}")), row(jsonObject("{}")))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of()));
+            assertThat(rowCount(expanded), equalTo(3));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testNetZeroProjectionAllNullUnmappedProducesZeroColumns() {
+        BlockFactory bf = blockFactory();
+        Page page;
+        try (BytesRefBlock.Builder builder = bf.newBytesRefBlockBuilder(2)) {
+            builder.appendNull();
+            builder.appendNull();
+            page = new Page(builder.build());
+        }
+        Result result = result(List.of(unmappedAttr()), List.of(page));
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of()));
+            assertThat(rowCount(expanded), equalTo(2));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testNetZeroProjectionWithUnmappedNamesExpandsToUnmappedColumnsOnly() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(unmappedAttr()),
+            List.of(page(bf, List.of(row(jsonObject("{'a':'x','b':'y'}")), row(jsonObject("{'a':'z'}")))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of("a", "b")));
+            assertThat(nonNullRows(expanded), contains(matchesMap().entry("a", "x").entry("b", "y"), matchesMap().entry("a", "z")));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testRetainedColumnWithEmptyJsonRowsProducesNoExpandedColumns() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(page(bf, List.of(row(1, jsonObject("{}")), row(2, jsonObject("{}")))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR)));
+            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1), matchesMap().entry(INT_ATTR, 2)));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testNetZeroProjectionAcrossMultiplePagesPreservesRowCount() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(unmappedAttr()),
+            List.of(page(bf, List.of(row(jsonObject("{}")), row(jsonObject("{}")))), page(bf, List.of(row(jsonObject("{}")))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of()));
+            assertThat(rowCount(expanded), equalTo(3));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
     public void testNonStringJsonValuesAreStringified() {
         BlockFactory bf = blockFactory();
         Result result = result(
@@ -210,6 +294,10 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     private static List<String> names(Result r) {
         return r.schema().stream().map(Attribute::name).toList();
+    }
+
+    private static int rowCount(Result r) {
+        return r.pages().stream().mapToInt(Page::getPositionCount).sum();
     }
 
     private static List<DataType> dataTypes(Result r) {

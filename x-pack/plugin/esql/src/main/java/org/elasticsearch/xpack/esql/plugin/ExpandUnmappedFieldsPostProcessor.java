@@ -73,7 +73,7 @@ class ExpandUnmappedFieldsPostProcessor {
             // TODO account for newSchema's field names against the circuit breaker. A wide _source turns into a wide schema, and
             // unlike the pages, the response schema has no breaker-tracked lifetime to release it against today.
             List<Attribute> newSchema = buildSchema(schema, unmappedIdx, sortedFieldNames);
-            List<Page> newPages = rewritePages(result, unmappedIdx, newSchema.size(), sortedFieldNames, blockFactory, reservationFactor);
+            List<Page> newPages = rewritePages(result, unmappedIdx, sortedFieldNames, blockFactory, reservationFactor);
 
             Result expanded = new Result(
                 newSchema,
@@ -167,7 +167,6 @@ class ExpandUnmappedFieldsPostProcessor {
     private static List<Page> rewritePages(
         Result result,
         int unmappedIdx,
-        int blockCount,
         List<String> fieldNames,
         BlockFactory factory,
         double reservationFactor
@@ -177,7 +176,7 @@ class ExpandUnmappedFieldsPostProcessor {
         var success = false;
         try {
             for (Page p : result.pages()) {
-                newPages.add(rewritePage(unmappedIdx, blockCount, fieldNames, factory, p, originalColumnCount, reservationFactor));
+                newPages.add(rewritePage(unmappedIdx, fieldNames, factory, p, originalColumnCount, reservationFactor));
             }
             success = true;
             return newPages;
@@ -190,16 +189,18 @@ class ExpandUnmappedFieldsPostProcessor {
 
     private static Page rewritePage(
         int unmappedIdx,
-        int blockCount,
         List<String> fieldNames,
         BlockFactory blockFactory,
         Page page,
         int originalColumnCount,
         double reservationFactor
     ) {
+        // Output blocks are the retained columns (all but _unmapped_fields) followed by one expanded column per field name
+        // collectFieldNames found, so fieldNames.size() is the single source for the expansion width.
+        int retainedBlockCount = originalColumnCount - 1;
+        int expandedBlockCount = fieldNames.size();
+        Block[] allBlocks = new Block[retainedBlockCount + expandedBlockCount];
 
-        // Collect blocks from original page, skipping the _unmapped_fields block.
-        Block[] allBlocks = new Block[blockCount];
         int dest = 0;
         for (int i = 0; i < originalColumnCount; i++) {
             if (i != unmappedIdx) {
@@ -210,32 +211,35 @@ class ExpandUnmappedFieldsPostProcessor {
         }
 
         var success = false;
-        int retainedBlockCount = originalColumnCount - 1;
-        BytesRefBlock.Builder[] builders = new BytesRefBlock.Builder[blockCount - retainedBlockCount];
-        BytesRefBlock unmappedBlock = page.getBlock(unmappedIdx);
+        BytesRefBlock.Builder[] builders = new BytesRefBlock.Builder[expandedBlockCount];
         try (var ignored = Releasables.wrap(builders)) {
-            Arrays.setAll(builders, i -> blockFactory.newBytesRefBlockBuilder(page.getPositionCount()));
-            // Both grow to the largest value seen in this page, so they are per-page rather than per-result.
-            var jsonScratch = new BytesRef();
-            var scratch = new BytesRefBuilder();
-            CircuitBreaker breaker = blockFactory.breaker();
-            for (int row = 0; row < page.getPositionCount(); row++) {
-                if (unmappedBlock.isNull(row)) {
-                    appendRow(Map.of(), fieldNames, builders, scratch);
-                    continue;
+            // Zero expanded columns means nothing to expand, so just drop the _unmapped_fields column, keep any retained blocks,
+            // and skip the wasted per-row _source re-parse.
+            if (expandedBlockCount > 0) {
+                BytesRefBlock unmappedBlock = page.getBlock(unmappedIdx);
+                Arrays.setAll(builders, i -> blockFactory.newBytesRefBlockBuilder(page.getPositionCount()));
+                // Both grow to the largest value seen in this page, so they are per-page rather than per-result.
+                var jsonScratch = new BytesRef();
+                var scratch = new BytesRefBuilder();
+                CircuitBreaker breaker = blockFactory.breaker();
+                for (int row = 0; row < page.getPositionCount(); row++) {
+                    if (unmappedBlock.isNull(row)) {
+                        appendRow(Map.of(), fieldNames, builders, scratch);
+                        continue;
+                    }
+                    BytesRef json = getBytesRef(unmappedBlock, row, jsonScratch);
+                    long reservation = reserveForParse(json, breaker, reservationFactor);
+                    try {
+                        appendRow(parseJson(json), fieldNames, builders, scratch);
+                    } finally {
+                        breaker.addWithoutBreaking(-reservation);
+                    }
                 }
-                BytesRef json = getBytesRef(unmappedBlock, row, jsonScratch);
-                long reservation = reserveForParse(json, breaker, reservationFactor);
-                try {
-                    appendRow(parseJson(json), fieldNames, builders, scratch);
-                } finally {
-                    breaker.addWithoutBreaking(-reservation);
+                for (int i = 0; i < builders.length; i++) {
+                    allBlocks[retainedBlockCount + i] = builders[i].build();
                 }
             }
-            for (int i = 0; i < builders.length; i++) {
-                allBlocks[retainedBlockCount + i] = builders[i].build();
-            }
-            var result = new Page(allBlocks);
+            var result = new Page(page.getPositionCount(), allBlocks);
             // Release _unmapped_fields block from the circuit breaker; the surviving blocks were protected by incRef above.
             page.releaseBlocks();
             success = true;

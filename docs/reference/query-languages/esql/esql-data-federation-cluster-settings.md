@@ -15,7 +15,7 @@ The data sources feature adds the following cluster settings. For general guidan
 The object-count limits and authentication gates are operator-managed and take effect without a restart. The remaining settings require a node restart.
 
 :::{note}
-The tables on this page use the setting names from 9.5. In 9.6 and later, the external-dataset settings are unified under the `esql.external.*` prefix. Each affected section below has a **Setting names in 9.6 and later** dropdown with the current names and any backwards-compatibility notes.
+Some of these settings were renamed. Where a row lists two names, the badge on each shows which versions accept it. Unless a note says otherwise, the older name is no longer registered, and a node that still sets it in `elasticsearch.yml` fails to start.
 :::
 
 ## Object limits

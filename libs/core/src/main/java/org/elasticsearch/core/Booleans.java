@@ -21,7 +21,7 @@ public final class Booleans {
      * Parses a char[] representation of a boolean value to <code>boolean</code>.
      *
      * @return <code>true</code> iff the sequence of chars is "true", <code>false</code> iff the sequence of chars is "false", or the
-     * provided default value iff text is <code>null</code> or the slice contains only whitespace.
+     * provided default value iff text is <code>null</code> or the slice is empty or contains only whitespace.
      * @throws IllegalArgumentException if the string cannot be parsed to boolean.
      */
     public static boolean parseBoolean(char[] text, int offset, int length, boolean defaultValue) {
@@ -71,7 +71,7 @@ public final class Booleans {
      * Parses a UTF-8 byte[] representation of a boolean value to <code>boolean</code>.
      *
      * @return <code>true</code> iff the sequence of bytes is "true", <code>false</code> iff the sequence of bytes is "false", or the
-     * provided default value iff text is <code>null</code> or the slice contains only whitespace.
+     * provided default value iff text is <code>null</code> or the slice is empty or contains only whitespace.
      * @throws IllegalArgumentException if the bytes cannot be parsed to boolean.
      */
     public static boolean parseBoolean(byte[] text, int offset, int length, boolean defaultValue) {

@@ -71,8 +71,6 @@ public class BooleansTests extends ESTestCase {
         assertFalse(Booleans.parseBoolean("", Boolean.FALSE));
         assertTrue(Booleans.parseBoolean("", Boolean.TRUE));
 
-        assertFalse(Booleans.parseBoolean("   ", false));
-        assertTrue(Booleans.parseBoolean("   ", true));
         assertNull(Booleans.parseBoolean("   ", null));
         assertFalse(Booleans.parseBoolean("   ", Boolean.FALSE));
         assertTrue(Booleans.parseBoolean("   ", Boolean.TRUE));

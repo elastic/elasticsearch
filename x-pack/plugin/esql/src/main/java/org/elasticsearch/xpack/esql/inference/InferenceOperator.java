@@ -14,6 +14,8 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -53,10 +55,26 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
     private final Semaphore permits;
 
     /**
+     * Source location used for per-row failure warnings when {@link #tolerateFailures} is {@code true}.
+     */
+    private final WarningSourceLocation source;
+
+    /**
+     * When {@code true}, an inference request that fails does not fail the whole query: a warning is emitted, the
+     * corresponding output row is filled with null, and processing continues. When {@code false} (the default for
+     * COMPLETION/RERANK and the fold-based inference functions), the first failure fails the query.
+     */
+    private final boolean tolerateFailures;
+
+    private Warnings warnings;
+
+    /**
      * Constructs a new {@code InferenceOperator}.
      *
      * @param driverContext The driver context.
      * @param inferenceService The inference service to use for executing inference requests.
+     * @param source The source location for per-row failure warnings (only used when {@code tolerateFailures} is true).
+     * @param tolerateFailures Whether a single failed inference request should warn, emit null, and continue instead of failing the query.
      * @param maxOutstandingPages The maximum number of pages processed in parallel.
      * @param maxOutstandingInferenceRequests The maximum number of inference requests to be run in parallel.
      */
@@ -65,6 +83,8 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         InferenceService inferenceService,
         BulkInferenceRequestItemIterator.Factory inferenceRequestsFactory,
         OutputBuilder outputBuilder,
+        WarningSourceLocation source,
+        boolean tolerateFailures,
         int maxOutstandingPages,
         int maxOutstandingInferenceRequests
     ) {
@@ -74,6 +94,8 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         this.permits = new Semaphore(maxOutstandingInferenceRequests);
         this.outputBuilder = outputBuilder;
         this.ongoingBulkOperations = ConcurrentCollections.newQueue();
+        this.source = source;
+        this.tolerateFailures = tolerateFailures;
     }
 
     /**
@@ -84,21 +106,34 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
      * @param inferenceService The inference service to use for executing inference requests.
      * @param inferenceRequestsFactory Factory for creating inference request iterators from input pages.
      * @param outputBuilder Builder for converting inference responses into output pages.
+     * @param source The source location for per-row failure warnings (only used when {@code tolerateFailures} is true).
+     * @param tolerateFailures Whether a single failed inference request should warn, emit null, and continue instead of failing the query.
      */
     public InferenceOperator(
         DriverContext driverContext,
         InferenceService inferenceService,
         BulkInferenceRequestItemIterator.Factory inferenceRequestsFactory,
-        OutputBuilder outputBuilder
+        OutputBuilder outputBuilder,
+        WarningSourceLocation source,
+        boolean tolerateFailures
     ) {
         this(
             driverContext,
             inferenceService,
             inferenceRequestsFactory,
             outputBuilder,
+            source,
+            tolerateFailures,
             DEFAULT_MAX_OUTSTANDING_PAGES,
             DEFAULT_MAX_OUTSTANDING_REQUESTS
         );
+    }
+
+    private Warnings warnings() {
+        if (warnings == null) {
+            warnings = driverContext().createWarnings(source);
+        }
+        return warnings;
     }
 
     @Override
@@ -212,7 +247,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
                 ActionListener.runAfter(
                     ActionListener.wrap(
                         inferenceResponse -> bulkOperation.onInferenceResponse(request.createResponse(inferenceResponse)),
-                        bulkOperation::onException
+                        e -> onInferenceRequestFailure(bulkOperation, request, e)
                     ),
                     () -> {
                         permits.release();
@@ -221,6 +256,23 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
                 )
             )
         );
+    }
+
+    /**
+     * Handles a failed inference request.
+     * <p>
+     * When {@link #tolerateFailures} is {@code true}, the failure is turned into a warning and the request is completed with a null
+     * response, so its output row(s) become null and processing continues. Routing the failure as a null response (rather than through
+     * {@link BulkInferenceOperation#onException}) preserves the bulk operation's sequencing and lets the remaining requests complete.
+     * When {@code false}, the failure fails the whole bulk operation, preserving the historical fail-fast behavior.
+     */
+    private void onInferenceRequestFailure(BulkInferenceOperation bulkOperation, BulkInferenceRequestItem request, Exception e) {
+        if (tolerateFailures) {
+            warnings().registerException(e);
+            bulkOperation.onInferenceResponse(request.createResponse(null));
+        } else {
+            bulkOperation.onException(e);
+        }
     }
 
     public interface OutputBuilder {

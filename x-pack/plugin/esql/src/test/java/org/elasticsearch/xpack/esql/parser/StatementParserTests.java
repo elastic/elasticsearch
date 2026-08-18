@@ -4519,6 +4519,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.timeout(), equalTo(TimeValue.timeValueSeconds(30)));
     }
 
+    public void testDenseVectorDefaultTimeout() {
+        assumeDenseVectorCommandEnabled();
+        // When no timeout option is given, the plan carries a null timeout; the inference layer then applies its
+        // per-task default (30s for text_embedding).
+        var plan = as(processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.timeout(), nullValue());
+    }
+
     public void testDenseVectorDefaultInferenceId() {
         assumeDenseVectorCommandEnabled();
         // No WITH: falls through to the built-in default endpoint.

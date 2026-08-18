@@ -93,13 +93,14 @@ public class EmbeddingOutputBuilder implements OutputBuilder {
      * <p>
      * The response's position value counts determine how embeddings are distributed:
      * <ul>
-     *   <li>For each position with value count 0: appends a null embedding</li>
-     *   <li>For each position with value count 1: appends the corresponding embedding vector</li>
+     *   <li>For each position with value count 0: appends a null embedding (e.g. a null input)</li>
+     *   <li>For each position with value count 1: appends the corresponding embedding vector, or a null embedding when the
+     *       response is null because the request failed and the operator tolerated the failure</li>
      * </ul>
      *
      * @param builder  The block builder to append to
      * @param response The inference response item containing the embedding results
-     * @throws IllegalStateException if the number of embeddings doesn't match the sum of position value counts
+     * @throws IllegalStateException if a non-null response's embedding count doesn't match the sum of position value counts
      */
     private void appendResponseToBlock(FloatBlock.Builder builder, BulkInferenceResponseItem response) {
         // Handle null responses or null position value counts
@@ -133,14 +134,14 @@ public class EmbeddingOutputBuilder implements OutputBuilder {
 
         for (int valueCount : response.positionValueCounts()) {
             if (valueCount == 0) {
-                // No embedding for this position, append a null value to the block
+                // No embedding for this position (e.g. a null input), append a null value to the block
+                builder.appendNull();
+            } else if (embeddings == null) {
+                // The request failed and was tolerated: the response is null even though the input had a value. Emit a null
+                // embedding for this position so the operator can warn and continue instead of failing the whole query.
                 builder.appendNull();
             } else {
                 // Append the embedding vector as a multi-valued position
-                if (embeddings == null) {
-                    throw new IllegalStateException("Expected embeddings but response was null");
-                }
-
                 float[] embeddingArray = embeddings[currentEmbeddingIndex++];
 
                 builder.beginPositionEntry();

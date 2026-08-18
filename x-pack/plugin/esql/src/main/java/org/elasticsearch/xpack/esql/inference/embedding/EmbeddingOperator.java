@@ -17,6 +17,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 
@@ -43,7 +44,9 @@ public class EmbeddingOperator extends InferenceOperator {
             driverContext,
             inferenceService,
             new EmbeddingRequestIterator.Factory(inferenceId, TaskType.EMBEDDING, inputEvaluator, dataType, timeout),
-            new EmbeddingOutputBuilder(driverContext.blockFactory())
+            new EmbeddingOutputBuilder(driverContext.blockFactory()),
+            Source.EMPTY,
+            false
         );
     }
 

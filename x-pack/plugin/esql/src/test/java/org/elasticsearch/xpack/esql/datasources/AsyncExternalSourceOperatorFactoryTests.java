@@ -2824,10 +2824,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             () -> factory.openWithParallelism(cdr, object, List.of("a"), ErrorPolicy.STRICT, false, true, true, null, 0L, null, null, null)
         );
         assertEquals("simulated parallelRead construction failure", thrown.getMessage());
-        assertTrue(
-            "decompressor wrapper must be closed to release codec-specific native handles (e.g. zstd Arena)",
-            wrapperClosed.get()
-        );
+        assertTrue("decompressor wrapper must be closed to release codec-specific native handles (e.g. zstd Arena)", wrapperClosed.get());
         assertTrue("raw stream must be aborted when parallelRead fails", tracking.aborted.get());
         assertEquals("abortStream must be invoked exactly once", 1, tracking.abortCalls.get());
     }

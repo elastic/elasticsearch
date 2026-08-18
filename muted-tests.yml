@@ -238,9 +238,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testUnhollowOnUpdates
   issue: https://github.com/elastic/elasticsearch/issues/151100
-- class: org.elasticsearch.xpack.ccr.CcrTimeSeriesDataStreamsIT
-  method: testCrossClusterReplicationForTSDBWithSyntheticId
-  issue: https://github.com/elastic/elasticsearch/issues/151326
 - class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
   method: testBinaryWithDifferentSelectors
   issue: https://github.com/elastic/elasticsearch/issues/151327
@@ -259,9 +256,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=aggregations/terms/Double test}
   issue: https://github.com/elastic/elasticsearch/issues/151793
-- class: org.elasticsearch.snapshots.SnapshotStressTestsIT
-  method: testRandomActivities
-  issue: https://github.com/elastic/elasticsearch/issues/152005
 - class: org.elasticsearch.upgrades.MlMappingsUpgradeIT
   method: testMappingsUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/152115
@@ -280,9 +274,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {yaml=ml/delete_expired_data/Test delete expired data with path parameters}
   issue: https://github.com/elastic/elasticsearch/issues/152311
-- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
-  method: testRelocatingIndexShardFetchesFirstRegionOnly
-  issue: https://github.com/elastic/elasticsearch/issues/152526
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexIsDeleted
   issue: https://github.com/elastic/elasticsearch/issues/152539
@@ -643,9 +634,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/156415
-- class: org.elasticsearch.xpack.inference.external.http.HttpClientTests
-  method: testStream_CancelAfterPauseReleasesConnection
-  issue: https://github.com/elastic/elasticsearch/issues/156431
 - class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
   method: testAsyncSearchFailingQueryErrorTraceFalseOnSubmitAndTrueOnGet
   issue: https://github.com/elastic/elasticsearch/issues/156435
@@ -667,15 +655,9 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testTargetRecoversAfterMasterRestartDuringHandoff
   issue: https://github.com/elastic/elasticsearch/issues/156561
-- class: org.elasticsearch.common.xcontent.builder.XContentBuilderTests
-  method: testCloseAllowIllFormedDoesNotValidateStructuralCorrectness
-  issue: https://github.com/elastic/elasticsearch/issues/156563
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationOrObjectStoreFailures
   issue: https://github.com/elastic/elasticsearch/issues/156569
-- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/156572
 - class: org.elasticsearch.xpack.transform.integration.TransformCrossProjectMetricsIT
   method: testCpsGaugesPublishForRunningTransform
   issue: https://github.com/elastic/elasticsearch/issues/156575
@@ -702,9 +684,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.ash.AsymmetricHashingQuantizerTests
   method: testReconstructedDotProductApproximatesTrueDotProduct
   issue: https://github.com/elastic/elasticsearch/issues/156708
-- class: org.elasticsearch.reindex.RethrottleTests
-  method: testDeleteByQuery
-  issue: https://github.com/elastic/elasticsearch/issues/156709
 - class: org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationActionRequestTests
   method: testBwcSerialization
   issue: https://github.com/elastic/elasticsearch/issues/156714
@@ -723,15 +702,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/CASE}
   issue: https://github.com/elastic/elasticsearch/issues/156729
-- class: org.elasticsearch.xpack.stateless.objectstore.ObjectStoreServiceTests
-  method: testTranslogUploadTimesLogLevels
-  issue: https://github.com/elastic/elasticsearch/issues/156747
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=search.vectors/131_knn_query_nested_inner_hits_score/nested kNN inner_hits are scored like the query phase on a quantized field}
   issue: https://github.com/elastic/elasticsearch/issues/156753
-- class: org.elasticsearch.search.SearchWithRejectionsIT
-  method: testScrollContextSurvivesQueueRejection
-  issue: https://github.com/elastic/elasticsearch/issues/156757
 - class: org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettingsTests
   method: testSerialization
   issue: https://github.com/elastic/elasticsearch/issues/156776
@@ -826,3 +799,24 @@ tests:
 - class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=ml/ml_standard_analyze/Test analyze API with the standard 7.16 ML analyzer}
   issue: https://github.com/elastic/elasticsearch/issues/156878
+- class: org.elasticsearch.reindex.management.ReindexDoubleRelocationIT
+  method: testDoubleRelocationWithManagementEndpoints
+  issue: https://github.com/elastic/elasticsearch/issues/156929
+- class: org.elasticsearch.entitlement.qa.EntitlementAgentAttachLoggingIT
+  method: testEntitlementAgentAttachLineIsLogged
+  issue: https://github.com/elastic/elasticsearch/issues/156950
+- class: org.elasticsearch.foreign.LinkerHelperTests
+  method: testSystemErrorReturnsCapturedGetLastErrorAfterFailedCall
+  issue: https://github.com/elastic/elasticsearch/issues/156974
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
+  method: testMixedOperationsDuringSplitWithDisruption
+  issue: https://github.com/elastic/elasticsearch/issues/156982
+- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/156988
+- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
+  method: testRelocatingIndexShardFetchesFirstRegionOnly
+  issue: https://github.com/elastic/elasticsearch/issues/152526
+- class: org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormatTests
+  method: testSortedDeleteTermsResolveAcrossSkipperBlocks
+  issue: https://github.com/elastic/elasticsearch/issues/157003

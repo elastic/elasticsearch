@@ -1156,28 +1156,36 @@ In addition to the [settings that are valid for all realms](#ref-realm-settings)
 `op.issuer` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) A verifiable Identifier for your OpenID Connect Provider. An Issuer Identifier is usually a case sensitive URL using the https scheme that contains scheme, host, and optionally, port number and path components and no query or fragment components. The value for this setting should be provided by your OpenID Connect Provider.
 
-If any of `op.authorization_endpoint`, `op.token_endpoint`, `op.userinfo_endpoint`, `op.endsession_endpoint`, or `op.jwkset_path` is not explicitly configured, {{es}} resolves it from the OpenID Connect Provider's discovery document at `<op.issuer>/.well-known/openid-configuration`. Explicitly configured endpoint settings always take precedence over the discovered values.
+    {applies_to}`stack: ga 9.6` If any of `op.authorization_endpoint`, `op.token_endpoint`, `op.userinfo_endpoint`, `op.endsession_endpoint`, or `op.jwkset_path` is not explicitly configured, {{es}} resolves it from the OpenID Connect Provider's discovery document at `<op.issuer>/.well-known/openid-configuration`. Explicitly configured endpoint settings always take precedence over the discovered values.
 
 `op.authorization_endpoint` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The URL for the Authorization Endpoint at the OpenID Connect Provider. If not set, this is resolved from the discovery document at `<op.issuer>/.well-known/openid-configuration`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The URL for the Authorization Endpoint at the OpenID Connect Provider.
+
+    {applies_to}`stack: ga 9.6` If not set, this is resolved from the discovery document at `<op.issuer>/.well-known/openid-configuration`.
 
 `op.token_endpoint` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The URL for the Token Endpoint at the OpenID Connect Provider. If not set, this is resolved from the discovery document at `<op.issuer>/.well-known/openid-configuration`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The URL for the Token Endpoint at the OpenID Connect Provider.
+
+    {applies_to}`stack: ga 9.6` If not set, this is resolved from the discovery document at `<op.issuer>/.well-known/openid-configuration`.
 
 `op.userinfo_endpoint` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The URL for the User Info Endpoint at the OpenID Connect Provider. If not set, this is resolved from the discovery document at `<op.issuer>/.well-known/openid-configuration`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The URL for the User Info Endpoint at the OpenID Connect Provider.
+
+    {applies_to}`stack: ga 9.6` If not set, this is resolved from the discovery document at `<op.issuer>/.well-known/openid-configuration`.
 
 `op.endsession_endpoint` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The URL for the End Session Endpoint at the OpenID Connect Provider. If not set, this is resolved from the discovery document at `<op.issuer>/.well-known/openid-configuration`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The URL for the End Session Endpoint at the OpenID Connect Provider.
+
+    {applies_to}`stack: ga 9.6` If not set, this is resolved from the discovery document at `<op.issuer>/.well-known/openid-configuration`.
 
 `op.jwkset_path` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting))
 
-The file name or URL to a JSON Web Key Set (JWKS) with the public key material used to verify tokens and claims responses signed by the OpenID Connect Provider. A value is considered a file name if it does not begin with `https` or `http`. The file name is resolved relative to the {{es}} configuration directory.  Changes to the file are polled at a frequency determined by the global {{es}} `resource.reload.interval.high` setting, which defaults to 5 seconds.
+    The file name or URL to a JSON Web Key Set (JWKS) with the public key material used to verify tokens and claims responses signed by the OpenID Connect Provider. A value is considered a file name if it does not begin with `https` or `http`. The file name is resolved relative to the {{es}} configuration directory.  Changes to the file are polled at a frequency determined by the global {{es}} `resource.reload.interval.high` setting, which defaults to 5 seconds.
+    
+    If a URL is provided, then it must begin with `https://` or `http://`. {{es}} automatically caches the retrieved JWK and will attempt to refresh the JWK upon signature verification failure, as this might indicate that the OpenID Connect Provider has rotated the signing keys.
 
-+ If a URL is provided, then it must begin with `https://` or `http://`. {{es}} automatically caches the retrieved JWK and will attempt to refresh the JWK upon signature verification failure, as this might indicate that the OpenID Connect Provider has rotated the signing keys.
-
-+ If not set, this is resolved from the discovery document at `<op.issuer>/.well-known/openid-configuration`.
+    {applies_to}`stack: ga 9.6` If not set, this is resolved from the discovery document at `<op.issuer>/.well-known/openid-configuration`.
 
 `authorization_realms`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The names of the realms that should be consulted for delegated authorization. If this setting is used, then the OpenID Connect realm does not perform role mapping and instead loads the user from the listed realms. See [Delegating authorization to another realm](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/realm-chains.md#authorization_realms).
@@ -1275,7 +1283,7 @@ The file name or URL to a JSON Web Key Set (JWKS) with the public key material u
 `http.connection_pool_ttl` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Controls the behavior of the http client used for back-channel communication to the OpenID Connect Provider endpoints. Specifies the time-to-live of connections in the connection pool (default to 3 minutes). A connection is closed if it is idle for more than the specified timeout.
 
-The server can also set the `Keep-Alive` HTTP response header. The effective time-to-live value is the smaller value between this setting and the `Keep-Alive` response header. Configure this setting to `-1` to let the server dictate the value. If the header is not set by the server and the setting has value of `-1`, the time-to-live is infinite and connections never expire.
+    The server can also set the `Keep-Alive` HTTP response header. The effective time-to-live value is the smaller value between this setting and the `Keep-Alive` response header. Configure this setting to `-1` to let the server dictate the value. If the header is not set by the server and the setting has value of `-1`, the time-to-live is infinite and connections never expire.
 
 
 #### OpenID Connect realm SSL settings [ref-oidc-ssl-settings]

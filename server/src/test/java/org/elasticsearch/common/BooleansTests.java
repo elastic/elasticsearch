@@ -41,6 +41,8 @@ public class BooleansTests extends ESTestCase {
 
     public void testIsNonBoolean() {
         assertThat(Booleans.isBoolean(null, 0, 1), is(false));
+        assertFalse(Booleans.isBoolean(new char[] { 't', 'r', 'u', 'e' }, 0, 0));
+        assertFalse(Booleans.isBoolean((String) null));
 
         for (String nb : NON_BOOLEANS) {
             String t = "prefix" + nb + "suffix";
@@ -55,6 +57,18 @@ public class BooleansTests extends ESTestCase {
         assertNull(Booleans.parseBoolean(null, null));
         assertFalse(Booleans.parseBoolean(null, Boolean.FALSE));
         assertTrue(Booleans.parseBoolean(null, Boolean.TRUE));
+
+        assertFalse(Booleans.parseBoolean("", false));
+        assertTrue(Booleans.parseBoolean("", true));
+        assertNull(Booleans.parseBoolean("", null));
+        assertFalse(Booleans.parseBoolean("", Boolean.FALSE));
+        assertTrue(Booleans.parseBoolean("", Boolean.TRUE));
+
+        assertFalse(Booleans.parseBoolean("   ", false));
+        assertTrue(Booleans.parseBoolean("   ", true));
+        assertNull(Booleans.parseBoolean("   ", null));
+        assertFalse(Booleans.parseBoolean("   ", Boolean.FALSE));
+        assertTrue(Booleans.parseBoolean("   ", Boolean.TRUE));
 
         assertTrue(Booleans.parseBoolean("true", randomFrom(Boolean.TRUE, Boolean.FALSE, null)));
         assertFalse(Booleans.parseBoolean("false", randomFrom(Boolean.TRUE, Boolean.FALSE, null)));
@@ -84,9 +98,40 @@ public class BooleansTests extends ESTestCase {
         }
     }
 
+    public void testParseBooleanCharArray() {
+        for (String b : BOOLEANS) {
+            String t = "prefix" + b + "suffix";
+            boolean expected = "true".equals(b);
+            assertEquals(expected, Booleans.parseBoolean(t.toCharArray(), "prefix".length(), b.length(), !expected));
+        }
+        assertFalse(Booleans.parseBoolean((char[]) null, 0, 0, false));
+        assertTrue(Booleans.parseBoolean((char[]) null, 0, 0, true));
+        assertFalse(Booleans.parseBoolean(new char[] { 't', 'r', 'u', 'e' }, 0, 0, false));
+        assertTrue(Booleans.parseBoolean(new char[] { 't', 'r', 'u', 'e' }, 0, 0, true));
+    }
+
+    public void testIsFalse() {
+        assertTrue(Booleans.isFalse("false"));
+        assertFalse(Booleans.isFalse("true"));
+        assertFalse(Booleans.isFalse(null));
+        assertFalse(Booleans.isFalse(""));
+        assertFalse(Booleans.isFalse("False"));
+        assertFalse(Booleans.isFalse("FALSE"));
+    }
+
+    public void testIsTrue() {
+        assertTrue(Booleans.isTrue("true"));
+        assertFalse(Booleans.isTrue("false"));
+        assertFalse(Booleans.isTrue(null));
+        assertFalse(Booleans.isTrue(""));
+        assertFalse(Booleans.isTrue("True"));
+        assertFalse(Booleans.isTrue("TRUE"));
+    }
+
     public void testParseBooleanLenient() {
         assertThat(Booleans.parseBooleanLenient(randomFrom("true", "TRUE", "True"), randomBoolean()), is(true));
         assertThat(Booleans.parseBooleanLenient(randomFrom("false", "FALSE", "anything"), randomBoolean()), is(false));
+        assertThat(Booleans.parseBooleanLenient("", randomBoolean()), is(false));
         assertThat(Booleans.parseBooleanLenient(null, false), is(false));
         assertThat(Booleans.parseBooleanLenient(null, true), is(true));
     }

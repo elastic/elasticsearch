@@ -19,7 +19,7 @@ import java.io.IOException;
  * for use during encoding, and provides {@link #writeTo} for flushing to a
  * {@link DataOutput}.
  *
- * <p>The byte layout for {@link #writeLong} matches Lucene's {@code DataOutput.writeLong}
+ * <p>The byte layout for {@link #writeInt} and {@link #writeLong} match Lucene's {@code DataOutput.writeLong}
  * format (two little-endian ints, low int first) for compatibility with
  * {@code DataInput.readLong}.
  */
@@ -56,7 +56,7 @@ final class MetadataBuffer implements MetadataWriter {
     }
 
     /**
-     * Writes a slice of the buffer to the given output.
+     * Writes all accumulated bytes to the given output..
      *
      * @param out the output to write to
      */
@@ -69,6 +69,13 @@ final class MetadataBuffer implements MetadataWriter {
         dataSize = 0;
     }
 
+/**
+   * Returns the raw backing array. Only the first {@link #size()} bytes contain valid data;
+   * the array may be longer due to growth pre-allocation. Do not retain a reference across a
+   * {@link #clear()} call or any subsequent write, as those may replace the backing array.
+   *
+   * @return the raw backing array; valid range is {@code [0, size())}
+   */
     public byte[] getBytes() {
         return data;
     }

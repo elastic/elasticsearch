@@ -293,10 +293,6 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // The missing-@timestamp rejection and TIME_SERIES bounds check are both re-instated in
-        // postColumnarParse once BatchMappingContext exposes the mapped timestamp column (via
-        // DateFieldMapper.mapColumnBatch calling ctx.recordTimestampColumn). Returning true
-        // unconditionally allows the columnar path to be used for all modes including TIME_SERIES.
         return true;
     }
 

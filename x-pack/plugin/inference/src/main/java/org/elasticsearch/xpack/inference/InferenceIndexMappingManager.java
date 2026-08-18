@@ -219,7 +219,7 @@ public class InferenceIndexMappingManager {
                 // is a fixed, always-valid name, so this exception cannot mean the name is malformed.
                 // Either way the index is there; update mappings in case it carries an older version.
                 logger.debug("Index [{}] already exists; updating mappings instead", primaryIndex);
-                putMapping(false, listener);
+                ActionListener.run(listener, l -> putMapping(false, l));
             } else {
                 logger.warn("Failed to create index [{}]", primaryIndex, e);
                 listener.onFailure(e);
@@ -276,7 +276,7 @@ public class InferenceIndexMappingManager {
                 // put-mapping was processed (e.g. DELETE .inference, a feature-state reset, or a
                 // system index migration in progress). Fall back to creating it.
                 logger.debug("Index [{}] was deleted before the mapping update was processed; creating it instead", primaryIndex);
-                createIndex(listener);
+                ActionListener.run(listener, this::createIndex);
             } else {
                 logger.warn("Put mapping request for [{}] failed", primaryIndex, e);
                 listener.onFailure(e);

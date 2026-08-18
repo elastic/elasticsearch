@@ -81,6 +81,7 @@ final class SystemJvmOptions {
             maybeSetActiveProcessorCount(nodeSettings),
             maybeSetReplayFile(distroType, isHotspot),
             maybeWorkaroundG1Bug(),
+            maybeWorkaroundC2Bug(),
             attachEntitlementAgent(esHome)
         ).flatMap(s -> s).toList();
     }
@@ -154,6 +155,18 @@ final class SystemJvmOptions {
         Runtime.Version v = Runtime.version();
         if (v.feature() == 22 && v.update() <= 1) {
             return Stream.of("-XX:+UnlockDiagnosticVMOptions", "-XX:G1NumCollectionsKeepPinned=10000000");
+        }
+        return Stream.of();
+    }
+
+    /*
+     * On JDK 27, where compact object headers became the default, C2 can miscompile array copying
+     * under specific circumstances. Disabling Compact Object Headers should prevent this from happening.
+     * see https://bugs.openjdk.org/browse/JDK-8390546
+     */
+    private static Stream<String> maybeWorkaroundC2Bug() {
+        if (Runtime.version().feature() == 27) {
+            return Stream.of("-XX:-UseCompactObjectHeaders");
         }
         return Stream.of();
     }

@@ -196,6 +196,13 @@ public final class BatchMappingContext {
         ignoredFields.record(doc, new BytesRef(field));
     }
 
+    /**
+     * Whether {@code _source} is reconstructed from doc values.
+     */
+    public boolean isSourceSynthetic() {
+        return mappingLookup.isSourceSynthetic();
+    }
+
     /** The number of documents in this chunk. */
     public int docCount() {
         return batch.docCount();

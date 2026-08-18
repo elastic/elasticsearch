@@ -37,7 +37,10 @@ public class BooleansTests extends ESTestCase {
         for (String b : BOOLEANS) {
             String t = "prefix" + b + "suffix";
             assertTrue("failed to recognize [" + b + "] as boolean", Booleans.isBoolean(t.toCharArray(), "prefix".length(), b.length()));
-            assertTrue("failed to recognize [" + b + "] as boolean", Booleans.isBoolean(t.getBytes(StandardCharsets.UTF_8), "prefix".length(), b.length()));
+            assertTrue(
+                "failed to recognize [" + b + "] as boolean",
+                Booleans.isBoolean(t.getBytes(StandardCharsets.UTF_8), "prefix".length(), b.length())
+            );
             assertTrue("failed to recognize [" + b + "] as boolean", Booleans.isBoolean(b));
         }
     }
@@ -53,7 +56,10 @@ public class BooleansTests extends ESTestCase {
         for (String nb : NON_BOOLEANS) {
             String t = "prefix" + nb + "suffix";
             assertFalse("recognized [" + nb + "] as boolean", Booleans.isBoolean(t.toCharArray(), "prefix".length(), nb.length()));
-            assertFalse("recognized [" + nb + "] as boolean", Booleans.isBoolean(t.getBytes(StandardCharsets.UTF_8), "prefix".length(), nb.length()));
+            assertFalse(
+                "recognized [" + nb + "] as boolean",
+                Booleans.isBoolean(t.getBytes(StandardCharsets.UTF_8), "prefix".length(), nb.length())
+            );
             assertFalse("recognized [" + nb + "] as boolean", Booleans.isBoolean(t));
         }
     }

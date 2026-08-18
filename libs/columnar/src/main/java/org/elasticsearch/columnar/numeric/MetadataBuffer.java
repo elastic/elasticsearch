@@ -56,7 +56,7 @@ final class MetadataBuffer implements MetadataWriter {
     }
 
     /**
-     * Writes all accumulated bytes to the given output..
+     * Writes all accumulated bytes to the given output.
      *
      * @param out the output to write to
      */
@@ -70,12 +70,12 @@ final class MetadataBuffer implements MetadataWriter {
     }
 
     /**
-       * Returns the raw backing array. Only the first {@link #size()} bytes contain valid data;
-       * the array may be longer due to growth pre-allocation. Do not retain a reference across a
-       * {@link #clear()} call or any subsequent write, as those may replace the backing array.
-       *
-       * @return the raw backing array; valid range is {@code [0, size())}
-       */
+     * Returns the raw backing array. Only the first {@link #size()} bytes contain valid data;
+     * the array may be longer due to growth pre-allocation. Do not retain a reference across a
+     * {@link #clear()} call or any subsequent write, as those may replace the backing array.
+     *
+     * @return the raw backing array; valid range is {@code [0, size())}
+     */
     public byte[] getBytes() {
         return data;
     }

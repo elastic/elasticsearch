@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
@@ -15,10 +17,11 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.test.TestBlockFactory;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,9 +34,17 @@ import static org.mockito.Mockito.when;
  * {@code _rowPosition} from the page, materialises deferred columns via the driver-shared
  * {@link SourceExtractors} registry, and assembles the output page in declared output order.
  */
-public class ExternalFieldExtractOperatorTests extends ESTestCase {
+public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
 
-    private final BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+    // Leak-tracking factory: ComputeTestCase's teardown asserts every block allocated by any
+    // test is released, so each test doubles as a leak test. Initialized in a @Before method
+    // rather than a field initializer to avoid a this-escape during construction.
+    private BlockFactory blockFactory;
+
+    @Before
+    public void initBlockFactory() {
+        blockFactory = blockFactory();
+    }
 
     public void testReshapeAndExtract() {
         try (SourceExtractors registry = new SourceExtractors()) {
@@ -132,6 +143,51 @@ public class ExternalFieldExtractOperatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * Empty pages go through {@code reshapeEmpty()}, whose only breaker-checked allocation is
+     * {@code newConstantNullBlock} per deferred column. A cranky breaker will eventually trip
+     * there — including after the first placeholder has already been allocated — and must not
+     * leak the input page or the pass-through refs already {@code incRef}'d. Input blocks are
+     * built on the leak-tracking factory so construction itself cannot trip; the operator uses
+     * the cranky factory. Leak detection is {@link ComputeTestCase}'s teardown plus a per-attempt
+     * breaker check.
+     */
+    public void testReshapeEmptyWithCrankyBreakerDoesNotLeak() {
+        BlockFactory cranky = crankyBlockFactory();
+        for (int attempt = 0; attempt < 100; attempt++) {
+            try (SourceExtractors registry = new SourceExtractors()) {
+                registry.register(new IntListExtractor(new int[] { 1 }));
+                // Two deferred columns so the breaker can trip after the first placeholder is live,
+                // exercising reshapeEmpty's cleanup of a partially filled outBlocks array.
+                Page empty = newPage(new long[0], new long[0], new int[0]);
+                ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+                    1,
+                    List.of(0, 2),
+                    List.of("colA", "colB"),
+                    List.of(DataType.INTEGER, DataType.INTEGER),
+                    registry,
+                    cranky
+                );
+                op.addInput(empty);
+                op.finish();
+                try {
+                    Page output = op.getOutput();
+                    try {
+                        assertEquals(4, output.getBlockCount());
+                        assertEquals(0, output.getPositionCount());
+                    } finally {
+                        output.releaseBlocks();
+                    }
+                } catch (CircuitBreakingException e) {
+                    assertEquals(CrankyCircuitBreakerService.ERROR_MESSAGE, e.getMessage());
+                } finally {
+                    op.close();
+                }
+            }
+            assertEquals("breaker leaked on attempt " + attempt, 0L, cranky.breaker().getUsed());
+        }
+    }
+
     public void testFactoryRejectsNullsAndNegatives() {
         SourceExtractors registry = new SourceExtractors();
         try {
@@ -196,6 +252,60 @@ public class ExternalFieldExtractOperatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * A failure inside {@code registry.materialize(...)} — the realistic trigger is a breaker
+     * trip while allocating the deferred columns — must not leak the detached input page:
+     * {@link ExternalFieldExtractOperator#getOutput()} owns the page and releases it on every
+     * path, including {@link Error}s. Leak detection is {@link ComputeTestCase}'s teardown.
+     */
+    public void testMaterializeFailureReleasesPage() {
+        boolean throwError = randomBoolean();
+        try (SourceExtractors registry = new SourceExtractors()) {
+            int id = registry.register(new ThrowingExtractor(throwError));
+            Page page = newPage(new long[] { 1L }, new long[] { SourceExtractors.encode(id, 0) }, new int[] { 9 });
+
+            ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+                1,
+                List.of(0, 2),
+                List.of("col"),
+                List.of(DataType.INTEGER),
+                registry,
+                blockFactory
+            );
+            op.addInput(page);
+            Class<? extends Throwable> expected = throwError ? AssertionError.class : CircuitBreakingException.class;
+            expectThrows(expected, op::getOutput);
+            op.close();
+        }
+    }
+
+    /**
+     * The {@code _rowPosition} type check throws before materialization even starts; the
+     * detached input page must still be released by {@code getOutput()}.
+     */
+    public void testBadRowPositionChannelReleasesPage() {
+        try (SourceExtractors registry = new SourceExtractors()) {
+            registry.register(new IntListExtractor(new int[] { 1 }));
+            // The _rowPosition channel (1) holds ints instead of the encoded longs the operator requires.
+            Block sortBlock = blockFactory.newLongArrayVector(new long[] { 1L }, 1).asBlock();
+            Block badRpBlock = blockFactory.newIntArrayVector(new int[] { 0 }, 1).asBlock();
+            Block passBlock = blockFactory.newIntArrayVector(new int[] { 9 }, 1).asBlock();
+            Page page = new Page(1, sortBlock, badRpBlock, passBlock);
+
+            ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+                1,
+                List.of(0, 2),
+                List.of("col"),
+                List.of(DataType.INTEGER),
+                registry,
+                blockFactory
+            );
+            op.addInput(page);
+            expectThrows(IllegalStateException.class, op::getOutput);
+            op.close();
+        }
+    }
+
     private Page newPage(long[] sortKey, long[] rowPosition, int[] passThru) {
         assert sortKey.length == rowPosition.length && rowPosition.length == passThru.length;
         int n = sortKey.length;
@@ -237,6 +347,35 @@ public class ExternalFieldExtractOperatorTests extends ESTestCase {
             } finally {
                 if (built == false) org.elasticsearch.core.Releasables.closeExpectNoException(result);
             }
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * Extractor that allocates nothing and always throws: a {@link CircuitBreakingException}
+     * simulating a breaker trip mid-materialization, or an {@link AssertionError} to exercise
+     * the {@code Throwable} (not just {@code RuntimeException}) cleanup paths.
+     */
+    private static final class ThrowingExtractor implements ColumnExtractor {
+        private final boolean throwError;
+
+        ThrowingExtractor(boolean throwError) {
+            this.throwError = throwError;
+        }
+
+        @Override
+        public long rowCount() {
+            return 1;
+        }
+
+        @Override
+        public Block[] extract(String[] columnNames, DataType[] targetTypes, long[] localPositions, BlockFactory factory) {
+            if (throwError) {
+                throw new AssertionError("simulated error during extraction");
+            }
+            throw new CircuitBreakingException("simulated breaker trip during extraction", CircuitBreaker.Durability.TRANSIENT);
         }
 
         @Override

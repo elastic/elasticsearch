@@ -36,6 +36,8 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
             Settings.builder()
                 // We run it on demand.
                 .put(UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_ENABLED.getKey(), false)
+                // Enable throttling
+                .put(UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEXING_THROTTLING_ENABLED.getKey(), true)
                 // Always throttle.
                 .put(UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD.getKey(), TimeValue.ZERO)
                 .put(UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN.getKey(), TimeValue.ZERO)
@@ -101,7 +103,7 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
         // And previously blocked bulk now can proceed.
         uploadQueueControllerService.runNow();
 
-        var response = bulkFuture.actionGet();
+        var response = safeGet(bulkFuture);
         assertFalse(response.hasFailures());
     }
 

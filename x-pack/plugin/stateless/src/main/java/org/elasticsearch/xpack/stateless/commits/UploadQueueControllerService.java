@@ -45,6 +45,15 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
         Setting.Property.Dynamic
     );
 
+    // Enable the controller by default to get metrics/logs from MonitoringThrottler but don't enable actual throttling by default
+    // to be able to do per-project rollout first.
+    // This is not dynamic to simplify the implementation.
+    public static final Setting<Boolean> STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEXING_THROTTLING_ENABLED = Setting.boolSetting(
+        "stateless.upload.queue_controller.indexing_throttling.enabled",
+        false,
+        Setting.Property.NodeScope
+    );
+
     /**
      * How frequently the upload queue controller should check the commit upload backlog and apply throttling if needed.
      */
@@ -97,6 +106,7 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
         TelemetryProvider telemetryProvider
     ) {
         var initialInterval = STATELESS_UPLOAD_QUEUE_CONTROLLER_INTERVAL.get(settings);
+        var throttlingEnabled = STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEXING_THROTTLING_ENABLED.get(settings);
         this.task = new UploadQueueControllerMonitor(
             threadPool,
             threadPool.generic(),
@@ -104,7 +114,8 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
             clusterService,
             statelessCommitService,
             indicesService,
-            telemetryProvider
+            telemetryProvider,
+            throttlingEnabled
         );
     }
 
@@ -143,15 +154,17 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
             ClusterService clusterService,
             StatelessCommitService statelessCommitService,
             IndicesService indicesService,
-            TelemetryProvider telemetryProvider
+            TelemetryProvider telemetryProvider,
+            boolean throttlingEnabled
         ) {
             super(logger, threadPool, executor, interval, true);
 
             this.statelessCommitService = statelessCommitService;
 
+            var indexingThrottler = throttlingEnabled ? new IndexingThrottler(indicesService) : new NoopThrottler();
             this.indexingThrottleCalculator = new ThrottleCalculator(
                 threadPool::relativeTimeInMillis,
-                new MonitoringThrottler(new IndexingThrottler(indicesService), telemetryProvider, "indexing")
+                new MonitoringThrottler(indexingThrottler, telemetryProvider, "indexing")
             );
 
             ClusterSettings clusterSettings = clusterService.getClusterSettings();

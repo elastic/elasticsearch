@@ -20,6 +20,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.search.crossproject.ProjectRoutingRequestInfo;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -110,6 +111,12 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      */
     private final transient List<BooleanSupplier> stopHooks = new CopyOnWriteArrayList<>();
 
+    // Project routing telemetry — coordinator-only, not serialized, see: https://github.com/elastic/elasticsearch-team/issues/4560
+    private transient boolean projectRoutingUsed;
+    private transient boolean setClauseUsed;
+    private transient ProjectRoutingRequestInfo projectRoutingInfo;
+    private transient boolean hasLinkedProjects;
+
     private final EsqlQueryProfile queryProfile;
 
     /**
@@ -179,6 +186,35 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public IncludeExecutionMetadata includeExecutionMetadata() {
         return includeExecutionMetadata;
+    }
+
+    /** Sets whether a {@code project_routing} expression was present and whether it came from a SET clause. */
+    public void setProjectRoutingFlags(boolean projectRoutingUsed, boolean setClauseUsed) {
+        this.projectRoutingUsed = projectRoutingUsed;
+        this.setClauseUsed = setClauseUsed;
+    }
+
+    public boolean isProjectRoutingUsed() {
+        return projectRoutingUsed;
+    }
+
+    public boolean isSetClauseUsed() {
+        return setClauseUsed;
+    }
+
+    /** Stores routing metadata captured from the first field-caps round. */
+    public void setProjectRoutingInfo(@Nullable ProjectRoutingRequestInfo info, boolean hasLinkedProjects) {
+        this.projectRoutingInfo = info;
+        this.hasLinkedProjects = hasLinkedProjects;
+    }
+
+    @Nullable
+    public ProjectRoutingRequestInfo getProjectRoutingInfo() {
+        return projectRoutingInfo;
+    }
+
+    public boolean isHasLinkedProjects() {
+        return hasLinkedProjects;
     }
 
     /**

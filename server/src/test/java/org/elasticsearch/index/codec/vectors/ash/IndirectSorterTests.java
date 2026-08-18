@@ -19,13 +19,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Tests for {@link IndirectSorter}.
- * <p>
- * Regression coverage for a bug where {@code sortAscendingByDouble}'s pivot comparison had its
- * operands swapped, causing it to silently sort in descending order instead of ascending. That bug
- * was invisible to {@code sortDescendingByFloat} (used only by the 2-bit quantization path) because
- * the same swapped-operand mistake happens to produce the intended descending order there, but it
- * broke {@link AshSphericalScalarQuantizer}'s general (bitsPerDim &gt;= 3) quantization path, which
- * relies on events being processed in ascending order to greedily improve on the base assignment.
  */
 public class IndirectSorterTests extends ESTestCase {
 
@@ -88,12 +81,6 @@ public class IndirectSorterTests extends ESTestCase {
     private static void assertSortedAscending(double[] keys, int[] indices) {
         for (int i = 0; i + 1 < indices.length; i++) {
             assertThat("Expected ascending order at position " + i, keys[indices[i + 1]], greaterThanOrEqualTo(keys[indices[i]]));
-        }
-    }
-
-    private static void assertSortedDescending(float[] keys, int[] indices) {
-        for (int i = 0; i + 1 < indices.length; i++) {
-            assertThat("Expected descending order at position " + i, keys[indices[i + 1]], lessThanOrEqualTo(keys[indices[i]]));
         }
     }
 

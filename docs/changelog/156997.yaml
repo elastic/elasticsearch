@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 156997
+summary: Stop overclaiming memory-test coverage
+type: enhancement

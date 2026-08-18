@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -140,19 +141,15 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
         // TODO check task cancellation
         // TODO validate CPS resolution correctness
 
-        final IndicesOptions originalIndicesOptions = request.indicesOptions();
         final boolean resolveCrossProject = crossProjectModeDecider.resolvesCrossProject(request);
+        final IndicesOptions indicesOptions = prepareIndicesOptions(request.indicesOptions(), resolveCrossProject);
 
         final Map<String, OriginalIndices> remoteIndices = transportService.getRemoteClusterService()
-            .groupIndices(
-                resolveCrossProject ? indicesOptionsForCrossProjectFanout(originalIndicesOptions) : originalIndicesOptions,
-                request.indices(),
-                false
-            );
+            .groupIndices(indicesOptions, request.indices(), false);
         final OriginalIndices localIndices = remoteIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
         var response = new EsqlResolveFieldsResponseBuilder(clusterService.state().getMinTransportVersion());
-        try (var resultListener = new RefCountingListener(listener.delegateFailure((l, r) -> l.onResponse(response.build())))) {
+        try (var resultListener = new RefCountingListener(listener.delegateFailureAndWrap((l, r) -> l.onResponse(response.build())))) {
             try {
                 // local resolutions
                 if (localIndices != null) {
@@ -202,6 +199,8 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
                                 resolveCrossProject
                             )
                         );
+                        remoteRequest.fieldCapsRequest().indicesOptions(indicesOptions);
+                        assert remoteRequest.fieldCapsRequest().indicesOptions().indexAbstractionOptions().resolveViews() : "wtf";
                         transportService.sendRequest(
                             connection,
                             NAME,
@@ -225,6 +224,16 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
                 resultListener.acquire().onFailure(e);
             }
         }
+    }
+
+    private IndicesOptions prepareIndicesOptions(IndicesOptions indicesOptions, boolean resolveCrossProject) {
+        // indicesOptions = IndicesOptions.builder(indicesOptions)
+        // .indexAbstractionOptions(
+        // // TODO make configurable depending on Federation.isAvailable(clusterService.getSettings())
+        // IndicesOptions.IndexAbstractionOptions.builder().resolveAliases(true).resolveViews(true).resolveDatasets(true).build()
+        // )
+        // .build();
+        return resolveCrossProject ? indicesOptionsForCrossProjectFanout(indicesOptions) : indicesOptions;
     }
 
     private ResolvedIndexAbstractions resolveIndexAbstractions(OriginalIndices localIndices, ProjectState projectState) {
@@ -324,6 +333,8 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
         private final Map<String, ResolvedIndexExpressions> resolvedRemotely = new HashMap<>();
         private final List<FieldCapabilitiesIndexResponse> indexResponses = new ArrayList<>();
         private final List<FieldCapabilitiesFailure> failures = new ArrayList<>();
+        private final List<String> viewsNotFound = new ArrayList<>();
+        private final List<String> datasetsNotFound = new ArrayList<>();
 
         EsqlResolveFieldsResponseBuilder(TransportVersion minTransportVersion) {
             this.minTransportVersion = minTransportVersion;
@@ -352,6 +363,15 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
         }
 
         void addRemoteException(String clusterAlias, String[] indices, Exception e) {
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof RemoteResourceNotSupportedException resourceException) {
+                viewsNotFound.addAll(resourceException.views());
+                datasetsNotFound.addAll(resourceException.datasets());
+            } else if (cause instanceof RemoteViewNotSupportedException viewException) {
+                viewsNotFound.addAll(viewException.views());
+            } else if (cause instanceof RemoteDatasetNotSupportedException datasetException) {
+                datasetsNotFound.addAll(datasetException.datasets());
+            }
             failures.add(
                 new FieldCapabilitiesFailure(
                     Arrays.stream(indices).map(i -> RemoteClusterAware.buildRemoteIndexName(clusterAlias, i)).toArray(String[]::new),
@@ -361,6 +381,13 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
         }
 
         EsqlResolveFieldsResponse build() {
+            if (viewsNotFound.isEmpty() == false && datasetsNotFound.isEmpty() == false) {
+                throw new RemoteResourceNotSupportedException(viewsNotFound, datasetsNotFound);
+            } else if (viewsNotFound.isEmpty() == false) {
+                throw new RemoteViewNotSupportedException(viewsNotFound);
+            } else if (datasetsNotFound.isEmpty() == false) {
+                throw new RemoteDatasetNotSupportedException(datasetsNotFound);
+            }
             return new EsqlResolveFieldsResponse(
                 FieldCapabilitiesResponse.builder()
                     .withMinTransportVersion(minTransportVersion)

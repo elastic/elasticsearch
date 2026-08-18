@@ -125,6 +125,18 @@ public class MetadataBufferTests extends ESTestCase {
         }
     }
 
+    public void testWriteZIntBoundaryValues() throws IOException {
+        final int[] values = new int[] { 0, 1, -1, Integer.MIN_VALUE, Integer.MAX_VALUE };
+
+        for (final int value : values) {
+            final MetadataBuffer buffer = new MetadataBuffer();
+            buffer.writeZInt(value);
+
+            final ByteArrayDataInput in = flush(buffer);
+            assertEquals("Roundtrip failed for value " + Integer.toHexString(value), value, in.readZInt());
+        }
+    }
+
     public void testWriteZLongBoundaryValues() throws IOException {
         final long[] values = new long[] { 0L, 1L, -1L, Long.MIN_VALUE, Long.MAX_VALUE };
 

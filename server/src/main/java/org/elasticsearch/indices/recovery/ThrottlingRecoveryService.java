@@ -478,31 +478,35 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// Helper class which manages throttling the number of running recoveries.
     private class RecoveriesThrottle {
 
+        /// The maximum number of concurrent recoveries, including recoveries from unassigned + relocations. See
+        /// [#INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING].
         private int maxConcurrentRecoveries;
+        /// The maximum number of concurrent relocation recoveries. See [#INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING].
         private int maxConcurrentRelocationRecoveries;
-        private int runningUnassignedRecoveries = 0;
+        /// The number of concurrent recoveries currently running, including recoveries from unassigned + relocations. Must not exceed
+        /// [#maxConcurrentRecoveries].
+        private int runningRecoveries = 0;
+        /// The number of concurrent relocation recoveries currently running. Must not exceed [#maxConcurrentRelocationRecoveries].
         private int runningRelocationRecoveries = 0;
 
         void incrementRunning(PendingRecovery recoveryNowRunning) {
-            if (recoveryNowRunning.isUnassigned()) {
-                runningUnassignedRecoveries++;
-            } else {
+            runningRecoveries++;
+            if (!recoveryNowRunning.isUnassigned()) {
                 runningRelocationRecoveries++;
             }
         }
 
         void decrementRunning(PendingRecovery recoveryNowFinished) {
-            if (recoveryNowFinished.isUnassigned()) {
-                runningUnassignedRecoveries--;
-                assert runningUnassignedRecoveries >= 0 : "negative number of running unassigned recoveries " + runningUnassignedRecoveries;
-            } else {
+            runningRecoveries--;
+            assert runningRecoveries >= 0 : "negative number of running unassigned recoveries " + runningRecoveries;
+            if (!recoveryNowFinished.isUnassigned()) {
                 runningRelocationRecoveries--;
                 assert runningRelocationRecoveries >= 0 : "negative number of running relocation recoveries " + runningRelocationRecoveries;
             }
         }
 
         boolean shouldStartNextPendingRecovery(PendingRecovery nextPendingRecovery) {
-            return (runningUnassignedRecoveries + runningRelocationRecoveries) < maxConcurrentRecoveries
+            return runningRecoveries < maxConcurrentRecoveries
                 && (nextPendingRecovery.isUnassigned() || (runningRelocationRecoveries < maxConcurrentRelocationRecoveries));
         }
 

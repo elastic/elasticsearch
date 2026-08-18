@@ -211,7 +211,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         // Count in one pass, then stream the values block by block from fresh cursors — never buffer
         // the whole field on-heap, so a large merge stays memory-bounded.
         int numDocsWithField = 0;
-        int numValues = 0;
+        long numValues = 0;
         NumericColumnValues counter = cursors.get();
         for (int doc = counter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = counter.nextDoc()) {
             numDocsWithField++;

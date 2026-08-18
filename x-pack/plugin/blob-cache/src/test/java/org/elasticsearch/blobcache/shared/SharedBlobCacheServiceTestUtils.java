@@ -10,12 +10,24 @@ package org.elasticsearch.blobcache.shared;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
+
 /**
  * Test utilities for {@link SharedBlobCacheService} that expose package-private methods to other modules.
  */
 public final class SharedBlobCacheServiceTestUtils {
 
     private SharedBlobCacheServiceTestUtils() {}
+
+    /**
+     * A cache-region timestamp for tests that do not care about timestamp semantics: either
+     * {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP} or a non-negative epoch millis value.
+     * Does not return {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP}.
+     */
+    public static long randomRegionTimestampMillis() {
+        return randomBoolean() ? SharedBlobCacheService.UNKNOWN_TIMESTAMP : randomNonNegativeLong();
+    }
 
     /**
      * Returns the number of free regions in the cache.
@@ -25,25 +37,10 @@ public final class SharedBlobCacheServiceTestUtils {
     }
 
     /**
-     * Ensures a cache region is present for the given key, file length, and region index by calling
-     * {@link SharedBlobCacheService#get(SharedBlobCacheService.KeyBase, long, int)}.
-     *
-     * @return
-     */
-    public static <K extends SharedBlobCacheService.KeyBase> SharedBlobCacheService.CacheFileRegion<K> cacheRegion(
-        SharedBlobCacheService<K> cacheService,
-        K cacheKey,
-        long fileLength,
-        int region
-    ) {
-        return cacheService.get(cacheKey, fileLength, region);
-    }
-
-    /**
      * Ensures a cache region is present for the given key, file length, region index, and timestamp by calling
      * {@link SharedBlobCacheService#get(SharedBlobCacheService.KeyBase, long, int, long)}.
      *
-     * @return
+     * @return the cache file region
      */
     public static <K extends SharedBlobCacheService.KeyBase> SharedBlobCacheService.CacheFileRegion<K> cacheRegion(
         SharedBlobCacheService<K> cacheService,

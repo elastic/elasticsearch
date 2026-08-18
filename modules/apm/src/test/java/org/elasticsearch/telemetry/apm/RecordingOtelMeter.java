@@ -19,6 +19,7 @@ import io.opentelemetry.api.metrics.DoubleUpDownCounter;
 import io.opentelemetry.api.metrics.DoubleUpDownCounterBuilder;
 import io.opentelemetry.api.metrics.LongCounter;
 import io.opentelemetry.api.metrics.LongCounterBuilder;
+import io.opentelemetry.api.metrics.LongGauge;
 import io.opentelemetry.api.metrics.LongGaugeBuilder;
 import io.opentelemetry.api.metrics.LongHistogram;
 import io.opentelemetry.api.metrics.LongHistogramBuilder;
@@ -560,10 +561,38 @@ public class RecordingOtelMeter implements Meter {
         }
 
         @Override
+        public LongGauge build() {
+            SyncLongGaugeRecorder gauge = new SyncLongGaugeRecorder(name);
+            recorder.register(gauge, gauge.getInstrument(), name, description, unit);
+            return gauge;
+        }
+
+        @Override
         public ObservableLongMeasurement buildObserver() {
             LongMeasurementRecorder measurement = new LongMeasurementRecorder(name);
             recorder.register(measurement, measurement.getInstrument(), name, description, unit);
             return measurement;
+        }
+    }
+
+    private class SyncLongGaugeRecorder extends AbstractInstrument implements LongGauge, OtelInstrument {
+        SyncLongGaugeRecorder(String name) {
+            super(name, InstrumentType.LONG_GAUGE);
+        }
+
+        @Override
+        public void set(long value) {
+            recorder.call(instrument, name, value, Map.of());
+        }
+
+        @Override
+        public void set(long value, Attributes attributes) {
+            recorder.call(instrument, name, value, toMap(attributes));
+        }
+
+        @Override
+        public void set(long value, Attributes attributes, Context context) {
+            recorder.call(instrument, name, value, toMap(attributes));
         }
     }
 

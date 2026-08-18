@@ -391,14 +391,6 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_IMPLICIT_CAST_ON_SMALL_NUMERIC_PUNK,
 
         /**
-         * Reading an unmapped field whose {@code _source} value is an object as a keyword under {@code unmapped_fields="load"}/{@code
-         * "LOAD_ALL"} now yields {@code null} instead of failing on a synthetic-source index: a keyword scalar can't hold an object, so
-         * ES|QL reads the field from {@code _source} rather than the synthetic-source fallback loader that tripped on it.
-         * See https://github.com/elastic/elasticsearch/issues/156381 and https://github.com/elastic/elasticsearch/issues/156433.
-         */
-        OPTIONAL_FIELDS_FIX_LOAD_OBJECT_FROM_SYNTHETIC_SOURCE,
-
-        /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
          * supported.
          */
@@ -3344,12 +3336,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_NET_ZERO_PROJECTION(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
 
         /**
-         * Under {@code unmapped_fields="LOAD_ALL"}, an auto-expanded unmapped source field is flattened to its leaves: a nested object
-         * becomes one dotted {@code keyword} column per leaf (so a synthetic-source index expands to the same columns as a stored-source
-         * one), an array becomes a multivalue, and an object contributes a column of its own only if explicitly referenced. Only meaningful
-         * when {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
+         * Reading an unmapped field whose {@code _source} value is an object as a keyword under {@code unmapped_fields="load"}/{@code
+         * "LOAD_ALL"} now yields {@code null} instead of failing on a synthetic-source index: a keyword scalar can't hold an object, so
+         * ES|QL reads the field from {@code _source} rather than the synthetic-source fallback loader that tripped on it.
+         * See https://github.com/elastic/elasticsearch/issues/156381 and https://github.com/elastic/elasticsearch/issues/156433.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_FLATTEN_TO_LEAVES(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
+        OPTIONAL_FIELDS_FIX_LOAD_OBJECT_FROM_SYNTHETIC_SOURCE(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
 
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.

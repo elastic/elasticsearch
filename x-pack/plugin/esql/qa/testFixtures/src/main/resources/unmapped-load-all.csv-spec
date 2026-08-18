@@ -523,7 +523,7 @@ id:keyword | tags:keyword | n:integer
 // become their own dotted columns instead. Here "extra" is a scalar in one document and an object in the other, so both an "extra"
 // and an "extra.baz" column appear.
 objectFieldFlattensToLeafColumns
-required_capability: optional_fields_load_all_flatten_to_leaves
+required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_object_data
@@ -559,7 +559,7 @@ FROM synthetic_source_partial_mapping
 // LOAD_ALL unions every leaf across the indices into its own keyword column; a row carries a value only where that leaf
 // exists. A bare scalar "unmapped" (id 4) is its own column and never collides with the object twin that contributes leaves.
 multiIndexDivergentUnmappedFieldShapes
-required_capability: optional_fields_load_all_flatten_to_leaves
+required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
@@ -578,7 +578,7 @@ id:keyword | unmapped:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keywor
 
 // same query as above but eliminate the only value that makes "unmapped" column "visible"
 multiIndexDivergentUnmappedFieldShapes_NoNullObjectTypedColumn
-required_capability: optional_fields_load_all_flatten_to_leaves
+required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
@@ -590,7 +590,6 @@ id:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword | unmapped.foo:ke
 1          | null                 | null                       | foo1
 2          | bar2                 | null                       | null
 3          | null                 | null                       | foo3
-4          | null                 | null                       | null
 5          | null                 | null                       | [arr1, arr2]
 6          | null                 | deep6                      | null
 7          | bar7                 | null                       | null
@@ -598,7 +597,7 @@ id:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword | unmapped.foo:ke
 
 // same query as above but eliminate the only value that makes "unmapped" column "visible" and then reference it again!
 multiIndexDivergentUnmappedFieldShapes_NullObjectTypedColumn_ForcedBackIn
-required_capability: optional_fields_load_all_flatten_to_leaves
+required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
@@ -617,7 +616,7 @@ id:keyword  | unmapped:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keywo
 ;
 
 multiIndexReferencedUnmappedObjectStillExpandsLeaves
-required_capability: optional_fields_load_all_flatten_to_leaves
+required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
@@ -637,7 +636,7 @@ id:keyword | unmapped:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keywor
 // here "unmapped" disappears because it is filtered out by KEEP pattern
 multiIndexKeepObjectChildWildcardExpandsLeaves
 required_capability: optional_fields_load_all
-required_capability: optional_fields_load_all_flatten_to_leaves
+required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
@@ -656,7 +655,7 @@ id:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword | unmapped.foo:ke
 ;
 
 multiIndexDropNestedObjectWildcardHidesSyntheticLeaf
-required_capability: optional_fields_load_all_flatten_to_leaves
+required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
@@ -675,7 +674,7 @@ id:keyword | unmapped:keyword | unmapped.bar:keyword | unmapped.foo:keyword
 ;
 
 multiIndexDropFixedSuffixWildcardKeepsUnmatchedSyntheticLeaf
-required_capability: optional_fields_load_all_flatten_to_leaves
+required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
@@ -694,7 +693,7 @@ id:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword | unmapped.foo:ke
 ;
 
 multiIndexKeepOrdersExpandedLeavesStarFirst
-required_capability: optional_fields_load_all_flatten_to_leaves
+required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
@@ -713,7 +712,7 @@ id:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword | unmapped.foo:ke
 ;
 
 multiIndexKeepOrdersRealColumnAfterExpandedLeaves
-required_capability: optional_fields_load_all_flatten_to_leaves
+required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
@@ -731,8 +730,129 @@ null                 | deep6                      | null                 | null 
 bar7                 | null                       | null                 | null             | 7
 ;
 
+###########################################################
+# Mapped + unmapped combined over unmapped_multi_*         #
+###########################################################
+
+// unmapped.foo is keyword-mapped only in unmapped_multi_mapped and lives in _source in the other four indices, so FROM unmapped_multi_*
+// makes it partially mapped: LOAD_ALL merges the mapped leg (ids 8, 9) with the leg loaded from the siblings' _source (ids 1, 3, 5) into one
+// column. A mapped multivalue (id 9) and an unmapped array (id 5) both surface as multivalues.
+multiIndexMappedFieldLoadsBothLegs
+required_capability: optional_fields_load_all
+required_capability: optional_fields_fix_load_object_from_synthetic_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_multi_*
+| KEEP id, unmapped.foo
+| SORT id
+;
+
+id:keyword | unmapped.foo:keyword
+1          | foo1
+2          | null
+3          | foo3
+4          | null
+5          | [arr1, arr2]
+6          | null
+7          | null
+8          | mfoo8
+9          | [mfa, mfb]
+;
+
+// All three dotted leaves are keyword-mapped in unmapped_multi_mapped and unmapped in the siblings; each is partially mapped, so ids 8 and 9
+// carry their mapped values and ids 1-7 the values (if any) loaded from the siblings' _source, one column per leaf.
+multiIndexMappedFieldsAllDottedLeaves
+required_capability: optional_fields_load_all
+required_capability: optional_fields_fix_load_object_from_synthetic_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_multi_*
+| KEEP id, unmapped.foo, unmapped.bar, unmapped.deep.leaf
+| SORT id
+;
+
+id:keyword | unmapped.foo:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword
+1          | foo1                 | null                 | null
+2          | null                 | bar2                 | null
+3          | foo3                 | null                 | null
+4          | null                 | null                 | null
+5          | [arr1, arr2]         | null                 | null
+6          | null                 | null                 | deep6
+7          | null                 | bar7                 | null
+8          | mfoo8                | mbar8                | mleaf8
+9          | [mfa, mfb]           | null                 | null
+;
+
+// The bare scalar unmapped is an object in unmapped_multi_mapped (its dotted leaves are mapped) and unmapped everywhere else, so it stays
+// fully unmapped and only its expansion surfaces it (scalar4 at id 4); the dotted unmapped.foo is partially mapped and merges its legs.
+multiIndexMappedDottedAndUnmappedScalarCoexist
+required_capability: optional_fields_load_all
+required_capability: optional_fields_fix_load_object_from_synthetic_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_multi_*
+| KEEP id, unmapped, unmapped.foo
+| SORT id
+;
+
+id:keyword | unmapped:keyword | unmapped.foo:keyword
+1          | null             | foo1
+2          | null             | null
+3          | null             | foo3
+4          | scalar4          | null
+5          | null             | [arr1, arr2]
+6          | null             | null
+7          | null             | null
+8          | null             | mfoo8
+9          | null             | [mfa, mfb]
+;
+
+// No projection over the mapped sibling plus the four unmapped_multi_* indices: the dotted leaves are partially mapped real columns (both
+// legs merged), the bare scalar unmapped is a fully unmapped expansion, and id is mapped everywhere.
+multiIndexMappedAndUnmappedNoProjection
+required_capability: optional_fields_load_all
+required_capability: optional_fields_fix_load_object_from_synthetic_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_multi_*
+| SORT id
+;
+
+id:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword | unmapped.foo:keyword | unmapped:keyword
+1          | null                 | null                       | foo1                 | null
+2          | bar2                 | null                       | null                 | null
+3          | null                 | null                       | foo3                 | null
+4          | null                 | null                       | null                 | scalar4
+5          | null                 | null                       | [arr1, arr2]         | null
+6          | null                 | deep6                      | null                 | null
+7          | bar7                 | null                       | null                 | null
+8          | mbar8                | mleaf8                     | mfoo8                | null
+9          | null                 | null                       | [mfa, mfb]           | null
+;
+
+// WHERE on the partially mapped unmapped.foo matches its mapped leg (id 8) and its unmapped _source leg (id 1) alike. Rows where it is
+// multivalue - id 5 ([arr1, arr2] from _source) and id 9 ([mfa, mfb] mapped) - make the == comparison throw the single-value error and
+// are treated as null, so they never match; only the two single-valued equals survive.
+multiIndexWhereMatchesEitherLegOfPartialField
+required_capability: optional_fields_load_all
+required_capability: optional_fields_fix_load_object_from_synthetic_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_multi_*
+| WHERE unmapped.foo == "mfoo8" OR unmapped.foo == "foo1"
+| KEEP id, unmapped.foo
+| SORT id
+;
+warningRegex:evaluation of \[unmapped.foo\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+id:keyword | unmapped.foo:keyword
+1          | foo1
+8          | mfoo8
+;
+
 multiIndexKeepOrdersRealColumnAfterExpandedLeaves_WithMultiWildcardNested
-required_capability: optional_fields_load_all_flatten_to_leaves
+required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed

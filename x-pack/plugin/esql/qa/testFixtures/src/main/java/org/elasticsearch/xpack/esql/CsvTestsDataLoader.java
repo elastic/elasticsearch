@@ -168,6 +168,10 @@ public class CsvTestsDataLoader {
             "synthetic-source-settings.json"
         ),
         new TestDataset("unmapped_multi_stored_mixed", "mapping-unmapped_multi.json", "unmapped_multi_stored_mixed.csv"),
+        // Mapped sibling of the unmapped_multi_* indices: here unmapped.foo, unmapped.bar and unmapped.deep.leaf are keyword-mapped rather
+        // than left in _source, so FROM unmapped_multi_* makes them partially mapped and LOAD_ALL merges the mapped and _source legs into
+        // one column, while the bare scalar unmapped is an object here and stays fully unmapped (only its expansion can surface it).
+        new TestDataset("unmapped_multi_mapped", "mapping-unmapped_multi_mapped.json", "unmapped_multi_mapped.csv"),
         new TestDataset("cross_mapping_a", "mapping-cross_mapping_a.json", "cross_mapping_a.csv"),
         new TestDataset("cross_mapping_b", "mapping-cross_mapping_b.json", "cross_mapping_b.csv"),
         new TestDataset("no_message_sample_data", "mapping-sample_data.json", "sample_data.csv").withTypeMapping(removeFields("message"))

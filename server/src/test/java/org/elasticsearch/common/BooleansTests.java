@@ -118,6 +118,7 @@ public class BooleansTests extends ESTestCase {
         assertTrue(Booleans.parseBoolean((char[]) null, 0, 0, true));
         assertFalse(Booleans.parseBoolean(new char[] { 't', 'r', 'u', 'e' }, 0, 0, false));
         assertTrue(Booleans.parseBoolean(new char[] { 't', 'r', 'u', 'e' }, 0, 0, true));
+        expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean((char[]) null, 0, 0));
     }
 
     public void testIsFalse() {

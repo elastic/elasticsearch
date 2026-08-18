@@ -9,6 +9,8 @@
 
 package org.elasticsearch.core;
 
+import java.util.Arrays;
+
 public final class Booleans {
     private Booleans() {
         throw new AssertionError("No instances intended");
@@ -25,8 +27,29 @@ public final class Booleans {
         if (text == null || length == 0) {
             return defaultValue;
         } else {
-            return parseBoolean(new String(text, offset, length));
+            return parseBoolean(text, offset, length);
         }
+    }
+
+    /**
+     * Parses a char[] representation of a boolean value to <code>boolean</code>.
+     *
+     * @return <code>true</code> iff the provided value is "true". <code>false</code> iff the provided value is "false".
+     * @throws IllegalArgumentException if the string cannot be parsed to boolean.
+     */
+    public static boolean parseBoolean(char[] text, int offset, int length) {
+        if (text == null) {
+            throw new IllegalArgumentException("Failed to parse value [null] as only [true] or [false] are allowed.");
+        }
+        if (isFalse(text, offset, length)) {
+            return false;
+        }
+        if (isTrue(text, offset, length)) {
+            return true;
+        }
+        throw new IllegalArgumentException(
+            "Failed to parse value [" + new String(text, offset, length) + "] as only [true] or [false] are allowed."
+        );
     }
 
     /**
@@ -40,7 +63,7 @@ public final class Booleans {
         if (text == null || length == 0) {
             return false;
         }
-        return isBoolean(new String(text, offset, length));
+        return isFalse(text, offset, length) || isTrue(text, offset, length);
     }
 
     public static boolean isBoolean(String value) {
@@ -121,5 +144,17 @@ public final class Booleans {
      */
     public static boolean isTrue(String value) {
         return "true".equals(value);
+    }
+
+    private static final char[] FALSE_CHARS = "false".toCharArray();
+
+    private static final char[] TRUE_CHARS = "true".toCharArray();
+
+    private static boolean isFalse(char[] value, int offset, int length) {
+        return Arrays.equals(FALSE_CHARS, 0, FALSE_CHARS.length, value, offset, offset + length);
+    }
+
+    private static boolean isTrue(char[] value, int offset, int length) {
+        return Arrays.equals(TRUE_CHARS, 0, TRUE_CHARS.length, value, offset, offset + length);
     }
 }

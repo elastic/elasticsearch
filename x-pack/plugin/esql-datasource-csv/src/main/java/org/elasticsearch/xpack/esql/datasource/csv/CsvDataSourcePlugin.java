@@ -81,7 +81,7 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
      * a parity regression.
      */
     public static final Setting<Boolean> CSV_DIRECT_BLOCK_ENABLED = Setting.boolSetting(
-        "esql.csv.direct_block.enabled",
+        "esql.external.csv.direct_block.enabled",
         true,
         Setting.Property.NodeScope
     );

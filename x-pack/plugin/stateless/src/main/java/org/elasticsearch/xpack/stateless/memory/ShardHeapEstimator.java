@@ -69,6 +69,13 @@ public class ShardHeapEstimator {
         MetricQuality metricQuality
     ) {}
 
+    /// Computes the index-level heap usage for a shard. [StatelessMemoryMetricsService#INDEX_MEMORY_OVERHEAD] is not included because
+    /// all nodes include an overhead for all indices regardless of shard assignments: see
+    /// [StatelessMemoryMetricsService#getNodeBaseHeapEstimateInBytes()].
+    public long computeIndexHeapUsage(StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics) {
+        return shardMemoryMetrics.getMappingSizeInBytes();
+    }
+
     public ShardMetricsAggregation aggregateShardMetrics(
         Map<ShardId, StatelessMemoryMetricsService.ShardMemoryMetrics> shardMemoryMetrics,
         BiConsumer<ShardId, StatelessMemoryMetricsService.ShardMemoryMetrics> metricVisitor
@@ -91,13 +98,6 @@ public class ShardHeapEstimator {
             metricVisitor.accept(entry.getKey(), metric);
         }
         return new ShardMetricsAggregation(mappingSizeInBytes, totalShardHeapInBytes, maxShardHeapInBytes, metricQuality);
-    }
-
-    /// Computes the index-level heap usage for a shard. [StatelessMemoryMetricsService#INDEX_MEMORY_OVERHEAD] is not included because
-    /// all nodes include an overhead for all indices regardless of shard assignments: see
-    /// [StatelessMemoryMetricsService#getNodeBaseHeapEstimateInBytes()].
-    public long computeIndexHeapUsage(StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics) {
-        return shardMemoryMetrics.getMappingSizeInBytes();
     }
 
     /// Estimates a shard's fixed/adaptive memory overhead (segment, field, live-doc byte counts, and points memory metrics),

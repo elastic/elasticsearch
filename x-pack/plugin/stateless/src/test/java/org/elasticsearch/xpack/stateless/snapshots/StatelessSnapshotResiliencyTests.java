@@ -149,13 +149,14 @@ import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForReco
 import org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction;
-import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
 import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
+import org.elasticsearch.xpack.stateless.utils.StatelessPrimaryRelocationMetricsCollectorProvider;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -514,7 +515,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         mock(IndexShardCacheWarmer.class),
                         testStatelessPlugin.hollowShardsService,
                         HollowShardsMetrics.NOOP,
-                        StatelessRecoveryMetricsCollector.NOOP
+                        new StatelessPrimaryRelocationMetricsCollectorProvider(StatelessPrimaryRelocationMetricsCollector.NOOP)
                     ),
                     StatelessUnpromotableRelocationAction.TYPE,
                     new TransportStatelessUnpromotableRelocationAction(
@@ -1007,7 +1008,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         bccHeaderReadExecutor,
                         cacheService,
                         snapshotsCommitService,
-                        StatelessRecoveryMetricsCollector.NOOP
+                        StatelessPrimaryRelocationMetricsCollector.NOOP
                     )
                 );
             }

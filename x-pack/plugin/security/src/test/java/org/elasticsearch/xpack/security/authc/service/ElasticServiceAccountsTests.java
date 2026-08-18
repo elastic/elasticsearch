@@ -174,6 +174,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
 
     public void testElasticFleetServerPrivileges() {
         final String allowedApplicationActionPattern = "example/custom/action/*";
+        final String apmActionPattern = "event:write";
         final String kibanaApplication = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
         final Role role = Role.buildFromRoleDescriptor(
             ElasticServiceAccounts.ACCOUNTS.get("elastic/fleet-server").roleDescriptor(),
@@ -367,6 +368,11 @@ public class ElasticServiceAccountsTests extends ESTestCase {
                     "*"
                 ),
             is(false)
+        );
+
+        assertThat(
+            role.application().grants(ApplicationPrivilegeTests.createPrivilege("apm", "event:write", apmActionPattern), "-"),
+            is(true)
         );
     }
 

@@ -1,0 +1,5 @@
+area: Vector search
+issues:
+ - 156942
+summary: Decode hex and base64 `dense_vector` values from `_source` in the diversify retriever
+type: bug

@@ -189,6 +189,25 @@ public class VectorDataTests extends ESTestCase {
         }
     }
 
+    public void testTryDecodeEncodedVectorPrefersHex() {
+        VectorData decoded = VectorData.tryDecodeEncodedVector("0BB8");
+        assertNotNull(decoded);
+        assertArrayEquals(new byte[] { 0x0B, (byte) 0xB8 }, decoded.asByteVector());
+    }
+
+    public void testTryDecodeEncodedVectorBase64() {
+        String encoded = Base64.getEncoder().encodeToString(new byte[] { 0x0B, (byte) 0xB8 });
+        VectorData decoded = VectorData.tryDecodeEncodedVector(encoded);
+        assertNotNull(decoded);
+        assertArrayEquals(new byte[] { 0x0B, (byte) 0xB8 }, decoded.asByteVector());
+    }
+
+    public void testTryDecodeEncodedVectorInvalid() {
+        assertNull(VectorData.tryDecodeEncodedVector("not a vector!"));
+        assertNull(VectorData.tryDecodeEncodedVector(""));
+        assertNull(VectorData.tryDecodeEncodedVector(null));
+    }
+
     public void testParseHexFloatBytesRejectedForFloatField() throws IOException {
         float[] floats = new float[] { 1.0f, 2.0f, 3.0f };
         String toParse = "\"" + encodeToHexBytes(floats) + "\"";

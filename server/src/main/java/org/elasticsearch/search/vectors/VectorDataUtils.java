@@ -37,11 +37,12 @@ public final class VectorDataUtils {
                 return null;
             }
 
-            if (objectArray[0] instanceof Byte) {
+            // fetchField from stored _source returns hex/base64 as a single string value
+            if (objectArray.length == 1 && objectArray[0] instanceof String encoded) {
+                thisFieldValue = encoded;
+            } else if (objectArray[0] instanceof Byte) {
                 thisFieldValue = Arrays.stream(objectArray).map(x -> (Byte) x).toArray(Byte[]::new);
-            }
-
-            if (objectArray[0] instanceof Float) {
+            } else if (objectArray[0] instanceof Float) {
                 thisFieldValue = Arrays.stream(objectArray).map(x -> (Float) x).toArray(Float[]::new);
             }
         }
@@ -58,6 +59,9 @@ public final class VectorDataUtils {
             }
             case Byte[] boxedByteArray -> {
                 return new VectorData(unboxedByteArray(boxedByteArray));
+            }
+            case String encoded -> {
+                return VectorData.tryDecodeEncodedVector(encoded);
             }
             default -> {
             }

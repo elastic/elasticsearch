@@ -83,9 +83,17 @@ class EmbeddingsSemanticFieldValueFetcher extends ChildDocIteratingValueFetcher 
         XContentType xContentType,
         SemanticFieldMapper.SemanticFieldType fieldType
     ) throws IOException {
+        return readEmbeddings(writer, xContentType, parser -> parseEmbeddings(parser, fieldType));
+    }
+
+    /**
+     * Parses the embeddings value that {@code parser} is currently positioned on into the shape expected for the field's task type:
+     * a {@code float[]} for dense vectors, or a {@code Map<String, Float>} for sparse vectors.
+     */
+    protected static Object parseEmbeddings(XContentParser parser, SemanticFieldMapper.SemanticFieldType fieldType) throws IOException {
         // fetchValues short-circuits on null model settings, so they are set by the time we get here
         EndpointClusterState modelSettings = fieldType.getModelSettings();
-        return readEmbeddings(writer, xContentType, parser -> switch (modelSettings.taskType()) {
+        return switch (modelSettings.taskType()) {
             // Byte vectors can be represented exactly as float vectors
             case TEXT_EMBEDDING, EMBEDDING -> VectorData.parseXContent(parser).asFloatVector();
             case SPARSE_EMBEDDING -> parser.map(LinkedHashMap::new, XContentParser::floatValue);
@@ -96,7 +104,7 @@ class EmbeddingsSemanticFieldValueFetcher extends ChildDocIteratingValueFetcher 
                     + modelSettings.taskType()
                     + "]"
             );
-        });
+        };
     }
 
     protected static BytesReference readRawEmbeddings(CheckedConsumer<XContentBuilder, IOException> writer, XContentType xContentType)
@@ -125,11 +133,18 @@ class EmbeddingsSemanticFieldValueFetcher extends ChildDocIteratingValueFetcher 
                     xContentType
                 )
             ) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
-                parser.nextToken();
+                advanceToEmbeddingsValue(parser);
                 return reader.apply(parser);
             }
         }
+    }
+
+    /**
+     * Advances {@code parser} past the wrapping object and its field name, leaving it positioned on the embeddings value.
+     */
+    protected static void advanceToEmbeddingsValue(XContentParser parser) throws IOException {
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+        parser.nextToken();
     }
 }

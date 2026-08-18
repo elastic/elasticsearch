@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -35,6 +36,7 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -47,6 +49,10 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     @Before
     public void checkInSubquerySupport() {
         assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+    }
+
+    private static void checkMultiColumnInSubquery() {
+        assumeTrue("multi-column IN subquery", EsqlCapabilities.Cap.WHERE_IN_MULTI_COLUMN_SUBQUERY.isEnabled());
     }
 
     // basic IN and NOT IN subquery, validate JoinConfig
@@ -621,38 +627,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         );
     }
 
-    // -- IN subquery nested in WHERE expressions --
-
-    /**
-     * Verifies that an IN subquery nested inside a CASE function in WHERE is rejected.
-     * The analyzer cannot extract InSubquery from inside a function call.
-     */
-    public void testRejectsInSubqueryInCaseFunctionInWhere() {
-        errorInSubquery(
-            """
-                FROM employees
-                | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
-                """,
-            containsString(
-                "IN subquery is not supported within other expressions [CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)]"
-            )
-        );
-    }
-
-    /**
-     * Verifies that an IN subquery wrapped in IS NOT NULL in WHERE is rejected.
-     * The analyzer cannot extract InSubquery from inside IS NULL expressions.
-     */
-    public void testRejectsInSubqueryInIsNullInWhere() {
-        errorInSubquery(
-            """
-                FROM employees
-                | WHERE (emp_no IN (FROM employees | KEEP emp_no)) IS NOT NULL
-                """,
-            containsString("IN subquery is not supported within other expressions [(emp_no IN (FROM employees | KEEP emp_no)) IS NOT NULL]")
-        );
-    }
-
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
@@ -699,7 +673,12 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         EsIndex index = new EsIndex(
             "union_index*",
             Map.of("id", idField, "name", nameField),
-            Map.of("union_index_1", IndexMode.STANDARD, "union_index_2", IndexMode.STANDARD),
+            Map.of(
+                "union_index_1",
+                new IndexProperties(IndexMode.STANDARD, 0),
+                "union_index_2",
+                new IndexProperties(IndexMode.STANDARD, 0)
+            ),
             Map.of(),
             Map.of()
         );
@@ -718,5 +697,143 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
             ApproximationVerifier.verifyPlan(plan, TransportVersion.current()),
             nullValue()
         );
+    }
+
+    // -- multi-column IN subquery --
+
+    public void testMultiColumnInSubqueryWrongColumnCount() {
+        checkMultiColumnInSubquery();
+        errorInSubquery("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no)
+            """, containsString("Multi-column IN subquery with [2] left fields must return exactly [2] columns, found [emp_no]"));
+    }
+
+    // -- multi-column IN subquery: data type mismatch --
+
+    public void testMultiColumnInSubqueryTypeMismatchFirstColumn() {
+        checkMultiColumnInSubquery();
+        errorInSubquery("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (FROM employees | KEEP first_name, salary)
+            """, containsString("left field [emp_no] of type [INTEGER] is incompatible with right field [first_name] of type [KEYWORD]"));
+    }
+
+    public void testMultiColumnInSubqueryTypeMismatchSecondColumn() {
+        checkMultiColumnInSubquery();
+        errorInSubquery("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, first_name)
+            """, containsString("left field [salary] of type [INTEGER] is incompatible with right field [first_name] of type [KEYWORD]"));
+    }
+
+    public void testMultiColumnNotInSubqueryTypeMismatch() {
+        checkMultiColumnInSubquery();
+        errorInSubquery("""
+            FROM employees
+            | WHERE (emp_no, salary) NOT IN (FROM employees | KEEP first_name, salary)
+            """, containsString("left field [emp_no] of type [INTEGER] is incompatible with right field [first_name] of type [KEYWORD]"));
+    }
+
+    public void testMultiColumnInSubqueryTypeMismatchBothColumns() {
+        checkMultiColumnInSubquery();
+        errorInSubquery(
+            """
+                FROM employees
+                | WHERE (emp_no, salary) IN (FROM employees | KEEP first_name, hire_date)
+                """,
+            allOf(
+                containsString("left field [emp_no] of type [INTEGER] is incompatible with right field [first_name] of type [KEYWORD]"),
+                containsString("left field [salary] of type [INTEGER] is incompatible with right field [hire_date] of type [DATETIME]")
+            )
+        );
+    }
+
+    public void testMultiColumnInSubqueryNumericTypeMismatch() {
+        checkMultiColumnInSubquery();
+        errorInSubquery("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (FROM employees | EVAL x = languages::long, y = salary | KEEP x, y)
+            """, containsString("left field [emp_no] of type [INTEGER] is incompatible with right field [x] of type [LONG]"));
+    }
+
+    // -- multi-column IN subquery: union type tests --
+
+    public void testMultiColumnInSubqueryUnionTypeFirstLeftField() {
+        checkMultiColumnInSubquery();
+        errorWithUnionIndex(
+            """
+                FROM union_index*
+                | WHERE (id, name) IN (FROM employees | KEEP emp_no, first_name)
+                | KEEP id, name
+                """,
+            containsString(
+                "Cannot use field [id] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [keyword] in [union_index_1], [integer] in [union_index_2]"
+            )
+        );
+    }
+
+    public void testMultiColumnInSubqueryUnionTypeSecondLeftField() {
+        checkMultiColumnInSubquery();
+        errorWithUnionIndex(
+            """
+                FROM union_index*
+                | WHERE (name, id) IN (FROM employees | KEEP first_name, emp_no)
+                | KEEP name, id
+                """,
+            containsString(
+                "Cannot use field [id] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [keyword] in [union_index_1], [integer] in [union_index_2]"
+            )
+        );
+    }
+
+    public void testMultiColumnInSubqueryUnionTypeRightField() {
+        checkMultiColumnInSubquery();
+        errorWithUnionIndex(
+            """
+                FROM employees
+                | WHERE (first_name, last_name) IN (FROM union_index* | KEEP id, name)
+                | KEEP first_name, last_name
+                """,
+            containsString(
+                "Cannot use field [id] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [keyword] in [union_index_1], [integer] in [union_index_2]"
+            )
+        );
+    }
+
+    public void testMultiColumnNotInSubqueryUnionTypeLeftField() {
+        checkMultiColumnInSubquery();
+        errorWithUnionIndex(
+            """
+                FROM union_index*
+                | WHERE (id, name) NOT IN (FROM employees | KEEP emp_no, first_name)
+                | KEEP id, name
+                """,
+            containsString(
+                "Cannot use field [id] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [keyword] in [union_index_1], [integer] in [union_index_2]"
+            )
+        );
+    }
+
+    public void testMultiColumnInSubqueryFromUnionTypeLeftField() {
+        checkMultiColumnInSubquery();
+        errorWithIncompatible("""
+            FROM employees, (FROM employees_incompatible | KEEP emp_no, first_name, salary)
+            | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, salary)
+            | KEEP emp_no, salary
+            """, containsString("Column [emp_no] has conflicting data types in subqueries: [integer, long]"));
+    }
+
+    public void testMultiColumnInSubqueryFromUnionTypeRightField() {
+        checkMultiColumnInSubquery();
+        errorWithIncompatible("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (FROM employees, (FROM employees_incompatible | KEEP emp_no, salary) | KEEP emp_no, salary)
+            | KEEP emp_no, salary
+            """, containsString("Column [emp_no] has conflicting data types in subqueries: [integer, long]"));
     }
 }

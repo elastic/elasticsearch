@@ -38,10 +38,10 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
     }
 
     @Override
-    public float dotProduct(float[] a, float[] b, int offset, int length) {
+    public float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length) {
         return DISTANCE_FUNCS.dotProductF32(
-            MemorySegment.ofArray(a).asSlice((long) offset * Float.BYTES, (long) length * Float.BYTES),
-            MemorySegment.ofArray(b).asSlice((long) offset * Float.BYTES, (long) length * Float.BYTES),
+            MemorySegment.ofArray(a).asSlice((long) aOffset * Float.BYTES, (long) length * Float.BYTES),
+            MemorySegment.ofArray(b).asSlice((long) bOffset * Float.BYTES, (long) length * Float.BYTES),
             length
         );
     }

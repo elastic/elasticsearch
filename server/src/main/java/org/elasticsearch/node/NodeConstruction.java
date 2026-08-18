@@ -18,6 +18,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsTagsProvider;
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
@@ -943,7 +944,8 @@ class NodeConstruction {
         // Recovery gates may be contributed by plugins and are resolved once on first use, by which point plugin components exist.
         final RecoveryGateMonitor recoveryGateMonitor = new RecoveryGateMonitor(
             () -> pluginsService.filterPlugins(RecoveryPlugin.class).flatMap(p -> p.getRecoveryGates().stream()).toList(),
-            threadPool
+            threadPool,
+            clusterService.getClusterSettings()
         );
         final ThrottlingRecoveryService throttlingRecoveryService = new ThrottlingRecoveryService(
             threadPool,
@@ -1074,6 +1076,8 @@ class NodeConstruction {
         );
         modules.bindToInstance(TimeSeriesEligibleWriteWindowLocator.class, timeSeriesEligibleWriteWindowLocator);
 
+        final UsageService usageService = createUsageService();
+
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
             clusterService,
@@ -1105,7 +1109,8 @@ class NodeConstruction {
             crossProjectModeDecider,
             taskLifecycleManager,
             dlmErrorStore,
-            ipLocationService
+            ipLocationService,
+            usageService
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -1162,7 +1167,7 @@ class NodeConstruction {
             pluginsService.filterPlugins(ActionPlugin.class).toList(),
             client,
             circuitBreakerService,
-            createUsageService(),
+            usageService,
             systemIndices,
             telemetryProvider,
             clusterService,
@@ -1369,7 +1374,13 @@ class NodeConstruction {
             threadPool
         );
 
-        final var shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, transportService, terminationHandler);
+        final var shutdownPrepareService = serviceProvider.newShutdownPrepareService(
+            pluginsService,
+            settings,
+            httpServerTransport,
+            transportService,
+            terminationHandler
+        );
 
         modules.add(
             loadPersistentTasks(
@@ -1566,7 +1577,8 @@ class NodeConstruction {
     }
 
     private UsageService createUsageService() {
-        UsageService usageService = new UsageService();
+        ClusterStatsTagsProvider tagsProvider = pluginsService.loadSingletonServiceProvider(ClusterStatsTagsProvider.class, () -> null);
+        UsageService usageService = new UsageService(tagsProvider);
         modules.bindToInstance(UsageService.class, usageService);
         return usageService;
     }

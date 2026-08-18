@@ -45,17 +45,14 @@ public class PrometheusRemoteWriteRestActionTests extends ESTestCase {
     private IndexingPressure indexingPressure;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initResources() throws Exception {
         indexingPressure = new IndexingPressure(Settings.EMPTY);
         threadPool = createThreadPool();
         client = new NoOpNodeClient(threadPool);
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void releaseResources() throws Exception {
         terminate(threadPool);
         assertEquals(0, indexingPressure.stats().getCurrentCoordinatingBytes());
     }

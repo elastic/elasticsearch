@@ -87,6 +87,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -209,7 +210,7 @@ public class AnalyzerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
 
         assertEquals(
-            new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), Map.of(), idx.indexNameWithModes(), NO_FIELDS),
+            new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), Map.of(), idx.indexProperties(), NO_FIELDS),
             limit.child()
         );
     }
@@ -226,7 +227,7 @@ public class AnalyzerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
 
         assertEquals(
-            new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), Map.of(), idx.indexNameWithModes(), NO_FIELDS),
+            new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), Map.of(), idx.indexProperties(), NO_FIELDS),
             limit.child()
         );
     }
@@ -2535,6 +2536,33 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
+    public void testEvalResolvesForwardReferenceWithImplicitCasting() {
+        analyzer().addIndex("hosts", "mapping-hosts.json").query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 == "127.0.0.1", TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
+            | STATS count = COUNT(*) BY field
+            """);
+    }
+
+    public void testEvalResolvesForwardReferenceWithImplicitCasting2() {
+        analyzer().addIndex("hosts", "mapping-hosts.json").query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 IN ("127.0.0.1", "192.168.1.1"), TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
+            | STATS count = COUNT(*) BY field
+            """);
+    }
+
+    public void testEvalResolvesForwardReferenceWithImplicitCasting3() {
+        analyzer().addIndex("hosts", "mapping-hosts.json").query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 IN ("127.0.0.1", "192.168.1.1"::ip), TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
+            | STATS count = COUNT(*) BY field
+            """);
+    }
+
     public void testDenseVectorImplicitCastingKnn() {
         checkDenseVectorCastingHexKnn("float_vector");
         checkDenseVectorCastingKnn("float_vector");
@@ -4678,7 +4706,12 @@ public class AnalyzerTests extends ESTestCase {
         EsIndex index = new EsIndex(
             "union_index*",
             Map.of("id", idField, "foo", fooField), // Updated mapping keys
-            Map.of("union_index_1", IndexMode.STANDARD, "union_index_2", IndexMode.STANDARD),
+            Map.of(
+                "union_index_1",
+                new IndexProperties(IndexMode.STANDARD, 0),
+                "union_index_2",
+                new IndexProperties(IndexMode.STANDARD, 0)
+            ),
             Map.of(),
             Map.of()
         );
@@ -4720,7 +4753,7 @@ public class AnalyzerTests extends ESTestCase {
         EsIndex index = new EsIndex(
             "union_index*",
             Map.of("id", idField),
-            Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
+            Map.of("test1", new IndexProperties(IndexMode.STANDARD, 0), "test2", new IndexProperties(IndexMode.STANDARD, 0)),
             Map.of(),
             Map.of()
         );
@@ -5011,7 +5044,7 @@ public class AnalyzerTests extends ESTestCase {
         var esIndex = new EsIndex(
             "k8s,k8s-downsampled",
             mapping,
-            Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
+            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES, 0), "k8s-downsampled", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             Map.of(),
             Map.of()
         );
@@ -5060,7 +5093,7 @@ public class AnalyzerTests extends ESTestCase {
         var esIndex = new EsIndex(
             "k8s,k8s-downsampled",
             mapping,
-            Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
+            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES, 0), "k8s-downsampled", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             Map.of(),
             Map.of()
         );

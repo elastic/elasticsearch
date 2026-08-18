@@ -11,7 +11,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
@@ -44,7 +44,7 @@ public class SemanticTextInfoExtractor {
         return referenceIndices;
     }
 
-    public static Map<String, MinimalServiceSettings> getModelSettingsForIndicesReferencingInferenceEndpoints(
+    public static Map<String, EndpointClusterState> getModelSettingsForIndicesReferencingInferenceEndpoints(
         Metadata metadata,
         Set<String> endpointIds
     ) {
@@ -52,7 +52,7 @@ public class SemanticTextInfoExtractor {
         assert endpointIds.isEmpty() == false;
         assert metadata != null;
 
-        Map<String, MinimalServiceSettings> serviceSettingsMap = new HashMap<>();
+        Map<String, EndpointClusterState> serviceSettingsMap = new HashMap<>();
 
         metadata.getProject().indices().forEach((indexName, indexMetadata) -> {
             indexMetadata.getInferenceFields()

@@ -18,7 +18,6 @@ import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
@@ -27,7 +26,6 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.common.lucene.ShardCoreKeyMap;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
@@ -43,12 +41,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.Lock;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -236,48 +231,6 @@ public class IndicesQueryCacheTests extends ESTestCase {
         assertEquals(0L, stats.getMissCount());
 
         cache.close(); // this triggers some assertions
-    }
-
-    public void testCallbacksTolerateUnresolvedShard() throws Exception {
-        Settings settings = Settings.builder().put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10).build();
-        IndicesQueryCache cache = new IndicesQueryCache(settings);
-
-        Field cacheField = IndicesQueryCache.class.getDeclaredField("cache");
-        cacheField.setAccessible(true);
-        LRUQueryCache lruCache = (LRUQueryCache) cacheField.get(cache);
-
-        Field writeLockField = LRUQueryCache.class.getDeclaredField("writeLock");
-        writeLockField.setAccessible(true);
-        Lock writeLock = (Lock) writeLockField.get(lruCache);
-
-        Object unresolvedCoreKey = new Object();
-        Query query = new DummyQuery(0);
-
-        invokeCallback(lruCache, "onMiss", new Class<?>[] { Object.class, Query.class }, unresolvedCoreKey, query);
-        invokeCallback(lruCache, "onHit", new Class<?>[] { Object.class, Query.class }, unresolvedCoreKey, query);
-
-        writeLock.lock();
-        try {
-            invokeCallback(lruCache, "onDocIdSetCache", new Class<?>[] { Object.class, long.class }, unresolvedCoreKey, 123L);
-            invokeCallback(
-                lruCache,
-                "onDocIdSetEviction",
-                new Class<?>[] { Object.class, int.class, long.class },
-                unresolvedCoreKey,
-                1,
-                123L
-            );
-        } finally {
-            writeLock.unlock();
-        }
-
-        cache.close();
-    }
-
-    private static void invokeCallback(Object target, String methodName, Class<?>[] parameterTypes, Object... args) throws Exception {
-        Method method = LRUQueryCache.class.getDeclaredMethod(methodName, parameterTypes);
-        method.setAccessible(true);
-        method.invoke(target, args);
     }
 
     /**

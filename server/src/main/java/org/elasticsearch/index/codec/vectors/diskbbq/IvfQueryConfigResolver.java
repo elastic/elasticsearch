@@ -68,10 +68,9 @@ public class IvfQueryConfigResolver {
     private IvfSegmentConfig mappingDefaults() {
         return new IvfSegmentConfig(
             CentroidIndexFormat.FLAT,
-            QuantEncoding.fromBits((byte) quantBits),
+            new IvfSegmentConfig.OsqConfig(QuantEncoding.fromBits((byte) quantBits)),
             mappingUsePrecondition,
-            Float.NaN,
-            null
+            Float.NaN
         );
     }
 
@@ -91,7 +90,12 @@ public class IvfQueryConfigResolver {
             }
             float oversampleFactor = calibrationAwareReader.getOversampleFactor(fieldInfo);
             boolean precondition = calibrationAwareReader.shouldPrecondition(fieldInfo);
-            return new IvfSegmentConfig(CentroidIndexFormat.FLAT, quantEncoding, precondition, oversampleFactor, null);
+            return new IvfSegmentConfig(
+                CentroidIndexFormat.FLAT,
+                new IvfSegmentConfig.OsqConfig(quantEncoding),
+                precondition,
+                oversampleFactor
+            );
         }
         return mappingDefaults();
     }

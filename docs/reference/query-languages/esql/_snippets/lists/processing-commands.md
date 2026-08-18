@@ -1,5 +1,6 @@
 * [`CHANGE_POINT`](/reference/query-languages/esql/commands/change-point.md) {applies_to}`stack: preview 9.1` {applies_to}`stack: ga 9.2`
 * [`COMPLETION`](/reference/query-languages/esql/commands/completion.md) {applies_to}`stack: preview 9.1` {applies_to}`stack: ga 9.3`
+* [`DEDUP`](/reference/query-languages/esql/commands/dedup.md) {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 * [`DISSECT`](/reference/query-languages/esql/commands/dissect.md)
 * [`DROP`](/reference/query-languages/esql/commands/drop.md)
 * [`ENRICH`](/reference/query-languages/esql/commands/enrich.md)

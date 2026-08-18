@@ -9,10 +9,8 @@ package org.elasticsearch.xpack.stateless.lucene;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
@@ -152,7 +150,13 @@ public class SearchDirectoryTests extends ESTestCase {
                 CacheBlobReaderService cacheBlobReaderService,
                 MutableObjectStoreUploadTracker objectStoreUploadTracker
             ) {
-                var customCacheBlobReaderService = new CacheBlobReaderService(nodeSettings, sharedCacheService, client, threadPool) {
+                var customCacheBlobReaderService = new CacheBlobReaderService(
+                    nodeSettings,
+                    sharedCacheService,
+                    client,
+                    threadPool,
+                    TestUtils.unmeteredFillCacheMemoryPressure(nodeSettings, threadPool)
+                ) {
                     @Override
                     protected CacheBlobReader getObjectStoreCacheBlobReader(
                         BlobContainer blobContainer,
@@ -210,24 +214,10 @@ public class SearchDirectoryTests extends ESTestCase {
         };
     }
 
-    public void testStatelessDirectory() throws IOException {
-        try (Directory directory = StatelessDirectoryFactory.create(LuceneTestCase.createTempDir().toAbsolutePath())) {
-            // It's important to close the IndexOutput so the necessary metadata gets updated
-            try (var output = directory.createOutput("vectors", IOContext.DEFAULT)) {
-                output.writeInt(12);
-            }
-
-            var input = directory.openInput("vectors", IOContext.DEFAULT);
-            var value = input.readInt();
-            assertThat(value, equalTo(12));
-            input.close();
-        }
-    }
-
     /**
      * Test that BlobCacheIndexInput can be read from the cache while the blob in object store keeps growing in size.
      *
-     * In production, the batched compound commits are expanded in cache by appending compound commits. For simplicity, this test appends
+     * <p>In production, the batched compound commits are expanded in cache by appending compound commits. For simplicity, this test appends
      * Lucene files instead.
      */
     public void testExpandingCacheRegions() throws Exception {
@@ -462,6 +452,56 @@ public class SearchDirectoryTests extends ESTestCase {
                     assertEquals(expectedLocations.get(range.blobName()).offset(), range.blobLocation().offset());
                 }
             }
+        }
+    }
+
+    public void testGetCurrentCommitBlobFileRangesExcludesExtraMetadataFiles() throws IOException {
+        try (var node = createFakeStatelessNode(ByteSizeValue.ofBytes(4096), ByteSizeValue.ofBytes(4096))) {
+            final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+
+            assertThat(searchDirectory.getCurrentCommitBlobFileRanges(), hasSize(0));
+
+            final var locationA = createBlobLocation(1L, 1L, 0L, 100L);
+            final var locationB = createBlobLocation(1L, 1L, 100L, 100L);
+            final var locationC = createBlobLocation(1L, 1L, 200L, 100L);
+
+            searchDirectory.updateCommit(
+                new StatelessCompoundCommit(
+                    searchDirectory.shardId,
+                    new PrimaryTermAndGeneration(1L, 1L),
+                    1L,
+                    "_na_",
+                    Map.of("fileA", locationA, "fileB", locationB, "fileC", locationC),
+                    300L,
+                    Set.of("fileA", "fileB", "fileC"),
+                    0L,
+                    InternalFilesReplicatedRanges.EMPTY,
+                    Map.of(),
+                    null
+                )
+            );
+            assertThat(searchDirectory.getCurrentCommitBlobFileRanges(), hasSize(3));
+
+            searchDirectory.updateCommit(
+                new StatelessCompoundCommit(
+                    searchDirectory.shardId,
+                    new PrimaryTermAndGeneration(1L, 2L),
+                    1L,
+                    "_na_",
+                    Map.of("fileB", locationB, "fileC", locationC),
+                    200L,
+                    Set.of("fileB", "fileC"),
+                    0L,
+                    InternalFilesReplicatedRanges.EMPTY,
+                    Map.of(),
+                    null
+                )
+            );
+
+            assertThat("metadata still has all files from both commits", searchDirectory.getKnownFileNames(), hasSize(3));
+
+            Collection<BlobFileRanges> result = searchDirectory.getCurrentCommitBlobFileRanges();
+            assertThat("only files from the current commit are returned", result, hasSize(2));
         }
     }
 

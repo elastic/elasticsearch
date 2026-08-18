@@ -558,22 +558,43 @@ public class HighlightBuilderTests extends ESTestCase {
             "{ \"number_of_fragments\" : " + randomIntBetween(-100, -1) + "}"
         );
         assertThat(e.getMessage(), containsString("[highlight] failed to parse field [" + NUMBER_OF_FRAGMENTS_FIELD.toString() + "]"));
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("[number_of_fragments] must be between [0] and [" + HighlightBuilder.MAX_NUMBER_OF_FRAGMENTS + "]")
-        );
+        assertThat(e.getCause().getMessage(), containsString("[number_of_fragments] must not be negative"));
     }
 
     public void testNumberOfFragmentsAboveMaximum() throws IOException {
-        XContentParseException e = expectParseThrows(
-            XContentParseException.class,
-            "{ \"number_of_fragments\" : " + randomIntBetween(HighlightBuilder.MAX_NUMBER_OF_FRAGMENTS + 1, Integer.MAX_VALUE) + "}"
+        boolean useDefaultMaximum = randomBoolean();
+        int maxNumberOfFragments = useDefaultMaximum
+            ? IndexSettings.MAX_NUMBER_OF_FRAGMENTS_SETTING.getDefault(Settings.EMPTY)
+            : randomIntBetween(1, 100_000);
+        SearchExecutionContext mockContext = mockSearchExecutionContext(
+            useDefaultMaximum
+                ? Settings.EMPTY
+                : Settings.builder().put(IndexSettings.MAX_NUMBER_OF_FRAGMENTS_SETTING.getKey(), maxNumberOfFragments).build()
         );
-        assertThat(e.getMessage(), containsString("[highlight] failed to parse field [" + NUMBER_OF_FRAGMENTS_FIELD.toString() + "]"));
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("[number_of_fragments] must be between [0] and [" + HighlightBuilder.MAX_NUMBER_OF_FRAGMENTS + "]")
-        );
+        int numberOfFragments = maxNumberOfFragments + randomIntBetween(1, 1000);
+
+        HighlightBuilder globalNumberOfFragments = new HighlightBuilder().field("body").numOfFragments(numberOfFragments);
+        HighlightBuilder fieldNumberOfFragments = new HighlightBuilder().field(new Field("body").numOfFragments(numberOfFragments));
+        for (HighlightBuilder highlightBuilder : List.of(globalNumberOfFragments, fieldNumberOfFragments)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> highlightBuilder.build(mockContext));
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "The number of fragments requested for highlighting field [body] is ["
+                        + numberOfFragments
+                        + "] but the maximum allowed is ["
+                        + maxNumberOfFragments
+                        + "]. This maximum can be set by changing the ["
+                        + IndexSettings.MAX_NUMBER_OF_FRAGMENTS_SETTING.getKey()
+                        + "] index level setting."
+                )
+            );
+        }
+
+        HighlightBuilder overriddenByField = new HighlightBuilder().numOfFragments(numberOfFragments)
+            .field(new Field("body").numOfFragments(maxNumberOfFragments));
+        SearchHighlightContext highlight = overriddenByField.build(mockContext);
+        assertEquals(maxNumberOfFragments, highlight.fields().iterator().next().fieldOptions().numberOfFragments());
     }
 
     private SearchExecutionContext mockSearchExecutionContext(Settings settings) {

@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Clamp
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramFraction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acosh;
@@ -121,6 +122,7 @@ public class PromqlFunctionRegistry {
         ExtractHistogramComponent.PROMQL_HISTOGRAM_AVG,
         ExtractHistogramComponent.PROMQL_HISTOGRAM_COUNT,
         ExtractHistogramComponent.PROMQL_HISTOGRAM_SUM,
+        HistogramFraction.PROMQL_DEFINITION,
         //
         Ceil.PROMQL_DEFINITION,
         Abs.PROMQL_DEFINITION,
@@ -187,9 +189,14 @@ public class PromqlFunctionRegistry {
         // Across-series aggregations (not yet available in ESQL)
         "group",
         "count_values",
+        // Ratio-based series sampling: requires knowing per-group cardinality at plan time to compute
+        // ceil(r * count), which is not available without a two-phase execution plan or new primitives.
+        "limit_ratio",
 
         // Range vector functions (not yet implemented)
         "changes",
+        // Prometheus 3.x replacement for holt_winters; requires smoothing factors applied over a range vector.
+        "double_exponential_smoothing",
         "holt_winters",
         "mad_over_time",
         "predict_linear",
@@ -197,15 +204,19 @@ public class PromqlFunctionRegistry {
 
         // Instant vector functions
         "absent",
+        // Prometheus 3.x: joins metric-info labels onto a vector; requires cross-metric label lookup.
+        "info",
         "sort",
         "sort_desc",
+        // Prometheus 3.x: sort series by one or more label values; requires label-aware ordering.
+        "sort_by_label",
+        "sort_by_label_desc",
 
         // Label manipulation functions
         "label_join",
         "label_replace",
 
         // Histogram functions
-        "histogram_fraction",
         "histogram_stddev",
         "histogram_stdvar"
     );

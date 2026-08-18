@@ -141,17 +141,20 @@ import org.elasticsearch.xpack.stateless.recovery.PITRelocationService;
 import org.elasticsearch.xpack.stateless.recovery.PitRelocationMetrics;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
 import org.elasticsearch.xpack.stateless.recovery.RemoveRefreshClusterBlockService;
+import org.elasticsearch.xpack.stateless.recovery.StatelessIndexNodeRecoveryListener;
+import org.elasticsearch.xpack.stateless.recovery.StatelessSearchNodeRecoveryListener;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction;
-import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
 import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
+import org.elasticsearch.xpack.stateless.utils.StatelessPrimaryRelocationMetricsCollectorProvider;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -510,7 +513,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         mock(IndexShardCacheWarmer.class),
                         testStatelessPlugin.hollowShardsService,
                         HollowShardsMetrics.NOOP,
-                        StatelessRecoveryMetricsCollector.NOOP
+                        new StatelessPrimaryRelocationMetricsCollectorProvider(StatelessPrimaryRelocationMetricsCollector.NOOP)
                     ),
                     StatelessUnpromotableRelocationAction.TYPE,
                     new TransportStatelessUnpromotableRelocationAction(
@@ -761,7 +764,13 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
 
-            this.cacheBlobReaderService = new CacheBlobReaderService(settings, cacheService, client, threadPool);
+            this.cacheBlobReaderService = new CacheBlobReaderService(
+                settings,
+                cacheService,
+                client,
+                threadPool,
+                TestUtils.unmeteredFillCacheMemoryPressure(settings, threadPool)
+            );
             this.cacheWarmingService = new SharedBlobCacheWarmingService(
                 cacheService,
                 threadPool,
@@ -984,7 +993,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
 
             if (hasIndexRole) {
                 indexModule.addIndexEventListener(
-                    TestUtils.newStatelessIndexNodeRecoveryListener(
+                    new StatelessIndexNodeRecoveryListener(
                         threadPool,
                         statelessCommitService,
                         objectStoreService,
@@ -997,13 +1006,13 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         bccHeaderReadExecutor,
                         cacheService,
                         snapshotsCommitService,
-                        StatelessRecoveryMetricsCollector.NOOP
+                        StatelessPrimaryRelocationMetricsCollector.NOOP
                     )
                 );
             }
             if (hasSearchRole) {
                 indexModule.addIndexEventListener(
-                    TestUtils.newStatelessSearchNodeRecoveryListener(
+                    new StatelessSearchNodeRecoveryListener(
                         objectStoreService,
                         new RecoveryCommitRegistrationHandler(client, clusterService),
                         cacheWarmingService,

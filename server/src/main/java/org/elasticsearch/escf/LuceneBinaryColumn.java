@@ -75,7 +75,8 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
 
     @Override
     public LuceneColumn.RowFieldCursor rowFieldCursor() {
-        final ObjectTupleCursor<BytesRef> cursor = data.bytesRefCursor();
+        // retainValues=true: see appendCurrentFields below — the emitted Fields outlive the cursor position.
+        final ObjectTupleCursor<BytesRef> cursor = data.bytesRefCursor(true);
         return new LuceneColumn.RowFieldCursor() {
             @Override
             public int nextDoc() {
@@ -103,26 +104,16 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
 
     @Override
     public ObjectTupleCursor<BytesRef> tuples() {
-        return data.bytesRefCursor();
+        // retainValues=false: Lucene's indexing chain consumes each tuple value before advancing the
+        // cursor, which is all ObjectTupleCursor#value() promises, so the shared BytesRef is enough.
+        return data.bytesRefCursor(false);
     }
 
     @Override
     public BytesRefValuesCursor values() {
         if (density() == Density.SPARSE) {
-            // SPARSE columns are never consulted via the dense values cursor.
             return super.values();
         }
-        final int count = data.docCount;
-        return new BytesRefValuesCursor(count) {
-            private int pos;
-
-            @Override
-            public BytesRef nextValue() {
-                if (pos >= size()) {
-                    throw new IllegalStateException("nextValue() called more than size()=" + size() + " times");
-                }
-                return data.getBinaryValue(pos++);
-            }
-        };
+        return ((AbstractVarColumn) data).bytesRefValuesCursor(false);
     }
 }

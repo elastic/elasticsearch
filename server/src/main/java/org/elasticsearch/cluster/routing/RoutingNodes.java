@@ -45,6 +45,7 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -1502,6 +1503,30 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 queue.add(Iterators.forArray(shards));
             }
         }
+        return interleavedIterator(queue);
+    }
+
+    /**
+     * Returns an iterator that interleaves shards across a subset of the nodes, visiting one shard per node in round-robin order.
+     *
+     * @param nodePredicate A predicate which should return true for node IDs to include in the iteration, and false for node IDs to skip
+     */
+    public Iterator<ShardRouting> nodeInterleavedShardIterator(Predicate<String> nodePredicate) {
+        final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>(nodesToShards.size());
+        for (final var entry : nodesToShards.entrySet()) {
+            final var nodeId = entry.getKey();
+            if (nodePredicate.test(nodeId)) {
+                final var routingNode = entry.getValue();
+                final var shards = routingNode.copyShards();
+                if (shards.length > 0) {
+                    queue.add(Iterators.forArray(shards));
+                }
+            }
+        }
+        return interleavedIterator(queue);
+    }
+
+    private static Iterator<ShardRouting> interleavedIterator(Queue<Iterator<ShardRouting>> queue) {
         return new Iterator<>() {
             public boolean hasNext() {
                 return queue.isEmpty() == false;

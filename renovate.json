@@ -11,7 +11,7 @@
     ">non-issue",
     ":Delivery/Packaging",
     ":Delivery/Build",
-    "Team:Delivery",
+    "Team:Core/Infra",
     "auto-merge-without-approval"
   ],
   "ignorePaths": [

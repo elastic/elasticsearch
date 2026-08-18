@@ -735,7 +735,7 @@ stack: preview 9.3, ga 9.4
 
 The `vectordb_document` [index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) optimizes an index for vector search workloads.
 
-In {{serverless-short}}, this mode is automatically applied to indices in Vector DB projects. On {{ech}}, you must set it explicitly at index creation time:
+You must set the mode at index creation time:
 
 ```console
 PUT my-vector-index

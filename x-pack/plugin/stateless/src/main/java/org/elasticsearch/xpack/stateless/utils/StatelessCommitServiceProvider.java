@@ -13,19 +13,19 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 /// node, such as [org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction].
 ///
 /// [StatelessCommitService] exists only on index nodes; search nodes do not have one.
-/// Because Guice cannot express optional bindings, this record acts as an indirection: the plugin
-/// registers it with a `null` commit service on search nodes, and call sites unwrap the value via [#commitService()].
+/// Because Guice cannot express optional bindings, this class acts as an indirection: the plugin
+/// registers it with a `null` commit service on search nodes, and call sites unwrap the value via [#get()].
 public class StatelessCommitServiceProvider {
 
-    private final StatelessCommitService commitService;
+    private final StatelessCommitService instance;
 
-    public StatelessCommitServiceProvider(final StatelessCommitService commitService) {
-        this.commitService = commitService;
+    public StatelessCommitServiceProvider(final StatelessCommitService instance) {
+        this.instance = instance;
     }
 
     /// The commit service should never be null on index nodes, but may be null on search nodes where should not be called.
-    public StatelessCommitService commitService() {
-        assert commitService != null : "commit service must be initialized for index nodes";
-        return commitService;
+    public StatelessCommitService get() {
+        assert instance != null : "commit service must be initialized on index nodes";
+        return instance;
     }
 }

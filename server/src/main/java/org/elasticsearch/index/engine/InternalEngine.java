@@ -115,7 +115,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
-import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -1188,13 +1188,6 @@ public class InternalEngine extends Engine {
         return true;
     }
 
-    private static boolean assertNoMixedRecoveryOperations(List<Index> operations) {
-        boolean allRecovery = operations.stream().allMatch(o -> o.origin().isFromTranslog());
-        boolean nonRecovery = operations.stream().allMatch(o -> o.origin().isFromTranslog() == false);
-        assert allRecovery || nonRecovery;
-        return true;
-    }
-
     private boolean assertIncomingSequenceNumber(final Operation.Origin origin, final long seqNo) {
         if (origin == Operation.Origin.PRIMARY) {
             assert assertPrimaryIncomingSequenceNumber(origin, seqNo);
@@ -1389,15 +1382,10 @@ public class InternalEngine extends Engine {
 
     @Override
     public List<IndexResult> indexBatch(EngineBatch engineBatch) throws IOException {
-        final List<Index> operations = engineBatch.operations();
-        final SourceBatch batch = engineBatch.sourceBatch();
-        assert operations.size() == batch.docCount()
-            : "operations [" + operations.size() + "] must map 1:1 to batch rows [" + batch.docCount() + "]";
+        final IndexOperationBatch indexBatch = engineBatch.batch();
         try (var ignored = acquireEnsureOpenRef()) {
-            // If the first operation is recovery they are all recovery
-            boolean isRecovery = operations.getFirst().origin().isRecovery();
-
-            final int batchSize = operations.size();
+            final boolean isRecovery = indexBatch.origin().isRecovery();
+            final int batchSize = indexBatch.docCount();
             final IndexResult[] allResults = new IndexResult[batchSize];
 
             int idx = 0;
@@ -1408,12 +1396,12 @@ public class InternalEngine extends Engine {
                 // TODO: Consider only throttling per batch opposed to sub-batch
                 try (Releasable indexThrottle = doThrottle ? throttle.acquireThrottle() : () -> {}) {
                     // Blocking acquire for the first operation
-                    locks.add(versionMap.acquireLock(operations.get(idx).uid()));
+                    locks.add(versionMap.acquireLock(indexBatch.uid(idx)));
                     subBatchCount++;
 
                     // Try-acquire later operations in order; stop at the first failure
                     for (int i = idx + 1; i < batchSize; i++) {
-                        Releasable lock = versionMap.tryAcquireLock(operations.get(i).uid());
+                        Releasable lock = versionMap.tryAcquireLock(indexBatch.uid(i));
                         if (lock == null) {
                             break;
                         }
@@ -1421,10 +1409,10 @@ public class InternalEngine extends Engine {
                         subBatchCount++;
                     }
 
-                    assert assertNoDuplicateUidsInSubBatch(operations, idx, subBatchCount);
-                    processSubBatch(operations, idx, subBatchCount, batch, allResults);
+                    assert assertNoDuplicateUidsInSubBatch(indexBatch, idx, subBatchCount);
+                    processSubBatch(idx, subBatchCount, engineBatch, allResults);
                 } catch (RuntimeException | IOException e) {
-                    failOnTragicEvent(idx, subBatchCount, operations, e);
+                    failOnTragicEvent(idx, subBatchCount, indexBatch, e);
                     throw e;
                 } finally {
                     for (Releasable lock : locks) {
@@ -1439,22 +1427,22 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private static boolean assertNoDuplicateUidsInSubBatch(List<Index> operations, int subBatchIdx, int subBatchSize) {
+    private static boolean assertNoDuplicateUidsInSubBatch(IndexOperationBatch batch, int subBatchIdx, int subBatchSize) {
         final Set<BytesRef> seenUids = HashSet.newHashSet(subBatchSize);
         for (int i = subBatchIdx; i < subBatchIdx + subBatchSize; i++) {
-            final Index op = operations.get(i);
-            if (seenUids.add(op.uid()) == false) {
+            final BytesRef uid = batch.uid(i);
+            if (seenUids.add(uid) == false) {
                 throw new AssertionError(
-                    "Duplicate uid [" + op.id() + "] in sub-batch at index " + i + " — this indicates a bug in the version lock"
+                    "Duplicate uid [" + batch.id(i) + "] in sub-batch at index " + i + " — this indicates a bug in the version lock"
                 );
             }
         }
         return true;
     }
 
-    private void failOnTragicEvent(int startIdx, int count, List<Index> operations, Exception e) {
+    private void failOnTragicEvent(int startIdx, int count, IndexOperationBatch batch, Exception e) {
         for (int i = 0; i < count; i++) {
-            Index op = operations.get(startIdx + i);
+            final Index op = batch.toIndexOp(startIdx + i);
             try {
                 if (e instanceof AlreadyClosedException == false && treatDocumentFailureAsTragicError(op)) {
                     failEngine("index id[" + op.id() + "] origin[" + op.origin() + "] seq#[" + op.seqNo() + "]", e);
@@ -1470,45 +1458,127 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void processSubBatch(List<Index> operations, int subBatchIdx, int subBatchSize, SourceBatch batch, IndexResult[] allResults)
-        throws IOException {
-        final boolean fromTranslog = operations.getFirst().origin().isFromTranslog();
-        assert assertNoMixedRecoveryOperations(operations);
-        final Index[] subBatchOps = new Index[subBatchSize];
+    private static boolean isColumnBatchEligible(IndexingStrategy[] plans, IndexResult[] allResults, int subBatchIdx, int subBatchSize) {
+        for (int i = 0; i < subBatchSize; i++) {
+            if (allResults[subBatchIdx + i] != null) {
+                // early (e.g. preflight failure) result already set
+                return false;
+            }
+            final IndexingStrategy plan = plans[i];
+            if (plan.indexIntoLucene == false || plan.useLuceneUpdateDocument || plan.addStaleOpToLucene) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void indexColumnSubBatch(
+        MappedColumns colSlice,
+        IndexOperationBatch subBatch,
+        IndexingStrategy[] plans,
+        int subBatchIdx,
+        int subBatchSize,
+        long[] assignedSeqNos,
+        IndexResult[] allResults
+    ) throws IOException {
+        try {
+            indexWriter.addBatch(colSlice.toColumnBatch());
+            for (int i = 0; i < subBatchSize; i++) {
+                final IndexingStrategy plan = plans[i];
+                allResults[subBatchIdx + i] = new IndexResult(
+                    plan.versionForIndexing,
+                    subBatch.primaryTerm(),
+                    assignedSeqNos[i],
+                    plan.currentNotFoundOrDeleted,
+                    subBatch.id(i)
+                );
+            }
+        } catch (Exception ex) {
+            if (ex instanceof AlreadyClosedException == false
+                && indexWriter.getTragicException() == null
+                && treatDocumentFailureAsTragicError(subBatch.toIndexOp(0)) == false) {
+                for (int i = 0; i < subBatchSize; i++) {
+                    allResults[subBatchIdx + i] = new IndexResult(
+                        ex,
+                        Versions.MATCH_ANY,
+                        subBatch.primaryTerm(),
+                        assignedSeqNos[i],
+                        subBatch.id(i)
+                    );
+                }
+            } else {
+                throw ex;
+            }
+        }
+    }
+
+    private void indexColumnRowSubBatch(
+        MappedColumns colSlice,
+        IndexOperationBatch subBatch,
+        IndexingStrategy[] plans,
+        int subBatchIdx,
+        int subBatchSize,
+        long[] assignedSeqNos,
+        IndexResult[] allResults
+    ) throws IOException {
+        final MappedColumns.RowCursor cursor = colSlice.rowCursor();
+
+        for (int i = 0; i < subBatchSize; i++) {
+            // advance() must be called unconditionally to keep all column cursors correctly positioned,
+            // even for documents that will not be written to Lucene.
+            cursor.advance();
+
+            final int originalIdx = subBatchIdx + i;
+            if (allResults[originalIdx] != null) {
+                // Early result already set (e.g. preflight error) — skip Lucene write.
+                continue;
+            }
+            final IndexingStrategy plan = plans[i];
+            // toIndexOp reads seqNo/primaryTerm from the aliased byte arrays, which have been stamped
+            // via colSlice.setSeqNo / fillPrimaryTerm before this method is called.
+            final Index op = subBatch.toIndexOp(i);
+
+            if (plan.indexIntoLucene || plan.addStaleOpToLucene) {
+                allResults[originalIdx] = writeLuceneDocuments(op, plan, List.of(new LuceneDocument(cursor.fields())));
+            } else {
+                allResults[originalIdx] = new IndexResult(
+                    plan.versionForIndexing,
+                    subBatch.primaryTerm(),
+                    assignedSeqNos[i],
+                    plan.currentNotFoundOrDeleted,
+                    subBatch.id(i)
+                );
+            }
+        }
+    }
+
+    private void processSubBatch(int subBatchIdx, int subBatchSize, EngineBatch engineBatch, IndexResult[] allResults) throws IOException {
+        final IndexOperationBatch indexBatch = engineBatch.batch();
+        final IndexOperationBatch subBatch = indexBatch.slice(subBatchIdx, subBatchIdx + subBatchSize);
+        final boolean fromTranslog = subBatch.origin().isFromTranslog();
         final IndexingStrategy[] plans = new IndexingStrategy[subBatchSize];
+        // Tracks assigned sequence numbers; set in the seqNo-assignment loop below.
+        final long[] assignedSeqNos = new long[subBatchSize];
 
         // Indexing Plan
         int reservedDocs = 0;
-        long maxStartNanos = lastWriteNanos;
-
-        final var origin = operations.get(subBatchIdx).origin(); // all origins must be uniform, so grab the first one as "the" origin
-        final var primaryTerm = operations.get(subBatchIdx).primaryTerm();
-        for (int i = 0; i < subBatchSize; i++) {
-            Index op = operations.get(subBatchIdx + i);
-            if (origin != op.origin()) { // verify that origins are uniform
-                final var message = "mixed origins in sub-batch: " + origin + " vs " + op.origin();
-                assert false : message;
-                throw new IllegalStateException(message);
-            }
-
-            if (primaryTerm != op.primaryTerm()) { // verify that primary terms are same
-                final var message = "mixed primary terms in sub-batch: " + primaryTerm + " vs " + op.primaryTerm();
-                assert false : message;
-                throw new IllegalStateException(message);
-            }
-
-            if (op.startTime() - maxStartNanos > 0) {
-                maxStartNanos = op.startTime();
-            }
-            assert assertIncomingSequenceNumber(op.origin(), op.seqNo());
-            subBatchOps[i] = op;
+        // startTime is batch-uniform; advance the write-nanos marker once.
+        if (subBatch.startTime() - lastWriteNanos > 0) {
+            lastWriteNanos = subBatch.startTime();
         }
-        lastWriteNanos = maxStartNanos;
+
+        final Operation.Origin origin = subBatch.origin();
+        final long primaryTerm = subBatch.primaryTerm();
+
+        // Validate incoming seqNos (asserts only; origin/primaryTerm are batch-uniform by construction)
+        for (int i = 0; i < subBatchSize; i++) {
+            assert assertIncomingSequenceNumber(origin, subBatch.seqNo(i));
+        }
 
         int opsWithPreflightErrors = 0;
         if (origin == Operation.Origin.PRIMARY) {
             // Primary: resolve all version IDs in a single Lucene reader acquisition, then plan.
-            final IndexingStrategy[] batchPlans = planPrimarySubBatch(subBatchOps, subBatchSize);
+            final IndexingStrategy[] batchPlans = planPrimarySubBatch(subBatch, subBatchSize);
             for (int i = 0; i < subBatchSize; i++) {
                 plans[i] = batchPlans[i];
                 reservedDocs += plans[i].reservedDocs;
@@ -1518,14 +1588,14 @@ public class InternalEngine extends Engine {
             }
         } else {
             for (int i = 0; i < subBatchSize; i++) {
-                plans[i] = planIndexingAsNonPrimary(subBatchOps[i]);
+                plans[i] = planIndexingAsNonPrimary(subBatch.toIndexOp(i));
                 reservedDocs += plans[i].reservedDocs;
             }
         }
 
         try {
-            // Create Indexing Operation — reserve all sequence numbers for primary ops atomically up
-            // front (before any Lucene writes). Skipped when every op is a preflight error.
+            // Reserve all sequence numbers for primary ops atomically up front (before any Lucene
+            // writes). Skipped when every op is a preflight error.
             long firstPrimarySeqNo = -1;
             long seqNoToBeMarkedSeen = SequenceNumbers.NO_OPS_PERFORMED;
             final int seqNoCount = subBatchSize - opsWithPreflightErrors;
@@ -1534,8 +1604,7 @@ public class InternalEngine extends Engine {
             }
             int batchSeqNoIdx = 0;
             for (int i = 0; i < subBatchSize; i++) {
-                Index index = subBatchOps[i];
-                IndexingStrategy plan = plans[i];
+                final IndexingStrategy plan = plans[i];
 
                 if (plan.earlyResultOnPreflightError.isPresent()) {
                     assert origin == Operation.Origin.PRIMARY : origin;
@@ -1547,88 +1616,64 @@ public class InternalEngine extends Engine {
 
                 if (origin == Operation.Origin.PRIMARY) {
                     final long seqNo = firstPrimarySeqNo + batchSeqNoIdx++;
-                    index = new Index(
-                        index.uid(),
-                        index.parsedDoc(),
-                        seqNo,
-                        index.primaryTerm(),
-                        index.version(),
-                        index.versionType(),
-                        index.origin(),
-                        index.startTime(),
-                        index.getAutoGeneratedIdTimestamp(),
-                        index.isRetry(),
-                        index.getIfSeqNo(),
-                        index.getIfPrimaryTerm()
-                    );
-                    subBatchOps[i] = index;
-
+                    assignedSeqNos[i] = seqNo;
                     final boolean toAppend = plan.indexIntoLucene && plan.useLuceneUpdateDocument == false;
-
                     if (toAppend == false) {
                         advanceMaxSeqNoOfUpdatesOnPrimary(seqNo);
                     }
                 } else {
-                    seqNoToBeMarkedSeen = Math.max(seqNoToBeMarkedSeen, index.seqNo());
+                    assignedSeqNos[i] = subBatch.seqNo(i);
+                    seqNoToBeMarkedSeen = Math.max(seqNoToBeMarkedSeen, assignedSeqNos[i]);
                 }
 
-                assert index.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + index.origin();
+                assert assignedSeqNos[i] >= 0 : "ops should have an assigned seq no.; origin: " + origin;
             }
             if (seqNoToBeMarkedSeen != SequenceNumbers.NO_OPS_PERFORMED) {
                 advanceMaxSeqNo(seqNoToBeMarkedSeen);
             }
 
             // Lucene
+            final MappedColumns colSlice = engineBatch.columns().slice(subBatchIdx, subBatchIdx + subBatchSize);
+            colSlice.fillPrimaryTerm(primaryTerm);
             for (int i = 0; i < subBatchSize; i++) {
-                int originalIdx = subBatchIdx + i;
-                if (allResults[originalIdx] != null) {
-                    // early result already set
-                    continue;
+                if (allResults[subBatchIdx + i] == null) {
+                    colSlice.setSeqNo(i, assignedSeqNos[i]);
+                    colSlice.setVersion(i, plans[i].versionForIndexing);
                 }
-                IndexingStrategy plan = plans[i];
-                Index op = subBatchOps[i];
-
-                if (plan.indexIntoLucene || plan.addStaleOpToLucene) {
-                    // TODO: Should be able to optimize batch adds of append-only documents
-                    allResults[originalIdx] = indexIntoLucene(op, plan);
-                } else {
-                    allResults[originalIdx] = new IndexResult(
-                        plan.versionForIndexing,
-                        op.primaryTerm(),
-                        op.seqNo(),
-                        plan.currentNotFoundOrDeleted,
-                        op.id()
-                    );
-                }
+            }
+            if (isColumnBatchEligible(plans, allResults, subBatchIdx, subBatchSize)) {
+                indexColumnSubBatch(colSlice, subBatch, plans, subBatchIdx, subBatchSize, assignedSeqNos, allResults);
+            } else {
+                // Sub-batch is not addBatch-eligible (e.g. contains retries, version-conflict updates,
+                // or stale ops). Build per-doc Lucene documents from the columns and route each op
+                // through the normal add/update/softUpdate helpers.
+                indexColumnRowSubBatch(colSlice, subBatch, plans, subBatchIdx, subBatchSize, assignedSeqNos, allResults);
             }
 
             // Translog
             final Translog.Location batchLocation;
             if (fromTranslog == false) {
-                final long batchPrimaryTerm = subBatchOps[0].primaryTerm();
-                final SourceBatch slicedBatch = batch.slice(subBatchIdx, subBatchIdx + subBatchSize);
                 final List<Translog.IndexBatch.Op> translogOps = new ArrayList<>(subBatchSize);
                 for (int i = 0; i < subBatchSize; i++) {
-                    Index index = subBatchOps[i];
-                    IndexResult result = allResults[subBatchIdx + i];
-                    assert index.origin().isFromTranslog() == false;
+                    final IndexResult result = allResults[subBatchIdx + i];
+                    assert origin.isFromTranslog() == false;
                     if (result.getResultType() == Result.Type.SUCCESS) {
                         translogOps.add(
                             new Translog.IndexBatch.IndexOp(
                                 result.getVersion(),
                                 result.getSeqNo(),
-                                index.getAutoGeneratedIdTimestamp(),
+                                subBatch.autoGeneratedIdTimestamp(i),
                                 i,
-                                index.parsedDoc().getXContentType(),
-                                index.uid(),
-                                index.routing()
+                                subBatch.contentType(i),
+                                subBatch.uid(i),
+                                subBatch.routingString(i)
                             )
                         );
                     } else if (result.getSeqNo() != UNASSIGNED_SEQ_NO) {
                         final long seqNo = result.getSeqNo();
                         final String reason = result.getFailure().toString();
                         try (Releasable ignored = noOpKeyedLock.acquire(seqNo)) {
-                            applyNoOpToLucene(new NoOp(seqNo, index.primaryTerm(), index.origin(), index.startTime(), reason));
+                            applyNoOpToLucene(new NoOp(seqNo, primaryTerm, origin, subBatch.startTime(), reason));
                         }
                         translogOps.add(new Translog.IndexBatch.NoOpOp(seqNo, reason));
                     }
@@ -1636,7 +1681,7 @@ public class InternalEngine extends Engine {
                 }
                 batchLocation = translogOps.isEmpty()
                     ? null
-                    : translog.add(new Translog.IndexBatch(slicedBatch.data(), batchPrimaryTerm, translogOps));
+                    : translog.add(new Translog.IndexBatch(subBatch.sourceBatch().data(), primaryTerm, translogOps));
             } else {
                 batchLocation = null;
             }
@@ -1644,7 +1689,6 @@ public class InternalEngine extends Engine {
             // Update versionMap and checkpoint tracker
             for (int i = 0; i < subBatchSize; i++) {
                 final IndexingStrategy plan = plans[i];
-                final Index index = subBatchOps[i];
                 final IndexResult result = allResults[subBatchIdx + i];
                 final boolean isSuccess = result.getResultType() == Result.Type.SUCCESS;
 
@@ -1659,19 +1703,19 @@ public class InternalEngine extends Engine {
                         ? new Translog.OperationLocation(batchLocation, i)
                         : null;
                     versionMap.maybePutIndexUnderLock(
-                        index.uid(),
-                        new IndexVersionValue(operationLocation, plan.versionForIndexing, index.seqNo(), index.primaryTerm())
+                        subBatch.uid(i),
+                        new IndexVersionValue(operationLocation, plan.versionForIndexing, assignedSeqNos[i], primaryTerm)
                     );
                 }
                 // TODO: Batch Optimize the processed seqNo
                 localCheckpointTracker.markSeqNoAsProcessed(result.getSeqNo());
                 if (result.getTranslogLocation() == null) {
                     // the op is coming from the translog (and is hence persisted already) or it does not have a sequence number
-                    assert index.origin().isFromTranslog() || result.getSeqNo() == UNASSIGNED_SEQ_NO;
+                    assert origin.isFromTranslog() || result.getSeqNo() == UNASSIGNED_SEQ_NO;
                     // TODO: Batch Optimize the persisted seqNo
                     localCheckpointTracker.markSeqNoAsPersisted(result.getSeqNo());
                 }
-                result.setTook(relativeTimeInNanosSupplier.getAsLong() - index.startTime());
+                result.setTook(relativeTimeInNanosSupplier.getAsLong() - subBatch.startTime());
                 result.freeze();
             }
         } finally {
@@ -1685,7 +1729,7 @@ public class InternalEngine extends Engine {
      * versionMap lookups are performed per operation, but any operations that miss the versionMap are resolved in a
      * single {@link #performActionWithDirectoryReader} call, amortizing reader acquisition overhead across the batch.
      */
-    private IndexingStrategy[] planPrimarySubBatch(Index[] ops, int count) throws IOException {
+    private IndexingStrategy[] planPrimarySubBatch(IndexOperationBatch subBatch, int count) {
         final VersionValue[] resolvedVersions = new VersionValue[count];
         final boolean[] optimizeAppendOnly = new boolean[count];
         final boolean[] needsLucene = new boolean[count];
@@ -1694,19 +1738,21 @@ public class InternalEngine extends Engine {
 
         // Phase 1: per-op fast-path check and versionMap lookups
         for (int i = 0; i < count; i++) {
-            final Index op = ops[i];
+            final Index op = subBatch.toIndexOp(i);
             if (canOptimizeAddDocument(op) && mayHaveBeenIndexedBefore(op) == false) {
                 optimizeAppendOnly[i] = true;
                 continue;
             }
-            if (sequenceNumbersAreDisabled() && op.getIfSeqNo() != UNASSIGNED_SEQ_NO && op.getIfPrimaryTerm() != UNASSIGNED_PRIMARY_TERM) {
+            if (sequenceNumbersAreDisabled()
+                && subBatch.ifSeqNo(i) != UNASSIGNED_SEQ_NO
+                && subBatch.ifPrimaryTerm(i) != UNASSIGNED_PRIMARY_TERM) {
                 // will be handled as an early return in planIndexingAsPrimaryWithVersion
                 continue;
             }
             anyNeedsVersionLookup = true;
             assert incrementVersionLookup();
             notifyLastDocIdAndVersionLookup();
-            VersionValue v = getVersionFromMap(op.uid());
+            VersionValue v = getVersionFromMap(subBatch.uid(i));
             if (v == null) {
                 // genuine versionMap miss: must go to Lucene
                 assert incrementIndexVersionLookup();
@@ -1739,11 +1785,11 @@ public class InternalEngine extends Engine {
             final int[] luceneToSubBatch = new int[luceneCount];
             for (int i = 0, k = 0; i < count; i++) {
                 if (needsLucene[i]) {
-                    luceneUids[k] = ops[i].uid();
-                    luceneLoadSeqNo[k] = ops[i].getIfSeqNo() != UNASSIGNED_SEQ_NO;
+                    luceneUids[k] = subBatch.uid(i);
+                    luceneLoadSeqNo[k] = subBatch.ifSeqNo(i) != UNASSIGNED_SEQ_NO;
                     luceneToSubBatch[k] = i;
                     if (luceneIds != null) {
-                        luceneIds[k] = ops[i].id();
+                        luceneIds[k] = subBatch.id(i);
                     }
                     k++;
                 }
@@ -1776,7 +1822,7 @@ public class InternalEngine extends Engine {
         // Phase 3: build a strategy per op using pre-resolved versions
         final IndexingStrategy[] plans = new IndexingStrategy[count];
         for (int i = 0; i < count; i++) {
-            plans[i] = planIndexingAsPrimaryWithVersion(ops[i], resolvedVersions[i], optimizeAppendOnly[i]);
+            plans[i] = planIndexingAsPrimaryWithVersion(subBatch.toIndexOp(i), resolvedVersions[i], optimizeAppendOnly[i], 1);
         }
         return plans;
     }
@@ -1801,7 +1847,7 @@ public class InternalEngine extends Engine {
             versionMap.enforceSafeAccess();
             versionValue = resolveDocVersion(index, index.getIfSeqNo() != UNASSIGNED_SEQ_NO);
         }
-        return planIndexingAsPrimaryWithVersion(index, versionValue, optimizeAppendOnly);
+        return planIndexingAsPrimaryWithVersion(index, versionValue, optimizeAppendOnly, index.parsedDoc().docs().size());
     }
 
     /**
@@ -1817,10 +1863,10 @@ public class InternalEngine extends Engine {
     private IndexingStrategy planIndexingAsPrimaryWithVersion(
         final Index index,
         final VersionValue versionValue,
-        final boolean optimizeAppendOnly
+        final boolean optimizeAppendOnly,
+        final int reservingDocs
     ) {
         assert index.origin() == Operation.Origin.PRIMARY : "planning as primary but origin is: " + index.origin();
-        final int reservingDocs = index.parsedDoc().docs().size();
         if (optimizeAppendOnly) {
             final Exception reserveError = tryAcquireInFlightDocs(index, reservingDocs);
             if (reserveError != null) {
@@ -1931,23 +1977,27 @@ public class InternalEngine extends Engine {
          */
         index.parsedDoc().updateSeqID(index.seqNo(), index.primaryTerm());
         index.parsedDoc().version().setLongValue(plan.versionForIndexing);
+        logDocumentsDetails(index.docs(), index.id(), index.uid());
+        return writeLuceneDocuments(index, plan, index.docs());
+    }
+
+    private IndexResult writeLuceneDocuments(Engine.Index op, IndexingStrategy plan, List<LuceneDocument> docs) throws IOException {
         try {
-            logDocumentsDetails(index.docs(), index.id(), index.uid());
             if (plan.addStaleOpToLucene) {
-                addStaleDocs(index.docs(), indexWriter);
+                addStaleDocs(docs, indexWriter);
             } else if (plan.useLuceneUpdateDocument) {
-                assert assertMaxSeqNoOfUpdatesIsAdvanced(index.uid(), index.seqNo(), true, true);
-                updateDocs(index.uid(), index.docs(), indexWriter);
+                assert assertMaxSeqNoOfUpdatesIsAdvanced(op.uid(), op.seqNo(), true, true);
+                updateDocs(op.uid(), docs, indexWriter);
             } else {
                 // document does not exist, we can optimize for create, but double check if assertions are running
-                assert assertDocDoesNotExist(index, canOptimizeAddDocument(index) == false);
-                addDocs(index.docs(), indexWriter);
+                assert assertDocDoesNotExist(op, canOptimizeAddDocument(op) == false);
+                addDocs(docs, indexWriter);
             }
-            return new IndexResult(plan.versionForIndexing, index.primaryTerm(), index.seqNo(), plan.currentNotFoundOrDeleted, index.id());
+            return new IndexResult(plan.versionForIndexing, op.primaryTerm(), op.seqNo(), plan.currentNotFoundOrDeleted, op.id());
         } catch (Exception ex) {
             if (ex instanceof AlreadyClosedException == false
                 && indexWriter.getTragicException() == null
-                && treatDocumentFailureAsTragicError(index) == false) {
+                && treatDocumentFailureAsTragicError(op) == false) {
                 /* There is no tragic event recorded so this must be a document failure.
                  *
                  * The handling inside IW doesn't guarantee that a tragic / aborting exception
@@ -1961,7 +2011,7 @@ public class InternalEngine extends Engine {
                  * we return a `MATCH_ANY` version to indicate no document was index. The value is
                  * not used anyway
                  */
-                return new IndexResult(ex, Versions.MATCH_ANY, index.primaryTerm(), index.seqNo(), index.id());
+                return new IndexResult(ex, Versions.MATCH_ANY, op.primaryTerm(), op.seqNo(), op.id());
             } else {
                 throw ex;
             }
@@ -3056,6 +3106,7 @@ public class InternalEngine extends Engine {
             try {
                 if (onlyExpungeDeletes) {
                     indexWriter.forceMergeDeletes(true /* blocks and waits for merges*/);
+                    this.forceMergeUUID = forceMergeUUID;
                 } else if (maxNumSegments <= 0) {
                     indexWriter.maybeMerge();
                 } else {

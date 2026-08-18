@@ -11,7 +11,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -45,6 +44,14 @@ import java.util.Map;
  * query forms.
  */
 public final class HighlightQueryBuilders {
+
+    /**
+     * Name of HIGHLIGHT's default analyzer. When no analyzer is requested, callers resolve this name from the node's
+     * {@link AnalysisRegistry} so the default matches the registered {@code standard} analyzer (including its position
+     * increment gap). The runtime context registers it under this public name so nested full-text functions can name it
+     * in their own {@code analyzer} option.
+     */
+    public static final String DEFAULT_ANALYZER_NAME = "standard";
 
     private HighlightQueryBuilders() {}
 
@@ -96,9 +103,9 @@ public final class HighlightQueryBuilders {
 
     /**
      * Verifies that a HIGHLIGHT query uses supported full-text forms, references its {@code onFields}, and translates
-     * with the analyzer that execution will use.
+     * with the {@code analyzer} that execution will use.
      */
-    public static void verify(Expression queryExpr, List<String> onFields, @Nullable Analyzer analyzer) {
+    public static void verify(Expression queryExpr, List<String> onFields, Analyzer analyzer) {
         String literal = queryTextIfLiteral(queryExpr);
         // Pushdown accepts more expressions than the runtime context, so check the query shape first.
         if (literal == null) {
@@ -173,15 +180,14 @@ public final class HighlightQueryBuilders {
     }
 
     /**
-     * Builds the runtime query with the analyzer used to index each row's text. A {@code null} override selects the
-     * standard analyzer.
+     * Builds the runtime query with the analyzer used to index each row's text.
      */
-    private static TranslatedQuery translate(Expression queryExpr, List<String> fieldNames, @Nullable Analyzer analyzerOverride) {
+    private static TranslatedQuery translate(Expression queryExpr, List<String> fieldNames, Analyzer analyzer) {
         String literal = queryTextIfLiteral(queryExpr);
         String queryText = literal != null ? literal : queryExpr.sourceText();
-        NamedAnalyzer namedAnalyzer = analyzerOverride == null ? Lucene.STANDARD_ANALYZER
-            : analyzerOverride instanceof NamedAnalyzer na ? na
-            : new NamedAnalyzer("_override", AnalyzerScope.GLOBAL, analyzerOverride);
+        NamedAnalyzer namedAnalyzer = analyzer instanceof NamedAnalyzer na
+            ? na
+            : new NamedAnalyzer("_override", AnalyzerScope.GLOBAL, analyzer);
         RuntimeSearchExecutionContext context = RuntimeSearchExecutionContext.create(fieldNames, namedAnalyzer);
         Query query = toLuceneQuery(toQueryBuilder(queryExpr, fieldNames), context);
         return new TranslatedQuery(queryText, query, context.searchAnalyzer());
@@ -189,7 +195,7 @@ public final class HighlightQueryBuilders {
 
     /**
      * Resolves {@code analyzerName} from {@code analysisRegistry}, then builds the runtime query. A {@code null} name
-     * selects the standard analyzer.
+     * selects the {@link #DEFAULT_ANALYZER_NAME default} analyzer.
      */
     public static TranslatedQuery translate(
         Expression queryExpr,
@@ -197,7 +203,8 @@ public final class HighlightQueryBuilders {
         @Nullable String analyzerName,
         @Nullable AnalysisRegistry analysisRegistry
     ) {
-        return translate(queryExpr, fieldNames, PlannerUtils.resolveAnalyzer(analyzerName, analysisRegistry));
+        String name = analyzerName != null ? analyzerName : DEFAULT_ANALYZER_NAME;
+        return translate(queryExpr, fieldNames, PlannerUtils.resolveAnalyzer(name, analysisRegistry));
     }
 
     /** Runtime query state produced by {@link #translate}. */

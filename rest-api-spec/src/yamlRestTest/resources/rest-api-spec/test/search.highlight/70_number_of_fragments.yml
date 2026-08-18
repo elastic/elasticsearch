@@ -39,9 +39,10 @@ setup:
           index: test1
           body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "plain", "number_of_fragments" : 10001, "fields" : {"field1" : {}}}}
   - match: { status: 400 }
-  - match: { error.root_cause.0.type: "x_content_parse_exception" }
-  - match: { error.caused_by.type: "illegal_argument_exception" }
-  - match: { error.caused_by.reason: "[number_of_fragments] must be between [0] and [10000]" }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match:
+      error.root_cause.0.reason: "The number of fragments requested for highlighting field [field1] is [10001] but the maximum allowed
+        is [10000]. This maximum can be set by changing the [index.highlight.max_number_of_fragments] index level setting."
 
 ---
 "number_of_fragments at the maximum should SUCCEED":
@@ -65,4 +66,55 @@ setup:
   - match: { status: 400 }
   - match: { error.root_cause.0.type: "x_content_parse_exception" }
   - match: { error.caused_by.type: "illegal_argument_exception" }
-  - match: { error.caused_by.reason: "[number_of_fragments] must be between [0] and [10000]" }
+  - match: { error.caused_by.reason: "[number_of_fragments] must not be negative" }
+
+---
+"raising index.highlight.max_number_of_fragments should allow more fragments":
+
+  - do:
+      indices.put_settings:
+          index: test1
+          body:
+              index.highlight.max_number_of_fragments: 20000
+
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test1
+          body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "plain", "number_of_fragments" : 20000, "fields" : {"field1" : {}}}}
+  - match: { hits.hits.0.highlight.field1.0: "The quick brown <em>fox</em>" }
+
+  - do:
+      catch: bad_request
+      search:
+          rest_total_hits_as_int: true
+          index: test1
+          body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "plain", "number_of_fragments" : 20001, "fields" : {"field1" : {}}}}
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+
+---
+"lowering index.highlight.max_number_of_fragments should reject the default number of fragments":
+
+  - do:
+      indices.put_settings:
+          index: test1
+          body:
+              index.highlight.max_number_of_fragments: 1
+
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test1
+          body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "plain", "number_of_fragments" : 1, "fields" : {"field1" : {}}}}
+  - match: { hits.hits.0.highlight.field1.0: "The quick brown <em>fox</em>" }
+
+  # the default number_of_fragments is 5, which now exceeds the limit
+  - do:
+      catch: bad_request
+      search:
+          rest_total_hits_as_int: true
+          index: test1
+          body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "plain", "fields" : {"field1" : {}}}}
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }

@@ -17,8 +17,6 @@ import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.junit.Before;
@@ -26,10 +24,6 @@ import org.junit.ClassRule;
 import org.junit.rules.TestRule;
 
 import java.util.HexFormat;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.tasks.Task.TRACE_PARENT_HTTP_HEADER;
 import static org.hamcrest.Matchers.equalTo;
@@ -43,8 +37,6 @@ import static org.hamcrest.Matchers.equalTo;
  * {@code OtlpGrpcLogRecordExporter} → gRPC recording server.
  */
 public class OtelLoggingIT extends AbstractTelemetryIT {
-
-    private static final Logger logger = LogManager.getLogger(OtelLoggingIT.class);
 
     private static final String API_USER = "api_user";
 
@@ -105,27 +97,17 @@ public class OtelLoggingIT extends AbstractTelemetryIT {
     }
 
     public void testAuditEventArrivesAsOtlpLogRecord() throws Exception {
-        CountDownLatch arrived = new CountDownLatch(1);
-        AtomicReference<ReceivedTelemetry.ReceivedLog> firstAuditLog = new AtomicReference<>();
-
-        Consumer<ReceivedTelemetry> consumer = msg -> {
-            if (msg instanceof ReceivedTelemetry.ReceivedLog log) {
-                logger.debug("Received log: body=[{}] attributes={}", log.body(), log.attributes());
-                if (firstAuditLog.compareAndSet(null, log)) {
-                    arrived.countDown();
-                }
+        ReceivedTelemetry.ReceivedLog log = recordingApmServer.await(
+            ReceivedTelemetry.ReceivedLog.class,
+            l -> true,
+            TELEMETRY_TIMEOUT,
+            () -> {
+                // Authenticated request — should produce an authentication_success audit event.
+                client().performRequest(new Request("GET", "/_security/_authenticate"));
+                // Force a flush so the test doesn't race the BatchLogRecordProcessor's schedule.
+                client().performRequest(new Request("GET", "/_flush_telemetry"));
             }
-        };
-        recordingApmServer.addMessageConsumer(consumer);
-
-        // Authenticated request — should produce an authentication_success audit event.
-        client().performRequest(new Request("GET", "/_security/_authenticate"));
-        // Force a flush so the test doesn't race the BatchLogRecordProcessor's schedule.
-        client().performRequest(new Request("GET", "/_flush_telemetry"));
-
-        boolean got = arrived.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS);
-        assertTrue("Timeout waiting for an OTLP log record from LoggingAuditTrail", got);
-        ReceivedTelemetry.ReceivedLog log = firstAuditLog.get();
+        );
         assertNotNull(log);
         assertNotNull(log.attributes());
         assertNotNull("audit log should carry event.action", log.attributes().get("event.action"));
@@ -144,32 +126,23 @@ public class OtelLoggingIT extends AbstractTelemetryIT {
     }
 
     public void testOtelLoggingOnSearch() throws Exception {
-        CountDownLatch arrived = new CountDownLatch(1);
-        AtomicReference<ReceivedTelemetry.ReceivedLog> queryLogMessage = new AtomicReference<>();
-
         createIndex("test_index");
 
-        Consumer<ReceivedTelemetry> consumer = msg -> {
-            if (msg instanceof ReceivedTelemetry.ReceivedLog log && log.scopeName().equals(QueryLogging.QUERY_LOGGER_NAME)) {
-                logger.debug("Received log: body=[{}] attributes={}", log.body(), log.attributes());
-                if (queryLogMessage.compareAndSet(null, log)) {
-                    arrived.countDown();
-                }
-            }
-        };
-        recordingApmServer.addMessageConsumer(consumer);
-        var search = new Request("GET", "/test_index/_search");
         var randomId = HexFormat.of().formatHex(randomByteArrayOfLength(16));
-        var traceId = "00-" + randomId + "-00f067aa0ba902b7-01";
-        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader(TRACE_PARENT_HTTP_HEADER, traceId).build();
-        search.setOptions(options);
-        client().performRequest(search);
-        // Force a flush so the test doesn't race the BatchLogRecordProcessor's schedule.
-        client().performRequest(new Request("GET", "/_flush_telemetry"));
-
-        boolean got = arrived.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS);
-        assertTrue("Timeout waiting for an OTLP log record", got);
-        ReceivedTelemetry.ReceivedLog log = queryLogMessage.get();
+        ReceivedTelemetry.ReceivedLog log = recordingApmServer.await(
+            ReceivedTelemetry.ReceivedLog.class,
+            l -> l.scopeName().equals(QueryLogging.QUERY_LOGGER_NAME),
+            TELEMETRY_TIMEOUT,
+            () -> {
+                var search = new Request("GET", "/test_index/_search");
+                var traceId = "00-" + randomId + "-00f067aa0ba902b7-01";
+                RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader(TRACE_PARENT_HTTP_HEADER, traceId).build();
+                search.setOptions(options);
+                client().performRequest(search);
+                // Force a flush so the test doesn't race the BatchLogRecordProcessor's schedule.
+                client().performRequest(new Request("GET", "/_flush_telemetry"));
+            }
+        );
         assertNotNull(log);
         assertNotNull(log.attributes());
         assertThat(log.traceId().get(), equalTo(randomId));

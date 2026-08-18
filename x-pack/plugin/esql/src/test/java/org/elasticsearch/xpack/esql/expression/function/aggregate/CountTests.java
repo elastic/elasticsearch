@@ -46,7 +46,6 @@ public class CountTests extends AbstractAggregationTestCase {
         FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
         FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
         FunctionAppliesTo dateRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false);
-        FunctionAppliesTo doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
 
         Stream.of(
             MultiRowTestCaseSupplier.nullCases(1, 1000),
@@ -58,9 +57,7 @@ public class CountTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
             MultiRowTestCaseSupplier.dateRangeCases(1, 1000).stream().map(s -> s.withAppliesTo(dateRangeAppliesTo)).toList(),
-            EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V8.isEnabled()
-                ? MultiRowTestCaseSupplier.doubleRangeCases(1, 1000).stream().map(s1 -> s1.withAppliesTo(doubleRangeAppliesTo)).toList()
-                : List.<TestCaseSupplier.TypedDataSupplier>of(),
+            MultiRowTestCaseSupplier.doubleRangeCases(1, 1000),
             MultiRowTestCaseSupplier.denseVectorCases(1, 1000),
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),
@@ -93,6 +90,7 @@ public class CountTests extends AbstractAggregationTestCase {
             DataType.DATETIME,
             DataType.DATE_NANOS,
             DataType.DATE_RANGE,
+            DataType.DOUBLE_RANGE,
             DataType.DENSE_VECTOR,
             DataType.EXPONENTIAL_HISTOGRAM,
             DataType.BOOLEAN,
@@ -107,9 +105,6 @@ public class CountTests extends AbstractAggregationTestCase {
             DataType.UNSIGNED_LONG,
             DataType.AGGREGATE_METRIC_DOUBLE
         );
-        if (EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V8.isEnabled()) {
-            types = Stream.concat(types.stream(), Stream.of(DataType.DOUBLE_RANGE)).toList();
-        }
         for (var dataType : types) {
             var field = dataType == DataType.EXPONENTIAL_HISTOGRAM || dataType == DataType.TDIGEST
                 ? TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field")

@@ -9,9 +9,14 @@
 
 package org.elasticsearch.index.codec.vectors.ash;
 
+import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Set;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.oneOf;
 
 /**
  * Tests for {@link AshSphericalScalarQuantizer}.
@@ -33,14 +38,13 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
     public void test2BitMagnitudes() {
         // 2-bit: magnitudes must be 0.5 or 1.5
         AshSphericalScalarQuantizer ssq = new AshSphericalScalarQuantizer(2);
-        Set<Float> validMags = Set.of(0.5f, 1.5f);
         for (int iter = 0; iter < 20; iter++) {
             int d = randomIntBetween(4, 200);
             float[] input = randomGaussianVector(d);
             AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(input);
             for (int j = 0; j < d; j++) {
                 float mag = Math.abs(result.centeredCode()[j]);
-                assertTrue("Expected 0.5 or 1.5 but got " + mag, validMags.contains(mag));
+                assertThat(mag, oneOf(0.5f, 1.5f));
             }
         }
     }
@@ -52,9 +56,9 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
         AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(input);
         for (int j = 0; j < d; j++) {
             if (input[j] >= 0) {
-                assertTrue("Expected positive code for positive input at dim " + j, result.centeredCode()[j] > 0);
+                assertThat("Expected positive code for positive input at dim " + j, result.centeredCode()[j], greaterThan(0f));
             } else {
-                assertTrue("Expected negative code for negative input at dim " + j, result.centeredCode()[j] < 0);
+                assertThat("Expected negative code for negative input at dim " + j, result.centeredCode()[j], lessThan(0f));
             }
         }
     }
@@ -62,14 +66,13 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
     public void test3BitMagnitudes() {
         // 3-bit: numAbsLevels=4, magnitudes in {0.5, 1.5, 2.5, 3.5}
         AshSphericalScalarQuantizer ssq = new AshSphericalScalarQuantizer(3);
-        Set<Float> validMags = Set.of(0.5f, 1.5f, 2.5f, 3.5f);
         for (int iter = 0; iter < 20; iter++) {
             int d = randomIntBetween(4, 100);
             float[] input = randomGaussianVector(d);
             AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(input);
             for (int j = 0; j < d; j++) {
                 float mag = Math.abs(result.centeredCode()[j]);
-                assertTrue("Expected magnitude in " + validMags + " but got " + mag, validMags.contains(mag));
+                assertThat(mag, oneOf(0.5f, 1.5f, 2.5f, 3.5f));
             }
         }
     }
@@ -77,14 +80,13 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
     public void test4BitMagnitudes() {
         // 4-bit: numAbsLevels=8, magnitudes in {0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5}
         AshSphericalScalarQuantizer ssq = new AshSphericalScalarQuantizer(4);
-        Set<Float> validMags = Set.of(0.5f, 1.5f, 2.5f, 3.5f, 4.5f, 5.5f, 6.5f, 7.5f);
         for (int iter = 0; iter < 10; iter++) {
             int d = randomIntBetween(4, 100);
             float[] input = randomGaussianVector(d);
             AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(input);
             for (int j = 0; j < d; j++) {
                 float mag = Math.abs(result.centeredCode()[j]);
-                assertTrue("Expected magnitude in " + validMags + " but got " + mag, validMags.contains(mag));
+                assertThat(mag, oneOf(0.5f, 1.5f, 2.5f, 3.5f, 4.5f, 5.5f, 6.5f, 7.5f));
             }
         }
     }
@@ -95,25 +97,37 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
             int d = randomIntBetween(4, 200);
             float[] input = randomGaussianVector(d);
             AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(input);
-            assertTrue("Norm should be positive, got " + result.codeNorm(), result.codeNorm() > 0);
+            assertThat(result.codeNorm(), greaterThan(0f));
         }
     }
 
+    /**
+     * Every row of a batch must quantize identically to the same vector passed to
+     * {@link AshSphericalScalarQuantizer#encodeOne}. Uses several rows so the batch path is
+     * exercised at non-zero offsets into the flat input and output arrays.
+     */
     public void testEncodeOneMatchesBatch() {
-        AshSphericalScalarQuantizer ssq = new AshSphericalScalarQuantizer(2);
+        AshSphericalScalarQuantizer ssq = new AshSphericalScalarQuantizer(randomIntBetween(1, 4));
         int d = 16;
-        float[] input = randomGaussianVector(d);
+        int n = randomIntBetween(2, 5);
+        float[] batchInput = randomGaussianVector(n * d);
 
-        AshSphericalScalarQuantizer.SingleQuantizeResult single = ssq.encodeOne(input);
-        AshSphericalScalarQuantizer.QuantizeResult batch = ssq.encode(new float[][] { input });
+        AshSphericalScalarQuantizer.QuantizeResult batch = ssq.encode(batchInput, n, d);
+        assertEquals(n * d, batch.centeredCodes().length);
+        assertEquals(n, batch.codeNorms().length);
 
-        assertArrayEquals(single.centeredCode(), batch.centeredCodes()[0], 0f);
-        assertEquals(single.codeNorm(), batch.codeNorms()[0], 0f);
+        for (int i = 0; i < n; i++) {
+            int rowIdx = i * d;
+            float[] row = ArrayUtil.copyOfSubArray(batchInput, rowIdx, rowIdx + d);
+            AshSphericalScalarQuantizer.SingleQuantizeResult single = ssq.encodeOne(row);
+            assertArrayEquals("row " + i, single.centeredCode(), ArrayUtil.copyOfSubArray(batch.centeredCodes(), rowIdx, rowIdx + d), 0f);
+            assertEquals("row " + i, single.codeNorm(), batch.codeNorms()[i], 0f);
+        }
     }
 
     public void testEmptyInput() {
         AshSphericalScalarQuantizer ssq = new AshSphericalScalarQuantizer(2);
-        AshSphericalScalarQuantizer.QuantizeResult result = ssq.encode(new float[0][0]);
+        AshSphericalScalarQuantizer.QuantizeResult result = ssq.encode(new float[0], 0, 16);
         assertEquals(0, result.centeredCodes().length);
         assertEquals(0, result.codeNorms().length);
     }
@@ -148,27 +162,92 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
         double sumTrue2 = 0;
         double sumQuant2 = 0;
         for (int i = 0; i < n; i++) {
-            double trueDot = 0;
-            double quantDot = 0;
             AshSphericalScalarQuantizer.SingleQuantizeResult enc = ssq.encodeOne(vectors[i]);
             AshSphericalScalarQuantizer.SingleQuantizeResult qEnc = ssq.encodeOne(query);
-            for (int j = 0; j < d; j++) {
-                trueDot += (double) vectors[i][j] * query[j];
-                quantDot += (double) enc.centeredCode()[j] * qEnc.centeredCode()[j];
-            }
+            double trueDot = ESVectorUtil.dotProduct(vectors[i], query);
+            double quantDot = ESVectorUtil.dotProduct(enc.centeredCode(), qEnc.centeredCode());
             sumProduct += trueDot * quantDot;
             sumTrue2 += trueDot * trueDot;
             sumQuant2 += quantDot * quantDot;
         }
         double correlation = sumProduct / Math.sqrt(sumTrue2 * sumQuant2);
-        assertTrue("Expected positive correlation, got " + correlation, correlation > 0.3);
+        assertThat("Expected positive correlation", correlation, greaterThan(0.3));
+    }
+
+    public void testGeneralPathMatchesBruteForceOptimum() {
+        // Regression test for a bug where the general (bitsPerDim >= 3) quantization path relied on
+        // a mis-sorted event order and could land on a strictly suboptimal level assignment -- e.g.
+        // it once returned all-base-level codes even though better assignments were reachable within
+        // the same level budget. Brute force is only tractable for small d and bitsPerDim, so we
+        // restrict this test to those.
+        for (int bitsPerDim = 3; bitsPerDim <= 4; bitsPerDim++) {
+            int numAbsLevels = 1 << (bitsPerDim - 1);
+            AshSphericalScalarQuantizer ssq = new AshSphericalScalarQuantizer(bitsPerDim);
+            int d = 4;
+            for (int iter = 0; iter < 20; iter++) {
+                float[] z = randomGaussianVector(d);
+                AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(z);
+                double greedyCos = ESVectorUtil.dotProduct(z, result.centeredCode()) / result.codeNorm();
+
+                double bestCos = bruteForceBestCosSimilarity(z, numAbsLevels);
+
+                assertEquals("Mismatch at bitsPerDim=" + bitsPerDim + " iter=" + iter, bestCos, greedyCos, 1e-4);
+            }
+        }
+    }
+
+    public void testCosineSimilarityImprovesMonotonicallyWithMoreBits() {
+        // A quantizer's level set at bitsPerDim=b is a strict subset of the level set at any b' > b
+        // (magnitudes {0.5, ..., 0.5+2^(b-1)-1} vs {0.5, ..., 0.5+2^(b'-1)-1}), so the achievable
+        // cosine similarity between a vector and its quantized code can only improve (never worsen)
+        // as bitsPerDim increases. This was violated by the sort-direction bug above.
+        int d = 128;
+        for (int iter = 0; iter < 10; iter++) {
+            float[] z = randomGaussianVector(d);
+            double previousCos = -1;
+            for (int bitsPerDim = 1; bitsPerDim <= 8; bitsPerDim++) {
+                AshSphericalScalarQuantizer ssq = new AshSphericalScalarQuantizer(bitsPerDim);
+                AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(z);
+                double cos = ESVectorUtil.dotProduct(z, result.centeredCode()) / result.codeNorm();
+                assertThat(
+                    "cos similarity regressed going from fewer to more bits at bitsPerDim=" + bitsPerDim + ": " + cos + " < " + previousCos,
+                    cos,
+                    greaterThanOrEqualTo(previousCos - 1e-6)
+                );
+                previousCos = cos;
+            }
+        }
+    }
+
+    private static double bruteForceBestCosSimilarity(float[] z, int numAbsLevels) {
+        int d = z.length;
+        float[] absZ = new float[d];
+        for (int j = 0; j < d; j++) {
+            absZ[j] = Math.abs(z[j]);
+        }
+        return bruteForceRecurse(absZ, new int[d], 0, numAbsLevels);
+    }
+
+    private static double bruteForceRecurse(float[] absZ, int[] levels, int idx, int numAbsLevels) {
+        if (idx == absZ.length) {
+            double dot = 0;
+            double normSq = 0;
+            for (int j = 0; j < absZ.length; j++) {
+                double mag = 0.5 + levels[j];
+                dot += absZ[j] * mag;
+                normSq += mag * mag;
+            }
+            return dot / Math.sqrt(normSq);
+        }
+        double best = -1;
+        for (int l = 0; l < numAbsLevels; l++) {
+            levels[idx] = l;
+            best = Math.max(best, bruteForceRecurse(absZ, levels, idx + 1, numAbsLevels));
+        }
+        return best;
     }
 
     private float[] randomGaussianVector(int d) {
-        float[] v = new float[d];
-        for (int j = 0; j < d; j++) {
-            v[j] = (float) random().nextGaussian();
-        }
-        return v;
+        return SvdUtil.randomGaussians(random(), d);
     }
 }

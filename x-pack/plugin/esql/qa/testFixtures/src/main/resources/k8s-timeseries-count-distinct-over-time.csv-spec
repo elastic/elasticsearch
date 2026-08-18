@@ -321,18 +321,18 @@ m:long | sm:null | cluster:keyword | time_bucket:datetime
 6      | null    | staging         | 2024-05-10T00:00:00.000Z
 ;
 
-count_distinct_over_time_of_event
+count_distinct_over_time_of_keyword_dimension
 required_capability: ts_command_v0
-TS k8s | STATS c = sum(count_distinct_over_time(event, 1000)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
+TS k8s | STATS c = max(count_distinct_over_time(pod, 1000)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 c:long | cluster:keyword | time_bucket:datetime
-0      | prod            | 2024-05-10T00:00:00.000Z
-0      | qa              | 2024-05-10T00:00:00.000Z
-0      | staging         | 2024-05-10T00:00:00.000Z
-0      | prod            | 2024-05-10T00:10:00.000Z
-0      | qa              | 2024-05-10T00:10:00.000Z
-0      | staging         | 2024-05-10T00:10:00.000Z
-0      | prod            | 2024-05-10T00:20:00.000Z
-0      | qa              | 2024-05-10T00:20:00.000Z
-0      | staging         | 2024-05-10T00:20:00.000Z
+1      | prod            | 2024-05-10T00:00:00.000Z
+1      | qa              | 2024-05-10T00:00:00.000Z
+1      | staging         | 2024-05-10T00:00:00.000Z
+1      | prod            | 2024-05-10T00:10:00.000Z
+1      | qa              | 2024-05-10T00:10:00.000Z
+1      | staging         | 2024-05-10T00:10:00.000Z
+1      | prod            | 2024-05-10T00:20:00.000Z
+1      | qa              | 2024-05-10T00:20:00.000Z
+1      | staging         | 2024-05-10T00:20:00.000Z
 ;

@@ -285,6 +285,10 @@ public final class EscfColumnBuilder {
         setBytes(row, EscfColumnKind.STRING, value.bytes, value.offset, value.length);
     }
 
+    public void setString(int row, byte[] bytes, int offset, int length) {
+        setBytes(row, EscfColumnKind.STRING, bytes, offset, length);
+    }
+
     public void setBinary(int row, BytesRef value) {
         setBytes(row, EscfColumnKind.BINARY, value.bytes, value.offset, value.length);
     }

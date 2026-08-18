@@ -155,6 +155,24 @@ import java.util.stream.IntStream;
  * shapes that reach the fused path &mdash; such as {@code DISSECT}/{@code GROK} over a flattened field &mdash; wins
  * the whole reconstruction gap per row, regardless of what consumes the value.
  *
+ * <h2>Fusion coverage (which query shapes reach the fused path)</h2>
+ * The lever above &mdash; "widen the set of shapes that reach the fused path" &mdash; is, as of GA, largely spent.
+ * A structural cross-check of every expression-bearing physical node shows the fused path already covers
+ * everything that evaluates {@code field_extract} over local rows. {@code PushExpressionsToFieldLoad} dispatches
+ * directly on {@code EvalExec}, {@code FilterExec}, {@code AggregateExec}, {@code RegexExtractExec}
+ * ({@code DISSECT}/{@code GROK}) and {@code CompoundOutputEvalExec} ({@code URI_PARTS}/{@code REGISTERED_DOMAIN}/
+ * {@code USER_AGENT}/{@code IP_LOCATION}). Sort keys, {@code LIMIT}/{@code CHANGE_POINT} groupings and
+ * {@code STATS} grouping/agg expressions need no dispatch of their own: the {@code Replace*ExpressionWithEval}
+ * logical rules hoist any non-attribute child into a preceding {@code EVAL} first (e.g.
+ * {@code SORT field_extract(f,"k")} becomes {@code EVAL t = field_extract(f,"k") | SORT t}), so the
+ * {@code EvalExec} case picks them up transitively. The only expression positions left un-fused sit on the
+ * inference/rerank nodes ({@code CompletionExec.prompt}, {@code RerankExec} fields), and fusing there is
+ * pointless: those commands make a per-invocation inference round-trip that dwarfs the reconstruction cost this
+ * benchmark measures. The one remaining <em>addressable</em> gap is the above-join / multi-source gate
+ * ({@code Primaries.canPush} requires a single source), a correctness constraint rather than a missing shape.
+ * Net: for shapes that read a flattened key locally, the {@code keyed_fused} column here is the steady state,
+ * and the fallback columns only survive where fusion is intentionally withheld.
+ *
  * <h2>Running and profiling</h2>
  * Everything inside {@code --args '...'} is passed straight to JMH. During profiling add
  * {@code -jvmArgsAppend -DskipSelfTest=true}: {@link #selfTest()} runs in every fork's static initializer and

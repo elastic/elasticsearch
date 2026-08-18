@@ -66,7 +66,7 @@ public class TransportAckWatchActionTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         action = new TransportAckWatchAction(
             transportService,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             new ClockHolder(Clock.systemUTC()),
             TestUtils.newTestLicenseState(),
             watchParser,

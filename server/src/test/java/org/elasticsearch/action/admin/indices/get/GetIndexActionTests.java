@@ -117,7 +117,7 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
                 GetIndexActionTests.this.clusterService,
                 GetIndexActionTests.this.threadPool,
                 settingsFilter,
-                new ActionFilters(emptySet()),
+                ActionFilters.EMPTY,
                 new GetIndexActionTests.Resolver(),
                 indicesService,
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,

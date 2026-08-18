@@ -48,7 +48,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -133,7 +132,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
                 TransportBroadcastUnpromotableActionTests.this.clusterService,
                 TransportBroadcastUnpromotableActionTests.this.transportService,
                 shardStateAction,
-                new ActionFilters(Set.of()),
+                ActionFilters.EMPTY,
                 TestBroadcastUnpromotableRequest::new,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             );

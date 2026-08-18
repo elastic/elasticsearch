@@ -85,15 +85,12 @@ public abstract class SlicedInputStream extends InputStream {
 
     @Override
     public final int read(byte[] buffer, int offset, int length) throws IOException {
-        if (length == 0) {
-            return 0;
-        }
         final InputStream stream = currentStream();
         if (stream == null) {
             return -1;
         }
         final int read = stream.read(buffer, offset, length);
-        if (read <= 0) {
+        if (read < 0) {
             nextStream();
             return read(buffer, offset, length);
         }

@@ -851,6 +851,9 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         AtomicReference<Boolean> thread1Running = new AtomicReference<>(true);
         AtomicReference<Boolean> thread2Running = new AtomicReference<>(true);
         AtomicInteger searchCount = new AtomicInteger(0);
+        // we tolerate one transient partial result, this can rarely happen when closeContexts in maybeReEncodeNodeIds
+        // races with a concurrent search between its DFS and query phases. A second failure counts as real bug rather than a transient race
+        AtomicBoolean failedOnce = new AtomicBoolean(false);
 
         // start threads that continuously search with either PIT and assert doc count until stopped
         Thread searchThread1 = new Thread(() -> {
@@ -858,9 +861,22 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
                 int i = searchCount.incrementAndGet();
                 logger.info("Executing search t1 #" + i);
                 assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId1.get())), resp -> {
-                    final TotalHits totalHits = resp.getHits().getTotalHits();
-                    assertEquals("Wrong hits for search " + i + ", response: " + resp, numDocs_pit1, totalHits.value());
-                    pitId1.set(resp.pointInTimeId());
+                    if (resp.getFailedShards() == 0) {
+                        assertEquals(
+                            "Wrong hits for search " + i + ", response: " + resp,
+                            numDocs_pit1,
+                            resp.getHits().getTotalHits().value()
+                        );
+                        pitId1.set(resp.pointInTimeId());
+                    } else {
+                        assertFalse("Search t1 #" + i + ": second shard failure — only one transient race allowed", failedOnce.get());
+                        failedOnce.set(true);
+                        logger.info(
+                            "Search t1 #{} had {} shard failure(s), allowing as one-time transient race",
+                            i,
+                            resp.getFailedShards()
+                        );
+                    }
                 });
             }
         });
@@ -871,9 +887,22 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
                 int i = searchCount.incrementAndGet();
                 logger.info("Executing search t2 #" + i);
                 assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId1.get())), resp -> {
-                    final TotalHits totalHits = resp.getHits().getTotalHits();
-                    assertEquals("Wrong hits for search " + i + ", response: " + resp, numDocs_pit1, totalHits.value());
-                    pitId1.set(resp.pointInTimeId());
+                    if (resp.getFailedShards() == 0) {
+                        assertEquals(
+                            "Wrong hits for search " + i + ", response: " + resp,
+                            numDocs_pit1,
+                            resp.getHits().getTotalHits().value()
+                        );
+                        pitId1.set(resp.pointInTimeId());
+                    } else {
+                        assertFalse("Search t2 #" + i + ": second shard failure — only one transient race allowed", failedOnce.get());
+                        failedOnce.set(true);
+                        logger.info(
+                            "Search t2 #{} had {} shard failure(s), allowing as one-time transient race",
+                            i,
+                            resp.getFailedShards()
+                        );
+                    }
                 });
             }
         });

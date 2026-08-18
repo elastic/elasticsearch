@@ -27,6 +27,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -61,6 +62,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -75,10 +77,13 @@ import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -95,6 +100,7 @@ import java.util.function.Supplier;
 
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 import static org.apache.lucene.search.BooleanClause.Occur.MUST;
+import static org.elasticsearch.index.IndexVersions.SEMANTIC_FIELD_TYPE;
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS;
@@ -106,16 +112,17 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQueryBuilder> {
-    private static final String SEMANTIC_TEXT_FIELD = "semantic";
+    private static final String FIELD_NAME = "test_field";
     private static final float TOKEN_WEIGHT = 0.5f;
     private static final int QUERY_TOKEN_LENGTH = 4;
     private static final int TEXT_EMBEDDING_DIMENSION_COUNT = 16; // Must be a multiple of 8 to be a valid bit embedding
     private static final String INFERENCE_ID = "test_service";
     private static final String SEARCH_INFERENCE_ID = "search_test_service";
 
-    private static InferenceResultType inferenceResultType;
-    private static DenseVectorFieldMapper.ElementType denseVectorElementType;
-    private static boolean useSearchInferenceId;
+    private InferenceResultType inferenceResultType;
+    private DenseVectorFieldMapper.ElementType denseVectorElementType;
+    private boolean useSearchInferenceId;
+    private final String fieldType;
     private final boolean useLegacyFormat;
 
     private enum InferenceResultType {
@@ -127,25 +134,35 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     private Integer queryTokenCount;
 
-    public SemanticQueryBuilderTests(boolean useLegacyFormat) {
+    public SemanticQueryBuilderTests(String fieldType, boolean useLegacyFormat) {
+        this.fieldType = fieldType;
         this.useLegacyFormat = useLegacyFormat;
     }
 
-    @ParametersFactory
+    @ParametersFactory(argumentFormatting = "fieldType=%s, legacyFormat(for semantic_text)=%s")
     public static Iterable<Object[]> parameters() throws Exception {
-        return List.of(new Object[] { true }, new Object[] { false });
+        return List.of(
+            new Object[] { SemanticTextFieldMapper.CONTENT_TYPE, true },
+            new Object[] { SemanticTextFieldMapper.CONTENT_TYPE, false },
+            new Object[] { SemanticFieldMapper.CONTENT_TYPE, false }
+        );
     }
 
-    @BeforeClass
-    public static void setInferenceResultType() {
-        // These are class variables because they are used when initializing additional mappings, which happens once per test suite run in
-        // AbstractBuilderTestCase#beforeTest as part of service holder creation.
-        inferenceResultType = randomFrom(InferenceResultType.values());
-        denseVectorElementType = randomValueOtherThan(
-            DenseVectorFieldMapper.ElementType.BFLOAT16,
-            () -> randomFrom(DenseVectorFieldMapper.ElementType.values())
-        );
+    @Before
+    public void setInferenceResultType() {
+        if (this.inferenceResultType != null) {
+            return;
+        }
+        inferenceResultType = fieldType.equals(SemanticFieldMapper.CONTENT_TYPE)
+            ? InferenceResultType.EMBEDDING
+            : randomFrom(InferenceResultType.values());
+        denseVectorElementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
         useSearchInferenceId = randomBoolean();
+    }
+
+    @After
+    public void reset() {
+        this.inferenceResultType = null;
     }
 
     @BeforeClass
@@ -178,19 +195,28 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     @Override
     protected Settings createTestIndexSettings() {
-        return SemanticInferenceMetadataFieldsMapperTests.randomIndexSettings(useLegacyFormat);
+        var indexVersion = fieldType.equals(SemanticTextFieldMapper.CONTENT_TYPE)
+            ? SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat)
+            : IndexVersionUtils.randomVersionOnOrAfter(SEMANTIC_FIELD_TYPE);
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion)
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
+            .build();
     }
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        String mappingConfig = "type=semantic_text,inference_id=" + INFERENCE_ID;
+        if (inferenceResultType == null) {
+            setInferenceResultType();
+        }
+        String mappingConfig = "type=" + fieldType + ",inference_id=" + INFERENCE_ID;
         if (useSearchInferenceId) {
             mappingConfig += ",search_inference_id=" + SEARCH_INFERENCE_ID;
         }
 
         mapperService.merge(
             "_doc",
-            new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(SEMANTIC_TEXT_FIELD, mappingConfig))),
+            new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(FIELD_NAME, mappingConfig))),
             MapperService.MergeReason.MAPPING_UPDATE
         );
 
@@ -240,7 +266,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             queryTokens.add(randomAlphaOfLength(QUERY_TOKEN_LENGTH));
         }
 
-        SemanticQueryBuilder builder = new SemanticQueryBuilder(SEMANTIC_TEXT_FIELD, String.join(" ", queryTokens));
+        SemanticQueryBuilder builder = new SemanticQueryBuilder(FIELD_NAME, String.join(" ", queryTokens));
         if (randomBoolean()) {
             builder.boost((float) randomDoubleBetween(0.1, 10.0, true));
         }
@@ -574,7 +600,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     public void testSerializingQueryWhenNoInferenceId() throws IOException {
         // Test serializing the query after rewriting on the coordinator node when no inference ID could be resolved for the field
-        SemanticQueryBuilder builder = new SemanticQueryBuilder(SEMANTIC_TEXT_FIELD + "_missing", "query text");
+        SemanticQueryBuilder builder = new SemanticQueryBuilder(FIELD_NAME + "_missing", "query text");
 
         QueryRewriteContext queryRewriteContext = createQueryRewriteContext();
         queryRewriteContext.setAllowUnmappedFields(true);
@@ -597,9 +623,9 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         if (modelSettings != null) {
             SemanticTextField semanticTextField = new SemanticTextField(
                 useLegacyFormat,
-                SEMANTIC_TEXT_FIELD,
+                FIELD_NAME,
                 null,
-                new SemanticTextField.InferenceResult(INFERENCE_ID, modelSettings, null, Map.of(SEMANTIC_TEXT_FIELD, List.of())),
+                new SemanticTextField.InferenceResult(INFERENCE_ID, modelSettings, null, Map.of(FIELD_NAME, List.of())),
                 XContentType.JSON
             );
 

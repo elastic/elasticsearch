@@ -35,6 +35,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCachePeriodicMetrics.METRICS_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.equalTo;
@@ -88,7 +89,7 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
 
             for (int i = 0; i < numRegions; i++) {
                 final var cacheKey = new TestCacheKey(new ShardId("index", randomUUID(), 0), "file-" + i);
-                SharedBlobCacheServiceTestUtils.cacheRegion(cacheService, cacheKey, regionSize - 1, 0);
+                SharedBlobCacheServiceTestUtils.cacheRegion(cacheService, cacheKey, regionSize - 1, 0, randomRegionTimestampMillis());
             }
 
             taskQueue.runTasksUpToTimeInOrder(taskQueue.getCurrentTimeMillis() + interval.millis());
@@ -184,7 +185,8 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
                 cacheService,
                 new TestCacheKey(new ShardId("index", randomUUID(), 0), "file"),
                 regionSize - 1,
-                0
+                0,
+                randomRegionTimestampMillis()
             );
 
             metrics.start();
@@ -269,7 +271,8 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
                 cacheService,
                 new TestCacheKey(new ShardId("index", randomUUID(), 0), "file"),
                 regionSize - 1,
-                0
+                0,
+                randomRegionTimestampMillis()
             );
 
             metrics.start();

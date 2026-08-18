@@ -26,53 +26,40 @@ import java.io.IOException;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 import static org.elasticsearch.columnar.ColumnarTestUtils.readStringMeta;
-import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * End-to-end round-trip of string columns through a {@link Directory}, covering both layouts. Each case
- * asserts the values come back byte-identical and in the exact order they were written, and additionally
- * asserts which {@link StringColumnLayout} the cardinality probe selected — so a change in the layout decision
- * shows up as a test failure rather than silently altering the on-disk shape.
+ * End-to-end round-trip of string columns through a {@link Directory}. Each case asserts the values come back
+ * byte-identical and in the exact order they were written, across the value shapes the encoder has to handle:
+ * dense and sparse, empty values, wide values, and value counts that straddle a block boundary.
  */
 public class StringColumnTests extends ESTestCase {
 
     public void testEmptyColumn() throws IOException {
-        assertColumn(new BytesRef[between(1, 1000)], StringColumnLayout.PLAIN);
+        assertColumn(new BytesRef[between(1, 1000)]);
     }
 
-    /** A handful of distinct values: comfortably under the cap, so the dictionary wins. */
-    public void testLowCardinalityPicksDictionary() throws IOException {
+    /** A handful of terms repeated across many documents — the shape a dictionary layout would target. */
+    public void testRepeatedValues() throws IOException {
         String[] terms = { "nginx", "apache", "kafka", "elasticsearch" };
         int maxDoc = between(1, 3000);
         BytesRef[] docs = new BytesRef[maxDoc];
         for (int d = 0; d < maxDoc; d++) {
             docs[d] = new BytesRef(randomFrom(terms));
         }
-        assertColumn(docs, StringColumnLayout.DICTIONARY);
+        assertColumn(docs);
     }
 
-    /** Every document a distinct value, far past the cap, so the probe overflows and values are stored directly. */
-    public void testHighCardinalityPicksPlain() throws IOException {
-        int maxDoc = between(StringDictionary.MAX_SIZE + 1, 3000);
+    /** Every document a distinct value, so nothing repeats and every value carries its own bytes. */
+    public void testAllDistinctValues() throws IOException {
+        int maxDoc = between(1, 3000);
         BytesRef[] docs = new BytesRef[maxDoc];
         for (int d = 0; d < maxDoc; d++) {
             docs[d] = new BytesRef("term-" + d);
         }
-        assertColumn(docs, StringColumnLayout.PLAIN);
+        assertColumn(docs);
     }
 
-    /** Exactly the cap's worth of distinct values still fits the dictionary; one more does not. */
-    public void testCardinalityAtCapBoundary() throws IOException {
-        for (int distinct : new int[] { StringDictionary.MAX_SIZE - 1, StringDictionary.MAX_SIZE, StringDictionary.MAX_SIZE + 1 }) {
-            BytesRef[] docs = new BytesRef[distinct * 3];
-            for (int d = 0; d < docs.length; d++) {
-                docs[d] = new BytesRef("term-" + (d % distinct));
-            }
-            assertColumn(docs, distinct <= StringDictionary.MAX_SIZE ? StringColumnLayout.DICTIONARY : StringColumnLayout.PLAIN);
-        }
-    }
-
-    public void testSparseColumnLowCardinality() throws IOException {
+    public void testSparseColumnRepeatedValues() throws IOException {
         int maxDoc = between(100, 4000);
         BytesRef[] docs = new BytesRef[maxDoc];
         for (int d = 0; d < maxDoc; d++) {
@@ -80,23 +67,18 @@ public class StringColumnTests extends ESTestCase {
                 docs[d] = new BytesRef(randomFrom("a", "b", "c"));
             }
         }
-        assertColumn(docs, StringColumnLayout.DICTIONARY);
+        assertColumn(docs);
     }
 
-    public void testSparseColumnHighCardinality() throws IOException {
-        int maxDoc = between(StringDictionary.MAX_SIZE * 4, StringDictionary.MAX_SIZE * 16);
-        int valueCount = 0;
+    public void testSparseColumnDistinctValues() throws IOException {
+        int maxDoc = between(100, 4000);
         BytesRef[] docs = new BytesRef[maxDoc];
         for (int d = 0; d < maxDoc; d++) {
-            // Skipping is only allowed while the cap is still reachable: the second term is the best count
-            // achievable if this document is skipped, so falling to it forces the value in.
-            if (random().nextDouble() < 0.5 || (maxDoc - d - 1) + valueCount <= StringDictionary.MAX_SIZE) {
+            if (random().nextDouble() < 0.5) {
                 docs[d] = new BytesRef("term-" + d);
-                valueCount++;
             }
         }
-        assertThat(valueCount, greaterThan(StringDictionary.MAX_SIZE));
-        assertColumn(docs, StringColumnLayout.PLAIN);
+        assertColumn(docs);
     }
 
     /** Empty values are legal and must survive: they encode as a zero length and no bytes. */
@@ -105,16 +87,16 @@ public class StringColumnTests extends ESTestCase {
         for (int d = 0; d < docs.length; d++) {
             docs[d] = new BytesRef(randomFrom("", "x", "yy"));
         }
-        assertColumn(docs, StringColumnLayout.DICTIONARY);
+        assertColumn(docs);
     }
 
-    /** Every value empty: the plain path's block scratch is sized from a max of zero. */
+    /** Every value empty, so the reader's block scratch is sized from a max of zero. */
     public void testAllEmptyValues() throws IOException {
         BytesRef[] docs = new BytesRef[between(1, 500)];
         for (int d = 0; d < docs.length; d++) {
             docs[d] = new BytesRef("");
         }
-        assertColumn(docs, StringColumnLayout.DICTIONARY);
+        assertColumn(docs);
     }
 
     /** Value counts that are not multiples of the block size, so the final partial block is exercised. */
@@ -124,7 +106,7 @@ public class StringColumnTests extends ESTestCase {
             for (int d = 0; d < n; d++) {
                 docs[d] = new BytesRef("value-" + d);
             }
-            assertColumn(docs, n > StringDictionary.MAX_SIZE ? StringColumnLayout.PLAIN : StringColumnLayout.DICTIONARY);
+            assertColumn(docs);
         }
     }
 
@@ -133,7 +115,7 @@ public class StringColumnTests extends ESTestCase {
         for (int d = 0; d < docs.length; d++) {
             docs[d] = new BytesRef(randomAlphaOfLength(between(200, 2000)));
         }
-        assertColumn(docs, null);
+        assertColumn(docs);
     }
 
     public void testRandomValues() throws IOException {
@@ -144,26 +126,18 @@ public class StringColumnTests extends ESTestCase {
             }
             docs[d] = new BytesRef(randomRealisticUnicodeOfCodepointLength(between(1, 30)));
         }
-        assertColumn(docs, null);
+        assertColumn(docs);
     }
 
-    /**
-     * Writes {@code docValues} as a string column, reads it back, and asserts every value round-trips in order.
-     *
-     * @param expectedLayout the layout the cardinality probe is expected to pick, or {@code null} to accept
-     *                       whichever it picks (for cases where the distinct count is not pinned by the test)
-     */
-    private void assertColumn(BytesRef[] docValues, StringColumnLayout expectedLayout) throws IOException {
+    /** Writes {@code docValues} as a string column, reads it back, and asserts every value round-trips in order. */
+    private void assertColumn(BytesRef[] docValues) throws IOException {
         int numDocsWithField = 0;
-        StringDictionary.Builder dictionaryBuilder = new StringDictionary.Builder();
         for (BytesRef value : docValues) {
             if (value != null) {
                 numDocsWithField++;
-                dictionaryBuilder.add(value);
             }
         }
         int numValues = numDocsWithField;
-        StringDictionary dictionary = dictionaryBuilder.build();
         int maxDoc = docValues.length;
         byte[] segmentId = new byte[16];
         random().nextBytes(segmentId);
@@ -178,7 +152,6 @@ public class StringColumnTests extends ESTestCase {
                     numDocsWithField,
                     numValues,
                     () -> cursor(docValues),
-                    dictionary,
                     blockSize,
                     BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
                     dir,
@@ -196,9 +169,7 @@ public class StringColumnTests extends ESTestCase {
 
             final StringColumnMetadata read = readStringMeta(dir, "str.cnm", segmentId, maxDoc);
             assertFalse("string columns are single-valued for now", read.multiValued());
-            if (numDocsWithField > 0 && expectedLayout != null) {
-                assertEquals("selected layout", expectedLayout, read.layout());
-            }
+            assertEquals("recorded layout", StringColumnLayout.PLAIN, read.layout());
 
             try (IndexInput data = dir.openInput("str.cnd", IOContext.DEFAULT)) {
                 CodecUtil.checksumEntireFile(data);

@@ -25,7 +25,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
-import org.elasticsearch.columnar.string.StringDictionary;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -42,16 +41,16 @@ import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
  * surface. {@code StringColumnTests} covers the writer and reader directly against a {@code Directory}; this is
  * the same column driven by Lucene, and the counterpart of {@link NumericColumnMergeTests}.
  *
- * <p>Run at both ends of the cardinality range, because the two {@code StringColumnLayout}s take different code
- * paths through the writer and reader, and a merge can also change which layout a segment picks.
+ * <p>Run over repeated and over all-distinct values: the two compress very differently, and a merge unions
+ * whatever the flushed segments held.
  */
 public class StringColumnMergeTests extends ESTestCase {
 
     private static final String FIELD = "keyword";
     private static final String ID = "id";
 
-    /** Few distinct values, so every segment picks the dictionary layout. */
-    public void testLowCardinalityRoundTripAndMerge() throws IOException {
+    /** A handful of terms repeated across every segment, including the empty value. */
+    public void testRepeatedValuesRoundTripAndMerge() throws IOException {
         String[] terms = { "nginx", "apache", "kafka", "elasticsearch", "" };
         assertRoundTripAndMerge(numDocs -> {
             String[] values = new String[numDocs];
@@ -62,8 +61,8 @@ public class StringColumnMergeTests extends ESTestCase {
         });
     }
 
-    /** Every value distinct, so the probe overflows and values are stored directly. */
-    public void testHighCardinalityRoundTripAndMerge() throws IOException {
+    /** Every value distinct, so nothing repeats within or across segments. */
+    public void testDistinctValuesRoundTripAndMerge() throws IOException {
         assertRoundTripAndMerge(numDocs -> {
             String[] values = new String[numDocs];
             for (int d = 0; d < numDocs; d++) {
@@ -71,41 +70,6 @@ public class StringColumnMergeTests extends ESTestCase {
             }
             return values;
         });
-    }
-
-    /**
-     * Values that stay under the cap per segment but exceed it once merged, so the merged segment must switch
-     * from the dictionary layout to the plain one.
-     */
-    public void testCardinalityGrowsPastCapOnMerge() throws IOException {
-        final int numDocs = StringDictionary.MAX_SIZE * 3;
-        final String[] values = new String[numDocs];
-        for (int d = 0; d < numDocs; d++) {
-            values[d] = "term-" + d;
-        }
-        final FieldType type = stringFieldType();
-
-        try (Directory dir = newDirectory()) {
-            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec()).setMergePolicy(new LogDocMergePolicy());
-            final BytesRefBuilder builder = new BytesRefBuilder();
-            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
-                for (int d = 0; d < numDocs; d++) {
-                    final Document doc = new Document();
-                    doc.add(new Field(FIELD, BytesRef.deepCopyOf(encode(values[d], builder)), type));
-                    writer.addDocument(doc);
-                    // Commit often enough that each segment stays under the dictionary cap on its own.
-                    if ((d + 1) % (StringDictionary.MAX_SIZE / 2) == 0) {
-                        writer.commit();
-                    }
-                }
-                writer.forceMerge(1);
-            }
-
-            try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                assertEquals("force-merged to one segment", 1, reader.leaves().size());
-                assertEquals(List.of(values), readValues(reader.leaves().get(0).reader()));
-            }
-        }
     }
 
     private interface ValueGenerator {

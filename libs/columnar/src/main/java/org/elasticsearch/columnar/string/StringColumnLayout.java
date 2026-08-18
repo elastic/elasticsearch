@@ -10,25 +10,18 @@
 package org.elasticsearch.columnar.string;
 
 /**
- * How a string column stores its values, decided per segment from that segment's cardinality and recorded
- * in {@link StringColumnMetadata}. This is a codec-internal decision: both layouts are served at the same
- * binary surface, so the layer above never sees which one a segment picked — in particular ordinals never
- * surface.
+ * How a string column stores its values, recorded in {@link StringColumnMetadata}. Which layout a segment used
+ * is codec-internal: every layout is served at the same binary surface, so the layer above never sees the
+ * choice.
  *
- * <p>Ids are frozen once shipped. A further layout (prefix compression, for instance) arrives as a new id
- * and leaves already-written segments decoding unchanged.
+ * <p>Ids are frozen once shipped, and a new layout arrives as a new id leaving already-written segments
+ * decoding unchanged. That is the point of recording the id while only one layout exists: an ordinal layout,
+ * decided at merge from statistics a flush emits, arrives without a format bump. See {@code docs/PLAN.md}.
  */
 public enum StringColumnLayout {
 
-    /** Values stored directly, {@code [VInt length][bytes]} per value. Chosen for high-cardinality segments. */
-    PLAIN((byte) 0),
-
-    /**
-     * A per-segment terms dictionary plus one ordinal per value, the ordinals run through the numeric
-     * encoder pipeline. Chosen when the segment's distinct-value count fits
-     * {@link StringDictionary#MAX_SIZE}.
-     */
-    DICTIONARY((byte) 1);
+    /** Values stored directly, {@code [VInt length][bytes]} per value. */
+    PLAIN((byte) 0);
 
     private final byte id;
 

@@ -37,7 +37,6 @@ import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.StringColumnMetadata;
 import org.elasticsearch.columnar.string.StringColumnValues;
 import org.elasticsearch.columnar.string.StringColumnWriter;
-import org.elasticsearch.columnar.string.StringDictionary;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
@@ -321,15 +320,12 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     }
 
     /**
-     * Counts the column and probes its cardinality in one pass, then streams the values block by block from
-     * fresh cursors — never buffering the whole field on-heap. The probe decides the layout: a column whose
-     * distinct values fit {@link StringDictionary#MAX_SIZE} is written as a per-segment dictionary plus an
-     * ordinal stream, and anything wider stores its values directly.
+     * Counts the column in one pass, then streams the values block by block from fresh cursors — never
+     * buffering the whole field on-heap.
      */
     private void writeStringColumn(FieldInfo field, ColumnarFieldType type, IOSupplier<StringColumnValues> cursors) throws IOException {
         int numDocsWithField = 0;
         long numValues = 0;
-        StringDictionary.Builder dictionaryBuilder = new StringDictionary.Builder();
         StringColumnValues counter = cursors.get();
         for (int doc = counter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = counter.nextDoc()) {
             numDocsWithField++;
@@ -340,9 +336,6 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 );
             }
             numValues += count;
-            for (int i = 0; i < count; i++) {
-                dictionaryBuilder.add(counter.nextValue());
-            }
         }
 
         StringColumnMetadata metadata = StringColumnWriter.write(
@@ -350,7 +343,6 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             numDocsWithField,
             numValues,
             cursors,
-            dictionaryBuilder.build(),
             blockSize,
             BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
             directory,

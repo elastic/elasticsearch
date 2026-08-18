@@ -8,20 +8,13 @@
  */
 
 /**
- * The adaptive string (keyword) column: a value-address-indexed, block-encoded store of variable-length byte
- * values on the shared binary substrate.
+ * The string (keyword) column: a value-address-indexed, block-encoded store of variable-length byte values on
+ * the shared binary substrate, served at the {@code BINARY} surface through
+ * {@link org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues}.
  *
- * <p>Each segment picks its own {@link org.elasticsearch.columnar.string.StringColumnLayout} from that
- * segment's cardinality — values stored directly when cardinality is high, or a per-segment terms dictionary
- * plus one ordinal per value when it is low enough to fit
- * {@link org.elasticsearch.columnar.string.StringDictionary#MAX_SIZE}. The choice is codec-internal: both
- * layouts are served at the same {@code BINARY} surface through
- * {@link org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues}, so ordinals never surface and only
- * the segments that chose a dictionary carry one.
- *
- * <p>A dictionary column's ordinal stream is encoded with the numeric column's own
- * {@link org.elasticsearch.columnar.numeric.NumericPipeline}, so repeated and sequential ordinal runs collapse
- * through the existing delta / offset / GCD detection and FOR bit-packing rather than a string-specific
- * encoder.
+ * <p>A column records the {@link org.elasticsearch.columnar.string.StringColumnLayout} it was written with.
+ * Only {@code PLAIN} exists today — each value's bytes stored directly — and which layout a segment used is
+ * codec-internal, so a later ordinal layout arrives as a new id without changing the read surface. See
+ * {@code docs/PLAN.md} for how that layout is meant to be decided.
  */
 package org.elasticsearch.columnar.string;

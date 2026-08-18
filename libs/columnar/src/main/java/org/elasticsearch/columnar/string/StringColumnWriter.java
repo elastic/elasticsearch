@@ -16,8 +16,6 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
-import org.elasticsearch.columnar.numeric.NumericBlockEncoder;
-import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
 import org.elasticsearch.columnar.substrate.ColumnIteratorWriter;
@@ -26,17 +24,15 @@ import org.elasticsearch.columnar.substrate.MonotonicWriter;
 import java.io.IOException;
 
 /**
- * Writes a string column, in whichever {@link StringColumnLayout} the caller's cardinality probe selected.
- * Values are written in the order the {@link StringColumnValues} cursor yields them and are never reordered.
+ * Writes a string column. Values are written in the order the {@link StringColumnValues} cursor yields them and
+ * are never reordered.
  *
- * <p>Nothing column-proportional is held on the heap: values are streamed one block at a time and the
- * per-block byte offsets are written through {@link MonotonicWriter} to a temporary file. The one heap
- * structure is the terms dictionary, capped at {@link StringDictionary#MAX_SIZE}.
+ * <p>Nothing column-proportional is held on the heap: values are streamed one block at a time and the per-block
+ * byte offsets are written through {@link MonotonicWriter} to a temporary file. The one buffer that grows with
+ * the data is a single block's worth of value bytes.
  *
- * <p>A {@link StringColumnLayout#DICTIONARY} column encodes its ordinal stream through
- * {@link NumericPipeline#defaultPipeline} — the same delta / offset / GCD detection plus FOR bit-packing the
- * numeric column uses — so a run of repeated or sequential ordinals collapses without any string-specific
- * encoder. The pipeline's stage ids are recorded in the metadata, so the read side rebuilds it exactly.
+ * <p>Only {@link StringColumnLayout#PLAIN} is written today; the layout is recorded so an ordinal layout can
+ * arrive as a new id. See {@code docs/PLAN.md} for how that decision is meant to be reached.
  */
 public final class StringColumnWriter {
 
@@ -51,8 +47,6 @@ public final class StringColumnWriter {
      * @param numValues        total number of values across all documents
      * @param cursors          supplies fresh forward cursors over the documents that have a value; called
      *                         once for the iterator and once for the values
-     * @param dictionary       the segment's terms dictionary, selecting {@link StringColumnLayout#DICTIONARY},
-     *                         or {@code null} to store values directly as {@link StringColumnLayout#PLAIN}
      * @param blockSize        values per encoded block
      * @param blockBytesCodec  terminal byte codec applied to each block
      * @param directory        directory used for the temporary table file
@@ -64,7 +58,6 @@ public final class StringColumnWriter {
         int numDocsWithField,
         long numValues,
         IOSupplier<StringColumnValues> cursors,
-        StringDictionary dictionary,
         int blockSize,
         BlockBytesCodec blockBytesCodec,
         Directory directory,
@@ -76,16 +69,17 @@ public final class StringColumnWriter {
             return StringColumnMetadata.empty(iterator, blockBytesCodec.id());
         }
 
-        StringColumnLayout layout = dictionary == null ? StringColumnLayout.PLAIN : StringColumnLayout.DICTIONARY;
         long numBlocks = (numValues + blockSize - 1) / blockSize;
         long valuesOffset = data.getFilePointer();
 
-        try (MonotonicWriter blockOffsets = new MonotonicWriter(directory, context, data.getName(), numBlocks + 1L)) {
-            BlockWriter blockWriter = layout == StringColumnLayout.DICTIONARY
-                ? new DictionaryBlockWriter(dictionary, blockSize)
-                : new PlainBlockWriter(blockSize);
+        // The block being accumulated, in the flat shape StringBlockEncoder consumes: concatenated value bytes
+        // plus the offset of each value within them.
+        final int[] valueOffsets = new int[blockSize + 1];
+        byte[] valueBytes = new byte[Math.min(blockSize, 1024) * 8];
+        int valueBytesLength = 0;
+        int maxBlockValueBytes = 0;
 
-            // count of values written to current block
+        try (MonotonicWriter blockOffsets = new MonotonicWriter(directory, context, data.getName(), numBlocks + 1L)) {
             int inBlock = 0;
             StringColumnValues values = cursors.get();
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
@@ -94,17 +88,24 @@ public final class StringColumnWriter {
                     if (inBlock == 0) {
                         blockOffsets.add(data.getFilePointer() - valuesOffset);
                     }
-                    blockWriter.append(values.nextValue(), inBlock++);
+                    BytesRef value = values.nextValue();
+                    valueBytes = ArrayUtil.grow(valueBytes, valueBytesLength + value.length);
+                    System.arraycopy(value.bytes, value.offset, valueBytes, valueBytesLength, value.length);
+                    valueBytesLength += value.length;
+                    valueOffsets[++inBlock] = valueBytesLength;
                     if (inBlock == blockSize) {
-                        blockWriter.flush(inBlock, blockBytesCodec, data);
+                        maxBlockValueBytes = Math.max(maxBlockValueBytes, valueBytesLength);
+                        writeBlock(valueBytes, valueOffsets, inBlock, blockBytesCodec, data);
                         inBlock = 0;
+                        valueBytesLength = 0;
                     }
                 }
             }
             if (inBlock > 0) {
                 // The final block holds fewer than blockSize values; the encoder is told the real count and
                 // never sees padding.
-                blockWriter.flush(inBlock, blockBytesCodec, data);
+                maxBlockValueBytes = Math.max(maxBlockValueBytes, valueBytesLength);
+                writeBlock(valueBytes, valueOffsets, inBlock, blockBytesCodec, data);
             }
             blockOffsets.add(data.getFilePointer() - valuesOffset);
 
@@ -116,115 +117,18 @@ public final class StringColumnWriter {
                 numValues,
                 blockSize,
                 blockBytesCodec.id(),
-                layout,
+                StringColumnLayout.PLAIN,
                 valuesOffset,
                 blocks.dataOffset(),
                 blocks.dataLength(),
                 blocks.meta(),
-                blockWriter.maxBlockValueBytes(),
-                blockWriter.terminalId(),
-                blockWriter.transformIds(),
-                dictionary
+                maxBlockValueBytes
             );
         }
     }
 
-    /** Accumulates a block's values and serializes it, in whichever shape the layout calls for. */
-    private interface BlockWriter {
-
-        /** Adds the value at position {@code position} within the block being built. */
-        void append(BytesRef value, int position);
-
-        /** Serializes the {@code valueCount} values accumulated so far and resets for the next block. */
-        void flush(int valueCount, BlockBytesCodec blockBytesCodec, IndexOutput data) throws IOException;
-
-        /** The largest total value-byte count any one block held; only meaningful for {@code PLAIN}. */
-        default int maxBlockValueBytes() {
-            return 0;
-        }
-
-        /** The ordinal pipeline's terminal id; only meaningful for {@code DICTIONARY}. */
-        default byte terminalId() {
-            return 0;
-        }
-
-        /** The ordinal pipeline's transform ids; only meaningful for {@code DICTIONARY}. */
-        default byte[] transformIds() {
-            return new byte[0];
-        }
-    }
-
-    /** Stores each value's bytes directly, through {@link StringBlockEncoder}. */
-    private static final class PlainBlockWriter implements BlockWriter {
-
-        private final int[] valueOffsets;
-        private byte[] valueBytes;
-        private int valueBytesLength = 0;
-        private int maxBlockValueBytes = 0;
-
-        PlainBlockWriter(int blockSize) {
-            this.valueOffsets = new int[blockSize + 1];
-            this.valueOffsets[0] = 0;
-            this.valueBytes = new byte[Math.min(blockSize, 1024) * 8];
-        }
-
-        @Override
-        public void append(BytesRef value, int position) {
-            valueBytes = ArrayUtil.grow(valueBytes, valueBytesLength + value.length);
-            System.arraycopy(value.bytes, value.offset, valueBytes, valueBytesLength, value.length);
-            valueBytesLength += value.length;
-            valueOffsets[position + 1] = valueBytesLength;
-        }
-
-        @Override
-        public void flush(int valueCount, BlockBytesCodec blockBytesCodec, IndexOutput data) throws IOException {
-            int totalValueBytes = valueBytesLength;
-            blockBytesCodec.write(out -> StringBlockEncoder.encode(valueBytes, valueOffsets, valueCount, out), data);
-            if (totalValueBytes > maxBlockValueBytes) {
-                maxBlockValueBytes = totalValueBytes;
-            }
-            valueBytesLength = 0;
-        }
-
-        @Override
-        public int maxBlockValueBytes() {
-            return maxBlockValueBytes;
-        }
-    }
-
-    /** Replaces each value with its dictionary ordinal and runs the ordinal block through the numeric pipeline. */
-    private static final class DictionaryBlockWriter implements BlockWriter {
-
-        private final StringDictionary dictionary;
-        private final NumericPipeline pipeline;
-        private final NumericBlockEncoder encoder;
-        private final long[] ordinals;
-
-        DictionaryBlockWriter(StringDictionary dictionary, int blockSize) {
-            this.dictionary = dictionary;
-            this.pipeline = NumericPipeline.defaultPipeline(blockSize);
-            this.encoder = new NumericBlockEncoder(pipeline, blockSize);
-            this.ordinals = new long[blockSize];
-        }
-
-        @Override
-        public void append(BytesRef value, int position) {
-            ordinals[position] = dictionary.ordinal(value);
-        }
-
-        @Override
-        public void flush(int valueCount, BlockBytesCodec blockBytesCodec, IndexOutput data) throws IOException {
-            blockBytesCodec.write(out -> encoder.encode(ordinals, valueCount, out), data);
-        }
-
-        @Override
-        public byte terminalId() {
-            return pipeline.terminalId();
-        }
-
-        @Override
-        public byte[] transformIds() {
-            return pipeline.transformIds();
-        }
+    private static void writeBlock(byte[] valueBytes, int[] valueOffsets, int valueCount, BlockBytesCodec blockBytesCodec, IndexOutput data)
+        throws IOException {
+        blockBytesCodec.write(out -> StringBlockEncoder.encode(valueBytes, valueOffsets, valueCount, out), data);
     }
 }

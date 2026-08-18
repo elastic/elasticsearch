@@ -14,9 +14,9 @@ import org.apache.lucene.index.FieldInfo;
 /**
  * The logical type of a ColumNAR column, carried on the binary field via
  * {@link ColumNARDocValuesFormat#TYPE_ATTRIBUTE}. It selects the column implementation: numeric types
- * ({@code LONG}/{@code DOUBLE}) share the adaptive long column, and {@code STRING} uses the adaptive string
- * column. How a column encodes its values within that choice — a numeric pipeline, or plain versus dictionary
- * for a string — is internal to the column and recorded in its own metadata.
+ * ({@code LONG}/{@code DOUBLE}) share the adaptive long column, and {@code STRING} uses the string column. How
+ * a column encodes its values within that choice — a numeric pipeline, or the layout a string column was
+ * written with — is internal to the column and recorded in its own metadata.
  */
 public enum ColumnarFieldType {
 

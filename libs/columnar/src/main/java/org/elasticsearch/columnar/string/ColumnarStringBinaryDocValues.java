@@ -21,8 +21,8 @@ import java.io.IOException;
 
 /**
  * A string column at the {@code BINARY} surface: {@link #binaryValue} re-emits a document's values as a
- * {@link StringBinaryPayload}. Which {@link StringColumnLayout} the segment picked is invisible here — a
- * dictionary column resolves its ordinals internally, so ordinals never reach this surface.
+ * {@link StringBinaryPayload}. Which {@link StringColumnLayout} the segment used is invisible here — a layout
+ * resolves its own encoding inside the reader, so nothing layout-specific reaches this surface.
  */
 public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
 

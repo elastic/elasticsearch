@@ -16,15 +16,11 @@ import org.elasticsearch.test.ESTestCase;
  * {@code org.elasticsearch.columnar.numeric.NumericFrozenIdsTests} does for numeric transforms. A layout id is
  * recorded in every string column's metadata, so renumbering, reusing, or removing one would make already
  * written segments decode as the wrong layout. Ids may only be added.
- *
- * <p>The dictionary cap is pinned alongside them: it is not a wire id, but the writer only chooses
- * {@link StringColumnLayout#DICTIONARY} below the cap, and the value was picked so an ordinal fits in 8 bits.
  */
 public class StringFrozenIdsTests extends ESTestCase {
 
     public void testLayoutIdsAreStable() {
         assertEquals((byte) 0, StringColumnLayout.PLAIN.id());
-        assertEquals((byte) 1, StringColumnLayout.DICTIONARY.id());
     }
 
     public void testLayoutRoundTripsThroughItsId() {
@@ -37,9 +33,5 @@ public class StringFrozenIdsTests extends ESTestCase {
         final byte unknownId = 127;
         final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> StringColumnLayout.fromId(unknownId));
         assertTrue(ex.getMessage().contains(String.valueOf(unknownId)));
-    }
-
-    public void testDictionaryCapIsStable() {
-        assertEquals(256, StringDictionary.MAX_SIZE);
     }
 }

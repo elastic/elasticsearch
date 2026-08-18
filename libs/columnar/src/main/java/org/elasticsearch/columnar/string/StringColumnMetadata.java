@@ -22,13 +22,10 @@ import java.io.IOException;
  * Describes a string column. Values live in one value-address-indexed, block-encoded store in the order they were
  * written (never reordered), addressed by a compact {@code DirectMonotonic} table of per-block byte offsets.
  *
- * <p>{@link #layout()} says how a block is encoded, and which of the trailing fields are meaningful:
- * <ul>
- *   <li>{@link StringColumnLayout#PLAIN} — {@link #maxBlockValueBytes()} sizes the reader's block scratch.</li>
- *   <li>{@link StringColumnLayout#DICTIONARY} — {@link #dictionary()} holds the segment's terms and
- *       {@link #terminalId()} / {@link #transformIds()} describe the pipeline the ordinal stream was encoded
- *       with, so the reader rebuilds it exactly.</li>
- * </ul>
+ * <p>{@link #layout()} says how a block is encoded. Only {@link StringColumnLayout#PLAIN} exists today; the
+ * recorded layout id is the extension point a later ordinal layout arrives on, so which trailing fields are
+ * meaningful can vary by layout. For {@code PLAIN}, {@link #maxBlockValueBytes()} sizes the reader's block
+ * scratch.
  */
 public record StringColumnMetadata(
     ColumnIteratorMetadata iterator,
@@ -41,30 +38,12 @@ public record StringColumnMetadata(
     long blockOffsetsDataOffset,
     long blockOffsetsDataLength,
     byte[] blockOffsetsMeta,
-    int maxBlockValueBytes,
-    byte terminalId,
-    byte[] transformIds,
-    StringDictionary dictionary
+    int maxBlockValueBytes
 ) implements ColumnMetadata {
     private static final byte[] NONE = new byte[0];
 
     static StringColumnMetadata empty(ColumnIteratorMetadata iterator, byte blockBytesCodecId) {
-        return new StringColumnMetadata(
-            iterator,
-            0,
-            0,
-            0,
-            blockBytesCodecId,
-            StringColumnLayout.PLAIN,
-            0,
-            0,
-            0,
-            NONE,
-            0,
-            (byte) 0,
-            NONE,
-            null
-        );
+        return new StringColumnMetadata(iterator, 0, 0, 0, blockBytesCodecId, StringColumnLayout.PLAIN, 0, 0, 0, NONE, 0);
     }
 
     /** True when at least one document has more than one value. */
@@ -88,15 +67,7 @@ public record StringColumnMetadata(
         out.writeVLong(blockOffsetsDataLength);
         out.writeVInt(blockOffsetsMeta.length);
         out.writeBytes(blockOffsetsMeta, 0, blockOffsetsMeta.length);
-        switch (layout) {
-            case PLAIN -> out.writeVInt(maxBlockValueBytes);
-            case DICTIONARY -> {
-                out.writeByte(terminalId);
-                out.writeVInt(transformIds.length);
-                out.writeBytes(transformIds, 0, transformIds.length);
-                dictionary.writeTo(out);
-            }
-        }
+        out.writeVInt(maxBlockValueBytes);
     }
 
     /**
@@ -125,18 +96,7 @@ public record StringColumnMetadata(
         long blockOffsetsDataOffset = in.readVLong();
         long blockOffsetsDataLength = in.readVLong();
         byte[] blockOffsetsMeta = readBytes(in);
-        int maxBlockValueBytes = 0;
-        byte terminalId = 0;
-        byte[] transformIds = NONE;
-        StringDictionary dictionary = null;
-        switch (layout) {
-            case PLAIN -> maxBlockValueBytes = in.readVInt();
-            case DICTIONARY -> {
-                terminalId = in.readByte();
-                transformIds = readBytes(in);
-                dictionary = StringDictionary.readFrom(in);
-            }
-        }
+        int maxBlockValueBytes = in.readVInt();
         return new StringColumnMetadata(
             iterator,
             numDocsWithField,
@@ -148,10 +108,7 @@ public record StringColumnMetadata(
             blockOffsetsDataOffset,
             blockOffsetsDataLength,
             blockOffsetsMeta,
-            maxBlockValueBytes,
-            terminalId,
-            transformIds,
-            dictionary
+            maxBlockValueBytes
         );
     }
 

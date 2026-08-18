@@ -13,8 +13,6 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
-import org.elasticsearch.columnar.numeric.NumericBlockEncoder;
-import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
@@ -23,18 +21,12 @@ import org.elasticsearch.columnar.substrate.MonotonicReader;
 import java.io.IOException;
 
 /**
- * Reads a string column written by {@link StringColumnWriter}, in either {@link StringColumnLayout}.
+ * Reads a string column written by {@link StringColumnWriter}.
  *
  * <p>Values are addressed by <b>value address</b> — a value's 0-based position in the column's block-encoded
  * store, in {@code [0, numValues)}. A document maps to its value addresses through {@link #iterator()}: a
  * single-valued column maps a document's rank straight to its value address. A block is decoded whole into a
- * reusable buffer with a single-block cache; nothing column-proportional is held on the heap, apart from the
- * bounded terms dictionary a {@link StringColumnLayout#DICTIONARY} column carries.
- *
- * <p>A value address is not a dictionary <em>ordinal</em>. Both are 0-based numbers over different things: a
- * value address indexes the column's values and exists in both layouts, while an ordinal indexes the terms
- * dictionary and exists only under {@link StringColumnLayout#DICTIONARY}. The dictionary path resolves one to
- * the other internally — {@code blockOrdinals} holds ordinals — and neither escapes this class.
+ * reusable buffer with a single-block cache; nothing column-proportional is held on the heap.
  */
 public final class StringColumnReader {
 
@@ -45,12 +37,9 @@ public final class StringColumnReader {
     private final LongValues blockOffsets;
     private final long valuesOffset;
 
-    /** {@code PLAIN}: the decoded block's concatenated value bytes and per-value offsets. */
+    /** The decoded block's concatenated value bytes and per-value offsets. */
     private final byte[] blockValueBytes;
     private final int[] blockValueOffsets;
-    /** {@code DICTIONARY}: the decoded block's ordinals, and the encoder that produced them. */
-    private final NumericBlockEncoder ordinalEncoder;
-    private final long[] blockOrdinals;
 
     private final BytesRef value = new BytesRef();
 
@@ -67,8 +56,6 @@ public final class StringColumnReader {
             this.valuesOffset = 0;
             this.blockValueBytes = null;
             this.blockValueOffsets = null;
-            this.ordinalEncoder = null;
-            this.blockOrdinals = null;
             return;
         }
         this.blockOffsets = MonotonicReader.open(
@@ -79,20 +66,8 @@ public final class StringColumnReader {
             meta.blockOffsetsDataLength()
         );
         this.valuesOffset = meta.valuesOffset();
-        // if/else rather than a switch: the compiler does not treat an enum switch statement as exhaustive
-        // for final-field definite assignment.
-        if (meta.layout() == StringColumnLayout.DICTIONARY) {
-            this.blockValueBytes = null;
-            this.blockValueOffsets = null;
-            NumericPipeline pipeline = NumericPipeline.Registry.rebuild(meta.terminalId(), meta.transformIds(), meta.blockSize());
-            this.ordinalEncoder = new NumericBlockEncoder(pipeline, meta.blockSize());
-            this.blockOrdinals = new long[meta.blockSize()];
-        } else {
-            this.blockValueBytes = new byte[meta.maxBlockValueBytes()];
-            this.blockValueOffsets = new int[meta.blockSize() + 1];
-            this.ordinalEncoder = null;
-            this.blockOrdinals = null;
-        }
+        this.blockValueBytes = new byte[meta.maxBlockValueBytes()];
+        this.blockValueOffsets = new int[meta.blockSize() + 1];
     }
 
     /** A fresh iterator over the documents that have a value; positioned by {@link ColumnIterator#rank()}. */
@@ -122,15 +97,10 @@ public final class StringColumnReader {
         long block = valueAddress / meta.blockSize();
         ensureBlock(block);
         int position = (int) (valueAddress - block * meta.blockSize());
-        return switch (meta.layout()) {
-            case PLAIN -> {
-                value.bytes = blockValueBytes;
-                value.offset = blockValueOffsets[position];
-                value.length = blockValueOffsets[position + 1] - blockValueOffsets[position];
-                yield value;
-            }
-            case DICTIONARY -> meta.dictionary().term((int) blockOrdinals[position]);
-        };
+        value.bytes = blockValueBytes;
+        value.offset = blockValueOffsets[position];
+        value.length = blockValueOffsets[position + 1] - blockValueOffsets[position];
+        return value;
     }
 
     /** Values per encoding block. */
@@ -154,10 +124,7 @@ public final class StringColumnReader {
         DataInput blockData = blockBytesCodec.read(data, length);
         // Full blocks hold blockSize values; the last block holds the remainder.
         int valueCount = (int) Math.min(meta.blockSize(), meta.numValues() - block * meta.blockSize());
-        switch (meta.layout()) {
-            case PLAIN -> StringBlockEncoder.decode(blockData, valueCount, blockValueBytes, blockValueOffsets);
-            case DICTIONARY -> ordinalEncoder.decode(blockData, valueCount, blockOrdinals);
-        }
+        StringBlockEncoder.decode(blockData, valueCount, blockValueBytes, blockValueOffsets);
         cachedBlock = block;
     }
 }

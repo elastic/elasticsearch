@@ -22,8 +22,8 @@ import java.io.Closeable;
 import java.io.IOException;
 
 /**
- * Builds a {@code DirectMonotonic} table (block offsets, per-document value addresses, dictionary term
- * offsets) into a temporary file, so the table never sits on the heap while it is being written. On
+ * Builds a {@code DirectMonotonic} table (block offsets, per-document value addresses) into a temporary
+ * file, so the table never sits on the heap while it is being written. On
  * {@link #finish} the temporary data is copied into the column's data output and its small metadata is
  * returned; {@link #close} removes the temporary file.
  *

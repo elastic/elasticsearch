@@ -279,7 +279,7 @@ public class HttpClientTests extends ESTestCase {
                     Transfer-Encoding: chunked\r
                     \r
                     """.getBytes(StandardCharsets.US_ASCII));
-                // Flusher headers so subcriber can subscribe before body is sent
+                // Flush headers so subcriber can subscribe before body is sent
                 out.flush();
 
                 // Wait until the subscriber has subscribed

@@ -50,7 +50,7 @@ public abstract class AbstractCcsRollingUpgradeTestCase extends ESRestTestCase {
         .name("remote")
         // Nodes here start on a prior Elasticsearch version, which requires the default distribution type.
         .distribution(DistributionType.DEFAULT)
-        .version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion())
+        .version(OLD_CLUSTER_VERSION)
         .nodes(REMOTE_NODE_NUM)
         .setting("xpack.security.enabled", "false")
         .node(0, spec -> spec.setting("node.attr.gateway", "true"))
@@ -64,7 +64,7 @@ public abstract class AbstractCcsRollingUpgradeTestCase extends ESRestTestCase {
         .nodes(2)
         .setting("cluster.remote.node.attr", "gateway")
         .setting("xpack.security.enabled", "false")
-        .node(0, spec -> spec.version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion()))
+        .node(0, spec -> spec.version(OLD_CLUSTER_VERSION))
         .build();
 
     @ClassRule

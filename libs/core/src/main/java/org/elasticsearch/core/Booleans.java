@@ -163,6 +163,10 @@ public final class Booleans {
 
     private static boolean hasText(byte[] text, int offset, int length) {
         for (int i = offset; i < offset + length; i++) {
+            // & 0xFF converts the signed byte to an unsigned int code point. All Java whitespace
+            // characters are ASCII (< 128), so this is lossless for whitespace detection. Bytes
+            // >= 128 are leading or continuation bytes of multi-byte UTF-8 sequences and are never
+            // whitespace, so Character.isWhitespace correctly returns false for them.
             if (Character.isWhitespace(text[i] & 0xFF) == false) {
                 return true;
             }

@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.esql.qa.rest.generative;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.QueryExecuted;
@@ -29,6 +33,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -385,7 +390,11 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
                         (c, name, mapping, baseSettings) -> createIndex(
                             name,
                             Settings.builder().put(baseSettings).put(candExtra).build(),
-                            mapping
+                            // Strict columnar modes reject `store: true` on any field. Strip the
+                            // attribute so datasets that carry it (e.g. hosts/mapping-hosts.json)
+                            // can be created in columnar mode. Values remain accessible via doc
+                            // values and synthetic source, so query results are unaffected.
+                            stripStoredFields(mapping)
                         )
                     );
                     surviving.add(REF_PREFIX + dataset.indexName());
@@ -601,6 +610,19 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
         // boolean MV fields instead of the correct multi-value boolean.
         // TODO: remove once the columnar FIRST/LAST boolean bug is fixed.
         if (cmdText.contains("FIRST(") || cmdText.contains("LAST(")) {
+            return false;
+        }
+        // VARIANCE / STD_DEV are computed with Welford's algorithm, whose parallel-merge step
+        // (WelfordAlgorithm#add(mean, m2, count)) is not associative in floating point: it
+        // recombines the mean as (mean*count + meanValue*countValue)/(count+countValue), which
+        // rounds for non-power-of-two partial counts and leaves a residual delta. Standard and
+        // columnar indices partition the same data across different shards/segments, so the two
+        // sides merge partial states in different orders. For a group whose values are all equal
+        // the true result is 0, but one side can return 0.0 while the other returns ~1e-32 —
+        // a difference that the 6-significant-figure rounding in canonicalValue cannot absorb,
+        // because relative rounding is meaningless at zero.
+        // See: https://github.com/elastic/elasticsearch/issues/156988
+        if (cmdText.contains("VARIANCE(") || cmdText.contains("STD_DEV(")) {
             return false;
         }
         // DISSECT and GROK applied to multi-value string fields: standard mode expands each element
@@ -932,6 +954,35 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
             || s.startsWith("MULTILINESTRING (")
             || s.startsWith("MULTIPOLYGON (")
             || s.startsWith("GEOMETRYCOLLECTION (");
+    }
+
+    /**
+     * Removes all {@code "store": true} attributes from a mapping JSON string.
+     *
+     * <p>Strict columnar index modes (e.g. {@code index.mode=columnar}) reject any field that has
+     * {@code store: true} at mapping-parse time. The ES|QL CSV test fixtures retain that attribute
+     * in some mappings (e.g. {@code mapping-hosts.json}) for use in non-columnar test suites. To
+     * allow those datasets to be created in columnar mode, the candidate-side index creator strips
+     * the attribute before forwarding the mapping to the server. Field values are still readable
+     * via doc values and synthetic source, so all ES|QL CSV tests exercise the same query paths.
+     */
+    private static String stripStoredFields(String mapping) throws IOException {
+        Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, false);
+        removeKey(map, "store");
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.map(map);
+            return Strings.toString(builder);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void removeKey(Map<String, Object> map, String key) {
+        map.remove(key);
+        for (Object value : map.values()) {
+            if (value instanceof Map) {
+                removeKey((Map<String, Object>) value, key);
+            }
+        }
     }
 
     /**

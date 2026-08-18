@@ -55,7 +55,7 @@ public class ToDoubleRange extends AbstractConvertFunction {
         briefSummary = "Converts a value to a double_range.",
         description = """
             Converts an input value to a `double_range` value.
-            A string will be parsed as a double range in the format `start..end`, where start and end are \
+            Strings are parsed as a double range in the format `start..end`, where `start` and `end` are \
             double-precision floating-point numbers. The range is half-open `[start, end)`.""",
         examples = { @Example(file = "double_range", tag = "to_double_range-str") }
     )

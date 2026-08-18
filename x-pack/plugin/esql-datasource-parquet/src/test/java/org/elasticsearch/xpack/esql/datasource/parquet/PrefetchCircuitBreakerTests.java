@@ -39,7 +39,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -175,6 +177,92 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
             }
         }
         assertEquals("Breaker should return to zero after early close", 0, breaker.getUsed());
+    }
+
+    /**
+     * N concurrent optimized readers share one breaker and one Arrow allocator. After every
+     * thread finishes iterating, both accounts must return to baseline. Uses zstd so the
+     * decompress path (bug #1) is exercised under concurrency, not only uncompressed prefetch.
+     */
+    public void testConcurrentReadersShareBreaker() throws Exception {
+        int readers = 4;
+        MessageType wideSchema = buildWideSchema(8);
+        byte[] parquetData = createMultiRowGroupFile(wideSchema, 3000, 2048, CompressionCodecName.ZSTD);
+        var breaker = new TrackingBreaker("test", ByteSizeValue.ofMb(256));
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+        long allocBaseline = blockFactory.arrowAllocator().getAllocatedMemory();
+
+        startInParallel(readers, i -> {
+            StorageObject storage = new InMemoryStorageObject(parquetData);
+            int totalRows = 0;
+            try {
+                try (
+                    CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(
+                        storage,
+                        FormatReadContext.of(null, 1024)
+                    )
+                ) {
+                    while (iter.hasNext()) {
+                        Page page = iter.next();
+                        totalRows += page.getPositionCount();
+                        page.releaseBlocks();
+                    }
+                }
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+            assertTrue("Should have read rows", totalRows > 0);
+        });
+        assertEquals("Breaker should return to zero after concurrent readers finish", 0, breaker.getUsed());
+        assertEquals(
+            "Arrow allocator should return to baseline after concurrent readers finish",
+            allocBaseline,
+            blockFactory.arrowAllocator().getAllocatedMemory()
+        );
+        assertTrue("Prefetch should have reserved breaker bytes", breaker.peakUsed.get() > 0);
+    }
+
+    /**
+     * N concurrent readers each consume one page, wait together so prefetch is in-flight,
+     * then close on the iterating thread (query cancel on the driver thread). Breaker and
+     * allocator must return to baseline.
+     */
+    public void testConcurrentCancelReclaimsMemory() throws Exception {
+        int readers = 4;
+        MessageType wideSchema = buildWideSchema(8);
+        byte[] parquetData = createMultiRowGroupFile(wideSchema, 5000, 2048, CompressionCodecName.ZSTD);
+        var breaker = new TrackingBreaker("test", ByteSizeValue.ofMb(256));
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+        long allocBaseline = blockFactory.arrowAllocator().getAllocatedMemory();
+
+        CyclicBarrier hold = new CyclicBarrier(readers);
+        startInParallel(readers, i -> {
+            StorageObject storage = new InMemoryStorageObject(parquetData);
+            try {
+                try (
+                    CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(
+                        storage,
+                        FormatReadContext.of(null, 1024)
+                    )
+                ) {
+                    if (iter.hasNext()) {
+                        Page page = iter.next();
+                        page.releaseBlocks();
+                    }
+                    hold.await(30, TimeUnit.SECONDS);
+                }
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        });
+        assertBusy(() -> {
+            assertEquals("Breaker should return to zero after concurrent cancel", 0, breaker.getUsed());
+            assertEquals(
+                "Arrow allocator should return to baseline after concurrent cancel",
+                allocBaseline,
+                blockFactory.arrowAllocator().getAllocatedMemory()
+            );
+        });
     }
 
     // --- Helpers ---
@@ -317,11 +405,58 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         return builder.named("wide_schema");
     }
 
+    /**
+     * In-memory {@link StorageObject} that uses the default {@code readBytesAsync} path so
+     * prefetch buffers are allocated through the supplied {@link DirectBufferFactory}.
+     */
+    private static final class InMemoryStorageObject implements StorageObject {
+        private final byte[] data;
+
+        InMemoryStorageObject(byte[] data) {
+            this.data = data;
+        }
+
+        @Override
+        public InputStream newStream() {
+            return new ByteArrayInputStream(data);
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            return new ByteArrayInputStream(data, (int) position, (int) Math.min(length, data.length - position));
+        }
+
+        @Override
+        public long length() {
+            return data.length;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("memory://breaker-concurrent.parquet");
+        }
+    }
+
     private byte[] createMultiRowGroupFile(int rowCount, int rowGroupSize) throws IOException {
-        return createMultiRowGroupFile(SCHEMA, rowCount, rowGroupSize);
+        return createMultiRowGroupFile(SCHEMA, rowCount, rowGroupSize, CompressionCodecName.UNCOMPRESSED);
     }
 
     private byte[] createMultiRowGroupFile(MessageType schema, int rowCount, int rowGroupSize) throws IOException {
+        return createMultiRowGroupFile(schema, rowCount, rowGroupSize, CompressionCodecName.UNCOMPRESSED);
+    }
+
+    private byte[] createMultiRowGroupFile(MessageType schema, int rowCount, int rowGroupSize, CompressionCodecName codec)
+        throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         OutputFile outputFile = createOutputFile(outputStream);
         SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
@@ -334,7 +469,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
                 .withConf(new PlainParquetConfiguration())
                 .withCodecFactory(new PlainCompressionCodecFactory())
                 .withType(schema)
-                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withCompressionCodec(codec)
                 .withRowGroupSize(rowGroupSize)
                 .withPageSize(256)
                 .build()

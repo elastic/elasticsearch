@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.mapper;
 
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
@@ -21,6 +22,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.mapper.EmbeddingsSemanticFieldValueFetcher.advanceToEmbeddingsValue;
 import static org.elasticsearch.xpack.inference.mapper.EmbeddingsSemanticFieldValueFetcher.parseEmbeddings;
@@ -30,16 +32,21 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED
  * A {@link ValueFetcher} for the {@code embeddings} fetch format on legacy-format {@code semantic_text} fields.
  * <p>
  * In the legacy format, sparse-vector embeddings are not stored as Lucene stored fields (they are indexed but not stored,
- * so they cannot be recovered via the synthetic-field-loader path used by
- * {@link EmbeddingsSemanticFieldValueFetcher}. Instead, the full {@code {text, inference: {...}}} object is kept verbatim
- * in the document's stored {@code _source}, and the embeddings are extracted directly from there.
+ * so they cannot be recovered via the synthetic-field-loader path used by {@link EmbeddingsSemanticFieldValueFetcher}).
+ * Instead, the full {@code {text, inference: {...}}} object is kept verbatim in the document's stored {@code _source},
+ * and the embeddings are extracted directly from there.
  * </p>
  */
 class LegacyEmbeddingsSemanticFieldValueFetcher implements ValueFetcher {
     private final SemanticFieldMapper.SemanticFieldType fieldType;
+    private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
 
-    LegacyEmbeddingsSemanticFieldValueFetcher(SemanticFieldMapper.SemanticFieldType fieldType) {
+    LegacyEmbeddingsSemanticFieldValueFetcher(
+        SemanticFieldMapper.SemanticFieldType fieldType,
+        IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+    ) {
         this.fieldType = fieldType;
+        this.ignoredSourceFormat = ignoredSourceFormat;
     }
 
     @Override
@@ -66,7 +73,9 @@ class LegacyEmbeddingsSemanticFieldValueFetcher implements ValueFetcher {
 
     @Override
     public StoredFieldsSpec storedFieldsSpec() {
-        return StoredFieldsSpec.NEEDS_SOURCE;
+        // Legacy-format semantic_text has no native synthetic source support, so under synthetic source the field's value is recovered
+        // from ignored source.
+        return StoredFieldsSpec.withSourcePaths(ignoredSourceFormat, Set.of(fieldType.name()));
     }
 
     private static Object readParsedEmbeddings(

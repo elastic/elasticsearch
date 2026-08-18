@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.test.ParameterizedRollingUpgradeTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -39,7 +40,12 @@ import static org.hamcrest.Matchers.greaterThan;
  * ({@link InferenceFeatures#INFERENCE_CCM_ENABLEMENT_SERVICE}).
  *
  * <ul>
- *   <li><b>Old cluster:</b> CCM is enabled and a mock EIS auth response populates endpoints in cluster state.</li>
+ *   <li><b>Old cluster (pre-9.6):</b> CCM is enabled and a mock EIS auth response populates endpoints in cluster state.
+ *       The full {@link EndpointMetadata} layout (including {@code display}) is verified in cluster state, confirming that
+ *       the post-upgrade assertion that {@code display} is absent is meaningful.
+ *       This check is skipped when the old cluster already carries the subset change
+ *       (i.e. it publishes {@link InferenceFeatures#ENDPOINT_METADATA_CLUSTER_STATE_SUBSET}) — which is the case for
+ *       the self-upgrade {@code v<current>#bwcTest} task.</li>
  *   <li><b>Mixed cluster:</b> Endpoints remain accessible; cluster state is still parseable by both old and new nodes.</li>
  *   <li><b>Upgraded cluster:</b> Cluster state must not contain {@code display}, {@code regions}, or
  *       {@code denied_by_region_policy} in the {@code metadata} field, while
@@ -104,14 +110,25 @@ public class EndpointMetadataClusterStateUpgradeIT extends ParameterizedRollingU
             });
             // Verify that old-cluster nodes write the full EndpointMetadata (including display) to cluster state,
             // so that the post-upgrade assertion that display is absent is meaningful.
-            var oldModels = getMinimalConfigs();
-            assertTrue(
-                "At least one EIS endpoint must have display in cluster state on the old cluster",
-                oldModels.values().stream().anyMatch(endpoint -> {
-                    var metadata = (Map<String, Object>) XContentMapValues.extractValue("metadata", endpoint);
-                    return metadata != null && metadata.containsKey("display");
-                })
+            // This check is skipped when the old cluster already carries the cluster-state subset change
+            // (i.e. it publishes ENDPOINT_METADATA_CLUSTER_STATE_SUBSET) — the self-upgrade v<current>#bwcTest task
+            // runs both the "old" and "new" cluster from the same build, so display was never written.
+            var oldClusterWritesFullMetadata = oldClusterHasFeature(InferenceFeatures.ENDPOINT_METADATA_CLUSTER_STATE_SUBSET) == false;
+            logger.info(
+                "Old cluster [{}] writes full endpoint metadata (including display) to cluster state: [{}]",
+                getOldClusterVersion(),
+                oldClusterWritesFullMetadata
             );
+            if (oldClusterWritesFullMetadata) {
+                var oldModels = getMinimalConfigs();
+                assertTrue(
+                    "At least one EIS endpoint must have display in cluster state on the old cluster",
+                    oldModels.values().stream().anyMatch(endpoint -> {
+                        var metadata = (Map<String, Object>) XContentMapValues.extractValue("metadata", endpoint);
+                        return metadata != null && metadata.containsKey("display");
+                    })
+                );
+            }
         }
 
         if (isMixedCluster() || isUpgradedCluster()) {

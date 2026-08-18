@@ -9,6 +9,8 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,7 +24,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -44,11 +45,15 @@ import static org.hamcrest.Matchers.not;
  * This test ensure that we keep the search states of a CCS request correctly when the local and remote clusters
  * have different but compatible versions. See SearchService#createAndPutReaderContext
  */
-public class SearchStatesIT extends ESRestTestCase {
+public class SearchStatesIT extends AbstractCcsRollingUpgradeTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(SearchStatesIT.class);
-    private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
+    private static final Version UPGRADE_FROM_VERSION = Version.fromString(getOldClusterVersion());
     private static final String CLUSTER_ALIAS = "remote_cluster";
+
+    public SearchStatesIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
     record Node(String id, String name, Version version, String transportAddress, String httpAddress, Map<String, Object> attributes) {}
 
@@ -68,10 +73,9 @@ public class SearchStatesIT extends ESRestTestCase {
         return nodes;
     }
 
-    static List<HttpHost> parseHosts(String props) {
-        final String address = System.getProperty(props);
-        assertNotNull("[" + props + "] is not configured", address);
-        String[] stringUrls = address.split(",");
+    static List<HttpHost> parseHosts(String addresses) {
+        assertNotNull("cluster addresses must not be null", addresses);
+        String[] stringUrls = addresses.split(",");
         List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
         for (String stringUrl : stringUrls) {
             int portSeparator = stringUrl.lastIndexOf(':');
@@ -82,11 +86,11 @@ public class SearchStatesIT extends ESRestTestCase {
             int port = Integer.parseInt(stringUrl.substring(portSeparator + 1));
             hosts.add(new HttpHost(host, port, "http"));
         }
-        assertThat("[" + props + "] is empty", hosts, not(empty()));
+        assertThat("cluster addresses [" + addresses + "] are empty", hosts, not(empty()));
         return hosts;
     }
 
-    public static void configureRemoteClusters(List<Node> remoteNodes) throws Exception {
+    public void configureRemoteClusters(List<Node> remoteNodes) throws Exception {
         assertThat(remoteNodes, hasSize(3));
         final String remoteClusterSettingPrefix = "cluster.remote." + CLUSTER_ALIAS + ".";
         try (RestClient localClient = newLocalClient()) {
@@ -123,15 +127,15 @@ public class SearchStatesIT extends ESRestTestCase {
         }
     }
 
-    static RestClient newLocalClient() {
-        final List<HttpHost> hosts = parseHosts("tests.rest.cluster");
+    RestClient newLocalClient() {
+        final List<HttpHost> hosts = parseHosts(getTestRestCluster());
         final int index = random().nextInt(hosts.size());
         LOGGER.info("Using client node {}", index);
         return RestClient.builder(hosts.get(index)).build();
     }
 
-    static RestClient newRemoteClient() {
-        return RestClient.builder(randomFrom(parseHosts("tests.rest.remote_cluster"))).build();
+    RestClient newRemoteClient() {
+        return RestClient.builder(randomFrom(parseHosts(getRemoteClusterRestAddresses()))).build();
     }
 
     static int indexDocs(RestClient client, String index, int numDocs) throws IOException {

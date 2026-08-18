@@ -93,6 +93,60 @@
       ],
       "variadic" : false,
       "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "left",
+          "type" : "double",
+          "optional" : false,
+          "description" : "First value (point or range)."
+        },
+        {
+          "name" : "right",
+          "type" : "double_range",
+          "optional" : false,
+          "description" : "Second value (point or range)."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "left",
+          "type" : "double_range",
+          "optional" : false,
+          "description" : "First value (point or range)."
+        },
+        {
+          "name" : "right",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Second value (point or range)."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "left",
+          "type" : "double_range",
+          "optional" : false,
+          "description" : "First value (point or range)."
+        },
+        {
+          "name" : "right",
+          "type" : "double_range",
+          "optional" : false,
+          "description" : "Second value (point or range)."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
     }
   ],
   "examples" : [

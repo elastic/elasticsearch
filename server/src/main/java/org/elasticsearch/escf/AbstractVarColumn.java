@@ -57,7 +57,7 @@ abstract class AbstractVarColumn extends EscfColumn {
      */
     @Override
     public final ObjectTupleCursor<BytesRef> bytesRefCursor(boolean retainValues) {
-        return new BytesRefTupleCursor(this, retainValues);
+        return new BytesRefTupleCursor(presentDocs(), new DenseBytesRefValuesCursor(docCount, this, retainValues));
     }
 
     /**
@@ -95,15 +95,15 @@ abstract class AbstractVarColumn extends EscfColumn {
         return EscfColumnData.ofVarWidth(kind(), docCount, validity, newOffsets, newData);
     }
 
-    private static final class BytesRefTupleCursor extends ObjectTupleCursor<BytesRef> {
+    static final class BytesRefTupleCursor extends ObjectTupleCursor<BytesRef> {
         private final PresentDocIterator present;
         private final DenseBytesRefValuesCursor values;
         private int lastRow = -1;
         private BytesRef currentValue;
 
-        BytesRefTupleCursor(AbstractVarColumn column, boolean retainValues) {
-            this.present = column.presentDocs();
-            this.values = new DenseBytesRefValuesCursor(column.docCount, column, retainValues);
+        BytesRefTupleCursor(PresentDocIterator present, DenseBytesRefValuesCursor values) {
+            this.present = present;
+            this.values = values;
         }
 
         @Override
@@ -145,14 +145,7 @@ abstract class AbstractVarColumn extends EscfColumn {
             this(count, column.offsets, column.data, retainValues);
         }
 
-        /**
-         * Constructs a cursor directly from an offset vector and data buffer. Used by
-         * {@link EscfUnionColumn} to iterate union payloads without going through a
-         * var-width column instance (which would assert {@code validity == null}).
-         * The union's offset vector has one slot per row regardless of validity, so a
-         * dense one-entry-per-row walk is correct — and the {@code validity == null} guard
-         * in {@link AbstractVarColumn#bytesRefValuesCursor} must not apply here.
-         */
+        /** Constructs a cursor directly from raw offset and data buffers. */
         DenseBytesRefValuesCursor(int count, IntsRef offsets, BytesReference data, boolean retainValues) {
             super(count);
             this.iter = sliceData(offsets, data, count).iterator();

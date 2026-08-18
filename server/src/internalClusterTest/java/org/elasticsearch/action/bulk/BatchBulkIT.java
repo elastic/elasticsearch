@@ -80,7 +80,6 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", shards)
                         .put("index.number_of_replicas", replicas)
                         .put("index.mapping.source.mode", "synthetic")
-
                 )
                 .setMapping(mapping)
         );

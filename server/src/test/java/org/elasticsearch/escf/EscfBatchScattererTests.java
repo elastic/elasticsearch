@@ -28,16 +28,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Tests for {@link EscfBatchScatterer}: encoding a single batch and scattering its rows into
- * per-partition sub-batches, verifying correct row assignment, value fidelity, column-kind
- * preservation, empty-array vs absent distinction, and leak-safe resource management.
- *
- * <p>Tests use a {@link MockPageCacheRecycler}-backed recycler so unreleased pages fail the test.
- * The core assertion is row-level round-trip: for each source row {@code r},
- * {@code reconstruct(dest[selectors[r]], destCounters[selectors[r]]++)} must equal
- * {@code reconstruct(source, r)}.
- */
 public class EscfBatchScattererTests extends ESTestCase {
 
     /**

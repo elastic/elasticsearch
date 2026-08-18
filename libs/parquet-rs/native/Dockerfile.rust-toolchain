@@ -47,5 +47,6 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
         x86_64-unknown-linux-gnu \
     && rm -rf /usr/local/cargo/registry /usr/local/cargo/git
 
+# PEP 668 requires --break-system-packages for pip in Debian 12+; harmless in a disposable build image
 RUN pip3 install ziglang==0.16.0 --break-system-packages
 RUN cargo install --locked --version 0.22.3 cargo-zigbuild

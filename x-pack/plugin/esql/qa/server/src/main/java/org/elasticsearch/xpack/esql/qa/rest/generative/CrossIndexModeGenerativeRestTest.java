@@ -37,8 +37,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.test.rest.ESRestTestCase.CLIENT_SOCKET_TIMEOUT;
-import static org.elasticsearch.test.rest.ESRestTestCase.createIndex;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsForEs;
 
 /**

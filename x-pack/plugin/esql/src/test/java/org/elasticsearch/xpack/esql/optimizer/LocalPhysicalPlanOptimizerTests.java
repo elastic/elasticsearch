@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateComm
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.DocVectorConsumers;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -83,6 +84,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
+import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
@@ -3407,5 +3409,27 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             new LocalPhysicalOptimizerContext(PlannerSettings.DEFAULTS, new EsqlFlags(true), config, FoldContext.small(), stats)
         );
         localPhysicalOptimizer.verify(mutated, mutated.output());
+    }
+
+    /** HIGHLIGHT queries run against a MemoryIndex and do not require {@code _doc}. */
+    public void testHighlightQueryDoesNotConsumeDocAttribute() {
+        var stats = new TestSearchStats();
+        var source = Source.EMPTY;
+        var onField = new ReferenceAttribute(source, "first_name", DataType.KEYWORD);
+        // QSTR normally requires _doc.
+        var query = new QueryString(source, Literal.keyword(source, "elasticsearch"), null, config);
+        assertThat(query.isRuntimeSearch(), is(false));
+
+        List<NamedExpression> fields = List.of(onField);
+        List<Attribute> generatedFields = Highlight.generatedAttributesFor(source, Highlight.DEFAULT_PREFIX, fields);
+        var docFreeSource = new LocalSourceExec(source, List.of(onField), EmptyLocalSupplier.EMPTY);
+        var highlight = new HighlightExec(source, docFreeSource, Highlight.DEFAULT_PREFIX, query, fields, null, generatedFields);
+
+        assertThat(DocVectorConsumers.consumesDocVector(highlight), is(false));
+
+        var localPhysicalOptimizer = new LocalPhysicalPlanOptimizer(
+            new LocalPhysicalOptimizerContext(PlannerSettings.DEFAULTS, new EsqlFlags(true), config, FoldContext.small(), stats)
+        );
+        localPhysicalOptimizer.verify(highlight, highlight.output());
     }
 }

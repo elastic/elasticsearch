@@ -156,9 +156,8 @@ public sealed class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7Vec
     @Override
     public void int7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
         assert q.length == dimensions;
-        IndexInputUtils.withSlice(in, (long) dimensions * count, scratch, segment -> {
+        IndexInputUtils.withVoidSlice(in, (long) dimensions * count, scratch, segment -> {
             panamaInt7DotProductBulkImpl(q, segment, dimensions, count, scores);
-            return null;
         });
     }
 

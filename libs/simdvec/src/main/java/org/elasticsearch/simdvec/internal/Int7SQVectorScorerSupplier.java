@@ -64,7 +64,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
 
         long queryByteOffset = (long) firstOrd * vectorTotalBytes;
         input.seek(queryByteOffset);
-        return IndexInputUtils.withSlice(input, vectorTotalBytes, firstScratch, query -> {
+        return IndexInputUtils.withFloatSlice(input, vectorTotalBytes, firstScratch, query -> {
             float queryOffsetValue = query.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
 
             long[] offsets = offsetsScratch.get(numNodes);
@@ -108,10 +108,10 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         long secondByteOffset = (long) secondOrd * vectorTotalBytes;
 
         input.seek(firstByteOffset);
-        return IndexInputUtils.withSlice(input, vectorTotalBytes, firstScratch, firstSeg -> {
+        return IndexInputUtils.withFloatSlice(input, vectorTotalBytes, firstScratch, firstSeg -> {
             float firstOffsetValue = firstSeg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
             input.seek(secondByteOffset);
-            return IndexInputUtils.withSlice(input, vectorTotalBytes, secondScratch, secondSeg -> {
+            return IndexInputUtils.withFloatSlice(input, vectorTotalBytes, secondScratch, secondSeg -> {
                 float secondOffsetValue = secondSeg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
                 return scoreFromSegments(firstSeg, firstOffsetValue, secondSeg, secondOffsetValue);
             });

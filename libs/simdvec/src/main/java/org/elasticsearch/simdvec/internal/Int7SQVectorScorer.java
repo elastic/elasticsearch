@@ -117,7 +117,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             checkOrdinal(node);
             long byteOffset = (long) node * vectorPitch;
             input.seek(byteOffset);
-            return IndexInputUtils.withSlice(input, vectorPitch, scratch, seg -> {
+            return IndexInputUtils.withFloatSlice(input, vectorPitch, scratch, seg -> {
                 int dotProduct = DISTANCE_FUNCS.dotProductI7u(query, seg.asSlice(0, vectorByteSize), vectorByteSize);
                 assert dotProduct >= 0;
                 float nodeCorrection = Float.intBitsToFloat(seg.get(ValueLayout.JAVA_INT_UNALIGNED, vectorByteSize));
@@ -158,7 +158,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             checkOrdinal(node);
             long byteOffset = (long) node * vectorPitch;
             input.seek(byteOffset);
-            int sqDist = IndexInputUtils.withSlice(
+            float sqDist = IndexInputUtils.withFloatSlice(
                 input,
                 vectorPitch,
                 scratch,
@@ -202,7 +202,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             checkOrdinal(node);
             long byteOffset = (long) node * vectorPitch;
             input.seek(byteOffset);
-            return IndexInputUtils.withSlice(input, vectorPitch, scratch, seg -> {
+            return IndexInputUtils.withFloatSlice(input, vectorPitch, scratch, seg -> {
                 int dotProduct = DISTANCE_FUNCS.dotProductI7u(query, seg.asSlice(0, vectorByteSize), vectorByteSize);
                 assert dotProduct >= 0;
                 float nodeCorrection = Float.intBitsToFloat(seg.get(ValueLayout.JAVA_INT_UNALIGNED, vectorByteSize));

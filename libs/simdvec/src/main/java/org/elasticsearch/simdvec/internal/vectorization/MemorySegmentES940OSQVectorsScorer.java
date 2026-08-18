@@ -434,7 +434,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             float queryBitScale,
             float indexBitScale
         ) throws IOException {
-            return IndexInputUtils.withSlice(
+            return IndexInputUtils.withFloatSlice(
                 in,
                 16L * bulkSize,
                 scratch,
@@ -466,7 +466,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             float queryBitScale,
             float indexBitScale
         ) throws IOException {
-            return IndexInputUtils.withSlice(
+            return IndexInputUtils.withFloatSlice(
                 in,
                 16L * bulkSize,
                 scratch,

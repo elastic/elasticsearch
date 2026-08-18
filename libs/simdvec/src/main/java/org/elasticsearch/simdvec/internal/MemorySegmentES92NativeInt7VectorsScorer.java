@@ -42,11 +42,10 @@ public final class MemorySegmentES92NativeInt7VectorsScorer extends MemorySegmen
     @Override
     public void int7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
         assert q.length == dimensions;
-        IndexInputUtils.withSlice(in, (long) dimensions * count, scratch, segment -> {
+        IndexInputUtils.withVoidSlice(in, (long) dimensions * count, scratch, segment -> {
             final MemorySegment scoresSegment = MemorySegment.ofArray(scores);
             final MemorySegment querySegment = MemorySegment.ofArray(q);
             DISTANCE_FUNCS.dotProductI7uBulk(segment, querySegment, dimensions, count, scoresSegment);
-            return null;
         });
     }
 
@@ -63,7 +62,7 @@ public final class MemorySegmentES92NativeInt7VectorsScorer extends MemorySegmen
         int bulkSize
     ) throws IOException {
         int7DotProductBulk(q, bulkSize, scores);
-        IndexInputUtils.withSlice(in, 16L * bulkSize, scratch, memorySegment -> {
+        IndexInputUtils.withVoidSlice(in, 16L * bulkSize, scratch, memorySegment -> {
             nativeApplyCorrectionsBulk(
                 similarityFunction,
                 memorySegment,
@@ -78,7 +77,6 @@ public final class MemorySegmentES92NativeInt7VectorsScorer extends MemorySegmen
                 centroidDp,
                 MemorySegment.ofArray(scores)
             );
-            return null;
         });
     }
 }

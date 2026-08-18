@@ -60,7 +60,7 @@ public abstract class BFloat16VectorScorerSupplier implements RandomVectorScorer
 
         long queryByteOffset = (long) firstOrd * vectorByteSize;
         input.seek(queryByteOffset);
-        return IndexInputUtils.withSlice(input, vectorByteSize, firstScratch, query -> {
+        return IndexInputUtils.withFloatSlice(input, vectorByteSize, firstScratch, query -> {
             long[] offsets = offsetsScratch.get(numNodes);
             for (int i = 0; i < numNodes; i++) {
                 offsets[i] = (long) ordinals[i] * vectorByteSize;
@@ -98,9 +98,14 @@ public abstract class BFloat16VectorScorerSupplier implements RandomVectorScorer
         long secondByteOffset = (long) secondOrd * vectorByteSize;
 
         input.seek(firstByteOffset);
-        return IndexInputUtils.withSlice(input, vectorByteSize, firstScratch, firstSeg -> {
+        return IndexInputUtils.withFloatSlice(input, vectorByteSize, firstScratch, firstSeg -> {
             input.seek(secondByteOffset);
-            return IndexInputUtils.withSlice(input, vectorByteSize, secondScratch, secondSeg -> scoreFromSegments(firstSeg, secondSeg));
+            return IndexInputUtils.withFloatSlice(
+                input,
+                vectorByteSize,
+                secondScratch,
+                secondSeg -> scoreFromSegments(firstSeg, secondSeg)
+            );
         });
     }
 

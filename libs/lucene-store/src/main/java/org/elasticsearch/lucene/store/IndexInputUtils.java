@@ -97,6 +97,46 @@ public final class IndexInputUtils {
     }
 
     /**
+     * Variant of {@link #withSlice} for actions that produce a {@code float}, value.
+     *
+     * <p>How the segment is obtained, how long it stays valid, and how the position of the
+     * index input is advanced are all as documented on {@link #withSlice}.
+     *
+     * @param in              the index input positioned at the data to read
+     * @param length          the number of bytes to read
+     * @param scratchSupplier supplies a byte array of at least the requested
+     *                        length, used only on the heap-copy fallback path
+     * @param action          the action to perform on the memory segment
+     */
+    public static float withFloatSlice(
+        IndexInput in,
+        long length,
+        IntFunction<byte[]> scratchSupplier,
+        CheckedToFloatFunction<MemorySegment, IOException> action
+    ) throws IOException {
+        checkInputType(in);
+        if (in instanceof MemorySegmentAccessInput msai) {
+            long offset = in.getFilePointer();
+            MemorySegment slice = msai.segmentSliceOrNull(offset, length);
+            if (slice != null) {
+                float result = action.applyAsFloat(slice);
+                in.seek(offset + length);
+                return result;
+            }
+        }
+        if (in instanceof DirectAccessInput dai) {
+            long offset = in.getFilePointer();
+            float[] result = new float[1];
+            boolean available = dai.withMemorySegmentSlice(offset, length, seg -> result[0] = action.applyAsFloat(seg));
+            if (available) {
+                in.seek(offset + length);
+                return result[0];
+            }
+        }
+        return copyAndApply(in, Math.toIntExact(length), scratchSupplier, action::applyAsFloat);
+    }
+
+    /**
      * Variant of {@link #withSlice} for actions that produce no value, to scope a memory
      * segment around a block of work rather than to compute a result from it.
      *

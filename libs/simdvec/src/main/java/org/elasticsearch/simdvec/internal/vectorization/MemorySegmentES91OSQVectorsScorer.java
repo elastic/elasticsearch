@@ -197,10 +197,12 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
 
     private void quantizeScore128Bulk(byte[] q, int count, float[] scores) throws IOException {
         var datasetLengthInBytes = (long) length * count;
-        IndexInputUtils.withSlice(in, datasetLengthInBytes, scratch, segment -> {
-            quantizeScore128BulkImpl(q, count, scores, segment, length);
-            return null;
-        });
+        IndexInputUtils.withVoidSlice(
+            in,
+            datasetLengthInBytes,
+            scratch,
+            segment -> { quantizeScore128BulkImpl(q, count, scores, segment, length); }
+        );
     }
 
     private static void quantizeScore128BulkImpl(byte[] q, int count, float[] scores, MemorySegment memorySegment, int length) {
@@ -246,10 +248,12 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
 
     private void quantizeScore256Bulk(byte[] q, int count, float[] scores) throws IOException {
         var datasetLengthInBytes = (long) length * count;
-        IndexInputUtils.withSlice(in, datasetLengthInBytes, scratch, segment -> {
-            quantizeScore256BulkImpl(q, count, scores, segment, length);
-            return null;
-        });
+        IndexInputUtils.withVoidSlice(
+            in,
+            datasetLengthInBytes,
+            scratch,
+            segment -> { quantizeScore256BulkImpl(q, count, scores, segment, length); }
+        );
     }
 
     private static void quantizeScore256BulkImpl(byte[] q, int count, float[] scores, MemorySegment memorySegment, int length) {
@@ -332,7 +336,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
         // 128 / 8 == 16
         if (length >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
-                return IndexInputUtils.withSlice(
+                return IndexInputUtils.withFloatSlice(
                     in,
                     (14L + length) * this.bulkSize,
                     scratch,
@@ -349,7 +353,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
                     )
                 );
             } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
-                return IndexInputUtils.withSlice(
+                return IndexInputUtils.withFloatSlice(
                     in,
                     (14L + length) * this.bulkSize,
                     scratch,

@@ -88,7 +88,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
             checkOrdinal(node);
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
-            float dotProduct = IndexInputUtils.withSlice(
+            float dotProduct = IndexInputUtils.withFloatSlice(
                 input,
                 vectorByteSize,
                 scratch,
@@ -138,7 +138,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
             checkOrdinal(node);
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
-            float sqDist = IndexInputUtils.withSlice(
+            float sqDist = IndexInputUtils.withFloatSlice(
                 input,
                 vectorByteSize,
                 scratch,
@@ -187,7 +187,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
             checkOrdinal(node);
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
-            float dotProduct = IndexInputUtils.withSlice(
+            float dotProduct = IndexInputUtils.withFloatSlice(
                 input,
                 vectorByteSize,
                 scratch,

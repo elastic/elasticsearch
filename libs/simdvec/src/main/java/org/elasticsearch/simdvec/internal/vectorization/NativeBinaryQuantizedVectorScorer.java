@@ -49,7 +49,7 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
 
         var offset = ((long) targetOrd * byteSize);
         slice.seek(offset);
-        return IndexInputUtils.withSlice(slice, byteSize, bufferScratch, segment -> {
+        return IndexInputUtils.withFloatSlice(slice, byteSize, bufferScratch, segment -> {
             var indexLowerInterval = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, numBytes);
             var indexUpperInterval = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, numBytes + Float.BYTES);
             var indexAdditionalCorrection = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, numBytes + 2 * Float.BYTES);

@@ -59,21 +59,19 @@ final class MSBitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVector
 
     private void quantizeScore256Bulk(byte[] q, int count, float[] scores) throws IOException {
         var datasetLengthInBytes = (long) length * count;
-        IndexInputUtils.withSlice(in, datasetLengthInBytes, scratch, segment -> {
+        IndexInputUtils.withVoidSlice(in, datasetLengthInBytes, scratch, segment -> {
             for (int i = 0; i < count; i++) {
                 scores[i] = fourStripeBitDotProduct256(q, segment, (long) i * length, length);
             }
-            return null;
         });
     }
 
     private void quantizeScore128Bulk(byte[] q, int count, float[] scores) throws IOException {
         var datasetLengthInBytes = (long) length * count;
-        IndexInputUtils.withSlice(in, datasetLengthInBytes, scratch, segment -> {
+        IndexInputUtils.withVoidSlice(in, datasetLengthInBytes, scratch, segment -> {
             for (int i = 0; i < count; i++) {
                 scores[i] = fourStripeBitDotProduct128(q, segment, (long) i * length, length);
             }
-            return null;
         });
     }
 

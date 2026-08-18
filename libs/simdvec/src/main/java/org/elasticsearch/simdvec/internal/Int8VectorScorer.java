@@ -119,7 +119,7 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
             checkOrdinal(node);
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
-            return IndexInputUtils.withSlice(
+            return IndexInputUtils.withFloatSlice(
                 input,
                 vectorByteSize,
                 scratch,
@@ -156,7 +156,7 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
             checkOrdinal(node);
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
-            return IndexInputUtils.withSlice(input, vectorByteSize, scratch, seg -> {
+            return IndexInputUtils.withFloatSlice(input, vectorByteSize, scratch, seg -> {
                 float cos = DISTANCE_FUNCS.cosineI8(query, seg, dimensions);
                 return normalize(cos);
             });
@@ -187,7 +187,7 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
             checkOrdinal(node);
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
-            return IndexInputUtils.withSlice(input, vectorByteSize, scratch, seg -> {
+            return IndexInputUtils.withFloatSlice(input, vectorByteSize, scratch, seg -> {
                 float sqDist = DISTANCE_FUNCS.squareDistanceI8(query, seg, dimensions);
                 return VectorUtil.normalizeDistanceToUnitInterval(sqDist);
             });
@@ -218,7 +218,7 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
             checkOrdinal(node);
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
-            return IndexInputUtils.withSlice(input, vectorByteSize, scratch, seg -> {
+            return IndexInputUtils.withFloatSlice(input, vectorByteSize, scratch, seg -> {
                 float dp = DISTANCE_FUNCS.dotProductI8(query, seg, dimensions);
                 return VectorUtil.scaleMaxInnerProductScore(dp);
             });

@@ -113,9 +113,9 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
         long secondVectorOffset = (long) secondOrd * vectorPitch;
 
         input.seek(firstVectorOffset);
-        return IndexInputUtils.withSlice(input, vectorPitch, firstScratch, firstSeg -> {
+        return IndexInputUtils.withFloatSlice(input, vectorPitch, firstScratch, firstSeg -> {
             input.seek(secondVectorOffset);
-            return IndexInputUtils.withSlice(input, vectorPitch, secondScratch, secondSeg -> {
+            return IndexInputUtils.withFloatSlice(input, vectorPitch, secondScratch, secondSeg -> {
                 int rawScore = DISTANCE_FUNCS.dotProductI7u(firstSeg, secondSeg, dims);
                 return applyCorrections(rawScore, secondSeg.asSlice(dims, CORRECTIONS_BYTES), query);
             });
@@ -134,7 +134,7 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
         // Request vectorPitch bytes per slice (not dims): the doc-side corrections sit at offset
         // [dims, dims+CORRECTIONS_BYTES) of the same record, and we read them in
         // applyCorrectionsBulk via MemorySegment reinterpret.
-        return IndexInputUtils.withSlice(input, vectorPitch, firstScratch, querySeg -> {
+        return IndexInputUtils.withFloatSlice(input, vectorPitch, firstScratch, querySeg -> {
             long[] offsets = offsetsScratch.get(numNodes);
             for (int i = 0; i < numNodes; i++) {
                 offsets[i] = (long) ordinals[i] * vectorPitch;

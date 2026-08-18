@@ -89,7 +89,7 @@ public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.Abs
 
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
-            float dotProduct = IndexInputUtils.withSlice(
+            float dotProduct = IndexInputUtils.withFloatSlice(
                 input,
                 vectorByteSize,
                 scratch,
@@ -139,7 +139,7 @@ public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.Abs
 
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
-            float sqDist = IndexInputUtils.withSlice(
+            float sqDist = IndexInputUtils.withFloatSlice(
                 input,
                 vectorByteSize,
                 scratch,
@@ -189,7 +189,7 @@ public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.Abs
 
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
-            float dotProduct = IndexInputUtils.withSlice(
+            float dotProduct = IndexInputUtils.withFloatSlice(
                 input,
                 vectorByteSize,
                 scratch,

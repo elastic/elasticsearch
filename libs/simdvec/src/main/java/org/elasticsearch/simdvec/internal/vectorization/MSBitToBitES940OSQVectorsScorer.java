@@ -128,10 +128,12 @@ final class MSBitToBitES940OSQVectorsScorer extends MemorySegmentES940OSQVectors
 
     private void quantizeScore128Bulk(byte[] q, int count, float[] scores) throws IOException {
         long datasetLengthInBytes = (long) length * count;
-        IndexInputUtils.withSlice(in, datasetLengthInBytes, scratch, segment -> {
-            quantizeScore128BulkImpl(q, segment, length, count, scores);
-            return null;
-        });
+        IndexInputUtils.withVoidSlice(
+            in,
+            datasetLengthInBytes,
+            scratch,
+            segment -> { quantizeScore128BulkImpl(q, segment, length, count, scores); }
+        );
     }
 
     private static void quantizeScore128BulkImpl(byte[] q, MemorySegment d, int length, int count, float[] scores) {
@@ -144,10 +146,12 @@ final class MSBitToBitES940OSQVectorsScorer extends MemorySegmentES940OSQVectors
 
     private void quantizeScore256Bulk(byte[] q, int count, float[] scores) throws IOException {
         long datasetLengthInBytes = (long) length * count;
-        IndexInputUtils.withSlice(in, datasetLengthInBytes, scratch, segment -> {
-            quantizeScore256BulkImpl(q, segment, length, count, scores);
-            return null;
-        });
+        IndexInputUtils.withVoidSlice(
+            in,
+            datasetLengthInBytes,
+            scratch,
+            segment -> { quantizeScore256BulkImpl(q, segment, length, count, scores); }
+        );
     }
 
     private static void quantizeScore256BulkImpl(byte[] q, MemorySegment d, int length, int count, float[] scores) {

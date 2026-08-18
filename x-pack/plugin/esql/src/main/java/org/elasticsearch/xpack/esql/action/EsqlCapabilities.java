@@ -1155,6 +1155,13 @@ public class EsqlCapabilities {
         IMPLICIT_CASTING_STRING_LITERAL_TO_TEMPORAL_AMOUNT,
 
         /**
+         * When multiple aliases are defined in a single EVAL, an implicit CASTing is missed because of a premature exit due
+         * to failing to immediately resolve a field referenced in one of the EVALed aliases.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/155979">#155979</a>.
+         */
+        FIX_MISSED_IMPLICIT_CASTING_INSIDE_INTERLEAVED_EVALS,
+
+        /**
          * LOOKUP JOIN
          */
         JOIN_LOOKUP_V12,
@@ -2159,9 +2166,9 @@ public class EsqlCapabilities {
         DATE_RANGE_FIELD_TYPE_V6,
 
         /**
-         * Support for the DOUBLE_RANGE field type.
+         * Tech preview support for the DOUBLE_RANGE field type.
          */
-        DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V10(Build.current().isSnapshot()),
+        DOUBLE_RANGE_TECH_PREVIEW,
 
         /**
          * Network direction function.
@@ -3423,11 +3430,6 @@ public class EsqlCapabilities {
          * Support for equality (==, !=) and IN with date_range type.
          */
         EQUALITY_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
-
-        /**
-         * Support for equality ({@code ==}, {@code !=}) and {@code IN} with the {@code double_range} type.
-         */
-        EQUALITY_DOUBLE_RANGE(DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V10.isEnabled()),
 
         /**
          * Fix TopN encoding/decoding of {@code long_range} values.

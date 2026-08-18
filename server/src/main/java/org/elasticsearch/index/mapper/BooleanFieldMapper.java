@@ -342,7 +342,7 @@ public class BooleanFieldMapper extends FieldMapper {
             };
         }
 
-        private boolean parseBoolean(String text) {
+        private static boolean parseBoolean(String text) {
             return Booleans.parseBoolean(text.toCharArray(), 0, text.length(), false);
         }
 

@@ -7,13 +7,18 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.StatementParserTests;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import java.util.List;
+
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -25,7 +30,32 @@ import static org.hamcrest.Matchers.equalTo;
  *  For testing parsing <b>only</b>, use {@link StatementParserTests} or a subclass of {@link AbstractStatementParserTests}.
  */
 public class AnalyzerParsingTests extends ESTestCase {
-    private final TestAnalyzer defaultAnalyzer = analyzer().addEmployees("test");
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static List<Object[]> params() {
+        // Run every test at both the current transport version and the pre-existing per-build random one, so a
+        // version-gated analyzer change surfaces here in its own PR rather than only under a lucky random draw.
+        return List.of(new Object[] { "current", true }, new Object[] { "historical", false });
+    }
+
+    private final boolean pinCurrentVersion;
+
+    public AnalyzerParsingTests(@SuppressWarnings("unused") String name, boolean pinCurrentVersion) {
+        this.pinCurrentVersion = pinCurrentVersion;
+        this.defaultAnalyzer = analyzer().addEmployees("test");
+    }
+
+    /**
+     * Shadows {@link EsqlTestUtils#analyzer()} so every analyzer this suite builds honors the run's transport version:
+     * {@code current} pins {@link TransportVersion#current()}; {@code historical} leaves {@link TestAnalyzer}'s default
+     * random compatible version untouched, so that mode is behavior-identical to before the suite was parametrized.
+     */
+    private TestAnalyzer analyzer() {
+        TestAnalyzer analyzer = EsqlTestUtils.analyzer();
+        return pinCurrentVersion ? analyzer.minimumTransportVersion(TransportVersion.current()) : analyzer;
+    }
+
+    private final TestAnalyzer defaultAnalyzer;
 
     public void testCaseFunctionInvalidInputs() {
         defaultAnalyzer.error(

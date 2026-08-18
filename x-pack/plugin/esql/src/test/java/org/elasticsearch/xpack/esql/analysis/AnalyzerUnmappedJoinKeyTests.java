@@ -22,6 +22,10 @@ import static org.hamcrest.Matchers.containsString;
  */
 public class AnalyzerUnmappedJoinKeyTests extends AnalyzerUnmappedTestBase {
 
+    public AnalyzerUnmappedJoinKeyTests(String name, boolean pinCurrentVersion) {
+        super(name, pinCurrentVersion);
+    }
+
     private static String lookupJoinQuery(String lookup, String key) {
         return "FROM test | LOOKUP JOIN " + lookup + " ON " + key;
     }

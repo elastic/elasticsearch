@@ -7,16 +7,44 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
 
 import java.time.Instant;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
 public class TStepResolutionTests extends ESTestCase {
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static List<Object[]> params() {
+        // Run every test at both the current transport version and the pre-existing per-build random one, so a
+        // version-gated analyzer change surfaces here in its own PR rather than only under a lucky random draw.
+        return List.of(new Object[] { "current", true }, new Object[] { "historical", false });
+    }
+
+    private final boolean pinCurrentVersion;
+
+    public TStepResolutionTests(@SuppressWarnings("unused") String name, boolean pinCurrentVersion) {
+        this.pinCurrentVersion = pinCurrentVersion;
+    }
+
+    /**
+     * Shadows {@link EsqlTestUtils#analyzer()} so every analyzer this suite builds honors the run's transport version:
+     * {@code current} pins {@link TransportVersion#current()}; {@code historical} leaves {@link TestAnalyzer}'s default
+     * random compatible version untouched, so that mode is behavior-identical to before the suite was parametrized.
+     */
+    private TestAnalyzer analyzer() {
+        TestAnalyzer analyzer = EsqlTestUtils.analyzer();
+        return pinCurrentVersion ? analyzer.minimumTransportVersion(TransportVersion.current()) : analyzer;
+    }
 
     public void testTstepUsesRequestTimestampBounds() {
         assumeTStepEnabled();
@@ -24,7 +52,7 @@ public class TStepResolutionTests extends ESTestCase {
             Instant.parse("2023-10-23T12:15:00Z"),
             Instant.parse("2023-10-23T13:55:01.543Z")
         );
-        var plan = EsqlTestUtils.analyzer().addSampleData().timestampBounds(bounds).query("""
+        var plan = analyzer().addSampleData().timestampBounds(bounds).query("""
             FROM sample_data
             | STATS c = COUNT(*) BY b = TSTEP(1 hour)
             | LIMIT 10
@@ -34,7 +62,7 @@ public class TStepResolutionTests extends ESTestCase {
 
     public void testTstepFailsWithoutRequestTimestampBounds() {
         assumeTStepEnabled();
-        EsqlTestUtils.analyzer().addSampleData().error("""
+        analyzer().addSampleData().error("""
             FROM sample_data
             | STATS c = COUNT(*) BY b = TSTEP(1 hour)
             | LIMIT 10
@@ -47,7 +75,7 @@ public class TStepResolutionTests extends ESTestCase {
             Instant.parse("2023-10-23T12:15:00Z"),
             Instant.parse("2023-10-23T13:55:01.543Z")
         );
-        EsqlTestUtils.analyzer().addSampleData().timestampBounds(bounds).error("""
+        analyzer().addSampleData().timestampBounds(bounds).error("""
             FROM sample_data
             | WHERE TRANGE("2023-10-23T12:15:00.000Z", "2023-10-23T13:55:01.543Z")
             | STATS c = COUNT(*) BY b = TSTEP(1 hour)
@@ -58,7 +86,7 @@ public class TStepResolutionTests extends ESTestCase {
     public void testTstepExplicitBoundsSucceedsWithoutRequestFilter() {
         assumeTStepEnabled();
         assumeTrue("TSTEP explicit bounds requires corresponding capability", EsqlCapabilities.Cap.TSTEP_EXPLICIT_BOUNDS.isEnabled());
-        var plan = EsqlTestUtils.analyzer().addSampleData().query("""
+        var plan = analyzer().addSampleData().query("""
             FROM sample_data
             | STATS c = COUNT(*) BY b = TSTEP(1 hour, "2023-10-23T12:15:00.000Z", "2023-10-23T13:55:01.543Z")
             | LIMIT 10
@@ -69,7 +97,7 @@ public class TStepResolutionTests extends ESTestCase {
     public void testTstepExplicitBoundsPartialArgumentFails() {
         assumeTStepEnabled();
         assumeTrue("TSTEP explicit bounds requires corresponding capability", EsqlCapabilities.Cap.TSTEP_EXPLICIT_BOUNDS.isEnabled());
-        EsqlTestUtils.analyzer().addSampleData().error("""
+        analyzer().addSampleData().error("""
             FROM sample_data
             | STATS c = COUNT(*) BY b = TSTEP(1 hour, "2023-10-23T12:15:00.000Z")
             | LIMIT 10
@@ -84,7 +112,7 @@ public class TStepResolutionTests extends ESTestCase {
             Instant.parse("2023-10-23T13:55:01.543Z")
         );
         // A request filter must not inject the missing bound - partial args should always fail.
-        EsqlTestUtils.analyzer().addSampleData().timestampBounds(bounds).error("""
+        analyzer().addSampleData().timestampBounds(bounds).error("""
             FROM sample_data
             | STATS c = COUNT(*) BY b = TSTEP(1 hour, "2023-10-23T12:15:00.000Z")
             | LIMIT 10
@@ -94,7 +122,7 @@ public class TStepResolutionTests extends ESTestCase {
     public void testTstepBucketCountWithBoundsSucceeds() {
         assumeTStepEnabled();
         assumeTrue("TSTEP bucket count requires corresponding capability", EsqlCapabilities.Cap.TSTEP_BUCKET_COUNT.isEnabled());
-        var plan = EsqlTestUtils.analyzer().addSampleData().query("""
+        var plan = analyzer().addSampleData().query("""
             FROM sample_data
             | STATS c = COUNT(*) BY b = TSTEP(10, "2023-10-23T12:15:00.000Z", "2023-10-23T13:55:01.543Z")
             | LIMIT 10
@@ -105,7 +133,7 @@ public class TStepResolutionTests extends ESTestCase {
     public void testTstepBucketCountWithoutBoundsFails() {
         assumeTStepEnabled();
         assumeTrue("TSTEP bucket count requires corresponding capability", EsqlCapabilities.Cap.TSTEP_BUCKET_COUNT.isEnabled());
-        EsqlTestUtils.analyzer().addSampleData().error("""
+        analyzer().addSampleData().error("""
             FROM sample_data
             | STATS c = COUNT(*) BY b = TSTEP(10)
             | LIMIT 10
@@ -119,7 +147,7 @@ public class TStepResolutionTests extends ESTestCase {
             Instant.parse("2023-10-23T12:15:00Z"),
             Instant.parse("2023-10-23T13:55:01.543Z")
         );
-        var plan = EsqlTestUtils.analyzer().addSampleData().timestampBounds(bounds).query("""
+        var plan = analyzer().addSampleData().timestampBounds(bounds).query("""
             FROM sample_data
             | STATS c = COUNT(*) BY b = TSTEP(10)
             | LIMIT 10

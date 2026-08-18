@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -16,6 +19,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -61,7 +65,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
@@ -82,6 +85,29 @@ import static org.hamcrest.Matchers.is;
  * fit the golden tests. The successful plan-shape (positive) tests over real CSV datasets now live in {@code AnalyzerSubqueryGoldenTests}.
  */
 public class AnalyzerSubqueryTests extends ESTestCase {
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static List<Object[]> params() {
+        // Run every test at both the current transport version and the pre-existing per-build random one, so a
+        // version-gated analyzer change surfaces here in its own PR rather than only under a lucky random draw.
+        return List.of(new Object[] { "current", true }, new Object[] { "historical", false });
+    }
+
+    private final boolean pinCurrentVersion;
+
+    public AnalyzerSubqueryTests(@SuppressWarnings("unused") String name, boolean pinCurrentVersion) {
+        this.pinCurrentVersion = pinCurrentVersion;
+    }
+
+    /**
+     * Shadows {@link EsqlTestUtils#analyzer()} so every analyzer this suite builds honors the run's transport version:
+     * {@code current} pins {@link TransportVersion#current()}; {@code historical} leaves {@link TestAnalyzer}'s default
+     * random compatible version untouched, so that mode is behavior-identical to before the suite was parametrized.
+     */
+    private TestAnalyzer analyzer() {
+        TestAnalyzer analyzer = EsqlTestUtils.analyzer();
+        return pinCurrentVersion ? analyzer.minimumTransportVersion(TransportVersion.current()) : analyzer;
+    }
 
     private static final String SALARIES_INT_RESOURCE = "s3://bucket/salaries_int.parquet";
     private static final String SALARIES_LONG_RESOURCE = "s3://bucket/salaries_long.parquet";
@@ -1690,7 +1716,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      * configured external source schemas — so a dataset branch is backed by an {@link ExternalRelation}, exactly like a
      * real dataset subquery. The plan is analyzed (not optimized) to match the neighbouring tests.
      */
-    private static LogicalPlan analyzeExternalDatasetSubquery(String query) {
+    private LogicalPlan analyzeExternalDatasetSubquery(String query) {
         DataSource dataSource = new DataSource("external_ds", "test", null, Map.of());
         Dataset intDataset = new Dataset("salaries_int", new DataSourceReference("external_ds"), SALARIES_INT_RESOURCE, null, Map.of());
         Dataset longDataset = new Dataset("salaries_long", new DataSourceReference("external_ds"), SALARIES_LONG_RESOURCE, null, Map.of());

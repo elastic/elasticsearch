@@ -7,9 +7,14 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LoadMapping;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -29,7 +34,6 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import java.util.LinkedHashMap;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 
 /**
@@ -56,6 +60,29 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
  * relations.
  */
 public class ResolveViewShadowTests extends ESTestCase {
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static List<Object[]> params() {
+        // Run every test at both the current transport version and the pre-existing per-build random one, so a
+        // version-gated analyzer change surfaces here in its own PR rather than only under a lucky random draw.
+        return List.of(new Object[] { "current", true }, new Object[] { "historical", false });
+    }
+
+    private final boolean pinCurrentVersion;
+
+    public ResolveViewShadowTests(@SuppressWarnings("unused") String name, boolean pinCurrentVersion) {
+        this.pinCurrentVersion = pinCurrentVersion;
+    }
+
+    /**
+     * Shadows {@link EsqlTestUtils#analyzer()} so every analyzer this suite builds honors the run's transport version:
+     * {@code current} pins {@link TransportVersion#current()}; {@code historical} leaves {@link TestAnalyzer}'s default
+     * random compatible version untouched, so that mode is behavior-identical to before the suite was parametrized.
+     */
+    private TestAnalyzer analyzer() {
+        TestAnalyzer analyzer = EsqlTestUtils.analyzer();
+        return pinCurrentVersion ? analyzer.minimumTransportVersion(TransportVersion.current()) : analyzer;
+    }
 
     private static final Source EMPTY = Source.EMPTY;
     private static final String NO_LIMIT_WARNING = "No limit defined, adding default limit of [1000]";

@@ -61,6 +61,7 @@ public class LinkerHelperTests extends TestCase {
             return;
         }
 
+        System.loadLibrary("kernel32");
         MethodHandle closeHandle = LinkerHelper.downcallHandleWithSystemError("CloseHandle", FunctionDescriptor.of(JAVA_BOOLEAN, ADDRESS));
         boolean result = (boolean) closeHandle.invoke(MemorySegment.ofAddress(0xDEADBEEFL));
 

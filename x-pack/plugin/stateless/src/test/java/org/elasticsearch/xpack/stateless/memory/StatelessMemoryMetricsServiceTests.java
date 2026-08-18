@@ -310,7 +310,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         // The difference for the hosted-shards estimate should be just the size of the shard (no index metadata)
         assertThat(
             perNode.get(onlyShard.currentNodeId()).hostedShardsHeapUsage() - perNode.get(nodeWithoutShard.getId()).hostedShardsHeapUsage(),
-            equalTo(estimateHeapUsageIncludingPostings(service, metricsWithWrongReporter))
+            equalTo(estimates.shardHeapEstimate())
         );
     }
 

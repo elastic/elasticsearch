@@ -51,8 +51,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static List<Object[]> params() {
-        // Run every test at both the current transport version and the pre-existing per-build random one, so a
-        // version-gated analyzer change surfaces here in its own PR rather than only under a lucky random draw.
         return List.of(new Object[] { "current", true }, new Object[] { "historical", false });
     }
 
@@ -62,11 +60,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         this.pinCurrentVersion = pinCurrentVersion;
     }
 
-    /**
-     * Shadows {@link EsqlTestUtils#analyzer()} so every analyzer this suite builds honors the run's transport version:
-     * {@code current} pins {@link TransportVersion#current()}; {@code historical} leaves {@link TestAnalyzer}'s default
-     * random compatible version untouched, so that mode is behavior-identical to before the suite was parametrized.
-     */
+    /** Pins {@link TransportVersion#current()} for the {@code current} run so a version-gated plan change surfaces here. */
     private TestAnalyzer analyzer() {
         TestAnalyzer analyzer = EsqlTestUtils.analyzer();
         return pinCurrentVersion ? analyzer.minimumTransportVersion(TransportVersion.current()) : analyzer;

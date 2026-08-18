@@ -37,11 +37,11 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED
  * and the embeddings are extracted directly from there.
  * </p>
  */
-class LegacyEmbeddingsSemanticFieldValueFetcher implements ValueFetcher {
+class LegacyEmbeddingsSemanticTextFieldValueFetcher implements ValueFetcher {
     private final SemanticFieldMapper.SemanticFieldType fieldType;
     private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
 
-    LegacyEmbeddingsSemanticFieldValueFetcher(
+    LegacyEmbeddingsSemanticTextFieldValueFetcher(
         SemanticFieldMapper.SemanticFieldType fieldType,
         IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
     ) {

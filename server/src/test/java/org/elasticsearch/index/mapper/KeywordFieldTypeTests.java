@@ -530,6 +530,26 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper, null));
     }
 
+    public void testGetTermsHighCardinalityDocValuesOnly() throws IOException {
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", defaultIndexSettings());
+        builder.docValues(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+        MappedFieldType ft = new KeywordFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            TextSearchInfo.SIMPLE_MATCH_ONLY,
+            null,
+            builder,
+            true
+        );
+        try (Directory dir = newDirectory()) {
+            RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
+            IndexReader reader = writer.getReader();
+            writer.close();
+            expectThrows(IllegalArgumentException.class, () -> ft.getTerms(reader, "", randomBoolean(), null));
+            reader.close();
+        }
+    }
+
     public void testGetTerms() throws IOException {
         MappedFieldType ft = new KeywordFieldType("field");
         try (Directory dir = newDirectory()) {

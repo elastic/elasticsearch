@@ -24,6 +24,7 @@ restResources {
 }
 
 tasks.named("yamlRestTest").configure {
+  usesDefaultDistribution("async_search and graph are x-pack plugins requiring licence infrastructure")
   systemProperty 'tests.rest.suite', [
     'async_search',
     'search',

@@ -59,10 +59,13 @@ The direction, the decisions that constrain it, and the build order. Update as d
   `DecodeBlockTransformBenchmark`) covering Delta, Offset, GCD, SplitDelta, ALP, and FOR
   across ten block shapes.
 - Keyword (string) column: `ColumnarFieldType.STRING` served at `getBinary` through
-  `ColumnarStringBinaryDocValues`, values stored plain (`[vint length][bytes]`). Dense and sparse;
-  single-valued only (see Next). Ported from the original POC's binary path. The POC's dictionary path
-  is deliberately not carried over — the layout is decided from statistics at merge rather than from a
-  per-segment probe, so ordinals arrive as a later layout id (see Next).
+  `ColumnarStringBinaryDocValues`. `StringColumnLayout.PLAIN` stores the values as one byte blob plus a
+  `DirectMonotonic` table holding every value's offset, so a read is two offset lookups and a read of
+  exactly that span, and a length needs no prefix on disk. No block, and so no block size, block cache or
+  byte codec on this path — a block belongs to an encoding defined over a group, which plain is not. Dense
+  and sparse; single-valued only (see Next). The POC's dictionary path is deliberately not carried over —
+  the layout is decided from statistics at merge rather than from a per-segment probe, so ordinals arrive
+  as a later layout id (see Next).
 - Per-field pipeline selection: `NumericPipelineSelector` (`@FunctionalInterface`
   `select(fieldName, type) -> NumericPipelineTemplate`) injected into `ColumNARDocValuesFormat`
   at construction time alongside an explicit `blockSize`. The selector answers "which pipeline

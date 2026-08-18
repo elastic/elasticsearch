@@ -486,15 +486,24 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     /**
-     * Verifies that split-target copy work cannot start before the corresponding local BCC upload has
-     * been committed to the shard state. The uploaded-BCC consumer runs before that state transition,
-     * so blocking it gives this test a deterministic view of the handoff.
+     * Documents that split-target copy submission is intentionally <em>not</em> gated behind the local
+     * uploaded-BCC state transition: the copy is enqueued before {@code markBccUploaded}, so it may start
+     * while the uploaded-BCC consumer (which runs during that transition) is still in progress. Copy
+     * submission only needs to be ordered ahead of the next upload's copy — see the ordering guarantee
+     * asserted by {@link #testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes} and #154606.
+     *
+     * <p>If copy submission were ever moved back behind the local-state commit, the {@code copyStartedLatch}
+     * await below would block until the test times out.
      */
-    public void testSplitTargetCopyStartsAfterBccIsMarkedUploaded() throws Exception {
+    public void testSplitTargetCopyMayStartBeforeBccIsMarkedUploaded() throws Exception {
         CountDownLatch bccConsumerStarted = new CountDownLatch(1);
         CountDownLatch allowBccConsumerToComplete = new CountDownLatch(1);
         try (var testHarness = new SplitCopyObservingNode()) {
             StatelessCommitRef commit = testHarness.generateIndexCommits(1).getFirst();
+            // Block the copy as soon as it starts so we can observe that it started while the uploaded-BCC
+            // consumer is still blocked, without the copy racing ahead to completion.
+            testHarness.copyBlockedNameRef.set(blobNameFromGeneration(commit.getGeneration()));
+
             ShardId targetShardId = new ShardId(testHarness.shardId.getIndex(), 1);
             testHarness.commitService.markSplitting(testHarness.shardId, targetShardId);
             testHarness.commitService.addConsumerForNewUploadedBcc(testHarness.shardId, ignored -> {
@@ -504,20 +513,24 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             testHarness.commitService.onCommitCreation(commit);
             testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit.getGeneration());
+
+            // The uploaded-BCC consumer runs during markBccUploaded and is blocked here, so the local
+            // uploaded-BCC state transition has not completed yet.
             safeAwait(bccConsumerStarted);
 
             try {
-                // A copy submitted before markBccUploaded updates the shard state can start while the
-                // uploaded-BCC consumer is blocked here.
-                assertFalse(testHarness.copyStartedLatch.await(50, TimeUnit.MILLISECONDS));
+                // The copy was submitted before markBccUploaded, so it can start even though the local-state
+                // transition is still in progress.
+                safeAwait(testHarness.copyStartedLatch);
+                assertThat(testHarness.firstCopyStartedNameRef.get(), equalTo(blobNameFromGeneration(commit.getGeneration())));
             } finally {
+                testHarness.copyBlocker.countDown();
                 allowBccConsumerToComplete.countDown();
             }
 
             PlainActionFuture<Void> fullyUploaded = new PlainActionFuture<>();
             testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commit.getGeneration(), fullyUploaded);
             safeGet(fullyUploaded);
-            safeAwait(testHarness.copyStartedLatch);
         }
     }
 

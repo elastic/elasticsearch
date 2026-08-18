@@ -204,7 +204,7 @@ public class CsvLogicalRecordReaderTests extends ESTestCase {
         // next to 6 > maxRecordBytes). The throw drains the rest of "abcdefgh\n" (9 bytes total), so
         // bytesRead = 3 + 9 = 12 and the reader sits at "fin\n".
         IOException ex = expectThrows(IOException.class, () -> reader.readRecord(false));
-        assertEquals("CSV record exceeded max_record_size [5]", ex.getMessage());
+        assertEquals("CSV record exceeded external_max_record_size [5]", ex.getMessage());
         assertEquals("bytesRead must count the whole drained oversized line", 12L, reader.bytesRead());
 
         // lastRecordBytes intentionally unchanged from the prior successful read — caller's catch

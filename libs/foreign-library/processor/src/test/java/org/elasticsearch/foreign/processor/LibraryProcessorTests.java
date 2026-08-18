@@ -1023,9 +1023,7 @@ public class LibraryProcessorTests extends ProcessorTestCase {
 
         CompilationResult result = compile("test.BadLib", source);
         assertFalse("Expected compilation to fail when @Upcall is on a non-functional interface", result.success());
-        boolean hasError = result.errors()
-            .stream()
-            .anyMatch(msg -> msg.contains("must be annotated with @FunctionalInterface"));
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("must be annotated with @FunctionalInterface"));
         assertTrue("Expected error about missing @FunctionalInterface but got: " + result.errors(), hasError);
     }
 
@@ -1173,9 +1171,7 @@ public class LibraryProcessorTests extends ProcessorTestCase {
 
         CompilationResult result = compile("test.BadLib", source);
         assertFalse("Expected compilation to fail when the @Upcall type has an inherited second abstract method", result.success());
-        boolean hasError = result.errors()
-            .stream()
-            .anyMatch(msg -> msg.contains("must be annotated with @FunctionalInterface"));
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("must be annotated with @FunctionalInterface"));
         assertTrue("Expected error about missing @FunctionalInterface but got: " + result.errors(), hasError);
     }
 

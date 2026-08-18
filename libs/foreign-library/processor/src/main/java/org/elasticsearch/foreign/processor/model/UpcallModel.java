@@ -68,11 +68,7 @@ public record UpcallModel(
     static UpcallModel from(int paramIndex, TypeElement upcallType, VariableElement param, Types types, Messager messager) {
         String qualifiedName = upcallType.getQualifiedName().toString();
         if (upcallType.getAnnotation(FunctionalInterface.class) == null) {
-            messager.printMessage(
-                Kind.ERROR,
-                "@Upcall type '" + qualifiedName + "' must be annotated with @FunctionalInterface",
-                param
-            );
+            messager.printMessage(Kind.ERROR, "@Upcall type '" + qualifiedName + "' must be annotated with @FunctionalInterface", param);
             return null;
         }
         ExecutableElement sam = findSingleAbstractMethod(upcallType, types);

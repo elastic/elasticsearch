@@ -31,7 +31,8 @@ public class BasicLicenseUpgradeIT extends ParameterizedRollingUpgradeTestCase {
             .setting("xpack.security.enabled", "false")
             .setting("xpack.ml.enabled", "false")
             .setting("xpack.watcher.enabled", "false")
-            .setting("xpack.license.self_generated.type", "basic").build();
+            .setting("xpack.license.self_generated.type", "basic")
+            .build();
     }
 
     public BasicLicenseUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {

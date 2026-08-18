@@ -9,20 +9,58 @@
 
 package org.elasticsearch.common.util;
 
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class IntNHashTests extends ESTestCase {
     private BigArrays randombigArrays() {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+    }
+
+    public void testAddDiscardsKeyRefusedByCircuitBreaker() {
+        // set() claims the slot before append() stores the keys, and append() grows the key array, so a refusal
+        // there leaves a slot pointing at an id whose keys were never written. Only a handful of the adds grow
+        // the key array, so refuse often enough that at least one refusal is likely to land on one of them.
+        RefusingCircuitBreakerService breakerService = new RefusingCircuitBreakerService(between(2, 3));
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService, true);
+        int keySize = between(1, 4);
+        List<int[]> expected = new ArrayList<>();
+        try (IntNHash hash = new IntNHash(1, keySize, bigArrays)) {
+            breakerService.startRefusing();
+            for (int key = 0; key < 5000; key++) {
+                int[] keys = new int[keySize];
+                for (int k = 0; k < keySize; k++) {
+                    keys[k] = key + k;
+                }
+                try {
+                    assertThat(hash.add(keys), equalTo((long) expected.size()));
+                    expected.add(keys);
+                } catch (CircuitBreakingException e) {
+                    // the key must be rejected outright, leaving the hash exactly as it was
+                }
+            }
+            assertThat("the breaker never refused an allocation", breakerService.refusals(), greaterThan(0));
+            breakerService.stopRefusing();
+
+            assertThat(hash.size(), equalTo((long) expected.size()));
+            for (int i = 0; i < expected.size(); i++) {
+                assertThat(hash.getKeys(i), equalTo(expected.get(i)));
+                assertThat(hash.find(expected.get(i)), equalTo((long) i));
+            }
+        }
+        breakerService.assertNoResidualReservation();
     }
 
     public void test1Key() {

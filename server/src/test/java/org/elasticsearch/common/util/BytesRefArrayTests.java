@@ -12,6 +12,7 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -419,6 +420,132 @@ public class BytesRefArrayTests extends ESTestCase {
                 assertThat(array.get(i, scratch), equalTo(values.get(i)));
             }
         }
+    }
+
+    /**
+     * Enough entries that the byte storage keeps grabbing fresh pages for the whole run. Only the sub-page first
+     * page grows geometrically; past that each page costs one fixed-size allocation. A short run therefore never
+     * leaves the geometric phase and allocates only a handful of times, so a breaker that refuses every n-th
+     * allocation may never get to refuse anything.
+     */
+    private static final int ENTRIES_SPANNING_MANY_PAGES = 2000;
+
+    public void testAppendDiscardsEntryRefusedByCircuitBreaker() {
+        // Refusing every n-th allocation spreads the interruptions over growing the byte storage, growing the
+        // offset tables and the switch away from the fixed-length encoding. Whichever one is interrupted, the
+        // array has to look exactly as it did before the refused append and keep accepting entries afterwards.
+        RefusingCircuitBreakerService breakerService = new RefusingCircuitBreakerService(between(2, 8));
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService, true);
+        List<BytesRef> expected = new ArrayList<>();
+        try (BytesRefArray array = new BytesRefArray(1, bigArrays)) {
+            breakerService.startRefusing();
+            for (int i = 0; i < ENTRIES_SPANNING_MANY_PAGES; i++) {
+                BytesRef value = new BytesRef(randomAlphaOfLengthBetween(1, 500));
+                try {
+                    array.append(value);
+                    expected.add(BytesRef.deepCopyOf(value));
+                } catch (CircuitBreakingException e) {
+                    // the entry must be discarded whole, so it is deliberately not added to `expected`
+                }
+            }
+            assertThat("the breaker never refused an allocation", breakerService.refusals(), greaterThan(0));
+            breakerService.stopRefusing();
+
+            assertThat(array.size(), equalTo((long) expected.size()));
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < expected.size(); i++) {
+                assertThat(array.get(i, scratch), equalTo(expected.get(i)));
+            }
+        }
+        breakerService.assertNoResidualReservation();
+    }
+
+    public void testAppendCursorDiscardsEntryRefusedByCircuitBreaker() {
+        // As above but through the cursor overload, which reserves its offset the same way but copies the bytes
+        // chunk by chunk out of the cursor rather than from a single array.
+        RefusingCircuitBreakerService breakerService = new RefusingCircuitBreakerService(between(2, 8));
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService, true);
+        List<BytesRef> expected = new ArrayList<>();
+        PagedBytesCursor cursor = new PagedBytesCursor();
+        try (BytesRefArray array = new BytesRefArray(1, bigArrays)) {
+            breakerService.startRefusing();
+            for (int i = 0; i < ENTRIES_SPANNING_MANY_PAGES; i++) {
+                byte[] data = randomByteArrayOfLength(between(1, 500));
+                cursor.init(data, 0, data.length);
+                try {
+                    array.append(cursor);
+                    expected.add(new BytesRef(data));
+                } catch (CircuitBreakingException e) {
+                    // the entry must be discarded whole; the cursor itself is left partially consumed, which is
+                    // why add(PagedBytesCursor, int) documents that a refused key cannot simply be re-offered
+                }
+            }
+            assertThat("the breaker never refused an allocation", breakerService.refusals(), greaterThan(0));
+            breakerService.stopRefusing();
+
+            assertThat(array.size(), equalTo((long) expected.size()));
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < expected.size(); i++) {
+                assertThat(array.get(i, scratch), equalTo(expected.get(i)));
+            }
+        }
+        breakerService.assertNoResidualReservation();
+    }
+
+    public void testRefusedFirstAppendLeavesArrayEmpty() {
+        // The very first append is the only one that can install the fixed-length encoding, and rolling it back
+        // has to uninstall it: an array left claiming a length it never stored reports that length as its
+        // largest entry even though it holds none. The initial byte storage is only 3 bytes wide, so any longer
+        // entry has to grow it and can therefore be refused.
+        RefusingCircuitBreakerService breakerService = new RefusingCircuitBreakerService(1);
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService, true);
+        try (BytesRefArray array = new BytesRefArray(1, bigArrays)) {
+            breakerService.startRefusing();
+            expectThrows(CircuitBreakingException.class, () -> array.append(new BytesRef(randomAlphaOfLengthBetween(4, 100))));
+            breakerService.stopRefusing();
+
+            assertThat(array.size(), equalTo(0L));
+            assertThat(array.valueMaxByteSize(), equalTo(0));
+        }
+        breakerService.assertNoResidualReservation();
+    }
+
+    public void testAppendDiscardsFixedLengthEntryRefusedByCircuitBreaker() {
+        // Entries of a constant length keep the array on its implicit fixed-length encoding, where a refused
+        // append records no offset of its own but still has to give back the byte range it reserved. A closing
+        // entry of a different length then forces the switch to explicit offset tables, which is what turns any
+        // byte range left over from a refusal into entries that read back wrong.
+        RefusingCircuitBreakerService breakerService = new RefusingCircuitBreakerService(between(2, 8));
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService, true);
+        List<BytesRef> expected = new ArrayList<>();
+        int fixedLength = between(200, 500);
+        try (BytesRefArray array = new BytesRefArray(1, bigArrays)) {
+            breakerService.startRefusing();
+            for (int i = 0; i < ENTRIES_SPANNING_MANY_PAGES; i++) {
+                BytesRef value = new BytesRef(randomAlphaOfLength(fixedLength));
+                try {
+                    array.append(value);
+                    expected.add(BytesRef.deepCopyOf(value));
+                } catch (CircuitBreakingException e) {
+                    // the entry must be discarded whole, so it is deliberately not added to `expected`
+                }
+            }
+            assertThat("the breaker never refused an allocation", breakerService.refusals(), greaterThan(0));
+            breakerService.stopRefusing();
+
+            // Force the switch to explicit offset tables now that the breaker is out of the way, so that it is
+            // guaranteed to happen and to see whatever state the rolled-back appends left behind.
+            BytesRef odd = new BytesRef(randomAlphaOfLength(fixedLength + 1));
+            array.append(odd);
+            expected.add(BytesRef.deepCopyOf(odd));
+
+            assertThat(array.size(), equalTo((long) expected.size()));
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < expected.size(); i++) {
+                assertThat(array.get(i, scratch), equalTo(expected.get(i)));
+            }
+        }
+        breakerService.assertNoResidualReservation();
     }
 
     private static BigArrays mockBigArrays() {

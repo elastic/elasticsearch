@@ -45,10 +45,23 @@ abstract class AbstractPagedHashMap implements Releasable {
         long buckets = 1L + (long) (capacity / maxLoadFactor);
         buckets = Math.max(1, Long.highestOneBit(buckets - 1) << 1); // next power of two
         assert buckets == Long.highestOneBit(buckets);
-        maxSize = (long) (buckets * maxLoadFactor);
+        maxSize = maxSizeFor(buckets);
         assert maxSize >= capacity;
         size = 0;
         mask = buckets - 1;
+    }
+
+    private long maxSizeFor(long buckets) {
+        return (long) (buckets * maxLoadFactor);
+    }
+
+    /**
+     * The {@link #maxSize} this map will have once {@link #grow()} has run. Subclasses that keep side arrays
+     * indexed by id can size those arrays up front, before growing: a circuit breaker trip then leaves the map
+     * untouched, whereas growing first would leave it accepting ids that the side arrays cannot address.
+     */
+    protected final long maxSizeAfterGrow() {
+        return maxSizeFor(capacity() << 1);
     }
 
     /**
@@ -110,7 +123,7 @@ abstract class AbstractPagedHashMap implements Releasable {
             }
         }
         assert size == prevSize;
-        maxSize = (long) (newBuckets * maxLoadFactor);
+        maxSize = maxSizeFor(newBuckets);
         assert size < maxSize;
     }
 

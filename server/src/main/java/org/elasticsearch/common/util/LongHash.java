@@ -69,6 +69,7 @@ public final class LongHash extends AbstractHash implements LongHashTable {
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
+                // Safe to claim the slot first only because add() pre-sized keys, so append() cannot allocate
                 setId(index, id);
                 append(id, key);
                 ++size;
@@ -103,8 +104,10 @@ public final class LongHash extends AbstractHash implements LongHashTable {
     public long add(long key) {
         if (size >= maxSize) {
             assert size == maxSize;
+            // Size keys before grow() so a breaker trip cannot leave maxSize past what keys can address
+            keys = bigArrays.resize(keys, maxSizeAfterGrow());
             grow();
-            keys = bigArrays.resize(keys, maxSize);
+            assert keys.size() >= maxSize;
         }
         assert size < maxSize;
         return set(key, size);

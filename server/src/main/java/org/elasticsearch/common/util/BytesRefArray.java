@@ -171,18 +171,69 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
     }
 
     public void append(BytesRef value) {
-        lastOffset += value.length;
-        appendOffset(lastOffset, value.length);
-        bytes.append(value.bytes, value.offset, value.length);
-        ++size;
+        final long committedOffset = lastOffset;
+        final int committedFixedLength = fixedLength;
+        boolean success = false;
+        try {
+            lastOffset += value.length;
+            appendOffset(lastOffset, value.length);
+            bytes.append(value.bytes, value.offset, value.length);
+            ++size;
+            success = true;
+        } finally {
+            if (success == false) {
+                rollbackFailedAppend(committedOffset, committedFixedLength);
+            }
+        }
     }
 
+    /**
+     * Appends the cursor's remaining bytes as one entry. A circuit breaker trip discards the entry whole, but is
+     * not retryable with the same {@code cursor}: reading it consumes it and a cursor cannot be rewound, so a
+     * caller wanting to re-offer a refused entry has to re-point the cursor at those bytes.
+     */
     public void append(PagedBytesCursor cursor) {
         final int length = cursor.remaining();
-        lastOffset += length;
-        appendOffset(lastOffset, length);
-        bytes.append(cursor);
-        ++size;
+        final long committedOffset = lastOffset;
+        final int committedFixedLength = fixedLength;
+        boolean success = false;
+        try {
+            lastOffset += length;
+            appendOffset(lastOffset, length);
+            bytes.append(cursor);
+            ++size;
+            success = true;
+        } finally {
+            if (success == false) {
+                rollbackFailedAppend(committedOffset, committedFixedLength);
+            }
+        }
+    }
+
+    /**
+     * Undoes a failed {@link #append} so that the array still describes exactly the {@code size} entries it held
+     * beforehand and stays usable. The end offset of the refused entry is recorded before the growth that fails,
+     * so it has to be dropped and the byte storage rolled back to where the previous entry ended.
+     *
+     * @param committedOffset      the {@link #lastOffset} observed before the append began
+     * @param committedFixedLength the {@link #fixedLength} observed before the append began
+     */
+    private void rollbackFailedAppend(long committedOffset, int committedFixedLength) {
+        if (intOffsets != null && fixedLength < 0) {
+            // The tables are authoritative, so only the refused entry's offset goes
+            truncateOffsets(size + 1);
+        } else {
+            if (intOffsets != null) {
+                // Fixed length still authoritative, so transitionFixedLengthToOffsets() gave up part way
+                Releasables.close(intOffsets, longOffsets);
+                intOffsets = null;
+                longOffsets = null;
+            }
+            // Undo the fixed length appendOffset() installs on an empty array's first append
+            fixedLength = committedFixedLength;
+        }
+        lastOffset = committedOffset;
+        bytes.truncateTo(committedOffset);
     }
 
     /**
@@ -201,17 +252,24 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         bytes.truncateTo(lastOffset);
         if (intOffsets != null) {
             // Offset tables hold (oldSize + 1) entries; after truncation we need exactly (newSize + 1).
-            long entriesToKeep = newSize + 1;
-            long intEntriesToKeep = Math.min(intOffsets.size, entriesToKeep);
-            intOffsets.truncateTo(intEntriesToKeep);
-            if (longOffsets != null) {
-                long longEntriesToKeep = entriesToKeep - intEntriesToKeep;
-                if (longEntriesToKeep <= 0) {
-                    longOffsets.close();
-                    longOffsets = null;
-                } else {
-                    longOffsets.truncateTo(longEntriesToKeep);
-                }
+            truncateOffsets(newSize + 1);
+        }
+    }
+
+    /**
+     * Discards offset entries beyond the first {@code entriesToKeep}, spilling over from {@link #intOffsets}
+     * into {@link #longOffsets} the same way {@link #appendOffset} fills them.
+     */
+    private void truncateOffsets(long entriesToKeep) {
+        final long intEntriesToKeep = Math.min(intOffsets.size, entriesToKeep);
+        intOffsets.truncateTo(intEntriesToKeep);
+        if (longOffsets != null) {
+            final long longEntriesToKeep = entriesToKeep - intEntriesToKeep;
+            if (longEntriesToKeep <= 0) {
+                longOffsets.close();
+                longOffsets = null;
+            } else {
+                longOffsets.truncateTo(longEntriesToKeep);
             }
         }
     }
@@ -460,7 +518,8 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
             PageCacheRecycler r = bigArrays.recycler();
             this.recycler = r != null ? r : PageCacheRecycler.NON_RECYCLING_INSTANCE;
             int numPages = Math.toIntExact(Math.max(1, (initialCapacity + LONGS_PER_PAGE - 1) / LONGS_PER_PAGE));
-            bigArrays.adjustBreaker(SHALLOW_SIZE + estimateUseByPagesArray(numPages), true);
+            // Must be false: nothing is allocated yet, and true would keep the reservation on a refusal
+            bigArrays.adjustBreaker(SHALLOW_SIZE + estimateUseByPagesArray(numPages), false);
             this.pages = new byte[numPages][];
             this.caches = new Recycler.V<?>[numPages];
             boolean success = false;

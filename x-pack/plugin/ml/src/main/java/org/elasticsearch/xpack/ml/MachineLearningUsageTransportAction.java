@@ -752,7 +752,6 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
 
     private void addAuxiliaryAdConfigUsage(Map<String, Object> jobsUsage, ActionListener<Void> listener) {
         GetCalendarsAction.Request calendarsRequest = new GetCalendarsAction.Request();
-        calendarsRequest.setCalendarId(GetCalendarsAction.Request.ALL);
         calendarsRequest.setPageParams(new PageParams(0, 10_000));
         client.execute(GetCalendarsAction.INSTANCE, calendarsRequest, ActionListener.wrap(calendarsResponse -> {
             MlConfigSizeUsage.putAuxiliaryConfigSizes(

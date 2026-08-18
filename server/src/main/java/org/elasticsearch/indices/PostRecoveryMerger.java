@@ -14,10 +14,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.IndexShard;
@@ -30,6 +32,8 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE;
@@ -40,7 +44,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeRole.INDEX_ROLE;
 /**
  * Triggers a check for pending merges when a shard completes recovery.
  */
-class PostRecoveryMerger {
+public class PostRecoveryMerger {
 
     private static final Logger logger = LogManager.getLogger(PostRecoveryMerger.class);
 
@@ -60,6 +64,19 @@ class PostRecoveryMerger {
         }
     }
 
+    // We want to be able to delay post-recovery merges for shards that are inactive.
+    // Concurrent relocations (for example due to node shutdown) compete for resources on the destination node.
+    // Merges triggered for inactive shards can take resources away from active shards
+    // (e.g. in stateless it's prewarming threads, bandwidth to read data into the cache).
+    // If a shard is active it should eventually flush and that will trigger merges anyway.
+    // Ideally we would want to trigger merges when there are spare resources in the cluster
+    // but we expect time delay to be good enough to reduce the impact on concurrent recovery case mentioned above.
+    public static final Setting<TimeValue> POST_RECOVERY_MERGER_DELAY = Setting.timeSetting(
+        "indices.recovery.post_recovery_merger.delay",
+        TimeValue.MINUS_ONE,
+        Setting.Property.NodeScope
+    );
+
     /**
      * Throttled runner to avoid multiple concurrent calls to {@link IndexWriter#maybeMerge()}: we do not need to execute these things
      * especially quickly, as long as they happen eventually, and each such call may involve some IO (reading the soft-deletes doc values to
@@ -68,11 +85,19 @@ class PostRecoveryMerger {
      */
     private final ThrottledTaskRunner postRecoveryMergeRunner;
 
+    private final ScheduledExecutorService scheduler;
     private final Function<ShardId, IndexShard> shardFunction;
     private final boolean enabled;
+    private final long delaySeconds;
 
-    PostRecoveryMerger(Settings settings, Executor executor, Function<ShardId, IndexShard> shardFunction) {
+    PostRecoveryMerger(
+        Settings settings,
+        ScheduledExecutorService scheduler,
+        Executor executor,
+        Function<ShardId, IndexShard> shardFunction
+    ) {
         this.postRecoveryMergeRunner = new ThrottledTaskRunner(getClass().getCanonicalName(), 1, executor);
+        this.scheduler = scheduler;
         this.shardFunction = shardFunction;
         this.enabled =
             // enabled globally ...
@@ -82,6 +107,7 @@ class PostRecoveryMerger {
                     || DiscoveryNode.hasRole(settings, DATA_CONTENT_NODE_ROLE)
                     || DiscoveryNode.hasRole(settings, DATA_ROLE)
                     || DiscoveryNode.hasRole(settings, INDEX_ROLE));
+        this.delaySeconds = POST_RECOVERY_MERGER_DELAY.exists(settings) ? POST_RECOVERY_MERGER_DELAY.get(settings).seconds() : -1;
     }
 
     RecoveryListener maybeMergeAfterRecovery(IndexMetadata indexMetadata, ShardRouting shardRouting, RecoveryListener recoveryListener) {
@@ -105,7 +131,15 @@ class PostRecoveryMerger {
                 ShardLongFieldRange timestampMillisFieldRange,
                 ShardLongFieldRange eventIngestedMillisFieldRange
             ) {
-                postRecoveryMergeRunner.enqueueTask(new PostRecoveryMerge(shardId));
+                if (delaySeconds > 0) {
+                    scheduler.schedule(
+                        () -> postRecoveryMergeRunner.enqueueTask(new PostRecoveryMerge(shardId)),
+                        delaySeconds,
+                        TimeUnit.SECONDS
+                    );
+                } else {
+                    postRecoveryMergeRunner.enqueueTask(new PostRecoveryMerge(shardId));
+                }
                 recoveryListener.onRecoveryDone(state, timestampMillisFieldRange, eventIngestedMillisFieldRange);
             }
 

@@ -88,7 +88,7 @@ public final class NumericColumnReader {
 
     /**
      * Whether any document holds more than one value. A single-valued column maps a rank straight to an
-     * ordinal, which is what lets a run of ranks be served as one contiguous slice of a decoded block.
+     * ordinal.
      */
     public boolean multiValued() {
         return valueAddresses != null;

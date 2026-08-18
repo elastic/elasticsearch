@@ -38,13 +38,9 @@ public abstract class ColumnIterator extends DocIdSetIterator {
      * {@code ranks[0..count)}. Document ids must be ascending with no duplicates; a document with no
      * value gets {@link #NO_RANK}.
      *
-     * <p>This is the seam that lets a bulk value read stay bulk regardless of how presence is stored.
-     * The default walks the iterator one document at a time, which is always correct; shapes that can
-     * answer without walking override it — a dense column's ordinal is its own document id, so it
-     * resolves the whole batch with no I/O.
-     *
-     * <p>The iterator's position afterwards is unspecified: callers must reposition before using the
-     * per-document accessors again.
+     * <p>The default walks the iterator one document at a time; shapes that can answer without walking
+     * override it. The iterator's position afterwards is unspecified, so callers must reposition before
+     * using the per-document accessors again.
      */
     public void ranks(int[] docs, int offset, int count, int[] ranks) throws IOException {
         for (int i = 0; i < count; i++) {
@@ -172,6 +168,11 @@ public abstract class ColumnIterator extends DocIdSetIterator {
         }
 
         @Override
+        public int docIDRunEnd() {
+            return maxDoc;
+        }
+
+        @Override
         public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) {
             if (doc >= upTo) {
                 return;
@@ -203,13 +204,9 @@ public abstract class ColumnIterator extends DocIdSetIterator {
         }
 
         /**
-         * Resolves a run of documents per {@link IndexedDISI#advanceExact} rather than one each, using
-         * {@link IndexedDISI#docIDRunEnd()}: every document in {@code [docID(), runEnd)} is present, so
-         * their ordinals are consecutive from the one just read and follow by arithmetic. An {@code ALL}
-         * block reports its whole 65536-document range, and a {@code DENSE} block reports the rest of the
-         * current word when every bit in it is set — so a locally dense column costs one advance per run
-         * instead of one per document. A {@code SPARSE} block reports no run and falls back to one advance
-         * each, which is what the generic implementation would have done anyway.
+         * Resolves a run of documents per {@link IndexedDISI#advanceExact} rather than one each: every
+         * document in {@code [docID(), runEnd)} is present, so their ordinals are consecutive from the one
+         * just read and follow by arithmetic.
          */
         @Override
         public void ranks(int[] docs, int offset, int count, int[] ranks) throws IOException {
@@ -249,6 +246,11 @@ public abstract class ColumnIterator extends DocIdSetIterator {
         @Override
         public int advance(int target) throws IOException {
             return disi.advance(target);
+        }
+
+        @Override
+        public int docIDRunEnd() throws IOException {
+            return disi.docIDRunEnd();
         }
 
         @Override

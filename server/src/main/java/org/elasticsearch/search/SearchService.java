@@ -997,7 +997,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             }
-        }, wrapFailureListener(listener, readerContext, markAsUsed));
+        }, wrapFailureListener(listener, markAsUsed, e -> processScrollContinuationFailure(readerContext, e)));
     }
 
     /**
@@ -1121,7 +1121,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             }
-        }, wrapFailureListener(releaseCircuitBreakerOnResponse(listener, result -> result.fetchResult()), readerContext, markAsUsed));
+        },
+            wrapFailureListener(
+                releaseCircuitBreakerOnResponse(listener, result -> result.fetchResult()),
+                markAsUsed,
+                e -> processScrollContinuationFailure(readerContext, e)
+            )
+        );
     }
 
     public void executeFetchPhase(ShardFetchRequest request, CancellableTask task, ActionListener<FetchSearchResult> listener) {
@@ -1480,6 +1486,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private <T> ActionListener<T> wrapFailureListener(ActionListener<T> listener, ReaderContext context, Releasable releasable) {
+        return wrapFailureListener(listener, releasable, e -> processFailure(context, e));
+    }
+
+    private static <T> ActionListener<T> wrapFailureListener(
+        ActionListener<T> listener,
+        Releasable releasable,
+        Consumer<Exception> onFailureCleanup
+    ) {
         return new ActionListener<>() {
             @Override
             public void onResponse(T resp) {
@@ -1489,15 +1503,46 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             @Override
             public void onFailure(Exception exc) {
-                processFailure(context, exc);
-                Releasables.close(releasable);
-                listener.onFailure(exc);
+                try {
+                    onFailureCleanup.accept(exc);
+                } finally {
+                    try {
+                        Releasables.close(releasable);
+                    } finally {
+                        listener.onFailure(exc);
+                    }
+                }
             }
         };
     }
 
     private static boolean isScrollContext(ReaderContext context) {
         return context instanceof LegacyReaderContext && context.singleSession() == false;
+    }
+
+    /**
+     * Whether the failure is a transient search-thread-pool rejection (queue full) rather than
+     * a rejection caused by executor shutdown.
+     * Visible for testing.
+     */
+    static boolean isTransientRejection(Exception exc) {
+        Throwable rejected = ExceptionsHelper.unwrap(exc, EsRejectedExecutionException.class);
+        return rejected instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() == false;
+    }
+
+    /**
+     * Failure handler for scroll continuation ({@link InternalScrollSearchRequest}) query/fetch paths.
+     * Keeps the reader context on transient search-thread-pool rejection so the client can retry with
+     * the same {@code scroll_id}; otherwise delegates to {@link #processFailure}.
+     */
+    private void processScrollContinuationFailure(ReaderContext context, Exception exc) {
+        if (isTransientRejection(exc)) {
+            // Rejection is raised at executor submission, before the task body runs, so
+            // ScrollContext.lastEmittedDoc is unchanged and a client retry is safe.
+            logger.trace(() -> format("keeping scroll context [%s] after transient rejected execution", context.id()));
+            return;
+        }
+        processFailure(context, exc);
     }
 
     private void processFailure(ReaderContext context, Exception exc) {
@@ -1611,6 +1656,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 );
             } catch (IOException e) {
                 throw new AggregationInitializationException("Failed to create aggregators", e);
+            } catch (StackOverflowError e) {
+                throw new IllegalArgumentException("The aggregations are too deeply nested to build");
             }
         }
         if (source.suggest() != null) {

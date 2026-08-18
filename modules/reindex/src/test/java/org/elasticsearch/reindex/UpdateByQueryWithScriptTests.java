@@ -16,7 +16,6 @@ import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Collections;
 import java.util.Date;
 import java.util.Map;
 
@@ -57,7 +56,7 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
 
         TransportUpdateByQueryAction transportAction = new TransportUpdateByQueryAction(
             threadPool,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             null,
             transportService,
             scriptService,

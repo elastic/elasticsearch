@@ -11,9 +11,15 @@ package org.elasticsearch.search.aggregations;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -27,11 +33,13 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -57,6 +65,7 @@ import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class AggregatorFactoriesTests extends ESTestCase {
     private NamedXContentRegistry xContentRegistry;
@@ -216,6 +225,151 @@ public class AggregatorFactoriesTests extends ESTestCase {
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
         Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parser));
         assertThat(e.toString(), containsString("Unknown aggregation type [term] did you mean [terms]?"));
+    }
+
+    public void testMaxNestedDepth() throws Exception {
+        int maxDepth = AggregatorFactories.MAX_NESTED_DEPTH;
+        assertNestedDepthAccepted(maxDepth);
+        ParsingException e = expectMaxNestedDepthExceeded(maxDepth + 1);
+        assertThat(
+            e.getMessage(),
+            equalTo("The nested depth of the aggregations exceeds the maximum nested depth for aggregations of [" + maxDepth + "]")
+        );
+    }
+
+    public void testMaxNestedDepthEnforcedAtBuildTime() {
+        int maxDepth = AggregatorFactories.MAX_NESTED_DEPTH;
+        AggregatorFactories.Builder tooDeep = nestedTermsBuilder(maxDepth + 1);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> tooDeep.build(null, null));
+        assertThat(e.getMessage(), containsString("exceeds the maximum nested depth for aggregations of [" + maxDepth + "]"));
+    }
+
+    public void testMaxNestedDepthEnforcedAfterTransportSerialization() throws IOException {
+        int maxDepth = AggregatorFactories.MAX_NESTED_DEPTH;
+        AggregatorFactories.Builder tooDeep = nestedTermsBuilder(maxDepth + 1);
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(
+            new SearchModule(Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build(), emptyList())
+                .getNamedWriteables()
+        );
+        AggregatorFactories.Builder roundTripped;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            tooDeep.writeTo(out);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
+                roundTripped = new AggregatorFactories.Builder(in);
+            }
+        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> roundTripped.build(null, null));
+        assertThat(e.getMessage(), containsString("exceeds the maximum nested depth for aggregations of [" + maxDepth + "]"));
+    }
+
+    public void testMaxNestedDepthEnforcedAtValidationTime() {
+        int maxDepth = defaultMaxNestedDepth();
+        ActionRequestValidationException e = nestedTermsBuilder(maxDepth + 1).validate(null);
+        assertNotNull(e);
+        assertThat(e.getMessage(), containsString("exceeds the maximum nested depth for aggregations of [" + maxDepth + "]"));
+    }
+
+    public void testValidationOfVeryDeepTreeDoesNotOverflowTheStack() {
+        int maxDepth = defaultMaxNestedDepth();
+        ActionRequestValidationException e = veryDeeplyNestedTermsBuilder().validate(null);
+        assertNotNull(e);
+        assertThat(e.getMessage(), containsString(maxNestedDepthExceededMessage(maxDepth)));
+    }
+
+    public void testValidationOfVeryDeepTreeInSearchRequestDoesNotOverflowTheStack() {
+        int maxDepth = defaultMaxNestedDepth();
+        SearchRequest request = new SearchRequest().source(new SearchSourceBuilder().aggregationsBuilder(veryDeeplyNestedTermsBuilder()));
+        ActionRequestValidationException e = request.validate();
+        assertNotNull(e);
+        assertThat(e.getMessage(), containsString(maxNestedDepthExceededMessage(maxDepth)));
+    }
+
+    public void testMaxNestedDepthEnforcedAtValidationTimeRegardlessOfAllowPartialSearchResults() {
+        int maxDepth = defaultMaxNestedDepth();
+        SearchRequest request = new SearchRequest().source(new SearchSourceBuilder().aggregationsBuilder(nestedTermsBuilder(maxDepth + 1)))
+            .allowPartialSearchResults(true);
+        ActionRequestValidationException e = request.validate();
+        assertNotNull(e);
+        assertThat(e.getMessage(), containsString("exceeds the maximum nested depth for aggregations of [" + maxDepth + "]"));
+    }
+
+    public void testMaxNestedDepthBoundaryAcceptedAtValidationTime() {
+        assertNull(nestedTermsBuilder(defaultMaxNestedDepth()).validate(null));
+    }
+
+    public void testMaxNestedDepthBoundaryAcceptedAtBuildTime() {
+        AggregatorFactories.Builder atLimit = nestedTermsBuilder(AggregatorFactories.MAX_NESTED_DEPTH);
+        try {
+            atLimit.build(null, null);
+        } catch (Exception e) {
+            assertThat(
+                "a tree at the limit must not be rejected by the depth guard",
+                e.getMessage() == null ? "" : e.getMessage(),
+                not(containsString("maximum nested depth"))
+            );
+        }
+    }
+
+    private static AggregatorFactories.Builder veryDeeplyNestedTermsBuilder() {
+        TermsAggregationBuilder leaf = new TermsAggregationBuilder("a0").field("f");
+        AggregatorFactories.Builder builder = new AggregatorFactories.Builder().addAggregator(leaf);
+        for (int i = 1; i < 20_000; i++) {
+            TermsAggregationBuilder child = new TermsAggregationBuilder("a" + i).field("f");
+            leaf.subAggregation(child);
+            leaf = child;
+        }
+        return builder;
+    }
+
+    private static AggregatorFactories.Builder nestedTermsBuilder(int depth) {
+        TermsAggregationBuilder root = new TermsAggregationBuilder("a0").field("f");
+        TermsAggregationBuilder parent = root;
+        for (int i = 1; i < depth; i++) {
+            TermsAggregationBuilder child = new TermsAggregationBuilder("a" + i).field("f");
+            parent.subAggregation(child);
+            parent = child;
+        }
+        return new AggregatorFactories.Builder().addAggregator(root);
+    }
+
+    private static int defaultMaxNestedDepth() {
+        return AggregatorFactories.MAX_NESTED_DEPTH;
+    }
+
+    /**
+     * Mirrors {@code AggregatorFactories.maxNestedDepthExceededMessage()} so tests can assert against the full
+     * expected message rather than a hand-typed partial substring.
+     */
+    private static String maxNestedDepthExceededMessage(int maxDepth) {
+        return "The nested depth of the aggregations exceeds the maximum nested depth for aggregations of [" + maxDepth + "]";
+    }
+
+    private void assertNestedDepthAccepted(int depth) throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, nestedTermsAggs(depth, false))) {
+            assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertThat(AggregatorFactories.parseAggregators(parser).count(), equalTo(1));
+        }
+    }
+
+    private ParsingException expectMaxNestedDepthExceeded(int depth) throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, nestedTermsAggs(depth, false))) {
+            assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
+            return expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parser));
+        }
+    }
+
+    private static String nestedTermsAggs(int depth, boolean trailingEmptyAggs) {
+        StringBuilder aggs = new StringBuilder();
+        for (int i = 0; i < depth; i++) {
+            if (i > 0) {
+                aggs.append(",\"aggs\":");
+            }
+            aggs.append("{\"a").append(i).append("\":{\"terms\":{\"field\":\"f\"}");
+        }
+        if (trailingEmptyAggs) {
+            aggs.append(",\"aggs\":{}");
+        }
+        return aggs.append("}}".repeat(depth)).toString();
     }
 
     public void testRewriteAggregation() throws Exception {

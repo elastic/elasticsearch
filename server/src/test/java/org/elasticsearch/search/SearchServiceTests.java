@@ -26,6 +26,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -71,6 +72,7 @@ import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.Strings.format;
+import static org.elasticsearch.search.SearchService.isTransientRejection;
 import static org.elasticsearch.search.SearchService.wrapListenerForErrorHandling;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.not;
@@ -237,6 +239,20 @@ public class SearchServiceTests extends IndexShardTestCase {
             listener = wrapListenerForErrorHandling(listener, TransportVersion.current(), nodeId, shardId, taskId, threadPool);
             listener.onFailure(e);
         }
+    }
+
+    public void testIsTransientRejection() {
+        assertTrue(isTransientRejection(new EsRejectedExecutionException("rejected", false)));
+        assertFalse(isTransientRejection(new EsRejectedExecutionException("shutdown", true)));
+        assertFalse(isTransientRejection(new RuntimeException("other")));
+
+        Exception wrapped = new RuntimeException(new EsRejectedExecutionException("rejected", false));
+        assertTrue(isTransientRejection(wrapped));
+
+        // suppressed-only rejection must not retain (cause-chain unwrap only)
+        RuntimeException primary = new RuntimeException("primary");
+        primary.addSuppressed(new EsRejectedExecutionException("rejected", false));
+        assertFalse(isTransientRejection(primary));
     }
 
     public void testBuildQueryWithCircuitBreakerAccountsMemory() throws IOException {

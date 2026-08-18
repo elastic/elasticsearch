@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
 import org.junit.Before;
 
 import java.util.Arrays;
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -32,10 +31,7 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
     @Before
     public void init() {
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        transportGetServiceAccountAction = new TransportGetServiceAccountAction(
-            transportService,
-            new ActionFilters(Collections.emptySet())
-        );
+        transportGetServiceAccountAction = new TransportGetServiceAccountAction(transportService, ActionFilters.EMPTY);
     }
 
     public void testDoExecute() {

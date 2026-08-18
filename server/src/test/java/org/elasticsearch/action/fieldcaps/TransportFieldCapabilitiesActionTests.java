@@ -37,7 +37,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -59,7 +58,7 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
             .put("node.name", TransportFieldCapabilitiesActionTests.class.getSimpleName())
             .put(SearchService.CCS_VERSION_CHECK_SETTING.getKey(), "true")
             .build();
-        ActionFilters actionFilters = new ActionFilters(Set.of());
+        ActionFilters actionFilters = ActionFilters.EMPTY;
         TransportVersion transportVersion = TransportVersionUtils.getNextVersion(TransportVersion.minimumCCSVersion(), true);
         try {
             TransportService transportService = MockTransportService.createNewService(
@@ -114,7 +113,7 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testNodeHandlerAbortedWhenTaskCancelled() throws Exception {
-        ActionFilters actionFilters = new ActionFilters(Set.of());
+        ActionFilters actionFilters = ActionFilters.EMPTY;
         ClusterService clusterService = new ClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),

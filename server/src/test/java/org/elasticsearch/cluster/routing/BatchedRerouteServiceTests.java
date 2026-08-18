@@ -259,6 +259,14 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                     "unexpected failure"
                 )
             );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "failure within reroute includes current state",
+                    BatchedRerouteService.class.getCanonicalName(),
+                    Level.ERROR,
+                    "current state"
+                )
+            );
 
             final BatchedRerouteService failingRerouteService = new BatchedRerouteService(clusterService, (s, r, l) -> {
                 throw new ElasticsearchException("simulated");
@@ -299,6 +307,14 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                     "unexpected failure"
                 )
             );
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "publish failure omits current state",
+                    BatchedRerouteService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "current state"
+                )
+            );
 
             final var publishFailureFuture = new PlainActionFuture<Void>();
             batchedRerouteService.reroute("publish failure", randomFrom(EnumSet.allOf(Priority.class)), publishFailureFuture);
@@ -322,6 +338,14 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                     BatchedRerouteService.class.getCanonicalName(),
                     Level.DEBUG,
                     "unexpected failure"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "not-master failure omits current state",
+                    BatchedRerouteService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "current state"
                 )
             );
             final var notMasterFuture = new PlainActionFuture<Void>();

@@ -10,6 +10,25 @@ Prior to version *8.16.0*, the connector release notes were published as part of
 ====
 
 [discrete]
+[[es-connectors-release-notes-8-19-20]]
+=== 8.19.20
+
+[discrete]
+[[es-connectors-release-notes-8-19-20-bug-fixes]]
+===== Bug fixes
+
+* Fixed Document Level Security for the Outlook connector, where content documents were indexed with identities that did not match the ones granted by the access control documents, so owners could not retrieve their own synced documents.
+See: https://github.com/elastic/connectors/pull/4315[*PR 4315*]
+* Fixed the SharePoint Online connector to skip the system list SharePointHomeCacheList, so syncs are no longer aborted by Unauthorized responses when fetching its attachments.
+See: https://github.com/elastic/connectors/pull/4310[*PR 4310*]
+* Fixed Confluence connector Document Level Security to index effective page view restrictions by intersecting the child's and all ancestors' read restrictions, instead of over-granting through space-level permissions.
+See: https://github.com/elastic/connectors/pull/4305[*PR 4305*]
+* Fixed the Outlook connector aborting a sync when Exchange returned an unrecognised EWS element; such elements are now skipped with a warning and the rest of the mailbox continues to sync.
+See: https://github.com/elastic/connectors/pull/4295[*PR 4295*]
+* Fixed the SharePoint Online connector to surface a clear, actionable error when role assignments are unauthorized while Document Level Security is enabled.
+See: https://github.com/elastic/connectors/pull/4269[*PR 4269*]
+
+[discrete]
 [[es-connectors-release-notes-8-19-19]]
 === 8.19.19
 

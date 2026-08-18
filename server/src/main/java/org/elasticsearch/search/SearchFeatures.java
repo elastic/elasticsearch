@@ -38,6 +38,22 @@ public final class SearchFeatures implements FeatureSpecification {
     public static final NodeFeature DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX = new NodeFeature(
         "search.aggs.date_histogram.hard_bounds_outside_data_fix"
     );
+    /**
+     * Test-only gate for REST tests asserting that a user-mapped field named {@code _type} is not
+     * surfaced as root-level hit metadata. Old nodes included it in the default metadata fetch
+     * regardless of whether it was a real metadata mapper.
+     */
+    public static final NodeFeature FETCH_FIELDS_EXCLUDES_NON_METADATA_TYPE = new NodeFeature(
+        "search.fetch_fields.excludes_non_metadata_type"
+    );
+    /**
+     * Test-only gate for REST tests asserting that {@code inner_hits} of a nested kNN query score with the same
+     * fidelity the query phase used. Older nodes score the fetch phase against the quantized vectors while the query
+     * phase rescores against the full-precision ones, so those tests cannot pass on a mixed BWC cluster.
+     */
+    public static final NodeFeature NESTED_KNN_INNER_HITS_MATCH_QUERY_PHASE_SCORING = new NodeFeature(
+        "search.vectors.nested_knn_inner_hits_match_query_phase_scoring"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -49,7 +65,9 @@ public final class SearchFeatures implements FeatureSpecification {
             KNN_QUERY_BUGFIX_130254,
             SEARCH_WITH_NO_DIMENSIONS_BUGFIX,
             DATE_FORMAT_MISSING_AS_NULL,
-            DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX
+            DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX,
+            FETCH_FIELDS_EXCLUDES_NON_METADATA_TYPE,
+            NESTED_KNN_INNER_HITS_MATCH_QUERY_PHASE_SCORING
         );
     }
 }

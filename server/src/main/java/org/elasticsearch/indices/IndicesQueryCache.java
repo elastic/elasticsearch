@@ -360,9 +360,6 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         private Stats getOrCreateStats(Object coreKey) {
             final ShardId shardId = shardKeyMap.getShardId(coreKey);
             if (shardId == null) {
-                // The segment was concurrently closed and unregistered from the shard key map, so
-                // there is no shard left to attribute this event to; ConcurrentHashMap#computeIfAbsent
-                // would otherwise throw on the null key.
                 return null;
             }
             return shardStats.computeIfAbsent(shardId, Stats::new);
@@ -399,10 +396,6 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             super.onDocIdSetCache(readerCoreKey, ramBytesUsed);
             final Stats shardStats = getOrCreateStats(readerCoreKey);
             if (shardStats == null) {
-                // The segment was concurrently closed and unregistered from the shard key map;
-                // there is no shard to attribute this cache entry to. Note that Lucene's own cache
-                // already holds the entry regardless, so it may still be evicted later via
-                // onDocIdSetEviction, which is guarded against a missing stats2 entry for this case.
                 return;
             }
             shardStats.cacheSize += 1;
@@ -427,9 +420,6 @@ public class IndicesQueryCache implements QueryCache, Closeable {
                 // instead of relying on close listeners
                 final StatsAndCount statsAndCount = stats2.get(readerCoreKey);
                 if (statsAndCount == null) {
-                    // onDocIdSetCache never recorded this segment, most likely because the shard
-                    // could not be resolved at the time (see the null check there); there is
-                    // nothing to undo.
                     return;
                 }
                 final Stats shardStats = statsAndCount.stats;

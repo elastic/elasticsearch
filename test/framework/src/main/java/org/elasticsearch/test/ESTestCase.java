@@ -69,6 +69,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.TemplateDecoratorRule;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -82,6 +83,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.ChunkedLoggingStream;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.HeaderWarningAppender;
@@ -272,6 +274,8 @@ import static org.hamcrest.Matchers.startsWith;
 )
 @LuceneTestCase.SuppressReproduceLine
 public abstract class ESTestCase extends LuceneTestCase {
+
+    private static final Logger STATIC_LOGGER = LogManager.getLogger(ESTestCase.class);
 
     protected static final List<String> JAVA_TIMEZONE_IDS;
     protected static final List<String> JAVA_ZONE_IDS;
@@ -585,6 +589,18 @@ public abstract class ESTestCase extends LuceneTestCase {
             );
             Locale.setDefault(Locale.ENGLISH);
         }
+    }
+
+    @Override
+    public final void setUp() throws Exception {
+        // use an @Before method for per-test setup
+        super.setUp();
+    }
+
+    @Override
+    public final void tearDown() throws Exception {
+        // use an @After method for per-test cleanup
+        super.tearDown();
     }
 
     @Before
@@ -2217,19 +2233,42 @@ public abstract class ESTestCase extends LuceneTestCase {
             output.setTransportVersion(version);
             writer.write(output, original);
             if (randomBoolean()) {
-                try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                    in.setTransportVersion(version);
-                    return reader.read(in);
-                }
+                return readCopyFromBytesReference(output.bytes(), reader, version, namedWriteableRegistry);
             } else {
                 BytesReference bytesReference = output.copyBytes();
                 output.reset();
                 bytesReference.writeTo(output);
-                try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                    in.setTransportVersion(version);
-                    return reader.read(in);
-                }
+                return readCopyFromBytesReference(output.bytes(), reader, version, namedWriteableRegistry);
             }
+        }
+    }
+
+    private static <T extends Writeable> T readCopyFromBytesReference(
+        BytesReference bytesReference,
+        Writeable.Reader<T> reader,
+        TransportVersion version,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) throws IOException {
+        try (StreamInput in = new NamedWriteableAwareStreamInput(bytesReference.streamInput(), namedWriteableRegistry)) {
+            in.setTransportVersion(version);
+            return reader.read(in);
+        } catch (Exception e) {
+            try (
+                var loggingStream = ChunkedLoggingStream.create(
+                    STATIC_LOGGER,
+                    Level.ERROR,
+                    "failed to copy object via BytesReference",
+                    ReferenceDocs.LOGGING
+                )
+            ) {
+                bytesReference.writeTo(loggingStream);
+            } catch (Exception e2) {
+                e.addSuppressed(e2);
+            }
+            STATIC_LOGGER.atError()
+                .withThrowable(e)
+                .log("failed to copy object via BytesReference; wire format at version [{}] is above", version);
+            throw e;
         }
     }
 

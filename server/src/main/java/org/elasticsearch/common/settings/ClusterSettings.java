@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.allocation.TransportGetAllocationS
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
+import org.elasticsearch.action.bulk.PreResolvedUpdates;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
@@ -280,6 +281,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         IncrementalBulkService.INCREMENTAL_BULK,
         IncrementalBulkService.REQUEST_TIMEOUT,
         ShardBatchIndexer.BATCH_INDEXING,
+        PreResolvedUpdates.PRE_RESOLVE_BULK_UPDATES,
         RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
         RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,
         RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING,

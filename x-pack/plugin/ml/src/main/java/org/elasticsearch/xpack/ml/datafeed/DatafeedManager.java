@@ -335,11 +335,16 @@ public final class DatafeedManager {
                             l.onResponse(response);
                         }, l::onFailure)
                         : l;
+                    // KEEP with an existing CPS envelope must not stamp caller security headers
+                    // over the minted key's Authentication stored at mint time.
+                    final Map<String, String> headersForUpdate = intent == CredentialTransitions.Intent.KEEP
+                        && current.getCloudInternalCredential() != null ? Map.of() : headers;
                     Runnable executeUpdate = () -> credentialTransitions.executeUpdate(
                         intent,
                         effectiveRequest,
                         current.getJobId(),
-                        headers,
+                        headersForUpdate,
+                        state,
                         threadPool,
                         securityContext,
                         wrappedValidator,

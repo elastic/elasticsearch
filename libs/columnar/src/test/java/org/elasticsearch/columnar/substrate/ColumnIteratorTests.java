@@ -18,6 +18,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -94,14 +95,14 @@ public class ColumnIteratorTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             ColumnIteratorMetadata written;
             try (IndexOutput out = dir.createOutput("iterator.cnd", IOContext.DEFAULT)) {
-                ColumnarCodecUtil.writeHeader(out, DATA_NAME, segmentId, "");
+                ColumnarCodecUtil.writeHeader(out, DATA_NAME, FormatVersion.CURRENT, segmentId, "");
                 DocIdSetIterator docsWithField = new BitSetIterator(expected, cardinality);
                 written = ColumnIteratorWriter.write(docsWithField, cardinality, maxDoc, out);
                 ColumnarCodecUtil.writeFooter(out);
             }
 
             try (IndexOutput meta = dir.createOutput("iterator.cnm", IOContext.DEFAULT)) {
-                ColumnarCodecUtil.writeHeader(meta, META_NAME, segmentId, "");
+                ColumnarCodecUtil.writeHeader(meta, META_NAME, FormatVersion.CURRENT, segmentId, "");
                 written.writeTo(meta);
                 ColumnarCodecUtil.writeFooter(meta);
             }
@@ -109,8 +110,8 @@ public class ColumnIteratorTests extends ESTestCase {
             // Metadata survives a serialization round-trip.
             ColumnIteratorMetadata read;
             try (ChecksumIndexInput meta = dir.openChecksumInput("iterator.cnm")) {
-                ColumnarCodecUtil.checkHeader(meta, META_NAME, segmentId, "");
-                read = ColumnIteratorMetadata.readFrom(meta, maxDoc);
+                final FormatVersion formatVersion = ColumnarCodecUtil.checkHeader(meta, META_NAME, segmentId, "");
+                read = ColumnIteratorMetadata.readFrom(meta, maxDoc, formatVersion);
                 ColumnarCodecUtil.checkFooter(meta);
             }
             assertEquals(written, read);

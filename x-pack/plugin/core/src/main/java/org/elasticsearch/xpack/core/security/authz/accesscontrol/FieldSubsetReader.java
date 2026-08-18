@@ -41,6 +41,7 @@ import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.mapper.FieldArrayContext;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
@@ -167,14 +168,32 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
         for (FieldInfo fi : in.getFieldInfos()) {
             String name = fi.name;
+
+            // A text-family field stores its original value in a "<field>._original" companion. When the field itself is unmapped, this
+            // companion is all that represents it, so filter under the real field name rather than matching "<field>._original" directly.
             if (fi.getName().endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX) && isMapped.apply(fi.getName()) == false) {
                 name = fi.getName().substring(0, fi.getName().length() - TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX.length());
             }
+
+            // A value that failed to parse is kept verbatim in a "<field>._ignore_malformed" companion. When the field is unmapped, this
+            // companion is all that represents it, so filter under the real field name rather than matching the companion name directly.
             if (fi.getName().endsWith(IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX)
                 && isMapped.apply(fi.getName()) == false) {
                 name = fi.getName()
                     .substring(0, fi.getName().length() - IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX.length());
             }
+
+            // The .offsets sidecar records array order for its parent field's doc values, so its visibility must follow the parent.
+            // Filtering it independently would leave orphaned offsets behind a hidden field, and synthetic source reconstruction would
+            // then read offsets pointing at absent values. Only treat it as a companion when the parent exists as a field in the
+            // underlying index, so a user field that merely ends with the suffix but has no such parent is unaffected.
+            if (name.endsWith(FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX) && isMapped.apply(fi.getName()) == false) {
+                String parent = name.substring(0, name.length() - FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX.length());
+                if (in.getFieldInfos().fieldInfo(parent) != null) {
+                    name = parent;
+                }
+            }
+
             if (filter.run(name)) {
                 filteredInfos.add(fi);
             }
@@ -215,6 +234,11 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     public StoredFields storedFields() throws IOException {
         StoredFields storedFields = super.storedFields();
         return new StoredFields() {
+            @Override
+            public void prefetch(int docID) throws IOException {
+                storedFields.prefetch(docID);
+            }
+
             @Override
             public void document(int docID, StoredFieldVisitor visitor) throws IOException {
                 storedFields.document(docID, new FieldSubsetStoredFieldVisitor(visitor, ignoredSourceFormat));

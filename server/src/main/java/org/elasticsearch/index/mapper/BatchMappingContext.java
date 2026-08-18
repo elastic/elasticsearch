@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.sourcebatch.LuceneColumn;
@@ -39,6 +40,7 @@ public final class BatchMappingContext {
     private final IndexOperationBatch batch;
     private final MappingLookup mappingLookup;
     private final IndexSettings indexSettings;
+    private final Recycler<BytesRef> recycler;
     private final List<LuceneColumn> columns = new ArrayList<>();
     private final FieldNamesFieldMapper fieldNamesFieldMapper;
 
@@ -52,15 +54,26 @@ public final class BatchMappingContext {
      * Primary constructor. Delegates all per-doc data accessors to {@code batch} and records
      * accumulated columns and field names during mapping.
      */
-    public BatchMappingContext(IndexOperationBatch batch, MappingLookup mappingLookup, IndexSettings indexSettings) {
+    public BatchMappingContext(
+        IndexOperationBatch batch,
+        MappingLookup mappingLookup,
+        IndexSettings indexSettings,
+        Recycler<BytesRef> recycler
+    ) {
         this.batch = batch;
         this.mappingLookup = mappingLookup;
         this.indexSettings = indexSettings;
+        this.recycler = recycler;
         this.fieldNamesFieldMapper = mappingLookup.getMapping().fieldNamesFieldMapper();
     }
 
     public IndexSettings indexSettings() {
         return indexSettings;
+    }
+
+    // TODO: nothing allocates through this yet — the columns it would produce have no owner to release them.
+    public Recycler<BytesRef> recycler() {
+        return recycler;
     }
 
     /** Attaches a fully-assembled {@link LuceneColumn} covering all {@code docCount} rows. */
@@ -181,6 +194,13 @@ public final class BatchMappingContext {
             ignoredFields = new DeduplicatingStringColumnAccumulator(batch.docCount());
         }
         ignoredFields.record(doc, new BytesRef(field));
+    }
+
+    /**
+     * Whether {@code _source} is reconstructed from doc values.
+     */
+    public boolean isSourceSynthetic() {
+        return mappingLookup.isSourceSynthetic();
     }
 
     /** The number of documents in this chunk. */

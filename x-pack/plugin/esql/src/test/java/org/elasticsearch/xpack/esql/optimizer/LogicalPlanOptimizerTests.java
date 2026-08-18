@@ -111,6 +111,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
@@ -11683,7 +11684,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var mixedIndex = new EsIndex(
             "*",
             mapping,
-            Map.of("ts_index", IndexMode.TIME_SERIES, "standard_index", IndexMode.STANDARD),
+            Map.of("ts_index", new IndexProperties(IndexMode.TIME_SERIES, 0), "standard_index", new IndexProperties(IndexMode.STANDARD, 0)),
             Map.of(),
             Map.of()
         );

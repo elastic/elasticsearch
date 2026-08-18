@@ -1021,6 +1021,52 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         }
     }
 
+    /**
+     * A field-level-security role that filters out an array field must also hide that field's {@code .offsets} companion. Otherwise
+     * synthetic source reconstruction reads the hidden field's offsets (which point at now-absent values) and takes the "all values are
+     * null" branch, tripping an assertion (node crash with assertions enabled) or emitting an array of nulls in production.
+     */
+    public void testFilteredArrayFieldOffsetsAreHidden() throws Exception {
+        IndexVersion indexVersion = IndexVersion.current();
+        Settings mapperSettings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.mapping.synthetic_source_keep", "arrays")
+            .build();
+        var indexSettings = createIndexSettings(indexVersion, mapperSettings);
+        var format = IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings);
+
+        DocumentMapper mapper = createMapperService(indexVersion, mapperSettings, mapping(b -> {
+            b.startObject("keep").field("type", "long").endObject();
+            b.startObject("excluded").field("type", "long").endObject();
+        })).documentMapper();
+
+        var filter = new CharacterRunAutomaton(
+            FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "excluded" })
+        );
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.array("keep", 3, 1, 2);
+                b.array("excluded", 30, 10, 20);
+            }));
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            iw.addDocuments(doc.docs());
+            iw.close();
+            try (
+                DirectoryReader indexReader = FieldSubsetReader.wrap(
+                    wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                    filter,
+                    format,
+                    (fieldName) -> mapper.mappers().getFieldType(fieldName) != null
+                )
+            ) {
+                assertEquals("{\"keep\":[3,1,2]}", syntheticSource(mapper, indexReader, doc.docs().size() - 1));
+            }
+        }
+    }
+
     public void testVisibilityOriginalFieldNames() throws Exception {
         try (Directory dir = newDirectory()) {
             try (IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(null))) {

@@ -58,8 +58,8 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
     /// Controls the max number of concurrent recoveries allowed on this data node. Excludes peer recoveries for which this
     /// node is the source, see [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING]. Includes both
-    /// recoveries of unassigned shards and relocations. See also [#INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING] which imposes an
-    /// additional throttle on relocations only.
+    /// recoveries of unassigned shards and relocations. See also [#INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING] which
+    /// imposes an additional throttle on relocations only.
     ///
     public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING = Setting.intSetting(
         "indices.recovery.max_concurrent_recoveries",
@@ -83,8 +83,8 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// - ...while there will be an additional number of slots given by the difference between the two settings that can only be used by
     /// recoveries from unassigned shards.
     ///
-    /// If this is set to a value equal to or greater than [#INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING] then this
-    /// setting has no effect.
+    /// If this is set to a value equal to or greater than [#INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING] then this setting has no
+    /// effect.
     ///
     public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING = Setting.intSetting(
         "indices.recovery.max_concurrent_relocation_recoveries",

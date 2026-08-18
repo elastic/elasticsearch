@@ -129,7 +129,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorIT extends AbstractSta
             createUnavailablePrimary(primaryFailureProject, primaryFailIndex);
             createIndexWithUnassignedReplicas(replicaFailureProject, replicaFailIndex);
 
-            HealthIndicatorResult result= waitForStatusAndGet(HealthStatus.RED);
+            HealthIndicatorResult result = waitForStatusAndGet(HealthStatus.RED);
             assertThat(result.symptom(), containsString("unavailable primary shard"));
             assertThat(result.symptom(), containsString("unavailable replica shard"));
 
@@ -248,11 +248,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorIT extends AbstractSta
                 .setTimeout(TimeValue.timeValueSeconds(30))
         );
         assertBusy(() -> {
-            var health = client().projectClient(projectId)
-                .admin()
-                .cluster()
-                .prepareHealth(TEST_REQUEST_TIMEOUT, indexName)
-                .get();
+            var health = client().projectClient(projectId).admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get();
             assertThat(health.getActivePrimaryShards(), equalTo(1));
             assertThat(health.getUnassignedShards(), equalTo(1));
         });

@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.ProjectStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
@@ -50,7 +51,6 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -84,7 +84,6 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executor;
@@ -157,10 +156,6 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
         return threadPool.executor(indexService.getIndexSettings().getIndexMetadata().isSystem() ? Names.SYSTEM_WRITE : Names.WRITE);
     }
 
-    private UpdateResponse newResponse(StreamInput in) throws IOException {
-        return new UpdateResponse(in);
-    }
-
     /**
      * Resolves the request. Throws an exception if the request cannot be resolved.
      */
@@ -175,7 +170,7 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
         }
         final String concreteName = IndexNameExpressionResolver.resolveDateMathExpression(request.index());
         final boolean sliceEnabled = Optional.ofNullable(state.metadata().getIndicesLookup().get(concreteName))
-            .map(indexAbstraction -> indexAbstraction.getWriteIndex())
+            .map(IndexAbstraction::getWriteIndex)
             .map(state.metadata()::index)
             .map(metadata -> IndexSettings.SLICE_ENABLED.get(metadata.getSettings()))
             .orElse(false);
@@ -252,20 +247,11 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
 
     private void handleShardRequest(UpdateRequest request, TransportChannel channel, Task task) {
         executor(request.shardId).execute(
-            ActionRunnable.wrap(new ChannelActionListener<UpdateResponse>(channel), l -> shardOperation(request, l))
+            ActionRunnable.wrap(new ChannelActionListener<UpdateResponse>(channel), l -> shardOperation(request, l, 0))
         );
     }
 
-    private void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
-        try {
-            shardOperation(request, listener, 0);
-        } catch (IOException e) {
-            listener.onFailure(e);
-        }
-    }
-
-    private void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener, final int retryCount)
-        throws IOException {
+    private void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener, final int retryCount) {
         final ShardId shardId = request.getShardId();
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard indexShard = indexService.getShard(shardId.getId());
@@ -636,11 +622,7 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                 shardActionName,
                 request,
                 TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(
-                    listener,
-                    TransportUpdateAction.this::newResponse,
-                    TransportResponseHandler.TRANSPORT_WORKER
-                ) {
+                new ActionListenerResponseHandler<>(listener, UpdateResponse::new, TransportResponseHandler.TRANSPORT_WORKER) {
                     @Override
                     public void handleException(TransportException exp) {
                         final Throwable cause = exp.unwrapCause();

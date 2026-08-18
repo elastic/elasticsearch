@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.application;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
@@ -44,9 +43,6 @@ import static org.hamcrest.Matchers.startsWith;
 public class ModelRegistryUpgradeIT extends InferenceUpgradeTestCase {
     private static MockWebServer embeddingsServer;
     private static MockWebServer elserServer;
-
-    private static final Version BROKEN_BROADCAST_MIN_VERSION = Version.fromString("9.5.0");
-    private static final Version BROKEN_BROADCAST_FIXED_VERSION = Version.fromString("9.5.2");
 
     @BeforeClass
     public static void startWebServer() throws IOException {
@@ -152,8 +148,8 @@ public class ModelRegistryUpgradeIT extends InferenceUpgradeTestCase {
      * carry the fix, so all other versions are safe.
      */
     private static boolean oldClusterHasBrokenBroadcastSerialization() {
-        Version oldClusterVersion = Version.fromString(getOldClusterVersion());
-        return oldClusterVersion.onOrAfter(BROKEN_BROADCAST_MIN_VERSION) && oldClusterVersion.before(BROKEN_BROADCAST_FIXED_VERSION);
+        var oldClusterVersion = getOldClusterVersion();
+        return oldClusterVersion.equals("9.5.0") || oldClusterVersion.equals("9.5.1");
     }
 
     /**

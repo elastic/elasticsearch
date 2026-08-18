@@ -1269,6 +1269,73 @@ public class ImplClassWriterTests extends ProcessorTestCase {
     }
 
     /**
+     * A {@code @Function} method with an {@code Arena} parameter and a parameter of an
+     * {@code @Upcall}-typed callback interface must generate static {@code $upcallFd} /
+     * {@code $upcallMh} fields (keyed by the callback's parameter index) and a method body that
+     * installs the stub via {@code LinkerHelper.upcallStub(...)} before the downcall. Verified
+     * structurally via {@code loadClassNoInit} — building the downcall {@code MethodHandle} in
+     * {@code <clinit>} would require a real native symbol, but the upcall fields and bytecode
+     * shape can be asserted without initializing the class.
+     */
+    public void testUpcallParamGeneratesStubCall() throws Exception {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.Upcall;
+            @Upcall
+            @FunctionalInterface
+            interface IntCallback {
+                int call(int x);
+            }
+            @LibrarySpecification(name = "testlib")
+            public interface CallbackLib {
+                @Function("native_fn")
+                void fn(IntCallback cb);
+            }
+            """;
+
+        CompilationResult result = compile("test.CallbackLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Class<?> implClass = result.loadClassNoInit("test.CallbackLib$Impl");
+        assertNotNull("Generated CallbackLib$Impl class not found", implClass);
+
+        // The callback is the first parameter (index 0), so the field names are keyed "upcall0".
+        java.lang.reflect.Field fdField = implClass.getDeclaredField("fn$upcall0Fd");
+        assertEquals("fn$upcall0Fd must be a FunctionDescriptor", java.lang.foreign.FunctionDescriptor.class, fdField.getType());
+        assertTrue("fn$upcall0Fd must be static", Modifier.isStatic(fdField.getModifiers()));
+
+        java.lang.reflect.Field mhField = implClass.getDeclaredField("fn$upcall0Mh");
+        assertEquals("fn$upcall0Mh must be a MethodHandle", MethodHandle.class, mhField.getType());
+        assertTrue("fn$upcall0Mh must be static", Modifier.isStatic(mhField.getModifiers()));
+
+        // The generated method keeps the real Java signature: (IntCallback), not (MemorySegment).
+        // Load IntCallback through implClass's own classloader so the Class objects are comparable.
+        Class<?> callbackClass = Class.forName("test.IntCallback", false, implClass.getClassLoader());
+        java.lang.reflect.Method method = implClass.getMethod("fn", callbackClass);
+        assertEquals("fn must return void", void.class, method.getReturnType());
+
+        // The method body must install the stub via LinkerHelper.upcallStub before the downcall.
+        Path classFile = result.outputDir().resolve("test/CallbackLib$Impl.class");
+        assertTrue("Generated CallbackLib$Impl.class not found", Files.exists(classFile));
+        byte[] bytes = Files.readAllBytes(classFile);
+        var cm = ClassFile.of().parse(bytes);
+        boolean hasUpcallStubCall = cm.methods()
+            .stream()
+            .filter(m -> m.methodName().equalsString("fn"))
+            .flatMap(m -> m.code().stream())
+            .flatMap(ca -> ca.elementStream())
+            .anyMatch(
+                e -> e instanceof InvokeInstruction ii
+                    && ii.opcode() == Opcode.INVOKESTATIC
+                    && ii.owner().asInternalName().equals("org/elasticsearch/foreign/LinkerHelper")
+                    && ii.name().equalsString("upcallStub")
+            );
+        assertTrue("Generated fn body must invoke LinkerHelper.upcallStub", hasUpcallStubCall);
+    }
+
+    /**
      * Two overloaded Java methods binding to the same C symbol must generate two distinct
      * {@code MethodHandle} fields using the ordinal-suffix naming strategy:
      * {@code open$0$mh} and {@code open$1$mh}.

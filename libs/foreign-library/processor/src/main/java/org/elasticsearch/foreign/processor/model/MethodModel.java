@@ -66,6 +66,9 @@ import static org.elasticsearch.foreign.processor.model.StructSpecParser.ARRAY_F
  * @param isProtected {@code true} when the method is declared {@code protected} (only possible for abstract-class
  *        specs); always {@code false} for interface-based specs
  * @param boundsChecks native-call bounds checks from parameter annotations, one entry per annotated parameter
+ * @param upcalls per-parameter metadata for each {@code @Upcall}-typed parameter, in parameter order;
+ *        empty when the method has none. A method cannot combine {@code @Upcall} parameters with
+ *        {@code String} parameters (see {@link #from}) since no current or planned binding needs both
  * @param wideStringParamIndices 0-based indices of {@code String} parameters annotated with {@code @WideString},
  *        marshaled as UTF-16LE rather than the implicit UTF-8 default; empty for {@code @StructFactory} methods
  *        and for {@code @Function} methods with no wide-string parameters
@@ -85,6 +88,7 @@ public record MethodModel(
     String packedElementSimpleName,
     boolean isProtected,
     List<BoundsCheckModel> boundsChecks,
+    List<UpcallModel> upcalls,
     Set<Integer> wideStringParamIndices
 ) {
 
@@ -166,6 +170,18 @@ public record MethodModel(
                 return null;
             }
             for (var param : method.getParameters()) {
+                if (ModelUtil.classifyType(param.asType()) == NativeType.UPCALL) {
+                    messager.printMessage(
+                        Kind.ERROR,
+                        "@StructFactory method '"
+                            + methodName
+                            + "' must not have an @Upcall-typed parameter '"
+                            + param.getSimpleName()
+                            + "'",
+                        method
+                    );
+                    return null;
+                }
                 if (param.getAnnotation(WideString.class) != null) {
                     messager.printMessage(
                         Kind.ERROR,
@@ -186,7 +202,7 @@ public record MethodModel(
 
         // @Function method
         NativeType returnType = ModelUtil.classifyType(method.getReturnType());
-        if (returnType == null) {
+        if (returnType == null || returnType == NativeType.UPCALL) {
             messager.printMessage(
                 Kind.ERROR,
                 "Unsupported return type '" + method.getReturnType() + "' on method '" + methodName + "'",
@@ -246,6 +262,39 @@ public record MethodModel(
             return null;
         }
 
+        List<UpcallModel> upcalls = List.of();
+        List<Integer> upcallIndices = new ArrayList<>();
+        for (int i = 0; i < paramTypes.size(); i++) {
+            if (paramTypes.get(i) == NativeType.UPCALL) {
+                upcallIndices.add(i);
+            }
+        }
+
+        if (upcallIndices.isEmpty() == false) {
+            if (paramTypes.contains(NativeType.STRING)) {
+                messager.printMessage(
+                    Kind.ERROR,
+                    "Method '"
+                        + methodName
+                        + "' combines an @Upcall-typed parameter with a String parameter; this combination is "
+                        + "not supported",
+                    method
+                );
+                return null;
+            }
+            List<UpcallModel> builtUpcalls = new ArrayList<>();
+            for (int paramIndex : upcallIndices) {
+                var param = method.getParameters().get(paramIndex);
+                TypeElement upcallType = (TypeElement) ((DeclaredType) param.asType()).asElement();
+                UpcallModel upcallModel = UpcallModel.from(paramIndex, upcallType, param, env.getTypeUtils(), messager);
+                if (upcallModel == null) {
+                    return null;
+                }
+                builtUpcalls.add(upcallModel);
+            }
+            upcalls = Collections.unmodifiableList(builtUpcalls);
+        }
+
         boolean isCritical = method.getAnnotation(Critical.class) != null;
         final String fallbackAdapter;
         if (isCritical) {
@@ -290,6 +339,7 @@ public record MethodModel(
             null,
             isProtected,
             boundsChecks,
+            upcalls,
             Collections.unmodifiableSet(wideStringParamIndices)
         );
     }
@@ -415,6 +465,7 @@ public record MethodModel(
             structReturnSimpleName,
             packedElementSimpleName,
             isProtected,
+            List.of(),
             List.of(),
             Set.of() // @StructFactory params cannot carry @WideString (enforced above before this call)
         );

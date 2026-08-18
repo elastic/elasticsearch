@@ -9,9 +9,11 @@
 
 package org.elasticsearch.index.store.smb;
 
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 
@@ -41,6 +43,21 @@ public final class SmbDirectoryWrapper extends FilterDirectory {
     public IndexOutput createOutput(String name, IOContext context) throws IOException {
         this.ensureOpen();
         return new SmbFSIndexOutput(name);
+    }
+
+    @Override
+    public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
+        // FilterDirectory delegates to in.copyFrom(), bypassing createOutput() and the SMB-chunked writes.
+        try (IndexInput is = from.openInput(src, IOContext.READONCE); IndexOutput os = createOutput(dest, context)) {
+            os.copyBytes(is, is.length());
+        } catch (Throwable t) {
+            try {
+                deleteFile(dest);
+            } catch (Exception e) {
+                t.addSuppressed(e);
+            }
+            throw t;
+        }
     }
 
     final class SmbFSIndexOutput extends OutputStreamIndexOutput {

@@ -34,6 +34,8 @@ import java.io.IOException;
  * {@code IntBlock} with N ordered category IDs, so that {@code [a, b]} and {@code [b, a]}
  * map to different groups.
  *
+ * The category 0 is reserved for null fields. Any non-null field would produce a positive integer.
+ *
  * <p>The operator appends the new {@code IntBlock} as an extra channel on each output page.
  */
 public class CategorizeEvalOperator extends AbstractPageMappingOperator {

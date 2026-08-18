@@ -139,6 +139,11 @@ public class InferenceIndexMappingManager {
      * in-flight update completes. Otherwise, {@code updateAction} is issued and its outcome is fanned
      * out to all subscribers.
      *
+     * <p>The caller that starts the update owns the in-flight guard and must release it on every exit
+     * path, including an exception thrown while subscribing: a guard left set on a listener that is
+     * never completed would make every subsequent caller queue forever, recoverable only by restarting
+     * the node.
+     *
      * @param updateAction the index-level operation (create or put-mapping) to run if this caller starts the update
      * @param listener     the caller to notify when the update is complete
      */
@@ -158,25 +163,51 @@ public class InferenceIndexMappingManager {
             updateListener = inFlightUpdate;
         }
 
-        // Restore the subscriber's thread context when it is notified: a queued caller would otherwise
-        // run in the context of the caller that initiated the in-flight update, executing its follow-up
-        // write under the wrong security/origin context.
-        updateListener.addListener(listener, EsExecutors.DIRECT_EXECUTOR_SERVICE, client.threadPool().getThreadContext());
-
-        if (startUpdate) {
-            // Clear the in-flight guard before fanning out to subscribers so that a subscriber
-            // re-entering withUpToDateMappings starts a fresh update rather than re-subscribing
-            // to the completed one.
-            ActionListener<Void> completionListener = ActionListener.runBefore(updateListener, () -> {
-                synchronized (this) {
-                    inFlightUpdate = null;
-                }
-            });
-            // ActionListener.run routes an exception thrown synchronously by the update action to the
-            // completion listener; otherwise the in-flight guard would never be cleared and every
-            // subsequent caller would queue onto a listener that is never completed.
-            ActionListener.run(completionListener, updateAction);
+        if (startUpdate == false) {
+            // This caller does not own the guard, so an exception here can only fail this caller.
+            subscribe(updateListener, listener);
+            return;
         }
+
+        // Clear the in-flight guard before fanning out to subscribers so that a subscriber
+        // re-entering withUpToDateMappings starts a fresh update rather than re-subscribing
+        // to the completed one.
+        ActionListener<Void> completionListener = ActionListener.runBefore(updateListener, () -> {
+            synchronized (this) {
+                // Only the thread that observed a null guard installs a listener, and only that
+                // listener's own completion clears it, so the guard must still be ours here. If it
+                // ever is not, we would be releasing a newer update's guard, letting two updates run
+                // concurrently and leaking the second one's listener. ActionListener.assertOnce is a
+                // no-op without assertions, so this is the only tripwire for a double completion.
+                assert inFlightUpdate == updateListener : "in-flight guard replaced before its update completed";
+                inFlightUpdate = null;
+            }
+        });
+
+        try {
+            subscribe(updateListener, listener);
+        } catch (Exception e) {
+            // Nothing has completed completionListener yet, so completing it here is safe: it releases
+            // the guard and fails anyone who queued between the synchronized block above and this
+            // throw. This caller was never subscribed, so it learns of the failure from the rethrow,
+            // which is the same way it would have on the queuing path above.
+            completionListener.onFailure(e);
+            throw e;
+        }
+
+        // ActionListener.run routes an exception thrown synchronously by the update action to the
+        // completion listener; otherwise the in-flight guard would never be cleared and every
+        // subsequent caller would queue onto a listener that is never completed.
+        ActionListener.run(completionListener, updateAction);
+    }
+
+    /**
+     * Subscribes {@code listener} to the in-flight update, restoring the subscriber's thread context when
+     * it is notified: a queued caller would otherwise run in the context of the caller that initiated the
+     * in-flight update, executing its follow-up write under the wrong security/origin context.
+     */
+    private void subscribe(SubscribableListener<Void> updateListener, ActionListener<Void> listener) {
+        updateListener.addListener(listener, EsExecutors.DIRECT_EXECUTOR_SERVICE, client.threadPool().getThreadContext());
     }
 
     private void createIndex(ActionListener<Void> listener) {

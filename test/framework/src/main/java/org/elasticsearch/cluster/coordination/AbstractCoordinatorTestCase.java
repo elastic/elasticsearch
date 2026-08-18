@@ -1184,15 +1184,15 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 client.initialize(
                     Map.of(
                         TransportNodesHotThreadsAction.TYPE,
-                        new TransportNodesHotThreadsAction(threadPool, clusterService, transportService, new ActionFilters(emptySet())),
+                        new TransportNodesHotThreadsAction(threadPool, clusterService, transportService, ActionFilters.EMPTY),
                         MasterHistoryAction.INSTANCE,
-                        new MasterHistoryAction.TransportAction(transportService, new ActionFilters(Set.of()), masterHistoryService),
+                        new MasterHistoryAction.TransportAction(transportService, ActionFilters.EMPTY, masterHistoryService),
                         ClusterFormationInfoAction.INSTANCE,
-                        new ClusterFormationInfoAction.TransportAction(transportService, new ActionFilters(Set.of()), coordinator),
+                        new ClusterFormationInfoAction.TransportAction(transportService, ActionFilters.EMPTY, coordinator),
                         CoordinationDiagnosticsAction.INSTANCE,
                         new CoordinationDiagnosticsAction.TransportAction(
                             transportService,
-                            new ActionFilters(Set.of()),
+                            ActionFilters.EMPTY,
                             coordinationDiagnosticsService
                         )
                     ),

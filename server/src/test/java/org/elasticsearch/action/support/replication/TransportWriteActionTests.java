@@ -62,7 +62,6 @@ import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -423,7 +422,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 null,
                 TransportWriteActionTests.threadPool,
                 null,
-                new ActionFilters(new HashSet<>()),
+                ActionFilters.EMPTY,
                 TestRequest::new,
                 TestRequest::new,
                 (service, ignore) -> EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -452,7 +451,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 mockIndicesService(clusterService),
                 threadPool,
                 shardStateAction,
-                new ActionFilters(new HashSet<>()),
+                ActionFilters.EMPTY,
                 TestRequest::new,
                 TestRequest::new,
                 (service, ignore) -> EsExecutors.DIRECT_EXECUTOR_SERVICE,

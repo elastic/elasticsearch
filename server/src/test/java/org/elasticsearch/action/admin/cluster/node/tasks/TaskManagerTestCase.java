@@ -53,7 +53,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -151,7 +150,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 actionName,
                 clusterService,
                 transportService,
-                new ActionFilters(new HashSet<>()),
+                ActionFilters.EMPTY,
                 nodeRequest,
                 threadPool.executor(ThreadPool.Names.GENERIC)
             );
@@ -200,7 +199,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             transportService.start();
             clusterService = createClusterService(threadPool, discoveryNode.get());
             clusterService.addStateApplier(transportService.getTaskManager());
-            ActionFilters actionFilters = new ActionFilters(emptySet());
+            ActionFilters actionFilters = ActionFilters.EMPTY;
             transportListTasksAction = new TransportListTasksAction(clusterService, transportService, actionFilters);
             transportCancelTasksAction = new TransportCancelTasksAction(clusterService, transportService, actionFilters);
             transportService.acceptIncomingRequests();

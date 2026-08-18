@@ -457,7 +457,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                 mockIndicesService(shardId, executedOnPrimary, primary, replica),
                 threadPool,
                 shardStateAction,
-                new ActionFilters(new HashSet<>()),
+                ActionFilters.EMPTY,
                 Request::new,
                 Request::new,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,

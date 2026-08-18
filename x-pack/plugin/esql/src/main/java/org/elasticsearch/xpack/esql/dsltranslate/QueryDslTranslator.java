@@ -160,11 +160,22 @@ public final class QueryDslTranslator {
      */
     private Expression collectingBool(BoolQueryBuilder bool, List<UnsupportedClause> unsupported) {
         // B1: catch parseBoolOptions failures but continue — must/filter arms are still valid AND conjuncts
-        // regardless of which bool-level option failed. must_not and should are guarded by boolOptionsOk:
-        // - adjust_pure_negative=false makes a pure-negative bool match NOTHING, so translating must_not arms
-        // as NOT-logic would be a semantic inversion, not a safe approximation.
-        // - minimum_should_match>1 makes should untranslatable; must_not is conservatively skipped too
-        // (over-fetches slightly but never over-matches relative to the bool's intent).
+        // regardless of which bool-level option failed. Two conditions are tracked separately because their
+        // failure modes are orthogonal:
+        // - adjustPureNegativeSafe: false when adjust_pure_negative=false on a pure-negative bool (match
+        // NOTHING). Translating must_not arms as NOT-logic in that shape is semantic inversion. Computed
+        // directly from the bool's fields so a minimum_should_match failure elsewhere never suppresses a
+        // valid NOT conjunct.
+        // - boolOptionsOk: false when parseBoolOptions throws for any reason (msm or adjust_pure_negative).
+        // Guards the should block only; must_not is guarded by adjustPureNegativeSafe.
+
+        // False only when adjust_pure_negative=false on a pure-negative bool (no must/filter/should):
+        // that shape matches NOTHING, so NOT(arm) would be semantic inversion. Any other shape is safe.
+        boolean adjustPureNegativeSafe = bool.adjustPureNegative()
+            || bool.must().isEmpty() == false
+            || bool.filter().isEmpty() == false
+            || bool.should().isEmpty() == false
+            || bool.mustNot().isEmpty();
         Integer requiredShould = null;
         boolean boolOptionsOk = true;
         try {
@@ -182,7 +193,7 @@ public final class QueryDslTranslator {
             Expression e = collectingDispatch(q, unsupported);
             if (e != null) conjuncts.add(e);
         }
-        if (boolOptionsOk) {
+        if (adjustPureNegativeSafe) {
             // must_not: all-or-nothing per arm — NOT(partial) would over-exclude, so skip the whole NOT if any arm fails.
             for (QueryBuilder q : bool.mustNot()) {
                 List<UnsupportedClause> armUnsupported = new ArrayList<>();

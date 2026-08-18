@@ -875,6 +875,23 @@ public class QueryDslTranslatorTests extends ESTestCase {
     }
 
     /**
+     * minimum_should_match>1 makes the should group untranslatable but does NOT suppress must_not arms —
+     * their NOT-logic is semantically independent of the should constraint. Before the fix, a single
+     * {@code boolOptionsOk} flag dropped must_not for both failure kinds.
+     */
+    public void testMsmFailureDoesNotSuppressMustNotArms() {
+        QueryDslTranslator.TranslationResult result = translateResult(
+            QueryBuilders.boolQuery()
+                .mustNot(QueryBuilders.termQuery("status", 200))
+                .should(QueryBuilders.termQuery("tags", "a"))
+                .minimumShouldMatch(2)
+        );
+        assertFalse("msm failure is reported", result.isComplete());
+        assertThat(result.unsupported().get(0).construct(), org.hamcrest.Matchers.containsString("minimum_should_match"));
+        assertThat("must_not arm must be applied despite msm failure", result.applied(), instanceOf(Not.class));
+    }
+
+    /**
      * adjust_pure_negative=false makes a pure-negative bool match NOTHING (Lucene suppresses the implicit match_all).
      * In partial mode the must_not arms must NOT be applied as NOT(arm) — that would be a semantic inversion
      * (returning rows instead of none). The failure is recorded and applied stays TRUE (unfiltered).

@@ -233,7 +233,7 @@ public record EndpointClusterState(
             return;
         }
         if (out.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_CLUSTER_STATE_ADDED) == false) {
-            endpointMetadataClusterState.toEndpointMetadata().writeTo(out);
+            endpointMetadataClusterState.writeAsFullEndpointMetadata(out);
             return;
         }
         endpointMetadataClusterState.writeTo(out);

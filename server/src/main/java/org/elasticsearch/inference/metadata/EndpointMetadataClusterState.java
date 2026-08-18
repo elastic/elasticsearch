@@ -104,20 +104,6 @@ public record EndpointMetadataClusterState(Heuristics heuristics, Internal inter
     }
 
     /**
-     * Returns true when the {@link Internal#fingerprint()} of this instance matches the fingerprint of {@code other}.
-     */
-    public boolean fingerprintMatches(Internal other) {
-        return internal.fingerprintMatches(other);
-    }
-
-    /**
-     * Returns true when the {@link Internal#version()} of this instance is strictly greater than that of {@code other}.
-     */
-    public boolean isNewerThan(Internal other) {
-        return internal.isNewerThan(other);
-    }
-
-    /**
      * Creates an {@link EndpointMetadataClusterState} from the given {@link EndpointMetadata}, keeping only
      * {@code heuristics} and {@code internal}.
      */
@@ -126,12 +112,12 @@ public record EndpointMetadataClusterState(Heuristics heuristics, Internal inter
     }
 
     /**
-     * Reconstitutes a full {@link EndpointMetadata} by filling the dropped fields ({@code display}, {@code regions},
-     * {@code deniedByRegionPolicy}) with their empty/default values. This is only suitable for callers that need the type
-     * compatibility; the authoritative values for the dropped fields must be read from the {@code .inference} system index.
+     * Writes this subset using the full {@link EndpointMetadata} layout expected by peers older than
+     * {@code inference_endpoint_metadata_cluster_state_added}. The dropped fields are written as their
+     * empty/default values; their authoritative values live in the {@code .inference} system index.
      */
-    public EndpointMetadata toEndpointMetadata() {
-        return new EndpointMetadata(heuristics, internal, Display.EMPTY_INSTANCE, List.of(), false);
+    public void writeAsFullEndpointMetadata(StreamOutput out) throws IOException {
+        new EndpointMetadata(heuristics, internal, Display.EMPTY_INSTANCE, List.of(), false).writeTo(out);
     }
 
 }

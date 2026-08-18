@@ -28,6 +28,7 @@ import static org.elasticsearch.xpack.inference.CCMRestBaseIT.ENABLE_CCM_REQUEST
 import static org.elasticsearch.xpack.inference.CCMRestBaseIT.putCCMConfiguration;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_URL;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.PERIODIC_AUTHORIZATION_ENABLED;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Rolling-upgrade test verifying that cluster state stores only the {@code heuristics} and {@code internal}
@@ -101,6 +102,16 @@ public class EndpointMetadataClusterStateUpgradeIT extends ParameterizedRollingU
                 assertNotNull("Expected EIS endpoints to appear in cluster state after CCM enable", models);
                 assertFalse("Expected at least one EIS endpoint in cluster state after CCM enable", models.isEmpty());
             });
+            // Verify that old-cluster nodes write the full EndpointMetadata (including display) to cluster state,
+            // so that the post-upgrade assertion that display is absent is meaningful.
+            var oldModels = getMinimalConfigs();
+            assertTrue(
+                "At least one EIS endpoint must have display in cluster state on the old cluster",
+                oldModels.values().stream().anyMatch(endpoint -> {
+                    var metadata = (Map<String, Object>) XContentMapValues.extractValue("metadata", endpoint);
+                    return metadata != null && metadata.containsKey("display");
+                })
+            );
         }
 
         if (isMixedCluster() || isUpgradedCluster()) {
@@ -108,45 +119,46 @@ public class EndpointMetadataClusterStateUpgradeIT extends ParameterizedRollingU
             var models = getMinimalConfigs();
             assertNotNull("EIS endpoints must remain in cluster state during and after upgrade", models);
             assertFalse("EIS endpoints must remain in cluster state during and after upgrade", models.isEmpty());
-        }
 
-        if (isUpgradedCluster()) {
-            // After full upgrade, cluster state must store only heuristics+internal — never display/regions/denied_by_region_policy.
-            var models = getMinimalConfigs();
-            for (var entry : models.entrySet()) {
-                var endpointId = entry.getKey();
-                var metadata = (Map<String, Object>) XContentMapValues.extractValue("metadata", entry.getValue());
-                if (metadata == null) {
-                    continue;
-                }
-
-                assertTrue("Cluster state metadata for [" + endpointId + "] must contain heuristics", metadata.containsKey("heuristics"));
-                assertTrue("Cluster state metadata for [" + endpointId + "] must contain internal", metadata.containsKey("internal"));
-                assertFalse(
-                    "display must not be stored in cluster state for endpoint [" + endpointId + "]",
-                    metadata.containsKey("display")
-                );
-                assertFalse(
-                    "regions must not be stored in cluster state for endpoint [" + endpointId + "]",
-                    metadata.containsKey("regions")
-                );
-                assertFalse(
-                    "denied_by_region_policy must not be stored in cluster state for endpoint [" + endpointId + "]",
-                    metadata.containsKey("denied_by_region_policy")
-                );
-
-                // The full metadata — including display — must still be retrievable from the .inference system index.
-                var getResponse = entityAsMap(client().performRequest(new Request("GET", "_inference/" + endpointId)));
-                var getEndpoints = (List<Map<String, Object>>) getResponse.get("endpoints");
-                if (getEndpoints != null && getEndpoints.isEmpty() == false) {
-                    var getMetadata = (Map<String, Object>) getEndpoints.get(0).get("metadata");
-                    if (getMetadata != null) {
-                        assertTrue(
-                            "GET _inference must return display for endpoint [" + endpointId + "]",
-                            getMetadata.containsKey("display")
-                        );
+            if (isUpgradedCluster()) {
+                // After full upgrade, cluster state must store only heuristics+internal — never display/regions/denied_by_region_policy.
+                var checkedCount = 0;
+                for (var entry : models.entrySet()) {
+                    var endpointId = entry.getKey();
+                    var metadata = (Map<String, Object>) XContentMapValues.extractValue("metadata", entry.getValue());
+                    if (metadata == null) {
+                        continue;
                     }
+                    checkedCount++;
+
+                    assertTrue(
+                        "Cluster state metadata for [" + endpointId + "] must contain heuristics",
+                        metadata.containsKey("heuristics")
+                    );
+                    assertTrue("Cluster state metadata for [" + endpointId + "] must contain internal", metadata.containsKey("internal"));
+                    assertFalse(
+                        "display must not be stored in cluster state for endpoint [" + endpointId + "]",
+                        metadata.containsKey("display")
+                    );
+                    assertFalse(
+                        "regions must not be stored in cluster state for endpoint [" + endpointId + "]",
+                        metadata.containsKey("regions")
+                    );
+                    assertFalse(
+                        "denied_by_region_policy must not be stored in cluster state for endpoint [" + endpointId + "]",
+                        metadata.containsKey("denied_by_region_policy")
+                    );
+
+                    // The full metadata — including display — must still be retrievable from the .inference system index.
+                    var getResponse = entityAsMap(client().performRequest(new Request("GET", "_inference/" + endpointId)));
+                    var getEndpoints = (List<Map<String, Object>>) getResponse.get("endpoints");
+                    assertNotNull("GET _inference must return an endpoints array for [" + endpointId + "]", getEndpoints);
+                    assertFalse("GET _inference must return at least one endpoint for [" + endpointId + "]", getEndpoints.isEmpty());
+                    var getMetadata = (Map<String, Object>) getEndpoints.get(0).get("metadata");
+                    assertNotNull("GET _inference must return metadata for endpoint [" + endpointId + "]", getMetadata);
+                    assertTrue("GET _inference must return display for endpoint [" + endpointId + "]", getMetadata.containsKey("display"));
                 }
+                assertThat("At least one upgraded endpoint must have been fully verified", checkedCount, greaterThan(0));
             }
         }
     }

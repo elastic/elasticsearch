@@ -32,8 +32,7 @@ public class EndpointMetadataClusterStateTests extends AbstractBWCSerializationT
         if (randomBoolean()) {
             return EndpointMetadataClusterState.EMPTY_INSTANCE;
         }
-        var instance = new EndpointMetadataClusterState(EndpointMetadataTests.randomHeuristics(), EndpointMetadataTests.randomInternal());
-        return EndpointMetadataClusterState.EMPTY_INSTANCE.equals(instance) ? EndpointMetadataClusterState.EMPTY_INSTANCE : instance;
+        return new EndpointMetadataClusterState(EndpointMetadataTests.randomHeuristics(), EndpointMetadataTests.randomInternal());
     }
 
     public static EndpointMetadataClusterState randomNonEmptyInstance() {
@@ -140,36 +139,4 @@ public class EndpointMetadataClusterStateTests extends AbstractBWCSerializationT
         }
     }
 
-    public void testFingerprintMatches() {
-        var internalNull = new EndpointMetadata.Internal(null, null);
-        var internalAbc = new EndpointMetadata.Internal("abc", null);
-        var internalXyz = new EndpointMetadata.Internal("xyz", null);
-
-        var csNull = new EndpointMetadataClusterState(EndpointMetadata.Heuristics.EMPTY_INSTANCE, internalNull);
-        var csAbc = new EndpointMetadataClusterState(EndpointMetadata.Heuristics.EMPTY_INSTANCE, internalAbc);
-        var csXyz = new EndpointMetadataClusterState(EndpointMetadata.Heuristics.EMPTY_INSTANCE, internalXyz);
-
-        assertTrue(csNull.fingerprintMatches(internalNull));
-        assertFalse(csNull.fingerprintMatches(internalAbc));
-        assertTrue(csAbc.fingerprintMatches(internalAbc));
-        assertFalse(csAbc.fingerprintMatches(internalXyz));
-        assertTrue(csXyz.fingerprintMatches(internalXyz));
-    }
-
-    public void testIsNewerThan() {
-        var internalNull = new EndpointMetadata.Internal(null, null);
-        var internalV4 = new EndpointMetadata.Internal(null, 4L);
-        var internalV5 = new EndpointMetadata.Internal(null, 5L);
-
-        var csNull = new EndpointMetadataClusterState(EndpointMetadata.Heuristics.EMPTY_INSTANCE, internalNull);
-        var csV4 = new EndpointMetadataClusterState(EndpointMetadata.Heuristics.EMPTY_INSTANCE, internalV4);
-        var csV5 = new EndpointMetadataClusterState(EndpointMetadata.Heuristics.EMPTY_INSTANCE, internalV5);
-
-        assertFalse(csNull.isNewerThan(internalNull));
-        assertFalse(csNull.isNewerThan(internalV4));
-        assertTrue(csV4.isNewerThan(internalNull));
-        assertFalse(csV4.isNewerThan(internalV4));
-        assertFalse(csV4.isNewerThan(internalV5));
-        assertTrue(csV5.isNewerThan(internalV4));
-    }
 }

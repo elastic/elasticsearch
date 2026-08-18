@@ -135,14 +135,6 @@ public record EndpointMetadata(
         return this.equals(EMPTY_INSTANCE);
     }
 
-    public boolean fingerprintMatches(EndpointMetadata other) {
-        return internal.fingerprintMatches(other.internal);
-    }
-
-    public boolean hasNewerVersionThan(EndpointMetadata other) {
-        return internal.isNewerThan(other.internal);
-    }
-
     public Params getXContentParamsExcludeInternalFields() {
         return new ToXContent.MapParams(Map.of(INCLUDE_INTERNAL_FIELDS_PARAM_NAME, Boolean.FALSE.toString()));
     }

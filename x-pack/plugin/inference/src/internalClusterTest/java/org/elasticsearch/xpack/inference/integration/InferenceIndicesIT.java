@@ -274,7 +274,7 @@ public class InferenceIndicesIT extends ESIntegTestCase {
         // idempotent because the real index is already up to date; it succeeds and the listener is called.
         var upgradeFuture = new PlainActionFuture<Void>();
         setup.manager().withUpToDateMappings(syntheticOutdatedState, upgradeFuture);
-        upgradeFuture.actionGet(30, TimeUnit.SECONDS);
+        upgradeFuture.actionGet(TEST_REQUEST_TIMEOUT);
 
         // The real cluster must report the current mapping version after the upgrade call completes.
         var indexMeta = setup.clusterService().state().metadata().getProject().index(InferenceIndex.INDEX_NAME);
@@ -316,7 +316,7 @@ public class InferenceIndicesIT extends ESIntegTestCase {
         // complete the listener.
         var future = new PlainActionFuture<Void>();
         setup.manager().withUpToDateMappings(setup.clusterService().state(), future);
-        future.actionGet(10, TimeUnit.SECONDS);
+        future.actionGet(TEST_REQUEST_TIMEOUT);
 
         // Verify that the doc_type field can be indexed — confirms current mappings are active.
         new OriginSettingClient(client(), ClientHelper.INFERENCE_ORIGIN).index(
@@ -344,7 +344,7 @@ public class InferenceIndicesIT extends ESIntegTestCase {
 
         var createFuture = new PlainActionFuture<Void>();
         manager.withUpToDateMappings(clusterService.state(), createFuture);
-        createFuture.actionGet(30, TimeUnit.SECONDS);
+        createFuture.actionGet(TEST_REQUEST_TIMEOUT);
         return new InferenceIndexSetup(manager, clusterService);
     }
 

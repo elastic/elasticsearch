@@ -27,9 +27,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
  * Regression tests for the {@code DocValuesRangeIterator.docIDRunEnd()} false-positive bug
  * ({@code apache/lucene#16450}, {@code elastic/elasticsearch#155653}).
  *
- * <p><b>Purpose.</b> These tests document the full surface area of the bug. Every test should fail
- * on commit {@code 934ab6600f64} (the last commit before the fix) and pass on commit
- * {@code 070455c8c667} (where the fix was introduced).
+ * <p><b>Purpose.</b> These tests document the full surface area of the bug. Every test should usually
+ * fail on commit {@code 934ab6600f64} (the last commit before the fix) and pass on commit
+ * {@code 070455c8c667} (where the fix was introduced). Numeric range tests using the tsdb codec
+ * will pass on the old commit because the codec has its own numeric range query.
  *
  * <p><b>Root cause.</b> {@code DenseConjunctionBulkScorer} skips per-doc {@code matches()} for any
  * clause whose {@code docIDRunEnd()} reaches the end of the current scoring window, calling
@@ -100,10 +101,7 @@ public class DocValuesRangeIteratorFalsePositiveReproductionTests extends ESSing
      */
     private static Settings baseSettings() {
         return Settings.builder()
-            // columnar causes keyword to use binary doc values
-            .put(IndexSettings.MODE.getKey(), "standard")
-            // columnar _id causes changes in document order
-            .put(IndexSettings.USE_COLUMNAR_ID_BY_DEFAULT.getKey(), false)
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), randomBoolean())
             .put("index.queries.cache.enabled", false)
             .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
             .put("index.sort.field", "sort_key")
@@ -153,6 +151,57 @@ public class DocValuesRangeIteratorFalsePositiveReproductionTests extends ESSing
         // Correct count: 1 (doc 2046, dimension=required, label=included).
         // Bug count: 2 (doc 2047, dimension=other, falsely included via collectRange).
         assertHits(INDEX, query, 1);
+    }
+
+    /**
+     * <ul>
+     *   <li><b>Boolean shape:</b> FILTER + FILTER</li>
+     *   <li><b>Defective query:</b> termsQuery (non-contiguous ordinal set)</li>
+     *   <li><b>Field type:</b> multi-valued keyword (SortedSetDocValues, {@code index=false})</li>
+     *   <li><b>Trigger condition:</b> segment tail (narrow final window)</li>
+     *   <li><b>Iterator type:</b> {@code DocValuesBlockRangeIterator}</li>
+     * </ul>
+     *
+     * <p>{@code termsQuery("dimension", "apple", "cherry")} on an {@code index=false} keyword maps
+     * to {@code SortedSetDocValuesField.newSlowSetQuery} → {@code DocValuesBlockRangeIterator},
+     * which returns {@code blockIterator.docID() + 1} as {@code docIDRunEnd} unconditionally.
+     * A second FILTER (bounding range) is required to force {@code DenseConjunctionBulkScorer}.
+     *
+     * <p>Doc 4096 holds "banana" (ordinal 1) — inside the bounding range [apple=0, cherry=2] but
+     * not in the set {0, 2}. The final window {@code [4096, 4097)} has
+     * {@code minRunEndThreshold = 4097}; both clauses return {@code docIDRunEnd = 4097} → both
+     * excluded → {@code collectRange(4096, 4097)} falsely collects doc 4096. "cherry" appears at
+     * doc 4095 to establish ordinal 2 in the segment so the set is genuinely non-contiguous.
+     */
+    public void testTermsQueryOnIndexFalseKeyword_SegmentTail() throws Exception {
+        makeIndex("dimension", "type=keyword,index=false");
+
+        // Docs 0-4094: "apple" (ordinal 0) — matching, correct hits.
+        for (int i = 0; i < 4095; i++) {
+            indexDoc(INDEX, "dimension", "apple");
+        }
+        // Doc 4095: "cherry" (ordinal 2) — matching, and establishes ordinal 2 in the segment so
+        // the set {"apple","cherry"} = {0,2} is non-contiguous with a gap at banana=1.
+        indexDoc(INDEX, "dimension", "cherry");
+        // Doc 4096: "banana" (ordinal 1) — in bounding range [apple,cherry]=[0,2] but NOT in set
+        // {apple=0, cherry=2}. DocValuesBlockRangeIterator.docIDRunEnd() = blockIterator.docID()+1
+        // = 4097 = minRunEndThreshold for window [4096,4097) → false positive.
+        indexDoc(INDEX, "dimension", "banana");
+
+        client().admin().indices().prepareRefresh(INDEX).get();
+        client().admin().indices().prepareForceMerge(INDEX).setMaxNumSegments(1).get();
+
+        var query = QueryBuilders.boolQuery()
+            // Non-contiguous set {apple=0, cherry=2}: maps to SortedSetDocValuesField.newSlowSetQuery
+            // → DocValuesBlockRangeIterator with bounding range [0,2].
+            .filter(QueryBuilders.termsQuery("dimension", "apple", "cherry"))
+            // Bounding range [apple, cherry] = [0, 2]: maps to SortedSetDocValuesField.newSlowRangeQuery
+            // → BulkOrdinalRangeIterator. YES at doc 4096 with docIDRunEnd=4097 → excluded.
+            .filter(QueryBuilders.rangeQuery("dimension").gte("apple").lte("cherry"));
+
+        // Correct count: 4096 (docs 0-4094 "apple" + doc 4095 "cherry" ∈ {apple,cherry}).
+        // Bug count: 4097 (doc 4096 "banana" falsely included via collectRange(4096,4097)).
+        assertHits(INDEX, query, 4096);
     }
 
     /**

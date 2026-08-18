@@ -180,11 +180,14 @@ public class LagDetector {
             }
 
             logger.warn(
-                "node [{}] is lagging at cluster state version [{}], although publication of cluster state version [{}] completed [{}] ago",
+                """
+                    node [{}] is lagging at cluster state version [{}], although publication of \
+                    cluster state version [{}] completed [{}] ago; see {} for further information""",
                 discoveryNode,
                 appliedVersion,
                 version,
-                clusterStateApplicationTimeout
+                clusterStateApplicationTimeout,
+                ReferenceDocs.LAGGING_NODE_TROUBLESHOOTING
             );
             lagListener.onLagDetected(discoveryNode, appliedVersion, version);
         }

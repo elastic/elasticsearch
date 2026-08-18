@@ -169,7 +169,7 @@ public class ClusterStateChanges {
         );
         shardFailedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null);
         shardStartedClusterStateTaskExecutor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, null);
-        ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
+        ActionFilters actionFilters = ActionFilters.EMPTY;
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
         DestructiveOperations destructiveOperations = new DestructiveOperations(SETTINGS, clusterSettings);
         Environment environment = TestEnvironment.newEnvironment(SETTINGS);

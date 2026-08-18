@@ -42,6 +42,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomChecksumBytes;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
@@ -161,7 +162,8 @@ public class BlobCacheIndexInputStressTests extends ESIndexInputTestCase {
                         sharedBlobCacheService.getCacheFile(
                             new FileCacheKey(shardId, primaryTerm, compoundFileName),
                             allBytes.length,
-                            SharedBlobCacheService.CacheMissHandler.NOOP
+                            SharedBlobCacheService.CacheMissHandler.NOOP,
+                            randomRegionTimestampMillis()
                         ),
                         new ObjectStoreCacheBlobReader(
                             TestUtils.singleBlobContainer(fileName, allBytes),

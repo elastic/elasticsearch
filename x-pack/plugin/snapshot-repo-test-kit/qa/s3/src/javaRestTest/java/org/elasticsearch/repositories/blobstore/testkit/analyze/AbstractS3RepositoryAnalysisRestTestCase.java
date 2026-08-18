@@ -147,10 +147,9 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
     @Override
     protected RequestOptions repositoryRegistrationRequestOptions(Settings repositorySettings) {
         if (repositorySettings.hasValue("unsafely_incompatible_with_s3_conditional_writes")) {
-            return expectWarnings(
-                "[unsafely_incompatible_with_s3_conditional_writes] setting was deprecated in Elasticsearch and will be removed "
-                    + "in a future release. See the breaking changes documentation for the next major version."
-            );
+            return expectWarnings("""
+                [unsafely_incompatible_with_s3_conditional_writes] setting was deprecated in Elasticsearch and will be removed \
+                in a future release. See the breaking changes documentation for the next major version.""");
         }
         return RequestOptions.DEFAULT;
     }

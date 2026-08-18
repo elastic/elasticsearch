@@ -471,3 +471,6 @@ tests:
 - class: org.elasticsearch.search.aggregations.metrics.TDigestPercentilesIT
   method: testMultiValuedField
   issue: https://github.com/elastic/elasticsearch/issues/157040
+- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
+  method: testExplicitMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/157042

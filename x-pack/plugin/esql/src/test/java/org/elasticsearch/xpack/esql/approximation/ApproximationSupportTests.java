@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.MaxOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggregate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
@@ -89,6 +90,7 @@ import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
@@ -195,6 +197,7 @@ public class ApproximationSupportTests extends ESTestCase {
         AntiJoin.class,
         Dedup.class,
         Drop.class,
+        InnerJoin.class,
         InlineStats.class,
         Keep.class,
         MarkJoin.class,
@@ -245,6 +248,7 @@ public class ApproximationSupportTests extends ESTestCase {
         // These multivalued aggs are not suitable for approximation.
         DimensionValues.class,
         Values.class,
+        PackDimsAgg.class,
 
         // Histograms are not suitable for approximation.
         HistogramMerge.class,

@@ -69,12 +69,19 @@ public final class FormatNameResolver {
         ? Map.of(READER_PARQUET_RS, FORMAT_PARQUET_RS, READER_JAVA, FORMAT_PARQUET)
         : Map.of(READER_JAVA, FORMAT_PARQUET);
 
+    /** Reader aliases that are known but disabled in this build (complement of {@link #READER_ALIAS_TO_FORMAT}). */
+    static final Set<String> DISABLED_READER_ALIASES = parquetRsEnabled() ? Set.of() : Set.of(READER_PARQUET_RS);
+
     /** The parquet-rs reader is live iff the parquet-rs sub-flag is on. */
     public static boolean parquetRsEnabled() {
         return ESQL_EXTERNAL_PARQUET_RS_FEATURE_FLAG.isEnabled();
     }
 
     private FormatNameResolver() {}
+
+    private static IllegalArgumentException disabledReaderError(String alias) {
+        return new IllegalArgumentException("Reader [" + alias + "] is disabled; supported values: " + supportedReaderAliases());
+    }
 
     /**
      * Normalizes a raw {@code format} value to its canonical stored form — {@code trim()} then
@@ -129,6 +136,9 @@ public final class FormatNameResolver {
                 if (formatName != null) {
                     return formatName;
                 }
+                if (DISABLED_READER_ALIASES.contains(alias)) {
+                    throw disabledReaderError(alias);
+                }
             }
             String name = parseExplicitFormat(config.get(CONFIG_FORMAT));
             if (name != null) {
@@ -182,6 +192,9 @@ public final class FormatNameResolver {
                 String alias = readerOverride.toString().trim().toLowerCase(Locale.ROOT);
                 String formatName = READER_ALIAS_TO_FORMAT.get(alias);
                 if (formatName == null) {
+                    if (DISABLED_READER_ALIASES.contains(alias)) {
+                        throw disabledReaderError(alias);
+                    }
                     throw new IllegalArgumentException("Unknown reader [" + alias + "]; supported values: " + supportedReaderAliases());
                 }
                 return registry.byNameForObject(formatName, objectName);

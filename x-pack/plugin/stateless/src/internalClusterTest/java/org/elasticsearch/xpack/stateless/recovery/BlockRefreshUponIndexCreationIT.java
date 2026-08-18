@@ -42,7 +42,6 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -68,7 +67,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginIntegTestCase {
 
     public void testIndexCreatedWithRefreshBlock() throws Exception {
-        startMasterAndIndexNode(useRefreshBlockSetting(true));
+        startMasterAndIndexNode();
 
         int nbReplicas = randomIntBetween(0, 3);
 
@@ -88,7 +87,6 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
 
     public void testRefreshBlockIsRemovedOnceTheIndexIsSearchable() throws Exception {
         var nodeSettings = Settings.builder()
-            .put(useRefreshBlockSetting(true))
             .put("cluster.routing.allocation.node_concurrent_recoveries", 3)
             .put("cluster.routing.allocation.node_concurrent_incoming_recoveries", 3)
             .put("cluster.routing.allocation.node_concurrent_outgoing_recoveries", 3)
@@ -151,28 +149,11 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
         assertThat(clusterBlocks().hasIndexBlock(indexName, IndexMetadata.INDEX_REFRESH_BLOCK), equalTo(false));
     }
 
-    public void testIndexCreatedWithRefreshBlockDisabled() {
-        startMasterAndIndexNode(useRefreshBlockSetting(false));
-
-        int nbReplicas = randomIntBetween(0, 3);
-        if (0 < nbReplicas) {
-            startSearchNodes(nbReplicas);
-        }
-
-        var indexName = randomIdentifier();
-        assertAcked(prepareCreate(indexName).setSettings(indexSettings(1, nbReplicas)));
-        ensureGreen(indexName);
-
-        var blocks = clusterBlocks();
-        assertThat(blocks.hasIndexBlock(indexName, IndexMetadata.INDEX_REFRESH_BLOCK), equalTo(false));
-    }
-
     public void testRefreshBlockRemovedAfterRestart() throws Exception {
         var masterNode = startMasterOnlyNode(
             Settings.builder()
                 .put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 1)
                 .put(StoreHeartbeatService.HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))
-                .put(useRefreshBlockSetting(true))
                 .build()
         );
         startIndexNode();
@@ -190,10 +171,8 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
     }
 
     public void testRefreshesAreBlockedUntilBlockIsRemoved() throws Exception {
-        var useRefreshBlock = frequently();
         startMasterAndIndexNode(
             Settings.builder()
-                .put(useRefreshBlockSetting(useRefreshBlock))
                 // Ensure that all search shards can be recovered at the same time
                 // (the max number of replica shards in the current test is 48 spread across multiple nodes,
                 // but just to be on the safe side we allow up to 50 concurrent recoveries)
@@ -304,25 +283,20 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
 
         assertAllUnpromotableShardsAreInState(ShardRoutingState.UNASSIGNED, ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED);
 
-        if (useRefreshBlock) {
-            // If we don't use refresh blocks, the bulks might be waiting for a refresh to be executed in the assigned unpromotable nodes,
-            // but if the refresh policy was IMMEDIATE, it might have finished already. Therefore, we only assert that the bulks are not
-            // done when we use the refresh block.
-            for (var bulkFuture : concurrentBulkFutures) {
-                if (bulkFuture.isDone()) {
-                    // Just to debug CI failures
-                    assertNoFailures(safeGet(bulkFuture));
-                }
-                assertThat(bulkFuture.isDone(), is(false));
+        for (var bulkFuture : concurrentBulkFutures) {
+            if (bulkFuture.isDone()) {
+                // Just to debug CI failures
+                assertNoFailures(safeGet(bulkFuture));
             }
+            assertThat(bulkFuture.isDone(), is(false));
+        }
 
-            for (ActionFuture<BroadcastResponse> concurrentRefreshFuture : concurrentRefreshFutures) {
-                if (concurrentRefreshFuture.isDone()) {
-                    // Just to debug CI failures
-                    assertNoFailures(safeGet(concurrentRefreshFuture));
-                }
-                assertThat(concurrentRefreshFuture.isDone(), is(false));
+        for (ActionFuture<BroadcastResponse> concurrentRefreshFuture : concurrentRefreshFutures) {
+            if (concurrentRefreshFuture.isDone()) {
+                // Just to debug CI failures
+                assertNoFailures(safeGet(concurrentRefreshFuture));
             }
+            assertThat(concurrentRefreshFuture.isDone(), is(false));
         }
 
         delayRegisterCommitForRecovery.set(false);
@@ -359,7 +333,6 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
             .put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 1)
             .put(StoreHeartbeatService.HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))
             .put(RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING.getKey(), TimeValue.timeValueHours(1L))
-            .put(useRefreshBlockSetting(true))
             .build();
 
         String masterNode = startMasterAndIndexNode(nodeSettings);
@@ -410,10 +383,7 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
 
     public void testRefreshBlockRemovedAfterReplicasUpdate() {
         startMasterAndIndexNode(
-            Settings.builder()
-                .put(RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING.getKey(), TimeValue.timeValueHours(1L))
-                .put(useRefreshBlockSetting(true))
-                .build()
+            Settings.builder().put(RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING.getKey(), TimeValue.timeValueHours(1L)).build()
         );
 
         final int nbBlockedIndices = randomIntBetween(2, 5);
@@ -452,10 +422,7 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
 
     public void testUnrelatedClusterBlocksAreNotTakenIntoAccount() {
         startMasterAndIndexNode(
-            Settings.builder()
-                .put(RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING.getKey(), TimeValue.timeValueHours(1L))
-                .put(useRefreshBlockSetting(true))
-                .build()
+            Settings.builder().put(RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING.getKey(), TimeValue.timeValueHours(1L)).build()
         );
 
         String indexName = randomIdentifier();
@@ -482,10 +449,7 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
 
     public void testIndexWithZeroReplicasAndAutoExpandReplicasHasClusterBlocks() throws Exception {
         startMasterAndIndexNode(
-            Settings.builder()
-                .put(RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING.getKey(), TimeValue.timeValueHours(1L))
-                .put(useRefreshBlockSetting(true))
-                .build()
+            Settings.builder().put(RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING.getKey(), TimeValue.timeValueHours(1L)).build()
         );
         String searchNodeName = startSearchNode();
 
@@ -565,10 +529,6 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
 
     private static ClusterBlocks clusterBlocks() {
         return client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).clear().setBlocks(true).get().getState().blocks();
-    }
-
-    private static Settings useRefreshBlockSetting(boolean value) {
-        return Settings.builder().put(StatelessPlugin.USE_INDEX_REFRESH_BLOCK_SETTING.getKey(), value).build();
     }
 
     private OpenPointInTimeResponse openPointInTime(String index, TimeValue keepAlive) {

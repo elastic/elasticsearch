@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -56,9 +55,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Wild
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -822,31 +821,6 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     /**
      * {@snippet lang="text":
-     * Limit[1000[INTEGER],false]
-     * \_Aggregate[[],[SUM($$integer_long_field$converted_to$long{f$}#5,true[BOOLEAN]) AS sum(integer_long_field::long)#3]]
-     *   \_Filter[ISNOTNULL($$integer_long_field$converted_to$long{f$}#5)]
-     *     \_EsRelation[test*][!integer_long_field, $$integer_long_field$converted..]
-     * }
-     */
-    public void testUnionTypesInferNonNullAggConstraint() {
-        LogicalPlan coordinatorOptimized = optimize(
-            analyzerWithUnionTypeMapping().analyze(TEST_PARSER.parseQuery("FROM test* | STATS sum(integer_long_field::long)"))
-        );
-        var plan = localPlan(coordinatorOptimized, TEST_SEARCH_STATS);
-
-        var limit = asLimit(plan, 1000);
-        var agg = as(limit.child(), Aggregate.class);
-        var filter = as(agg.child(), Filter.class);
-        var relation = as(filter.child(), EsRelation.class);
-
-        var isNotNull = as(filter.condition(), IsNotNull.class);
-        var unionTypeField = as(isNotNull.field(), FieldAttribute.class);
-        assertEquals("$$integer_long_field$converted_to$long", unionTypeField.name());
-        assertEquals("integer_long_field", unionTypeField.fieldName().string());
-    }
-
-    /**
-     * {@snippet lang="text":
      * \_Aggregate[[first_name{r}#7, $$first_name$temp_name$17{r}#18],[SUM(salary{f}#11,true[BOOLEAN]) AS SUM(salary)#5, first_nam
      * e{r}#7, first_name{r}#7 AS last_name#10]]
      *   \_Eval[[null[KEYWORD] AS first_name#7, null[KEYWORD] AS $$first_name$temp_name$17#18]]
@@ -1524,21 +1498,6 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         return empty;
     }
 
-    private static Analyzer analyzerWithUnionTypeMapping() {
-        InvalidMappedField unionTypeField = new InvalidMappedField(
-            "integer_long_field",
-            Map.of("integer", Set.of("test1"), "long", Set.of("test2"))
-        );
-
-        EsIndex test = EsIndexGenerator.esIndex(
-            "test*",
-            Map.of("integer_long_field", unionTypeField),
-            Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD)
-        );
-
-        return analyzer().addIndex(test).buildAnalyzer();
-    }
-
     public static EsRelation relation() {
         return EsqlTestUtils.relation(randomFrom(IndexMode.availableModes()));
     }
@@ -1583,7 +1542,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.STANDARD),
+            Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)),
             List.of(fieldAttr, projectTagAttr)
         );
 
@@ -1632,7 +1591,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.STANDARD),
+            Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)),
             List.of(fieldAttr, projectTagAttr)
         );
 
@@ -1680,7 +1639,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.STANDARD),
+            Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)),
             List.of(fieldAttr, projectTagAttr)
         );
 
@@ -1723,7 +1682,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.STANDARD),
+            Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)),
             List.of(fieldAttr, indexAttr)
         );
 
@@ -1759,7 +1718,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.TIME_SERIES),
+            Map.of("test", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of(fieldAttr, timeSeriesAttr)
         );
         var eval = new Eval(EMPTY, new Limit(EMPTY, L(1000), relation), List.of(new Alias(EMPTY, "ts", timeSeriesAttr)));
@@ -1791,7 +1750,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.TIME_SERIES),
+            Map.of("test", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of(fieldAttr, timestampAttr)
         );
         var tsAggregate = new TimeSeriesAggregate(
@@ -1843,7 +1802,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.TIME_SERIES),
+            Map.of("test", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of(histogramAttr, timestampAttr)
         );
         var tsAggregate = new TimeSeriesAggregate(
@@ -1884,7 +1843,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("test", IndexMode.TIME_SERIES),
+            Map.of("test", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of(histogramAttr, timestampAttr)
         );
 

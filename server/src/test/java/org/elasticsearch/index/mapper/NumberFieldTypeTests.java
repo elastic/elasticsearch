@@ -226,6 +226,75 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertTrue(ft.termsQuery(Arrays.asList(2.1, 2147483648L), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
+    private static NumberFieldType indexTermsLongFieldType() {
+        return new NumberFieldType(
+            "field",
+            NumberType.LONG,
+            IndexType.terms(true, true),
+            false,
+            true,
+            null,
+            Collections.emptyMap(),
+            null,
+            false,
+            null,
+            null,
+            false,
+            false,
+            true
+        );
+    }
+
+    private static BytesRef sortableBytesTermLong(long value) {
+        byte[] bytes = new byte[Long.BYTES];
+        NumericUtils.longToSortableBytes(value, bytes, 0);
+        return new BytesRef(bytes);
+    }
+
+    /**
+     * A query value reaches the term through a different branch depending on its java type, so each
+     * is checked here. Values above 2^53 are not exactly representable as a double, so the string
+     * branch in particular must parse as a long rather than route through one: Long.MAX_VALUE and
+     * its neighbour share a double, and would otherwise collapse onto the same term.
+     */
+    public void testIndexTermsLongTermQuery() {
+        NumberFieldType ft = indexTermsLongFieldType();
+        for (long value : new long[] { 42, -1, Long.MAX_VALUE, Long.MAX_VALUE - 1, Long.MIN_VALUE, (1L << 53) + 1 }) {
+            TermQuery expected = new TermQuery(new Term("field", sortableBytesTermLong(value)));
+            assertEquals("long value [" + value + "]", expected, ft.termQuery(value, MOCK_CONTEXT));
+            assertEquals("string value [" + value + "]", expected, ft.termQuery(Long.toString(value), MOCK_CONTEXT));
+        }
+        // An int-typed value widens to the same term a long-typed one produces.
+        assertEquals(new TermQuery(new Term("field", sortableBytesTermLong(42))), ft.termQuery(42, MOCK_CONTEXT));
+    }
+
+    public void testIndexTermsLongTermQueryNonMatchingValues() {
+        NumberFieldType ft = indexTermsLongFieldType();
+        // Decimal and out-of-long-range values cannot match any document.
+        assertTrue(ft.termQuery(42.1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+        assertTrue(ft.termQuery("9223372036854775808", MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+        assertTrue(ft.termQuery("-9223372036854775809", MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+    }
+
+    public void testIndexTermsLongTermsQuery() {
+        NumberFieldType ft = indexTermsLongFieldType();
+        assertEquals(
+            new TermInSetQuery("field", Arrays.asList(sortableBytesTermLong(1), sortableBytesTermLong(-2))),
+            ft.termsQuery(Arrays.asList(1, -2), MOCK_CONTEXT)
+        );
+        // Values that fit a long but not an integer are matchable here, unlike on an integer field.
+        assertEquals(
+            new TermInSetQuery("field", Collections.singletonList(sortableBytesTermLong(2147483648L))),
+            ft.termsQuery(Collections.singletonList(2147483648L), MOCK_CONTEXT)
+        );
+        // Non-matching values (decimal, out-of-range) are dropped; matching ones remain.
+        assertEquals(
+            new TermInSetQuery("field", Collections.singletonList(sortableBytesTermLong(3))),
+            ft.termsQuery(Arrays.asList(3, 2.1, "9223372036854775808"), MOCK_CONTEXT)
+        );
+        assertTrue(ft.termsQuery(Arrays.asList(2.1, "9223372036854775808"), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+    }
+
     private static MappedFieldType unsearchable() {
         return new NumberFieldType(
             "field",

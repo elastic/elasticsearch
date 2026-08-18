@@ -240,7 +240,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      * Builds a {@link LoaderAndConverter} for a given shard.
      */
     public interface BuildLoader {
-        LoaderAndConverter build(DriverContext.WarningsMode warningsMode, int shard);
+        LoaderAndConverter build(DriverContext driverContext, int shard);
     }
 
     /**
@@ -565,7 +565,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         }
 
         void newShard(int shard) {
-            LoaderAndConverter l = info.buildLoader.build(driverContext.warningsMode(), shard);
+            LoaderAndConverter l = info.buildLoader.build(driverContext, shard);
             loader = l.loader;
             converter = l.converter == null ? null : converterEvaluators.get(shard, fieldIdx, info.name, l.converter);
             log.debug("moved to shard {} {} {}", shard, loader, converter);

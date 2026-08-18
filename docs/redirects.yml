@@ -651,12 +651,30 @@ redirects:
         anchors: { 'match-only-text-field-type', 'match-only-text-params' }
 
   # semantic_text documentation restructuring - anchors moved to new pages
+  'reference/elasticsearch/mapping-reference/semantic-text-setup-configuration.md':
+    to: 'reference/elasticsearch/mapping-reference/semantic-text-setup-configuration.md'
+    anchors: {} # pass-through unlisted anchors
+    many:
+      - to: 'reference/elasticsearch/mapping-reference/semantic-text-setup-configuration.md'
+        anchors:
+          'using-custom-endpoint': 'using-external-inference'
+          'preconfigured-endpoints': 'using-eis-models'
+
   'reference/elasticsearch/mapping-reference/semantic-text.md':
     to: 'reference/elasticsearch/mapping-reference/semantic-text.md'
     anchors: {} # pass-through unlisted anchors in the `many` ruleset
     many:
       - to: 'reference/elasticsearch/mapping-reference/semantic-text-setup-configuration.md'
-        anchors: { 'using-elser-on-eis', 'default-endpoints', 'using-custom-endpoint', 'dedicated-endpoints-for-ingestion-and-search', 'configure-inference-endpoints' }
+        anchors:
+          'using-elser-on-eis': 'using-elser-on-eis'
+          'using-jina-on-eis': 'using-jina-on-eis'
+          'using-custom-endpoint': 'using-external-inference'
+          'preconfigured-endpoints': 'using-eis-models'
+          'default-endpoints': 'default-endpoints'
+          'using-eis-models': 'using-eis-models'
+          'using-external-inference': 'using-external-inference'
+          'dedicated-endpoints-for-ingestion-and-search': 'dedicated-endpoints-for-ingestion-and-search'
+          'configure-inference-endpoints': 'configure-inference-endpoints'
       - to: 'reference/elasticsearch/mapping-reference/semantic-text-ingestions.md'
         anchors: { 'pre-chunking', 'use-copy-to-with-semantic-text', 'updates-and-partial-updates', 'scripted-updates' }
       - to: 'reference/elasticsearch/mapping-reference/semantic-text-search-retrieval.md'
@@ -665,6 +683,10 @@ redirects:
         anchors: { 'semantic-text-params', 'configuring-inference-endpoints', 'chunking-behavior', 'limitations', 'document-count-discrepancy' }
 
   'reference/query-languages/esql/esql-federated-data.md': 'reference/query-languages/esql/esql-data-federation.md'
+  'reference/columnar/index.md': 'reference/elasticsearch/columnar/index.md'
+
+  # Multimodal tutorial moved to docs-content under vector search
+  'reference/elasticsearch/mapping-reference/semantic-field-quickstart.md': 'docs-content://solutions/search/multimodal-search/multimodal-search-tutorial.md'
 
   # Related to https://github.com/elastic/docs-content-internal/issues/595
   'reference/query-languages/esql/limitations.md':

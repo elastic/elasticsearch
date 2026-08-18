@@ -425,6 +425,44 @@ book_no:keyword | highlight_title:keyword
 ;
 
 
+# Keep HIGHLIGHT before an EVAL that replaces the generated column.
+highlightEvalShadowsGeneratedColumn
+required_capability: highlight_v6
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT "return" ON title
+| EVAL highlight_title = CONCAT(book_no, "-shadowed")
+| SORT highlight_title ASC
+| LIMIT 10
+| KEEP book_no, highlight_title
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | 2714-shadowed
+7350            | 7350-shadowed
+;
+
+
+# Keep HIGHLIGHT before an EVAL that replaces its ON field.
+highlightEvalShadowsOnField
+required_capability: highlight_v6
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT "return" ON title
+| EVAL title = CONCAT("!", title)
+| SORT title ASC
+| LIMIT 10
+| KEEP book_no, title, highlight_title
+;
+
+book_no:keyword | title:keyword                                                      | highlight_title:keyword
+2714            | !Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+7350            | !Return of the Shadow                                              | <em>Return</em> of the Shadow
+;
+
+
 # The original field is preserved alongside the appended highlight_<field> column.
 highlightKeepsOriginalColumn
 required_capability: highlight_v6
@@ -604,6 +642,34 @@ ROW content = "The quick brown fox jumps over the lazy dog."
 
 highlight_content:keyword
 The <em>quick brown fox</em> jumps over the lazy dog.
+;
+
+
+# A phrase must not match across a multi-value boundary.
+highlightPhraseDoesNotCrossMultiValueBoundary
+required_capability: highlight_v6
+
+ROW positions = ["Senior Team Lead", "Lead Architect"]
+| HIGHLIGHT "\"lead lead\"" ON positions
+| KEEP highlight_positions
+;
+
+highlight_positions:keyword
+null
+;
+
+
+# A phrase contained in one value still matches.
+highlightPhraseMatchesWithinSingleMultiValue
+required_capability: highlight_v6
+
+ROW positions = ["Senior Team Lead", "Principal Architect"]
+| HIGHLIGHT "\"team lead\"" ON positions
+| KEEP highlight_positions
+;
+
+highlight_positions:keyword
+Senior <em>Team Lead</em>
 ;
 
 
@@ -1288,6 +1354,20 @@ highlight_content:keyword
 ;
 
 
+# KQL "f:*" is a FieldExistsQuery; it matches on FieldInfos, so the memory-index reader must see the row's fields.
+highlightKqlExistsClause
+required_capability: highlight_v6
+
+ROW content = "The quick brown fox jumps over the lazy dog."
+| HIGHLIGHT KQL("content:* AND content:fox") ON content
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+The quick brown <em>fox</em> jumps over the lazy dog.
+;
+
+
 # MATCH_PHRASE wraps the whole matched phrase in a single span (weight-matches mode).
 highlightMatchPhraseFunction
 required_capability: highlight_v6
@@ -1793,4 +1873,48 @@ ROW location = "New York City"
 
 highlight_location:keyword
 null
+;
+
+
+# A full-text function's analyzer option resolves when it names the highlight analyzer.
+highlightAnalyzerMatchQueryWithMatchingAnalyzer
+required_capability: highlight_v6
+required_capability: fn_match_runtime_analyzer
+
+ROW title = to_text("The Lord of the Rings")
+| HIGHLIGHT MATCH(title, "ring", { "analyzer": "english" }) ON title WITH { "analyzer": "english" }
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+The Lord of the <em>Rings</em>
+;
+
+
+highlightAnalyzerMatchPhraseQueryWithMatchingAnalyzer
+required_capability: highlight_v6
+required_capability: fn_match_phrase_runtime_analyzer
+
+ROW title = to_text("A fox-like creature")
+| HIGHLIGHT MATCH_PHRASE(title, "fox-like creature", { "analyzer": "whitespace" }) ON title WITH { "analyzer": "whitespace" }
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+A <em>fox-like creature</em>
+;
+
+
+# The default analyzer is registered as "standard", so MATCH can select it by name.
+highlightAnalyzerMatchQueryWithDefaultStandardAnalyzer
+required_capability: highlight_v6
+required_capability: fn_match_runtime_analyzer
+
+ROW title = to_text("The Lord of the Rings")
+| HIGHLIGHT MATCH(title, "rings", { "analyzer": "standard" }) ON title
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+The Lord of the <em>Rings</em>
 ;

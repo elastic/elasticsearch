@@ -26,7 +26,6 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -36,7 +35,6 @@ import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
-import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
@@ -62,6 +60,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.IntConsumer;
 
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -201,6 +200,7 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
                     }
                 },
                 threadPool.executor(PREWARM_THREAD_POOL),
+                randomRegionTimestampMillis(),
                 future
             );
             future.get(10, TimeUnit.SECONDS);
@@ -270,6 +270,7 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
                 StatelessPlugin.PREWARM_THREAD_POOL
             ),
             threadPool.executor(PREWARM_THREAD_POOL),
+            randomRegionTimestampMillis(),
             future
         );
         future.get(10, TimeUnit.SECONDS);
@@ -284,18 +285,6 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
 
         public TestCacheStatelessPlugin(Settings settings) {
             super(settings);
-        }
-
-        @Override
-        public Collection<Object> createComponents(Plugin.PluginServices services) {
-            final Collection<Object> components = super.createComponents(services);
-            components.add(
-                new PluginComponentBinding<>(
-                    StatelessCommitService.class,
-                    components.stream().filter(c -> c instanceof TestStatelessCommitService).findFirst().orElseThrow()
-                )
-            );
-            return components;
         }
 
         @Override

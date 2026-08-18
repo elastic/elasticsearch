@@ -308,7 +308,7 @@ public class IvfAutoCalibration {
             doPreconditionResult,
             calibratedSegments
         );
-        return new IvfSegmentConfig(CentroidIndexFormat.FLAT, bestEncoding, doPreconditionResult, avgOversample);
+        return new IvfSegmentConfig(CentroidIndexFormat.FLAT, bestEncoding, doPreconditionResult, avgOversample, null);
     }
 
     /** Per-encoding accumulator for {@link #selectFromMergeState}: live-vector-weighted oversample and precondition votes. */
@@ -351,38 +351,36 @@ public class IvfAutoCalibration {
     }
 
     /**
-     * Like {@link #calibrate(FloatVectorValues, VectorSimilarityFunction)} but uses {@code realNumVectors}
+     * Like {@link #calibrate(FloatVectorValues, VectorSimilarityFunction)} but uses {@code totalNumVectors}
      * as the corpus size for the recall model rather than {@code floatVectorValues.size()}. Used when
      * {@code floatVectorValues} is a reservoir-sampled subset of a larger merged corpus.
      */
     protected IvfSegmentConfig calibrate(
         FloatVectorValues floatVectorValues,
         VectorSimilarityFunction similarityFunction,
-        int realNumVectors
+        int totalNumVectors
     ) throws IOException {
-        return calibrate(floatVectorValues, similarityFunction, realNumVectors, CalibrationMode.FAST);
+        return calibrate(floatVectorValues, similarityFunction, totalNumVectors, CalibrationMode.FAST);
     }
 
     /**
      * Like {@link #calibrate(FloatVectorValues, VectorSimilarityFunction, int)} but selects
      * the calibration strategy via {@code mode}:
      * <ul>
-     *   <li>{@link CalibrationMode#FAST} — synthetic manifold residuals; zero k-means; fast but less
-     *       precise. Used for background merges.</li>
-     *   <li>{@link CalibrationMode#FULL} — k-means, per-cluster NN assignment, and OLS regression;
-     *       slower but accurate. Used for bounded force merges.</li>
+     *   <li>{@link CalibrationMode#FAST} — single k-means plus manifold inverse dimension.</li>
+     *   <li>{@link CalibrationMode#FULL} — k-means, per-cluster NN assignment, and OLS regression.</li>
      * </ul>
      */
     protected IvfSegmentConfig calibrate(
         FloatVectorValues floatVectorValues,
         VectorSimilarityFunction similarityFunction,
-        int realNumVectors,
+        int totalNumVectors,
         CalibrationMode mode
     ) throws IOException {
-        CalibrationContext ctx = prepareCalibrationRun(floatVectorValues, similarityFunction, realNumVectors);
+        CalibrationSource calibrationSource = prepareCalibration(floatVectorValues, similarityFunction, totalNumVectors);
         logger.debug("Calibrating quantization parameters");
 
-        SweepOutcome outcome = runCalibrationPipeline(ctx, similarityFunction, mode);
+        SweepOutcome outcome = runCalibrationPipeline(calibrationSource, similarityFunction, mode);
 
         switch (outcome) {
             case SweepOutcome.Success s -> logger.debug(
@@ -410,7 +408,7 @@ public class IvfAutoCalibration {
         return outcome.config();
     }
 
-    private CalibrationContext prepareCalibrationRun(
+    private CalibrationSource prepareCalibration(
         FloatVectorValues floatVectorValues,
         VectorSimilarityFunction similarityFunction,
         int numVectors
@@ -433,42 +431,49 @@ public class IvfAutoCalibration {
 
         Preconditioner calibrationPreconditioner = Preconditioner.createPreconditioner(dimWork, blockDimension);
 
-        return new CalibrationContext(
-            dim,
+        return new CalibrationSource(
+            similarityFunction,
             dimWork,
-            numVectors,
+            fvvForCalibration,
+            queryOrdinals,
+            dim,
             cosine,
             neyshabur,
-            queryOrdinals,
             calibrationPreconditioner,
             corpusOrdinals,
-            fvvForCalibration
+            k,
+            numVectors
         );
     }
 
-    private SweepOutcome runCalibrationPipeline(CalibrationContext ctx, VectorSimilarityFunction similarityFunction, CalibrationMode mode)
-        throws IOException {
-        CalibrationSource calibrationSource = new CalibrationSource(
-            similarityFunction,
-            ctx.dimWork(),
-            ctx.fvvForCalibration(),
-            ctx.queryOrdinals(),
-            ctx.dim(),
-            ctx.cosine(),
-            ctx.neyshabur(),
-            ctx.calibrationPreconditioner(),
-            ctx.corpusOrdinals(),
-            k
-        );
-        double[] manifold = ManifoldModel.estimateManifoldParameters(calibrationSource);
-        double alpha = manifold[0];
-        double invDim = manifold[1];
+    private SweepOutcome runCalibrationPipeline(
+        CalibrationSource calibrationSource,
+        VectorSimilarityFunction similarityFunction,
+        CalibrationMode mode
+    ) throws IOException {
+
+        ManifoldModel.ManifoldParams manifold = ManifoldModel.estimateManifoldParameters(calibrationSource);
+        double alpha = manifold.alpha();
+        double invDim = manifold.invDim();
 
         if (mode == CalibrationMode.FAST) {
-            return sweepQuantizationCandidatesRealResiduals(similarityFunction, ctx.numVectors(), alpha, invDim, calibrationSource);
+            return sweepQuantizationCandidatesRealResiduals(
+                similarityFunction,
+                calibrationSource.numVectors(),
+                alpha,
+                invDim,
+                calibrationSource
+            );
         } else {
             ErrorScalingFit scalingFit = ErrorModel.estimateErrorScalingFit(calibrationSource, vectorsPerCluster);
-            return sweepQuantizationCandidates(similarityFunction, ctx.numVectors(), alpha, invDim, scalingFit, calibrationSource);
+            return sweepQuantizationCandidates(
+                similarityFunction,
+                calibrationSource.numVectors(),
+                alpha,
+                invDim,
+                scalingFit,
+                calibrationSource
+            );
         }
     }
 
@@ -509,18 +514,6 @@ public class IvfAutoCalibration {
             return errorModel.errorStd(vectorsPerCluster, effectiveN);
         });
     }
-
-    private record CalibrationContext(
-        int dim,
-        int dimWork,
-        int numVectors,
-        boolean cosine,
-        boolean neyshabur,
-        int[] queryOrdinals,
-        Preconditioner calibrationPreconditioner,
-        int[] corpusOrdinals,
-        FloatVectorValues fvvForCalibration
-    ) {}
 
     private static CalibrationSweep[] buildCostOrderedSweeps() {
         List<CalibrationSweep> sweeps = new ArrayList<>();
@@ -609,7 +602,8 @@ public class IvfAutoCalibration {
                         CentroidIndexFormat.FLAT,
                         candidate.encoding(),
                         precondition,
-                        oversample
+                        oversample,
+                        null
                     );
                     return new SweepOutcome.Success(config, expected, candidate.qbits(), candidate.dbits(), rerankVal);
                 }
@@ -623,7 +617,7 @@ public class IvfAutoCalibration {
         }
 
         return new SweepOutcome.BestEffort(
-            new IvfSegmentConfig(CentroidIndexFormat.FLAT, bestEncoding, bestPrecondition, bestOversample),
+            new IvfSegmentConfig(CentroidIndexFormat.FLAT, bestEncoding, bestPrecondition, bestOversample, null),
             bestRecall
         );
     }
@@ -654,7 +648,7 @@ public class IvfAutoCalibration {
 
     /** Selects the calibration strategy used by {@link #calibrate(FloatVectorValues, VectorSimilarityFunction, int, CalibrationMode)}. */
     enum CalibrationMode {
-        /** Fast path: synthetic manifold residuals — zero k-means, zero NN assignment. */
+        /** Fast path: single k-means plus manifold inverse dimension. */
         FAST,
         /** Full path: k-means, per-cluster NN assignment, and OLS regression. */
         FULL

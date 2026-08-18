@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -96,8 +97,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         DataType.COUNTER_INTEGER,
         DataType.COUNTER_LONG,
         DataType.DENSE_VECTOR,
-        // TODO: DOUBLE_RANGE: fix for double range
-        DataType.DOUBLE_RANGE,
         DataType.EXPONENTIAL_HISTOGRAM,
         DataType.FLATTENED,
         DataType.HISTOGRAM,
@@ -1181,7 +1180,13 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             );
 
             var plan = analyzer().addIndex(
-                new EsIndex("test*", mapping, Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD), Map.of(), Map.of())
+                new EsIndex(
+                    "test*",
+                    mapping,
+                    Map.of("test1", new IndexProperties(IndexMode.STANDARD, 0), "test2", new IndexProperties(IndexMode.STANDARD, 0)),
+                    Map.of(),
+                    Map.of()
+                )
             ).statement(setUnmappedLoad("""
                 FROM test*
                 | SORT sort_field
@@ -1461,6 +1466,56 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         );
     }
 
+    /**
+     * The MVP allow-list of {@link Verifier#checkLoadAllModeSupportedCommands} rejects every other command, naming the one it found.
+     */
+    public void testLoadAllModeRejectsUnsupportedCommands() {
+        for (var commandAndLabel : List.of(
+            Tuple.tuple("| STATS COUNT(*) BY languages", "STATS"),
+            Tuple.tuple("| DISSECT first_name \"%{a}\"", "DISSECT"),
+            Tuple.tuple("| GROK first_name \"%{WORD:a}\"", "GROK"),
+            Tuple.tuple("| MV_EXPAND first_name", "MV_EXPAND"),
+            Tuple.tuple("| FORK (WHERE emp_no > 1) (WHERE emp_no < 100)", "FORK"),
+            Tuple.tuple("| EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code", "LOOKUP JOIN")
+        )) {
+            test().addLanguagesLookup()
+                .statementError(
+                    setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
+                    containsString(
+                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT and LIMIT commands; ["
+                            + commandAndLabel.v2()
+                            + "] is not supported yet"
+                    )
+                );
+        }
+    }
+
+    public void testLoadAllModeAllowsSupportedCommands() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
+            FROM test
+            | WHERE emp_no > 1
+            | EVAL x = salary + 1
+            | RENAME first_name AS name
+            | KEEP name, x, salary
+            | DROP salary
+            | SORT name
+            | LIMIT 10
+            """));
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("name", "x")));
+    }
+
+    /**
+     * PROMQL is rewritten into a TS aggregate before verification, so LOAD_ALL rejects it via the shared load-mode check - which names
+     * the mode the user asked for - as well as via the allow-list.
+     */
+    public void testLoadAllModeRejectsPromQl() {
+        test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
+            .statementError(
+                setUnmappedLoadAll("PROMQL index=test step=5m avg(network.bytes_in)"),
+                containsString("PROMQL is not supported with unmapped_fields=\"load_all\"")
+            );
+    }
+
     // nullify is allowed with PromQL (unlike load), but a field after the collapsing aggregate still fails.
     public void testUnmappedFieldNullifyWithPromQl() {
         TestAnalyzer analyzer = test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES);
@@ -1526,7 +1581,14 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         var merged = new EsIndex(
             "idx*",
             Map.of("partial_long", partialLong, "conflicted", conflicted),
-            Map.of("idx_a", IndexMode.STANDARD, "idx_b", IndexMode.STANDARD, "idx_unmapped", IndexMode.STANDARD),
+            Map.of(
+                "idx_a",
+                new IndexProperties(IndexMode.STANDARD, 0),
+                "idx_b",
+                new IndexProperties(IndexMode.STANDARD, 0),
+                "idx_unmapped",
+                new IndexProperties(IndexMode.STANDARD, 0)
+            ),
             Map.of(),
             Map.of()
         );
@@ -1566,7 +1628,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         var merged = new EsIndex(
             pattern,
             Map.of("partial_long", partialLong, "common", keywordField("common")),
-            Map.of("idx_a", IndexMode.STANDARD, "idx_b", IndexMode.STANDARD),
+            Map.of("idx_a", new IndexProperties(IndexMode.STANDARD, 0), "idx_b", new IndexProperties(IndexMode.STANDARD, 0)),
             Map.of(),
             Map.of()
         );
@@ -1583,7 +1645,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         var merged = new EsIndex(
             pattern,
             Map.of("partial_long", partialLong, "common", keywordField("common")),
-            Map.of("idx_a", IndexMode.STANDARD, "idx_b", IndexMode.STANDARD),
+            Map.of("idx_a", new IndexProperties(IndexMode.STANDARD, 0), "idx_b", new IndexProperties(IndexMode.STANDARD, 0)),
             Map.of(),
             Map.of()
         );
@@ -1786,7 +1848,13 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
         var sub = new PotentiallyUnmappedSingleTypeEsField(longField("sub"), Set.of("idx_mapped"));
         var obj = new EsField("obj", DataType.OBJECT, Map.of("sub", sub), true, EsField.TimeSeriesFieldType.NONE);
-        var esIndex = new EsIndex("idx*", Map.of("obj", obj), Map.of("idx_mapped", IndexMode.STANDARD), Map.of(), Map.of());
+        var esIndex = new EsIndex(
+            "idx*",
+            Map.of("obj", obj),
+            Map.of("idx_mapped", new IndexProperties(IndexMode.STANDARD, 0)),
+            Map.of(),
+            Map.of()
+        );
 
         var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx* | SORT `obj.sub`"));
         assertThat(plan, not(nullValue()));
@@ -1810,11 +1878,11 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             Map.of("@timestamp", tsField),
             Map.of(
                 "sample_data",
-                IndexMode.STANDARD,
+                new IndexProperties(IndexMode.STANDARD, 0),
                 "sample_data_ts_nanos",
-                IndexMode.STANDARD,
+                new IndexProperties(IndexMode.STANDARD, 0),
                 "no_mapping_sample_data",
-                IndexMode.STANDARD
+                new IndexProperties(IndexMode.STANDARD, 0)
             ),
             Map.of(),
             Map.of()
@@ -1939,7 +2007,9 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     private static TestAnalyzer index1() {
         Map<String, EsField> mapping = Map.of("field", new UnsupportedEsField("field", List.of("flattened")));
-        return analyzer().addIndex(new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of()));
+        return analyzer().addIndex(
+            new EsIndex("test", mapping, Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of())
+        );
     }
 
     private static void assertUnmappedLoadError(TestAnalyzer analyzer, String query, Matcher<String> matcher) {
@@ -1964,7 +2034,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 (k, field) -> IndexResolver.wrapPartiallyUnmappedField(field, fieldName, fieldName, mappedIndices)
             );
         }
-        return new EsIndex("idx*", wrappedMapping, Map.of("idx_mapped", IndexMode.STANDARD), Map.of(), Map.of());
+        return new EsIndex("idx*", wrappedMapping, Map.of("idx_mapped", new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of());
     }
 
     private static EsIndex partialAmdAndCommonIndex() {

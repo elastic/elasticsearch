@@ -263,18 +263,6 @@ public final class TextFieldMapper extends FieldMapper {
         return new FielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
     }
 
-    private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
-        if (indexSettings.getMode().isStrictColumnar() == false) {
-            return DocValuesParameter.Values.DISABLED_HIGH_CARDINALITY;
-        }
-
-        // Strictly columnar indices read field values from doc values, so enable doc values by default for text fields in that mode.
-        boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
-        boolean nullability = FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
-        var onFailure = FieldMapper.resolveOnFailureSetting(indexSettings.getSettings());
-        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, multiValue, nullability, onFailure);
-    }
-
     public static class Builder extends TextFamilyBuilder {
 
         private final Parameter<Boolean> store;
@@ -330,8 +318,11 @@ public final class TextFieldMapper extends FieldMapper {
             super(name, indexSettings.getIndexVersionCreated(), isWithinMultiField);
             this.indexSettings = indexSettings;
             this.docValuesParameters = DocValuesParameter.of(
-                () -> defaultDocValuesParameters(indexSettings),
-                defaultDocValuesParameters(indexSettings),
+                DocValuesParameter.defaultValues(
+                    indexSettings,
+                    DocValuesParameter.Values.DISABLED_HIGH_CARDINALITY,
+                    DocValuesParameter.Values.Cardinality.HIGH
+                ),
                 m -> ((TextFieldMapper) m).docValuesParameters,
                 indexSettings.getMode().isStrictColumnar()
             );

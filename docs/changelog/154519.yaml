@@ -1,5 +1,0 @@
-pr: 154519
-summary: Size NDJSON lenient scratch builders per record instead of per page
-area: ES|QL
-type: bug
-issues: []

@@ -437,8 +437,9 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         }
 
         /**
-         * Translates an {@link AcrossSeriesReduction} ({@code topk}): collapse the child to one row per series, then rank
-         * and keep the top {@code k}. A {@code by} clause only partitions the ranking; it does not change output header.
+         * Translates an {@link AcrossSeriesReduction} ({@code topk}/{@code bottomk}): collapse the child to one row
+         * per series, then rank and keep the top {@code k}. A {@code by} clause only partitions the ranking; it does
+         * not change output header.
          */
         private IntermediateResult doTranslateAcrossSeriesReduction(AcrossSeriesReduction plan) {
             if (plan.grouping() == WITHOUT) {
@@ -454,15 +455,18 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             var header = childResult.header().including(plan.groupings());
 
             var promqlCtx = new PromqlContext(time, AggregateFunction.NO_WINDOW, stepAttr(), configuration());
-            Expression agg = plan.buildEsqlFunction(childResult.value(), promqlCtx);
-
-            IntermediateResult aggregated = doTranslateAgg(childResult, childResult.plan(), header, false, agg);
-            LogicalPlan result = emitTopNBy(plan, aggregated.plan(), header);
+            IntermediateResult aggregated = doTranslateAgg(childResult, childResult.plan(), header, false, childResult.value());
+            LogicalPlan result = emitTopNBy(plan, aggregated.plan(), header, promqlCtx);
             return aggregated.with(result, aggregated.value(), header);
         }
 
         /** Ranks the already-collapsed per-series rows and keeps the top {@code k} within each step. */
-        private LogicalPlan emitTopNBy(AcrossSeriesReduction reduction, LogicalPlan resultPlan, Header header) {
+        private LogicalPlan emitTopNBy(
+            AcrossSeriesReduction reduction,
+            LogicalPlan resultPlan,
+            Header header,
+            PromqlContext promqlContext
+        ) {
             var groupings = new ArrayList<Expression>();
             groupings.add(stepAttr());
             if (reduction.grouping() == AcrossSeriesAggregate.Grouping.BY) {
@@ -473,11 +477,14 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                     groupings.add(resolved);
                 }
             }
-            var order = List.of(
-                new Order(reduction.source(), collectValueAttribute(resultPlan), Order.OrderDirection.DESC, Order.NullsPosition.LAST)
+            var order = (Order) reduction.buildEsqlFunction(collectValueAttribute(resultPlan), promqlContext);
+            return new TopNBy(
+                reduction.source(),
+                resultPlan,
+                order != null ? List.of(order) : List.<Order>of(),
+                new ToInteger(reduction.source(), reduction.parameters().getFirst()),
+                groupings
             );
-            Expression k = new ToInteger(reduction.source(), reduction.parameters().getFirst());
-            return new TopNBy(reduction.source(), resultPlan, order, k, groupings);
         }
 
         /** The doTranslateAgg combinator: regroups a grouped table, or emits the innermost `_timeseries` doTranslateAgg over a raw one. */

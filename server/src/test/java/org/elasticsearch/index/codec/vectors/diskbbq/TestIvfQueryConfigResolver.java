@@ -26,7 +26,7 @@ public class TestIvfQueryConfigResolver extends IvfQueryConfigResolver {
         float rescoreOversample
     ) {
         super(false, false, 4, rescoreOversample, null);
-        this.config = new IvfSegmentConfig(centroidIndexFormat, encoding, usePrecondition, rescoreOversample);
+        this.config = IvfSegmentConfig.of(centroidIndexFormat, encoding, usePrecondition, rescoreOversample);
     }
 
     @Override

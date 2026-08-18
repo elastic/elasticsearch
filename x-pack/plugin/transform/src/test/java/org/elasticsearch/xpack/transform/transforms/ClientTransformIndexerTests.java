@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -100,6 +99,7 @@ import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
@@ -337,7 +337,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             var client = new PitMockClient(threadPool, false);
             var configManager = mock(IndexBasedTransformConfigManager.class);
-            var freshlyLoaded = new PersistedCloudCredential("k2", new SecureString("v".toCharArray()));
+            var freshlyLoaded = randomPersistedCloudCredential("k2");
             doAnswer(invocation -> {
                 ActionListener<PersistedCloudCredential> l = invocation.getArgument(2);
                 l.onResponse(freshlyLoaded);
@@ -358,7 +358,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             );
 
             var context = mock(TransformContext.class);
-            var displaced = new PersistedCloudCredential("k1", new SecureString("v".toCharArray()));
+            var displaced = randomPersistedCloudCredential("k1");
             when(context.replacePersistedCredential(eq(freshlyLoaded))).thenReturn(displaced);
 
             var indexer = new MockClientTransformIndexer(
@@ -400,9 +400,72 @@ public class ClientTransformIndexerTests extends ESTestCase {
         }
     }
 
+    public void testDoMaybeRefreshCloudTokenClearsWhenNewIdNull() throws InterruptedException {
+        var prior = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig()).setCredentialId("k1").build();
+        var next = new TransformConfig.Builder(prior).setCredentialId(null).build();
+        try (var threadPool = createThreadPool()) {
+            var client = new PitMockClient(threadPool, false);
+            var configManager = mock(IndexBasedTransformConfigManager.class);
+            var cloudCredentialManager = mock(TransformCloudCredentialManager.class);
+            var services = new TransformServices(
+                configManager,
+                mock(TransformCheckpointService.class),
+                mock(TransformAuditor.class),
+                new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+                mock(TransformNode.class),
+                mock(CrossProjectModeDecider.class),
+                projectId -> false,
+                mock(ProjectResolver.class),
+                cloudCredentialManager
+            );
+
+            var context = mock(TransformContext.class);
+            var displaced = randomPersistedCloudCredential("k1");
+            when(context.replacePersistedCredential(eq(null))).thenReturn(displaced);
+
+            var indexer = new MockClientTransformIndexer(
+                mock(ThreadPool.class),
+                mock(ClusterService.class),
+                mock(IndexNameExpressionResolver.class),
+                mockTransformExtensionWithNoopCloudCreds(),
+                services,
+                mock(CheckpointProvider.class),
+                new AtomicReference<>(IndexerState.STOPPED),
+                null,
+                new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")),
+                mock(TransformIndexerStats.class),
+                prior,
+                null,
+                new TransformCheckpoint(
+                    "transform",
+                    Instant.now().toEpochMilli(),
+                    0L,
+                    Collections.emptyMap(),
+                    Instant.now().toEpochMilli()
+                ),
+                new TransformCheckpoint(
+                    "transform",
+                    Instant.now().toEpochMilli(),
+                    2L,
+                    Collections.emptyMap(),
+                    Instant.now().toEpochMilli()
+                ),
+                new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
+                context,
+                false
+            );
+
+            this.<Void>assertAsync(listener -> indexer.doMaybeRefreshCloudToken(prior, next, listener), v -> {
+                verify(context).replacePersistedCredential(eq(null));
+                verify(cloudCredentialManager).revokeCloseAndDelete(eq(prior.getId()), eq(displaced));
+                verify(configManager, never()).getTransformCloudCredentialByTokenId(any(), anyBoolean(), any());
+            });
+        }
+    }
+
     public void testWrappedClientCachedUntilCredentialReferenceChanges() {
         var context = new TransformContext(TransformTaskState.STARTED, null, 0, mock(TransformContext.Listener.class));
-        var first = new PersistedCloudCredential("k1", new SecureString("v".toCharArray()));
+        var first = randomPersistedCloudCredential("k1");
         context.setPersistedCloudCredential(first);
 
         var parentClient = mock(ParentTaskAssigningClient.class);
@@ -452,7 +515,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
         assertThat(indexer.wrappedClient(), sameInstance(wrappedOnce));
         verify(credentialManager, times(1)).wrapClient(eq(parentClient), eq(first));
 
-        var second = new PersistedCloudCredential("k2", new SecureString("v".toCharArray()));
+        var second = randomPersistedCloudCredential("k2");
         when(credentialManager.wrapClient(eq(parentClient), eq(second))).thenReturn(wrappedTwice);
         context.setPersistedCloudCredential(second);
 

@@ -853,6 +853,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             case DATETIME, DATE_NANOS, LONG, COUNTER_LONG, UNSIGNED_LONG, GEOHASH, GEOTILE, GEOHEX -> "Long";
             case AGGREGATE_METRIC_DOUBLE -> "AggregateMetricDouble";
             case DATE_RANGE -> "LongRange";
+            case DOUBLE_RANGE -> "DoubleRange";
             case EXPONENTIAL_HISTOGRAM -> "ExponentialHistogram";
             case NULL -> "Null";
             case TDIGEST -> "TDigest";

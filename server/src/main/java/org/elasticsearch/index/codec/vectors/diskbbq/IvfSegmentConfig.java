@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import org.elasticsearch.core.Nullable;
+
 /**
  * Per-segment (per-field) IVF configuration persisted in {@code mivf}. It has four parts:
  * <ul>
@@ -27,14 +29,36 @@ public record IvfSegmentConfig(
     CentroidIndexFormat centroidIndexFormat,
     QuantEncoding quantEncoding,
     boolean usePrecondition,
-    float rescoreOversample
+    float rescoreOversample,
+    @Nullable AshConfig ash
 ) {
+
+    /**
+     * ASH (Asymmetric Scalar Hashing) configuration for the encoding and write path.
+     */
+    public record AshConfig(float projectedDimsFraction, int bitsPerDim, int trainingIterations, int trainingFactor) {
+        public static final float DEFAULT_PROJECTED_DIMS_FRACTION = 0.5f;
+        public static final int DEFAULT_BITS_PER_DIM = 2;
+        public static final int DEFAULT_TRAINING_ITERATIONS = 5;
+        public static final int DEFAULT_TRAINING_FACTOR = 10;
+
+        /** Returns an AshConfig with all default values. */
+        public static AshConfig defaults() {
+            return new AshConfig(
+                DEFAULT_PROJECTED_DIMS_FRACTION,
+                DEFAULT_BITS_PER_DIM,
+                DEFAULT_TRAINING_ITERATIONS,
+                DEFAULT_TRAINING_FACTOR
+            );
+        }
+    }
 
     public static final IvfSegmentConfig NONE = new IvfSegmentConfig(
         CentroidIndexFormat.FLAT,
         QuantEncoding.ONE_BIT_4BIT_QUERY,
         false,
-        Float.NaN
+        Float.NaN,
+        null
     );
 
     public static IvfSegmentConfig fromCodecDefaults(
@@ -42,7 +66,29 @@ public record IvfSegmentConfig(
         QuantEncoding quantEncoding,
         boolean doPrecondition
     ) {
-        return new IvfSegmentConfig(centroidIndexFormat, quantEncoding, doPrecondition, Float.NaN);
+        return new IvfSegmentConfig(centroidIndexFormat, quantEncoding, doPrecondition, Float.NaN, null);
+    }
+
+    /** Convenience constructor for non-ASH configs (uses default ASH params, disabled). */
+    public static IvfSegmentConfig of(
+        CentroidIndexFormat centroidIndexFormat,
+        QuantEncoding quantEncoding,
+        boolean usePrecondition,
+        float rescoreOversample
+    ) {
+        return new IvfSegmentConfig(centroidIndexFormat, quantEncoding, usePrecondition, rescoreOversample, null);
+    }
+
+    public static IvfSegmentConfig fromCodecDefaultsWithAsh(CentroidIndexFormat centroidIndexFormat, QuantEncoding quantEncoding) {
+        return fromCodecDefaultsWithAsh(centroidIndexFormat, quantEncoding, AshConfig.defaults());
+    }
+
+    public static IvfSegmentConfig fromCodecDefaultsWithAsh(
+        CentroidIndexFormat centroidIndexFormat,
+        QuantEncoding quantEncoding,
+        AshConfig ash
+    ) {
+        return new IvfSegmentConfig(centroidIndexFormat, quantEncoding, false, Float.NaN, ash);
     }
 
     /**
@@ -63,7 +109,7 @@ public record IvfSegmentConfig(
      */
     public static IvfSegmentConfig withEffectiveRescoreOversample(IvfSegmentConfig raw, Float queryOverride, float mappingDefault) {
         float effective = effectiveRescoreOversample(raw.rescoreOversample(), queryOverride, mappingDefault);
-        return new IvfSegmentConfig(raw.centroidIndexFormat(), raw.quantEncoding(), raw.usePrecondition(), effective);
+        return new IvfSegmentConfig(raw.centroidIndexFormat(), raw.quantEncoding(), raw.usePrecondition(), effective, raw.ash());
     }
 
     /** Per-leaf IVF collector size (includes 2x factor for overspill duplicates). */

@@ -467,10 +467,10 @@ public class IvfAutoCalibrationTests extends ESTestCase {
             protected IvfSegmentConfig calibrate(
                 FloatVectorValues floatVectorValues,
                 VectorSimilarityFunction similarityFunction,
-                int realNumVectors,
+                int totalNumVectors,
                 IvfAutoCalibration.CalibrationMode mode
             ) {
-                return new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.TWO_BIT_4BIT_QUERY, false, 2.5f);
+                return IvfSegmentConfig.of(CentroidIndexFormat.FLAT, QuantEncoding.TWO_BIT_4BIT_QUERY, false, 2.5f);
             }
         };
         FieldInfo fieldInfo = vectorFieldInfo("f");
@@ -753,11 +753,11 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         protected IvfSegmentConfig calibrate(
             FloatVectorValues floatVectorValues,
             VectorSimilarityFunction similarityFunction,
-            int realNumVectors,
+            int totalNumVectors,
             IvfAutoCalibration.CalibrationMode mode
         ) throws IOException {
             calibrateInvocations++;
-            return super.calibrate(floatVectorValues, similarityFunction, realNumVectors, mode);
+            return super.calibrate(floatVectorValues, similarityFunction, totalNumVectors, mode);
         }
     }
 

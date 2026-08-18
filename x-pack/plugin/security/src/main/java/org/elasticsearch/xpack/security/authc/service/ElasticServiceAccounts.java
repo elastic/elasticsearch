@@ -67,6 +67,8 @@ final class ElasticServiceAccounts {
                     .privileges("write", "create_index", "auto_configure")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices("profiling-*").privileges("read", "write").build(),
+                // Symbolizer uses delete-by-query with refresh enabled when cleaning stale queue documents.
+                RoleDescriptor.IndicesPrivileges.builder().indices(".profiling-sq-*").privileges("read", "write", "maintenance").build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     // APM Server (and hence Fleet Server, which issues its API Keys) needs additional privileges
                     // for the non-sensitive "sampled traces" data stream:
@@ -152,6 +154,11 @@ final class ElasticServiceAccounts {
                     .application("kibana-*")
                     .resources("*")
                     .privileges("reserved_fleet-setup")
+                    .build(),
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("apm")
+                    .resources("*")
+                    .privileges("event:write")
                     .build() },
             null,
             null,

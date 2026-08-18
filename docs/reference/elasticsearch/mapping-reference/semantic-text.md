@@ -105,7 +105,7 @@ The [Reference](./semantic-text-reference.md) section provides technical referen
 
 The [How-to guides](./semantic-text-how-tos.md) section organizes procedure descriptions and examples into the following guides:
 
-- [Set up and configure `semantic_text` fields](./semantic-text-setup-configuration.md): Learn how to configure {{infer}} endpoints, including default and preconfigured options, ELSER on EIS, custom endpoints, and dedicated endpoints for ingestion and search operations.
+- [Set up and configure `semantic_text` fields](./semantic-text-setup-configuration.md): Learn how to configure {{infer}} endpoints, including default endpoints, Jina on EIS, ELSER on EIS, third-party models on EIS, external {{infer}}, and dedicated endpoints for ingestion and search operations.
 
 - [Ingest data with `semantic_text` fields](./semantic-text-ingestions.md): Learn how to index pre-chunked content, use `copy_to` and multi-fields to collect values from multiple fields, and perform updates and partial updates to optimize ingestion costs.
 

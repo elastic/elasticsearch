@@ -20,7 +20,7 @@
 
 set -euo pipefail
 
-VERSION="0.2.0"
+VERSION="0.3.0"
 
 LOCAL=false
 FORCE_UPLOAD=false
@@ -37,12 +37,17 @@ if [ "$LOCAL" = false ] || [ "$FORCE_UPLOAD" = true ]; then
   UPLOAD=true
 fi
 
+if ! command -v zip > /dev/null; then
+  echo 'Error: zip must be installed.'
+  exit 1;
+fi
+
 if [ "$UPLOAD" = true ] && [ -z "${ARTIFACTORY_API_KEY:-}" ]; then
   echo 'Error: The ARTIFACTORY_API_KEY environment variable must be set.'
   exit 1;
 fi
 
-TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-infra/es-rust-cross-toolchain:1"
+TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-dev/es-rust-cross-toolchain:2"
 if [ "$LOCAL" = true ]; then
   TOOLCHAIN_IMAGE="es-rust-cross-toolchain:local"
 fi

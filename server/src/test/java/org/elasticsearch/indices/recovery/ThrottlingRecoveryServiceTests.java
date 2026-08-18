@@ -476,6 +476,46 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(service.currentQueueSize(), equalTo(0));
     }
 
+    public void testIncreasingMaxConcurrentRelocationRecoveriesStartsPendingTasks() {
+        final var taskQueue = new DeterministicTaskQueue();
+        Settings settings = Settings.builder()
+            .put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
+            .put(INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING.getKey(), 2)
+            .build();
+        final var clusterService = newClusterService(settings);
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
+        final var started = new AtomicInteger();
+
+        for (int i = 0; i < 10; i++) {
+            service.enqueue(
+                ProjectId.DEFAULT,
+                new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED),
+                newRelocationRecoveryState(),
+                newIndexMetadata(),
+                UUIDs.randomBase64UUID(),
+                stats,
+                schedulingListener -> {
+                    started.incrementAndGet();
+                    taskQueue.scheduleAt(
+                        taskQueue.getCurrentTimeMillis() + 100, // Delay completion until we explicitly trigger time jump
+                        () -> schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+                    );
+                }
+            );
+        }
+
+        taskQueue.runAllRunnableTasks();
+        assertThat(started.get(), equalTo(2));
+
+        clusterService.getClusterSettings()
+            .applySettings(Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING.getKey(), 4).build());
+        taskQueue.runAllRunnableTasks();
+        assertThat(started.get(), equalTo(4));
+        taskQueue.runAllTasks();
+        assertThat(started.get(), equalTo(10));
+        assertThat(service.currentQueueSize(), equalTo(0));
+    }
+
     public void testDecreasingMaxConcurrentRecoveriesDefersQueueWithoutCancellingRunningTasks() {
         final var taskQueue = new DeterministicTaskQueue();
         final var clusterService = newClusterService(3);

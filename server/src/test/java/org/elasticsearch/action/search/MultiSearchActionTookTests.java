@@ -35,7 +35,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Queue;
 import java.util.Set;
@@ -131,7 +130,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        ActionFilters actionFilters = new ActionFilters(new HashSet<>());
+        ActionFilters actionFilters = ActionFilters.EMPTY;
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("test")).build());
 

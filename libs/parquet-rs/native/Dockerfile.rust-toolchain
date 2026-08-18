@@ -9,7 +9,11 @@
 
 # Cross-compilation toolchain image for es-parquet-rs.
 # Contains Rust stable with targets for Darwin aarch64 (via rust-lld),
-# Linux aarch64, and Linux x64 (via GCC cross-compilers).
+# Linux aarch64, and Linux x64 (via cargo-zigbuild).
+#
+# cargo-zigbuild uses the Zig linker, which can target any glibc version.
+# This lets us produce Linux binaries compatible with older distributions
+# (e.g. RHEL 8 / glibc 2.28) regardless of the host glibc version.
 #
 # To build locally:
 #   ./build_rust_toolchain_image.sh --local
@@ -26,22 +30,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         lld \
         gcc \
         libc-dev \
-        gcc-aarch64-linux-gnu \
-        libc6-dev-arm64-cross \
-        gcc-x86-64-linux-gnu \
-        libc6-dev-amd64-cross \
+        python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH
 
-ARG VERSION=stable
+ARG RUST_TOOLCHAIN=stable
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-    | sh -s -- -y --default-toolchain $VERSION --profile minimal \
+    | sh -s -- -y --default-toolchain $RUST_TOOLCHAIN --profile minimal \
     && rustup target add \
         aarch64-apple-darwin \
         aarch64-unknown-linux-gnu \
         x86_64-unknown-linux-gnu \
     && rm -rf /usr/local/cargo/registry /usr/local/cargo/git
+
+# PEP 668 requires --break-system-packages for pip in Debian 12+; harmless in a disposable build image
+RUN pip3 install ziglang==0.16.0 --break-system-packages
+RUN cargo install --locked --version 0.22.3 cargo-zigbuild

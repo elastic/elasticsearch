@@ -19,8 +19,8 @@
 
 set -euo pipefail
 
-# Stable version as of 2026-04
-VERSION=1.95
+# Bumped to 2 for cargo-zigbuild toolchain (replaces GCC cross-compilers)
+VERSION=2
 
 LOCAL=false
 case "${1:-}" in
@@ -43,7 +43,6 @@ if [ "$LOCAL" = true ]; then
   echo "Building $IMAGE (host platform only) ..."
   docker build --pull \
     -f Dockerfile.rust-toolchain \
-    --build-arg VERSION=$VERSION \
     -t "$IMAGE" \
     .
   echo "Local build complete. Image tagged as $IMAGE."

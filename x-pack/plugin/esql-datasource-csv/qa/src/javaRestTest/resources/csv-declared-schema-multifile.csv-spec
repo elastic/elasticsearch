@@ -1,0 +1,131 @@
+// CSV-only spec: a DECLARED dataset schema crossed with multi-file reconciliation.
+//
+// See csv-declared-schema.csv-spec for how a declaration is modelled in a `dataset:` directive (the
+// reserved `mappings` key) and for why `required_capability: dataset_declared_schema` must never appear.
+//
+// {{employees_multifile_ubn}} resolves to multifile_ubn/*.csv, two files whose schemas deliberately
+// diverge in column ORDER and WIDTH:
+//   multifile_ubn_a.csv: "name:keyword,age:integer"          -> alice/30, bob/40
+//   multifile_ubn_b.csv: "age:long,name:keyword,city:keyword" -> 50/charlie/paris, 60/dave/london
+// A declaration is pinned as the schema for every file, so each file must bind it against its OWN header
+// by name -- the flipped order is what makes a per-file positional bind produce wrong values rather than
+// an error. The harness skips glob datasets on the HTTP backend, which cannot list a directory.
+
+// The declaration binds by name in each file independently, so the flipped physical column order is
+// invisible to the query. Binding per file by POSITION would serve file B's ages under `name`.
+strictDeclaredSchemaBindsByNameAcrossFilesWithDivergentOrder
+required_capability: dataset_in_from_command
+required_capability: external_csv_header_row_option
+required_capability: external_source_read_schema
+required_capability: datasource_file_readers_no_text_type
+dataset: employees_declared_multifile: "{{employees_multifile_ubn}}" WITH {"header_row": true, "mappings": {"dynamic": "false", "properties": {"name": {"type": "keyword"}, "age": {"type": "long"}}}}
+
+FROM employees_declared_multifile
+| SORT age
+| LIMIT 10;
+
+name:keyword | age:long
+"alice"      | 30
+"bob"        | 40
+"charlie"    | 50
+"dave"       | 60
+;
+
+// A declared column that only SOME of the glob's files supply reads null for the files that lack it,
+// rather than failing the read or dropping those files' rows. `city` exists only in file B.
+strictDeclaredSchemaColumnPresentInOnlyOneFileReadsNull
+required_capability: dataset_in_from_command
+required_capability: external_csv_header_row_option
+required_capability: external_source_read_schema
+required_capability: datasource_file_readers_no_text_type
+dataset: employees_declared_multifile_city: "{{employees_multifile_ubn}}" WITH {"header_row": true, "mappings": {"dynamic": "false", "properties": {"name": {"type": "keyword"}, "city": {"type": "keyword"}}}}
+
+FROM employees_declared_multifile_city
+| SORT name
+| LIMIT 10;
+warningRegex:declared column \[city\] is not present in some source files and reads null there
+
+name:keyword | city:keyword
+"alice"      | null
+"bob"        | null
+"charlie"    | "paris"
+"dave"       | "london"
+;
+
+// A declaration pins the schema, which leaves cross-file reconciliation nothing to reconcile: the
+// declared read must return the same answer under first_file_wins as under union_by_name. Under
+// inference these two files disagree (different column sets and a name/age order flip), so the
+// reconciliation mode is observable -- a declaration that let it stay observable would mean the
+// declaration is not actually pinned.
+declaredSchemaMakesReconciliationModeIrrelevantFirstFileWins
+required_capability: dataset_in_from_command
+required_capability: external_csv_header_row_option
+required_capability: external_source_read_schema
+required_capability: datasource_file_readers_no_text_type
+dataset: employees_declared_multifile_ffw: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "mappings": {"dynamic": "false", "properties": {"name": {"type": "keyword"}, "age": {"type": "long"}}}}
+
+FROM employees_declared_multifile_ffw
+| SORT age
+| LIMIT 10;
+
+name:keyword | age:long
+"alice"      | 30
+"bob"        | 40
+"charlie"    | 50
+"dave"       | 60
+;
+
+// The third arm, and the one that discriminates hardest: under inference `strict` REJECTS a glob whose files
+// disagree, which these two do (different column sets, and name/age in opposite order). A declaration pins the
+// schema, so there is nothing left for strict to reject and the read returns the same rows as the other two modes.
+declaredSchemaMakesReconciliationModeIrrelevantStrict
+required_capability: dataset_in_from_command
+required_capability: external_csv_header_row_option
+required_capability: external_source_read_schema
+required_capability: datasource_file_readers_no_text_type
+dataset: employees_declared_multifile_strict: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "strict", "mappings": {"dynamic": "false", "properties": {"name": {"type": "keyword"}, "age": {"type": "long"}}}}
+
+FROM employees_declared_multifile_strict
+| SORT age
+| LIMIT 10;
+
+name:keyword | age:long
+"alice"      | 30
+"bob"        | 40
+"charlie"    | 50
+"dave"       | 60
+;
+
+declaredSchemaMakesReconciliationModeIrrelevantUnionByName
+required_capability: dataset_in_from_command
+required_capability: external_csv_header_row_option
+required_capability: external_source_read_schema
+required_capability: datasource_file_readers_no_text_type
+dataset: employees_declared_multifile_ubn_mode: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "union_by_name", "mappings": {"dynamic": "false", "properties": {"name": {"type": "keyword"}, "age": {"type": "long"}}}}
+
+FROM employees_declared_multifile_ubn_mode
+| SORT age
+| LIMIT 10;
+
+name:keyword | age:long
+"alice"      | 30
+"bob"        | 40
+"charlie"    | 50
+"dave"       | 60
+;
+
+// Aggregates over a declared column across the glob, run cold then warm by the harness, so the
+// declaration is asserted against the coordinator's per-file schema cache as well as the cold scan.
+strictDeclaredSchemaAggregatesAcrossFilesColdAndWarm
+required_capability: dataset_in_from_command
+required_capability: external_csv_header_row_option
+required_capability: external_source_read_schema
+required_capability: datasource_file_readers_no_text_type
+dataset: employees_declared_multifile: "{{employees_multifile_ubn}}" WITH {"header_row": true, "mappings": {"dynamic": "false", "properties": {"name": {"type": "keyword"}, "age": {"type": "long"}}}}
+
+FROM employees_declared_multifile
+| STATS rows = COUNT(*), youngest = MIN(age), oldest = MAX(age);
+
+rows:long | youngest:long | oldest:long
+4         | 30            | 60
+;

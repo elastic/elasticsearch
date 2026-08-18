@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -104,6 +105,82 @@ public class DatasetRegistryTests extends ESTestCase {
         assertEquals(
             DatasetRegistry.datasetRequestBody("ds", "s3://b/k", Map.of("header_row", true), declaration("emp_no", "integer")),
             DatasetRegistry.datasetRequestBody("ds", "s3://b/k", Map.of("header_row", true), declaration("emp_no", "integer"))
+        );
+    }
+
+    /** A directive with no WITH clause declares nothing — no settings, no schema. */
+    public void testNoWithClauseDeclaresNothing() throws IOException {
+        DatasetRegistry.DatasetOptions o = DatasetRegistry.parseDirectiveOptions(null);
+        assertEquals(Map.of(), o.settings());
+        assertNull(o.mappings());
+    }
+
+    /** The reserved key is lifted OUT of the settings map, so a declaration never reaches settings validation. */
+    public void testReservedKeyIsLiftedOutOfSettings() throws IOException {
+        String withJson = "{\"header_row\": true, \"mappings\": {\"dynamic\": \"false\", "
+            + "\"properties\": {\"id\": {\"type\": \"long\", \"path\": \"emp_no\"}}}}";
+        DatasetRegistry.DatasetOptions o = DatasetRegistry.parseDirectiveOptions(withJson);
+
+        assertEquals("settings must not carry the reserved key", Map.of("header_row", true), o.settings());
+        assertEquals(Map.of("dynamic", "false", "properties", Map.of("id", Map.of("type", "long", "path", "emp_no"))), o.mappings());
+    }
+
+    /**
+     * Property order has to survive the PARSE as well as the serialization: an unordered parse would reorder the
+     * declared columns before the body was ever built.
+     */
+    public void testParseKeepsPropertyOrder() throws IOException {
+        String withJson = "{\"mappings\": {\"dynamic\": \"false\", \"properties\": {"
+            + "\"zulu\": {\"type\": \"keyword\"}, \"alpha\": {\"type\": \"long\"}, "
+            + "\"mike\": {\"type\": \"keyword\"}, \"bravo\": {\"type\": \"long\"}}}}";
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) DatasetRegistry.parseDirectiveOptions(withJson).mappings().get("properties");
+        assertEquals(List.of("zulu", "alpha", "mike", "bravo"), List.copyOf(properties.keySet()));
+    }
+
+    /**
+     * A reserved key whose value is not an object is a spec-authoring error, caught where the directive text is still
+     * at hand rather than as a type error from the server or a {@link ClassCastException} here. An explicit null counts:
+     * it is a mistake, not a directive that declares nothing.
+     */
+    public void testNonObjectDeclarationIsRejected() {
+        for (String value : new String[] { "\"strict\"", "3", "[{\"dynamic\": \"false\"}]", "null" }) {
+            String withJson = "{\"mappings\": " + value + "}";
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> DatasetRegistry.parseDirectiveOptions(withJson)
+            );
+            assertThat(e.getMessage(), containsString("[mappings] in a dataset directive's WITH must be a JSON object"));
+        }
+    }
+
+    /**
+     * The harness guards key off this predicate, so it must answer on the reserved name as a KEY: a setting whose value
+     * merely equals {@code "mappings"} is not a declaration.
+     */
+    public void testDeclaresMappingsAnswersOnTheKeyNotTheText() {
+        assertTrue(DatasetRegistry.declaresMappings("{\"mappings\": {\"dynamic\": \"false\"}}"));
+        assertTrue(DatasetRegistry.declaresMappings("{\"header_row\": true, \"mappings\": {\"dynamic\": \"true\"}}"));
+
+        assertFalse(DatasetRegistry.declaresMappings(null));
+        assertFalse(DatasetRegistry.declaresMappings("{}"));
+        assertFalse(DatasetRegistry.declaresMappings("{\"header_row\": true}"));
+        assertFalse(DatasetRegistry.declaresMappings("{\"column_prefix\": \"mappings\"}"));
+    }
+
+    /**
+     * {@code declaresSetting} must not see a same-named key nested inside the declared schema. A declared column may be
+     * NAMED after a setting, and a text match would treat that as the setting being set — which is how the
+     * trim-spaces injection would silently stop firing and read the column-aligned fixtures untrimmed.
+     */
+    public void testDeclaresSettingIgnoresASameNamedDeclaredColumn() {
+        assertTrue(DatasetRegistry.declaresSetting("{\"trim_spaces\": false}", "trim_spaces"));
+        assertFalse(DatasetRegistry.declaresSetting(null, "trim_spaces"));
+        assertFalse(DatasetRegistry.declaresSetting("{\"header_row\": true}", "trim_spaces"));
+        assertFalse(
+            "a declared column named after a setting is not that setting",
+            DatasetRegistry.declaresSetting("{\"mappings\": {\"properties\": {\"trim_spaces\": {\"type\": \"keyword\"}}}}", "trim_spaces")
         );
     }
 

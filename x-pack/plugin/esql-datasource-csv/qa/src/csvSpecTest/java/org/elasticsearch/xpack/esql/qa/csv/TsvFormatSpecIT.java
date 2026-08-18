@@ -45,6 +45,7 @@ public class TsvFormatSpecIT extends AbstractCsvExternalSpecTestCase {
     public static List<Object[]> readScriptSpec() throws Exception {
         return readExternalSpecTests(
             "/csv-basic.csv-spec",
+            "/csv-declared-schema.csv-spec",
             "/external-heavy-aggregates.csv-spec",
             "/external-multifile.csv-spec",
             "/external-multifile-resolution.csv-spec",

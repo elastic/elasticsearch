@@ -387,6 +387,16 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             testCase.datasetSources.size() > 1
         );
 
+        // A declared schema is a property of the DATASET, not of a query: EXTERNAL has no clause that carries one, and
+        // copying the directive's reserved `mappings` key into an EXTERNAL WITH would fail option validation instead of
+        // skipping. Deliberately dormant today -- the only EXTERNAL-rebuild suite reads shared external-*.csv-spec
+        // files, none of which declare a schema -- and it is what lets those files carry declarations later without
+        // failing that suite. Do not delete it as dead code.
+        assumeFalse(
+            "a declared schema cannot be expressed as an EXTERNAL ... WITH query; skipped on EXTERNAL-rebuild backends",
+            declaresMappings()
+        );
+
         // Pick the Azure URI form once per test so wildcard expansion sees a single, consistent form.
         useAzureHadoopForm = storageBackend == StorageBackend.AZURE && randomBoolean();
 
@@ -467,6 +477,12 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             if (source.resource().contains(MULTIFILE_SUFFIX) || source.resource().contains(HIVE_SUFFIX)) {
                 assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
             }
+        }
+        if (declaresMappings()) {
+            assumeTrue(
+                "a declared schema requires the [" + EsqlDataSourcesCapabilities.DATASET_DECLARED_SCHEMA + "] capability",
+                clusterSupportsDeclaredSchema()
+            );
         }
         String dataSourceName = ensureDataSourceForBackend();
         for (DatasetSource source : testCase.datasetSources) {
@@ -554,6 +570,11 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         return false;
     }
 
+    /** Whether any of this spec's {@code dataset:} directives declares a schema. */
+    private boolean declaresMappings() {
+        return testCase.datasetSources.stream().anyMatch(source -> DatasetRegistry.declaresMappings(source.withJson()));
+    }
+
     /**
      * Memoized support for a declared schema on {@code PUT /_query/dataset/<name>}.
      * <p>
@@ -622,6 +643,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * ({@link #runDatasetMode()}) and when rebuilding an {@code EXTERNAL} query
      * ({@link #rebuildExternalFromDatasets}).
      * <p>
+     * Passed through as one blob: the reserved {@code mappings} key (a declared schema) is split out of it by
+     * {@code DatasetRegistry}, not here. The injection below therefore has to land at the TOP level of the object even
+     * when a nested {@code mappings} object is its last entry.
+     * <p>
      * The CSV/TSV test fixtures (employees.csv, books.csv, ...) are column-aligned with padding spaces for
      * readability, so their expected spec values assume trimming. The reader default is now no-trim (RFC
      * 4180 — spaces are part of a field), so read these aligned fixtures with {@code trim_spaces: true} to
@@ -638,13 +663,15 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
-     * Adds {@code "trim_spaces": true} to a dataset directive's {@code WITH} JSON, unless it already sets
-     * {@code trim_spaces} (matched as a key — the quoted name followed by a colon, so a value that merely
-     * equals {@code "trim_spaces"} still gets the injection). {@code withJson} is parser-guaranteed to be a
-     * brace-delimited object or {@code null}, so {@code lastIndexOf('}')} is always the structural closer.
+     * Adds {@code "trim_spaces": true} to a dataset directive's {@code WITH} JSON, unless the directive already sets
+     * that SETTING. Whether it does is decided by parsing rather than by matching the raw text: a directive may now
+     * carry a nested declared schema, and a same-named key inside {@code mappings} would otherwise suppress the
+     * injection and read the column-aligned fixtures untrimmed. Placement stays textual — {@code withJson} is
+     * parser-guaranteed to be a brace-delimited object or {@code null}, so {@code lastIndexOf('}')} is always the
+     * structural closer, outside any nested object.
      */
     static String injectTrimSpaces(String withJson) {
-        if (withJson != null && withJson.replaceAll("\\s", "").contains("\"trim_spaces\":")) {
+        if (DatasetRegistry.declaresSetting(withJson, "trim_spaces")) {
             return withJson;
         }
         if (withJson == null) {

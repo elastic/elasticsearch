@@ -1,0 +1,68 @@
+// A DECLARED dataset schema crossed with Hive-style partition discovery.
+//
+// See csv-declared-schema.csv-spec (esql-datasource-csv/qa) for how a declaration is modelled in a
+// `dataset:` directive -- the reserved `mappings` key, which DatasetRegistry lifts out of the WITH JSON
+// into the PUT body's top-level `mappings`. This file lives in the parquet module because the
+// hive-partitioned fixture is generated only here; the interaction under test is between a declaration
+// and PATH-derived columns, which is independent of the payload format.
+//
+// {{employees_hive}} resolves to hive-partitioned/**/*.parquet -- the employees fixture re-laid-out
+// into lang=1/../lang=5/ plus lang=__HIVE_DEFAULT_PARTITION__/, bucket sizes 15/19/17/18/21/10 (100 rows).
+// `lang` is path-derived, not a column of any file, so it is NOT declarable: a declaration naming it is
+// rejected at resolution. It is instead appended to whatever schema the read resolves -- declared or
+// inferred -- so a strict declaration narrows the PAYLOAD columns while leaving `lang` addressable.
+// HTTP cannot list a directory, so the harness skips these glob reads there.
+
+// A strict declaration pins the payload to one renamed, retyped column, and the path-derived partition
+// column still resolves and buckets correctly alongside it. COUNT(id) pins the declared axis -- drop the
+// declaration and `id` is an unknown column -- while `lang` pins the path-derived axis, so neither can be
+// lost silently.
+strictDeclaredSchemaComposesWithHivePartitionColumn
+required_capability: dataset_in_from_command
+dataset: employees_hive_declared: "{{employees_hive}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}}}}
+
+FROM employees_hive_declared
+| STATS count = COUNT(*), ids = COUNT(id) BY lang
+| SORT lang NULLS LAST;
+
+count:long | ids:long | lang:integer
+15         | 15       | 1
+19         | 19       | 2
+17         | 17       | 3
+18         | 18       | 4
+21         | 21       | 5
+10         | 10       | null
+;
+
+// Filtering on the path-derived column while reading the declared payload column: the partition prune and
+// the declared read have to agree on the same rows. COUNT(id) matching COUNT(*) proves the declared column
+// is actually populated for the pruned partition rather than null-filling.
+strictDeclaredPayloadReadsUnderHivePartitionFilter
+required_capability: dataset_in_from_command
+dataset: employees_hive_declared: "{{employees_hive}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}}}}
+
+FROM employees_hive_declared
+| WHERE lang == 3
+| STATS rows = COUNT(*), ids = COUNT(id);
+
+rows:long | ids:long
+17        | 17
+;
+
+// Declaring is REINTERPRETATION, not just supplying what is missing -- which is where a declaration earns its
+// keep on a format that already carries authoritative types. parquet stores avg_worked_seconds as a 64-bit
+// integer; declaring it `date` makes the reader read those same bits as epoch milliseconds through the
+// licensed long->datetime coercion. Inference cannot produce this column at all: it reports a long.
+strictDeclaredLongReadsAsDatetimeOnParquet
+required_capability: dataset_in_from_command
+dataset: employees_declared_epoch: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "worked": {"type": "date", "path": "avg_worked_seconds"}}}}
+
+FROM employees_declared_epoch
+| SORT id
+| LIMIT 3;
+
+id:long | worked:date
+10001   | 1970-01-04T02:38:48.049Z
+10002   | 1970-01-04T19:22:02.887Z
+10003   | 1970-01-03T07:38:16.405Z
+;

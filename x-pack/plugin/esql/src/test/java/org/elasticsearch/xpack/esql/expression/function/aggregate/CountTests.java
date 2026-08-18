@@ -48,6 +48,7 @@ public class CountTests extends AbstractAggregationTestCase {
         FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
         FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
         FunctionAppliesTo dateRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false);
+        FunctionAppliesTo histogramBucketAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
 
         Stream.of(
             MultiRowTestCaseSupplier.nullCases(1, 1000),
@@ -85,13 +86,13 @@ public class CountTests extends AbstractAggregationTestCase {
 
         Stream.of(MultiRowTestCaseSupplier.tdigestCases(1, 1000), MultiRowTestCaseSupplier.exponentialHistogramCases(1, 1000))
             .flatMap(List::stream)
-            .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
-            .map(CountTests::makeBucketSupplier)
+            .map(s -> s.withAppliesTo(histogramBucketAppliesTo))
+            .map(s -> makeBucketSupplier(s, histogramBucketAppliesTo))
             .forEach(suppliers::add);
         Stream.of(MultiRowTestCaseSupplier.tdigestCases(1, 1000), MultiRowTestCaseSupplier.exponentialHistogramCases(1, 1000))
             .flatMap(List::stream)
-            .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
-            .map(CountTests::makeNullBucketSupplier)
+            .map(s -> s.withAppliesTo(histogramBucketAppliesTo))
+            .map(s -> makeNullBucketSupplier(s, histogramBucketAppliesTo))
             .forEach(suppliers::add);
 
         // No rows
@@ -176,14 +177,17 @@ public class CountTests extends AbstractAggregationTestCase {
         });
     }
 
-    private static TestCaseSupplier makeBucketSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
+    private static TestCaseSupplier makeBucketSupplier(
+        TestCaseSupplier.TypedDataSupplier fieldSupplier,
+        FunctionAppliesTo histogramBucketAppliesTo
+    ) {
         return new TestCaseSupplier(fieldSupplier.name() + ", bucket", List.of(fieldSupplier.type(), DataType.DOUBLE_RANGE), () -> {
             var fieldTypedData = fieldSupplier.get();
             var bucket = new TestCaseSupplier.TypedData(
                 new DoubleRangeBlockBuilder.DoubleRange(-Double.MAX_VALUE, Double.MAX_VALUE),
                 DataType.DOUBLE_RANGE,
                 "bucket"
-            );
+            ).withAppliesTo(histogramBucketAppliesTo);
             long count = fieldTypedData.multiRowData().stream().mapToLong(value -> {
                 if (fieldSupplier.type() == DataType.TDIGEST) {
                     return ((TDigestHolder) value).size();
@@ -199,10 +203,13 @@ public class CountTests extends AbstractAggregationTestCase {
         });
     }
 
-    private static TestCaseSupplier makeNullBucketSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
+    private static TestCaseSupplier makeNullBucketSupplier(
+        TestCaseSupplier.TypedDataSupplier fieldSupplier,
+        FunctionAppliesTo histogramBucketAppliesTo
+    ) {
         return new TestCaseSupplier(fieldSupplier.name() + ", null bucket", List.of(fieldSupplier.type(), DataType.NULL), () -> {
             var fieldTypedData = fieldSupplier.get();
-            var bucket = new TestCaseSupplier.TypedData(null, DataType.NULL, "bucket");
+            var bucket = new TestCaseSupplier.TypedData(null, DataType.NULL, "bucket").withAppliesTo(histogramBucketAppliesTo);
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, bucket),
                 standardAggregatorName("HistogramMerge", fieldSupplier.type()),

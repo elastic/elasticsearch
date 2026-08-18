@@ -4041,10 +4041,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         // read_view_metadata is granted on Stack indices; put/delete view are not
         final IndexAbstraction stackIndexForViewer = mockIndexAbstraction("logs-" + randomIntBetween(0, 5));
-        assertThat(
-            role.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_GET_VIEW_ACTION_NAME).test(stackIndexForViewer),
-            is(true)
-        );
+        assertThat(role.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_GET_VIEW_ACTION_NAME).test(stackIndexForViewer), is(true));
         assertThat(
             role.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME).test(stackIndexForViewer),
             is(false)
@@ -4154,10 +4151,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         // read_view_metadata is granted on Stack indices; put/delete view are not
         final IndexAbstraction stackIndexForEditor = mockIndexAbstraction("logs-" + randomIntBetween(0, 5));
-        assertThat(
-            role.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_GET_VIEW_ACTION_NAME).test(stackIndexForEditor),
-            is(true)
-        );
+        assertThat(role.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_GET_VIEW_ACTION_NAME).test(stackIndexForEditor), is(true));
         assertThat(
             role.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME).test(stackIndexForEditor),
             is(false)

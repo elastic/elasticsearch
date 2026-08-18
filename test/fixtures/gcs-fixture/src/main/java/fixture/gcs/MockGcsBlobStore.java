@@ -41,7 +41,6 @@ public class MockGcsBlobStore {
     private final ConcurrentMap<String, BlobVersion> blobs = new ConcurrentSkipListMap<>();
     private final ConcurrentMap<String, ResumableUpload> resumableUploads = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, Rewrite> ongoingRewrites = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, MultipartUpload> multipartUploads = new ConcurrentHashMap<>();
 
     record BlobVersion(String path, long generation, BytesReference contents, Instant lastModified, @Nullable String storageClass) {}
 
@@ -93,12 +92,6 @@ public class MockGcsBlobStore {
                 return contents.length();
             }
             return 0;
-        }
-    }
-
-    record MultipartUpload(String uploadId, String path, ConcurrentSkipListMap<Integer, BytesReference> parts) {
-        MultipartUpload(String uploadId, String path) {
-            this(uploadId, path, new ConcurrentSkipListMap<>());
         }
     }
 
@@ -231,36 +224,6 @@ public class MockGcsBlobStore {
 
     boolean deleteBlob(String path) {
         return blobs.remove(path) != null;
-    }
-
-    String createMultipartUpload(String path) {
-        final String uploadId = UUIDs.randomBase64UUID();
-        multipartUploads.put(uploadId, new MultipartUpload(uploadId, path));
-        return uploadId;
-    }
-
-    String addMultipartUploadPart(String uploadId, int partNumber, BytesReference contents) {
-        final MultipartUpload upload = multipartUploads.get(uploadId);
-        if (upload == null) {
-            throw new GcsRestException(RestStatus.NOT_FOUND, "Multipart upload not found: " + uploadId);
-        }
-        upload.parts().put(partNumber, contents);
-        return "\"part-" + partNumber + "-" + contents.length() + "\"";
-    }
-
-    BlobVersion completeMultipartUpload(String uploadId) {
-        final MultipartUpload upload = multipartUploads.remove(uploadId);
-        if (upload == null) {
-            throw new GcsRestException(RestStatus.NOT_FOUND, "Multipart upload not found: " + uploadId);
-        }
-        final BytesReference assembled = CompositeBytesReference.of(
-            new ArrayList<>(upload.parts().values()).toArray(new BytesReference[0])
-        );
-        return updateBlob(upload.path(), null, assembled, null);
-    }
-
-    void abortMultipartUpload(String uploadId) {
-        multipartUploads.remove(uploadId);
     }
 
     record Rewrite(

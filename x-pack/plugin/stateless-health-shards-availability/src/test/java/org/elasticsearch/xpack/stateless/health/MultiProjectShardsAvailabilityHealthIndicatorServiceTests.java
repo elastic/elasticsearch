@@ -215,9 +215,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                         : "This cluster has " + projectCount + " creating primary shards.",
                     new SimpleHealthIndicatorDetails(details),
                     List.of(),
-                    List.of(
-                        new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, creatingIndices)))
-                    )
+                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, creatingIndices))))
                 )
             )
         );
@@ -424,9 +422,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                     isAcceptable
                         ? List.of()
                         : List.of(primaryUnassignedImpact(affectedIndices), allReplicasUnassignedImpact(affectedIndices)),
-                    List.of(
-                        new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, affectedIndices)))
-                    )
+                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, affectedIndices))))
                 )
             )
         );
@@ -581,14 +577,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                     "This cluster has " + countPhrase(affectedCount, "restarting replica shard", "restarting replica shards") + ".",
                     new SimpleHealthIndicatorDetails(
                         detailsWithDefaults(
-                            Map.of(
-                                "started_primaries",
-                                projectCount,
-                                "started_replicas",
-                                greenCount,
-                                "restarting_replicas",
-                                affectedCount
-                            )
+                            Map.of("started_primaries", projectCount, "started_replicas", greenCount, "restarting_replicas", affectedCount)
                         )
                     ),
                     List.of(allReplicasUnassignedImpact(affectedIndices)),
@@ -933,7 +922,17 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
         var service = createStatelessIndicator(REPLICA_GRACE_PERIOD_SETTINGS, clusterState(projectIndexRoutes));
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
-            equalTo(expectedInactiveReplicaResult(affectedProjects, indexName, affectedCount, greenCount, projectCount, replicaInitializing, false))
+            equalTo(
+                expectedInactiveReplicaResult(
+                    affectedProjects,
+                    indexName,
+                    affectedCount,
+                    greenCount,
+                    projectCount,
+                    replicaInitializing,
+                    false
+                )
+            )
         );
     }
 
@@ -1203,9 +1202,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                     "This cluster has " + String.join(", ", symptomParts) + ".",
                     new SimpleHealthIndicatorDetails(details),
                     impacts,
-                    List.of(
-                        new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, diagnosisIndices)))
-                    )
+                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, diagnosisIndices))))
                 )
             )
         );
@@ -1441,14 +1438,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
 
         Map<String, Object> details = new HashMap<>(
             detailsWithDefaults(
-                Map.of(
-                    "started_primaries",
-                    projectCount,
-                    "started_replicas",
-                    projectCount - redCount,
-                    "initializing_replicas",
-                    redCount
-                )
+                Map.of("started_primaries", projectCount, "started_replicas", projectCount - redCount, "initializing_replicas", redCount)
             )
         );
         details.put("indices_with_unavailable_replicas", String.join(", ", redIndices));
@@ -1467,15 +1457,11 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                             ShardsAvailabilityHealthIndicatorService.NAME,
                             ALL_REPLICAS_UNASSIGNED_IMPACT_ID,
                             1,
-                            "Not all data is searchable. No searchable copies of the data exist on "
-                                + indexImpactPhrase(redIndices)
-                                + ".",
+                            "Not all data is searchable. No searchable copies of the data exist on " + indexImpactPhrase(redIndices) + ".",
                             List.of(ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(
-                        new Diagnosis(DIAGNOSIS_WAIT_FOR_INITIALIZATION, List.of(new Diagnosis.Resource(INDEX, redIndices)))
-                    )
+                    List.of(new Diagnosis(DIAGNOSIS_WAIT_FOR_INITIALIZATION, List.of(new Diagnosis.Resource(INDEX, redIndices))))
                 )
             )
         );
@@ -1524,9 +1510,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(
-                        new Diagnosis(DIAGNOSIS_WAIT_FOR_INITIALIZATION, List.of(new Diagnosis.Resource(INDEX, redIndices)))
-                    )
+                    List.of(new Diagnosis(DIAGNOSIS_WAIT_FOR_INITIALIZATION, List.of(new Diagnosis.Resource(INDEX, redIndices))))
                 )
             )
         );
@@ -1594,9 +1578,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                             ShardsAvailabilityHealthIndicatorService.NAME,
                             ALL_REPLICAS_UNASSIGNED_IMPACT_ID,
                             1,
-                            "Not all data is searchable. No searchable copies of the data exist on "
-                                + indexImpactPhrase(redIndices)
-                                + ".",
+                            "Not all data is searchable. No searchable copies of the data exist on " + indexImpactPhrase(redIndices) + ".",
                             List.of(ImpactArea.SEARCH)
                         )
                     ),
@@ -1772,7 +1754,11 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
             } else {
                 projectIndexRoutes.put(
                     projectId,
-                    List.of(index(redIndexName, STARTED), index(yellowIndexName1, STARTED, STARTED), index(yellowIndexName2, STARTED, STARTED))
+                    List.of(
+                        index(redIndexName, STARTED),
+                        index(yellowIndexName1, STARTED, STARTED),
+                        index(yellowIndexName2, STARTED, STARTED)
+                    )
                 );
             }
         }
@@ -1982,10 +1968,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
             Map<String, Object> details = new HashMap<>(
                 detailsWithDefaults(Map.of("unassigned_primaries", affectedCount, "started_primaries", greenCount))
             );
-            var service = createStatelessIndicator(
-                NO_GRACE_PERIOD_SETTINGS,
-                clusterState(projectIndexRoutes, Map.of(), restoredSettings)
-            );
+            var service = createStatelessIndicator(NO_GRACE_PERIOD_SETTINGS, clusterState(projectIndexRoutes, Map.of(), restoredSettings));
             assertThat(
                 service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
                 equalTo(
@@ -1995,9 +1978,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                         "This cluster has " + countPhrase(affectedCount, "unavailable primary shard", "unavailable primary shards") + ".",
                         new SimpleHealthIndicatorDetails(details),
                         List.of(readOnlyPrimaryUnassignedImpact(restoredIndices)),
-                        List.of(
-                            new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, restoredIndices)))
-                        )
+                        List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, restoredIndices))))
                     )
                 )
             );
@@ -2026,10 +2007,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                 detailsWithDefaults(Map.of("unassigned_primaries", 2 * affectedCount, "started_primaries", 2 * greenCount))
             );
             details.put("indices_with_unavailable_primaries", String.join(", ", originalIndices));
-            var service = createStatelessIndicator(
-                NO_GRACE_PERIOD_SETTINGS,
-                clusterState(projectIndexRoutes, Map.of(), restoredSettings)
-            );
+            var service = createStatelessIndicator(NO_GRACE_PERIOD_SETTINGS, clusterState(projectIndexRoutes, Map.of(), restoredSettings));
             assertThat(
                 service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
                 equalTo(
@@ -2067,9 +2045,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
     }
 
     private static String indexImpactPhrase(List<String> indices) {
-        return indices.size() == 1
-            ? "1 index [" + indices.get(0) + "]"
-            : indices.size() + " indices [" + String.join(", ", indices) + "]";
+        return indices.size() == 1 ? "1 index [" + indices.get(0) + "]" : indices.size() + " indices [" + String.join(", ", indices) + "]";
     }
 
     private static HealthIndicatorImpact allReplicasUnassignedImpact(List<String> indices) {
@@ -2392,9 +2368,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
             .build();
         var index = indexMetadata.getIndex();
         var shardId = new ShardId(index, 0);
-        return IndexRoutingTable.builder(index)
-            .addShard(restartingShard(shardId, true, restartingNodeId, unassignedTimeNanos))
-            .build();
+        return IndexRoutingTable.builder(index).addShard(restartingShard(shardId, true, restartingNodeId, unassignedTimeNanos)).build();
     }
 
     private static IndexRoutingTable indexWithInactiveReplica(String name, ShardRoutingState replicaState, UnassignedInfo unassignedInfo) {
@@ -2573,11 +2547,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
         };
     }
 
-    private static NodesShutdownMetadata nodeShutdown(
-        String nodeId,
-        SingleNodeShutdownMetadata.Type type,
-        Integer allocationDelaySeconds
-    ) {
+    private static NodesShutdownMetadata nodeShutdown(String nodeId, SingleNodeShutdownMetadata.Type type, Integer allocationDelaySeconds) {
         return new NodesShutdownMetadata(
             Map.of(
                 nodeId,

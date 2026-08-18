@@ -88,8 +88,9 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
 
     @FunctionInfo(
         returnType = "keyword",
-        preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.6.0") },
         briefSummary = "Extracts a sub-field value from a flattened field as a keyword.",
         description = """
             Extracts the value of a single sub-field from a [`flattened` field](/reference/elasticsearch/mapping-reference/flattened.md) \

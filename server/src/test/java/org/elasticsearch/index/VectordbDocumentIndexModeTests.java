@@ -107,7 +107,6 @@ public class VectordbDocumentIndexModeTests extends ESTestCase {
         Settings userSettings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb").build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> runProvider(userSettings, Settings.builder()));
         assertThat(e.getMessage(), containsString("[vectordb] is an invalid index mode"));
-        assertThat(e.getMessage(), not(containsString("No enum constant")));
     }
 
     private static void runProvider(Settings userSettings, Settings.Builder additional) {

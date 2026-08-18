@@ -77,6 +77,15 @@ public final class SearchFeatures implements FeatureSpecification {
         "search.fetch_fields.excludes_non_metadata_type"
     );
 
+    /**
+     * Test-only gate for REST tests asserting that {@code inner_hits} of a nested kNN query score with the same
+     * fidelity the query phase used. Older nodes score the fetch phase against the quantized vectors while the query
+     * phase rescores against the full-precision ones, so those tests cannot pass on a mixed BWC cluster.
+     */
+    public static final NodeFeature NESTED_KNN_INNER_HITS_MATCH_QUERY_PHASE_SCORING = new NodeFeature(
+        "search.vectors.nested_knn_inner_hits_match_query_phase_scoring"
+    );
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
         return Set.of(
@@ -106,7 +115,8 @@ public final class SearchFeatures implements FeatureSpecification {
             EXPONENTIAL_HISTOGRAM_UPSCALING_REMOVED,
             DEFAULT_DISK_BBQ,
             DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX,
-            FETCH_FIELDS_EXCLUDES_NON_METADATA_TYPE
+            FETCH_FIELDS_EXCLUDES_NON_METADATA_TYPE,
+            NESTED_KNN_INNER_HITS_MATCH_QUERY_PHASE_SCORING
         );
     }
 }

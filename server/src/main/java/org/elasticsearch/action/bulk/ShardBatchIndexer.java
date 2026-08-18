@@ -9,10 +9,12 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
@@ -52,9 +54,11 @@ public final class ShardBatchIndexer {
     static final int BATCH_CHUNK_SIZE = 5000;
 
     private final boolean batchIndexingEnabled;
+    private final Recycler<BytesRef> recycler;
 
-    ShardBatchIndexer(Settings settings) {
+    ShardBatchIndexer(Settings settings, Recycler<BytesRef> recycler) {
         this.batchIndexingEnabled = BATCH_INDEXING.get(settings);
+        this.recycler = recycler;
     }
 
     /**
@@ -130,7 +134,8 @@ public final class ShardBatchIndexer {
                 chunkStart,
                 chunkEnd,
                 resolution,
-                Engine.Operation.Origin.PRIMARY
+                Engine.Operation.Origin.PRIMARY,
+                recycler
             );
             if (engineBatch == null) {
                 return;
@@ -197,7 +202,8 @@ public final class ShardBatchIndexer {
                     chunkStart,
                     validEnd,
                     resolution,
-                    Engine.Operation.Origin.REPLICA
+                    Engine.Operation.Origin.REPLICA,
+                    recycler
                 );
                 if (engineBatch == null) {
                     processedItems = chunkStart;

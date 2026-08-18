@@ -33,6 +33,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceSchema;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -86,6 +87,47 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         }
     }
 
+    /**
+     * Runs only {@code field}'s leaf {@link FieldMapper#mapColumnBatch} over the given JSON sources,
+     * discarding any columns produced. Intended exclusively for bail-out tests — scenarios where
+     * {@code mapColumnBatch} is expected to throw {@link UnsupportedOperationException} so
+     * {@code ShardBatchMapper} falls back to the row path.
+     *
+     * <p>Columns produced by a successful call are intentionally not returned. Any validation of
+     * correct column output must go through {@link #assertColumnarMatchesXContent}, which verifies
+     * parity with the x-content parse path.
+     */
+    protected final void mapColumnarLeaf(MapperService mapperService, String field, String... sources) throws IOException {
+        final int docCount = sources.length;
+        final BytesReference[] sourceBytesArray = new BytesReference[docCount];
+        final IndexRequest[] requests = new IndexRequest[docCount];
+        for (int i = 0; i < docCount; i++) {
+            sourceBytesArray[i] = new BytesArray(sources[i].getBytes(StandardCharsets.UTF_8));
+            requests[i] = new IndexRequest("test-index").id("d" + i).source(sourceBytesArray[i], XContentType.JSON);
+        }
+        final MappingLookup mappingLookup = mapperService.mappingLookup();
+        final IndexSettings indexSettings = mapperService.getIndexSettings();
+        final BatchMappingContext ctx = new BatchMappingContext(
+            EngineTestCase.initFromRequests(requests),
+            mappingLookup,
+            indexSettings,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
+        try (EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(sourceBytesArray), XContentType.JSON)) {
+            final SourceSchema schema = escfBatch.schema();
+            for (int c = 0; c < schema.leafCount(); c++) {
+                final String path = schema.getFullPath(c);
+                if (path.equals(field) == false) {
+                    continue;
+                }
+                final Mapper mapper = mappingLookup.getMapper(path);
+                if (mapper instanceof FieldMapper fm) {
+                    fm.mapColumnBatch(ctx, escfBatch.column(c));
+                }
+            }
+        }
+    }
+
     /** Creates a {@link Doc} with no routing and version {@code 1}. */
     protected static Doc doc(String id, long seqNo, String source) {
         return new Doc(id, null, seqNo, 1L, source);
@@ -127,7 +169,12 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         final IndexRequest[] requests = buildIndexRequests(docs, sourceBytesArray);
         final MappingLookup mappingLookup = mapperService.mappingLookup();
         final IndexSettings indexSettings = mapperService.getIndexSettings();
-        final BatchMappingContext ctx = new BatchMappingContext(EngineTestCase.initFromRequests(requests), mappingLookup, indexSettings);
+        final BatchMappingContext ctx = new BatchMappingContext(
+            EngineTestCase.initFromRequests(requests),
+            mappingLookup,
+            indexSettings,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
 
         // Drive all supported metadata mappers through their columnar hooks, mirroring the
         // preParse-all / postParse-all ordering of the row-major path.
@@ -352,7 +399,11 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         final FieldType ft = new FieldType(field.fieldType());
         ft.freeze();
 
-        final Number numeric = field.numericValue();
+        // For 2-byte point fields (e.g. HalfFloatPoint), numericValue() returns a float whose longValue()
+        // is lossy: multiple half-float values can share the same truncated long. Use binaryValue() instead
+        // so the raw 2-byte sortable encoding is compared, which the BinaryColumn columnar path also emits.
+        final boolean useBinary = ft.pointDimensionCount() == 1 && ft.pointNumBytes() == 2;
+        final Number numeric = useBinary ? null : field.numericValue();
         final Long longValue = numeric != null ? numeric.longValue() : null;
         BytesRef bytesValue = null;
         if (longValue == null) {

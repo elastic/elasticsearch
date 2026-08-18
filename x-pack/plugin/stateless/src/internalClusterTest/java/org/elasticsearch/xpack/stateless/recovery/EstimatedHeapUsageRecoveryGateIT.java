@@ -18,12 +18,16 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryGate;
 import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider;
 import org.elasticsearch.xpack.stateless.memory.ShardsMappingSizeCollector;
 import org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsService;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -33,12 +37,18 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginIntegTestCase {
 
+    /// The recovery-gate machinery ships dark; [InternalSettingsPlugin] registers the enable flag so tests can turn it on.
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(InternalSettingsPlugin.class);
+        return plugins;
+    }
+
     @Override
     protected Settings.Builder nodeSettings() {
-        return super.nodeSettings().put(
-            InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(),
-            true
-        )
+        return super.nodeSettings().put(RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING.getKey(), true)
+            .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true)
             // Ensure the gate is enabled even for the small (512 MB) test JVM.
             .put(EstimatedHeapUsageAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT.getKey(), "100mb")
             // Publish memory metrics quickly so the master's view catches up fast.

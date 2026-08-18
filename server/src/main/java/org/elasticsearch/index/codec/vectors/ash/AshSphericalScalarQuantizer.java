@@ -132,28 +132,25 @@ final class AshSphericalScalarQuantizer {
         IndirectSorter.sortDescendingByFloat(order, absZ, d);
 
         // Base level: all dims at 0.5 -> cumDot = sum(0.5 * |z_j|), cumNormSq = 0.25 * d
-        double cumDot = 0;
+        double dot = 0;
         for (int j = 0; j < d; j++) {
-            cumDot = Math.fma(0.5, absZ[j], cumDot);
+            dot = Math.fma(0.5, absZ[j], dot);
         }
-        double cumNormSq = 0.25 * d;
-        double bestValue = cumDot / Math.sqrt(cumNormSq);
-        int bestK = 0; // number of dimensions to upgrade to level 1.5
+        double normSq = 0.25 * d;
+        double bestValue = dot / Math.sqrt(normSq);
 
         // Sweep: upgrade dims in descending |z| order
-        double sweepDot = cumDot;
-        double sweepNormSq = cumNormSq;
+        int bestK = 0; // number of dimensions to upgrade to level 1.5
         for (int k = 0; k < d; k++) {
-            int dim = order[k];
-            sweepDot += absZ[dim];     // upgrading from 0.5 to 1.5 adds 1.0 * |z_dim|
-            sweepNormSq += 2.0;        // 1.5^2 - 0.5^2 = 2.0
+            dot += absZ[order[k]];  // upgrading from 0.5 to 1.5 adds 1.0 * |z_dim|
+            normSq += 2.0;          // 1.5^2 - 0.5^2 = 2.0
 
             // Handle ties: skip evaluation if next dim has the same |z|
             if (k + 1 < d && absZ[order[k]] == absZ[order[k + 1]]) {
                 continue;
             }
 
-            double value = sweepDot / Math.sqrt(sweepNormSq);
+            double value = dot / Math.sqrt(normSq);
             if (value > bestValue) {
                 bestValue = value;
                 bestK = k + 1;
@@ -222,21 +219,16 @@ final class AshSphericalScalarQuantizer {
             IndirectSorter.sortAscendingByDouble(order, eventTimes, eventCount);
 
             // Sweep through events, tracking cumulative dot product and norm
-            double cumDot = currentDot;
-            double cumNormSq = currentNormSq;
-            double bestValue = cumDot / Math.sqrt(cumNormSq);
+            double dot = currentDot;
+            double normSq = currentNormSq;
+            double bestValue = dot / Math.sqrt(normSq);
             int bestStopIdx = -1; // -1 means stop at base
-
-            int[] dimLevelCount = new int[d]; // track how many levels each dim has been incremented
 
             for (int idx = 0; idx < eventCount; idx++) {
                 int oi = order[idx];
-                int dim = eventDims[oi];
-                int level = eventLevels[oi];
 
-                cumDot += absZ[dim];
-                cumNormSq = Math.fma(2f, level, cumNormSq);
-                dimLevelCount[dim]++;
+                dot += absZ[eventDims[oi]];
+                normSq = Math.fma(2f, eventLevels[oi], normSq);
 
                 // Handle ties: skip if next event has same time
                 if (idx + 1 < eventCount) {
@@ -246,7 +238,7 @@ final class AshSphericalScalarQuantizer {
                     }
                 }
 
-                double value = cumDot / Math.sqrt(cumNormSq);
+                double value = dot / Math.sqrt(normSq);
                 if (value > bestValue) {
                     bestValue = value;
                     bestStopIdx = idx;
@@ -255,12 +247,11 @@ final class AshSphericalScalarQuantizer {
 
             // Reconstruct bestIdx from the events up to bestStopIdx
             if (bestStopIdx >= 0) {
-                Arrays.fill(dimLevelCount, 0);
+                Arrays.fill(bestIdx, 0);
                 for (int idx = 0; idx <= bestStopIdx; idx++) {
                     int oi = order[idx];
-                    dimLevelCount[eventDims[oi]]++;
+                    bestIdx[eventDims[oi]]++;
                 }
-                System.arraycopy(dimLevelCount, 0, bestIdx, 0, d);
             }
         }
 

@@ -9,8 +9,6 @@
 
 package org.elasticsearch.xpack.inference.registry;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -62,6 +60,8 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.ToXContentParams;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -867,13 +867,14 @@ public class ModelRegistry implements ClusterStateListener {
             var storageResponses = responses.stream().map(StoreResponseWithIndexInfo::modelStoreResponse).toList();
 
             ActionListener<Boolean> deleteListener = ActionListener.wrap(ignored -> delegate.onResponse(storageResponses), e -> {
-                logger.atWarn()
-                    .withThrowable(e)
-                    .log(
-                        "Failed to clean up partially stored inference endpoints {}. "
+                logger.warn(
+                    () -> Strings.format(
+                        "Failed to clean up partially stored inference endpoints %s. "
                             + "The service may be in an inconsistent state. Please try deleting and re-adding the endpoints.",
                         inferenceIdsToBeRemoved
-                    );
+                    ),
+                    e
+                );
                 delegate.onResponse(storageResponses);
             });
 
@@ -1029,9 +1030,10 @@ public class ModelRegistry implements ClusterStateListener {
         var inferenceIdsSet = responseInfo.successfullyStoredModels().stream().map(Model::getInferenceEntityId).collect(Collectors.toSet());
 
         var cleanupListener = listener.delegateResponse((delegate, exc) -> {
-            logger.atWarn()
-                .withThrowable(exc)
-                .log("Failed to add minimal service settings to cluster state for inference endpoints {}", inferenceIdsSet);
+            logger.warn(
+                () -> Strings.format("Failed to add minimal service settings to cluster state for inference endpoints %s", inferenceIdsSet),
+                exc
+            );
             deleteModels(
                 inferenceIdsSet,
                 ActionListener.running(

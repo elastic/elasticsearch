@@ -2075,13 +2075,24 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertViewIndexMetadata(kibanaRole, indexName);
         });
 
-        Arrays.asList(".entities.v2.metadata.security_" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach(indexName -> {
+        Arrays.asList(
+            ".entities.v2.metadata." + randomAlphaOfLength(randomIntBetween(1, 13)),
+            ".entities.v2.metadata.security_" + randomAlphaOfLength(randomIntBetween(0, 13))
+        ).forEach(indexName -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
             assertThat(kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateDataStreamAction.NAME).test(indexAbstraction), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(indexAbstraction), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
+            // manage is required for ensureMetadataDataStreamMappings() putMapping / rollover
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(TransportAutoPutMappingAction.TYPE.name()).test(indexAbstraction),
+                is(true)
+            );
+            // delete_index is required to repair a plain index occupying the metadata data stream name
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction), is(true));
             assertViewIndexMetadata(kibanaRole, indexName);
         });
 
@@ -4007,8 +4018,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, randomAlphaOfLength(5));
 
         assertOnlyReadAllowed(role, ".entities.v1.latest.security_" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entities.v2.latest." + randomAlphaOfLengthBetween(1, 8));
         assertOnlyReadAllowed(role, ".entities.v2.latest.security_" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entities.v2.updates." + randomAlphaOfLengthBetween(1, 8));
         assertOnlyReadAllowed(role, ".entities.v2.updates.security_" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entities.v2.metadata." + randomAlphaOfLengthBetween(1, 8));
         assertOnlyReadAllowed(role, ".entities.v2.metadata.security_" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".asset-criticality.asset-criticality-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".entity_analytics.monitoring" + randomIntBetween(0, 5));
@@ -4091,8 +4105,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, "profiling-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".profiling-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".entities.v1.latest.security_" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entities.v2.latest." + randomAlphaOfLengthBetween(1, 8));
         assertOnlyReadAllowed(role, ".entities.v2.latest.security_" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entities.v2.updates." + randomAlphaOfLengthBetween(1, 8));
         assertOnlyReadAllowed(role, ".entities.v2.updates.security_" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entities.v2.metadata." + randomAlphaOfLengthBetween(1, 8));
         assertOnlyReadAllowed(role, ".entities.v2.metadata.security_" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".entity_analytics.monitoring" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".entity_analytics.entity-leads" + randomIntBetween(0, 5));

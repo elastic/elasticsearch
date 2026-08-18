@@ -693,9 +693,6 @@ tests:
 - class: org.elasticsearch.xpack.core.watcher.crypto.CryptoServiceTests
   method: testEncryptionAndDecryptionChars
   issue: https://github.com/elastic/elasticsearch/issues/156717
-- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormatTests
-  method: testAshEuclideanScoreCorrectness
-  issue: https://github.com/elastic/elasticsearch/issues/156719
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/CASE}
   issue: https://github.com/elastic/elasticsearch/issues/156729
@@ -820,3 +817,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecKnnFunctionIT
   method: test {csv-spec:knn-function.knnAfterEvalAndRename}
   issue: https://github.com/elastic/elasticsearch/issues/157039
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=snapshot.restore/10_basic/Create a snapshot and then restore single index from it}
+  issue: https://github.com/elastic/elasticsearch/issues/157065

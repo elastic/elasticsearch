@@ -111,6 +111,7 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
     private final IndicesService indicesService;
     private final NodeClient client;
 
+    @SuppressWarnings("this-escape")
     @Inject
     public TransportUpdateAction(
         ThreadPool threadPool,
@@ -124,37 +125,7 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
         AutoCreateIndex autoCreateIndex,
         NodeClient client
     ) {
-        this(
-            NAME,
-            threadPool,
-            clusterService,
-            projectResolver,
-            transportService,
-            updateHelper,
-            actionFilters,
-            indexNameExpressionResolver,
-            indicesService,
-            autoCreateIndex,
-            client
-        );
-    }
-
-    // visible for test
-    @SuppressWarnings("this-escape")
-    protected TransportUpdateAction(
-        String actionName,
-        ThreadPool threadPool,
-        ClusterService clusterService,
-        ProjectResolver projectResolver,
-        TransportService transportService,
-        UpdateHelper updateHelper,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        IndicesService indicesService,
-        AutoCreateIndex autoCreateIndex,
-        NodeClient client
-    ) {
-        super(actionName, transportService, actionFilters, UpdateRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(NAME, transportService, actionFilters, UpdateRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
@@ -186,20 +157,8 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
         return threadPool.executor(indexService.getIndexSettings().getIndexMetadata().isSystem() ? Names.SYSTEM_WRITE : Names.WRITE);
     }
 
-    protected UpdateResponse newResponse(StreamInput in) throws IOException {
+    private UpdateResponse newResponse(StreamInput in) throws IOException {
         return new UpdateResponse(in);
-    }
-
-    private static ClusterBlockException checkGlobalBlock(ProjectState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
-    }
-
-    private ClusterBlockException checkRequestBlock(ProjectState state, UpdateRequest request) {
-        return state.blocks().indexBlockedException(state.projectId(), ClusterBlockLevel.WRITE, request.concreteIndex());
-    }
-
-    private boolean retryOnFailure(Exception e) {
-        return TransportActions.isShardNotAvailableException(e);
     }
 
     /**
@@ -297,11 +256,7 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
         );
     }
 
-    protected static TransportRequestOptions transportOptions() {
-        return TransportRequestOptions.EMPTY;
-    }
-
-    protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
+    private void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
         try {
             shardOperation(request, listener, 0);
         } catch (IOException e) {
@@ -309,7 +264,7 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
         }
     }
 
-    protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener, final int retryCount)
+    private void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener, final int retryCount)
         throws IOException {
         final ShardId shardId = request.getShardId();
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
@@ -623,7 +578,7 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
 
         protected void doStart(ProjectState projectState) {
             try {
-                ClusterBlockException blockException = checkGlobalBlock(projectState);
+                ClusterBlockException blockException = projectState.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
                 if (blockException != null) {
                     if (blockException.retryable()) {
                         retry(blockException);
@@ -642,7 +597,7 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                     }
                 }
                 resolveRequest(projectState, request);
-                blockException = checkRequestBlock(projectState, request);
+                blockException = projectState.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.concreteIndex());
                 if (blockException != null) {
                     if (blockException.retryable()) {
                         retry(blockException);
@@ -680,7 +635,7 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                 node,
                 shardActionName,
                 request,
-                transportOptions(),
+                TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(
                     listener,
                     TransportUpdateAction.this::newResponse,
@@ -690,7 +645,9 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                     public void handleException(TransportException exp) {
                         final Throwable cause = exp.unwrapCause();
                         // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
-                        if (cause instanceof ConnectTransportException || cause instanceof NodeClosedException || retryOnFailure(exp)) {
+                        if (cause instanceof ConnectTransportException
+                            || cause instanceof NodeClosedException
+                            || TransportActions.isShardNotAvailableException(exp)) {
                             retry((Exception) cause);
                         } else {
                             listener.onFailure(exp);

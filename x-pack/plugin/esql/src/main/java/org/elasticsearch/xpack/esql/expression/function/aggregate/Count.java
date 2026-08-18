@@ -164,7 +164,7 @@ public class Count extends AggregateFunction
         this(source, field, filter, window, null);
     }
 
-    private Count(Source source, Expression field, Expression filter, Expression window, Expression bucket) {
+    public Count(Source source, Expression field, Expression filter, Expression window, Expression bucket) {
         super(source, field, filter, window, bucket == null ? emptyList() : List.of(bucket));
     }
 

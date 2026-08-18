@@ -243,14 +243,14 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
             false
         );
 
-        assertThat(endpointWithNullFingerprint1.fingerprintMatches(endpointWithNullFingerprint2), is(true));
-        assertThat(endpointWithNullFingerprint1.fingerprintMatches(endpointWithFingerprintAbc1), is(false));
-        assertThat(endpointWithNullFingerprint1.fingerprintMatches(endpointWithFingerprintXyz1), is(false));
+        assertThat(endpointWithNullFingerprint1.internal().fingerprintMatches(endpointWithNullFingerprint2.internal()), is(true));
+        assertThat(endpointWithNullFingerprint1.internal().fingerprintMatches(endpointWithFingerprintAbc1.internal()), is(false));
+        assertThat(endpointWithNullFingerprint1.internal().fingerprintMatches(endpointWithFingerprintXyz1.internal()), is(false));
 
-        assertThat(endpointWithFingerprintAbc1.fingerprintMatches(endpointWithFingerprintAbc2), is(true));
-        assertThat(endpointWithFingerprintXyz1.fingerprintMatches(endpointWithFingerprintXyz2), is(true));
+        assertThat(endpointWithFingerprintAbc1.internal().fingerprintMatches(endpointWithFingerprintAbc2.internal()), is(true));
+        assertThat(endpointWithFingerprintXyz1.internal().fingerprintMatches(endpointWithFingerprintXyz2.internal()), is(true));
 
-        assertThat(endpointWithFingerprintXyz1.fingerprintMatches(endpointWithFingerprintAbc1), is(false));
+        assertThat(endpointWithFingerprintXyz1.internal().fingerprintMatches(endpointWithFingerprintAbc1.internal()), is(false));
     }
 
     public void testHasNewerVersionThan() {
@@ -290,13 +290,13 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
             false
         );
 
-        assertThat(endpointWithNullVersion1.hasNewerVersionThan(endpointWithNullVersion2), is(false));
-        assertThat(endpointWithNullVersion1.hasNewerVersionThan(endpointWithVersionFour), is(false));
-        assertThat(endpointWithVersionFour.hasNewerVersionThan(endpointWithNullVersion1), is(true));
-        assertThat(endpointWithVersionFour.hasNewerVersionThan(anotherEndpointWithVersionFour), is(false));
-        assertThat(endpointWithVersionFour.hasNewerVersionThan(endpointWithVersionFive), is(false));
-        assertThat(endpointWithVersionFive.hasNewerVersionThan(endpointWithVersionFour), is(true));
-        assertThat(endpointWithVersionFive.hasNewerVersionThan(endpointWithNullVersion2), is(true));
+        assertThat(endpointWithNullVersion1.internal().isNewerThan(endpointWithNullVersion2.internal()), is(false));
+        assertThat(endpointWithNullVersion1.internal().isNewerThan(endpointWithVersionFour.internal()), is(false));
+        assertThat(endpointWithVersionFour.internal().isNewerThan(endpointWithNullVersion1.internal()), is(true));
+        assertThat(endpointWithVersionFour.internal().isNewerThan(anotherEndpointWithVersionFour.internal()), is(false));
+        assertThat(endpointWithVersionFour.internal().isNewerThan(endpointWithVersionFive.internal()), is(false));
+        assertThat(endpointWithVersionFive.internal().isNewerThan(endpointWithVersionFour.internal()), is(true));
+        assertThat(endpointWithVersionFive.internal().isNewerThan(endpointWithNullVersion2.internal()), is(true));
     }
 
     @Override

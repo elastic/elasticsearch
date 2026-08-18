@@ -18,11 +18,11 @@ Every field is a `BinaryDocValues` field tagged with a `ColumnarFieldType` (the 
   - `ColumnarNumericRangeQuery` — a self-contained Lucene range query, vectorized and skipper-aware;
   - `ColumnarNumericBinaryDocValues.bulkLongs` — column-at-a-time reads for aggregation/block loading;
   - `binaryValue()` — re-emits the payload for a classic binary consumer.
-- **`STRING` (keyword)** — an adaptive per-segment column: plain bytes, or an internal terms
-  dictionary + ordinals, chosen from that segment's cardinality. Ordinals never surface (the read API
-  stays binary) and a segment carries a dictionary only if it picked ordinals. Read back through
-  `binaryValue()`, which re-emits the values as a `StringBinaryPayload`. Single-valued for now
-  (a document with more than one value is rejected at write time).
+- **`STRING` (keyword)** — values stored plain, read back through `binaryValue()`, which re-emits them as
+  a `StringBinaryPayload`. Single-valued for now (a document with more than one value is rejected at write
+  time). An ordinal layout is planned as a second layout id, decided at merge from statistics a flush
+  emits rather than from a per-segment probe; ordinals will stay internal, so the read API stays binary
+  either way. See `docs/PLAN.md`.
 
 The typed shapes (`Numeric`, `SortedNumeric`, `Sorted`, `SortedSet`) are **not** this library's
 surface: they throw. There is no delegate format — a type it can't handle is an error. A typed view,
@@ -55,12 +55,9 @@ the ids it was written with, older data lists only old ids and a newer reader re
   reordered) in configurable fixed-size blocks (default 128), a block offset table, and — only when multi-valued — a
   per-document value-address table. A block decodes whole into a reused buffer with a single-block
   cache; the range and bulk paths read straight out of it.
-- **String column.** The same shape, with the per-segment layout choice on top: a
-  `StringColumnLayout.PLAIN` block stores `[vint length][bytes]` per value, while a
-  `DICTIONARY` block stores one ordinal per value and the segment carries a capped terms
-  dictionary (`StringDictionary.MAX_SIZE`, in first-seen order). The ordinal stream runs through the
-  numeric pipeline, so repeated and sequential ordinal runs collapse through the existing
-  delta/offset/GCD detection rather than a string-specific encoder. No skip index yet.
+- **String column.** The same shape, storing `[vint length][bytes]` per value under
+  `StringColumnLayout.PLAIN`. The layout id is the extension point a later ordinal layout arrives on. No
+  skip index yet.
 - **Skip index.** Range pushdown lives inside the column (a `BINARY` field can't carry a Lucene
   skipper): a multi-level per-interval min/max index the range query consults.
 

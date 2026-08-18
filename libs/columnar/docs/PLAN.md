@@ -13,15 +13,28 @@ The direction, the decisions that constrain it, and the build order. Update as d
   type tag.
 - **Per-field encoding is the driver.** The integration picks the encoding from what it knows about
   the field (type, sorted, metric role). Keep the seam open.
-- **Ordinals are internal and per-segment.** A string column decides plain vs. ordinal per segment
-  from that segment's cardinality; ordinals never surface (the read API stays binary), and a segment
-  carries a dictionary only if it chose ordinals. The upper layer sees bytes, never ordinal shapes.
-- **The terms dictionary is sorted.** Ordinals follow term byte order, so within a segment comparing
-  ordinals is a valid proxy for comparing term bytes. This is an internal representation and does not
-  weaken the decision above: the read API still takes and returns bytes, and a range query resolves its
-  byte bounds to ordinals inside the codec, per segment. Decided but not yet built — the shipped column
-  still writes first-seen order, and the switch is in Next. It changes a frozen layout, so it lands
-  before the format is depended on.
+- **Ordinals are internal.** Ordinals never surface — the read API stays binary and the upper layer sees
+  bytes, never ordinal shapes. Only a segment that uses ordinals carries a dictionary.
+- **The layout decision follows segment lifecycle.** A flush makes a small, short-lived segment that is
+  usually merged away, so it writes the cheapest thing — plain — and emits statistics. A merge makes the
+  large, long-lived segment where footprint matters and the data is being rewritten anyway, so that is
+  where ordinals arrive. Later discovery, better decision: a 100-document flush knows almost nothing
+  about a column, while the merge that unions twenty of them knows a lot.
+- **Layout is a decision, statistics are knowledge — do not infer one from the other.** A layout byte
+  that doubles as the cardinality verdict is what stops a small flush from deferring the choice without
+  discarding what it observed. Statistics travel forward; the layout is decided from them.
+- **Coverage, not cardinality, decides whether ordinals pay.** `coverage(N)` is the fraction of a
+  column's values that a dictionary of the `N` most frequent terms would cover. Distinct count alone
+  misleads in both directions: 50k distinct values still favour ordinals when the top 1k cover 90% of
+  documents, while 500 roughly-uniform values may not be worth encoding at all. The uncovered tail stays
+  plain inline, so a dictionary stops being all-or-nothing.
+- **The terms dictionary is sorted lexicographically.** Frequency decides which terms are in the
+  dictionary; term byte order decides which ordinal each one gets. That keeps an ordinal range equal to a
+  value range, so a range query resolves its byte bounds once per segment and then compares ordinals,
+  where an unsorted dictionary would have to be scanned whole. Sorting is an internal representation and
+  does not weaken the rule above: the read API still takes and returns bytes.
+- **Blocks are derived by byte size, not only by value count.** A block is an *encoding* unit, a chunk is
+  a *compression* unit; see the chunking item under Next.
 - **Reuse native Zstd for block compression.** Zstd is planned as the last encoder in the block
   pipeline, backed by the existing `org.elasticsearch.nativeaccess.Zstd` binding rather than a Java
   LZ4/Zstd (the native codec is faster).
@@ -45,13 +58,11 @@ The direction, the decisions that constrain it, and the build order. Update as d
 - Per-stage encode/decode JMH benchmarks (`EncodeBlockTransformBenchmark`,
   `DecodeBlockTransformBenchmark`) covering Delta, Offset, GCD, SplitDelta, ALP, and FOR
   across ten block shapes.
-- Adaptive keyword (string) column: `ColumnarFieldType.STRING` served at `getBinary` through
-  `ColumnarStringBinaryDocValues`. A per-segment cardinality probe picks the layout — `PLAIN`
-  (`[vint length][bytes]` per value) above the threshold, `DICTIONARY` (a capped, first-seen-order
-  terms dictionary plus one ordinal per value, ordinals encoded through
-  `NumericPipeline.defaultPipeline`) at or below it. `StringDictionary.MAX_SIZE` is 256, so an ordinal
-  fits 8 bits. Ordinals stay internal; only a segment that chose `DICTIONARY` carries a dictionary.
-  Dense and sparse; single-valued only (see Next). Ported from the original POC's dict-binary path.
+- Keyword (string) column: `ColumnarFieldType.STRING` served at `getBinary` through
+  `ColumnarStringBinaryDocValues`, values stored plain (`[vint length][bytes]`). Dense and sparse;
+  single-valued only (see Next). Ported from the original POC's binary path. The POC's dictionary path
+  is deliberately not carried over — the layout is decided from statistics at merge rather than from a
+  per-segment probe, so ordinals arrive as a later layout id (see Next).
 - Per-field pipeline selection: `NumericPipelineSelector` (`@FunctionalInterface`
   `select(fieldName, type) -> NumericPipelineTemplate`) injected into `ColumNARDocValuesFormat`
   at construction time alongside an explicit `blockSize`. The selector answers "which pipeline
@@ -71,91 +82,80 @@ The direction, the decisions that constrain it, and the build order. Update as d
 - **Server-side selector wiring**: implement a concrete `NumericPipelineSelector` in server that
   inspects `FieldType`, `IndexMode`, and `MetricType` to route each field to the correct pipeline
   factory, and wire it into `PerFieldFormatSupplier`.
+- **String ordinals, across the flush/merge split.** Plain ships first — the compression story comes
+  before anything else — and the ordinal layout arrives later as a new layout id, decided from statistics
+  rather than from a per-segment probe. The work splits on flush versus merge rather than on low versus
+  high cardinality, and the interface between the halves is the statistics format, agreed upfront so they
+  proceed independently.
+
+  1. **Flush** — write plain and emit per-value frequency statistics. A histogram was considered and
+     rejected: strings have no natural bucketing, and it costs more than it tells us. **Open:** a
+     per-value frequency map is column-proportional heap on a high-cardinality field, which is what the
+     no-column-on-the-heap rule forbids, so the format needs a bound — a cap with a spill, a sketch, or
+     sampling. Settle that when the format is agreed, not while implementing against it.
+  2. **Merge** — compute coverage over the accumulated statistics, pick the budget, build the sorted
+     dictionary, re-encode. Expressing the budget in bytes rather than a term count ties it to the
+     byte-derived block rule and is measurable directly from `BytesRef` lengths; the units are endorsed
+     but not settled. Statistics should accumulate across merge generations so each starts better
+     informed than the last.
+
+  Two things to carry forward. The terms dictionary belongs in the data file, read on demand and
+  prefix-compressed, rather than in the meta stream as a `BytesRef[]` materialised at segment open:
+  metadata is read for every field in every segment whether the field is queried or not, so a resident
+  dictionary scales with fields × segments. And a merge that unions ordinal segments can remap source
+  ordinals instead of rehashing every value — worth measuring rather than assuming, and noting that
+  building the destination dictionary from the source dictionaries retains terms whose documents were all
+  deleted.
+
+- **Move chunking into the byte codec.** One `blockSize` in values currently does two jobs. A *block* is
+  an encoding quantum: 128 for bit-packed longs, because the `ForUtil` kernels unroll over it and FOR
+  needs the group's min/max. A *chunk* is a byte-bounded compression unit and applies to any column
+  whatever sits underneath. Both are real in every combination — ordinals under zstd want the 128 quantum
+  *and* a byte-bounded chunk on top; plain bytes want a chunk and no block at all. So the column emits
+  values or blocks plus offsets, and the byte codec decides how much to accumulate before emitting:
+  identity means no chunks, zstd means byte-bounded chunks plus an index storing the global uncompressed
+  offset, which stays monotonic where a (chunk, offset-within-chunk) pair would not. `BlockBytesCodec` is
+  named for the wrong level, and 128 is a quantum rather than a size — `DocValuesForUtil.encode` already
+  walks any multiple of it. Blocks and chunks address **values**, not documents, so sparsity is absorbed
+  a level up in docId → rank.
+
 - **Multi-valued string columns** — required for real keyword fields, which are commonly arrays. The
   column is single-valued today: `ColumNARDocValuesConsumer.writeStringColumn` rejects a document
-  carrying more than one value, and `StringColumnReader` asserts the same. The substrate already
-  supplies presence and a value-address table, so this mirrors what `NumericColumnWriter` does — the
-  string metadata already carries `numValues` separately from `numDocsWithField` for exactly this.
+  carrying more than one value, and `StringColumnReader` asserts the same. The substrate already supplies
+  presence and a value-address table, so this mirrors what `NumericColumnWriter` does — the string
+  metadata already carries `numValues` separately from `numDocsWithField` for exactly this. One thing to
+  carry over rather than rediscover: `ColumnarStringBinaryDocValues.binaryValue` relies on the reader
+  handing back one reused `BytesRef` per call, so collecting several values before encoding would alias
+  them onto the last one; either copy each value out or encode into the payload while walking the value
+  addresses. An assert marks the spot.
 
-  One thing to carry over rather than rediscover: `ColumnarStringBinaryDocValues.binaryValue` relies on a
-  `PLAIN` column handing back one reused `BytesRef` per call, so collecting several values before
-  encoding would alias them onto the last one; either copy each value out or encode into the payload
-  while walking the value addresses. An assert marks the spot.
+- **Skip index and a string range query** — the string column writes no skip index, so there is no
+  `ColumnarStringRangeQuery` counterpart to `ColumnarNumericRangeQuery`. These are two paths, not one
+  mechanism. An ordinal layout can resolve byte bounds against its sorted dictionary once per segment and
+  then reuse numeric-style min/max skipping over ordinals. Plain has no ordinals and needs a
+  byte-oriented structure (min/max term per interval), which does not exist — and since plain is now what
+  every flushed segment writes, whether it gets a skip index at all is the more pressing half of the
+  question.
 
-- **Sort the string terms dictionary** — decided, not yet built, and wanted before the format ships
-  because it changes a frozen on-disk layout. Terms are currently stored in first-seen order (the POC's
-  `LinkedHashMap`), so an ordinal carries no ordering relative to the term bytes. Sorting the dictionary
-  makes ordinals order-preserving within a segment, which is what unlocks the rest: sort-by-ordinal
-  becomes sort-by-value, the dictionary supports binary search rather than a hash map (what makes
-  raising the cap viable), and a range or prefix query gains a fast path.
+- **Ordinal encoder selection** — when the ordinal layout lands its stream needs an encoder chosen for it.
+  The obvious candidate to measure against is `NumericBlockEncoder.encodeOrdinals` / `decodeOrdinals` (the
+  run / two-run / cycle / bit-packed codec), which is present but unused and does not care whether
+  ordinals are monotonic. That makes it the likely answer if the lexicographic sort costs ordinal-stream
+  footprint. Routing the choice through `NumericPipelineSelector` versus giving ordinals a dedicated
+  pipeline is untested either way.
 
-  That fast path is worth stating precisely, because it is easy to read as a breach of the
-  ordinals-are-internal rule and is not one. A `ColumnarStringRangeQuery` takes byte bounds, like every
-  other read entry point. A `DICTIONARY` segment can then resolve those bounds against its sorted
-  dictionary *once per segment* — a binary search — and from there answer the range by comparing
-  ordinals, which is numeric-style min/max skipping over the ordinal stream. The ordinals never leave
-  the codec, exactly as `ColumnarNumericRangeQuery` keeps its block decoding internal. Note this is a
-  per-layout fast path, not a uniform mechanism: a `PLAIN` segment has no ordinals, so it needs byte
-  comparisons and a byte-oriented skip structure. A string range query is therefore two paths, and the
-  skip index a `DICTIONARY` column writes is not the one a `PLAIN` column needs.
-
-  Sorting is cheap at the current cap (256 entries, once per segment per field). The one structural
-  change is that `StringDictionary.Builder` can no longer assign an ordinal when it first sees a term —
-  a later term may sort ahead of an earlier one — so ordinals are assigned once the probe completes.
-  That fits the existing shape, since the probe already finishes before encoding starts.
-
-  **Measure before landing.** First-seen order assigns ordinals in the order value clusters first
-  appear, so clustered data yields a non-decreasing ordinal stream (`0,0,0,1,1,1,2,2,2`) that delta
-  collapses almost entirely. A sorted dictionary makes ordinals follow byte order, so the same column
-  yields a permutation (`5,5,5,2,2,2,9,9,9`) — runs survive, monotonicity does not. The two orders
-  coincide when the index is sorted by the field itself; they diverge for a keyword field that is
-  clustered by some *other* sort key, which is the common logs shape. Capture the ordinal-stream
-  footprint on that workload before and after; if the regression is material, the fix is a better
-  ordinal encoder (see the ordinal-pipeline item) rather than abandoning the sort.
-
-- **Remap ordinals on merge instead of rehashing values** — a merge currently rebuilds the destination
-  dictionary from scratch: `ColumNARDocValuesConsumer.writeStringColumn` runs a fresh
-  `StringDictionary.Builder` over every surviving value, and for a `DICTIONARY` source each value makes
-  a full round trip (source ordinal → `dictionary.term(ord)` → bytes → hash → destination ordinal).
-  That is O(numValues) hashing on the merge path.
-
-  A `DICTIONARY` → `DICTIONARY` merge can instead build the destination dictionary from the source
-  *dictionaries* (at most `MAX_SIZE` terms each) and derive one `int[]` remap per source segment, so
-  writing a value becomes an array index. A `PLAIN` source still has to be walked. Two caveats worth
-  recording: building from source dictionaries retains terms whose documents were all deleted, which
-  both carries dead terms into the merged segment and makes the cap decision pessimistic — a merge could
-  fall back to `PLAIN` when the live cardinality would have fit — so it needs a liveness pass or an
-  accepted approximation. And Lucene's `OrdinalMap` is the wrong tool at this cap: it builds
-  `PackedLongValues` with monotonic compression for millions of terms, where a plain `int[]` remap is
-  simpler and faster. Sorting the dictionary is not a prerequisite; it only replaces the union hash map
-  with a merge of sorted lists, which is a marginal gain at 256 terms. Measure before building — the
-  per-value saving is one byte-resolution plus a hash replaced by an array index, and block decode and
-  I/O may well dominate.
-
-- **String column follow-ups** — the initial column is a faithful port of the POC's dict-binary path;
-  each of these was deliberately left out to keep that port reviewable, and each is an open question on
-  the porting PR rather than a settled decision:
-  1. **Cardinality policy**: the probe accepts a dictionary purely on distinct count
-     (`StringDictionary.MAX_SIZE`, 256) with no ratio guard, so a small column whose values are nearly
-     all distinct still pays for a dictionary that cannot pay for itself. A ratio guard
-     (`distinct * 2 <= numValues`) and a larger cap are both worth measuring — the cap and the
-     dictionary layout are the tuning knobs. Raising the cap is also a heap decision, since the
-     dictionary is the column's one heap-resident structure.
-  2. **Skip index and a string range query**: the string column writes no skip index, so there is no
-     `ColumnarStringRangeQuery` counterpart yet. The `DICTIONARY` half depends on the sorted dictionary
-     above and can then reuse numeric-style min/max skipping over ordinals; the `PLAIN` half cannot, and
-     needs a byte-oriented structure (min/max term per interval) that does not exist yet. Worth deciding
-     whether `PLAIN` gets a skip index at all, or whether high-cardinality string columns simply scan.
-  3. **Ordinal pipeline selection**: the ordinal stream is hardcoded to
-     `NumericPipeline.defaultPipeline`. Routing it through `NumericPipelineSelector`, or giving it a
-     dedicated ordinal pipeline, is untested either way. `NumericBlockEncoder.encodeOrdinals` /
-     `decodeOrdinals` (the run / two-run / cycle / bit-packed codec) is present but unused, is
-     insensitive to whether ordinals are monotonic, and is therefore both the obvious candidate to
-     measure against and the likely answer if sorting costs ordinal-stream footprint.
-- **Block compression via native Zstd**: add Zstd as the last encoder in the block pipeline (its own
-  frozen id, applied after the terminal, so it stays additive and BWC), backed by
+- **Keyword query latency** — `logsdb` has both an inverted index and sorted-set ordinals;
+  `logsdb_columnar` has neither, because ColumNAR keeps ordinals inside the binary substrate, so the code
+  paths that detect ordinal support fall back to their slow path. The missing-index regression is
+  accepted. Whether ordinals recover the rest is unproven, and cold-cache behaviour in serverless is part
+  of the bar — plain is reliably good there. Rally coverage needs auditing so every keyword query worth
+  watching is represented, and the queries we intend to improve annotated, so indexed-versus-ordinal
+  effects can be told apart.
+- **Block compression via native Zstd**: add Zstd as the terminal byte codec (its own frozen id, applied
+  after the encoding stage, so it stays additive and BWC), backed by
   `org.elasticsearch.nativeaccess.Zstd` rather than a Java LZ4. Most useful on the low-entropy stages
-  (terms dictionary, plain keyword bytes).
+  (terms dictionary, plain keyword bytes). This is the codec that wants byte-bounded chunks, so it lands
+  with or after the chunking item above.
 - **Benchmark expansion**: four follow-up items tracked in
   `~/workspace/todo/es96-columnar/followup-benchmark-expansion.md`:
   1. Isolated force-merge benchmark (`ColumnarNumericForceMergeBenchmark`): builds N segments in
@@ -188,3 +188,6 @@ The direction, the decisions that constrain it, and the build order. Update as d
   `EncodeBlockTransformBenchmark` and `DecodeBlockTransformBenchmark`. Add a block shape to
   `NumericData` only if no existing shape exercises the new stage. See `docs/BENCHMARKS.md`.
 - Server-tier work (mapping, the binary bridge, synthetic source) lives in other modules.
+- Compression comes before query latency. Latency wins are still required for columnar index-mode GA, so
+  this is an ordering rather than a trade — but a layout is not justified by latency alone.
+

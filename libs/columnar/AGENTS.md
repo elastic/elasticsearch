@@ -12,22 +12,22 @@ Read `README.md` for the architecture first, then this. It covers what is expens
    `LONG`/`DOUBLE` are the numeric column and `STRING` is the string column; further types slot in by
    extending the write dispatch (consumer) and read dispatch (producer) — the field framing is generic.
    The type tag names the *logical* type only. How a column encodes within that type — a numeric
-   pipeline, or `PLAIN` vs. `DICTIONARY` for a string — is internal to the column and lives in its own
+   pipeline, or the layout a string column picked — is internal to the column and lives in its own
    metadata; never widen the type enum to express an encoding choice.
 
 3. **The integration chooses the encoding.** Encoding is a per-field decision driven by what the
    integration knows (type, sorted, metric role). Keep that seam open; don't hard-wire one pipeline.
 
 4. **Insertion order is preserved.** No column sorts or deduplicates its values; a value address is
-   assigned in written order and stays internal to the column. A string column's dictionary ordinals
-   are internal too — they never reach the read surface.
+   assigned in written order and stays internal to the column.
 
 5. **Never hold a column on the heap.** Read, write and merge stream one block at a time. Offset
    tables use `DirectMonotonic` (temp file on write, mapped slice on read); presence uses
-   `IndexedDISI`. Only bounded metadata and one decode block stay in memory. A string column's terms
-   dictionary is bounded metadata — it is capped at `StringDictionary.MAX_SIZE` and a segment that
-   exceeds the cap carries none at all, which is exactly what keeps it heap-safe. Raising that cap is a
-   heap decision, not just a compression one.
+   `IndexedDISI`. Only bounded metadata and one decode block stay in memory. Note that "bounded" is not
+   the same as "small enough": metadata is read for every field in every segment whether the field is
+   queried or not, so anything resident scales with fields × segments. A per-field structure earns its
+   place in the meta stream only if it is needed to open the column at all; everything else belongs in
+   the data file, read on demand.
 
 ## Encoders
 

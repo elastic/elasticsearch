@@ -275,7 +275,7 @@ public class IndexModeQueryEquivalenceIT extends ESIntegTestCase {
     // ---- query set ---------------------------------------------------------
 
     /**
-     * Fixed queries ported from {@link org.elasticsearch.search.TsdbBoolMustNotReproductionTests},
+     * Fixed queries ported from {@link org.elasticsearch.search.DocValuesRangeIteratorFalsePositiveReproductionTests},
      * plus a small set of randomly generated bool queries combining term/terms/range filters.
      * <p>All queries are wrapped in {@code constant_score} to neutralise BM25 scoring differences:
      * {@code standard}/{@code logsdb} score keyword terms via postings, while
@@ -286,7 +286,7 @@ public class IndexModeQueryEquivalenceIT extends ESIntegTestCase {
     private List<QueryBuilder> buildQuerySet(List<Doc> docs) {
         final List<QueryBuilder> queries = new ArrayList<>();
 
-        // Fixed queries (shapes derived from TsdbBoolMustNotReproductionTests).
+        // Fixed queries (shapes derived from DocValuesRangeIteratorFalsePositiveReproductionTests).
         queries.add(
             QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("dim_a", "target")).mustNot(QueryBuilders.termQuery("tag", "excluded"))
         );

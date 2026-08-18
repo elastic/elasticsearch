@@ -26,11 +26,9 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
-import java.io.Closeable;
 import java.io.IOException;
-import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
 import static org.hamcrest.Matchers.equalTo;
@@ -65,8 +63,10 @@ public class RepositoryS3DeprecationsRestIT extends ESRestTestCase {
         .module("x-pack-stack")
         .module("transform")
         .systemProperty("aws.region", regionSupplier)
+        .systemProperty("es.allow_insecure_settings", "true")
         .keystore("s3.client." + CLIENT + ".access_key", ACCESS_KEY)
         .keystore("s3.client." + CLIENT + ".secret_key", SECRET_KEY)
+        .setting("s3.client.default.endpoint", s3Fixture::getAddress)
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
         .setting("xpack.ml.enabled", "false")
         .build();
@@ -79,52 +79,77 @@ public class RepositoryS3DeprecationsRestIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    public void testUpgradeAssistantReportsUnsupportedConditionalWrites() throws IOException {
-        final var repoName = randomIdentifier();
-        try (
-            var ignored = registerRepository(
-                repoName,
-                Settings.builder().put(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey(), true).build()
-            )
-        ) {
-            final var responseObjectPath = assertOKAndCreateObjectPath(
-                client().performRequest(new Request("GET", "/_migration/deprecations"))
-            );
-
-            final List<Map<String, Object>> repositoryIssues = responseObjectPath.evaluate("repositories." + repoName);
-            assertThat(repositoryIssues, hasSize(1));
-            final var issue = repositoryIssues.get(0);
-            assertThat(issue.get("level"), equalTo("critical"));
-            assertThat(issue.get("message"), equalTo("S3 repository explicitly configures a deprecated conditional writes setting"));
-            assertThat(issue.get("url"), equalTo(ReferenceDocs.S3_COMPATIBLE_REPOSITORIES.toString()));
-            assertThat(issue.get("details"), equalTo(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_DEPRECATION_WARNING));
-            assertThat(issue.get("resolve_during_rolling_upgrade"), equalTo(false));
-        }
-    }
-
-    private Closeable registerRepository(String repositoryName, Settings extraRepositorySettings) throws IOException {
+    private static String registerRepository(UnaryOperator<Settings.Builder> settingsUnaryOperator, String... expectedWarnings)
+        throws IOException {
+        final var repoName = randomRepoName();
         final var request = newXContentRequest(
             HttpMethod.PUT,
-            "/_snapshot/" + repositoryName,
+            "/_snapshot/" + repoName,
             (b, p) -> b.field("type", S3Repository.TYPE)
                 .startObject("settings")
                 .value(
-                    Settings.builder()
-                        .put("bucket", BUCKET)
-                        .put("base_path", BASE_PATH)
-                        .put("client", CLIENT)
-                        .put("canned_acl", "private")
-                        .put("storage_class", "standard")
-                        .put(extraRepositorySettings)
+                    settingsUnaryOperator.apply(Settings.builder().put("bucket", BUCKET).put("base_path", BASE_PATH).put("client", CLIENT))
                         .build()
                 )
                 .endObject()
         );
-        if (S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.exists(extraRepositorySettings)) {
-            request.setOptions(expectWarnings(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_SETTING_DEPRECATION_WARNING));
-        }
+        request.setOptions(expectWarnings(expectedWarnings));
         assertOK(client().performRequest(request));
-        return () -> assertOK(client().performRequest(new Request("DELETE", "/_snapshot/" + repositoryName)));
+        return repoName;
+    }
+
+    public void testUpgradeAssistantReportsUnsupportedConditionalWrites() throws IOException {
+        final var repoName = registerRepository(
+            b -> b.put(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey(), randomBoolean()),
+            """
+                [unsafely_incompatible_with_s3_conditional_writes] setting was deprecated in Elasticsearch and will be removed in a \
+                future release. See the breaking changes documentation for the next major version."""
+        );
+        try {
+            assertDeprecationIssue(
+                repoName,
+                "S3 repository explicitly configures a deprecated conditional writes setting",
+                ReferenceDocs.S3_COMPATIBLE_REPOSITORIES,
+                S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_DEPRECATION_WARNING
+            );
+        } finally {
+            assertOK(client().performRequest(new Request("DELETE", "/_snapshot/" + repoName)));
+        }
+    }
+
+    public void testUpgradeAssistantReportsInsecureCredentials() throws IOException {
+        final var repoName = registerRepository(
+            b -> b.put(S3Repository.ACCESS_KEY_SETTING.getKey(), ACCESS_KEY).put(S3Repository.SECRET_KEY_SETTING.getKey(), SECRET_KEY),
+            """
+                [access_key] setting was deprecated in Elasticsearch and will be removed in a future release. \
+                See the breaking changes documentation for the next major version.""",
+            """
+                [secret_key] setting was deprecated in Elasticsearch and will be removed in a future release. \
+                See the breaking changes documentation for the next major version.""",
+            S3Repository.INSECURE_CREDENTIALS_DEPRECATION_WARNING
+        );
+        try {
+            assertDeprecationIssue(
+                repoName,
+                "S3 repository stores credentials in insecure repository settings",
+                ReferenceDocs.SECURE_SETTINGS,
+                S3Repository.INSECURE_CREDENTIALS_DEPRECATION_WARNING
+            );
+        } finally {
+            assertOK(client().performRequest(new Request("DELETE", "/_snapshot/" + repoName)));
+        }
+    }
+
+    private static void assertDeprecationIssue(String repositoryName, String message, ReferenceDocs referenceDocs, String details)
+        throws IOException {
+        final var deprecations = assertOKAndCreateObjectPath(client().performRequest(new Request("GET", "/_migration/deprecations")));
+        final String issuePath = "repositories." + repositoryName;
+        assertThat(deprecations.evaluate(issuePath), hasSize(1));
+        assertThat(deprecations.evaluate(issuePath + ".0.level"), equalTo("critical"));
+        assertThat(deprecations.evaluate(issuePath + ".0.message"), equalTo(message));
+        assertThat(deprecations.evaluate(issuePath + ".0.url"), equalTo(referenceDocs.toString()));
+        assertThat(deprecations.evaluate(issuePath + ".0.details"), equalTo(details));
+        assertThat(deprecations.evaluate(issuePath + ".0.resolve_during_rolling_upgrade"), equalTo(false));
     }
 
     private static String getIdentifierPrefix(String testSuiteName) {

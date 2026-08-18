@@ -401,14 +401,10 @@ class S3Repository extends MeteredBlobStoreRepository {
         used for security-sensitive information. Instead, store all secure settings in the keystore. See [%s] for more information.\
         """, ReferenceDocs.SECURE_SETTINGS);
 
-    static final String UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_DEPRECATION_WARNING = Strings.format("""
-        This repository explicitly configures the deprecated [%s] repository setting. Remove this setting. If this setting is configured \
-        as [true], then first upgrade your storage to a system that is fully compatible with AWS S3.\
-        """, UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey());
-
-    static final String UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_SETTING_DEPRECATION_WARNING = Strings.format(
-        "[%s] setting was deprecated in Elasticsearch and will be removed in a future release. "
-            + "See the breaking changes documentation for the next major version.",
+    static final String UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_DEPRECATION_WARNING = Strings.format(
+        """
+            This repository's settings include [%s] which is deprecated and must be removed before upgrade. If this setting is configured \
+            as [true], then first upgrade your storage to a system that is fully compatible with AWS S3.""",
         UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey()
     );
 

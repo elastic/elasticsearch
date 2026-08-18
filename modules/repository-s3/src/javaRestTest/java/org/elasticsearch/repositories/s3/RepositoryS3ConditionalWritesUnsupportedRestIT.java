@@ -136,13 +136,7 @@ public class RepositoryS3ConditionalWritesUnsupportedRestIT extends AbstractRepo
     public void testWarningLog() throws IOException {
         final var repoName = randomIdentifier();
         final var testRepository = new TestRepository(repoName, getClientName(), getBucketName(), getBasePath(), extraRepositorySettings());
-        try (
-            var ignored = testRepository.register(
-                UnaryOperator.identity(),
-                S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_SETTING_DEPRECATION_WARNING
-            );
-            var logStream = cluster.getNodeLog(0, LogType.SERVER)
-        ) {
+        try (var ignored = testRepository.register(UnaryOperator.identity()); var logStream = cluster.getNodeLog(0, LogType.SERVER)) {
             assertThat(
                 Streams.readAllLines(logStream),
                 hasItem(

@@ -298,16 +298,19 @@ public class S3RepositoryTests extends ESTestCase {
     }
 
     public void testDeprecationInfosForInsecureCredentials() {
-        final var metadata = new RepositoryMetadata(
-            "dummy-repo",
-            "mock",
-            Settings.builder()
-                .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
-                .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "aws_key")
-                .put(S3Repository.SECRET_KEY_SETTING.getKey(), "aws_secret")
-                .build()
-        );
-        try (var repo = createS3Repo(metadata)) {
+        try (
+            var repo = createS3Repo(
+                new RepositoryMetadata(
+                    randomRepoName(),
+                    "mock",
+                    Settings.builder()
+                        .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
+                        .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "aws_key")
+                        .put(S3Repository.SECRET_KEY_SETTING.getKey(), "aws_secret")
+                        .build()
+                )
+            )
+        ) {
             assertThat(
                 repo.getDeprecationInfos(),
                 contains(
@@ -324,26 +327,27 @@ public class S3RepositoryTests extends ESTestCase {
         assertWarnings(S3Repository.INSECURE_CREDENTIALS_DEPRECATION_WARNING);
     }
 
-    public void testDeprecationInfosForConditionalWritesSetting() {
+    public void testDeprecationInfosIfIncompatibleWithConditionalWrites() {
         assertDeprecationInfosForConditionalWritesSetting(true);
-        assertWarnings(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_SETTING_DEPRECATION_WARNING);
     }
 
-    public void testDeprecationInfosForConditionalWritesSettingMentionedWithDefaultValue() {
+    public void testDeprecationInfosIfExplicitlyCompatibleWithConditionalWrites() {
         assertDeprecationInfosForConditionalWritesSetting(false);
-        assertWarnings(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_SETTING_DEPRECATION_WARNING);
     }
 
     private void assertDeprecationInfosForConditionalWritesSetting(boolean disablesConditionalWrites) {
-        final var metadata = new RepositoryMetadata(
-            "dummy-repo",
-            "mock",
-            Settings.builder()
-                .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
-                .put(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey(), disablesConditionalWrites)
-                .build()
-        );
-        try (var repo = createS3Repo(metadata)) {
+        try (
+            var repo = createS3Repo(
+                new RepositoryMetadata(
+                    randomRepoName(),
+                    "mock",
+                    Settings.builder()
+                        .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
+                        .put(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey(), disablesConditionalWrites)
+                        .build()
+                )
+            )
+        ) {
             assertThat(
                 repo.getDeprecationInfos(),
                 contains(
@@ -357,6 +361,9 @@ public class S3RepositoryTests extends ESTestCase {
                 )
             );
         }
+        assertWarnings("""
+            [unsafely_incompatible_with_s3_conditional_writes] setting was deprecated in Elasticsearch and will be removed in a future \
+            release. See the breaking changes documentation for the next major version.""");
     }
 
     // ensures that chunkSize is limited to chunk_size setting, when buffer_size * parts_num is bigger

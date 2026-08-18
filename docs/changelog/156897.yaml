@@ -1,5 +1,5 @@
 area: Snapshot/Restore
 issues: []
 pr: 156897
-summary: "[DRAFT] Catch deprecated S3 features in Upgrade Assistant"
+summary: "Report deprecated S3 features in Upgrade Assistant"
 type: enhancement

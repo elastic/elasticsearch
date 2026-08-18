@@ -41,19 +41,7 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
         Settings extraRepositorySettings
     ) {
         public Closeable register(UnaryOperator<Settings> settingsUnaryOperator) throws IOException {
-            return register(settingsUnaryOperator, new String[0]);
-        }
-
-        public Closeable register(UnaryOperator<Settings> settingsUnaryOperator, String... expectedWarnings) throws IOException {
-            final var request = getRegisterRequest(settingsUnaryOperator);
-            if (expectedWarnings.length > 0) {
-                request.setOptions(expectWarnings(expectedWarnings));
-            } else if (S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.exists(extraRepositorySettings)) {
-                request.setOptions(
-                    expectWarnings(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_SETTING_DEPRECATION_WARNING)
-                );
-            }
-            assertOK(client().performRequest(request));
+            assertOK(client().performRequest(getRegisterRequest(settingsUnaryOperator)));
             return () -> assertOK(client().performRequest(new Request("DELETE", "/_snapshot/" + repositoryName())));
         }
 

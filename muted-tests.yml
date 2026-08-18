@@ -811,3 +811,6 @@ tests:
 - class: org.elasticsearch.entitlement.qa.EntitlementAgentAttachLoggingIT
   method: testEntitlementAgentAttachLineIsLogged
   issue: https://github.com/elastic/elasticsearch/issues/156950
+- class: org.elasticsearch.foreign.LinkerHelperTests
+  method: testSystemErrorReturnsCapturedGetLastErrorAfterFailedCall
+  issue: https://github.com/elastic/elasticsearch/issues/156974

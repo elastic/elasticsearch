@@ -34,7 +34,12 @@ import org.elasticsearch.compute.operator.topn.SharedNumericThreshold;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -49,6 +54,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -62,6 +68,12 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
         .named("dynamic_threshold_test");
     private static final MessageType OPTIONAL_LONG_SCHEMA = Types.buildMessage()
         .optional(PrimitiveType.PrimitiveTypeName.INT64)
+        .named("id")
+        .named("dynamic_threshold_test");
+    /** Physical {@code UINT_64}: inferred as ESQL {@code UNSIGNED_LONG}, sign-flip-encoded in every block it reads. */
+    private static final MessageType UNSIGNED_LONG_SCHEMA = Types.buildMessage()
+        .required(PrimitiveType.PrimitiveTypeName.INT64)
+        .as(LogicalTypeAnnotation.intType(64, false))
         .named("id")
         .named("dynamic_threshold_test");
     private static final MessageType REQUIRED_STRING_SCHEMA = Types.buildMessage()
@@ -117,6 +129,97 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
         List<Long> rows = readIdsWithThreshold(data, threshold(9L, true, false));
 
         assertThat(rows.size(), equalTo(2_000));
+    }
+
+    /**
+     * Raw physical {@code INT64} bits for the unsigned magnitude {@code 2^63 - 500 + i}. Plain {@code long}
+     * wraparound arithmetic is bit-identical to unsigned-mod-2^64 arithmetic, so this crosses the sign-bit
+     * boundary (raw goes from positive to negative) exactly at {@code i == 500} without any BigInteger
+     * bit-twiddling: {@link Long#MAX_VALUE} - 499 is the smallest magnitude in the set, {@code + 999} the
+     * largest, and the two halves straddle {@code 2^63} to reproduce the unsigned-ordering boundary.
+     */
+    private static long unsignedRaw(int i) {
+        return (Long.MAX_VALUE - 499L) + i;
+    }
+
+    public void testUnsignedLongRowGroupSkipAscendingCrossesSignBoundary() throws Exception {
+        byte[] data = writeLongParquet(
+            UNSIGNED_LONG_SCHEMA,
+            1L,
+            2 * 1024 * 1024,
+            1_000,
+            OptimizedParquetDynamicThresholdTests::unsignedRaw
+        );
+
+        long bound = ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(9));
+        List<Long> rows = readIdsWithThreshold(data, threshold(bound, true, false));
+
+        assertThat(rows.size(), lessThan(1_000));
+        assertTrue(rows.contains(ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(0))));
+        assertTrue(rows.contains(ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(9))));
+        // Row 900's unsigned magnitude (2^63 + 400) is far above the bound; its raw physical bits are
+        // NEGATIVE, so a rail comparing raw signed bits instead of the sign-flip-encoded form would see it
+        // as "small" and wrongly keep it.
+        assertFalse(rows.contains(ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(900))));
+    }
+
+    public void testUnsignedLongRowGroupSkipDescendingCrossesSignBoundary() throws Exception {
+        byte[] data = writeLongParquet(
+            UNSIGNED_LONG_SCHEMA,
+            1L,
+            2 * 1024 * 1024,
+            1_000,
+            OptimizedParquetDynamicThresholdTests::unsignedRaw
+        );
+
+        long bound = ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(990));
+        List<Long> rows = readIdsWithThreshold(data, threshold(bound, false, false));
+
+        assertThat(rows.size(), lessThan(1_000));
+        assertTrue(rows.contains(ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(999))));
+        assertTrue(rows.contains(ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(990))));
+        // Row 0's unsigned magnitude (2^63 - 500) is far below the bound but has POSITIVE raw bits; a
+        // signed-raw rail would see it as "large" and wrongly keep it.
+        assertFalse(rows.contains(ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(0))));
+    }
+
+    public void testUnsignedLongPageLevelSkipCrossesSignBoundary() throws Exception {
+        byte[] data = writeLongParquet(
+            UNSIGNED_LONG_SCHEMA,
+            64L * 1024 * 1024,
+            64,
+            2_000,
+            OptimizedParquetDynamicThresholdTests::unsignedRaw
+        );
+
+        long bound = ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(9));
+        List<Long> rows = readIdsWithThreshold(data, threshold(bound, true, false));
+
+        assertThat(rows.size(), lessThan(2_000));
+        assertTrue(rows.contains(ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(0))));
+        assertTrue(rows.contains(ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(9))));
+        assertFalse(rows.contains(ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(1_900))));
+    }
+
+    public void testDeclaredUnsignedLongOverPlainInt64DeclinesThresholdPruning() throws Exception {
+        byte[] data = writeLongParquet(
+            REQUIRED_LONG_SCHEMA,
+            64L * 1024 * 1024,
+            2 * 1024 * 1024,
+            1_000,
+            OptimizedParquetDynamicThresholdTests::unsignedRaw
+        );
+
+        long bound = ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(9));
+        List<Long> rows = readDeclaredUnsignedLongIdsWithThreshold(data, threshold(bound, true, false));
+
+        // The physical statistics use signed ordering, while valid declared values use unsigned ordering and
+        // negative physical values become null under the permissive policy. The iterator must decline both
+        // row-group and page pruning instead of sign-flipping incompatible bounds and dropping the valid half.
+        assertThat(rows.size(), equalTo(1_000));
+        assertTrue(rows.contains(ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(0))));
+        assertTrue(rows.contains(ParquetColumnDecoding.encodeUnsignedLong(unsignedRaw(499))));
+        assertThat(rows.stream().filter(v -> v == null).count(), equalTo(500L));
     }
 
     public void testNoFurtherCandidatesExhaustsImmediately() throws Exception {
@@ -366,6 +469,33 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
                 FormatReadContext.of(List.of("id"), 128)
             )
         ) {
+            List<Long> values = new ArrayList<>();
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                try {
+                    LongBlock block = page.getBlock(0);
+                    for (int p = 0; p < block.getPositionCount(); p++) {
+                        values.add(block.isNull(p) ? null : block.getLong(block.getFirstValueIndex(p)));
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+            return values;
+        }
+    }
+
+    private List<Long> readDeclaredUnsignedLongIdsWithThreshold(byte[] data, DynamicThreshold threshold) throws IOException {
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, "id", DataType.UNSIGNED_LONG));
+        FormatReadContext context = FormatReadContext.builder()
+            .projectedColumns(List.of("id"))
+            .batchSize(128)
+            .readSchema(readSchema)
+            .errorPolicy(ErrorPolicy.PERMISSIVE)
+            .informationalWarningSink(ignored -> {})
+            .build();
+        ParquetFormatReader reader = (ParquetFormatReader) reader(threshold).withDeclaredTypeColumns(Set.of("id"));
+        try (threshold; CloseableIterator<Page> iterator = reader.read(storageObject(data), context)) {
             List<Long> values = new ArrayList<>();
             while (iterator.hasNext()) {
                 Page page = iterator.next();

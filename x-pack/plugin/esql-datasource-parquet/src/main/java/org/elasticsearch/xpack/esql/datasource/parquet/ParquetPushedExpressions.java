@@ -452,6 +452,7 @@ final class ParquetPushedExpressions {
         return switch (dataType) {
             case INTEGER -> buildIntPredicate(columnName, value, op, schema);
             case LONG -> buildLongPredicate(columnName, value, op, schema);
+            case UNSIGNED_LONG -> buildUnsignedLongPredicate(columnName, value, op, schema);
             case DOUBLE -> {
                 if (isPhysicalDouble(schema, columnName)) {
                     yield orderedPredicate(FilterApi.doubleColumn(columnName), value != null ? ((Number) value).doubleValue() : null, op);
@@ -592,6 +593,37 @@ final class ParquetPushedExpressions {
             }
             default -> null;
         };
+    }
+
+    /**
+     * Builds a predicate for an ESQL {@code UNSIGNED_LONG} column — the mirror image of
+     * {@link #buildLongPredicate}'s UNSIGNED_64 arm. ESQL stores {@code UNSIGNED_LONG} values sign-flip-encoded
+     * ({@code value ^ 2^63}, see {@link ParquetColumnDecoding#encodeUnsignedLong}), which is the domain the literal
+     * arrives in here; un-flipping it (the encode is its own inverse) recovers the file's raw physical {@code INT64}
+     * bits to push.
+     * <p>
+     * {@code eq}/{@code notEq} are bit-pattern exact regardless of which comparator parquet-mr applies (row-group
+     * min/max always bounds the group's raw values under whatever consistent order computed them, so a point
+     * membership test against that same order can never produce a false negative) and always push. An ORDERED
+     * comparison (lt/lte/gt/gte), however, needs parquet-mr to apply an UNSIGNED comparator over the row-group
+     * RANGE to agree with ESQL's true-unsigned ordering — which only happens when the physical column carries the
+     * {@code UINT_64} annotation ({@link ParquetColumnDecoding#isUnsignedInt64}). A physical column WITHOUT that
+     * annotation (e.g. a plain signed {@code INT64} declared {@code unsigned_long}) has footer stats computed under
+     * the file's own SIGNED comparator, which disagrees with ESQL's unsigned semantics for a row group spanning both
+     * bit-pattern halves — pushing an ordered predicate there would silently skip row groups holding the true
+     * unsigned extrema, so those decline. IS NULL/IS NOT NULL (value == null) is exempt,
+     * matching {@link #buildLongPredicate}: nullability is comparator-agnostic.
+     */
+    private static FilterPredicate buildUnsignedLongPredicate(String columnName, Object value, PredicateOp op, MessageType schema) {
+        PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
+        if (ptype == null || ptype.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT64) {
+            return null;
+        }
+        if (value != null && op != PredicateOp.EQ && op != PredicateOp.NOT_EQ && ParquetColumnDecoding.isUnsignedInt64(ptype) == false) {
+            return null;
+        }
+        Long rawValue = value != null ? ParquetColumnDecoding.encodeUnsignedLong(((Number) value).longValue()) : null;
+        return orderedPredicate(FilterApi.longColumn(columnName), rawValue, op);
     }
 
     /**
@@ -982,6 +1014,7 @@ final class ParquetPushedExpressions {
         return switch (dataType) {
             case INTEGER -> translateIntIn(columnName, rawValues, schema);
             case LONG -> translateLongIn(columnName, rawValues, schema);
+            case UNSIGNED_LONG -> translateUnsignedLongIn(columnName, rawValues, schema);
             case DOUBLE -> {
                 if (isPhysicalDouble(schema, columnName)) {
                     yield inPredicate(FilterApi.doubleColumn(columnName), rawValues, v -> ((Number) v).doubleValue());
@@ -1042,6 +1075,42 @@ final class ParquetPushedExpressions {
             }
             default -> null;
         };
+    }
+
+    /**
+     * {@code IN} counterpart to {@link #buildUnsignedLongPredicate}: rawValues arrive sign-flip-encoded (ESQL's
+     * canonical {@code UNSIGNED_LONG} domain) and are un-flipped back to raw physical {@code INT64} bits before
+     * pushing (the encode is its own inverse). Mirrors {@link #translateLongIn}'s combined-min/max sign-mix decline:
+     * parquet-mr reduces the pushed set to one min/max pair using natural (signed) {@code Long} ordering, which
+     * only disagrees with the row-group stats' own comparator when the physical column carries the {@code UINT_64}
+     * annotation — so the raw-bit sign-mix decline applies only in that case (same-sign sets, including
+     * all-negative, and any set over a non-annotated physical column stay exact and pushable).
+     */
+    private static FilterPredicate translateUnsignedLongIn(String columnName, List<Object> rawValues, MessageType schema) {
+        PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
+        if (ptype == null || ptype.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT64) {
+            return null;
+        }
+        if (ParquetColumnDecoding.isUnsignedInt64(ptype)) {
+            boolean hasNegativeRaw = false;
+            boolean hasNonNegativeRaw = false;
+            for (Object v : rawValues) {
+                long raw = ParquetColumnDecoding.encodeUnsignedLong(((Number) v).longValue());
+                if (raw < 0) {
+                    hasNegativeRaw = true;
+                } else {
+                    hasNonNegativeRaw = true;
+                }
+            }
+            if (hasNegativeRaw && hasNonNegativeRaw) {
+                return null;
+            }
+        }
+        return inPredicate(
+            FilterApi.longColumn(columnName),
+            rawValues,
+            v -> ParquetColumnDecoding.encodeUnsignedLong(((Number) v).longValue())
+        );
     }
 
     /**

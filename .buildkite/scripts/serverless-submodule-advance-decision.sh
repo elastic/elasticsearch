@@ -32,10 +32,18 @@ log() {
   echo "serverless-submodule-advance-decision: $*" >&2
 }
 
-CURRENT=$(gh api "repos/elastic/elasticsearch-serverless/contents/elasticsearch?ref=main" --jq '.sha' 2>/dev/null || true)
+# A failed call and an unexpected answer are told apart on purpose. Both advance,
+# so neither shows up as a build failure, and a filter that has quietly stopped
+# filtering looks exactly like one that has nothing to skip. gh keeps its own
+# stderr so the reason for a failed call reaches the build log.
+if ! CURRENT=$(gh api "repos/elastic/elasticsearch-serverless/contents/elasticsearch?ref=main" --jq '.sha'); then
+  log "the api call for the elasticsearch-serverless submodule commit failed, see the gh error above; advancing ${CANDIDATE} without the check"
+  echo "advance"
+  exit 0
+fi
 
 if [[ ! "${CURRENT}" =~ ^[0-9a-f]{40}$ ]]; then
-  log "could not read the elasticsearch-serverless submodule commit; advancing ${CANDIDATE} without the check"
+  log "the elasticsearch-serverless submodule commit came back as '${CURRENT}', which is not a commit sha; advancing ${CANDIDATE} without the check"
   echo "advance"
   exit 0
 fi
@@ -43,7 +51,11 @@ fi
 # Order matters: comparing CURRENT...CANDIDATE makes "behind" mean "the
 # candidate is behind the submodule". Reversing it would silently invert the
 # guard.
-STATUS=$(gh api "repos/elastic/elasticsearch/compare/${CURRENT}...${CANDIDATE}" --jq '.status' 2>/dev/null || true)
+if ! STATUS=$(gh api "repos/elastic/elasticsearch/compare/${CURRENT}...${CANDIDATE}" --jq '.status'); then
+  log "the api call comparing ${CANDIDATE} against the serverless submodule ${CURRENT} failed, see the gh error above; advancing without the check"
+  echo "advance"
+  exit 0
+fi
 
 case "${STATUS}" in
   behind | identical)
@@ -55,7 +67,7 @@ case "${STATUS}" in
     echo "advance"
     ;;
   *)
-    log "could not compare ${CANDIDATE} against the serverless submodule ${CURRENT}; advancing without the check"
+    log "comparing ${CANDIDATE} against the serverless submodule ${CURRENT} returned an unexpected status '${STATUS}'; advancing without the check"
     echo "advance"
     ;;
 esac

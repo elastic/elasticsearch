@@ -164,6 +164,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValuesByteRefGroupingAggregatorFunctionTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/155069
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=indices.put_alias/all_path_options/put alias with missing name}
+  issue: https://github.com/elastic/elasticsearch/issues/156886
 
 # Examples:
 #

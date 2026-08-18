@@ -317,7 +317,7 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
      * The right side is a separate query scope; a FORK inside it is independent of any FORK in the
      * enclosing query.
      */
-    private static void forEachForkSkippingSubqueries(LogicalPlan plan, Consumer<Fork> action) {
+    static void forEachForkSkippingSubqueries(LogicalPlan plan, Consumer<Fork> action) {
         if (plan instanceof Fork fork) {
             action.accept(fork);
         }

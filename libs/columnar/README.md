@@ -55,9 +55,11 @@ the ids it was written with, older data lists only old ids and a newer reader re
   reordered) in configurable fixed-size blocks (default 128), a block offset table, and — only when multi-valued — a
   per-document value-address table. A block decodes whole into a reused buffer with a single-block
   cache; the range and bulk paths read straight out of it.
-- **String column.** The same shape, storing `[vint length][bytes]` per value under
-  `StringColumnLayout.PLAIN`. The layout id is the extension point a later ordinal layout arrives on. No
-  skip index yet.
+- **String column.** Under `StringColumnLayout.PLAIN` there is no block: the values are one byte blob plus a
+  `DirectMonotonic` table holding every value's offset, so a read is two offset lookups and a read of exactly
+  that span, and a value's length needs no prefix on disk. The layout id is the extension point a later
+  ordinal layout arrives on — a layout that *does* want a block, since bit-packed ordinals are defined over a
+  group. No skip index yet.
 - **Skip index.** Range pushdown lives inside the column (a `BINARY` field can't carry a Lucene
   skipper): a multi-level per-interval min/max index the range query consults.
 

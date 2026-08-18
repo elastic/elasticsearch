@@ -17,20 +17,18 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.FormatVersion;
-import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 import static org.elasticsearch.columnar.ColumnarTestUtils.readStringMeta;
 
 /**
  * End-to-end round-trip of string columns through a {@link Directory}. Each case asserts the values come back
  * byte-identical and in the exact order they were written, across the value shapes the encoder has to handle:
- * dense and sparse, empty values, wide values, and value counts that straddle a block boundary.
+ * dense and sparse, empty values, wide values, and a spread of value counts.
  */
 public class StringColumnTests extends ESTestCase {
 
@@ -90,7 +88,7 @@ public class StringColumnTests extends ESTestCase {
         assertColumn(docs);
     }
 
-    /** Every value empty, so the reader's block scratch is sized from a max of zero. */
+    /** Every value empty, so every offset in the table is the same and no bytes are written at all. */
     public void testAllEmptyValues() throws IOException {
         BytesRef[] docs = new BytesRef[between(1, 500)];
         for (int d = 0; d < docs.length; d++) {
@@ -99,8 +97,8 @@ public class StringColumnTests extends ESTestCase {
         assertColumn(docs);
     }
 
-    /** Value counts that are not multiples of the block size, so the final partial block is exercised. */
-    public void testPartialFinalBlock() throws IOException {
+    /** A spread of value counts, including the smallest columns and ones around a power of two. */
+    public void testAssortedValueCounts() throws IOException {
         for (int n : new int[] { 1, 5, 127, 128, 129, 130, 200, 257 }) {
             BytesRef[] docs = new BytesRef[n];
             for (int d = 0; d < n; d++) {
@@ -141,7 +139,6 @@ public class StringColumnTests extends ESTestCase {
         int maxDoc = docValues.length;
         byte[] segmentId = new byte[16];
         random().nextBytes(segmentId);
-        int blockSize = randomValidBlockSize();
 
         try (Directory dir = newDirectory()) {
             StringColumnMetadata written;
@@ -152,8 +149,6 @@ public class StringColumnTests extends ESTestCase {
                     numDocsWithField,
                     numValues,
                     () -> cursor(docValues),
-                    blockSize,
-                    BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
                     dir,
                     IOContext.DEFAULT,
                     out

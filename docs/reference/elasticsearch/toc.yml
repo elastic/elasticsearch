@@ -5,6 +5,7 @@ toc:
       - file: configuration-reference/circuit-breaker-settings.md
       - file: configuration-reference/auding-settings.md
       - file: configuration-reference/enrich-settings.md
+      - file: configuration-reference/ingest-settings.md
       - file: configuration-reference/cluster-level-shard-allocation-routing-settings.md
       - file: configuration-reference/miscellaneous-cluster-settings.md
       - file: configuration-reference/cross-cluster-replication-settings.md

@@ -1001,12 +1001,14 @@ public class StatelessPlugin extends Plugin
         var reshardIndexService = setAndGet(
             this.reshardIndexService,
             createMetadataReshardIndexService(
-                clusterService,
-                shardRoutingRoleStrategy,
-                rerouteService,
                 indicesService,
                 (NodeClient) client,
-                reshardMetrics
+                reshardMetrics,
+                clusterService,
+
+                shardRoutingRoleStrategy,
+                rerouteService
+
             )
         );
         components.add(reshardIndexService);
@@ -1147,14 +1149,14 @@ public class StatelessPlugin extends Plugin
     }
 
     protected ReshardIndexService createMetadataReshardIndexService(
-        ClusterService clusterService,
-        ShardRoutingRoleStrategy shardRoutingRoleStrategy,
-        RerouteService rerouteService,
         IndicesService indicesService,
         NodeClient client,
-        ReshardMetrics reshardMetrics
+        ReshardMetrics reshardMetrics,
+        ClusterService clusterService,
+        ShardRoutingRoleStrategy shardRoutingRoleStrategy,
+        RerouteService rerouteService
     ) {
-        return new ReshardIndexService(clusterService, shardRoutingRoleStrategy, rerouteService, indicesService, client, reshardMetrics);
+        return new ReshardIndexService(indicesService, client, reshardMetrics, clusterService, shardRoutingRoleStrategy, rerouteService);
     }
 
     @Override

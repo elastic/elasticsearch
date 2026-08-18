@@ -583,9 +583,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecK8sTimeseriesFirstOverTimeIT
   method: test {csv-spec:k8s-timeseries-first-over-time.first_over_time_of_event}
   issue: https://github.com/elastic/elasticsearch/issues/156159
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.highlight/70_number_of_fragments/negative number_of_fragments should FAIL}
-  issue: https://github.com/elastic/elasticsearch/issues/155977
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecChangePointIT
   method: test {csv-spec:change_point.values int column with all nulls}
   issue: https://github.com/elastic/elasticsearch/issues/155124
@@ -696,9 +693,6 @@ tests:
 - class: org.elasticsearch.xpack.core.watcher.crypto.CryptoServiceTests
   method: testEncryptionAndDecryptionChars
   issue: https://github.com/elastic/elasticsearch/issues/156717
-- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormatTests
-  method: testAshEuclideanScoreCorrectness
-  issue: https://github.com/elastic/elasticsearch/issues/156719
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/CASE}
   issue: https://github.com/elastic/elasticsearch/issues/156729
@@ -811,12 +805,18 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplitWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/156982
-- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/156988
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
   method: testRelocatingIndexShardFetchesFirstRegionOnly
   issue: https://github.com/elastic/elasticsearch/issues/152526
 - class: org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormatTests
   method: testSortedDeleteTermsResolveAcrossSkipperBlocks
   issue: https://github.com/elastic/elasticsearch/issues/157003
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecKnnFunctionIT
+  method: test {csv-spec:knn-function.knnBeforeMvExpandWithStats}
+  issue: https://github.com/elastic/elasticsearch/issues/157038
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecKnnFunctionIT
+  method: test {csv-spec:knn-function.knnAfterEvalAndRename}
+  issue: https://github.com/elastic/elasticsearch/issues/157039
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=snapshot.restore/10_basic/Create a snapshot and then restore single index from it}
+  issue: https://github.com/elastic/elasticsearch/issues/157065

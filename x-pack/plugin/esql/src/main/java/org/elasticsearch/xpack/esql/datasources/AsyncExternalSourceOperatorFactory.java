@@ -534,7 +534,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private ExternalSliceQueue sliceQueue;
         private ErrorPolicy errorPolicy;
         private int parsingParallelism = 1;
-        // Production sets this from the max_concurrent_open_segments pragma via LocalExecutionPlanner; this
+        // Production sets this from the external_max_concurrent_open_segments pragma via LocalExecutionPlanner; this
         // is the test/internal fallback, sourced from the single source of truth.
         private int maxConcurrentOpenSegments = SourceOperatorContext.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS;
         private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
@@ -1756,7 +1756,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             // — symmetric to the downstream-buffer-full yield below. Without this the producer-loop
             // would spin inside {@code hasNext()} holding its executor slot while the iterator's
             // segmenter/parser sub-tasks compete for slots on the same pool: with default
-            // {@code parsing_parallelism = cores} and F concurrent file readers we'd need
+            // {@code external_parsing_parallelism = cores} and F concurrent file readers we'd need
             // F + F + F×cores slots, exhausting the generic pool on multi-file gzip globs.
             // Synchronous iterators ({@code CloseableIterator}'s default) return an
             // immediately-completed listener and fall straight through.
@@ -2066,7 +2066,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .splitStartByte(fileSplit.offset())
                         .maxRecordBytes(maxRecordBytes)
                         // Per-stripe stats addressing for record-aligned macro-splits (a large file read at
-                        // parsing_parallelism<=1 is still cut into newline-aligned macro-splits, each a
+                        // external_parsing_parallelism<=1 is still cut into newline-aligned macro-splits, each a
                         // recordAligned chunk). The readers gate stripe harvest on chunkMode == recordAligned,
                         // so a genuine whole-file read (recordAligned=false) ignores statsStripeSize and keeps
                         // the authoritative whole-file emit; a macro-split harvests per-stripe and the

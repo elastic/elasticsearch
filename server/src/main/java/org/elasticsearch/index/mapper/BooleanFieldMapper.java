@@ -830,7 +830,7 @@ public class BooleanFieldMapper extends FieldMapper {
                         builder.setLong(doc, nullValue ? 1L : 0L);
                     }
                 } else {
-                    builder.setLong(doc, parseBooleanString(value.utf8ToString()) ? 1L : 0L);
+                    builder.setLong(doc, Booleans.parseBoolean(value.utf8ToString(), false) ? 1L : 0L);
                 }
             }
         }
@@ -847,7 +847,4 @@ public class BooleanFieldMapper extends FieldMapper {
         return builder.finish(longData.docCount());
     }
 
-    private static boolean parseBooleanString(String s) {
-        return Booleans.parseBoolean(s.toCharArray(), 0, s.length(), false);
-    }
 }

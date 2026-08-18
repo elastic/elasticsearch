@@ -75,6 +75,7 @@ class LegacyEmbeddingsSemanticTextFieldValueFetcher implements ValueFetcher {
     public StoredFieldsSpec storedFieldsSpec() {
         // Legacy-format semantic_text has no native synthetic source support, so under synthetic source the field's value is recovered
         // from ignored source.
+        // All embeddings are stored in the semantic_text field source, so copy_to field sources are not required.
         return StoredFieldsSpec.withSourcePaths(ignoredSourceFormat, Set.of(fieldType.name()));
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.optimizer.UnmappedGoldenTestCase;
 
@@ -87,12 +88,12 @@ public class HighlightGoldenTests extends UnmappedGoldenTestCase {
     /** HIGHLIGHT keeps the nullification projection in place, so it must retain {@code _doc} for {@code SCORE}. */
     public void testHighlightWithScoreUnderNullify() {
         assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
-        String query = """
+        String query = Strings.format("""
             FROM employees
             | EVAL x = %s
             | HIGHLIGHT "elasticsearch" ON first_name
             | EVAL s = SCORE(MATCH(first_name, "elasticsearch"))
-            """.formatted(FIELD_ABSENT_EVERYWHERE);
+            """, FIELD_ABSENT_EVERYWHERE);
         runTestsNullifyOnly(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION));
     }
 }

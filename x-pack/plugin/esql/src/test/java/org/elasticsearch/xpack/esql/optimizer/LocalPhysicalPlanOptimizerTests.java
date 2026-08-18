@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.DocVectorConsumers;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -3372,5 +3373,39 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             e.getMessage(),
             containsString("Need a doc attribute to evaluate a scoring or full-text expression, but none is available")
         );
+    }
+
+    /** Runtime-search {@code SCORE} evaluates row values and does not require {@code _doc}. */
+    public void testRuntimeScoringNeitherConsumesNorRequiresDocAttribute() {
+        var stats = new TestSearchStats();
+        var plan = plannerOptimizer.plan("""
+            from test
+            | eval f = concat(first_name, "!")
+            | eval s = score(match(f, "engineer"))
+            """, stats);
+
+        Holder<Alias> scoreField = new Holder<>();
+        Holder<EvalExec> scoreEval = new Holder<>();
+        plan.forEachDown(EvalExec.class, evalExec -> evalExec.fields().forEach(f -> {
+            if (f.child() instanceof Score) {
+                scoreField.set(f);
+                scoreEval.set(evalExec);
+            }
+        }));
+        assertThat("expected to find the EVAL evaluating SCORE(...) in the optimized plan", scoreField.get(), is(notNullValue()));
+
+        Holder<Match> scoredMatch = new Holder<>();
+        scoreField.get().forEachDown(Match.class, scoredMatch::set);
+        assertThat("the scored match must be a runtime search", scoredMatch.get().isRuntimeSearch(), is(true));
+
+        assertThat(DocVectorConsumers.consumesDocVector(scoreEval.get()), is(false));
+
+        var source = scoreField.get().source();
+        var docFreeSource = new LocalSourceExec(source, List.copyOf(scoreField.get().references()), EmptyLocalSupplier.EMPTY);
+        var mutated = new EvalExec(source, docFreeSource, List.of(scoreField.get()));
+        var localPhysicalOptimizer = new LocalPhysicalPlanOptimizer(
+            new LocalPhysicalOptimizerContext(PlannerSettings.DEFAULTS, new EsqlFlags(true), config, FoldContext.small(), stats)
+        );
+        localPhysicalOptimizer.verify(mutated, mutated.output());
     }
 }

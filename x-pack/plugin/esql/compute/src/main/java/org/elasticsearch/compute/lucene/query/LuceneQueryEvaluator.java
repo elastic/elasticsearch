@@ -71,7 +71,7 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
             }
         }
         if (docBlock == null) {
-            throw new IllegalStateException("LuceneQueryExpressionEvaluator requires a _doc block but the page has none");
+            throw new IllegalStateException(getClass().getSimpleName() + " requires a _doc block but the page has none");
         }
         DocVector docs = (DocVector) docBlock.asVector();
         try {

@@ -97,15 +97,7 @@ public class AshSphericalScalarQuantizerBenchmark {
     public void threeBit(Blackhole bh) {
         final int bits = 3;
         for (int i = 0; i < numVectors; i++) {
-            float val = AshSphericalScalarQuantizer.quantizeExactGeneral(
-                vectors[i],
-                0,
-                out,
-                0,
-                dims,
-                1 << (bits - 1),
-                (1 << (bits - 1)) - 1
-            );
+            float val = AshSphericalScalarQuantizer.quantizeExactGeneral(vectors[i], 0, out, 0, dims, (1 << (bits - 1)) - 1);
             bh.consume(val);
         }
     }
@@ -114,15 +106,7 @@ public class AshSphericalScalarQuantizerBenchmark {
     public void fourBit(Blackhole bh) {
         final int bits = 4;
         for (int i = 0; i < numVectors; i++) {
-            float val = AshSphericalScalarQuantizer.quantizeExactGeneral(
-                vectors[i],
-                0,
-                out,
-                0,
-                dims,
-                1 << (bits - 1),
-                (1 << (bits - 1)) - 1
-            );
+            float val = AshSphericalScalarQuantizer.quantizeExactGeneral(vectors[i], 0, out, 0, dims, (1 << (bits - 1)) - 1);
             bh.consume(val);
         }
     }

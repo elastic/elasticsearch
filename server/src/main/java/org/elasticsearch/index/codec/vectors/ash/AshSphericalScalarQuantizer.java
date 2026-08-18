@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.ash;
 
-import org.elasticsearch.simdvec.ESVectorUtil;
-
 import java.util.Arrays;
 import java.util.function.IntUnaryOperator;
 
@@ -92,13 +90,12 @@ final class AshSphericalScalarQuantizer {
      * row-major matrix in place.
      */
     private float quantizeExact(float[] z, int zOffset, float[] out, int outOffset, int d) {
-        int numAbsLevels = 1 << (bitsPerDim - 1);
-        int nSteps = numAbsLevels - 1;
+        int nSteps = (1 << (bitsPerDim - 1)) - 1;
 
         return switch (nSteps) {
             case 0 -> quantizeExact1Bit(z, zOffset, out, outOffset, d);
             case 1 -> quantizeExact2Bit(z, zOffset, out, outOffset, d);
-            default -> quantizeExactGeneral(z, zOffset, out, outOffset, d, numAbsLevels, nSteps);
+            default -> quantizeExactGeneral(z, zOffset, out, outOffset, d, nSteps);
         };
     }
 
@@ -178,96 +175,147 @@ final class AshSphericalScalarQuantizer {
 
     /**
      * General quantization path for bitsPerDim > 2 (nSteps > 1).
+     * <p>
+     * Every candidate assignment has the form {@code 0.5 + min(nSteps, floor(t * |z_j|))} for some
+     * threshold {@code t}, so the optimum is found by sweeping the thresholds at which a dimension
+     * gains a level: the critical time of the pair (step, dim) is {@code step / |z_j|}. Those times
+     * ascend with step for a fixed dimension, so once the magnitudes are sorted the
+     * {@code nSteps * d} events form {@code nSteps} runs that are each already ordered, and the
+     * sweep is a merge of the runs rather than a sort of all the events. The selected set is
+     * recovered from the threshold alone, which is why only magnitudes need sorting and not the
+     * dimension indices alongside them.
      */
-    static float quantizeExactGeneral(float[] z, int zOffset, float[] out, int outOffset, int d, int numAbsLevels, int nSteps) {
-
-        // Extract signs and absolute values
-        float[] signs = new float[d];
+    static float quantizeExactGeneral(float[] z, int zOffset, float[] out, int outOffset, int d, int nSteps) {
+        // Base level: all dims at 0.5 -> dot = sum(0.5 * |z_j|), normSq = 0.25 * d
         float[] absZ = new float[d];
+        double baseDot = 0;
         for (int j = 0; j < d; j++) {
-            signs[j] = Math.copySign(1.0f, z[zOffset + j]);
-            absZ[j] = Math.abs(z[zOffset + j]);
+            float a = Math.abs(z[zOffset + j]);
+            absZ[j] = a;
+            baseDot = Math.fma(0.5, a, baseDot);
         }
 
-        // Base level: all at 0.5
-        double currentDot = 0;
-        for (int j = 0; j < d; j++) {
-            currentDot = Math.fma(0.5, absZ[j], currentDot);
+        // Sorted ascending; every run walks it backwards, so zero magnitudes -- which gain no level
+        // at any threshold -- sit past the end of each run
+        Arrays.sort(absZ);
+        int firstNonZero = 0;
+        while (firstNonZero < d && absZ[firstNonZero] == 0) {
+            firstNonZero++;
         }
-        double currentNormSq = 0.25 * d;
 
-        // Find best magnitude for each dimension via greedy event scanning
-        int[] bestIdx = new int[d]; // number of level increments beyond base
+        double bestDot = baseDot;
+        double bestNormSq = 0.25 * d;
+        // The winning event fixes the threshold at bestStep / bestMag; step 0 means no event
+        // improved on the base level
+        int bestStep = 0;
+        double bestMag = 0;
 
-        if (numAbsLevels > 1) {
-            int k = nSteps * d;
+        if (firstNonZero < d) {
+            // Run s (1..nSteps) holds the events of step s, next one at position heads[s - 1]. All
+            // runs start at the largest magnitude, where the critical time s / |z| ascends with s,
+            // so the runs in step order already satisfy the heap invariant.
+            int[] heads = new int[nSteps];
+            double[] headMags = new double[nSteps];
+            int[] heap = new int[nSteps];
+            Arrays.fill(heads, d - 1);
+            Arrays.fill(headMags, absZ[d - 1]);
+            Arrays.setAll(heap, IntUnaryOperator.identity());
 
-            // Build events: for each (step, dim), critical time = step / absZ[dim]
-            // Sort events by critical time and greedily pick the best stopping point
-            double[] eventTimes = new double[k];
-            int[] eventDims = new int[k];
-            int[] eventLevels = new int[k];
+            double dot = baseDot;
+            double normSq = bestNormSq;
+            int events = nSteps * (d - firstNonZero);
+            for (int e = 0; e < events; e++) {
+                int run = heap[0];
+                int step = run + 1;
+                double mag = headMags[run];
 
-            int eventCount = 0;
-            for (int step = 1; step <= nSteps; step++) {
-                for (int j = 0; j < d; j++) {
-                    if (absZ[j] > 0) {
-                        eventTimes[eventCount] = (double) step / absZ[j];
-                        eventDims[eventCount] = j;
-                        eventLevels[eventCount] = step;
-                        eventCount++;
-                    }
-                }
-            }
+                dot += mag;
+                normSq += 2 * step;
 
-            // Sort events by time
-            int[] order = new int[eventCount];
-            Arrays.setAll(order, IntUnaryOperator.identity());
-            IndirectSorter.sortAscendingByDouble(order, eventTimes, eventCount);
+                int head = --heads[run];
+                // An exhausted run carries magnitude 0, i.e. an infinite critical time, so it sinks
+                // to the bottom of the heap and is never selected again
+                headMags[run] = head < firstNonZero ? 0 : absZ[head];
+                siftDown(heap, headMags, nSteps);
 
-            // Sweep through events, tracking cumulative dot product and norm
-            double dot = currentDot;
-            double normSq = currentNormSq;
-            double bestValue = dot / Math.sqrt(normSq);
-            int bestStopIdx = -1; // -1 means stop at base
-
-            for (int idx = 0; idx < eventCount; idx++) {
-                int oi = order[idx];
-
-                dot += absZ[eventDims[oi]];
-                normSq = Math.fma(2f, eventLevels[oi], normSq);
-
-                // Handle ties: skip if next event has same time
-                if (idx + 1 < eventCount) {
-                    int nextOi = order[idx + 1];
-                    if (eventTimes[oi] == eventTimes[nextOi]) {
-                        continue;
-                    }
+                // Handle ties: skip evaluation if the next event is at the same critical time
+                int next = heap[0];
+                if (step * headMags[next] == (next + 1) * mag) {
+                    continue;
                 }
 
-                double value = dot / Math.sqrt(normSq);
-                if (value > bestValue) {
-                    bestValue = value;
-                    bestStopIdx = idx;
-                }
-            }
-
-            // Reconstruct bestIdx from the events up to bestStopIdx
-            if (bestStopIdx >= 0) {
-                Arrays.fill(bestIdx, 0);
-                for (int idx = 0; idx <= bestStopIdx; idx++) {
-                    int oi = order[idx];
-                    bestIdx[eventDims[oi]]++;
+                // dot / sqrt(normSq) > bestDot / sqrt(bestNormSq), cross-multiplied to avoid a
+                // divide and a square root per event
+                if (dot * dot * bestNormSq > bestDot * bestDot * normSq) {
+                    bestDot = dot;
+                    bestNormSq = normSq;
+                    bestStep = step;
+                    bestMag = mag;
                 }
             }
         }
 
-        // Final conversion: centered code = sign * (0.5 + bestIdx)
-        for (int j = 0; j < d; j++) {
-            float mag = 0.5f + bestIdx[j];
-            out[outOffset + j] = signs[j] * mag;
+        if (bestStep == 0) {
+            return quantizeExact1Bit(z, zOffset, out, outOffset, d);
         }
-        float norm = ESVectorUtil.dotProduct(out, outOffset, out, outOffset, d);
-        return (float) Math.sqrt(norm);
+
+        // Every event up to the winning one was consumed, so dimension j holds each step s whose
+        // critical time s / |z_j| is at or below the threshold bestStep / bestMag. The tie rule
+        // above only ever settles on the last event of a run of equal critical times, so the
+        // threshold picks out exactly the consumed events.
+        for (int j = 0; j < d; j++) {
+            float v = z[zOffset + j];
+            // Exact: bestStep occupies 7 bits at most and the magnitude 24
+            double scaled = bestStep * (double) Math.abs(v);
+            int levels = (int) Math.min(scaled / bestMag, nSteps);
+            // That division is the only inexact step, so nudge the level it landed on. Both
+            // comparisons are exact, and each loop runs at most once.
+            while (levels < nSteps && (levels + 1) * bestMag <= scaled) {
+                levels++;
+            }
+            while (levels > 0 && levels * bestMag > scaled) {
+                levels--;
+            }
+            out[outOffset + j] = Math.copySign(0.5f + levels, v);
+        }
+
+        // Each event contributed 2 * step to normSq, and summing that over steps 1..m gives
+        // exactly (0.5 + m)^2 - 0.25, so the tracked value is the code's squared norm
+        return (float) Math.sqrt(bestNormSq);
+    }
+
+    /**
+     * Restores the heap invariant at the root, ordering runs by the critical time of their next
+     * event.
+     */
+    private static void siftDown(int[] heap, double[] headMags, int size) {
+        int i = 0;
+        while (true) {
+            int child = 2 * i + 1;
+            if (child >= size) {
+                return;
+            }
+            int right = child + 1;
+            if (right < size && earlier(heap[right], heap[child], headMags)) {
+                child = right;
+            }
+            if (earlier(heap[child], heap[i], headMags) == false) {
+                return;
+            }
+            int tmp = heap[i];
+            heap[i] = heap[child];
+            heap[child] = tmp;
+            i = child;
+        }
+    }
+
+    /**
+     * Whether run {@code r1}'s next event precedes run {@code r2}'s, i.e.
+     * {@code (r1 + 1) / mag(r1) < (r2 + 1) / mag(r2)}, cross-multiplied so that the comparison --
+     * and the tie detection it feeds -- stays exact. A run carrying magnitude 0 is exhausted and
+     * never precedes a live run.
+     */
+    private static boolean earlier(int r1, int r2, double[] headMags) {
+        return (r1 + 1) * headMags[r2] < (r2 + 1) * headMags[r1];
     }
 }

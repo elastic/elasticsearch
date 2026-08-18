@@ -7,19 +7,22 @@
 
 # Builds libes_parquet_rs for all three targets:
 #   build/darwin-aarch64/libes_parquet_rs.dylib  (rust-lld, -undefined dynamic_lookup)
-#   build/linux-aarch64/libes_parquet_rs.so      (GCC cross-compiler)
-#   build/linux-x64/libes_parquet_rs.so          (GCC cross-compiler)
+#   build/linux-aarch64/libes_parquet_rs.so      (cargo-zigbuild, glibc 2.28)
+#   build/linux-x64/libes_parquet_rs.so          (cargo-zigbuild, glibc 2.28)
 #
 # All targets can be cross-compiled from Linux inside the Docker toolchain
 # container. The Darwin target uses rust-lld with -undefined dynamic_lookup
 # so that framework symbols (CoreFoundation, etc.) are resolved by dyld at
 # load time, avoiding the need for the macOS SDK.
 #
+# Linux targets use cargo-zigbuild (Zig's linker) to target glibc 2.28,
+# ensuring compatibility with RHEL 8 and equivalent distributions.
+#
 # Usage:
 #   make local       - build for the current platform
 #   make install     - build and copy to the platform directory used by Gradle tests
 #   make darwin      - cross-compile the Darwin binary (via rust-lld)
-#   make linux       - cross-compile both Linux targets (via GCC)
+#   make linux       - cross-compile both Linux targets (via cargo-zigbuild)
 #   make all         - build all three targets
 #   make clean       - remove build artifacts
 #
@@ -117,23 +120,22 @@ $(DARWIN_SYSROOT):
 	  'exports: []' \
 	  '...' > $@/Frameworks/CoreFoundation.framework/CoreFoundation.tbd
 
-# --- linux: cross-compile both Linux targets (inside Docker) ---
+# --- linux: cross-compile both Linux targets via cargo-zigbuild ---
+# The .2.28 suffix pins the minimum glibc to 2.28 (RHEL 8 / Ubuntu 18.04).
+
+GLIBC_VERSION = 2.28
 
 linux: $(OUT_LIN_ARM) $(OUT_LIN_X64)
 
 $(OUT_LIN_ARM):
-	CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc" \
-	  $(CARGO) build --release --target $(TARGET_LIN_ARM)
+	$(CARGO) zigbuild --release --target $(TARGET_LIN_ARM).$(GLIBC_VERSION)
 	mkdir -p $(dir $@)
 	cp target/$(TARGET_LIN_ARM)/release/libes_parquet_rs.so $@
-	aarch64-linux-gnu-strip --strip-unneeded $@
 
 $(OUT_LIN_X64):
-	CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER="x86_64-linux-gnu-gcc" \
-	  $(CARGO) build --release --target $(TARGET_LIN_X64)
+	$(CARGO) zigbuild --release --target $(TARGET_LIN_X64).$(GLIBC_VERSION)
 	mkdir -p $(dir $@)
 	cp target/$(TARGET_LIN_X64)/release/libes_parquet_rs.so $@
-	x86_64-linux-gnu-strip --strip-unneeded $@
 
 # --- all: build everything ---
 # All three targets are cross-compiled inside the Docker toolchain container.

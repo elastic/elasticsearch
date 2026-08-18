@@ -811,12 +811,15 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplitWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/156982
-- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/156988
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
   method: testRelocatingIndexShardFetchesFirstRegionOnly
   issue: https://github.com/elastic/elasticsearch/issues/152526
 - class: org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormatTests
   method: testSortedDeleteTermsResolveAcrossSkipperBlocks
   issue: https://github.com/elastic/elasticsearch/issues/157003
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecKnnFunctionIT
+  method: test {csv-spec:knn-function.knnBeforeMvExpandWithStats}
+  issue: https://github.com/elastic/elasticsearch/issues/157038
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecKnnFunctionIT
+  method: test {csv-spec:knn-function.knnAfterEvalAndRename}
+  issue: https://github.com/elastic/elasticsearch/issues/157039

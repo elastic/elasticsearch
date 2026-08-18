@@ -52,19 +52,8 @@ These settings control which authentication modes data sources can use.
 
 | Setting | Default | Description |
 |---|---|---|
-| `esql.datasource.managed_identity.enabled` | false | Enables `auth: "managed_identity"` (the node's own cloud identity through the instance metadata service (IMDS)). Operator-only. Intended for single-cloud, single-tenant deployments. Never enable in serverless or multi-tenant clusters. Refer to the managed identity row in [authentication models](esql-data-federation-sources.md#authentication) for guidance. |
-| `esql.datasource.federated_identity.enabled` | false | Enables `auth: "federated_identity"` (OIDC-to-STS token exchange). Operator-only. Available on {{ech}} and {{serverless-short}}; not available on self-managed, {{ece}}, or {{eck}}. For setup details, refer to [connect with federated identity](esql-data-federation-federated-identity.md). |
-
-::::{dropdown} Setting names in 9.6 and later
-:applies_to: stack: experimental 9.6+
-
-Both gates moved from the `esql.datasource.` prefix to `esql.external.` in 9.6. The 9.5 keys are no longer registered; a node that still sets them in `elasticsearch.yml` will fail to start.
-
-| Setting | Default | Description |
-|---|---|---|
-| `esql.external.managed_identity.enabled` | false | Enables `auth: "managed_identity"` (the node's own cloud identity through the instance metadata service (IMDS)). Operator-only. Intended for single-cloud, single-tenant deployments. Never enable in serverless or multi-tenant clusters. Refer to the managed identity row in [authentication models](esql-data-federation-sources.md#authentication) for guidance. |
-| `esql.external.federated_identity.enabled` | false | Enables `auth: "federated_identity"` (OIDC-to-STS token exchange). Operator-only. Available on {{ech}} and {{serverless-short}}; not available on self-managed, {{ece}}, or {{eck}}. For setup details, refer to [connect with federated identity](esql-data-federation-federated-identity.md). |
-::::
+| `esql.external.managed_identity.enabled` {applies_to}`stack: experimental 9.6+`<br>`esql.datasource.managed_identity.enabled` {applies_to}`stack: experimental =9.5` | false | Enables `auth: "managed_identity"` (the node's own cloud identity through the instance metadata service (IMDS)). Operator-only. Intended for single-cloud, single-tenant deployments. Never enable in serverless or multi-tenant clusters. Refer to the managed identity row in [authentication models](esql-data-federation-sources.md#authentication) for guidance. |
+| `esql.external.federated_identity.enabled` {applies_to}`stack: experimental 9.6+`<br>`esql.datasource.federated_identity.enabled` {applies_to}`stack: experimental =9.5` | false | Enables `auth: "federated_identity"` (OIDC-to-STS token exchange). Operator-only. Available on {{ech}} and {{serverless-short}}; not available on self-managed, {{ece}}, or {{eck}}. For setup details, refer to [connect with federated identity](esql-data-federation-federated-identity.md). |
 
 
 ## Caching

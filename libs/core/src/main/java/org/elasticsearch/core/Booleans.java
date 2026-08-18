@@ -20,12 +20,12 @@ public final class Booleans {
     /**
      * Parses a char[] representation of a boolean value to <code>boolean</code>.
      *
-     * @return <code>true</code> iff the sequence of chars is "true", <code>false</code> iff the sequence of chars is "false" or the
-     * provided default value iff either text is <code>null</code> or length == 0.
+     * @return <code>true</code> iff the sequence of chars is "true", <code>false</code> iff the sequence of chars is "false", or the
+     * provided default value iff text is <code>null</code> or the slice contains only whitespace.
      * @throws IllegalArgumentException if the string cannot be parsed to boolean.
      */
     public static boolean parseBoolean(char[] text, int offset, int length, boolean defaultValue) {
-        if (text == null || length == 0) {
+        if (text == null || hasText(text, offset, length) == false) {
             return defaultValue;
         } else {
             return parseBoolean(text, offset, length);
@@ -70,12 +70,12 @@ public final class Booleans {
     /**
      * Parses a UTF-8 byte[] representation of a boolean value to <code>boolean</code>.
      *
-     * @return <code>true</code> iff the sequence of bytes is "true", <code>false</code> iff the sequence of bytes is "false" or the
-     * provided default value iff either text is <code>null</code> or length == 0.
+     * @return <code>true</code> iff the sequence of bytes is "true", <code>false</code> iff the sequence of bytes is "false", or the
+     * provided default value iff text is <code>null</code> or the slice contains only whitespace.
      * @throws IllegalArgumentException if the bytes cannot be parsed to boolean.
      */
     public static boolean parseBoolean(byte[] text, int offset, int length, boolean defaultValue) {
-        if (text == null || length == 0) {
+        if (text == null || hasText(text, offset, length) == false) {
             return defaultValue;
         } else {
             return parseBoolean(text, offset, length);
@@ -146,6 +146,24 @@ public final class Booleans {
         int strLen = str.length();
         for (int i = 0; i < strLen; i++) {
             if (Character.isWhitespace(str.charAt(i)) == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasText(char[] text, int offset, int length) {
+        for (int i = offset; i < offset + length; i++) {
+            if (Character.isWhitespace(text[i]) == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasText(byte[] text, int offset, int length) {
+        for (int i = offset; i < offset + length; i++) {
+            if (Character.isWhitespace(text[i] & 0xFF) == false) {
                 return true;
             }
         }

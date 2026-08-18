@@ -111,17 +111,19 @@ public class BooleansTests extends ESTestCase {
         }
     }
 
-    public void testWhitespaceOnlyBehaviorDiffers() {
-        // The String overload uses hasText(), so whitespace-only is treated as absent and the default is returned.
-        // The char[] and byte[] overloads only check for null/length==0, so whitespace-only content is passed to
-        // the strict parser and throws -- the array overloads are NOT equivalent to the String overload for
-        // whitespace-only input.
+    public void testWhitespaceOnlyWithDefaultReturnsDefault() {
+        // All overloads that accept a default treat whitespace-only input as absent and return the default.
+        // This is consistent across String, char[], and byte[].
         assertFalse(Booleans.parseBoolean("   ", false));
         assertTrue(Booleans.parseBoolean("   ", true));
-        expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean("   ".toCharArray(), 0, 3, false));
-        expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean("   ".toCharArray(), 0, 3, true));
-        expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean("   ".getBytes(StandardCharsets.UTF_8), 0, 3, false));
-        expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean("   ".getBytes(StandardCharsets.UTF_8), 0, 3, true));
+        assertFalse(Booleans.parseBoolean("   ".toCharArray(), 0, 3, false));
+        assertTrue(Booleans.parseBoolean("   ".toCharArray(), 0, 3, true));
+        assertFalse(Booleans.parseBoolean("   ".getBytes(StandardCharsets.UTF_8), 0, 3, false));
+        assertTrue(Booleans.parseBoolean("   ".getBytes(StandardCharsets.UTF_8), 0, 3, true));
+        // The strict (no-default) overloads still throw for whitespace-only input.
+        expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean("   "));
+        expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean("   ".toCharArray(), 0, 3));
+        expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean("   ".getBytes(StandardCharsets.UTF_8), 0, 3));
     }
 
     public void testParseBooleanCharArray() {

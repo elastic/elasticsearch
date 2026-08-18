@@ -62,7 +62,6 @@ public class AshSphericalScalarQuantizerBenchmark {
 
     private float[][] vectors;
     private float[] out;
-    private int cursor;
 
     @Setup(Level.Trial)
     public void init() {

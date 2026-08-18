@@ -1014,8 +1014,9 @@ public class IndicesService extends AbstractLifecycleComponent
             shardRouting.allocationId().getId(),
             indexShard.recoveryStats(),
             listener -> {
-                // Recovery will run on a generic thread after enqueue. The shard/store can close in that window before
-                // a RecoveryTarget (when relevant) calls mustIncRef during construction. Grab a ref to fill this gap.
+                // Hold a store ref across startRecovery. The shard may start concurrently closing after enqueue and
+                // recovery setup still needs to take store refs. If the store is already closed, the recovery will
+                // fail anyway.
                 final var store = indexShard.store();
                 if (store.tryIncRef() == false) {
                     assert indexShard.state() == IndexShardState.CLOSED : indexShard.state();

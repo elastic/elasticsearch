@@ -46,11 +46,15 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.CompactInvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
+import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -4742,6 +4746,60 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(fooAttr.dataType(), equalTo(KEYWORD));
         assertThat(idAttr.dataType(), equalTo(KEYWORD));
         assertThat(idAttr.name(), equalTo("id"));
+    }
+
+    public void testCompactConflictedMultifieldIsCleanedAfterAnalysis() {
+        Map<DataType, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put(KEYWORD, Set.of("conflict-a"));
+        typesToIndices.put(DataType.TEXT, Set.of("conflict-b"));
+        assertConflictedMultifieldIsCleaned(CompactInvalidMappedField.mappedEverywhere("analyzed", typesToIndices, new LinkedHashMap<>()));
+    }
+
+    public void testLegacyConflictedMultifieldIsCleanedAfterAnalysis() {
+        Map<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put(KEYWORD.typeName(), Set.of("conflict-a"));
+        typesToIndices.put(DataType.TEXT.typeName(), Set.of("conflict-b"));
+        assertConflictedMultifieldIsCleaned(new InvalidMappedField("analyzed", typesToIndices));
+    }
+
+    private static void assertConflictedMultifieldIsCleaned(TypeConflictedField conflictedMultifield) {
+        EsField parent = new KeywordEsField(
+            "my_field",
+            Map.of("analyzed", conflictedMultifield),
+            true,
+            256,
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE
+        );
+        EsIndex index = new EsIndex(
+            "conflict-*",
+            Map.of("my_field", parent),
+            Map.of("conflict-a", IndexMode.STANDARD, "conflict-b", IndexMode.STANDARD),
+            Map.of(),
+            Map.of()
+        );
+
+        LogicalPlan plan = analyzer().addIndex(IndexResolution.valid(index)).query("FROM conflict-* | SORT my_field | LIMIT 2");
+
+        List<FieldAttribute> parentAttributes = new ArrayList<>();
+        plan.forEachExpressionDown(FieldAttribute.class, fieldAttribute -> {
+            assertNoTypeConflicts(fieldAttribute.field());
+            if (fieldAttribute.name().equals("my_field")) {
+                parentAttributes.add(fieldAttribute);
+            }
+        });
+        assertFalse(parentAttributes.isEmpty());
+        for (FieldAttribute parentAttribute : parentAttributes) {
+            assertThat(parentAttribute.field().getProperties().get("analyzed"), instanceOf(UnsupportedEsField.class));
+        }
+    }
+
+    private static void assertNoTypeConflicts(EsField field) {
+        assertThat(field, not(instanceOf(TypeConflictedField.class)));
+        if (field.getProperties() != null) {
+            field.getProperties().values().forEach(AnalyzerTests::assertNoTypeConflicts);
+        }
     }
 
     public void testExplicitRetainOriginalFieldWithCast() {

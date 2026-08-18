@@ -3482,13 +3482,61 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // unsupported / unresolved fields can be explicitly retained
             return cleanPlan.transformUp(
                 LogicalPlan.class,
-                p -> p.transformExpressionsOnly(
-                    FieldAttribute.class,
-                    fa -> fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk
-                        ? fallbackToMappedType(fa, punk)
-                        : fa.flagTypeConflicts()
-                )
+                p -> p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::cleanTypeConflicts)
             );
+        }
+
+        private static Attribute cleanTypeConflicts(FieldAttribute fieldAttribute) {
+            EsField field = fieldAttribute.field();
+            if (field instanceof PotentiallyUnmappedSingleTypeEsField punk) {
+                return fallbackToMappedType(fieldAttribute, punk);
+            }
+            if (field instanceof TypeConflictedField) {
+                return fieldAttribute.flagTypeConflicts();
+            }
+            EsField cleaned = cleanNestedTypeConflicts(field);
+            return cleaned == field ? fieldAttribute : fieldAttribute.withField(cleaned);
+        }
+
+        private static EsField cleanNestedTypeConflicts(EsField field) {
+            Map<String, EsField> properties = field.getProperties();
+            if (properties == null || properties.isEmpty()) {
+                return field;
+            }
+            Map<String, EsField> cleanedProperties = new LinkedHashMap<>(properties.size());
+            boolean changed = false;
+            for (Map.Entry<String, EsField> entry : properties.entrySet()) {
+                EsField property = entry.getValue();
+                EsField cleanedProperty;
+                if (property instanceof TypeConflictedField conflict) {
+                    cleanedProperty = new UnsupportedEsField(
+                        conflict.getName(),
+                        conflict.getTypesToIndices().keySet().stream().toList(),
+                        null,
+                        cleanProperties(conflict),
+                        conflict.getTimeSeriesFieldType()
+                    );
+                } else {
+                    cleanedProperty = cleanNestedTypeConflicts(property);
+                }
+                cleanedProperties.put(entry.getKey(), cleanedProperty);
+                changed |= cleanedProperty != property;
+            }
+            return changed
+                ? new EsField(
+                    field.getName(),
+                    field.getDataType(),
+                    cleanedProperties,
+                    field.isAggregatable(),
+                    field.isAlias(),
+                    field.getTimeSeriesFieldType()
+                )
+                : field;
+        }
+
+        private static Map<String, EsField> cleanProperties(EsField field) {
+            EsField cleaned = cleanNestedTypeConflicts(field);
+            return cleaned == field ? field.getProperties() : cleaned.getProperties();
         }
 
         private static void warnObservedNonLoadablePunks(LogicalPlan plan, AnalyzerContext context) {

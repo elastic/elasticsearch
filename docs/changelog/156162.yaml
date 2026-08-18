@@ -1,0 +1,7 @@
+area: ES|QL
+issues:
+ - 155979
+pr: 156162
+summary: Solves CIDRMatch optimizer bug and unresolved ref after implicit casting
+  bug in analyzer
+type: bug

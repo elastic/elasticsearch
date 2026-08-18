@@ -861,17 +861,26 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         List<List<String>> slicedStackFrameIds = sliced(stackFrameIds, stackFrameSliceCount);
         List<List<String>> slicedExecutableIds = sliced(executableIds, executableSliceCount);
 
+        // When ids are empty or indices are absent (e.g. OTel data streams not yet created on a
+        // fresh cluster), take a fast path and fire a single empty callback. The CountDown must
+        // match the exact number of callbacks that will fire; the slices*indices product yields 0
+        // when indices is empty, which throws IllegalArgumentException in CountDown's constructor.
+        boolean stackFrameFastPath = stackFrameIds.isEmpty() || stackFrameIndices.isEmpty();
+        boolean executableFastPath = executableIds.isEmpty() || executableIndices.isEmpty();
+        int expectedStackFrameSlices = stackFrameFastPath ? 1 : slicedStackFrameIds.size() * stackFrameIndices.size();
+        int expectedExecutableSlices = executableFastPath ? 1 : slicedExecutableIds.size() * executableIndices.size();
+
         DetailsHandler handler = new DetailsHandler(
             responseBuilder,
             submitListener,
             executableIds.size(),
             stackFrameIds.size(),
-            slicedExecutableIds.size() * executableIndices.size(),
-            slicedStackFrameIds.size() * stackFrameIndices.size(),
+            expectedExecutableSlices,
+            expectedStackFrameSlices,
             otelSchema
         );
 
-        if (stackFrameIds.isEmpty()) {
+        if (stackFrameFastPath) {
             handler.onStackFramesResponse(new MultiGetResponse(new MultiGetItemResponse[0]));
         } else {
             for (List<String> slice : slicedStackFrameIds) {
@@ -879,7 +888,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             }
         }
         // no data dependency - we can do this concurrently
-        if (executableIds.isEmpty()) {
+        if (executableFastPath) {
             handler.onExecutableDetailsResponse(new MultiGetResponse(new MultiGetItemResponse[0]));
         } else {
             for (List<String> slice : slicedExecutableIds) {

@@ -91,8 +91,6 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         Setting.Property.NodeScope
     );
 
-    // TODO think about exposing the two counts as attributes on the metrics - nocommit
-
     private final Executor executor;
     private final ThreadContext threadContext;
     private final ThreadPool threadPool;

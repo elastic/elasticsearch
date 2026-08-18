@@ -71,13 +71,11 @@ public class JDKVectorLibraryInt8Tests extends SimdVecLibraryTests {
 
             float expected = ScalarOperations.similarity(function, values[first], values[second]);
             assertEquals(expected, similarity(nativeSeg1, nativeSeg2, dims), delta);
-            if (supportsHeapSegments()) {
-                var heapSeg1 = MemorySegment.ofArray(values[first]);
-                var heapSeg2 = MemorySegment.ofArray(values[second]);
-                assertEquals(expected, similarity(heapSeg1, heapSeg2, dims), delta);
-                assertEquals(expected, similarity(nativeSeg1, heapSeg2, dims), delta);
-                assertEquals(expected, similarity(heapSeg1, nativeSeg2, dims), delta);
-            }
+            var heapSeg1 = MemorySegment.ofArray(values[first]);
+            var heapSeg2 = MemorySegment.ofArray(values[second]);
+            assertEquals(expected, similarity(heapSeg1, heapSeg2, dims), delta);
+            assertEquals(expected, similarity(nativeSeg1, heapSeg2, dims), delta);
+            assertEquals(expected, similarity(heapSeg1, nativeSeg2, dims), delta);
         }
     }
 
@@ -101,11 +99,9 @@ public class JDKVectorLibraryInt8Tests extends SimdVecLibraryTests {
         similarityBulk(segment, nativeQuerySeg, dims, numVecs, bulkScoresSeg);
         assertScoresEquals(expectedScores, bulkScoresSeg, delta);
 
-        if (supportsHeapSegments()) {
-            float[] bulkScores = new float[numVecs];
-            similarityBulk(segment, nativeQuerySeg, dims, numVecs, MemorySegment.ofArray(bulkScores));
-            assertArrayEquals(expectedScores, bulkScores, delta);
-        }
+        float[] bulkScores = new float[numVecs];
+        similarityBulk(segment, nativeQuerySeg, dims, numVecs, MemorySegment.ofArray(bulkScores));
+        assertArrayEquals(expectedScores, bulkScores, delta);
     }
 
     public void testByteBulkWithOffsets() {
@@ -227,7 +223,6 @@ public class JDKVectorLibraryInt8Tests extends SimdVecLibraryTests {
 
     public void testByteBulkWithOffsetsHeapSegments() {
         assumeTrue(notSupportedMsg(), supported());
-        assumeTrue("Requires support for heap MemorySegments", supportsHeapSegments());
         final int dims = size;
         final int numVecs = randomIntBetween(2, 101);
         var offsets = new int[numVecs];

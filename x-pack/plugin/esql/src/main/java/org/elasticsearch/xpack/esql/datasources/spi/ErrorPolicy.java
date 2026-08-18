@@ -25,7 +25,8 @@ import java.util.stream.Collectors;
  *   <tr><td>{@link Mode#SKIP_ROW SKIP_ROW}</td><td>DROPMALFORMED</td><td>ignore_errors</td>
  *       <td>errors_num&gt;0</td><td>Drop the entire bad row</td></tr>
  *   <tr><td>{@link Mode#NULL_FIELD NULL_FIELD}</td><td>PERMISSIVE</td><td>—</td>
- *       <td>—</td><td>Null-fill unparseable fields, keep the row</td></tr>
+ *       <td>—</td><td>Null-fill unparseable fields, keep the row (per-value failures only; a row whose
+ *       structure cannot be parsed is dropped)</td></tr>
  * </table>
  *
  * <h2>Error budget</h2>
@@ -72,7 +73,12 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
         FAIL_FAST,
         /** Drop the entire row — equivalent to Spark {@code DROPMALFORMED}, DuckDB {@code ignore_errors}. */
         SKIP_ROW,
-        /** Null-fill unparseable fields, keep the row — equivalent to Spark {@code PERMISSIVE}. */
+        /**
+         * Null-fill unparseable fields, keep the row — equivalent to Spark {@code PERMISSIVE}. The contract is
+         * per value: a failure the reader cannot attribute to one value (a whole-line JSON failure, a structural
+         * CSV row error) has no cell to null, so row-oriented readers drop the row as in {@link #SKIP_ROW}. See
+         * {@link ErrorPolicy#PERMISSIVE} for both degradation directions.
+         */
         NULL_FIELD;
 
         /**
@@ -100,12 +106,15 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
     public static final ErrorPolicy LENIENT = new ErrorPolicy(Mode.SKIP_ROW, Long.MAX_VALUE, 1.0, true);
 
     /**
-     * Null-fill unparseable fields without limit, keeping every row — the opt-in leniency for a
-     * declared-type coercion failure (a bad per-value token nulls the cell and emits a response
+     * Null-fill unparseable fields without limit, keeping the row for every per-value failure — the opt-in
+     * leniency for a declared-type coercion failure (a bad per-value token nulls the cell and emits a response
      * {@code Warning} header) via {@code error_mode: null_field}. No format defaults to this: every
-     * reader inherits the base {@link FormatReader#defaultErrorPolicy()} == {@link #STRICT}. A
-     * columnar batch cannot drop a single row, so {@link Mode#SKIP_ROW} degrades to this same
-     * null-field behavior there.
+     * reader inherits the base {@link FormatReader#defaultErrorPolicy()} == {@link #STRICT}.
+     * <p>
+     * Each mode degrades to the other where a reader physically cannot honour it: a columnar batch cannot drop
+     * a single row, so {@link Mode#SKIP_ROW} degrades to this null-field behavior there; a row-oriented reader
+     * cannot null-fill a failure it cannot attribute to one value (a whole-line JSON failure, a structural CSV
+     * row error), so {@link Mode#NULL_FIELD} degrades to a row drop there.
      */
     public static final ErrorPolicy PERMISSIVE = new ErrorPolicy(Mode.NULL_FIELD, Long.MAX_VALUE, 1.0, false);
 

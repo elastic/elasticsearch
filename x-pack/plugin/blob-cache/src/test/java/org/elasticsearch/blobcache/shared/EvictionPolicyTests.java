@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -73,7 +74,7 @@ public class EvictionPolicyTests extends ESTestCase {
             // Fill the cache with shard1 entries
             for (int i = 0; i < numRegions; i++) {
                 var key = new TestKey(shard1, "file-" + i);
-                cacheService.get(key, randomLongBetween(1, regionSizeInBytes - 1L), 0);
+                cacheService.get(key, randomLongBetween(1, regionSizeInBytes - 1L), 0, randomRegionTimestampMillis());
             }
             assertEquals(0, cacheService.freeRegionCount());
             assertThat(cacheService.countCachedRegions(key -> key.shardId().equals(shard1)), equalTo((long) numRegions));
@@ -81,14 +82,14 @@ public class EvictionPolicyTests extends ESTestCase {
             // Promote some entries to higher frequencies
             for (int i = 0; i < randomIntBetween(1, numRegions); i++) {
                 var key = new TestKey(shard1, "file-" + randomIntBetween(0, numRegions - 1));
-                cacheService.get(key, randomLongBetween(1, regionSizeInBytes - 1L), 0);
+                cacheService.get(key, randomLongBetween(1, regionSizeInBytes - 1L), 0, randomRegionTimestampMillis());
             }
 
             // Insert new entries from shard2 — the default policy evicts everything in a single pass
             final int newEntries = randomIntBetween(1, numRegions);
             for (int i = 0; i < newEntries; i++) {
                 var key = new TestKey(shard2, "new-file-" + i);
-                cacheService.get(key, randomLongBetween(1, regionSizeInBytes - 1L), 0);
+                cacheService.get(key, randomLongBetween(1, regionSizeInBytes - 1L), 0, randomRegionTimestampMillis());
             }
 
             // shard2 entries were all inserted (evicting shard1 entries)
@@ -189,7 +190,7 @@ public class EvictionPolicyTests extends ESTestCase {
             final Set<TimestampKey> oldKeys = new HashSet<>();
             for (int i = 0; i < numRegions; i++) {
                 var cacheKey = new TimestampKey(oldShard, "old-file-" + i, oldTimestamp);
-                cacheService.get(cacheKey, randomLongBetween(1, regionSizeInBytes - 1L), 0);
+                cacheService.get(cacheKey, randomLongBetween(1, regionSizeInBytes - 1L), 0, randomRegionTimestampMillis());
                 oldKeys.add(cacheKey);
             }
             assertEquals(0, cacheService.freeRegionCount());
@@ -200,7 +201,7 @@ public class EvictionPolicyTests extends ESTestCase {
             for (int round = 0; round < oldAccessRounds; round++) {
                 var randomKeys = randomNonEmptySubsetOf(oldKeys);
                 for (var cacheKey : randomKeys) {
-                    cacheService.get(cacheKey, randomLongBetween(1, regionSizeInBytes - 1L), 0);
+                    cacheService.get(cacheKey, randomLongBetween(1, regionSizeInBytes - 1L), 0, randomRegionTimestampMillis());
                 }
             }
 
@@ -209,7 +210,7 @@ public class EvictionPolicyTests extends ESTestCase {
             final Set<TimestampKey> recentKeys = new HashSet<>();
             for (int i = 0; i < recentQuota; i++) {
                 var cacheKey = new TimestampKey(recentShard, "recent-file-" + i, rarely() ? now + randomLongBetween(0L, 60000L) : now);
-                cacheService.get(cacheKey, randomLongBetween(1, regionSizeInBytes - 1L), 0);
+                cacheService.get(cacheKey, randomLongBetween(1, regionSizeInBytes - 1L), 0, randomRegionTimestampMillis());
                 recentKeys.add(cacheKey);
             }
 
@@ -224,7 +225,7 @@ public class EvictionPolicyTests extends ESTestCase {
             for (int round = 0; round < mixedAccessRounds; round++) {
                 var randomKeys = randomNonEmptySubsetOf(randomFrom(oldKeys, recentKeys));
                 for (var cacheKey : randomKeys) {
-                    cacheService.get(cacheKey, randomLongBetween(1, regionSizeInBytes - 1L), 0);
+                    cacheService.get(cacheKey, randomLongBetween(1, regionSizeInBytes - 1L), 0, randomRegionTimestampMillis());
                 }
             }
 
@@ -233,7 +234,7 @@ public class EvictionPolicyTests extends ESTestCase {
             final int extraRecentRegions = randomIntBetween(1, numRegions);
             for (int i = 0; i < extraRecentRegions; i++) {
                 var cacheKey = new TimestampKey(recentShard, "extra-recent-file-" + i, now);
-                cacheService.get(cacheKey, randomLongBetween(1, regionSizeInBytes - 1L), 0);
+                cacheService.get(cacheKey, randomLongBetween(1, regionSizeInBytes - 1L), 0, randomRegionTimestampMillis());
             }
 
             // Each extra recent entry evicts an existing recent entry (same tier).

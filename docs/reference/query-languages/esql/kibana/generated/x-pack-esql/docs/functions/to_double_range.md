@@ -2,7 +2,7 @@
 
 ### TO DOUBLE RANGE
 Converts an input value to a `double_range` value.
-A string will be parsed as a double range in the format `start..end`, where start and end are double-precision floating-point numbers. The range is half-open `[start, end)`.
+Strings are parsed as a double range in the format `start..end`, where `start` and `end` are double-precision floating-point numbers. The range is half-open `[start, end)`.
 
 ```esql
 ROW str = "1.5..2.5"

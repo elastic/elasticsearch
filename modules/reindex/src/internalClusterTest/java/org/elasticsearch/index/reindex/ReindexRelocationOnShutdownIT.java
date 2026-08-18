@@ -419,10 +419,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
         final ShutdownPrepareService shutdownPrepareService = internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName);
         shutdownPrepareService.prepareForShutdown();
-        // Forcibly shutting the node before the reindexing task completes.
-        // Unlike main, 9.5 does not cancel un-relocatable reindex tasks in prepareForShutdown(), so the client listener only
-        // completes once the node closes (its in-flight requests fail with NodeClosedException); the listener must therefore
-        // be awaited after stopping the node, not before as on main
+        // Forcibly shutting the node before the reindexing task completes
         internalCluster().stopNode(coordNodeName);
 
         assertTrue("reindex listener should complete", listenerDone.await(30, TimeUnit.SECONDS));

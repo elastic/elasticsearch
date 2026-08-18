@@ -80,7 +80,7 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
 # Add entrypoint
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base:latest@sha256:bec6359b706c3f3bc793b86551cba951013a79af98148f8b33a7b0e78ac2ef58
+FROM docker.elastic.co/wolfi/chainguard-base:latest@sha256:667b045faaff38dabac9960a69aca1af3ddec227e1ba50324ed22fb0b7ef0a41
 
 RUN <%= retry.loop(package_manager,
           "export DEBIAN_FRONTEND=noninteractive && \n" +

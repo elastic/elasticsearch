@@ -96,6 +96,25 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | Disconnected from 10.1.0.1
 ;
 
+keepMixtureOfPatternedAndNonPatternedUnmappedFields
+required_capability: optional_fields_load_all
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, unmapped_message, unmapped_event*
+| SORT @timestamp
+;
+
+@timestamp:datetime      | unmapped_message:keyword   | unmapped_event_duration:keyword
+2024-10-23T12:15:03.360Z | Disconnected from 10.1.0.3 | 3450234
+2024-10-23T12:27:28.948Z | Disconnected from 10.1.0.2 | 2764890
+2024-10-23T13:33:34.937Z | 43                         | 1232383
+2024-10-23T13:51:54.732Z | Disconnection error        | 725449
+2024-10-23T13:52:55.015Z | Disconnection error        | 8268154
+2024-10-23T13:53:55.832Z | Disconnection error        | 5033756
+2024-10-23T13:55:01.543Z | Disconnected from 10.1.0.1 | 1756468
+;
+
 keepFieldAbsentFromSource
 required_capability: optional_fields_load_all
 

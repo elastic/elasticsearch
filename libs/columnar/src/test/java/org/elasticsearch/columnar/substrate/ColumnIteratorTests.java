@@ -123,6 +123,7 @@ public class ColumnIteratorTests extends ESTestCase {
                 ColumnIteratorReader reader = new ColumnIteratorReader(read, data);
                 assertIteration(reader, expected, cardinality);
                 assertAdvanceExact(reader, expected, maxDoc);
+                assertRanks(reader, expected, maxDoc);
                 assertIntoBitSet(reader, expected, maxDoc);
                 assertIntoBitSetResumes(reader, expected, maxDoc);
             }
@@ -152,6 +153,43 @@ public class ColumnIteratorTests extends ESTestCase {
             if (present) {
                 assertEquals("value ordinal at doc " + doc, seen, iterator.index());
                 seen++;
+            }
+        }
+    }
+
+    /**
+     * Bulk {@link ColumnIterator#ranks} agrees with the per-document {@code advanceExact}/{@code index()}
+     * pair it replaces, over batches that mix present and absent documents. The sparse shape is the one
+     * that can disagree: it resolves whole runs arithmetically from {@code docIDRunEnd()} rather than
+     * advancing to each document, so a run reported too long would silently hand back wrong ordinals.
+     */
+    private void assertRanks(ColumnIteratorReader reader, FixedBitSet expected, int maxDoc) throws IOException {
+        final int[] expectedRank = new int[maxDoc];
+        int seen = 0;
+        for (int doc = 0; doc < maxDoc; doc++) {
+            expectedRank[doc] = expected.get(doc) ? seen++ : ColumnIterator.NO_RANK;
+        }
+
+        for (int iter = 0; iter < 5; iter++) {
+            // Ascending and duplicate-free, per the contract; sometimes every document, sometimes a sample,
+            // so batches straddle present/absent boundaries as well as IndexedDISI block boundaries.
+            final double keep = randomFrom(1.0, 0.5, 0.1);
+            final int[] docs = new int[maxDoc];
+            int count = 0;
+            for (int doc = 0; doc < maxDoc; doc++) {
+                if (keep == 1.0 || random().nextDouble() < keep) {
+                    docs[count++] = doc;
+                }
+            }
+            if (count == 0) {
+                continue;
+            }
+            final int offset = between(0, count - 1);
+            final int length = between(1, count - offset);
+            final int[] ranks = new int[length];
+            reader.iterator().ranks(docs, offset, length, ranks);
+            for (int i = 0; i < length; i++) {
+                assertEquals("ordinal of doc " + docs[offset + i], expectedRank[docs[offset + i]], ranks[i]);
             }
         }
     }

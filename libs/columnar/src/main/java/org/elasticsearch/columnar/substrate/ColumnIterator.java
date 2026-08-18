@@ -14,6 +14,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.FixedBitSet;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Iterates the documents that have a value for a field, and for the current document exposes its
@@ -26,8 +27,30 @@ import java.io.IOException;
  */
 public abstract class ColumnIterator extends DocIdSetIterator {
 
+    /** Written by {@link #ranks} for a document that has no value. */
+    public static final int NO_RANK = -1;
+
     /** The current document's value ordinal. */
     public abstract int index();
+
+    /**
+     * Resolves {@code docs[offset..offset + count)} to their value ordinals, writing them to
+     * {@code ranks[0..count)}. Document ids must be ascending with no duplicates; a document with no
+     * value gets {@link #NO_RANK}.
+     *
+     * <p>This is the seam that lets a bulk value read stay bulk regardless of how presence is stored.
+     * The default walks the iterator one document at a time, which is always correct; shapes that can
+     * answer without walking override it — a dense column's ordinal is its own document id, so it
+     * resolves the whole batch with no I/O.
+     *
+     * <p>The iterator's position afterwards is unspecified: callers must reposition before using the
+     * per-document accessors again.
+     */
+    public void ranks(int[] docs, int offset, int count, int[] ranks) throws IOException {
+        for (int i = 0; i < count; i++) {
+            ranks[i] = advanceExact(docs[offset + i]) ? index() : NO_RANK;
+        }
+    }
 
     /**
      * Whether every document has a value, so a document id equals its own value ordinal. The
@@ -63,6 +86,11 @@ public abstract class ColumnIterator extends DocIdSetIterator {
         @Override
         public int index() {
             return -1;
+        }
+
+        @Override
+        public void ranks(int[] docs, int offset, int count, int[] ranks) {
+            Arrays.fill(ranks, 0, count, NO_RANK);
         }
 
         @Override
@@ -111,6 +139,15 @@ public abstract class ColumnIterator extends DocIdSetIterator {
         @Override
         public int index() {
             return doc;
+        }
+
+        /** A document id is its own ordinal, so the batch resolves with no I/O and no iterator state. */
+        @Override
+        public void ranks(int[] docs, int offset, int count, int[] ranks) {
+            for (int i = 0; i < count; i++) {
+                final int target = docs[offset + i];
+                ranks[i] = target < maxDoc ? target : NO_RANK;
+            }
         }
 
         @Override
@@ -163,6 +200,35 @@ public abstract class ColumnIterator extends DocIdSetIterator {
         @Override
         public int index() {
             return disi.index();
+        }
+
+        /**
+         * Resolves a run of documents per {@link IndexedDISI#advanceExact} rather than one each, using
+         * {@link IndexedDISI#docIDRunEnd()}: every document in {@code [docID(), runEnd)} is present, so
+         * their ordinals are consecutive from the one just read and follow by arithmetic. An {@code ALL}
+         * block reports its whole 65536-document range, and a {@code DENSE} block reports the rest of the
+         * current word when every bit in it is set — so a locally dense column costs one advance per run
+         * instead of one per document. A {@code SPARSE} block reports no run and falls back to one advance
+         * each, which is what the generic implementation would have done anyway.
+         */
+        @Override
+        public void ranks(int[] docs, int offset, int count, int[] ranks) throws IOException {
+            int i = 0;
+            while (i < count) {
+                final int doc = docs[offset + i];
+                if (disi.advanceExact(doc) == false) {
+                    ranks[i++] = NO_RANK;
+                    continue;
+                }
+                final int rank = disi.index();
+                ranks[i++] = rank;
+                // Documents up to runEnd are known present, so their ordinals need no further advancing.
+                final int runEnd = disi.docIDRunEnd();
+                while (i < count && docs[offset + i] < runEnd) {
+                    ranks[i] = rank + (docs[offset + i] - doc);
+                    i++;
+                }
+            }
         }
 
         @Override

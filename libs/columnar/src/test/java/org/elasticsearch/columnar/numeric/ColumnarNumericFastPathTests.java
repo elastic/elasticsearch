@@ -29,10 +29,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 import static org.elasticsearch.columnar.ColumnarTestUtils.readNumericMeta;
 import static org.elasticsearch.columnar.ColumnarTestUtils.singleValuedCursor;
+import static org.elasticsearch.columnar.ColumnarTestUtils.sparseSingleValuedCursor;
 
 /**
  * Correctness of the dense single-valued fast paths on {@link ColumnarNumericBinaryDocValues}: the
@@ -265,6 +267,112 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
         }
     }
 
+    /**
+     * A sparse column serves the same bulk value path a dense one does. Ordinals rather than document ids
+     * drive the run detection, so a sparse column's runs are the stretches where requested documents are
+     * adjacent in the presence set — which is a weaker condition than adjacent document ids, and means a
+     * sparse column can produce longer runs than a dense one over the same document batch.
+     */
+    public void testBulkLongsOnSparseColumn() throws IOException {
+        for (int iter = 0; iter < 20; iter++) {
+            final int maxDoc = randomFrom(1, 129, 200, between(300, 4000));
+            // Mix densities: very sparse exercises IndexedDISI SPARSE blocks, mostly-dense its DENSE blocks
+            // (where docIDRunEnd reports whole words), and everything between straddles the two.
+            final double density = randomFrom(0.02, 0.3, 0.75, 0.95, 1.0);
+            final Long[] values = new Long[maxDoc];
+            for (int d = 0; d < maxDoc; d++) {
+                if (random().nextDouble() < density) {
+                    values[d] = (long) between(-10_000, 10_000);
+                }
+            }
+
+            try (Directory dir = newDirectory()) {
+                try {
+                    final Opened opened = writeAndOpenSparse(dir, values);
+                    // Only documents that have a value: bulkLongs promises one value per requested document.
+                    final int[] present = IntStream.range(0, maxDoc).filter(d -> values[d] != null).toArray();
+                    if (present.length == 0) {
+                        continue;
+                    }
+                    final int offset = between(0, present.length - 1);
+                    final int count = between(1, present.length - offset);
+
+                    final List<Long> actual = new ArrayList<>();
+                    final boolean applied = opened.dv().bulkLongs(present, offset, count, false, (block, from, length) -> {
+                        for (int i = 0; i < length; i++) {
+                            actual.add(block[from + i]);
+                        }
+                    });
+                    assertTrue("sparse columns must take the bulk path", applied);
+
+                    final List<Long> expected = new ArrayList<>();
+                    for (int i = 0; i < count; i++) {
+                        expected.add(values[present[offset + i]]);
+                    }
+                    assertEquals(expected, actual);
+                } finally {
+                    IOUtils.close(opened);
+                    opened.clear();
+                }
+            }
+        }
+    }
+
+    /** A document with no value has no value to append, so the bulk path declines rather than inventing one. */
+    public void testBulkLongsDeclinesWhenADocumentHasNoValue() throws IOException {
+        final Long[] values = new Long[64];
+        for (int d = 0; d < values.length; d++) {
+            values[d] = d == 7 ? null : (long) between(0, 1000);
+        }
+        try (Directory dir = newDirectory()) {
+            try {
+                final ColumnarNumericBinaryDocValues dv = writeAndOpenSparse(dir, values).dv();
+                final int[] docs = { 5, 6, 7, 8 }; // doc 7 has no value
+                final boolean applied = dv.bulkLongs(docs, 0, docs.length, false, (block, from, length) -> {
+                    throw new AssertionError("sink must not be touched when a document has no value");
+                });
+                assertFalse("bulk path must decline when a requested document has no value", applied);
+            } finally {
+                IOUtils.close(opened);
+                opened.clear();
+            }
+        }
+    }
+
+    private Opened writeAndOpenSparse(Directory dir, Long[] values) throws IOException {
+        segmentId = new byte[16];
+        random().nextBytes(segmentId);
+        int numDocsWithField = 0;
+        for (Long value : values) {
+            if (value != null) {
+                numDocsWithField++;
+            }
+        }
+        NumericColumnMetadata written;
+        try (IndexOutput out = dir.createOutput("num.cnd", IOContext.DEFAULT)) {
+            ColumnarCodecUtil.writeHeader(out, "ColumNARData", FormatVersion.CURRENT, segmentId, "");
+            written = NumericColumnWriter.write(
+                values.length,
+                numDocsWithField,
+                numDocsWithField,
+                () -> sparseSingleValuedCursor(values),
+                NumericPipeline.defaultPipeline(randomValidBlockSize()),
+                BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
+                null,
+                dir,
+                IOContext.DEFAULT,
+                out
+            );
+            ColumnarCodecUtil.writeFooter(out);
+        }
+        try (IndexOutput meta = dir.createOutput("num.cnm", IOContext.DEFAULT)) {
+            ColumnarCodecUtil.writeHeader(meta, "ColumNARMeta", FormatVersion.CURRENT, segmentId, "");
+            written.writeTo(meta);
+            ColumnarCodecUtil.writeFooter(meta);
+        }
+        return open(dir, values.length);
+    }
+
     /** A readable column plus the state needed to build fresh readers/skippers over the same data. */
     private record Opened(ColumnarNumericBinaryDocValues dv, NumericColumnMetadata meta, IndexInput data, int maxDoc) {}
 
@@ -304,13 +412,7 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
         ColumnarCodecUtil.checkHeader(data, "ColumNARData", segmentId, "");
         NumericColumnReader reader = new NumericColumnReader(read, data);
         ColumnIterator iterator = reader.iterator();
-        boolean vectorizable = iterator.isDense() && read.multiValued() == false;
-        return new Opened(
-            new ColumnarNumericBinaryDocValues(reader, iterator, maxDoc, vectorizable, read.skipper(), data),
-            read,
-            data,
-            maxDoc
-        );
+        return new Opened(new ColumnarNumericBinaryDocValues(reader, iterator, maxDoc, read.skipper(), data), read, data, maxDoc);
     }
 
     /** A fresh (unadvanced) skipper over the column; {@link org.apache.lucene.index.DocValuesSkipper} is stateful. */

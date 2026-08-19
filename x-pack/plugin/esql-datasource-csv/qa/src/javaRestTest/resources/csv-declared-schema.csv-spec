@@ -129,3 +129,37 @@ FROM employees_declared_strict
 rows:long | lowest:long | highest:long
 100       | 10001       | 10100
 ;
+
+// The same declaration with trimming on, so the pair isolates trim_spaces as the only variable. Kept adjacent
+// deliberately: a reader comparing the two sees exactly what the dialect knob does under a fixed declaration.
+strictDeclaredSchemaWithTrimmingTrimsDeclaredKeyword
+required_capability: dataset_in_from_command
+dataset: employees_declared_trimmed: "{{employees_no_mv}}" WITH {"trim_spaces": true, "mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "name": {"type": "keyword", "path": "first_name"}}}}
+
+FROM employees_declared_trimmed
+| SORT id
+| LIMIT 3;
+
+id:long | name:keyword
+10001   | "Georgi"
+10002   | "Bezalel"
+10003   | "Parto"
+;
+
+// A declared path naming a DOTTED physical column. On text and columnar formats a dotted header name is a literal
+// column name, so `languages.long` binds to that column directly. This is the case that is deliberately absent
+// from ndjson-declared-schema.csv-spec: there a dotted path becomes nested traversal, because the dotted-prefix
+// conflict check consults only the declaration and never the file.
+strictDeclaredSchemaBindsDottedPhysicalColumn
+required_capability: dataset_in_from_command
+dataset: employees_declared_dotted: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "langs": {"type": "long", "path": "languages.long"}}}}
+
+FROM employees_declared_dotted
+| SORT id
+| LIMIT 3;
+
+id:long | langs:long
+10001   | 2
+10002   | 5
+10003   | 4
+;

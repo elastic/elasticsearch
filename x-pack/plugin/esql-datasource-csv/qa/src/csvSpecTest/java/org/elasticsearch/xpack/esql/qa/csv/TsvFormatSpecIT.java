@@ -46,6 +46,7 @@ public class TsvFormatSpecIT extends AbstractCsvExternalSpecTestCase {
         return readExternalSpecTests(
             "/csv-basic.csv-spec",
             "/csv-declared-schema.csv-spec",
+            "/external-declared-schema.csv-spec",
             "/csv-declared-schema-multifile.csv-spec",
             "/external-heavy-aggregates.csv-spec",
             "/external-multifile.csv-spec",

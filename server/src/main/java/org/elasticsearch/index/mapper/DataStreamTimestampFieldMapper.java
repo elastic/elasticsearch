@@ -242,7 +242,8 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             return;
         }
 
-        long timestamp = extractTimestampValue(context.doc());
+        // Timestamp presence is always required; but bounds are only checked when shouldValidateTimestamp is true.
+        long timestamp = extractTimestampValue(context.doc()); // this throws if the timestamp is missing
 
         var indexMode = context.indexSettings().getMode();
         if (indexMode.shouldValidateTimestamp()) {
@@ -314,9 +315,10 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             isDateNanos = context.mappingLookup().getMapper(DEFAULT_PATH).typeName().equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE);
         }
 
-        // Unlike the row-based postParse (called per-document, failures isolated by the engine's bulk
-        // loop), this method runs once for the entire batch. Any violation rejects the whole batch.
-        // This is intentional: the columnar write path has no partial-commit mechanism.
+        // Timestamp presence is always required; but bounds are only checked when shouldValidateTimestamp is true.
+        // Note: unlike the row-based postParse (called per-document, failures isolated by the engine's bulk loop),
+        // this method runs once for the entire batch. Any violation rejects the whole batch. This is intentional,
+        // since the columnar write path has no partial-commit mechanism.
         LongTupleCursor cursor = timestampColumn.tuples();
         int docCount = context.docCount();
         int expected = 0;

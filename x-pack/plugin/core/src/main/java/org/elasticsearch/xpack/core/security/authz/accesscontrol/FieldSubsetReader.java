@@ -235,6 +235,11 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         StoredFields storedFields = super.storedFields();
         return new StoredFields() {
             @Override
+            public void prefetch(int docID) throws IOException {
+                storedFields.prefetch(docID);
+            }
+
+            @Override
             public void document(int docID, StoredFieldVisitor visitor) throws IOException {
                 storedFields.document(docID, new FieldSubsetStoredFieldVisitor(visitor, ignoredSourceFormat));
             }

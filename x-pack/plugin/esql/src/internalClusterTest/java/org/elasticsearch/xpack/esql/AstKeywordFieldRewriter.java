@@ -252,7 +252,15 @@ public final class AstKeywordFieldRewriter {
         Walker walker = new Walker(query, scopeResolver, wrapperSubKey);
         Set<String> endScope = walker.processPipeline(plan, initialScope);
         String body = walker.applyEdits();
-        String rewritten = appendTopLevelTailRecovery(body, endScope, expectedColumnOrder, wrapperSubKey, walker.rewrittenNames);
+        boolean bodyModified = body.equals(query) == false;
+        String rewritten = appendTopLevelTailRecovery(
+            body,
+            endScope,
+            expectedColumnOrder,
+            wrapperSubKey,
+            walker.rewrittenNames,
+            bodyModified
+        );
         boolean modified = rewritten.equals(query) == false;
         return new RewriteResult(
             rewritten,
@@ -267,24 +275,37 @@ public final class AstKeywordFieldRewriter {
     /**
      * Appends the top-level tail-end recovery to {@code body}: an {@code | EVAL ...} that rebinds
      * every field still in scope (intersected with {@code expectedColumnOrder} when supplied) back
-     * to its keyword value, optionally followed by a {@code | KEEP <expectedColumnOrder>} to
-     * restore the test-expected column positions.
+     * to its keyword value, followed by a {@code | KEEP <expectedColumnOrder>} that restores the
+     * test-expected column positions.
+     * <p>
+     * The order-restoring {@code KEEP} is appended whenever the expected order is known and the
+     * query was rewritten at all &mdash; not only when a field needs type recovery. A rewrite can
+     * reorder the output columns without leaving any field in end-of-pipeline scope: an in-place
+     * {@code EVAL <field> = field_extract(<field>, "v")} hoisted before {@code MV_EXPAND} (or before
+     * a {@code WHERE} carrying an {@code IN (subquery)}) reassigns an <em>existing</em> column, and
+     * ES|QL moves a reassigned column to the last position. That pushes a trailing synthetic column
+     * such as {@code FORK}'s {@code _fork} ahead of the reassigned field, so the columns arrive in a
+     * different order than the csv-spec header even though every value is correct. Because a
+     * {@code KEEP} listing exactly the expected columns is an identity projection when the order
+     * already matches, appending it only ever normalizes order and never changes which rows or
+     * values are produced (see the safety argument at the call site).
      */
     private static String appendTopLevelTailRecovery(
         String body,
         Set<String> endScope,
         List<String> expectedColumnOrder,
         String wrapperSubKey,
-        Set<String> rewrittenNamesSink
+        Set<String> rewrittenNamesSink,
+        boolean bodyModified
     ) {
         List<String> recoverable = recoverableFields(endScope, expectedColumnOrder);
-        if (recoverable.isEmpty()) {
-            return body;
-        }
         StringBuilder sb = new StringBuilder(body);
-        sb.append(evalRecovery(recoverable, wrapperSubKey));
-        rewrittenNamesSink.addAll(recoverable);
-        if (expectedColumnOrder.isEmpty() == false) {
+        if (recoverable.isEmpty() == false) {
+            sb.append(evalRecovery(recoverable, wrapperSubKey));
+            rewrittenNamesSink.addAll(recoverable);
+        }
+        boolean restoreColumnOrder = expectedColumnOrder.isEmpty() == false && (recoverable.isEmpty() == false || bodyModified);
+        if (restoreColumnOrder) {
             sb.append("\n| KEEP ");
             for (int i = 0; i < expectedColumnOrder.size(); i++) {
                 if (i > 0) {

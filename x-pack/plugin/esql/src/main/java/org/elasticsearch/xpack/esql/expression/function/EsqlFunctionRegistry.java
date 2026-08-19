@@ -575,6 +575,7 @@ public class EsqlFunctionRegistry {
                 ToDegrees.DEFINITION,
                 ToDenseVector.DEFINITION,
                 ToDouble.DEFINITION,
+                ToDoubleRange.DEFINITION,
                 ToExponentialHistogram.DEFINITION,
                 ToGauge.DEFINITION,
                 ToGeohash.DEFINITION,
@@ -671,9 +672,7 @@ public class EsqlFunctionRegistry {
                 // TSTEP is new enough that we only want to expose it on snapshot builds for now.
                 TStep.DEFINITION,
                 // dense vector functions
-                Magnitude.DEFINITION,
-                // double_range is under construction; release TO_DOUBLE_RANGE together with the type.
-                ToDoubleRange.DEFINITION } };
+                Magnitude.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

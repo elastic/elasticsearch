@@ -48,6 +48,8 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         TimeSeriesAggregate::new
     );
     private static final TransportVersion TIME_SERIES_AGGREGATE_TIMESTAMP = TransportVersion.fromName("time_series_aggregate_timestamp");
+    // Retained for wire-format compatibility with nodes that wrote a separate output bucket for the now-removed GCD
+    // sub-bucketing; the time bucket is always the output bucket, so it is written twice for those versions.
     public static final TransportVersion TIME_SERIES_OUTPUT_BUCKET = TransportVersion.fromName("time_series_output_bucket");
     // Retained for wire-format compatibility with nodes that wrote the now-removed `collapsed` flag; collapsing is
     // handled by TimeSeriesCollapse rather than a flag on this node.
@@ -55,7 +57,6 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
     private static final TransportVersion TIME_SERIES_ORIGIN = TransportVersion.fromName("time_series_origin");
 
     private final Bucket timeBucket;
-    private final Bucket outputTimeBucket;
     private final Expression timestamp;
     private final Origin origin;
 
@@ -68,22 +69,8 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         Expression timestamp,
         Origin origin
     ) {
-        this(source, child, groupings, aggregates, timeBucket, timeBucket, timestamp, origin);
-    }
-
-    public TimeSeriesAggregate(
-        Source source,
-        LogicalPlan child,
-        List<Expression> groupings,
-        List<? extends NamedExpression> aggregates,
-        Bucket timeBucket,
-        Bucket outputTimeBucket,
-        Expression timestamp,
-        Origin origin
-    ) {
         super(source, child, groupings, aggregates);
         this.timeBucket = timeBucket;
-        this.outputTimeBucket = outputTimeBucket;
         this.timestamp = timestamp;
         this.origin = origin;
     }
@@ -102,9 +89,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             this.timestamp = null;
         }
         if (in.getTransportVersion().supports(TIME_SERIES_OUTPUT_BUCKET)) {
-            this.outputTimeBucket = in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
-        } else {
-            this.outputTimeBucket = this.timeBucket;
+            in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
         }
         if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_COLLAPSED)) {
             in.readBoolean(); // discarded: collapsing is handled by TimeSeriesCollapse
@@ -124,7 +109,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             out.writeOptionalNamedWriteable(timestamp);
         }
         if (out.getTransportVersion().supports(TIME_SERIES_OUTPUT_BUCKET)) {
-            out.writeOptionalWriteable(outputTimeBucket);
+            out.writeOptionalWriteable(timeBucket);
         }
         if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_COLLAPSED)) {
             out.writeBoolean(false);
@@ -141,34 +126,24 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
 
     @Override
     protected NodeInfo<Aggregate> info() {
-        return NodeInfo.create(
-            this,
-            TimeSeriesAggregate::new,
-            child(),
-            groupings,
-            aggregates,
-            timeBucket,
-            outputTimeBucket,
-            timestamp,
-            origin
-        );
+        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket, timestamp, origin);
     }
 
     @Override
     public TimeSeriesAggregate replaceChild(LogicalPlan newChild) {
-        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, outputTimeBucket, timestamp, origin);
+        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, timestamp, origin);
     }
 
     @Override
     public TimeSeriesAggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, outputTimeBucket, timestamp, origin);
+        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, timestamp, origin);
     }
 
     public LogicalPlan withTimestamp(Expression newTimestamp) {
         if (newTimestamp.equals(timestamp)) {
             return this;
         }
-        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, outputTimeBucket, newTimestamp, origin);
+        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, newTimestamp, origin);
     }
 
     public Origin origin() {
@@ -177,20 +152,12 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
 
     @Override
     public boolean expressionsResolved() {
-        return super.expressionsResolved()
-            && (timeBucket == null || timeBucket.resolved())
-            && (outputTimeBucket == null || outputTimeBucket.resolved())
-            && (timestamp == null || timestamp.resolved());
+        return super.expressionsResolved() && (timeBucket == null || timeBucket.resolved()) && (timestamp == null || timestamp.resolved());
     }
 
     @Nullable
     public Bucket timeBucket() {
         return timeBucket;
-    }
-
-    @Nullable
-    public Bucket outputTimeBucket() {
-        return outputTimeBucket;
     }
 
     @Override
@@ -200,7 +167,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
 
     @Override
     public int hashCode() {
-        return Objects.hash(groupings, aggregates, child(), timeBucket, outputTimeBucket, timestamp, origin);
+        return Objects.hash(groupings, aggregates, child(), timeBucket, timestamp, origin);
     }
 
     @Override
@@ -218,7 +185,6 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             && Objects.equals(aggregates, other.aggregates)
             && Objects.equals(child(), other.child())
             && Objects.equals(timeBucket, other.timeBucket)
-            && Objects.equals(outputTimeBucket, other.outputTimeBucket)
             && Objects.equals(timestamp, other.timestamp)
             && origin == other.origin;
     }

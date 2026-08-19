@@ -150,17 +150,12 @@ public final class DocumentParser {
             }
 
             if (context.root().isEnabled() == false) {
-                // entire type is disabled
-                if (context.canAddIgnoredField()) {
-                    context.addIgnoredField(
-                        new IgnoredSourceFieldMapper.NameValue(
-                            MapperService.SINGLE_MAPPING_NAME,
-                            0,
-                            context.encodeFlattenedToken(),
-                            context.doc()
-                        )
-                    );
-                } else {
+                // entire type is disabled — store as SINGLE_MAPPING_NAME at root level
+                if (FallbackPostMapper.capture(
+                    context,
+                    MapperService.SINGLE_MAPPING_NAME,
+                    FallbackPostMapper.Reason.OBJECT_DISABLED
+                ) == false) {
                     skipChildren(context);
                 }
             } else if (emptyDoc == false) {
@@ -316,18 +311,10 @@ public final class DocumentParser {
         XContentParser parser = context.parser();
         String currentFieldName = parser.currentName();
         if (context.parent().isEnabled() == false) {
-            // entire type is disabled
-            if (context.canAddIgnoredField()) {
-                context.addIgnoredField(
-                    new IgnoredSourceFieldMapper.NameValue(
-                        context.parent().fullPath(),
-                        context.parent().fullPath().lastIndexOf(context.parent().leafName()),
-                        context.encodeFlattenedToken(),
-                        context.doc()
-                    )
-                );
-            } else {
-                skipChildren(context);
+            // entire object is disabled — store context.parent() itself, not a child field
+            final DocumentParserContext disabledCtx = context;
+            if (FallbackPostMapper.captureParent(disabledCtx, FallbackPostMapper.Reason.OBJECT_DISABLED) == false) {
+                skipChildren(disabledCtx);
             }
             return;
         }
@@ -342,17 +329,8 @@ public final class DocumentParser {
         }
 
         var sourceKeepMode = getSourceKeepMode(context, context.parent().sourceKeepMode());
-        if (context.canAddIgnoredField()
-            && (sourceKeepMode == Mapper.SourceKeepMode.ALL
-                || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope()))) {
-            context = context.addIgnoredFieldFromContext(
-                new IgnoredSourceFieldMapper.NameValue(
-                    context.parent().fullPath(),
-                    context.parent().fullPath().lastIndexOf(context.parent().leafName()),
-                    null,
-                    context.doc()
-                )
-            );
+        if (sourceKeepMode == Mapper.SourceKeepMode.ALL || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope())) {
+            context = FallbackPostMapper.captureScope(context, context.parent());
             token = context.parser().currentToken();
             parser = context.parser();
         }
@@ -498,24 +476,7 @@ public final class DocumentParser {
                 parseObjectOrNested(context, currentFieldName);
                 context.path().add(currentFieldName);
             } else {
-                var sourceKeepMode = getSourceKeepMode(context, fieldMapper.sourceKeepMode());
-                // Skip the _ignored_source pre-capture for fields that redirect multi_value=false violations to ._on_failure:
-                // the duplicate value must land in exactly one storage location, and on_failure=ignore already handles that write.
-                boolean redirectsMultiValueViolations = fieldMapper.isSingleValueEnforced()
-                    && fieldMapper.onFailureBehavior() == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE;
-                if (context.canAddIgnoredField()
-                    && redirectsMultiValueViolations == false
-                    && (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
-                        || sourceKeepMode == Mapper.SourceKeepMode.ALL
-                        || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope() && parsesArrayValue(mapper) == false)
-                        || (context.isWithinCopyTo() == false && context.isCopyToDestinationField(mapper.fullPath())))) {
-                    context = context.addIgnoredFieldFromContext(
-                        IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldMapper.fullPath(), null)
-                    );
-                    fieldMapper.parse(context);
-                } else {
-                    fieldMapper.parse(context);
-                }
+                context = FallbackPostMapper.parseField(context, fieldMapper);
             }
             if (context.isWithinCopyTo() == false) {
                 List<String> copyToFields = fieldMapper.copyTo().copyToFields();
@@ -601,17 +562,14 @@ public final class DocumentParser {
         // For [subobjects:false], intermediate objects get flattened so we can't skip parsing children.
         if (dynamic == ObjectMapper.Dynamic.FALSE && context.parent().subobjects() != ObjectMapper.Subobjects.DISABLED) {
             failIfMatchesRoutingPath(context, currentFieldName);
-            if (context.canAddIgnoredField()) {
-                context.addIgnoredField(
-                    IgnoredSourceFieldMapper.NameValue.fromContext(
-                        context,
-                        context.path().pathAsText(currentFieldName),
-                        context.encodeFlattenedToken()
-                    )
-                );
-            } else {
-                // not dynamic, read everything up to end object
-                skipChildren(context);
+            // not dynamic, read everything up to end object
+            final DocumentParserContext dynamicDisabledCtx = context;
+            if (FallbackPostMapper.capture(
+                dynamicDisabledCtx,
+                dynamicDisabledCtx.path().pathAsText(currentFieldName),
+                FallbackPostMapper.Reason.DYNAMIC_DISABLED
+            ) == false) {
+                skipChildren(dynamicDisabledCtx);
             }
         } else {
             Mapper.Builder dynamicObjectBuilder;
@@ -619,11 +577,7 @@ public final class DocumentParser {
                 // with dynamic:runtime all leaf fields will be runtime fields unless explicitly mapped,
                 // hence we don't dynamically create empty objects under properties, but rather carry around an artificial object mapper
                 dynamicObjectBuilder = null;
-                if (context.canAddIgnoredField()) {
-                    context = context.addIgnoredFieldFromContext(
-                        IgnoredSourceFieldMapper.NameValue.fromContext(context, context.path().pathAsText(currentFieldName), null)
-                    );
-                }
+                context = FallbackPostMapper.captureScope(context, context.path().pathAsText(currentFieldName));
             } else {
                 // When subobjects are disabled, only check for a matching dynamic template for this object field.
                 // If a template matches with a non-object type (e.g. geo_point), that mapper is created normally.
@@ -705,15 +659,11 @@ public final class DocumentParser {
         ObjectMapper.Dynamic dynamic = context.resolveDynamic(currentFieldName);
         ensureNotStrict(dynamic, context, currentFieldName);
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
-            if (context.canAddIgnoredField()) {
-                context.addIgnoredField(
-                    IgnoredSourceFieldMapper.NameValue.fromContext(
-                        context,
-                        context.path().pathAsText(currentFieldName),
-                        context.encodeFlattenedToken()
-                    )
-                );
-            } else {
+            if (FallbackPostMapper.capture(
+                context,
+                context.path().pathAsText(currentFieldName),
+                FallbackPostMapper.Reason.DYNAMIC_DISABLED
+            ) == false) {
                 skipChildren(context);
             }
             return;
@@ -722,18 +672,14 @@ public final class DocumentParser {
         if (builderFromTemplate == null) {
             if (context.indexSettings().isIgnoreDynamicFieldsBeyondLimit()
                 && context.mappingLookup().exceedsLimit(context.indexSettings().getMappingTotalFieldsLimit(), 1)) {
-                if (context.canAddIgnoredField()) {
-                    try {
-                        context.addIgnoredField(
-                            IgnoredSourceFieldMapper.NameValue.fromContext(
-                                context,
-                                context.path().pathAsText(currentFieldName),
-                                context.encodeFlattenedToken()
-                            )
-                        );
-                    } catch (IOException e) {
-                        throw new IllegalArgumentException("failed to parse field [" + currentFieldName + " ]", e);
-                    }
+                try {
+                    FallbackPostMapper.capture(
+                        context,
+                        context.path().pathAsText(currentFieldName),
+                        FallbackPostMapper.Reason.FIELD_LIMIT_EXCEEDED
+                    );
+                } catch (IOException e) {
+                    throw new IllegalArgumentException("failed to parse field [" + currentFieldName + " ]", e);
                 }
                 context.addIgnoredField(context.path().pathAsText(currentFieldName));
                 return;
@@ -741,18 +687,14 @@ public final class DocumentParser {
 
             if (context.indexSettings().isIgnoreDynamicFieldNamesBeyondLimit()
                 && currentFieldName.length() > context.indexSettings().getMappingFieldNameLengthLimit()) {
-                if (context.canAddIgnoredField()) {
-                    try {
-                        context.addIgnoredField(
-                            IgnoredSourceFieldMapper.NameValue.fromContext(
-                                context,
-                                context.path().pathAsText(currentFieldName),
-                                context.encodeFlattenedToken()
-                            )
-                        );
-                    } catch (IOException e) {
-                        throw new IllegalArgumentException("failed to parse field [" + currentFieldName + "]", e);
-                    }
+                try {
+                    FallbackPostMapper.capture(
+                        context,
+                        context.path().pathAsText(currentFieldName),
+                        FallbackPostMapper.Reason.FIELD_NAME_TOO_LONG
+                    );
+                } catch (IOException e) {
+                    throw new IllegalArgumentException("failed to parse field [" + currentFieldName + "]", e);
                 }
                 context.addIgnoredField(context.path().pathAsText(currentFieldName));
                 return;
@@ -787,40 +729,20 @@ public final class DocumentParser {
         final String lastFieldName,
         String arrayFieldName
     ) throws IOException {
-        // A field that stores its array natively (via a sidecar offsets field, or in-order in binary doc values) must not be diverted
-        // to _ignored_source: it reconstructs arrays from its own doc values.
-        boolean storesArraysNatively = mapper != null && (mapper.supportStoringArrayOffsets() || mapper.storesArrayValuesInOrder());
         String fullPath = context.path().pathAsText(arrayFieldName);
-
-        if (context.canAddIgnoredField() && storesArraysNatively == false) {
-            Mapper.SourceKeepMode mode = Mapper.SourceKeepMode.NONE;
-            boolean objectWithFallbackSyntheticSource = false;
-            if (mapper instanceof ObjectMapper objectMapper) {
-                mode = getSourceKeepMode(context, objectMapper.sourceKeepMode());
-                objectWithFallbackSyntheticSource = mode == Mapper.SourceKeepMode.ALL
-                    || (mode == Mapper.SourceKeepMode.ARRAYS && objectMapper instanceof NestedObjectMapper == false);
-            }
-            boolean fieldWithFallbackSyntheticSource = false;
-            boolean fieldWithStoredArraySource = false;
-            if (mapper instanceof FieldMapper fieldMapper) {
-                mode = getSourceKeepMode(context, fieldMapper.sourceKeepMode());
-                fieldWithFallbackSyntheticSource = fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
-                fieldWithStoredArraySource = mode != Mapper.SourceKeepMode.NONE;
-            }
-            boolean copyToFieldHasValuesInDocument = context.isWithinCopyTo() == false && context.isCopyToDestinationField(fullPath);
-
-            if (objectWithFallbackSyntheticSource
-                || fieldWithFallbackSyntheticSource
-                || fieldWithStoredArraySource
-                || copyToFieldHasValuesInDocument) {
-                context = context.addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, null));
-            } else if (mapper instanceof ObjectMapper objectMapper && (objectMapper.isEnabled() == false)) {
+        var fc = FallbackPostMapper.FieldContext.forArrayElements(context, mapper, fullPath);
+        var preCapReason = FallbackPostMapper.resolvePrecaptureReason(fc);
+        if (preCapReason != null) {
+            context = FallbackPostMapper.captureScope(context, fullPath);
+        } else if (fc.canAddIgnoredField()
+            && fc.storesArraysNatively() == false
+            && mapper instanceof ObjectMapper objectMapper
+            && objectMapper.isEnabled() == false) {
                 // No need to call #addIgnoredFieldFromContext as both singleton and array instances of this object
                 // get tracked through ignored source.
-                context.addIgnoredField(IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, context.encodeFlattenedToken()));
+                FallbackPostMapper.capture(context, fullPath, FallbackPostMapper.Reason.OBJECT_DISABLED);
                 return;
             }
-        }
 
         // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
         // elements from regular source loading that are then skipped from the synthesized array source.
@@ -963,25 +885,11 @@ public final class DocumentParser {
         ensureNotStrict(dynamic, context, currentFieldName);
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
             failIfMatchesRoutingPath(context, currentFieldName);
-            if (context.canAddIgnoredField()) {
-                context.addIgnoredField(
-                    IgnoredSourceFieldMapper.NameValue.fromContext(
-                        context,
-                        context.path().pathAsText(currentFieldName),
-                        context.encodeFlattenedToken()
-                    )
-                );
-            }
+            FallbackPostMapper.capture(context, context.path().pathAsText(currentFieldName), FallbackPostMapper.Reason.DYNAMIC_DISABLED);
             return;
         }
-        if (dynamic == ObjectMapper.Dynamic.RUNTIME && context.canAddIgnoredField()) {
-            context.addIgnoredField(
-                IgnoredSourceFieldMapper.NameValue.fromContext(
-                    context,
-                    context.path().pathAsText(currentFieldName),
-                    context.encodeFlattenedToken()
-                )
-            );
+        if (dynamic == ObjectMapper.Dynamic.RUNTIME) {
+            FallbackPostMapper.capture(context, context.path().pathAsText(currentFieldName), FallbackPostMapper.Reason.DYNAMIC_RUNTIME);
         }
         if (dynamic.getDynamicFieldsBuilder().createDynamicFieldFromValue(context, currentFieldName) == false) {
             failIfMatchesRoutingPath(context, currentFieldName);
@@ -1081,11 +989,9 @@ public final class DocumentParser {
                 // #parseValue calls this method once the run-time field is created.
                 var fieldType = context.mappingLookup().getFieldType(path);
                 boolean isRuntimeField = fieldType instanceof AbstractScriptFieldType;
-                if ((context.dynamic() == ObjectMapper.Dynamic.RUNTIME || isRuntimeField) && context.canAddIgnoredField()) {
+                if (context.dynamic() == ObjectMapper.Dynamic.RUNTIME || isRuntimeField) {
                     try {
-                        context.addIgnoredField(
-                            IgnoredSourceFieldMapper.NameValue.fromContext(context, path, context.encodeFlattenedToken())
-                        );
+                        FallbackPostMapper.capture(context, path, FallbackPostMapper.Reason.DYNAMIC_RUNTIME);
                     } catch (IOException e) {
                         throw new IllegalArgumentException(
                             "failed to parse run-time field under [" + context.path().pathAsText("") + " ]",
@@ -1216,7 +1122,8 @@ public final class DocumentParser {
                 // the tsid is normally set on the coordinating node during shard routing and passed to the data node via the index request
                 // but when applying a translog operation, shard routing is not happening, and we have to create the tsid from source
                 SourceToParse.Source sourceObject = source.source();
-                // TODO: this can likely operate on eirf if present opposed to materlizing the originl source bytes if not present.
+                // TODO: this can likely operate on the batch row if present opposed to materializing the original source bytes if not
+                // present.
                 tsid = forIndexDimensions.buildTsid(sourceObject.xContentType(), sourceObject.originalBytes());
             }
             this.tsid = tsid;

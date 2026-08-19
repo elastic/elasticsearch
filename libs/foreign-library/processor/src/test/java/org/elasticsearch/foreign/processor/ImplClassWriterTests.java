@@ -14,12 +14,14 @@ import org.elasticsearch.core.SuppressForbidden;
 import java.lang.classfile.ClassFile;
 import java.lang.classfile.Opcode;
 import java.lang.classfile.instruction.BranchInstruction;
+import java.lang.classfile.instruction.InvokeInstruction;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 /**
  * Tests that {@link ImplClassWriter} generates correct {@code $Impl} class files.
@@ -194,11 +196,12 @@ public class ImplClassWriterTests extends ProcessorTestCase {
     }
 
     /**
-     * A {@code @CaptureErrno @Function} method must generate a class WITHOUT a per-class
-     * {@code errnoState} field — the shared {@code LinkerHelper.ERRNO_STATE} is used instead.
-     * Also initializes the class to exercise the emitted {@code Linker.Option.captureCallState}
-     * (and {@code firstVariadicArg} in the {@code @Variadic} case) bytecode against the real FFM
-     * API, catching descriptor mismatches that {@code loadClassNoInit} would miss.
+     * A {@code @CaptureSystemError @Function} method on a POSIX-targeting library (errno channel) must
+     * generate a class WITHOUT a per-class {@code systemErrorState} field — the shared
+     * {@code LinkerHelper.SYSTEM_ERROR_STATE} is used instead. Also initializes the class to exercise the
+     * emitted {@code Linker.Option.captureCallState} (and {@code firstVariadicArg} in the
+     * {@code @Variadic} case) bytecode against the real FFM API, catching descriptor mismatches that
+     * {@code loadClassNoInit} would miss.
      *
      * <p>The custom {@link org.elasticsearch.foreign.SymbolResolver} returns a fake non-null
      * address so {@code linker.downcallHandle} succeeds at class-init time without needing a
@@ -206,24 +209,25 @@ public class ImplClassWriterTests extends ProcessorTestCase {
      * (e.g. {@code captureCallState} declared as varargs but emitted as a single {@code String})
      * still surfaces here because it fires before {@code downcallHandle} is even called.
      */
-    public void testCaptureErrnoAndVariadicInitializeAgainstFfmApi() throws Exception {
+    public void testSystemErrorErrnoAndVariadicInitializeAgainstFfmApi() throws Exception {
         String source = """
             package test;
             import java.lang.foreign.MemorySegment;
             import java.lang.foreign.SymbolLookup;
-            import org.elasticsearch.foreign.CaptureErrno;
             import org.elasticsearch.foreign.Function;
             import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Platform;
             import org.elasticsearch.foreign.ResolvedSymbol;
             import org.elasticsearch.foreign.SymbolResolver;
+            import org.elasticsearch.foreign.CaptureSystemError;
             import org.elasticsearch.foreign.Variadic;
-            @LibrarySpecification(symbolResolver = ErrnoLib.FakeResolver.class)
+            @LibrarySpecification(unavailableOn = { Platform.WINDOWS_X64 }, symbolResolver = ErrnoLib.FakeResolver.class)
             public interface ErrnoLib {
-                @CaptureErrno
+                @CaptureSystemError
                 @Function("foo")
                 int foo(int x);
 
-                @CaptureErrno
+                @CaptureSystemError
                 @Variadic(firstArg = 1)
                 @Function("bar")
                 long bar(long a, int b);
@@ -249,10 +253,10 @@ public class ImplClassWriterTests extends ProcessorTestCase {
         Class<?> implClass = result.loadClass("test.ErrnoLib$Impl");
         assertNotNull("Generated ErrnoLib$Impl class not found", implClass);
 
-        // Must NOT have a per-class errnoState field — the shared LinkerHelper.ERRNO_STATE is used.
+        // Must NOT have a per-class systemErrorState field — the shared LinkerHelper.SYSTEM_ERROR_STATE is used.
         try {
-            implClass.getDeclaredField("errnoState");
-            fail("ErrnoLib$Impl must not have a per-class errnoState field");
+            implClass.getDeclaredField("systemErrorState");
+            fail("ErrnoLib$Impl must not have a per-class systemErrorState field");
         } catch (NoSuchFieldException expected) {
             // expected
         }
@@ -260,6 +264,75 @@ public class ImplClassWriterTests extends ProcessorTestCase {
         // Both MethodHandle fields must exist.
         assertEquals(MethodHandle.class, implClass.getDeclaredField("foo$mh").getType());
         assertEquals(MethodHandle.class, implClass.getDeclaredField("bar$mh").getType());
+    }
+
+    /**
+     * A {@code @CaptureSystemError @Function} method on a Windows-only library (GetLastError channel) must
+     * generate a class WITHOUT a per-class {@code systemErrorState} field — the shared segment is
+     * obtained at call-time via {@code LinkerHelper.systemErrorState()}. Verified structurally via
+     * {@code loadClassNoInit}: class-init cannot be driven on non-Windows because
+     * {@code Linker.Option.captureCallState("GetLastError")} throws
+     * {@code IllegalArgumentException} before any descriptor is even built. On Windows, class-init
+     * is exercised by the Windows-gated {@code LinkerHelperTests} test.
+     *
+     * <p>The library marks every POSIX platform unavailable, which is what makes {@code @CaptureSystemError}
+     * resolve to the {@code GetLastError} channel rather than {@code errno}.
+     *
+     * <p>The custom {@link org.elasticsearch.foreign.SymbolResolver} returns a fake non-null
+     * address so a hypothetical {@code linker.downcallHandle} call would succeed without needing a
+     * real native symbol on the classpath; it is unused by the {@code loadClassNoInit} path but
+     * kept for parity with the errno test and to keep the fixture realistic.
+     */
+    public void testSystemErrorLastErrorInitializesAgainstFfmApi() throws Exception {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import java.lang.foreign.SymbolLookup;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Platform;
+            import org.elasticsearch.foreign.ResolvedSymbol;
+            import org.elasticsearch.foreign.SymbolResolver;
+            import org.elasticsearch.foreign.CaptureSystemError;
+            @LibrarySpecification(
+                unavailableOn = {
+                    Platform.LINUX_X64,
+                    Platform.LINUX_AARCH64,
+                    Platform.DARWIN_X64,
+                    Platform.DARWIN_AARCH64
+                },
+                symbolResolver = LastErrorLib.FakeResolver.class
+            )
+            public interface LastErrorLib {
+                @CaptureSystemError
+                @Function("foo")
+                int foo(int x);
+
+                class FakeResolver implements SymbolResolver {
+                    public FakeResolver() {}
+                    public ResolvedSymbol resolve(String name, SymbolLookup lookup) {
+                        // downcallHandle validates the address is non-NULL; any positive value works.
+                        return new ResolvedSymbol(name, MemorySegment.ofAddress(1L));
+                    }
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.LastErrorLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Class<?> implClass = result.loadClassNoInit("test.LastErrorLib$Impl");
+        assertNotNull("Generated LastErrorLib$Impl class not found", implClass);
+
+        // Must NOT have a per-class systemErrorState field — shared via LinkerHelper.systemErrorState().
+        try {
+            implClass.getDeclaredField("systemErrorState");
+            fail("LastErrorLib$Impl must not have a per-class systemErrorState field");
+        } catch (NoSuchFieldException expected) {
+            // expected
+        }
+
+        assertEquals(MethodHandle.class, implClass.getDeclaredField("foo$mh").getType());
     }
 
     /**
@@ -856,6 +929,261 @@ public class ImplClassWriterTests extends ProcessorTestCase {
     }
 
     /**
+     * A {@code @Function} method with a {@code @WideString String} parameter must generate a body
+     * that calls the charset-aware {@code MemorySegmentAdapter.allocateString(Arena, String, Charset)}
+     * overload rather than the plain 2-arg {@code allocateString(Arena, String)} used for ordinary
+     * (UTF-8) {@code String} parameters. Verified structurally by parsing the generated bytecode.
+     */
+    public void testWideStringParamGeneratesCharsetAwareAllocation() throws Exception {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.WideString;
+            @LibrarySpecification
+            public interface WideParamLib {
+                @Function("native_op")
+                int op(@WideString String name, int flags);
+            }
+            """;
+
+        CompilationResult result = compile("test.WideParamLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Path classFile = result.outputDir().resolve("test/WideParamLib$Impl.class");
+        assertTrue("Generated WideParamLib$Impl.class not found", Files.exists(classFile));
+        byte[] bytes = Files.readAllBytes(classFile);
+        var cm = ClassFile.of().parse(bytes);
+
+        List<InvokeInstruction> allocateStringCalls = cm.methods()
+            .stream()
+            .filter(m -> m.methodName().equalsString("op"))
+            .flatMap(m -> m.code().stream())
+            .flatMap(ca -> ca.elementStream())
+            .filter(e -> e instanceof InvokeInstruction)
+            .map(e -> (InvokeInstruction) e)
+            .filter(i -> i.name().equalsString("allocateString"))
+            .toList();
+        assertEquals("Expected exactly one allocateString call in op", 1, allocateStringCalls.size());
+        assertEquals(
+            "@WideString param must use the 3-arg charset-aware allocateString overload",
+            3,
+            allocateStringCalls.get(0).typeSymbol().parameterCount()
+        );
+    }
+
+    /**
+     * A {@code @Function} method with a mix of ordinary {@code String} and {@code @WideString}
+     * parameters must route each to the correct {@code MemorySegmentAdapter.allocateString} overload:
+     * the plain 2-arg form for UTF-8 and the 3-arg charset-aware form for UTF-16LE, in parameter order.
+     * This guards against the {@code paramIndex} bookkeeping in {@link ImplClassWriter} drifting out
+     * of sync with the index set built by {@link org.elasticsearch.foreign.processor.model.MethodModel}.
+     */
+    public void testMixedWideAndNarrowStringParamsGenerateCorrectOverloads() throws Exception {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.WideString;
+            @LibrarySpecification
+            public interface MixedParamLib {
+                @Function("native_op")
+                int op(String narrowPath, @WideString String wideName);
+            }
+            """;
+
+        CompilationResult result = compile("test.MixedParamLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Path classFile = result.outputDir().resolve("test/MixedParamLib$Impl.class");
+        assertTrue("Generated MixedParamLib$Impl.class not found", Files.exists(classFile));
+        byte[] bytes = Files.readAllBytes(classFile);
+        var cm = ClassFile.of().parse(bytes);
+
+        List<InvokeInstruction> allocateStringCalls = cm.methods()
+            .stream()
+            .filter(m -> m.methodName().equalsString("op"))
+            .flatMap(m -> m.code().stream())
+            .flatMap(ca -> ca.elementStream())
+            .filter(e -> e instanceof InvokeInstruction)
+            .map(e -> (InvokeInstruction) e)
+            .filter(i -> i.name().equalsString("allocateString"))
+            .toList();
+        assertEquals("Expected two allocateString calls in op (one per String param)", 2, allocateStringCalls.size());
+        assertEquals(
+            "Narrow (UTF-8) param must use the 2-arg allocateString overload",
+            2,
+            allocateStringCalls.get(0).typeSymbol().parameterCount()
+        );
+        assertEquals(
+            "@WideString param must use the 3-arg charset-aware allocateString overload",
+            3,
+            allocateStringCalls.get(1).typeSymbol().parameterCount()
+        );
+    }
+
+    /**
+     * A struct with a {@code @InlineStringField(length = 16, wide = true)} getter+setter pair must
+     * round-trip a non-ASCII string through real bytecode execution, proving the codegen calls the
+     * UTF-16LE-aware {@code MemorySegmentAdapter} overloads (whichever JDK 21 or JDK 22+ branch is
+     * active for the running JVM).
+     */
+    public void testWideInlineStringFieldRoundTrip() throws Exception {
+        String libSource = """
+            package test;
+            import org.elasticsearch.foreign.InlineStringField;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            @LibrarySpecification
+            public interface WinStructLib {
+                @StructSpecification
+                interface WinStruct {
+                    @InlineStringField(length = 16, wide = true)
+                    String name();
+
+                    @InlineStringField(length = 16, wide = true)
+                    void name(String value);
+                }
+            }
+            """;
+        String driverSource = """
+            package test;
+            import java.lang.foreign.ValueLayout;
+            public final class WinStructDriver {
+                public static String roundTrip(String value) {
+                    WinStructLib$WinStruct$Impl impl = new WinStructLib$WinStruct$Impl();
+                    impl.name(value);
+                    return impl.name();
+                }
+                public static byte[] rawBytes(String value) {
+                    WinStructLib$WinStruct$Impl impl = new WinStructLib$WinStruct$Impl();
+                    impl.name(value);
+                    return impl.segment().toArray(ValueLayout.JAVA_BYTE);
+                }
+            }
+            """;
+
+        var sources = new java.util.LinkedHashMap<String, String>();
+        sources.put("test.WinStructLib", libSource);
+        sources.put("test.WinStructDriver", driverSource);
+        CompilationResult result = compile(sources);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Class<?> driver = result.loadClass("test.WinStructDriver");
+
+        // Functional round-trip: writing a non-ASCII string and reading it back must decode correctly.
+        String got = (String) driver.getMethod("roundTrip", String.class).invoke(null, "héllo");
+        assertEquals("Round-trip wide inline string write/read must return written value", "héllo", got);
+
+        // Byte-exact check: proves the setter actually wrote UTF-16LE, not just a self-consistent
+        // encoding. Under UTF-8 (the narrow default), "abc" would be written as 3 bytes + 1-byte NUL;
+        // under UTF-16LE it must be 3 code units (2 bytes each, low byte first for ASCII) + a 2-byte
+        // NUL terminator. A wide->narrow regression that still round-trips correctly (getter and
+        // setter consistently wrong) would still fail this assertion.
+        byte[] expected = new byte[] { 'a', 0, 'b', 0, 'c', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+        byte[] rawBytes = (byte[]) driver.getMethod("rawBytes", String.class).invoke(null, "abc");
+        assertTrue(
+            "Expected UTF-16LE byte layout " + java.util.Arrays.toString(expected) + " but got " + java.util.Arrays.toString(rawBytes),
+            java.util.Arrays.equals(expected, rawBytes)
+        );
+    }
+
+    /**
+     * End-to-end test: on Windows x64 only, a {@code @WideString String} parameter is actually
+     * encoded as UTF-16LE before the native call. Verified by calling the real {@code FormatMessageW}
+     * from {@code kernel32.dll} with {@code FORMAT_MESSAGE_FROM_STRING | FORMAT_MESSAGE_IGNORE_INSERTS}
+     * and a non-ASCII format string, then reading the output back from the wide-char buffer.
+     * Using a non-ASCII character (é, U+00E9) ensures the test would fail if the framework used
+     * UTF-8 rather than UTF-16LE: FormatMessageW would receive a mis-encoded string and produce
+     * wrong or garbage output.
+     */
+    public void testWideStringParamEndToEndOnWindows() throws Exception {
+        if (System.getProperty("os.name", "").startsWith("Windows") == false) {
+            return;
+        }
+        String libSource = """
+            package test;
+            import java.lang.foreign.Arena;
+            import java.lang.foreign.MemorySegment;
+            import java.lang.foreign.SymbolLookup;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.ResolvedSymbol;
+            import org.elasticsearch.foreign.SymbolResolver;
+            import org.elasticsearch.foreign.WideString;
+            @LibrarySpecification(symbolResolver = FormatMessageLib.Kernel32Resolver.class)
+            public interface FormatMessageLib {
+                int FORMAT_MESSAGE_FROM_STRING = 0x00000400;
+                int FORMAT_MESSAGE_IGNORE_INSERTS = 0x00000200;
+                @Function("FormatMessageW")
+                int formatMessage(
+                    int dwFlags,
+                    @WideString String lpSource,
+                    int dwMessageId,
+                    int dwLanguageId,
+                    MemorySegment lpBuffer,
+                    int nSize,
+                    MemorySegment pArguments
+                );
+                class Kernel32Resolver implements SymbolResolver {
+                    public Kernel32Resolver() {}
+                    public ResolvedSymbol resolve(String name, SymbolLookup ignored) {
+                        return new ResolvedSymbol(name,
+                            SymbolLookup.libraryLookup("kernel32.dll", Arena.global())
+                                .find(name)
+                                .orElseThrow(() -> new UnsatisfiedLinkError("Not found in kernel32.dll: " + name)));
+                    }
+                }
+            }
+            """;
+        String driverSource = """
+            package test;
+            import java.lang.foreign.Arena;
+            import java.lang.foreign.MemorySegment;
+            import java.lang.foreign.ValueLayout;
+            public final class FormatMessageDriver {
+                public static String callWithFormat(String fmt) throws Exception {
+                    FormatMessageLib lib = new FormatMessageLib$Impl();
+                    try (Arena arena = Arena.ofConfined()) {
+                        int bufChars = 512;
+                        MemorySegment buf = arena.allocate(ValueLayout.JAVA_CHAR, bufChars);
+                        int chars = lib.formatMessage(
+                            FormatMessageLib.FORMAT_MESSAGE_FROM_STRING
+                                | FormatMessageLib.FORMAT_MESSAGE_IGNORE_INSERTS,
+                            fmt,
+                            0, 0,
+                            buf, bufChars,
+                            MemorySegment.NULL
+                        );
+                        StringBuilder sb = new StringBuilder(chars);
+                        for (int i = 0; i < chars; i++) {
+                            sb.append(buf.getAtIndex(ValueLayout.JAVA_CHAR, i));
+                        }
+                        return sb.toString();
+                    }
+                }
+            }
+            """;
+
+        var sources = new java.util.LinkedHashMap<String, String>();
+        sources.put("test.FormatMessageLib", libSource);
+        sources.put("test.FormatMessageDriver", driverSource);
+        CompilationResult result = compile(sources);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        // Loading FormatMessageLib$Impl triggers <clinit>, which resolves FormatMessageW from kernel32.dll.
+        assertNotNull("Generated FormatMessageLib$Impl not found", result.loadClass("test.FormatMessageLib$Impl"));
+
+        Class<?> driver = result.loadClass("test.FormatMessageDriver");
+        // "café" contains é (U+00E9): two bytes in UTF-8 (0xC3 0xA9) but one UTF-16LE code unit (0xE9 0x00).
+        // If the framework mistakenly used UTF-8, FormatMessageW would receive a 6-byte sequence that
+        // does not represent valid UTF-16LE text and would produce wrong output.
+        String input = "café";
+        String got = (String) driver.getMethod("callWithFormat", String.class).invoke(null, input);
+        assertEquals("FormatMessageW must echo the @WideString format string unchanged", input, got);
+    }
+
+    /**
      * An abstract-class {@code @LibrarySpecification} must generate a {@code $Impl} that extends
      * the abstract class (not {@code Object}) and implements the abstract methods. The generated
      * {@code $Impl.getSuperclass()} must equal the abstract class, and a {@code protected abstract}
@@ -950,18 +1278,19 @@ public class ImplClassWriterTests extends ProcessorTestCase {
             package test;
             import java.lang.foreign.MemorySegment;
             import java.lang.foreign.SymbolLookup;
-            import org.elasticsearch.foreign.CaptureErrno;
             import org.elasticsearch.foreign.Function;
             import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Platform;
             import org.elasticsearch.foreign.ResolvedSymbol;
             import org.elasticsearch.foreign.SymbolResolver;
+            import org.elasticsearch.foreign.CaptureSystemError;
             import org.elasticsearch.foreign.Variadic;
-            @LibrarySpecification(symbolResolver = OpenLib.FakeResolver.class)
+            @LibrarySpecification(unavailableOn = { Platform.WINDOWS_X64 }, symbolResolver = OpenLib.FakeResolver.class)
             public interface OpenLib {
-                @CaptureErrno @Variadic(firstArg = 2) @Function("open")
+                @CaptureSystemError @Variadic(firstArg = 2) @Function("open")
                 int open(String pathname, int flags);
 
-                @CaptureErrno @Variadic(firstArg = 2) @Function("open")
+                @CaptureSystemError @Variadic(firstArg = 2) @Function("open")
                 int open(String pathname, int flags, int mode);
 
                 class FakeResolver implements SymbolResolver {

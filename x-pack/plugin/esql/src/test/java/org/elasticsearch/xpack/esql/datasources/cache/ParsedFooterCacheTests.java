@@ -76,6 +76,7 @@ public class ParsedFooterCacheTests extends ESTestCase {
     public void testPutRejectsNullValue() {
         FooterByteCache.Key k = key("file.parquet", 1000);
         expectThrows(IllegalArgumentException.class, () -> cache.put(k, null));
+        assertNull("a rejected put must not leave a phantom entry", cache.get(k));
     }
 
     public void testGetOrLoadInvokesLoaderOnce() throws ExecutionException {

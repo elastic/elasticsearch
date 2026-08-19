@@ -401,79 +401,25 @@ public class DefaultRestChannelTests extends ESTestCase {
     }
 
     public void testClusterNameHeaderDisabledByDefault() {
-        final HttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
-        final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
-        final DefaultRestChannel channel = new DefaultRestChannel(
-            httpChannel,
-            httpRequest,
-            request,
-            bigArrays,
-            HttpHandlingSettings.fromSettings(Settings.EMPTY),
-            threadPool.getThreadContext(),
-            CorsHandler.fromSettings(Settings.EMPTY),
-            httpTracer,
-            instrumentation
-        );
-
-        channel.sendResponse(testRestResponse());
-
-        final ArgumentCaptor<TestHttpResponse> responseCaptor = ArgumentCaptor.forClass(TestHttpResponse.class);
-        verify(httpChannel).sendResponse(responseCaptor.capture(), any());
-        assertThat(responseCaptor.getValue().containsHeader(DefaultRestChannel.CLUSTER_NAME_HEADER), is(false));
+        final TestHttpResponse response = executeRequest(Settings.EMPTY, "localhost");
+        assertThat(response.containsHeader(DefaultRestChannel.CLUSTER_NAME_HEADER), is(false));
     }
 
     public void testClusterNameHeaderEmittedWhenEnabled() {
         final String clusterName = randomAlphaOfLengthBetween(3, 12);
-        final Settings settings = Settings.builder()
-            .put(HttpTransportSettings.SETTING_HTTP_CLUSTER_NAME_HEADER_ENABLED.getKey(), true)
-            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName)
-            .build();
-        final HttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
-        final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
-        final DefaultRestChannel channel = new DefaultRestChannel(
-            httpChannel,
-            httpRequest,
-            request,
-            bigArrays,
-            HttpHandlingSettings.fromSettings(settings),
-            threadPool.getThreadContext(),
-            CorsHandler.fromSettings(settings),
-            httpTracer,
-            instrumentation
-        );
-
-        channel.sendResponse(testRestResponse());
-
-        final ArgumentCaptor<TestHttpResponse> responseCaptor = ArgumentCaptor.forClass(TestHttpResponse.class);
-        verify(httpChannel).sendResponse(responseCaptor.capture(), any());
-        assertThat(responseCaptor.getValue().headers().get(DefaultRestChannel.CLUSTER_NAME_HEADER), contains(clusterName));
+        final TestHttpResponse response = executeRequest(clusterNameHeaderEnabled(clusterName), "localhost");
+        assertThat(response.headers().get(DefaultRestChannel.CLUSTER_NAME_HEADER), contains(clusterName));
     }
 
     public void testClusterNameHeaderWithheldFromUnauthenticatedResponses() {
-        final String clusterName = randomAlphaOfLengthBetween(3, 12);
-        final Settings settings = Settings.builder()
-            .put(HttpTransportSettings.SETTING_HTTP_CLUSTER_NAME_HEADER_ENABLED.getKey(), true)
-            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName)
-            .build();
-        final HttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
-        final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
-        final DefaultRestChannel channel = new DefaultRestChannel(
-            httpChannel,
-            httpRequest,
-            request,
-            bigArrays,
-            HttpHandlingSettings.fromSettings(settings),
-            threadPool.getThreadContext(),
-            CorsHandler.fromSettings(settings),
-            httpTracer,
-            instrumentation
+        final RestResponse unauthenticated = new RestResponse(randomFrom(RestStatus.UNAUTHORIZED, RestStatus.FORBIDDEN), "denied");
+        final TestHttpResponse response = executeRequest(
+            clusterNameHeaderEnabled(randomAlphaOfLengthBetween(3, 12)),
+            null,
+            "localhost",
+            unauthenticated
         );
-
-        channel.sendResponse(new RestResponse(randomFrom(RestStatus.UNAUTHORIZED, RestStatus.FORBIDDEN), "unauthenticated"));
-
-        final ArgumentCaptor<TestHttpResponse> responseCaptor = ArgumentCaptor.forClass(TestHttpResponse.class);
-        verify(httpChannel).sendResponse(responseCaptor.capture(), any());
-        assertThat(responseCaptor.getValue().containsHeader(DefaultRestChannel.CLUSTER_NAME_HEADER), is(false));
+        assertThat(response.containsHeader(DefaultRestChannel.CLUSTER_NAME_HEADER), is(false));
     }
 
     public void testUnsupportedHttpMethod() {
@@ -890,6 +836,15 @@ public class DefaultRestChannelTests extends ESTestCase {
     }
 
     private TestHttpResponse executeRequest(final Settings settings, final String originValue, final String host) {
+        return executeRequest(settings, originValue, host, testRestResponse());
+    }
+
+    private TestHttpResponse executeRequest(
+        final Settings settings,
+        final String originValue,
+        final String host,
+        final RestResponse restResponse
+    ) {
         HttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
         if (originValue != null) {
             httpRequest.getHeaders().put(CorsHandler.ORIGIN, Collections.singletonList(originValue));
@@ -909,12 +864,19 @@ public class DefaultRestChannelTests extends ESTestCase {
             httpTracer,
             instrumentation
         );
-        channel.sendResponse(testRestResponse());
+        channel.sendResponse(restResponse);
 
         // get the response
         ArgumentCaptor<TestHttpResponse> responseCaptor = ArgumentCaptor.forClass(TestHttpResponse.class);
         verify(httpChannel, atLeastOnce()).sendResponse(responseCaptor.capture(), any());
         return responseCaptor.getValue();
+    }
+
+    private static Settings clusterNameHeaderEnabled(final String clusterName) {
+        return Settings.builder()
+            .put(HttpTransportSettings.SETTING_HTTP_CLUSTER_NAME_HEADER_ENABLED.getKey(), true)
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName)
+            .build();
     }
 
     private static RestResponse testRestResponse() {

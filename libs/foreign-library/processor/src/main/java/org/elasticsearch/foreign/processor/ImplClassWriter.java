@@ -39,6 +39,7 @@ import javax.lang.model.element.TypeElement;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Addressable;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Arena;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_ArenaAdapter;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Charset;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayoutArray;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemorySegment;
@@ -52,6 +53,7 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_long;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_void;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_ArenaAdapter_allocate;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_Arena_ofAuto;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.emitPushUtf16LEConstant;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.emitValueLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.primitiveClassDesc;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.slotWidth;
@@ -131,6 +133,12 @@ class ImplClassWriter {
     private static final MethodTypeDesc MTD_Arena_ofConfined = MethodTypeDesc.of(CD_Arena);
     private static final MethodTypeDesc MTD_Arena_close = MethodTypeDesc.of(CD_void);
     private static final MethodTypeDesc MTD_MemorySegmentAdapter_allocateString = MethodTypeDesc.of(CD_MemorySegment, CD_Arena, CD_String);
+    private static final MethodTypeDesc MTD_MemorySegmentAdapter_allocateString_charset = MethodTypeDesc.of(
+        CD_MemorySegment,
+        CD_Arena,
+        CD_String,
+        CD_Charset
+    );
     private static final MethodTypeDesc MTD_criticalWith = MethodTypeDesc.of(CD_LinkerOptionArray, CD_LinkerOptionArray);
     private static final MethodTypeDesc MTD_captureState = MethodTypeDesc.of(CD_MemorySegment);
 
@@ -667,6 +675,9 @@ class ImplClassWriter {
      * Generates a method body that marshals {@code String} parameters to native memory before the call.
      * Opens a confined {@code Arena} per call, allocates each {@code String} param via
      * {@code MemorySegmentAdapter.allocateString}, and closes the arena in both normal and exception paths.
+     * Parameters annotated {@code @WideString} (per {@link MethodModel#wideStringParamIndices()}) are
+     * allocated via the charset-aware {@code allocateString(Arena, String, Charset)} overload with
+     * {@code StandardCharsets.UTF_16LE}; all other {@code String} params use the plain UTF-8 overload.
      *
      * <p>Local variable layout (slots):
      * <ul>
@@ -705,8 +716,10 @@ class ImplClassWriter {
             // Marshal each String param: MemorySegment $sN = MemorySegmentAdapter.allocateString(arena, strN)
             int slot = 1;
             int marshaledSlot = arenaSlot + 1;
+            int paramIndex = 0;
             for (NativeType paramType : paramTypes) {
                 if (paramType == NativeType.STRING) {
+                    boolean wide = nm.wideStringParamIndices().contains(paramIndex);
                     var notNull = tryBlock.newLabel();
                     var end = tryBlock.newLabel();
                     tryBlock.aload(slot);
@@ -716,12 +729,18 @@ class ImplClassWriter {
                     tryBlock.labelBinding(notNull);
                     tryBlock.aload(arenaSlot);
                     tryBlock.aload(slot);
-                    tryBlock.invokestatic(CD_MemorySegmentAdapter, "allocateString", MTD_MemorySegmentAdapter_allocateString);
+                    if (wide) {
+                        emitPushUtf16LEConstant(tryBlock);
+                        tryBlock.invokestatic(CD_MemorySegmentAdapter, "allocateString", MTD_MemorySegmentAdapter_allocateString_charset);
+                    } else {
+                        tryBlock.invokestatic(CD_MemorySegmentAdapter, "allocateString", MTD_MemorySegmentAdapter_allocateString);
+                    }
                     tryBlock.labelBinding(end);
                     tryBlock.astore(marshaledSlot);
                     marshaledSlot++;
                 }
                 slot += slotWidth(paramType);
+                paramIndex++;
             }
 
             // Push method handle, then all params (String params → their marshaled MemorySegment slots)

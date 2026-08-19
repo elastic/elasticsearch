@@ -57,7 +57,6 @@ import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.escf.EscfColumnTransforms;
 import org.elasticsearch.escf.LuceneBinaryColumn;
 import org.elasticsearch.escf.LuceneLongColumn;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -180,10 +179,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
      * Name of the implicit, non-serialized flattened sink injected under root to absorb unmapped fields as full dotted keys.
      */
     public static final String UNMAPPED_SINK_NAME = "_unmapped";
-
-    public static final NodeFeature FLATTENED_MAPPED_SUBFIELDS_FEATURE = new NodeFeature("mapper.flattened.mapped_subfields");
-    public static final NodeFeature FLATTENED_PASSTHROUGH_FEATURE = new NodeFeature("mapper.flattened.passthrough");
-    public static final NodeFeature FLATTENED_COLUMNAR_DOCUMENT_ORDER = new NodeFeature("mapper.flattened.columnar_document_order");
 
     private static class Defaults {
         public static final int DEPTH_LIMIT = 20;

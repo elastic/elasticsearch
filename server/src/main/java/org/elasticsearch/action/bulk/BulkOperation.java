@@ -380,9 +380,9 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 final SourceBatchSharder.ConcreteIndexTarget batchTarget = batchItem == null
                     ? null
                     : sharder.prepareRouting(batchItem, concreteIndex, indexRouting, project);
-                // At most one of the two helpers is non-null (see the constructor): with a pre-built
-                // batch the item is routed on its id/routing/_tsid alone and only recorded below;
-                // with the encoder, encoding the row happens as a side effect of routing it.
+
+                // TODO: This routing should maybe move into the helper class once we can calculate extract source routing from the
+                //  source batch.
                 int shardId = encoders == null
                     ? docWriteRequest.route(indexRouting)
                     : encoders.routeAndEncode((IndexRequest) docWriteRequest, concreteIndex, indexRouting);

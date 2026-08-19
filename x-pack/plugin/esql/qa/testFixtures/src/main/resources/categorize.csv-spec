@@ -901,6 +901,7 @@ count:long | category:keyword
 //
 
 limitByCategorize
+skip_flattened_rewrite: categorize_on_flattened_unsupported
 required_capability: categorize_in_limit_by
 
 FROM sample_data
@@ -918,6 +919,7 @@ Disconnected
 ;
 
 sortLimitByCategorize
+skip_flattened_rewrite: categorize_on_flattened_unsupported
 required_capability: categorize_in_limit_by
 
 FROM sample_data
@@ -941,6 +943,7 @@ Disconnected
 //   [cat(Banana), cat(Connected to ...)], [cat(Banana), cat(Connection error)], [cat(Banana), cat(Disconnected)]
 
 limitByCategorizeMultivalue
+skip_flattened_rewrite: categorize_on_flattened_unsupported
 required_capability: categorize_in_limit_by
 
 FROM mv_sample_data
@@ -955,6 +958,7 @@ count:long
 ;
 
 sortLimitByCategorizeMultivalue
+skip_flattened_rewrite: categorize_on_flattened_unsupported
 required_capability: categorize_in_limit_by
 
 // Top 2 per group: 2 (Connected to) + 1 (Disconnected) + 2 (Connection error) = 5 rows
@@ -969,6 +973,7 @@ count:long
 ;
 
 limitByCategorizeWithExtraGroupKey
+skip_flattened_rewrite: categorize_on_flattened_unsupported
 required_capability: categorize_in_limit_by
 
 // Groups: (cat_connected, each of 3 IPs) + (cat_connection_error, 172.21.3.15) + (cat_disconnected, 172.21.0.5) = 5 groups
@@ -988,6 +993,7 @@ Connected to 10.1.0.1 | 172.21.3.15
 ;
 
 sortLimitByCategorizeWithExtraGroupKey
+skip_flattened_rewrite: categorize_on_flattened_unsupported
 required_capability: categorize_in_limit_by
 
 // Top 2 per (category, client_ip) group; connection_error group for 172.21.3.15 contributes 2 rows

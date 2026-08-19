@@ -907,8 +907,9 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return shardHeapEstimator.aggregateShardMetrics(shardMemoryMetrics, metricVisitor);
     }
 
-    // visible for testing
-    ShardHeapEstimator createShardHeapEstimator(PostingsInEstimate postingsInEstimate) {
+    /// Create a [ShardHeapEstimator] with the default self-reported-shard overhead behaviour
+    /// and the specified postings behaviour
+    public ShardHeapEstimator createShardHeapEstimator(PostingsInEstimate postingsInEstimate) {
         return createShardHeapEstimator(SelfReportedShardOverhead.DEFAULT, postingsInEstimate);
     }
 

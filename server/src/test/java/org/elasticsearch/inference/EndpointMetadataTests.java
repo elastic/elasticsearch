@@ -35,7 +35,7 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
         new EndpointMetadata.Heuristics(List.of("heuristic1", "heuristic2"), StatusHeuristic.BETA, "2025-01-01", "2025-12-31"),
         new EndpointMetadata.Internal("fingerprint", 1L),
         new EndpointMetadata.Display("name", "some_creator"),
-        List.of(new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us")),
+        List.of(new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us", "US East (N. Virginia)")),
         true
     );
 
@@ -55,7 +55,7 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
             "name": "name",
             "model_creator": "some_creator"
           },
-          "regions": [{"csp": "aws", "region": "us-east-1", "geo": "us"}],
+          "regions": [{"csp": "aws", "region": "us-east-1", "geo": "us", "region_display_name": "US East (N. Virginia)"}],
           "denied_by_region_policy": true
         }
         """;
@@ -72,7 +72,7 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
             "name": "name",
             "model_creator": "some_creator"
           },
-          "regions": [{"csp": "aws", "region": "us-east-1", "geo": "us"}],
+          "regions": [{"csp": "aws", "region": "us-east-1", "geo": "us", "region_display_name": "US East (N. Virginia)"}],
           "denied_by_region_policy": true
         }
         """;
@@ -116,7 +116,8 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
         return new EndpointMetadata.EndpointRegion(
             randomBoolean() ? null : randomAlphaOfLengthBetween(2, 10),
             randomBoolean() ? null : randomAlphaOfLengthBetween(3, 15),
-            randomBoolean() ? null : randomAlphaOfLengthBetween(2, 5)
+            randomBoolean() ? null : randomAlphaOfLengthBetween(2, 5),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(5, 30)
         );
     }
 
@@ -364,6 +365,10 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
         if (version.supports(EndpointMetadata.REGIONS_ADDED) == false) {
             regions = List.of();
             deniedByRegionPolicy = false;
+        } else if (version.supports(EndpointMetadata.EndpointRegion.REGION_DISPLAY_NAME_ADDED) == false) {
+            regions = regions.stream()
+                .map(r -> new EndpointMetadata.EndpointRegion(r.csp(), r.region(), r.geo(), null))
+                .collect(Collectors.toList());
         }
         return new EndpointMetadata(heuristics, internal, display, regions, deniedByRegionPolicy);
     }

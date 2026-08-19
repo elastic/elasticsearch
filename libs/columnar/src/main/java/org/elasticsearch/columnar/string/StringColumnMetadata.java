@@ -13,33 +13,37 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.elasticsearch.columnar.ColumnMetadata;
 import org.elasticsearch.columnar.FormatVersion;
+import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
 
 import java.io.IOException;
 
 /**
- * Describes a string column. Under {@link StringColumnLayout#PLAIN} the values are one byte blob in the order
- * they were written (never reordered), addressed by a compact {@code DirectMonotonic} table holding the byte
- * offset of every value. There is no block: a value's bytes are exactly the span between its offset and the
- * next, so a read is two offset lookups and one range read, and the length needs no prefix on disk.
+ * Describes a string column. Values live in one value-address-indexed, block-encoded store in the order they were
+ * written (never reordered), addressed by a compact {@code DirectMonotonic} table of per-block byte offsets. The
+ * offset table is per block rather than per value so its size is a fraction of the column's — the position of a
+ * value inside its block comes from decoding the block, which a read has to do anyway.
  *
- * <p>{@link #layout()} is recorded so a later layout — one carrying ordinals, say — arrives as a new id and can
- * bring its own trailing fields.
+ * <p>{@link #layout()} says how a block is encoded. Only {@link StringColumnLayout#PLAIN} exists today; the
+ * recorded layout id is the extension point a later ordinal layout arrives on, so which trailing fields are
+ * meaningful can vary by layout.
  */
 public record StringColumnMetadata(
     ColumnIteratorMetadata iterator,
     int numDocsWithField,
     long numValues,
+    int blockSize,
+    byte blockBytesCodecId,
     StringColumnLayout layout,
     long valuesOffset,
-    long valueOffsetsDataOffset,
-    long valueOffsetsDataLength,
-    byte[] valueOffsetsMeta
+    long blockOffsetsDataOffset,
+    long blockOffsetsDataLength,
+    byte[] blockOffsetsMeta
 ) implements ColumnMetadata {
     private static final byte[] NONE = new byte[0];
 
-    static StringColumnMetadata empty(ColumnIteratorMetadata iterator) {
-        return new StringColumnMetadata(iterator, 0, 0, StringColumnLayout.PLAIN, 0, 0, 0, NONE);
+    static StringColumnMetadata empty(ColumnIteratorMetadata iterator, byte blockBytesCodecId) {
+        return new StringColumnMetadata(iterator, 0, 0, 0, blockBytesCodecId, StringColumnLayout.PLAIN, 0, 0, 0, NONE);
     }
 
     /** True when at least one document has more than one value. */
@@ -55,12 +59,14 @@ public record StringColumnMetadata(
             return;
         }
         out.writeVLong(numValues);
+        out.writeVInt(blockSize);
+        out.writeByte(blockBytesCodecId);
         out.writeByte(layout.id());
         out.writeVLong(valuesOffset);
-        out.writeVLong(valueOffsetsDataOffset);
-        out.writeVLong(valueOffsetsDataLength);
-        out.writeVInt(valueOffsetsMeta.length);
-        out.writeBytes(valueOffsetsMeta, 0, valueOffsetsMeta.length);
+        out.writeVLong(blockOffsetsDataOffset);
+        out.writeVLong(blockOffsetsDataLength);
+        out.writeVInt(blockOffsetsMeta.length);
+        out.writeBytes(blockOffsetsMeta, 0, blockOffsetsMeta.length);
     }
 
     /**
@@ -79,23 +85,27 @@ public record StringColumnMetadata(
         ColumnIteratorMetadata iterator = ColumnIteratorMetadata.readFrom(in, maxDoc, formatVersion);
         int numDocsWithField = in.readVInt();
         if (numDocsWithField == 0) {
-            return empty(iterator);
+            return empty(iterator, BlockBytesCodec.IDENTITY_ID);
         }
         long numValues = in.readVLong();
+        int blockSize = in.readVInt();
+        byte blockBytesCodecId = in.readByte();
         StringColumnLayout layout = StringColumnLayout.fromId(in.readByte());
         long valuesOffset = in.readVLong();
-        long valueOffsetsDataOffset = in.readVLong();
-        long valueOffsetsDataLength = in.readVLong();
-        byte[] valueOffsetsMeta = readBytes(in);
+        long blockOffsetsDataOffset = in.readVLong();
+        long blockOffsetsDataLength = in.readVLong();
+        byte[] blockOffsetsMeta = readBytes(in);
         return new StringColumnMetadata(
             iterator,
             numDocsWithField,
             numValues,
+            blockSize,
+            blockBytesCodecId,
             layout,
             valuesOffset,
-            valueOffsetsDataOffset,
-            valueOffsetsDataLength,
-            valueOffsetsMeta
+            blockOffsetsDataOffset,
+            blockOffsetsDataLength,
+            blockOffsetsMeta
         );
     }
 
@@ -103,5 +113,9 @@ public record StringColumnMetadata(
         byte[] bytes = new byte[in.readVInt()];
         in.readBytes(bytes, 0, bytes.length);
         return bytes;
+    }
+
+    long numBlocks() {
+        return numValues == 0 ? 0 : (numValues + blockSize - 1) / blockSize;
     }
 }

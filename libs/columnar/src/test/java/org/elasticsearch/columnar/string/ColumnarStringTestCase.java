@@ -19,10 +19,13 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.FormatVersion;
+import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+
+import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 
 /**
  * Base class for tests that need a string column on disk. It owns the whole lifecycle — the data and meta files,
@@ -47,13 +50,19 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
     /**
      * Writes {@code docValues} as a single-valued string column — a {@code null} entry being a document with no
      * value — reads the metadata back through the header and footer checks, and runs {@code check} over a reader
-     * on it.
+     * on it. The block size is random, so repeated runs land the values on different block boundaries; a test
+     * that needs a particular boundary picks the size with {@link #withColumn(BytesRef[], int, ColumnCheck)}.
      */
     protected void withColumn(final BytesRef[] docValues, final ColumnCheck check) throws IOException {
+        withColumn(docValues, randomValidBlockSize(), check);
+    }
+
+    /** As {@link #withColumn(BytesRef[], ColumnCheck)}, with the block size fixed. */
+    protected void withColumn(final BytesRef[] docValues, final int blockSize, final ColumnCheck check) throws IOException {
         final byte[] segmentId = new byte[16];
         random().nextBytes(segmentId);
         try (Directory dir = newDirectory()) {
-            final StringColumnMetadata metadata = writeColumn(dir, segmentId, docValues);
+            final StringColumnMetadata metadata = writeColumn(dir, segmentId, docValues, blockSize);
             try (IndexInput data = openData(dir, segmentId)) {
                 check.check(metadata, new StringColumnReader(metadata, data));
             }
@@ -71,8 +80,12 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         return numDocsWithField;
     }
 
-    private static StringColumnMetadata writeColumn(final Directory dir, final byte[] segmentId, final BytesRef[] docValues)
-        throws IOException {
+    private static StringColumnMetadata writeColumn(
+        final Directory dir,
+        final byte[] segmentId,
+        final BytesRef[] docValues,
+        final int blockSize
+    ) throws IOException {
         final int numDocsWithField = numDocsWithField(docValues);
         final StringColumnMetadata written;
         try (IndexOutput out = dir.createOutput(DATA_FILE, IOContext.DEFAULT)) {
@@ -82,6 +95,8 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
                 numDocsWithField,
                 numDocsWithField,
                 () -> cursor(docValues),
+                blockSize,
+                BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
                 dir,
                 IOContext.DEFAULT,
                 out

@@ -338,7 +338,17 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             numValues += count;
         }
 
-        StringColumnMetadata metadata = StringColumnWriter.write(maxDoc, numDocsWithField, numValues, cursors, directory, context, data);
+        StringColumnMetadata metadata = StringColumnWriter.write(
+            maxDoc,
+            numDocsWithField,
+            numValues,
+            cursors,
+            blockSize,
+            BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
+            directory,
+            context,
+            data
+        );
         fields.add(new FieldEntry(field.number, type.id(), metadata));
     }
 

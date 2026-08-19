@@ -18,9 +18,9 @@ Every field is a `BinaryDocValues` field tagged with a `ColumnarFieldType` (the 
   - `ColumnarNumericRangeQuery` — a self-contained Lucene range query, vectorized and skipper-aware;
   - `ColumnarNumericBinaryDocValues.bulkLongs` — column-at-a-time reads for aggregation/block loading;
   - `binaryValue()` — re-emits the payload for a classic binary consumer.
-- **`STRING` (keyword)** — values stored plain, read back through `binaryValue()`, which re-emits them as
-  a `StringBinaryPayload`. Single-valued for now (a document with more than one value is rejected at write
-  time). An ordinal layout is planned as a second layout id, decided at merge from statistics a flush
+- **`STRING` (keyword)** — values stored plain in blocks, read back through `binaryValue()`, which re-emits
+  them as a `StringBinaryPayload`. Single-valued for now (a document with more than one value is rejected at
+  write time). An ordinal layout is planned as a second layout id, decided at merge from statistics a flush
   emits rather than from a per-segment probe; ordinals will stay internal, so the read API stays binary
   either way. See `docs/PLAN.md`.
 
@@ -55,11 +55,11 @@ the ids it was written with, older data lists only old ids and a newer reader re
   reordered) in configurable fixed-size blocks (default 128), a block offset table, and — only when multi-valued — a
   per-document value-address table. A block decodes whole into a reused buffer with a single-block
   cache; the range and bulk paths read straight out of it.
-- **String column.** Under `StringColumnLayout.PLAIN` there is no block: the values are one byte blob plus a
-  `DirectMonotonic` table holding every value's offset, so a read is two offset lookups and a read of exactly
-  that span, and a value's length needs no prefix on disk. The layout id is the extension point a later
-  ordinal layout arrives on — a layout that *does* want a block, since bit-packed ordinals are defined over a
-  group. No skip index yet.
+- **String column.** Under `StringColumnLayout.PLAIN` a block holds `[vint length][bytes]` per value, and a
+  `DirectMonotonic` table holds each block's byte offset. Per block rather than per value, so the table costs a
+  fraction of the column and a scan pays one bulk read per block instead of one read per value; a block decodes
+  whole into a reused buffer with a single-block cache, as the numeric column does. The layout id is the
+  extension point a later ordinal layout arrives on. No skip index yet.
 - **Skip index.** Range pushdown lives inside the column (a `BINARY` field can't carry a Lucene
   skipper): a multi-level per-interval min/max index the range query consults.
 

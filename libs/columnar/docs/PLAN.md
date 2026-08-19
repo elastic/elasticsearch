@@ -59,11 +59,13 @@ The direction, the decisions that constrain it, and the build order. Update as d
   `DecodeBlockTransformBenchmark`) covering Delta, Offset, GCD, SplitDelta, ALP, and FOR
   across ten block shapes.
 - Keyword (string) column: `ColumnarFieldType.STRING` served at `getBinary` through
-  `ColumnarStringBinaryDocValues`. `StringColumnLayout.PLAIN` stores the values as one byte blob plus a
-  `DirectMonotonic` table holding every value's offset, so a read is two offset lookups and a read of
-  exactly that span, and a length needs no prefix on disk. No block, and so no block size, block cache or
-  byte codec on this path — a block belongs to an encoding defined over a group, which plain is not. Dense
-  and sparse; single-valued only (see Next). The POC's dictionary path is deliberately not carried over —
+  `ColumnarStringBinaryDocValues`. `StringColumnLayout.PLAIN` writes `[vint length][bytes]` per value into
+  blocks and records each block's byte offset in a `DirectMonotonic` table, framed like the numeric column:
+  same `blockSize`, same `BlockBytesCodec`, same single-block cache over a reused buffer. The table is per
+  block rather than per value because a per-value table costs a fraction of the column *per value* and
+  still leaves the cursor doing a seek and a read each time; a block amortises both across `blockSize`
+  values. A value's position inside its block comes from decoding the block, which a read does anyway.
+  Dense and sparse; single-valued only (see Next). The POC's dictionary path is deliberately not carried over —
   the layout is decided from statistics at merge rather than from a per-segment probe, so ordinals arrive
   as a later layout id (see Next).
 - Per-field pipeline selection: `NumericPipelineSelector` (`@FunctionalInterface`
@@ -114,7 +116,11 @@ The direction, the decisions that constrain it, and the build order. Update as d
   an encoding quantum: 128 for bit-packed longs, because the `ForUtil` kernels unroll over it and FOR
   needs the group's min/max. A *chunk* is a byte-bounded compression unit and applies to any column
   whatever sits underneath. Both are real in every combination — ordinals under zstd want the 128 quantum
-  *and* a byte-bounded chunk on top; plain bytes want a chunk and no block at all. So the column emits
+  *and* a byte-bounded chunk on top; plain bytes have no encoding quantum at all, so their block is really
+  a chunk that is currently bounded by a value count, which is the wrong axis: `blockSize` values of a
+  keyword field is anywhere from a few bytes to megabytes, which is why the string block buffers on both
+  sides are sized by the data where the numeric column's are a flat `long[blockSize]`, and why
+  `MAX_BLOCK_SIZE` can only cap the value count. So the column emits
   values or blocks plus offsets, and the byte codec decides how much to accumulate before emitting:
   identity means no chunks, zstd means byte-bounded chunks plus an index storing the global uncompressed
   offset, which stays monotonic where a (chunk, offset-within-chunk) pair would not. `BlockBytesCodec` is

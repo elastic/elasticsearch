@@ -12,9 +12,12 @@ package org.elasticsearch.columnar.string;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 
 import java.io.IOException;
+
+import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 
 /**
  * End-to-end round-trip of string columns through a {@link Directory}. Each case asserts the values come back
@@ -88,15 +91,50 @@ public class StringColumnTests extends ColumnarStringTestCase {
         assertColumn(docs);
     }
 
-    /** A spread of value counts, including the smallest columns and ones around a power of two. */
-    public void testAssortedValueCounts() throws IOException {
-        for (int n : new int[] { 1, 5, 127, 128, 129, 130, 200, 257 }) {
+    /**
+     * Value counts around the block size, with the block size pinned so the boundaries are hit deterministically
+     * rather than depending on the seed: a single short block, an exactly full one, and columns that spill a few
+     * values into a partial final block.
+     */
+    public void testValueCountsAroundBlockBoundaries() throws IOException {
+        final int blockSize = ColumNARDocValuesFormat.MIN_BLOCK_SIZE;
+        for (int n : new int[] {
+            1,
+            5,
+            blockSize - 1,
+            blockSize,
+            blockSize + 1,
+            blockSize + 2,
+            2 * blockSize,
+            2 * blockSize + 1,
+            3 * blockSize - 1 }) {
             BytesRef[] docs = new BytesRef[n];
             for (int d = 0; d < n; d++) {
                 docs[d] = new BytesRef("value-" + d);
             }
-            assertColumn(docs);
+            assertColumn(docs, blockSize);
         }
+    }
+
+    /**
+     * Values read in random order rather than in value order, so the single-block cache misses on most reads and
+     * every block gets decoded from scratch — the pattern a query does, as opposed to the sequential scan a merge
+     * does.
+     */
+    public void testRandomAccessAcrossBlocks() throws IOException {
+        final int blockSize = ColumNARDocValuesFormat.MIN_BLOCK_SIZE;
+        final BytesRef[] docs = new BytesRef[between(4 * blockSize, 6 * blockSize)];
+        for (int d = 0; d < docs.length; d++) {
+            docs[d] = new BytesRef("value-" + d);
+        }
+        withColumn(docs, blockSize, (metadata, reader) -> {
+            assertEquals("recorded block size", blockSize, reader.blockSize());
+            for (int i = 0; i < docs.length; i++) {
+                // A document's id is its value address here, since the column is dense and single-valued.
+                final int doc = between(0, docs.length - 1);
+                assertEquals("doc " + doc, docs[doc], reader.valueAt(reader.firstValueAddress(doc)));
+            }
+        });
     }
 
     public void testWideValues() throws IOException {
@@ -120,8 +158,12 @@ public class StringColumnTests extends ColumnarStringTestCase {
 
     /** Writes {@code docValues} as a string column, reads it back, and asserts every value round-trips in order. */
     private void assertColumn(BytesRef[] docValues) throws IOException {
+        assertColumn(docValues, randomValidBlockSize());
+    }
+
+    private void assertColumn(BytesRef[] docValues, int blockSize) throws IOException {
         final int numDocsWithField = numDocsWithField(docValues);
-        withColumn(docValues, (metadata, reader) -> {
+        withColumn(docValues, blockSize, (metadata, reader) -> {
             assertFalse("string columns are single-valued for now", metadata.multiValued());
             assertEquals("recorded layout", StringColumnLayout.PLAIN, metadata.layout());
             assertEquals("numValues", numDocsWithField, reader.numValues());

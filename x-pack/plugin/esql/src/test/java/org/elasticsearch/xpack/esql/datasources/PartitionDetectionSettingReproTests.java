@@ -58,12 +58,12 @@ public class PartitionDetectionSettingReproTests extends ESTestCase {
     // ---------------------------------------------------------------------------------------------------------
 
     public void testMachineryHonoursNoneWhenGivenAPartitionConfig() throws IOException {
-        FileList listing = GlobExpander.expandGlob(HIVE_PATTERN, provider(HIVE_TREE), null, true, config("none", null), Map.of());
+        FileList listing = GlobExpander.expandGlob(HIVE_PATTERN, provider(HIVE_TREE), null, partitionSettings("none", null));
         assertNull("the NONE strategy suppresses detection when the config reaches the expander", listing.partitionMetadata());
     }
 
     public void testMachineryHonoursTemplateWhenGivenAPartitionConfig() throws IOException {
-        FileList listing = GlobExpander.expandGlob(FLAT_PATTERN, provider(FLAT_TREE), null, true, config("template", "{year}"), Map.of());
+        FileList listing = GlobExpander.expandGlob(FLAT_PATTERN, provider(FLAT_TREE), null, partitionSettings("template", "{year}"));
         assertEquals("the TEMPLATE strategy names the column after the template placeholder", Set.of("year"), columnsOf(listing));
     }
 
@@ -94,6 +94,35 @@ public class PartitionDetectionSettingReproTests extends ESTestCase {
             columnsOf(viaUndocumentedSetting),
             columnsOf(viaDocumentedSetting)
         );
+    }
+
+    /**
+     * The load-bearing BWC shape. {@code {partition_detection: hive, hive_partitioning: "false"}} was registerable
+     * before this validation existed, and read with detection OFF because the boolean short-circuited first. It
+     * must keep reading that way now that the two settings resolve through one strategy — verified here at the
+     * read-path grain, not just at {@code fromConfig}.
+     */
+    public void testGrandfatheredHiveFalseWithExplicitStrategyStillDisablesDetection() throws IOException {
+        FileList listing = expandAsResolverDoes(
+            HIVE_PATTERN,
+            HIVE_TREE,
+            Map.of("partition_detection", "hive", PartitionConfig.CONFIG_PARTITIONING_HIVE, "false")
+        );
+        assertNull("hive_partitioning:false must still win over an explicit strategy", listing.partitionMetadata());
+    }
+
+    /**
+     * A stored template naming no columns — {@code year={year}} is not a whole-segment placeholder — must read as
+     * "no partitions" rather than throwing. {@code TemplatePartitionDetector}'s constructor rejects such a
+     * template, so without the guard in {@code resolveDetector} this shape would 400 on every query.
+     */
+    public void testStoredPlaceholderlessTemplateDetectsNothingRatherThanThrowing() throws IOException {
+        FileList listing = expandAsResolverDoes(
+            HIVE_PATTERN,
+            HIVE_TREE,
+            Map.of("partition_detection", "template", "partition_path", "year={year}/month={month}")
+        );
+        assertNull("a placeholderless template detects nothing and must not throw", listing.partitionMetadata());
     }
 
     /**
@@ -159,11 +188,11 @@ public class PartitionDetectionSettingReproTests extends ESTestCase {
      * the setting is wired, so it belongs in the same change.
      */
     public void testListingCacheIdentityBindsThePartitionStrategy() throws IOException {
-        FileList none = GlobExpander.expandGlob(HIVE_PATTERN, provider(HIVE_TREE), null, true, config("none", null), Map.of());
-        FileList hive = GlobExpander.expandGlob(HIVE_PATTERN, provider(HIVE_TREE), null, true, config("hive", null), Map.of());
+        FileList none = GlobExpander.expandGlob(HIVE_PATTERN, provider(HIVE_TREE), null, partitionSettings("none", null));
+        FileList hive = GlobExpander.expandGlob(HIVE_PATTERN, provider(HIVE_TREE), null, partitionSettings("hive", null));
         assertNotEquals("the two strategies must produce different listings for this to matter", columnsOf(none), columnsOf(hive));
 
-        String discriminator = GlobExpander.listingCacheDiscriminator(HIVE_PATTERN, null, true);
+        String discriminator = GlobExpander.listingCacheDiscriminator(HIVE_PATTERN, null, partitionSettings("none", null));
         assertTrue(
             "the listing cache identity ["
                 + discriminator
@@ -183,9 +212,7 @@ public class PartitionDetectionSettingReproTests extends ESTestCase {
      * {@link PartitionConfig}. Mirrors {@code ExternalSourceResolver.isHivePartitioningEnabled}.
      */
     private static FileList expandAsResolverDoes(String pattern, List<StorageEntry> tree, Map<String, Object> settings) throws IOException {
-        Object hive = settings.get(PartitionConfig.CONFIG_PARTITIONING_HIVE);
-        boolean hivePartitioning = hive == null || "false".equalsIgnoreCase(hive.toString()) == false;
-        return GlobExpander.expand(pattern, provider(tree), null, hivePartitioning, MAX, MAX);
+        return GlobExpander.expand(pattern, provider(tree), null, settings, MAX, MAX);
     }
 
     private static Map<String, Object> settingsFor(String strategy) {
@@ -194,10 +221,11 @@ public class PartitionDetectionSettingReproTests extends ESTestCase {
             : Map.of("partition_detection", strategy);
     }
 
-    private static PartitionConfig config(String strategy, String template) {
-        return PartitionConfig.fromConfig(
-            template == null ? Map.of("partition_detection", strategy) : Map.of("partition_detection", strategy, "partition_path", template)
-        );
+    /** The dataset settings a user would register for a given strategy. */
+    private static Map<String, Object> partitionSettings(String strategy, String template) {
+        return template == null
+            ? Map.of("partition_detection", strategy)
+            : Map.of("partition_detection", strategy, "partition_path", template);
     }
 
     private static Set<String> columnsOf(FileList listing) {

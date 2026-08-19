@@ -1,7 +1,8 @@
-// Product-level reproductions for `partition_detection` having no effect on the read path.
+// End-to-end pins for `partition_detection` reaching the read path (elastic/esql-planning#1749).
 //
-// `control*` cases pass and pin today's behaviour — they exist so the `repro*` failures cannot be dismissed as a
-// broken harness. `repro*` cases assert what the setting promises and fail against main.
+// These began as reproductions: the `repro*` cases were red against main, where the setting was parsed, stored and
+// then never consumed, so the Hive detector ran whatever the user asked for. They are regression pins now — a
+// `repro*` case going red again means the setting has stopped reaching the read path.
 //
 // A csv-spec has no error channel, so only the promises expressible as a result table live here; the promises
 // whose fulfilment is an absence — suppressed partition metadata — or a cache-identity property are pinned in
@@ -33,8 +34,8 @@ count:long | lang:integer
 ;
 
 // ---------------------------------------------------------------------------------------------------------
-// Control — the one partition switch that reaches the read path. Undocumented, and the only way to turn
-// detection off today. It works, which is what makes the documented spelling a defect and not a limitation.
+// The legacy switch. It now resolves through the same PartitionConfig as everything else (folded to
+// Strategy.NONE), so it must keep behaving exactly as it always has.
 // ---------------------------------------------------------------------------------------------------------
 
 controlHivePartitioningFalseTurnsDetectionOff
@@ -49,12 +50,8 @@ count:long
 ;
 
 // ---------------------------------------------------------------------------------------------------------
-// Repro 1 — a `partition_path` template is silently ignored.
-//
-// The template names the partition column `bucket`. Under a working TEMPLATE strategy `bucket` is the partition
-// column. On main the Hive detector runs regardless, `bucket` never exists, and the query fails with
-// `Unknown column [bucket]` — the template was dropped with no error and no warning at registration or at query
-// time. The failure IS the reproduction.
+// A `partition_path` template names the partition column. Against main this failed with `Unknown column [bucket]`
+// because the Hive detector ran regardless and the template was dropped with no error and no warning.
 // ---------------------------------------------------------------------------------------------------------
 
 reproTemplateStrategyNamesTheColumnFromTheTemplate
@@ -75,12 +72,10 @@ count:long | bucket:keyword
 ;
 
 // ---------------------------------------------------------------------------------------------------------
-// Control — silent column substitution on a colliding layout.
-//
-// The directory key `languages` is also a real column inside the parquet files. The path-derived value wins and
-// the physical column is hidden (Spark/DuckDB semantics), and the response carries a warning saying so. Note what
-// that warning tells the user to do: set `hive_partitioning` to false — the UNDOCUMENTED setting — because the
-// documented `partition_detection: none` does not work.
+// Silent column substitution on a colliding layout: the directory key `languages` is also a real column inside the
+// parquet files. The path-derived value wins and the physical column is hidden (Spark/DuckDB semantics), and the
+// response warns. The warning now points at `partition_detection: none`, which is the setting that actually
+// switches it off.
 // ---------------------------------------------------------------------------------------------------------
 
 controlShadowedColumnSubstitutionAndWarning
@@ -104,11 +99,9 @@ count:long | languages:integer
 ;
 
 // ---------------------------------------------------------------------------------------------------------
-// Repro 2 — the documented opt-out cannot stop that substitution.
-//
-// Same dataset, plus `partition_detection: none`. Asking for no path-derived columns must mean nothing is
-// shadowed, so no shadow warning may be emitted. On main the warning still fires: the user explicitly asked for
-// no partition detection and was still told one of their own columns had been replaced by a directory name.
+// The documented opt-out stops the substitution: with `partition_detection: none` nothing is path-derived, so the
+// physical column is read and no shadow warning is emitted. Against main the warning still fired — the user asked
+// for no partition detection and was told one of their own columns had been replaced by a directory name.
 // ---------------------------------------------------------------------------------------------------------
 
 reproNoneStopsTheColumnSubstitution

@@ -21,12 +21,30 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
 public class GlobExpanderTests extends ESTestCase {
+
+    /** No partition settings: the default, which resolves to AUTO and behaves as Hive detection did. */
+    private static final Map<String, Object> HIVE_ON = Map.of();
+
+    /** The legacy switch that turns partition detection off, now folded into Strategy.NONE. */
+    private static final Map<String, Object> HIVE_OFF = Map.of(PartitionConfig.CONFIG_PARTITIONING_HIVE, "false");
+
+    /** The settings map a PartitionConfig-shaped test intent resolves from. */
+    private static Map<String, Object> configMapOf(PartitionConfig config) {
+        Map<String, Object> settings = new HashMap<>();
+        settings.put(PartitionConfig.CONFIG_PARTITIONING_DETECTION, config.strategy().name().toLowerCase(Locale.ROOT));
+        if (config.pathTemplate() != null) {
+            settings.put(PartitionConfig.CONFIG_PARTITIONING_PATH, config.pathTemplate());
+        }
+        return settings;
+    }
 
     // -- isMultiFile --
 
@@ -207,7 +225,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
 
         var hints = List.of(hint("category", PartitionFilterHintExtractor.Operator.IN, "login", "ns:click"));
-        FileList result = GlobExpander.expand("s3://bucket/data/category=*/*.parquet", provider, hints, true, MAX, MAX);
+        FileList result = GlobExpander.expand("s3://bucket/data/category=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
         List<String> paths = new ArrayList<>();
         for (int i = 0; i < result.fileCount(); i++) {
@@ -251,7 +269,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, true);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, HIVE_ON);
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
         assertNotNull(result.partitionMetadata());
@@ -266,7 +284,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, false);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, HIVE_OFF);
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
         assertNull(result.partitionMetadata());
@@ -280,7 +298,7 @@ public class GlobExpanderTests extends ESTestCase {
         StubProvider provider = new StubProvider(listing);
 
         @SuppressWarnings("RegexpMultiline")
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/**/*.parquet", provider, null, true);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**/*.parquet", provider, null, HIVE_ON);
         assertTrue(result.isResolved());
         assertNull(result.partitionMetadata());
     }
@@ -338,7 +356,7 @@ public class GlobExpanderTests extends ESTestCase {
         PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}");
 
         @SuppressWarnings("RegexpMultiline")
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/**/*.parquet", provider, null, true, config, Map.of());
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**/*.parquet", provider, null, configMapOf(config));
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
         assertNotNull(result.partitionMetadata());
@@ -354,7 +372,7 @@ public class GlobExpanderTests extends ESTestCase {
         StubProvider provider = new StubProvider(listing);
         PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.NONE, null);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, true, config, Map.of());
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, configMapOf(config));
         assertTrue(result.isResolved());
         assertNull(result.partitionMetadata());
     }
@@ -370,7 +388,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider, null, true, 10, Integer.MAX_VALUE)
+            () -> GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider, null, HIVE_ON, 10, Integer.MAX_VALUE)
         );
         assertThat(e.getMessage(), containsString("Glob pattern discovered too many files"));
         assertThat(e.getMessage(), containsString("limit 10"));
@@ -384,7 +402,7 @@ public class GlobExpanderTests extends ESTestCase {
         }
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider, null, true, 10, Integer.MAX_VALUE);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider, null, HIVE_ON, 10, Integer.MAX_VALUE);
         assertTrue(result.isResolved());
         assertEquals(10, result.fileCount());
     }
@@ -396,7 +414,7 @@ public class GlobExpanderTests extends ESTestCase {
         }
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider, null, true, 10, Integer.MAX_VALUE);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider, null, HIVE_ON, 10, Integer.MAX_VALUE);
         assertTrue(result.isResolved());
         assertEquals(5, result.fileCount());
     }
@@ -417,7 +435,7 @@ public class GlobExpanderTests extends ESTestCase {
                 "s3://bucket/data/*.parquet, s3://bucket/extra1.parquet, s3://bucket/extra2.parquet, s3://bucket/extra3.parquet",
                 provider,
                 null,
-                true,
+                HIVE_ON,
                 9,
                 Integer.MAX_VALUE
             )
@@ -432,7 +450,7 @@ public class GlobExpanderTests extends ESTestCase {
         provider.existingPaths.add("s3://bucket/a.parquet");
         provider.existingPaths.add("s3://bucket/b.parquet");
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/{a,b}.parquet", provider, null, true);
+        FileList result = GlobExpander.expandGlob("s3://bucket/{a,b}.parquet", provider, null, HIVE_ON);
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
         assertEquals("s3://bucket/a.parquet", result.path(0).toString());
@@ -444,7 +462,7 @@ public class GlobExpanderTests extends ESTestCase {
         provider.existingPaths.add("s3://bucket/a.parquet");
         provider.existingPaths.add("s3://bucket/c.parquet");
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/{a,b,c}.parquet", provider, null, true);
+        FileList result = GlobExpander.expandGlob("s3://bucket/{a,b,c}.parquet", provider, null, HIVE_ON);
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
     }
@@ -452,7 +470,7 @@ public class GlobExpanderTests extends ESTestCase {
     public void testExpandGlobBraceOnlyAllMissingReturnsEmpty() throws IOException {
         StubProvider provider = new StubProvider(List.of());
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/{a,b}.parquet", provider, null, true);
+        FileList result = GlobExpander.expandGlob("s3://bucket/{a,b}.parquet", provider, null, HIVE_ON);
         assertTrue(result.isEmpty());
     }
 
@@ -460,7 +478,7 @@ public class GlobExpanderTests extends ESTestCase {
         List<StorageEntry> listing = List.of(entry("s3://bucket/a/file.parquet", 100), entry("s3://bucket/b/file.parquet", 200));
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/{a,b}/*.parquet", provider, null, true);
+        FileList result = GlobExpander.expandGlob("s3://bucket/{a,b}/*.parquet", provider, null, HIVE_ON);
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
     }
@@ -476,7 +494,7 @@ public class GlobExpanderTests extends ESTestCase {
         pattern.append("}.parquet");
         StubProvider provider = new StubProvider(listing);
 
-        FileList result = GlobExpander.expandGlob(pattern.toString(), provider, null, true, 10000, 5);
+        FileList result = GlobExpander.expandGlob(pattern.toString(), provider, null, HIVE_ON, 10000, 5);
         assertTrue(result.isResolved());
         assertEquals(200, result.fileCount());
     }
@@ -486,7 +504,7 @@ public class GlobExpanderTests extends ESTestCase {
         provider.existingPaths.add("s3://bucket/year=2024/data.parquet");
         provider.existingPaths.add("s3://bucket/year=2025/data.parquet");
 
-        FileList result = GlobExpander.expandGlob("s3://bucket/year={2024,2025}/data.parquet", provider, null, true);
+        FileList result = GlobExpander.expandGlob("s3://bucket/year={2024,2025}/data.parquet", provider, null, HIVE_ON);
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
     }
@@ -498,7 +516,7 @@ public class GlobExpanderTests extends ESTestCase {
         provider.existingPaths.add("s3://bucket/year=2024/data.parquet");
 
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
-        FileList result = GlobExpander.expandGlob("s3://bucket/year=*/data.parquet", provider, hints, true);
+        FileList result = GlobExpander.expandGlob("s3://bucket/year=*/data.parquet", provider, hints, HIVE_ON);
         assertTrue(result.isResolved());
         assertEquals(1, result.fileCount());
         assertEquals("s3://bucket/year=2024/data.parquet", result.path(0).toString());
@@ -508,7 +526,7 @@ public class GlobExpanderTests extends ESTestCase {
         StubProvider provider = new StubProvider(List.of());
 
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
-        FileList result = GlobExpander.expandGlob("s3://bucket/year=*/data.parquet", provider, hints, true);
+        FileList result = GlobExpander.expandGlob("s3://bucket/year=*/data.parquet", provider, hints, HIVE_ON);
         assertTrue(result.isEmpty());
     }
 
@@ -517,7 +535,7 @@ public class GlobExpanderTests extends ESTestCase {
         provider.existingPaths.add("s3://bucket/year=2024/data.parquet");
 
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
-        FileList result = GlobExpander.expandGlob("s3://bucket/year=*/data.parquet", provider, hints, true);
+        FileList result = GlobExpander.expandGlob("s3://bucket/year=*/data.parquet", provider, hints, HIVE_ON);
         assertTrue(result.isResolved());
         assertNotNull(result.partitionMetadata());
         assertTrue(result.partitionMetadata().partitionColumns().containsKey("year"));
@@ -525,7 +543,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     public void testExpandGlobLiteralWithoutHintsStillReturnsUnresolved() throws IOException {
         StubProvider provider = new StubProvider(List.of());
-        FileList result = GlobExpander.expandGlob("s3://bucket/year=2024/data.parquet", provider, null, true);
+        FileList result = GlobExpander.expandGlob("s3://bucket/year=2024/data.parquet", provider, null, HIVE_ON);
         assertFalse(result.isResolved());
     }
 
@@ -537,7 +555,7 @@ public class GlobExpanderTests extends ESTestCase {
         StubProvider provider = new StubProvider(listing);
 
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
-        FileList result = GlobExpander.expandGlob("s3://bucket/year=*/*.parquet", provider, hints, true);
+        FileList result = GlobExpander.expandGlob("s3://bucket/year=*/*.parquet", provider, hints, HIVE_ON);
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
     }
@@ -555,7 +573,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
 
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2099));
-        FileList result = GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, true, MAX, MAX);
+        FileList result = GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
         assertEquals(1, result.fileCount());
         assertEquals("s3://bucket/data/year=2024/a.parquet", result.path(0).toString());
@@ -572,7 +590,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
 
         var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6));
-        FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, true, MAX, MAX);
+        FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
         assertEquals("the zero-padded folder must still be listed", 1, result.fileCount());
         assertEquals("s3://bucket/data/month=06/a.parquet", result.path(0).toString());
@@ -589,7 +607,7 @@ public class GlobExpanderTests extends ESTestCase {
         provider.throwOnUnknownPrefix = true;
 
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2099));
-        FileList result = GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, true, MAX, MAX);
+        FileList result = GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
         assertEquals(1, result.fileCount());
     }
@@ -605,7 +623,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
 
         var hints = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "nope.parquet"));
-        FileList result = GlobExpander.expand("s3://bucket/data/*.parquet", provider, hints, true, MAX, MAX);
+        FileList result = GlobExpander.expand("s3://bucket/data/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
         assertEquals(2, result.fileCount());
         assertEquals("an exact _file.* prune is retained in one listing pass, not re-listed", 1, provider.listCallCount);
@@ -627,7 +645,14 @@ public class GlobExpanderTests extends ESTestCase {
         );
 
         var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6));
-        FileList result = GlobExpander.expand("s3://bucket/a/month=*/*.parquet,s3://bucket/b/*.parquet", provider, hints, true, MAX, MAX);
+        FileList result = GlobExpander.expand(
+            "s3://bucket/a/month=*/*.parquet,s3://bucket/b/*.parquet",
+            provider,
+            hints,
+            HIVE_ON,
+            MAX,
+            MAX
+        );
 
         List<String> paths = new ArrayList<>();
         for (int i = 0; i < result.fileCount(); i++) {
@@ -653,7 +678,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
 
         var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.IN, 6, 11));
-        FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, true, MAX, MAX);
+        FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
         List<String> paths = new ArrayList<>();
         for (int i = 0; i < result.fileCount(); i++) {
@@ -677,7 +702,14 @@ public class GlobExpanderTests extends ESTestCase {
         provider.throwOnUnknownPrefix = true;
 
         var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6));
-        FileList result = GlobExpander.expand("s3://bucket/a/month=*/*.parquet,s3://bucket/b/*.parquet", provider, hints, true, MAX, MAX);
+        FileList result = GlobExpander.expand(
+            "s3://bucket/a/month=*/*.parquet,s3://bucket/b/*.parquet",
+            provider,
+            hints,
+            HIVE_ON,
+            MAX,
+            MAX
+        );
 
         assertEquals(2, result.fileCount());
     }
@@ -703,7 +735,7 @@ public class GlobExpanderTests extends ESTestCase {
             hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6),
             hint(FileMetadataColumns.SIZE, PartitionFilterHintExtractor.Operator.GREATER_THAN, 100)
         );
-        FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, true, MAX, MAX);
+        FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
         List<String> paths = new ArrayList<>();
         for (int i = 0; i < result.fileCount(); i++) {
@@ -728,7 +760,7 @@ public class GlobExpanderTests extends ESTestCase {
             hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6),
             hint(FileMetadataColumns.SIZE, PartitionFilterHintExtractor.Operator.GREATER_THAN, 1_000_000)
         );
-        FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, true, MAX, MAX);
+        FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
         assertTrue(result.isResolved());
         assertEquals(1, result.fileCount());
@@ -740,7 +772,7 @@ public class GlobExpanderTests extends ESTestCase {
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(Map.of("s3://bucket/data/", List.of()));
 
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2099));
-        FileList result = GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, true, MAX, MAX);
+        FileList result = GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
         assertTrue(result.isResolved());
         assertEquals(0, result.fileCount());
@@ -750,7 +782,7 @@ public class GlobExpanderTests extends ESTestCase {
     public void testUnhintedEmptyListingIsNotRetried() throws IOException {
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(Map.of("s3://bucket/data/", List.of()));
 
-        FileList result = GlobExpander.expand("s3://bucket/data/*.parquet", provider, null, true, MAX, MAX);
+        FileList result = GlobExpander.expand("s3://bucket/data/*.parquet", provider, null, HIVE_ON, MAX, MAX);
 
         assertEquals(0, result.fileCount());
         assertEquals("no hints, so no fallback listing", 1, provider.listCallCount);
@@ -776,7 +808,7 @@ public class GlobExpanderTests extends ESTestCase {
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2099));
         var e = expectThrows(
             IllegalArgumentException.class,
-            () -> GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, true, 2, MAX)
+            () -> GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, HIVE_ON, 2, MAX)
         );
         assertThat(e.getMessage(), containsString("discovered too many files"));
     }
@@ -811,7 +843,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         Map<String, List<String>> listingByDiscriminator = new HashMap<>();
         for (var hints : hintSets) {
-            for (boolean hive : List.of(true, false)) {
+            for (Map<String, Object> hive : List.of(HIVE_ON, HIVE_OFF)) {
                 String discriminator = GlobExpander.listingCacheDiscriminator(pattern, hints, hive);
                 List<String> files = new ArrayList<>();
                 FileList expanded = GlobExpander.expand(pattern, new PrefixAwareStubProvider(tree), hints, hive, MAX, MAX);
@@ -833,45 +865,45 @@ public class GlobExpanderTests extends ESTestCase {
      */
     public void testDiscriminatorIgnoresHintsThatCannotNarrowTheListing() {
         String pattern = "s3://bucket/data/*.parquet";
-        String unhinted = GlobExpander.listingCacheDiscriminator(pattern, null, true);
+        String unhinted = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON);
 
         var dataColumnHint = List.of(hint("user_id", PartitionFilterHintExtractor.Operator.EQUALS, 42));
-        assertEquals(unhinted, GlobExpander.listingCacheDiscriminator(pattern, dataColumnHint, true));
+        assertEquals(unhinted, GlobExpander.listingCacheDiscriminator(pattern, dataColumnHint, HIVE_ON));
 
         // A `year=*` segment is absent from this pattern, so even a rewritable hint cannot narrow it.
         var absentPartitionHint = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
-        assertEquals(unhinted, GlobExpander.listingCacheDiscriminator(pattern, absentPartitionHint, true));
+        assertEquals(unhinted, GlobExpander.listingCacheDiscriminator(pattern, absentPartitionHint, HIVE_ON));
     }
 
     /** Every input that changes the listing must change the discriminator. */
     public void testDiscriminatorSeparatesHintsThatNarrowTheListing() {
         String keyed = "s3://bucket/data/year=*/*.parquet";
         String plain = "s3://bucket/data/*.parquet";
-        String unhintedKeyed = GlobExpander.listingCacheDiscriminator(keyed, null, true);
+        String unhintedKeyed = GlobExpander.listingCacheDiscriminator(keyed, null, HIVE_ON);
 
         var year2024 = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
         var year2025 = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025));
-        assertNotEquals(unhintedKeyed, GlobExpander.listingCacheDiscriminator(keyed, year2024, true));
+        assertNotEquals(unhintedKeyed, GlobExpander.listingCacheDiscriminator(keyed, year2024, HIVE_ON));
         assertNotEquals(
-            GlobExpander.listingCacheDiscriminator(keyed, year2024, true),
-            GlobExpander.listingCacheDiscriminator(keyed, year2025, true)
+            GlobExpander.listingCacheDiscriminator(keyed, year2024, HIVE_ON),
+            GlobExpander.listingCacheDiscriminator(keyed, year2025, HIVE_ON)
         );
 
         // hive_partitioning gates the rewrite and selects the partition metadata carried by the cached listing.
-        assertNotEquals(unhintedKeyed, GlobExpander.listingCacheDiscriminator(keyed, null, false));
+        assertNotEquals(unhintedKeyed, GlobExpander.listingCacheDiscriminator(keyed, null, HIVE_OFF));
 
         var fileName = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "a.parquet"));
         assertNotEquals(
-            GlobExpander.listingCacheDiscriminator(plain, null, true),
-            GlobExpander.listingCacheDiscriminator(plain, fileName, true)
+            GlobExpander.listingCacheDiscriminator(plain, null, HIVE_ON),
+            GlobExpander.listingCacheDiscriminator(plain, fileName, HIVE_ON)
         );
 
         // A value's type is part of its identity: _file.name == "6" and _file.name == 6 do not filter alike.
         var nameSix = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "6"));
         var nameSixInt = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, 6));
         assertNotEquals(
-            GlobExpander.listingCacheDiscriminator(plain, nameSix, true),
-            GlobExpander.listingCacheDiscriminator(plain, nameSixInt, true)
+            GlobExpander.listingCacheDiscriminator(plain, nameSix, HIVE_ON),
+            GlobExpander.listingCacheDiscriminator(plain, nameSixInt, HIVE_ON)
         );
     }
 
@@ -880,8 +912,8 @@ public class GlobExpanderTests extends ESTestCase {
         String paths = "s3://bucket/a/year=*/*.parquet,s3://bucket/b/plain.parquet";
         var year2024 = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
 
-        String unhinted = GlobExpander.listingCacheDiscriminator(paths, null, true);
-        String hinted = GlobExpander.listingCacheDiscriminator(paths, year2024, true);
+        String unhinted = GlobExpander.listingCacheDiscriminator(paths, null, HIVE_ON);
+        String hinted = GlobExpander.listingCacheDiscriminator(paths, year2024, HIVE_ON);
 
         assertNotEquals(unhinted, hinted);
         assertThat(hinted, containsString("s3://bucket/a/year=2024/*.parquet"));
@@ -902,16 +934,16 @@ public class GlobExpanderTests extends ESTestCase {
         );
         var twoValues = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.IN, "a", "b"));
         assertNotEquals(
-            GlobExpander.listingCacheDiscriminator(pattern, oneSplicedValue, true),
-            GlobExpander.listingCacheDiscriminator(pattern, twoValues, true)
+            GlobExpander.listingCacheDiscriminator(pattern, oneSplicedValue, HIVE_ON),
+            GlobExpander.listingCacheDiscriminator(pattern, twoValues, HIVE_ON)
         );
 
         // A value carrying the top-level joiner must not fake the pattern/hints boundary.
         var nullByteValue = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "x\u0000y"));
         var plainValue = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "xy"));
         assertNotEquals(
-            GlobExpander.listingCacheDiscriminator(pattern, nullByteValue, true),
-            GlobExpander.listingCacheDiscriminator(pattern, plainValue, true)
+            GlobExpander.listingCacheDiscriminator(pattern, nullByteValue, HIVE_ON),
+            GlobExpander.listingCacheDiscriminator(pattern, plainValue, HIVE_ON)
         );
     }
 
@@ -925,6 +957,47 @@ public class GlobExpanderTests extends ESTestCase {
         Object... values
     ) {
         return new PartitionFilterHintExtractor.PartitionFilterHint(column, op, List.of(values));
+    }
+
+    /**
+     * The {@code NONE} gate in {@code effectivePattern} replaced a {@code hivePartitioning == false} short-circuit,
+     * so a template-partitioned dataset can now narrow its glob from a filter hint — it never could before, because
+     * pruning keyed off the Hive boolean. Driven through the PUBLIC entry so it exercises the boundary resolution,
+     * not just the rewrite helper.
+     */
+    public void testTemplateConfigNarrowsGlobWithHints() throws IOException {
+        Map<String, List<StorageEntry>> tree = new HashMap<>();
+        tree.put("s3://bucket/logs/", List.of(entry("s3://bucket/logs/2024/a.parquet", 1), entry("s3://bucket/logs/2025/b.parquet", 1)));
+        tree.put("s3://bucket/logs/2024/", List.of(entry("s3://bucket/logs/2024/a.parquet", 1)));
+        tree.put("s3://bucket/logs/2025/", List.of(entry("s3://bucket/logs/2025/b.parquet", 1)));
+
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = List.of(
+            new PartitionFilterHintExtractor.PartitionFilterHint("year", PartitionFilterHintExtractor.Operator.EQUALS, List.of("2024"))
+        );
+        Map<String, Object> templateSettings = Map.of(
+            PartitionConfig.CONFIG_PARTITIONING_DETECTION,
+            "template",
+            PartitionConfig.CONFIG_PARTITIONING_PATH,
+            "{year}"
+        );
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/logs/*/*.parquet",
+            new PrefixAwareStubProvider(tree),
+            hints,
+            templateSettings,
+            MAX,
+            MAX
+        );
+
+        assertEquals(
+            "the template partition column must be detected",
+            Set.of("year"),
+            result.partitionMetadata().partitionColumns().keySet()
+        );
+        for (int i = 0; i < result.fileCount(); i++) {
+            assertThat("only the 2024 partition may survive the rewrite", result.path(i).toString(), containsString("/2024/"));
+        }
     }
 
     /**

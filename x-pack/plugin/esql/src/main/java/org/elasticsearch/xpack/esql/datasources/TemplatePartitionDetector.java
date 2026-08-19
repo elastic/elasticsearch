@@ -65,7 +65,7 @@ public final class TemplatePartitionDetector implements PartitionDetector {
     }
 
     @Override
-    public PartitionMetadata detect(List<StorageEntry> files, Map<String, Object> config) {
+    public PartitionMetadata detect(List<StorageEntry> files) {
         if (files == null || files.isEmpty()) {
             return PartitionMetadata.EMPTY;
         }

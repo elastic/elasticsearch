@@ -359,13 +359,13 @@ tests:
   method: testWildcardSpanningIndexAndDatasetSucceeds
   issue: https://github.com/elastic/elasticsearch/issues/154200
 - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
-  method: testMaxExpressionDepth_nestedAbs_minOverflow {default}
+  method: testMaxExpressionDepth_nestedAbs_minOverflow {default *}
   issue: https://github.com/elastic/elasticsearch/issues/154341
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/151923
 - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
-  method: testMaxExpressionDepth_nestedAbs_maxAllowed {default}
+  method: testMaxExpressionDepth_nestedAbs_maxAllowed {default *}
   issue: https://github.com/elastic/elasticsearch/issues/154380
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:BASELINE}

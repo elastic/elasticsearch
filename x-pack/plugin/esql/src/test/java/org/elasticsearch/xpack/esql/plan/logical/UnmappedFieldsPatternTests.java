@@ -144,6 +144,15 @@ public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<U
         assertTrue(fixedSuffixDrop.matches("unmapped.deep.leaf"));
     }
 
+    public void testExactExcludeWithLiteralStarIsMatchedLiterallyNotAsWildcard() {
+        // A backtick-escaped KEEP term like `samples*` demand-loads a column named literally "samples*", added here as an exact exclude. It
+        // must exclude only that column, not glob-match sibling leaves like samples.nested (data-node object push and coordinator filter).
+        UnmappedFieldsPattern pattern = UnmappedFieldsPattern.ALL.withAdditionalExcludes(List.of("samples*"));
+        assertFalse(pattern.matches("samples*"));
+        assertTrue(pattern.matches("samples.nested"));
+        assertTrue(pattern.matchesObjectPush("samples"));
+    }
+
     /**
      * {@link UnmappedFieldsPattern#keepOrdered} reproduces {@code Analyzer.keepResolver}'s ordering: priority is explicit name &gt;
      * non-bare wildcard &gt; bare {@code *}, and a later term of equal-or-higher priority moves a column to the end. These are the worked

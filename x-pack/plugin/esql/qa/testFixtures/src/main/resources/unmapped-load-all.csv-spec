@@ -587,6 +587,22 @@ id:keyword | samples*:keyword | tags:keyword
 3          | null             | web
 ;
 
+escapedWildcardKeepNameIsExplicitNotPattern_CombinedWith_WildcardedPatterns
+required_capability: optional_fields_load_all
+required_capability: optional_fields_fix_load_object_from_synthetic_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_array_data
+| KEEP `samples*`, samples*, samples.*, samples.nest*, id, *
+| SORT id
+;
+
+samples*:keyword | samples.nested:keyword | id:keyword | tags:keyword
+null             | [x, y]                 | 1          | [web, api]
+null             | z                      | 2          | web
+null             | null                   | 3          | web
+;
+
 unescapedWildcardKeepNameMatchesLeaves
 required_capability: optional_fields_load_all
 required_capability: optional_fields_fix_load_object_from_synthetic_source

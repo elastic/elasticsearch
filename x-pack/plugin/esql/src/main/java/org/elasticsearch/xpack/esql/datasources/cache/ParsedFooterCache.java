@@ -141,6 +141,9 @@ public final class ParsedFooterCache<T> {
      * @throws IllegalArgumentException if {@code value} is null
      */
     public void put(FooterByteCache.Key key, T value) {
+        if (key == null) {
+            throw new IllegalArgumentException("cache key must not be null");
+        }
         if (value == null) {
             throw new IllegalArgumentException("parsed footer value must not be null");
         }

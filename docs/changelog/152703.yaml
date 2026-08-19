@@ -1,0 +1,23 @@
+area: Ingest Node
+breaking:
+  area: Cluster and node setting
+  details: >-
+    Elasticsearch now bounds how much ingest pipeline data a cluster can accumulate. Pipelines are stored in the cluster state, which is
+    held in heap on every node and reserialized on every cluster state update, so an unbounded or oversized set of pipelines can
+    destabilize a cluster. Three dynamic node settings are enforced whenever a pipeline is created or updated:
+    `ingest.pipeline.max_pipelines`, the maximum number of pipelines, defaulting to `10000`; `ingest.pipeline.max_pipeline_size`, the
+    maximum serialized size of a single pipeline, defaulting to `1mb`; and `ingest.pipeline.max_total_metadata_size`, the maximum combined
+    serialized size of all pipelines, defaulting to `25mb`. Pipelines that already exist are never invalidated. They continue to work and
+    can still be retrieved, and one can still be replaced by a definition no larger than the one it supersedes even when the cluster is
+    already above a limit.
+  impact: >-
+    A request to create or update an ingest pipeline that would exceed one of these limits is rejected with an HTTP 400 error naming the
+    setting responsible. The vast majority of deployments do not approach these limits and will see no change in behavior. If you do reach a
+    limit, either delete pipelines you no longer need or raise the relevant setting with the cluster update settings API. On Elastic Cloud
+    Serverless these settings are not self-configurable; request an increase through support.
+  notable: false
+  title: Ingest pipelines are now subject to size and count limits
+issues: []
+pr: 152703
+summary: Introducing configurable limits to ingest pipelines
+type: breaking

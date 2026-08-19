@@ -73,6 +73,15 @@ public class ParsedFooterCacheTests extends ESTestCase {
         assertSame(second, cache.get(k));
     }
 
+    public void testPutRejectsNullKey() {
+        expectThrows(IllegalArgumentException.class, () -> cache.put(null, "value"));
+    }
+
+    public void testPutRejectsNullValue() {
+        FooterByteCache.Key k = key("file.parquet", 1000);
+        expectThrows(IllegalArgumentException.class, () -> cache.put(k, null));
+    }
+
     public void testGetOrLoadInvokesLoaderOnce() throws ExecutionException {
         FooterByteCache.Key k = key("file.parquet", 1000);
         String first = "first";

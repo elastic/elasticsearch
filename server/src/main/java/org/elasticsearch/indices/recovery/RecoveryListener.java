@@ -76,6 +76,7 @@ public interface RecoveryListener {
         };
     }
 
+    /// Returns a listener that delegates all outcomes to the given listener, running `runAfter` after each outcome.
     static RecoveryListener runAfter(RecoveryListener listener, Runnable runAfter) {
         return new RecoveryListener() {
             @Override
@@ -111,6 +112,7 @@ public interface RecoveryListener {
         };
     }
 
+    /// Returns a listener that delegates all outcomes to the given listener, running `runBefore` before each outcome.
     static RecoveryListener runBefore(RecoveryListener listener, Runnable runBefore) {
         return new RecoveryListener() {
             @Override

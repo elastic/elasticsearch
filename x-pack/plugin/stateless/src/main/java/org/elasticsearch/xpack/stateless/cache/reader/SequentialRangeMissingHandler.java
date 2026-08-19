@@ -201,18 +201,16 @@ public class SequentialRangeMissingHandler implements SharedBlobCacheService.Ran
         createInputStream(streamFactory, relativePos, len, completionListener.map(in -> {
             try (in) {
                 assert ThreadPool.assertCurrentThreadPool(expectedThreadPoolNames);
-                // copyToCacheFileAligned delivers cumulative totals; subtract previous to get per-chunk delta.
-                final int[] prevCumulativeBytes = { 0 };
                 final long copyStartNanos = System.nanoTime();
-                final int totalBytesCopied = SharedBytes.copyToCacheFileAligned(channel, in, channelPos, cumulativeBytes -> {
-                    // before progressUpdater: SparseFileTracker may unblock readers on advance
-                    bytesCopiedConsumer.accept(cumulativeBytes - prevCumulativeBytes[0]);
-                    prevCumulativeBytes[0] = cumulativeBytes;
-                    progressUpdater.accept(cumulativeBytes);
-                }, writeBufferSupplier.get());
-                if (totalBytesCopied > 0) {
-                    cacheBlobReader.onCopyCompleted(totalBytesCopied, System.nanoTime() - copyStartNanos);
-                }
+                SharedBytes.copyToCacheFileAligned(
+                    channel,
+                    in,
+                    channelPos,
+                    progressUpdater,
+                    bytesCopiedConsumer,
+                    totalBytes -> cacheBlobReader.onCopyCompleted(totalBytes, System.nanoTime() - copyStartNanos),
+                    writeBufferSupplier.get()
+                );
                 return null;
             }
         }));

@@ -50,11 +50,15 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
      * Records the elapsed time of the full range copy. Called once per range, after all chunks have landed
      * and after the {@link org.elasticsearch.blobcache.common.SparseFileTracker} has advanced. Safe to call
      * after the reader has been unblocked because this only affects throughput telemetry, not byte counters.
+     * <p>
+     * Not called when no bytes were copied (totalBytesRead == 0).
      */
     @Override
     public void onCopyCompleted(int totalBytesRead, long timeNanos) {
         try {
-            readCompleteCallback.onReadCompleted(totalBytesRead, timeNanos);
+            if (totalBytesRead > 0) {
+                readCompleteCallback.onReadCompleted(totalBytesRead, timeNanos);
+            }
         } catch (Exception e) {
             logger.debug("Error calling timing call-back", e);
         }
@@ -74,7 +78,9 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
         default void onBytesRead(int bytesRead) {}
 
         /**
-         * Notify that a stream was consumed
+         * Notify that a stream was consumed.
+         * <p>
+         * Not called when no bytes were copied (totalBytesRead == 0)
          *
          * @param totalBytesRead Total bytes read
          * @param timeToReadNanos The time between the first byte being read and the stream being closed (in nanoseconds)
@@ -111,9 +117,9 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
             return bytesRead;
         }
 
-        private void notifyBytesRead(int n) {
+        private void notifyBytesRead(int bytesRead) {
             try {
-                readCompleteCallback.onBytesRead(n);
+                readCompleteCallback.onBytesRead(bytesRead);
             } catch (Exception e) {
                 logger.debug("Error calling call-back", e);
             }

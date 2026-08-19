@@ -10,9 +10,9 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
-class MlWithSecurityClusters {
+class Clusters {
 
-    private MlWithSecurityClusters() {}
+    private Clusters() {}
 
     static ElasticsearchCluster create() {
         return ElasticsearchCluster.local()

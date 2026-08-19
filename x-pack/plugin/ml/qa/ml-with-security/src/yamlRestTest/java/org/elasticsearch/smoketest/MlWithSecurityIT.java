@@ -25,7 +25,7 @@ public class MlWithSecurityIT extends AbstractXPackRestTest {
     private static final String TEST_ADMIN_USERNAME = "x_pack_rest_user";
 
     @ClassRule
-    public static ElasticsearchCluster cluster = MlWithSecurityClusters.create();
+    public static ElasticsearchCluster cluster = Clusters.create();
 
     public MlWithSecurityIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

@@ -33,6 +33,7 @@ import java.util.List;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Drives string columns through the real Lucene write path — {@link IndexWriter}, several segments, deletions,
@@ -70,6 +71,36 @@ public class StringColumnMergeTests extends ESTestCase {
             }
             return values;
         });
+    }
+
+    /**
+     * A payload carrying more than one value is rejected while the column is written, not silently truncated.
+     * The check lives in the consumer, so it only fires through the real write path — a document is indexed with
+     * a multi-valued payload and the flush is expected to fail.
+     */
+    public void testMultiValuedPayloadIsRejected() throws IOException {
+        final int valueCount = between(2, 8);
+        final BytesRef[] values = new BytesRef[valueCount];
+        for (int i = 0; i < valueCount; i++) {
+            values[i] = new BytesRef("value-" + i);
+        }
+        final BytesRef payload = BytesRef.deepCopyOf(StringBinaryPayload.encode(values, valueCount, new BytesRefBuilder()));
+
+        try (Directory dir = newDirectory()) {
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec());
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                final Document doc = new Document();
+                doc.add(new Field(FIELD, payload, stringFieldType()));
+                writer.addDocument(doc);
+
+                final UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, writer::commit);
+                assertThat(e.getMessage(), containsString("single-valued"));
+                assertThat(e.getMessage(), containsString("has " + valueCount));
+
+                // The writer is left in a broken state by the failed flush, so roll back rather than close.
+                writer.rollback();
+            }
+        }
     }
 
     private interface ValueGenerator {

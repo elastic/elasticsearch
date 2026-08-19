@@ -21,7 +21,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.NumericColumnValues;
-import org.elasticsearch.columnar.string.StringColumnMetadata;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
 import java.io.IOException;
@@ -128,20 +127,6 @@ public final class ColumnarTestUtils {
         try (ChecksumIndexInput meta = dir.openChecksumInput(fileName)) {
             final FormatVersion version = ColumnarCodecUtil.checkHeader(meta, ColumNARDocValuesFormat.META_CODEC, segmentId, "");
             final NumericColumnMetadata metadata = NumericColumnMetadata.readFrom(meta, maxDoc, version);
-            ColumnarCodecUtil.checkFooter(meta);
-            return metadata;
-        }
-    }
-
-    /**
-     * Opens {@code fileName} from {@code dir}, reads and validates the ColumNAR meta header, reads
-     * the {@link StringColumnMetadata}, validates the footer, and returns the metadata.
-     */
-    public static StringColumnMetadata readStringMeta(final Directory dir, final String fileName, final byte[] segmentId, final int maxDoc)
-        throws IOException {
-        try (ChecksumIndexInput meta = dir.openChecksumInput(fileName)) {
-            final FormatVersion version = ColumnarCodecUtil.checkHeader(meta, ColumNARDocValuesFormat.META_CODEC, segmentId, "");
-            final StringColumnMetadata metadata = StringColumnMetadata.readFrom(meta, maxDoc, version);
             ColumnarCodecUtil.checkFooter(meta);
             return metadata;
         }

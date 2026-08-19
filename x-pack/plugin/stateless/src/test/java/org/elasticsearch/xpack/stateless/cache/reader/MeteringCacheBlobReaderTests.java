@@ -143,6 +143,7 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
         PlainActionFuture<InputStream> future = new PlainActionFuture<>();
         meteringCacheBlobReader.getRangeInputStream(randomInt(), randomIntBetween(16, 1024), future);
         InputStream meteredInputStream = safeGet(future);
+        // Read a byte so we execute the callback
         meteredInputStream.read();
         try (MockLog mockLog = MockLog.capture(MeteringCacheBlobReader.class)) {
             mockLog.addExpectation(

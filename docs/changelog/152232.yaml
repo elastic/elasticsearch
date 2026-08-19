@@ -1,5 +1,12 @@
 area: Ingest Node
+breaking:
+  area: Ingest Node
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false
+  title: Putting size limits on enrich policies
 issues: []
 pr: 152232
 summary: Putting size limits on enrich policies
-type: enhancement
+type: "breaking, enhancement"

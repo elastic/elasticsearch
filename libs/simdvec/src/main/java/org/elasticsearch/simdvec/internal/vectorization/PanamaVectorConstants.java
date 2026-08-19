@@ -33,6 +33,20 @@ public final class PanamaVectorConstants {
     static final VectorSpecies<Float> PREFERRED_FLOAT_SPECIES;
     static final VectorSpecies<Long> PREFERRED_LONG_SPECIES;
 
+    /*
+     * A byte species with the same number of elements as the preferred 4-byte species (float and int).
+     * Normally the size of the int species /4.
+     *
+     * For 128-bits, there isn't a byte species small enough (panama only goes down to 64-bits),
+     * so we're over-reading the bytes and throwing away the second half each iteration,
+     * due to only using the 0th part when converting to 4-byte values.
+     *
+     * For real hot paths, it's worth creating separate 128-bit methods that don't do this,
+     * but for other methods it's fine to not quite SIMD all of it and scalar process
+     * the last 8 bytes + any tail
+     */
+    static final VectorSpecies<Byte> BYTES_FOR_4BYTE_SPECIES;
+
     static {
         var vs = OptionalInt.empty();
         try {
@@ -58,6 +72,20 @@ public final class PanamaVectorConstants {
         // to be fair, they do document this thing only works well with AVX2/AVX3 and Neon
         boolean isAMD64withoutAVX2 = Constants.OS_ARCH.equals("amd64") && PREFERRED_VECTOR_BITSIZE < 256;
         ENABLE_INTEGER_VECTORS = (isAMD64withoutAVX2 == false) || vs.isPresent();
+
+        int byteBitsForInt = PREFERRED_INTEGER_SPECIES.vectorBitSize() / Float.BYTES;
+
+        VectorSpecies<Byte> byteSpecies = PREFERRED_BYTE_SPECIES; // just specify *something* to fallback on
+        // int species / 4 may be too small - double the size until we get to one we can use
+        while (byteBitsForInt <= 1024) { // sanity bounds check to prevent infinite loop if this isn't working as it should
+            try {
+                byteSpecies = VectorSpecies.of(byte.class, VectorShape.forBitSize(byteBitsForInt));
+                break;
+            } catch (IllegalArgumentException e) {
+                byteBitsForInt *= 2;
+            }
+        }
+        BYTES_FOR_4BYTE_SPECIES = byteSpecies;
     }
 
     private PanamaVectorConstants() {}

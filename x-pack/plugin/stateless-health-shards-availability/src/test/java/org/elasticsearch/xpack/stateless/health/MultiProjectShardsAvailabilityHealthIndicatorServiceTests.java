@@ -639,7 +639,8 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                         + "."
                         + (unassignedPrimaries == 1
                             ? " This is a mounted shard and the original shard is available, so there are no data availability problems."
-                            : " These are mounted shards and the original shards are available, so there are no data availability problems."),
+                            : " These are mounted shards and the original shards are available, "
+                                + "so there are no data availability problems."),
                     new SimpleHealthIndicatorDetails(
                         detailsWithDefaults(Map.of("unassigned_primaries", unassignedPrimaries, "started_primaries", startedPrimaries))
                     ),

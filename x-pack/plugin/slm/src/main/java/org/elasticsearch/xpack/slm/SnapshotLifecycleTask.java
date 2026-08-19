@@ -113,20 +113,28 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
      * The queried ids are used by {@link WriteJobStatus} to distinguish "missing from the repository" (infer failure) from
      * "was still running at lookup, so we never fetched it" (leave registered for a later cleanup).
      * <p>
-     * Every {@link SnapshotInfo} must correspond to a queried id; infos are a subset of {@code queriedSnapshotIds}
-     * (some queried snapshots may be missing from the repository).
+     * Every {@link SnapshotInfo} should correspond to a queried id; infos are a subset of {@code queriedSnapshotIds}
+     * (some queried snapshots may be missing from the repository). {@code GetSnapshots} is keyed by snapshot name, while
+     * {@link SnapshotId} equality includes the uuid, so a deleted snapshot whose name was reused can yield info that is
+     * not in the queried set. That mismatch is ignored rather than thrown so SLM cleanup can continue.
      */
     record CompletedRegisteredSnapshotInfos(Set<SnapshotId> queriedSnapshotIds, List<SnapshotInfo> snapshotInfos) {
         CompletedRegisteredSnapshotInfos {
             queriedSnapshotIds = Set.copyOf(queriedSnapshotIds);
-            snapshotInfos = List.copyOf(snapshotInfos);
+            List<SnapshotInfo> matchedSnapshotInfos = new ArrayList<>(snapshotInfos.size());
             for (SnapshotInfo snapshotInfo : snapshotInfos) {
-                if (queriedSnapshotIds.contains(snapshotInfo.snapshotId()) == false) {
-                    throw new IllegalArgumentException(
-                        "snapshot info for [" + snapshotInfo.snapshotId() + "] was not in the queried snapshot id set"
+                if (queriedSnapshotIds.contains(snapshotInfo.snapshotId())) {
+                    matchedSnapshotInfos.add(snapshotInfo);
+                } else {
+                    // GetSnapshots is keyed by name, while SnapshotId equality includes uuid. Do not throw:
+                    // that would fail every subsequent SLM run while a stale registered name is reused.
+                    logger.debug(
+                        () -> "snapshot info for [" + snapshotInfo.snapshotId() + "] was not in the queried snapshot id set; ignoring it"
                     );
+                    assert false : "snapshot info for [" + snapshotInfo.snapshotId() + "] was not in the queried snapshot id set";
                 }
             }
+            snapshotInfos = List.copyOf(matchedSnapshotInfos);
         }
 
         static final CompletedRegisteredSnapshotInfos EMPTY = new CompletedRegisteredSnapshotInfos(Set.of(), List.of());
@@ -479,7 +487,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         /**
          * When true, this failure is for a snapshot that was never added to the registered set (e.g., CreateSnapshot failed before
          * registration). WriteJobStatus must still record failure stats even though the snapshot is unregistered. When false, an
-         * unregistered initiating snapshot means another cleanup already recorded it - skip to avoid double-counting (#136759).
+         * unregistered initiating snapshot means another cleanup already recorded it - skip to avoid double-counting.
          * Ignored when {@link #queriedSnapshotIds} contains this snapshot: lookup saw it registered, so a missing registered
          * entry is a peer cleanup, not a never-registered failure.
          */
@@ -504,6 +512,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             this.registeredSnapshotInfo = completedRegisteredSnapshotInfos.snapshotInfos();
             this.queriedSnapshotIds = completedRegisteredSnapshotInfos.queriedSnapshotIds();
             this.recordFailureIfUnregistered = recordFailureIfUnregistered;
+            assert recordFailureIfUnregistered == false || queriedSnapshotIds.contains(snapshotId) == false
+                : "snapshot [" + snapshotId + "] was flagged as never registered but appeared in the queried set";
         }
 
         static WriteJobStatus success(
@@ -625,12 +635,16 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             }
 
             // Add stats from the just completed snapshot execution, unless another cleanup already recorded it.
-            // CreateSnapshot can fail before registration (e.g. missing index); those failures set
-            // recordFailureIfUnregistered so they are still counted, but only when lookup did not see this id
-            // (queriedSnapshotIds containing it means it was registered, so a missing entry is a peer cleanup).
-            // Concurrent cleanups that already removed a registered snapshot must not double-count success or
-            // failure (#136759): last success/failure only names one snapshot, so a peer's initiating failure
-            // can overwrite the name we would otherwise match.
+            //
+            // CreateSnapshot can fail before registration (e.g. missing index). Those failures set
+            // recordFailureIfUnregistered so they are still counted, but only when lookup did not see this id.
+            // If queriedSnapshotIds contains this snapshot, it was registered at lookup time, so a missing
+            // registered entry means a peer cleanup already recorded it.
+            //
+            // Do not infer "already recorded" from lastSuccess/lastFailure. Those fields store only the most
+            // recent snapshot name. Example: snapshots A and B both fail; A's WriteJobStatus records B's failure
+            // (lastFailure=B) then A's own failure (lastFailure=A). When B's WriteJobStatus runs, lastFailure no
+            // longer names B, so matching on that name would count B a second time.
             if (snapshotIsRegistered == false) {
                 // If lookup saw this id, it was registered then; a peer cleanup must not be treated as never-registered.
                 if (exception.isPresent() && recordFailureIfUnregistered && queriedSnapshotIds.contains(snapshotId) == false) {

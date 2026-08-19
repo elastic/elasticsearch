@@ -30,6 +30,7 @@ import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexVersion;
@@ -661,8 +662,8 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             randomLong(),
             new SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos(Set.of(snapshotA), List.of()),
             new RuntimeException("initiating snapshot failed"),
-            // initiating snapshot is still registered, so this flag must not affect stats
-            randomBoolean()
+            // initiating snapshot was queried as registered, so it cannot also be flagged never-registered
+            false
         ).execute(clusterState);
 
         SnapshotLifecycleMetadata newSlmMetadata = newClusterState.metadata().getProject(projectId).custom(SnapshotLifecycleMetadata.TYPE);
@@ -1231,75 +1232,34 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
     }
 
     /**
-     * If a peer cleanup already recorded this snapshot, a stale {@code recordFailureIfUnregistered=true} must not
-     * count it again when lookup had seen the snapshot as registered (#136759).
+     * {@code recordFailureIfUnregistered=true} means CreateSnapshot failed before registration, so lookup cannot have
+     * queried this snapshot id. The execute-path still ignores that combination if assertions are disabled.
      */
-    public void testStaleNeverRegisteredFlagDoesNotDoubleCountWhenSnapshotWasQueried() throws Exception {
-        final String policyId = randomAlphaOfLength(10);
-        final SnapshotId snapshotA = randSnapshotId();
-        final SnapshotId snapshotB = randSnapshotId();
-
-        var definedSlmPolicies = List.of(policyId);
-        var registeredSnapshots = Map.of(policyId, List.of(snapshotA, snapshotB));
-        var inProgress = Map.of(policyId, List.<SnapshotId>of());
-        ClusterState clusterState = buildClusterState(projectId, definedSlmPolicies, registeredSnapshots, inProgress);
-        SnapshotLifecycleStats statsBefore = slmStats(clusterState);
-
-        ClusterState afterA = SnapshotLifecycleTask.WriteJobStatus.failure(
-            projectId,
-            policyId,
-            snapshotA,
-            randomLong(),
-            new SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos(
-                Set.of(snapshotA, snapshotB),
-                List.of(snapshotInfoFailure(projectId, snapshotB))
-            ),
-            new RuntimeException("snapshot A failed"),
-            randomBoolean()
-        ).execute(clusterState);
-
-        SnapshotLifecycleMetadata slmAfterA = afterA.metadata().getProject(projectId).custom(SnapshotLifecycleMetadata.TYPE);
-        SnapshotLifecyclePolicyMetadata policyAfterA = slmAfterA.getSnapshotConfigurations().get(policyId);
-        SnapshotLifecycleStats statsAfterASource = slmAfterA.getStats();
-        final long takenAfterA = statsAfterASource.getMetrics().get(policyId).getSnapshotTakenCount();
-        final long failedAfterA = statsAfterASource.getMetrics().get(policyId).getSnapshotFailedCount();
-        assertEquals(0, takenAfterA);
-        assertEquals(2, failedAfterA);
-        assertEquals(2, policyAfterA.getInvocationsSinceLastSuccess());
-        assertEquals(snapshotA.getName(), policyAfterA.getLastFailure().getSnapshotName());
-        assertFalse(policyAlreadyRecordsSnapshot(policyAfterA, snapshotB.getName()));
-
-        ClusterState afterB = SnapshotLifecycleTask.WriteJobStatus.failure(
-            projectId,
-            policyId,
-            snapshotB,
-            randomLong(),
-            new SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos(
-                Set.of(snapshotA, snapshotB),
-                List.of(snapshotInfoFailure(projectId, snapshotA))
-            ),
-            new RuntimeException("snapshot B failed"),
-            true
-        ).execute(afterA);
-
-        SnapshotLifecycleMetadata slmAfterB = afterB.metadata().getProject(projectId).custom(SnapshotLifecycleMetadata.TYPE);
-        SnapshotLifecyclePolicyMetadata policyAfterB = slmAfterB.getSnapshotConfigurations().get(policyId);
-        assertEquals(0, slmAfterB.getStats().getMetrics().get(policyId).getSnapshotTakenCount());
-        assertEquals(2, slmAfterB.getStats().getMetrics().get(policyId).getSnapshotFailedCount());
-        assertEquals(2, policyAfterB.getInvocationsSinceLastSuccess());
-        assertEquals(snapshotA.getName(), policyAfterB.getLastFailure().getSnapshotName());
-        assertEquals(2, policyAfterA.getInvocationsSinceLastSuccess());
-        assertEquals(snapshotA.getName(), policyAfterA.getLastFailure().getSnapshotName());
-        assertStatsNotMutated(statsBefore);
-        assertStatsNotMutated(statsAfterASource, policyId, takenAfterA, failedAfterA);
+    public void testNeverRegisteredFlagRejectedWhenSnapshotWasQueried() {
+        assumeTrue("assertions enabled", Assertions.ENABLED);
+        final SnapshotId snapshotId = randSnapshotId();
+        AssertionError error = expectThrows(
+            AssertionError.class,
+            () -> SnapshotLifecycleTask.WriteJobStatus.failure(
+                projectId,
+                randomAlphaOfLength(10),
+                snapshotId,
+                randomLong(),
+                new SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos(Set.of(snapshotId), List.of()),
+                new RuntimeException("failed"),
+                true
+            )
+        );
+        assertThat(error.getMessage(), containsString(snapshotId.toString()));
     }
 
     public void testCompletedRegisteredSnapshotInfosRejectsInfoOutsideQueriedSet() {
+        assumeTrue("assertions enabled", Assertions.ENABLED);
         final SnapshotId queried = randSnapshotId();
         final SnapshotId notQueried = randSnapshotId();
         final SnapshotInfo info = snapshotInfoSuccess(projectId, notQueried);
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
+        AssertionError ex = expectThrows(
+            AssertionError.class,
             () -> new SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos(Set.of(queried), List.of(info))
         );
         assertThat(ex.getMessage(), containsString(notQueried.toString()));

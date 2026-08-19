@@ -8,14 +8,6 @@ plugins {
 group = "org.elasticsearch.gradle"
 version = versions.getProperty("elasticsearch")
 
-java {
-  // The gradle-runner jar is a bootstrap launcher that CI starts with its ambient JVM (see .ci/scripts/run-gradle.sh)
-  // before any Gradle toolchain is resolved. It must stay at a bytecode level that JVM can load, so it is pinned to
-  // Java 21 rather than following the Elasticsearch runtime baseline (minimumRuntimeJava), which is now Java 25.
-  targetCompatibility = JavaVersion.VERSION_21
-  sourceCompatibility = JavaVersion.VERSION_21
-}
-
 repositories {
   mavenCentral()
   maven {

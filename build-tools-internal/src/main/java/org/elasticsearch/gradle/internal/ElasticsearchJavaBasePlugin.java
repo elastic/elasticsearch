@@ -109,17 +109,11 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             // TODO Discuss moving compileOptions.getCompilerArgs() to use provider api with Gradle team.
             List<String> compilerArgs = compileOptions.getCompilerArgs();
             compilerArgs.add("-Werror");
-            int compilerMajor = Integer.parseInt(buildParams.getMinimumRuntimeVersion().getMajorVersion());
-            String xlintExclusions = "all,-path,-serial,-options,-deprecation,-try,-removal,-processing";
-            if (compilerMajor >= 22) {
-                xlintExclusions += ",-incubating";
-            }
-            if (compilerMajor >= 25) {
-                // JDK 25 enables dangling-doc-comments under -Xlint:all. It fires on the many section-separator
-                // comments (e.g. "/////") and stray block comments across the codebase, which are stylistic and
-                // not defects. Exclude the category rather than rewriting comments repo-wide.
-                xlintExclusions += ",-dangling-doc-comments";
-            }
+            // -incubating: silences warnings for incubating modules (e.g. jdk.incubator.vector).
+            // -dangling-doc-comments: JDK 25 enables this under -Xlint:all. It fires on the many section-separator
+            // comments (e.g. "/////") and stray block comments across the codebase, which are stylistic and not
+            // defects. Exclude the category rather than rewriting comments repo-wide.
+            String xlintExclusions = "all,-path,-serial,-options,-deprecation,-try,-removal,-processing,-incubating,-dangling-doc-comments";
             compilerArgs.add("-Xlint:" + xlintExclusions);
             compilerArgs.add("-Xdoclint:all");
             compilerArgs.add("-Xdoclint:-missing");

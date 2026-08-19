@@ -281,8 +281,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             return new BytesRef(bytes);
         }
 
-        public static NameValue decode(Object field) {
-            BytesRef ref = (BytesRef) field;
+        public static NameValue decode(BytesRef ref) {
             byte[] bytes = ref.bytes;
             int off = ref.offset;
             int len = ref.length;
@@ -458,7 +457,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 }
                 Map<String, List<NameValue>> objectsWithIgnoredFields = new HashMap<>();
                 for (Object value : ignoredStoredValues) {
-                    NameValue nv = SingularIgnoredSourceEncoding.decode(value);
+                    NameValue nv = SingularIgnoredSourceEncoding.decode((BytesRef) value);
                     if (filter != null && filter.isPathFiltered(nv.name(), XContentDataHelper.isEncodedObject(nv.value()))) {
                         continue;
                     }

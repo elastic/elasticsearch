@@ -56,6 +56,7 @@ public final class MappingLookup {
     private final Map<String, ObjectMapper> objectMappers;
     private final Map<String, InferenceFieldMetadata> inferenceFields;
     private final Set<String> syntheticVectorFields;
+    private final Set<String> vectorEmbeddingFields;
     private final int runtimeFieldMappersCount;
     private final NestedLookup nestedLookup;
     private final FieldTypeLookup fieldTypeLookup;
@@ -211,6 +212,7 @@ public final class MappingLookup {
 
         Map<String, InferenceFieldMetadata> inferenceFields = new HashMap<>();
         List<String> syntheticVectorFields = new ArrayList<>();
+        Set<String> vectorEmbeddingFields = new HashSet<>();
         for (FieldMapper mapper : mappers) {
             if (mapper instanceof InferenceFieldMapper inferenceFieldMapper) {
                 inferenceFields.put(mapper.fullPath(), inferenceFieldMapper.getMetadata(fieldTypeLookup.sourcePaths(mapper.fullPath())));
@@ -218,9 +220,13 @@ public final class MappingLookup {
             if (mapper.syntheticVectorsLoader() != null) {
                 syntheticVectorFields.add(mapper.fullPath());
             }
+            if (mapper.fieldType().isVectorEmbedding()) {
+                vectorEmbeddingFields.add(mapper.fullPath());
+            }
         }
         this.inferenceFields = Map.copyOf(inferenceFields);
         this.syntheticVectorFields = Set.copyOf(syntheticVectorFields);
+        this.vectorEmbeddingFields = Set.copyOf(vectorEmbeddingFields);
 
         if (runtimeFields.isEmpty()) {
             // without runtime fields this is the same as the field type lookup
@@ -422,6 +428,17 @@ public final class MappingLookup {
 
     public Set<String> syntheticVectorFields() {
         return syntheticVectorFields;
+    }
+
+    /**
+     * Returns the paths of every field holding a vector embedding, which are the candidates for being stripped from {@code _source}.
+     * <p>
+     * This is deliberately not the same as {@link #syntheticVectorFields()}, which only holds the fields whose mapper offers a synthetic
+     * vectors loader and is therefore empty unless {@code index.mapping.exclude_source_vectors} is enabled. Vectors can also be excluded
+     * per request, so the set of candidates has to be established independently of that index setting.
+     */
+    public Set<String> vectorEmbeddingFields() {
+        return vectorEmbeddingFields;
     }
 
     public NestedLookup nestedLookup() {

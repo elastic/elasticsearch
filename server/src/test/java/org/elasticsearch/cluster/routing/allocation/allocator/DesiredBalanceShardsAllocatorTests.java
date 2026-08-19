@@ -14,6 +14,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -286,7 +287,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             )
             .build();
 
-        var initialState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
+        final var initialState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
             .nodes(DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
             .metadata(Metadata.builder().put(index, false).build())
             .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).add(indexRoutingTable).build())
@@ -345,7 +346,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         allocationServiceRef.set(allocationService);
 
         try {
-            rerouteAndWait(allocationService, initialState, "test");
+            rerouteAndWait(allocationService, clusterService, "test");
 
             var reconciledState = reconciledStateRef.get();
 
@@ -734,14 +735,14 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         var shardId = new ShardId("test-index", UUIDs.randomBase64UUID(), 0);
         var index = createIndex(shardId.getIndexName());
-        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+        final var initialState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).localNodeId(node1.getId()).masterNodeId(node1.getId()))
             .metadata(Metadata.builder().put(index, false).build())
             .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(index).build())
             .build();
 
         var threadPool = new TestThreadPool(getTestName());
-        var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool);
+        var clusterService = ClusterServiceUtils.createClusterService(initialState, threadPool);
         var delegateAllocator = createShardsAllocator();
         var clusterSettings = createBuiltInClusterSettings();
 
@@ -777,18 +778,18 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         try {
             // initial computation is based on DesiredBalance.INITIAL
-            rerouteAndWait(service, clusterState, "initial-allocation");
+            rerouteAndWait(service, clusterService, "initial-allocation");
             assertThat(desiredBalanceComputer.lastComputationInput.get(), equalTo(DesiredBalance.BECOME_MASTER_INITIAL));
 
             // any next computation is based on current desired balance
             var current = desiredBalanceShardsAllocator.getDesiredBalance();
-            rerouteAndWait(service, clusterState, "next-allocation");
+            rerouteAndWait(service, clusterService, "next-allocation");
             assertThat(desiredBalanceComputer.lastComputationInput.get(), equalTo(current));
 
-            // when desired balance is resetted then computation is based on balance with no previous assignments
+            // when desired balance is reset then computation is based on balance with no previous assignments
             desiredBalanceShardsAllocator.resetDesiredBalance();
             current = desiredBalanceShardsAllocator.getDesiredBalance();
-            rerouteAndWait(service, clusterState, "reset-desired-balance");
+            rerouteAndWait(service, clusterService, "reset-desired-balance");
             assertThat(
                 desiredBalanceComputer.lastComputationInput.get(),
                 equalTo(new DesiredBalance(current.lastConvergedIndex(), Map.of()))
@@ -840,14 +841,14 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             false
         );
 
-        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+        final var initialState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodesBuilder)
             .metadata(Metadata.builder().put(projectBuilder))
             .putRoutingTable(ProjectId.DEFAULT, routingTableBuilder.build())
             .build();
 
         var threadPool = new TestThreadPool(getTestName());
-        var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool);
+        var clusterService = ClusterServiceUtils.createClusterService(initialState, threadPool);
 
         final var relocated = new AtomicBoolean(false);
         final AtomicReference<ClusterInfo> clusterInfoUsedByAllocator = new AtomicReference<>();
@@ -922,7 +923,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         try {
             // 1. Initial reroute should produce a desired balance which moves the shard from first node to second node.
-            rerouteAndWait(service, clusterState, "first-reroute");
+            rerouteAndWait(service, clusterService, "first-reroute");
             final DesiredBalance desiredBalance = desiredBalanceShardsAllocator.getDesiredBalance();
             assertNotNull(desiredBalance.assignments().get(shardId0));
 
@@ -963,7 +964,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             assertThat(thirdNodeUpdatedStats.averageThreadPoolUtilization(), equalTo(1.0f));
 
             // 2. Reroute again and the simulated ClusterInfo remains the same due to no new change
-            rerouteAndWait(service, clusterService.state(), "reroute-with-desired-shard-movements");
+            rerouteAndWait(service, clusterService, "reroute-with-desired-shard-movements");
             assertThat(clusterInfoUsedByAllocator.get(), equalTo(updatedClusterInfo));
 
             // 3. Wait until reconciliation is completed for the moved shard. This means shard0 is now relocating in the
@@ -974,7 +975,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             );
             // Reroute again and the ClusterInfo simulation result remains unchanged and correctly accounts for all shard movements
             // (reconciled or not)
-            rerouteAndWait(service, clusterService.state(), "reroute-with-reconciled-shard-movement");
+            rerouteAndWait(service, clusterService, "reroute-with-reconciled-shard-movement");
             assertThat(clusterInfoUsedByAllocator.get(), equalTo(updatedClusterInfo));
 
             // 4. Actually start the relocating shard0 on the target node-2, i.e. action to honour the reconciliation result
@@ -996,7 +997,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 equalTo(secondNode.getId())
             );
             // The actually started shard0 is still accounted for when simulating ClusterInfo
-            rerouteAndWait(service, clusterService.state(), "reroute-with-actual-relocating-shard-started-event");
+            rerouteAndWait(service, clusterService, "reroute-with-actual-relocating-shard-started-event");
             assertThat(clusterInfoUsedByAllocator.get(), equalTo(updatedClusterInfo));
 
             // 5. Also start the initializing shard1 on the target node-3
@@ -1012,7 +1013,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 equalTo(thirdNode.getId())
             );
             // The actually started shard1 is accounted for when simulating ClusterInfo
-            rerouteAndWait(service, clusterService.state(), "reroute-with-actual-initializing-shard-started-event");
+            rerouteAndWait(service, clusterService, "reroute-with-actual-initializing-shard-started-event");
             assertThat(clusterInfoUsedByAllocator.get(), equalTo(updatedClusterInfo));
 
             // 6. A new ClusterInfo is polled
@@ -1049,7 +1050,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                     .build()
             );
             // ClusterInfo is updated from the new polling and no adjustment is applied onto the new ClusterInfo due to no movement since
-            rerouteAndWait(service, clusterService.state(), "reroute-after-new-cluster-info-polled");
+            rerouteAndWait(service, clusterService, "reroute-after-new-cluster-info-polled");
             assertThat(clusterInfoUsedByAllocator.get(), equalTo(clusterInfoRef.get()));
         } finally {
             clusterService.close();
@@ -1064,14 +1065,14 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         var shardId = new ShardId("test-index", UUIDs.randomBase64UUID(), 0);
         var index = createIndex(shardId.getIndexName());
-        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+        final var initialState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).localNodeId(node1.getId()).masterNodeId(node1.getId()))
             .metadata(Metadata.builder().put(index, false).build())
             .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(index).build())
             .build();
 
         var threadPool = new TestThreadPool(getTestName());
-        var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool);
+        var clusterService = ClusterServiceUtils.createClusterService(initialState, threadPool);
 
         var delegateAllocator = createShardsAllocator();
         var desiredBalanceComputer = new DesiredBalanceComputer(
@@ -1095,16 +1096,16 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var service = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator());
 
         try {
-            rerouteAndWait(service, clusterState, "initial-allocation");
+            rerouteAndWait(service, clusterService, "initial-allocation");
             assertThat(desiredBalanceShardsAllocator.getDesiredBalance(), not(equalTo(DesiredBalance.BECOME_MASTER_INITIAL)));
 
-            clusterState = ClusterState.builder(clusterState)
-                .nodes(DiscoveryNodes.builder(clusterState.getNodes()).localNodeId(node1.getId()).masterNodeId(node2.getId()))
+            var changeMaster = ClusterState.builder(clusterService.state())
+                .nodes(DiscoveryNodes.builder(clusterService.state().getNodes()).localNodeId(node1.getId()).masterNodeId(node2.getId()))
                 .build();
-            ClusterServiceUtils.setState(clusterService, clusterState);
+            ClusterServiceUtils.setState(clusterService, changeMaster);
 
             assertThat(
-                "desired balance should be resetted on no longer master",
+                "desired balance should be reset on no longer master",
                 desiredBalanceShardsAllocator.getDesiredBalance(),
                 equalTo(DesiredBalance.NOT_MASTER)
             );
@@ -1120,14 +1121,14 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         var shardId = new ShardId("test-index", UUIDs.randomBase64UUID(), 0);
         var index = createIndex(shardId.getIndexName());
-        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+        final var initialState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).localNodeId(node1.getId()).masterNodeId(node1.getId()))
             .metadata(Metadata.builder().put(index, false).build())
             .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(index).build())
             .build();
 
         var threadPool = new TestThreadPool(getTestName());
-        var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool);
+        var clusterService = ClusterServiceUtils.createClusterService(initialState, threadPool);
 
         final var resetCalled = new AtomicBoolean();
         var delegateAllocator = createShardsAllocator();
@@ -1158,7 +1159,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var service = createAllocationService(desiredBalanceAllocator, createGatewayAllocator());
 
         try {
-            rerouteAndWait(service, clusterState, "initial-allocation");
+            rerouteAndWait(service, clusterService, "initial-allocation");
             assertThat(desiredBalanceAllocator.getDesiredBalance(), not(equalTo(DesiredBalance.BECOME_MASTER_INITIAL)));
 
             final var shutdownType = randomFrom(Type.SIGTERM, Type.REMOVE, Type.REPLACE);
@@ -1174,33 +1175,37 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 singleShutdownMetadataBuilder.setGracePeriod(TimeValue.MAX_VALUE);
             }
             final var nodeShutdownMetadata = new NodesShutdownMetadata(Map.of(node2.getId(), singleShutdownMetadataBuilder.build()));
-            // Add shutdown marker
-            clusterState = ClusterState.builder(clusterState)
-                .metadata(Metadata.builder(clusterState.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodeShutdownMetadata))
+            var withShutdownMarker = ClusterState.builder(clusterService.state())
+                .metadata(Metadata.builder(clusterService.state().metadata()).putCustom(NodesShutdownMetadata.TYPE, nodeShutdownMetadata))
                 .build();
+            ClusterServiceUtils.setState(clusterService, withShutdownMarker);
+
             assertTrue(desiredBalanceAllocator.getProcessedNodeShutdowns().isEmpty());
-            rerouteAndWait(service, clusterState, "reroute-after-shutdown");
+            rerouteAndWait(service, clusterService, "reroute-after-shutdown");
             assertTrue("desired balance reset should be called on node shutdown", resetCalled.get());
             assertThat(desiredBalanceAllocator.getProcessedNodeShutdowns(), equalTo(Set.of(node2.getId())));
 
             resetCalled.set(false);
-            rerouteAndWait(service, clusterState, "random-reroute");
+            rerouteAndWait(service, clusterService, "random-reroute");
             assertFalse("desired balance reset should not be called again for processed shutdowns", resetCalled.get());
             assertThat(desiredBalanceAllocator.getProcessedNodeShutdowns(), equalTo(Set.of(node2.getId())));
             // Node may or may not have been removed
             final var removeNodeFromCluster = randomBoolean();
             if (removeNodeFromCluster) {
-                clusterState = ClusterState.builder(clusterState)
+                var removedFromCluster = ClusterState.builder(clusterService.state())
                     .nodes(DiscoveryNodes.builder().add(node1).localNodeId(node1.getId()).masterNodeId(node1.getId()))
                     .build();
+                ClusterServiceUtils.setState(clusterService, removedFromCluster);
             }
-            rerouteAndWait(service, clusterState, "random-reroute");
+            rerouteAndWait(service, clusterService, "random-reroute");
             assertFalse("desired balance reset should not be called again for processed shutdowns", resetCalled.get());
-            // Remove the shutdown marker
-            clusterState = ClusterState.builder(clusterState)
-                .metadata(Metadata.builder(clusterState.metadata()).putCustom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY))
+            var withoutShutdownMarker = ClusterState.builder(clusterService.state())
+                .metadata(
+                    Metadata.builder(clusterService.state().metadata()).putCustom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY)
+                )
                 .build();
-            rerouteAndWait(service, clusterState, "random-reroute");
+            ClusterServiceUtils.setState(clusterService, withoutShutdownMarker);
+            rerouteAndWait(service, clusterService, "random-reroute");
             if (removeNodeFromCluster) {
                 assertFalse("desired balance reset should not be called again for processed shutdowns", resetCalled.get());
             } else {
@@ -1209,7 +1214,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             assertTrue(desiredBalanceAllocator.getProcessedNodeShutdowns().isEmpty());
 
             resetCalled.set(false);
-            rerouteAndWait(service, clusterState, "random-reroute");
+            rerouteAndWait(service, clusterService, "random-reroute");
             assertFalse("desired balance reset should not be called", resetCalled.get());
             assertThat(desiredBalanceAllocator.getProcessedNodeShutdowns(), empty());
         } finally {
@@ -1367,7 +1372,19 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         };
     }
 
-    private static void rerouteAndWait(AllocationService service, ClusterState clusterState, String reason) {
-        safeAwait((ActionListener<Void> listener) -> service.reroute(clusterState, reason, listener));
+    private static void rerouteAndWait(AllocationService service, ClusterService clusterService, String reason) {
+        SubscribableListener<Void> listener = new SubscribableListener<>();
+        clusterService.getMasterService().submitUnbatchedStateUpdateTask(reason, new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return service.reroute(currentState, reason, listener);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+        safeAwait(listener);
     }
 }

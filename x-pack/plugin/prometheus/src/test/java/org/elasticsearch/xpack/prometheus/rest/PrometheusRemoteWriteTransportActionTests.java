@@ -67,7 +67,7 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
         threadPool = mock(ThreadPool.class);
         when(threadPool.executor(ThreadPool.Names.WRITE)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
-        action = new PrometheusRemoteWriteTransportAction(transportService, new ActionFilters(Set.of()), threadPool, client);
+        action = new PrometheusRemoteWriteTransportAction(transportService, ActionFilters.EMPTY, threadPool, client);
     }
 
     @After

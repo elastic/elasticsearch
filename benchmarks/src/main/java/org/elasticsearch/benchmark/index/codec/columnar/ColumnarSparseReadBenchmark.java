@@ -50,6 +50,7 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -112,7 +113,6 @@ public class ColumnarSparseReadBenchmark {
         directory = FSDirectory.open(tempPath);
         final IndexWriterConfig config = new IndexWriterConfig().setCodec(NumericFormat.COLUMNAR.codec("RANDOM_FULL", blockSize));
         final BytesRefBuilder builder = new BytesRefBuilder();
-        final int[] present = new int[docCount];
         int presentCount = 0;
         try (IndexWriter writer = new IndexWriter(directory, config)) {
             for (int doc = 0; doc < docCount; doc++) {
@@ -122,15 +122,24 @@ public class ColumnarSparseReadBenchmark {
                     document.add(
                         new Field(FIELD, BytesRef.deepCopyOf(NumericBinaryPayload.encode(new long[] { value }, 1, builder)), fieldType)
                     );
-                    present[presentCount++] = doc;
+                    presentCount++;
                 }
                 writer.addDocument(document);
             }
             writer.forceMerge(1);
         }
-        presentDocs = java.util.Arrays.copyOf(present, presentCount);
         reader = DirectoryReader.open(directory);
         leafReader = reader.leaves().getFirst().reader();
+        // Read the document ids back from the index rather than recording them while indexing: a merge of
+        // non-adjacent segments leaves document ids in an order other than the one they were added in, so
+        // the indexing loop's record does not necessarily describe the segment being measured.
+        final int[] present = new int[presentCount];
+        int found = 0;
+        final BinaryDocValues docs = leafReader.getBinaryDocValues(FIELD);
+        for (int doc = docs.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = docs.nextDoc()) {
+            present[found++] = doc;
+        }
+        presentDocs = Arrays.copyOf(present, found);
     }
 
     @TearDown(Level.Trial)

@@ -232,7 +232,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             parser,
             new SemanticTextField.ParserContext(useLegacyFormat, NAME, parser.contentType())
         );
-        assertThat(parsed.inference().modelSettings().endpointMetadataClusterState(), equalTo(EndpointMetadataClusterState.EMPTY_INSTANCE));
+        assertThat(parsed.inference().modelSettings().endpointMetadata(), equalTo(EndpointMetadataClusterState.EMPTY_INSTANCE));
     }
 
     public void testGetDenseVectorsAsSupplier() throws IOException {

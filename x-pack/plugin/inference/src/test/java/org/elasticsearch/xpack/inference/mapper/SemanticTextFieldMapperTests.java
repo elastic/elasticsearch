@@ -1478,10 +1478,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         MapperService mapperService = createSemanticMapperService(semanticMapping(fieldName, inferenceId));
         performDynamicUpdate(mapperService, fieldName, inferenceId, modelSettings);
         SemanticTextFieldMapper mapper = getSemanticFieldMapper(mapperService, fieldName);
-        assertThat(
-            mapper.fieldType().getModelSettings().endpointMetadataClusterState(),
-            equalTo(EndpointMetadataClusterState.EMPTY_INSTANCE)
-        );
+        assertThat(mapper.fieldType().getModelSettings().endpointMetadata(), equalTo(EndpointMetadataClusterState.EMPTY_INSTANCE));
     }
 
     public void testMappingWithEndpointMetadata() throws IOException {
@@ -1502,7 +1499,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             })
         );
         SemanticTextFieldMapper originalMapper = getSemanticFieldMapper(originalMapperService, "field");
-        assertThat(originalMapper.fieldType().getModelSettings().endpointMetadataClusterState(), equalTo(endpointMetadataClusterState));
+        assertThat(originalMapper.fieldType().getModelSettings().endpointMetadata(), equalTo(endpointMetadataClusterState));
 
         // An XContent serialization cycle should remove the endpoint metadata
         CompressedXContent mappingSource = originalMapperService.documentMapper().mappingSource();
@@ -1510,10 +1507,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         parsedMapperService.merge("_doc", mappingSource, MapperService.MergeReason.MAPPING_UPDATE);
 
         SemanticTextFieldMapper parsedMapper = getSemanticFieldMapper(parsedMapperService, "field");
-        assertThat(
-            parsedMapper.fieldType().getModelSettings().endpointMetadataClusterState(),
-            equalTo(EndpointMetadataClusterState.EMPTY_INSTANCE)
-        );
+        assertThat(parsedMapper.fieldType().getModelSettings().endpointMetadata(), equalTo(EndpointMetadataClusterState.EMPTY_INSTANCE));
     }
 
     private static DenseVectorFieldMapper.DenseVectorIndexOptions defaultBbqHnswDenseVectorIndexOptions() {

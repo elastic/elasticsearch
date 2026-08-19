@@ -39,10 +39,10 @@ import static org.elasticsearch.inference.metadata.EndpointMetadata.METADATA_FIE
 
 /**
  * Defines the base settings required to configure an inference endpoint.
- *
+ * <p>
  * These settings are immutable and describe the input and output types that the endpoint will handle.
  * They capture the essential properties of an inference model, ensuring the endpoint is correctly configured.
- *
+ * <p>
  * Key properties include:
  * <ul>
  *   <li>{@code taskType} - Specifies the type of task the model performs, such as classification or text embeddings.</li>
@@ -50,14 +50,14 @@ import static org.elasticsearch.inference.metadata.EndpointMetadata.METADATA_FIE
  *       the {@code taskType} is {@link TaskType#TEXT_EMBEDDING}. They define the structure and behavior of embeddings.</li>
  * </ul>
  *
- * @param taskType the type of task the inference model performs.
- * @param dimensions the number of dimensions for the embeddings,
- *                   applicable only for {@link TaskType#TEXT_EMBEDDING} and {@link TaskType#EMBEDDING} (nullable).
- * @param similarity the similarity measure used for embeddings,
- *                   applicable only for {@link TaskType#TEXT_EMBEDDING} and {@link TaskType#EMBEDDING} (nullable).
- * @param elementType the type of elements in the embeddings,
- *                    applicable only for {@link TaskType#TEXT_EMBEDDING} and {@link TaskType#EMBEDDING} (nullable).
- * @param endpointMetadataClusterState the subset of endpoint metadata stored in cluster state (heuristics and internal only).
+ * @param taskType         the type of task the inference model performs.
+ * @param dimensions       the number of dimensions for the embeddings,
+ *                         applicable only for {@link TaskType#TEXT_EMBEDDING} and {@link TaskType#EMBEDDING} (nullable).
+ * @param similarity       the similarity measure used for embeddings,
+ *                         applicable only for {@link TaskType#TEXT_EMBEDDING} and {@link TaskType#EMBEDDING} (nullable).
+ * @param elementType      the type of elements in the embeddings,
+ *                         applicable only for {@link TaskType#TEXT_EMBEDDING} and {@link TaskType#EMBEDDING} (nullable).
+ * @param endpointMetadata the subset of endpoint metadata stored in cluster state (heuristics and internal only).
  */
 public record EndpointClusterState(
     @Nullable String service,
@@ -65,7 +65,7 @@ public record EndpointClusterState(
     @Nullable Integer dimensions,
     @Nullable SimilarityMeasure similarity,
     @Nullable ElementType elementType,
-    EndpointMetadataClusterState endpointMetadataClusterState
+    EndpointMetadataClusterState endpointMetadata
 ) implements ToXContentObject, SimpleDiffable<EndpointClusterState> {
 
     public static final String SERVICE_FIELD = "service";
@@ -73,9 +73,7 @@ public record EndpointClusterState(
     static final String DIMENSIONS_FIELD = "dimensions";
     static final String SIMILARITY_FIELD = "similarity";
     static final String ELEMENT_TYPE_FIELD = "element_type";
-
-    private static final String INCLUDE_ENDPOINT_METADATA_CLUSTER_STATE_PARAM_NAME = "include_endpoint_metadata";
-
+    private static final String INCLUDE_ENDPOINT_METADATA_PARAM_NAME = "include_endpoint_metadata";
     private static final ConstructingObjectParser<EndpointClusterState, Void> PARSER = new ConstructingObjectParser<>(
         "model_settings",
         true,
@@ -119,8 +117,9 @@ public record EndpointClusterState(
     );
 
     /**
-     * Transport version at which cluster state stores only the {@code heuristics} + {@code internal} subset of
-     * {@link EndpointMetadata}. Peers older than this expect the full {@link EndpointMetadata} layout on the wire.
+     * Transport version at which cluster state stores only {@link EndpointMetadataClusterState}
+     * which is a subset of {@link EndpointMetadata}.
+     * Peers older than this expect the full {@link EndpointMetadata} layout on the wire.
      */
     private static final TransportVersion INFERENCE_ENDPOINT_METADATA_CLUSTER_STATE_ADDED = TransportVersion.fromName(
         "inference_endpoint_metadata_cluster_state_added"
@@ -156,7 +155,7 @@ public record EndpointClusterState(
     }
 
     public static Params withoutEndpointMetadata(Params params) {
-        Map<String, String> entries = Map.of(INCLUDE_ENDPOINT_METADATA_CLUSTER_STATE_PARAM_NAME, Boolean.FALSE.toString());
+        Map<String, String> entries = Map.of(INCLUDE_ENDPOINT_METADATA_PARAM_NAME, Boolean.FALSE.toString());
         return new DelegatingMapParams(entries, params);
     }
 
@@ -233,10 +232,10 @@ public record EndpointClusterState(
             return;
         }
         if (out.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_CLUSTER_STATE_ADDED) == false) {
-            endpointMetadataClusterState.writeAsFullEndpointMetadata(out);
+            endpointMetadata.writeAsFullEndpointMetadata(out);
             return;
         }
-        endpointMetadataClusterState.writeTo(out);
+        endpointMetadata.writeTo(out);
     }
 
     public static Diff<EndpointClusterState> readDiffFrom(StreamInput in) throws IOException {
@@ -259,9 +258,8 @@ public record EndpointClusterState(
         if (elementType != null) {
             builder.field(ELEMENT_TYPE_FIELD, elementType);
         }
-        if (params.paramAsBoolean(INCLUDE_ENDPOINT_METADATA_CLUSTER_STATE_PARAM_NAME, true)
-            && endpointMetadataClusterState.isEmpty() == false) {
-            builder.field(METADATA_FIELD_NAME, endpointMetadataClusterState);
+        if (params.paramAsBoolean(INCLUDE_ENDPOINT_METADATA_PARAM_NAME, true) && endpointMetadata.isEmpty() == false) {
+            builder.field(METADATA_FIELD_NAME, endpointMetadata);
         }
         return builder.endObject();
     }
@@ -280,7 +278,7 @@ public record EndpointClusterState(
         if (elementType != null) {
             sb.append(", element_type=").append(elementType);
         }
-        sb.append(", metadata=").append(endpointMetadataClusterState);
+        sb.append(", metadata=").append(endpointMetadata);
         return sb.toString();
     }
 

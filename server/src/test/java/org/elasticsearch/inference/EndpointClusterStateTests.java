@@ -134,7 +134,7 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
         var dimensions = instance.dimensions();
         var similarity = instance.similarity();
         var elementType = instance.elementType();
-        var endpointMetadata = instance.endpointMetadataClusterState();
+        var endpointMetadata = instance.endpointMetadata();
 
         boolean instanceHasEmbeddingTaskType = taskType == TaskType.TEXT_EMBEDDING || taskType == TaskType.EMBEDDING;
 
@@ -203,7 +203,7 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
 
     @Override
     protected EndpointClusterState mutateInstanceForVersion(EndpointClusterState instance, TransportVersion version) {
-        var endpointMetadata = instance.endpointMetadataClusterState();
+        var endpointMetadata = instance.endpointMetadata();
         if (version.supports(EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED) == false) {
             endpointMetadata = EndpointMetadataClusterState.EMPTY_INSTANCE;
         }
@@ -457,8 +457,8 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
         in.setTransportVersion(EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED);
         var parsed = new EndpointClusterState(in);
 
-        assertThat(parsed.endpointMetadataClusterState().heuristics(), is(heuristics));
-        assertThat(parsed.endpointMetadataClusterState().internal(), is(internal));
+        assertThat(parsed.endpointMetadata().heuristics(), is(heuristics));
+        assertThat(parsed.endpointMetadata().internal(), is(internal));
         assertThat(in.available(), is(0));
     }
 
@@ -483,8 +483,8 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
         in.setTransportVersion(EndpointMetadata.REGIONS_ADDED);
         var parsed = new EndpointClusterState(in);
 
-        assertThat(parsed.endpointMetadataClusterState().heuristics(), is(heuristics));
-        assertThat(parsed.endpointMetadataClusterState().internal(), is(internal));
+        assertThat(parsed.endpointMetadata().heuristics(), is(heuristics));
+        assertThat(parsed.endpointMetadata().internal(), is(internal));
         assertThat(in.available(), is(0));
     }
 
@@ -512,8 +512,8 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
         readNonMetadataPrefix(in);
         var fullMetadata = new EndpointMetadata(in);
 
-        assertThat(fullMetadata.heuristics(), is(clusterState.endpointMetadataClusterState().heuristics()));
-        assertThat(fullMetadata.internal(), is(clusterState.endpointMetadataClusterState().internal()));
+        assertThat(fullMetadata.heuristics(), is(clusterState.endpointMetadata().heuristics()));
+        assertThat(fullMetadata.internal(), is(clusterState.endpointMetadata().internal()));
         assertThat(fullMetadata.display(), is(EndpointMetadata.Display.EMPTY_INSTANCE));
         assertThat(fullMetadata.regions(), is(List.of()));
         assertFalse(fullMetadata.deniedByRegionPolicy());
@@ -544,8 +544,8 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
         readNonMetadataPrefix(in);
         var fullMetadata = new EndpointMetadata(in);
 
-        assertThat(fullMetadata.heuristics(), is(clusterState.endpointMetadataClusterState().heuristics()));
-        assertThat(fullMetadata.internal(), is(clusterState.endpointMetadataClusterState().internal()));
+        assertThat(fullMetadata.heuristics(), is(clusterState.endpointMetadata().heuristics()));
+        assertThat(fullMetadata.internal(), is(clusterState.endpointMetadata().internal()));
         assertThat(fullMetadata.display(), is(EndpointMetadata.Display.EMPTY_INSTANCE));
         assertThat(fullMetadata.regions(), is(List.of()));
         assertFalse(fullMetadata.deniedByRegionPolicy());

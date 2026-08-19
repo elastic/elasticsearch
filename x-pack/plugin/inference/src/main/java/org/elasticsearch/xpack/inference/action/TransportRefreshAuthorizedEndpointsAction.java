@@ -166,7 +166,7 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
             return true;
         }
 
-        var existingInternal = existingEndpoint.endpointMetadataClusterState().internal();
+        var existingInternal = existingEndpoint.endpointMetadata().internal();
         var newInternal = newEndpoint.getConfigurations().getEndpointMetadataOrEmpty().internal();
         if (existingInternal.fingerprintMatches(newInternal) == false) {
             logger.debug(

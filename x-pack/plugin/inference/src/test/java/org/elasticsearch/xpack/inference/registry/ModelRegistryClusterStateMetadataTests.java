@@ -192,8 +192,8 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
         var newSettings = copySettingsWithNewEndpointMetadataInternal(
             settings,
             new EndpointMetadata.Internal(
-                randomValueOtherThan(settings.endpointMetadataClusterState().internal().fingerprint(), () -> randomAlphaOfLength(5)),
-                settings.endpointMetadataClusterState().internal().version()
+                randomValueOtherThan(settings.endpointMetadata().internal().fingerprint(), () -> randomAlphaOfLength(5)),
+                settings.endpointMetadata().internal().version()
             )
         );
 
@@ -218,11 +218,11 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
         var newSettings = copySettingsWithNewEndpointMetadataInternal(
             settings,
             new EndpointMetadata.Internal(
-                settings.endpointMetadataClusterState().internal().fingerprint(),
+                settings.endpointMetadata().internal().fingerprint(),
                 randomValueOtherThan(
-                    settings.endpointMetadataClusterState().internal().version(),
+                    settings.endpointMetadata().internal().version(),
                     () -> randomLongBetween(
-                        Optional.ofNullable(settings.endpointMetadataClusterState().internal().version()).orElse(0L),
+                        Optional.ofNullable(settings.endpointMetadata().internal().version()).orElse(0L),
                         Long.MAX_VALUE
                     )
                 )
@@ -481,7 +481,7 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
             settings.dimensions(),
             settings.similarity(),
             settings.elementType(),
-            new EndpointMetadataClusterState(settings.endpointMetadataClusterState().heuristics(), internal)
+            new EndpointMetadataClusterState(settings.endpointMetadata().heuristics(), internal)
         );
     }
 }

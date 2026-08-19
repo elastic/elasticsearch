@@ -210,6 +210,11 @@ $$$index-max-analyzed-offset$$$
 `index.highlight.max_analyzed_offset`
 :   The maximum number of characters that will be analyzed for a highlight request. This setting is only applicable when highlighting is requested on a text that was indexed without offsets or term vectors. Defaults to `1000000`.
 
+$$$index-max-number-of-fragments$$$
+
+`index.highlight.max_number_of_fragments` {applies_to}`stack: ga 9.6+`
+:   The maximum value of [`number_of_fragments`](/reference/elasticsearch/rest-apis/highlighting-settings.md#number_of_fragments) accepted for a highlight request. Highlighters allocate memory in proportion to the requested number of fragments, so this setting bounds how much a single request can allocate. Defaults to `10000`.
+
 $$$index-max-terms-count$$$
 
 `index.max_terms_count`
@@ -259,12 +264,22 @@ $$$index-routing-allocation-enable-setting$$$
 $$$index-default-pipeline$$$
 
 `index.default_pipeline` {applies_to}`serverless: all`
-:   Default ingest pipeline for the index. Index requests will fail if the default pipeline is set and the pipeline does not exist. The default may be overridden using the `pipeline` parameter. The special pipeline name `_none` indicates no default ingest pipeline will run.
+:   Default ingest pipeline for the index. Index requests will fail if the default pipeline is set and the pipeline does not exist.
+
+    The default pipeline is used only if no request-specific pipeline is specified. The pipeline to execute is resolved using the following order of precedence, from highest to lowest:
+
+    1. The `pipeline` parameter specified in the individual document's action/metadata line of a bulk request.
+    2. The `pipeline` query parameter passed in the bulk or index request URL.
+    3. The `index.default_pipeline` index setting.
+
+    For example, a `pipeline` query parameter overrides `index.default_pipeline`, and a `pipeline` parameter in a bulk action/metadata line overrides both.
+
+    The special pipeline name `_none` indicates no ingest pipeline will run. This can be used at any of the above levels to disable pipeline execution and override lower-precedence settings.
 
 $$$index-final-pipeline$$$
 
 `index.final_pipeline` {applies_to}`serverless: all`
-:   Final ingest pipeline for the index. Indexing requests will fail if the final pipeline is set and the pipeline does not exist. The final pipeline always runs after the request pipeline (if specified) and the default pipeline (if it exists). The special pipeline name `_none` indicates no final ingest pipeline will run.
+:   Final ingest pipeline for the index. Indexing requests will fail if the final pipeline is set and the pipeline does not exist. The final pipeline always runs after the request pipeline (if specified via query parameter or bulk action/metadata line) and the default pipeline (if it exists). The special pipeline name `_none` indicates no final ingest pipeline will run.
 
     ::::{note}
     You can’t use a final pipeline to change the `_index` field. If the pipeline attempts to change the `_index` field, the indexing request will fail.

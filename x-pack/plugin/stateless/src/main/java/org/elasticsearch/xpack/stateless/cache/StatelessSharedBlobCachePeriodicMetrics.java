@@ -17,6 +17,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.ConsumingLongGaugeMetric;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
@@ -38,6 +40,7 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
     public static final TimeValue MIN_METRICS_INTERVAL = TimeValue.timeValueSeconds(1L);
 
     private static final String METRICS_INTERVAL_SETTING_KEY = "stateless.cache.metrics_interval";
+    private static final Logger logger = LogManager.getLogger(StatelessSharedBlobCachePeriodicMetrics.class);
 
     /**
      * How often this component will sample. A value of {@link TimeValue#MINUS_ONE} disables sampling.
@@ -305,6 +308,7 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
         final long[] backfill = new long[1];
         final long[] unknown = new long[1];
         final long[] minimalTimestamp = new long[1];
+        final long startTime = System.nanoTime();
         cacheService.iterateCachedRegions((CacheRegion<KeyType> region, Integer freq) -> {
             filled[0]++;
             final long timestampMillis = region.timestampMillis();
@@ -326,6 +330,7 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
                 protectedFreqPositive[0]++;
             }
         });
+        logger.debug("scanned [{}] regions in [{}]", filled[0], TimeValue.timeValueNanos(System.nanoTime() - startTime));
         filledMetric.set(filled[0]);
         protectedMetric.set(protectedCount[0]);
         protectedFreq0Metric.set(protectedFreq0[0]);

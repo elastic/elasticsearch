@@ -168,11 +168,6 @@ public class MetadataCreateIndexService {
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
 
-    /**
-     * Name of the setting used to allow blocking refreshes on newly created indices.
-     */
-    public static final String USE_INDEX_REFRESH_BLOCK_SETTING_NAME = "stateless.indices.use_refresh_block_upon_index_creation";
-
     @FunctionalInterface
     interface ClusterBlocksTransformer {
         void apply(ClusterBlocks.Builder clusterBlocks, ProjectId projectId, IndexMetadata indexMetadata);
@@ -2218,12 +2213,8 @@ public class MetadataCreateIndexService {
         }
     }
 
-    public static boolean useRefreshBlock(Settings settings) {
-        return DiscoveryNode.isStateless(settings) && settings.getAsBoolean(USE_INDEX_REFRESH_BLOCK_SETTING_NAME, true);
-    }
-
     static ClusterBlocksTransformer createClusterBlocksTransformerForIndexCreation(Settings settings) {
-        if (useRefreshBlock(settings) == false) {
+        if (DiscoveryNode.isStateless(settings) == false) {
             return (clusterBlocks, projectId, indexMetadata) -> {};
         }
         logger.debug("applying refresh block on index creation");
@@ -2247,7 +2238,7 @@ public class MetadataCreateIndexService {
     private boolean assertHasRefreshBlock(IndexMetadata indexMetadata, ProjectState state) {
         var hasRefreshBlock = state.blocks()
             .hasIndexBlock(state.projectId(), indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
-        if (useRefreshBlock(settings) == false || applyRefreshBlock(indexMetadata) == false) {
+        if (DiscoveryNode.isStateless(settings) == false || applyRefreshBlock(indexMetadata) == false) {
             assert hasRefreshBlock == false : indexMetadata.getIndex();
         } else {
             assert hasRefreshBlock : indexMetadata.getIndex();

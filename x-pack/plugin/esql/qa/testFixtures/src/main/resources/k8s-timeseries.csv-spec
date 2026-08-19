@@ -1599,13 +1599,18 @@ max:double | max2:double | cluster:keyword | pod:keyword | b:datetime
 firstAndLastWithNullSort
 required_capability: ts_command_v0
 required_capability: fix_agg_first_last_foldables_in_sort_field
+required_capability: fn_first_fix_unresolved_sort_in_ts_default_inner_agg
+required_capability: fn_last_fix_unresolved_sort_in_ts_default_inner_agg
+// WHERE narrows each pod group down to exactly one row, so first()/last()
+// are deterministic even with a null sort field (x == y for every row).
 TS k8s
+| WHERE cluster == "staging" AND @timestamp >= "2024-05-10T00:08:00.000Z" AND @timestamp <= "2024-05-10T00:08:16.000Z"
 | STATS x = first(network.bytes_in, null), y = last(network.bytes_in, null) BY pod
 | SORT pod
 ;
 
 x:long | y:long | pod:keyword
-278    | 206    | one
-585    | 972    | three
-799    | 913    | two
+680    | 680    | one
+170    | 170    | three
+656    | 656    | two
 ;

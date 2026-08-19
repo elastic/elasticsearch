@@ -4134,6 +4134,40 @@ FROM sample_data
 2023-10-23T13:55:01.543Z | 172.21.3.15  | 1756467
 ;
 
+// foo is mapped only in cross_mapping_a and bar only in cross_mapping_b, so each index has the other field in
+// _source only. LOAD makes both partially mapped and loads the unmapped leg from _source, so no value is lost.
+// The LOAD_ALL twin of this test lives in unmapped-load-all.csv-spec under the same name.
+crossMappingLoadsBothLegs
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM cross_mapping_a, cross_mapping_b METADATA _index
+| SORT foo
+;
+
+bar:keyword | foo:keyword | _index:keyword
+b1          | a1          | cross_mapping_a
+b2          | a2          | cross_mapping_b
+;
+
+// Synthetic source drops nothing: dynamic: false stores the unmapped fields in _ignored_source, so naming one loads it.
+// The LOAD_ALL twin in unmapped-load-all.csv-spec selects the same field by wildcard instead.
+syntheticSourceLoadsScalarUnmappedField
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM synthetic_source_partial_mapping
+| KEEP @timestamp, unmapped_message
+| SORT @timestamp
+| LIMIT 3
+;
+
+@timestamp:datetime      | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 43
+;
+
 loadPartiallyMappedNormalizedKeyword
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped

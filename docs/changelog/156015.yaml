@@ -1,0 +1,9 @@
+area: Vector Search
+issues:
+ - 156010
+ - 156011
+ - 156009
+ - 156012
+pr: 156015
+summary: Fix DOT_PRODUCT and COSINE score clamping in BBQ vector scorer
+type: bug

@@ -180,10 +180,6 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
             );
         }));
         noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.DOUBLE_RANGE, DataType.DOUBLE_RANGE), () -> {
-            assumeTrue(
-                "Requires DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V7 capability",
-                EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V7.isEnabled()
-            );
             DoubleRangeBlockBuilder.DoubleRange first = randomBoolean() ? null : TestCaseSupplier.randomDoubleRange();
             DoubleRangeBlockBuilder.DoubleRange second = TestCaseSupplier.randomDoubleRange();
             return new TestCaseSupplier.TestCase(
@@ -272,14 +268,10 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
 
         FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
         FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
-        FunctionAppliesTo doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
         suppliers = TestCaseSupplier.mapTestCases(suppliers, tc -> tc.withData(tc.getData().stream().map(typedData -> {
             DataType type = typedData.type();
             if (type == DataType.HISTOGRAM || type == DataType.EXPONENTIAL_HISTOGRAM || type == DataType.TDIGEST) {
                 return typedData.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo);
-            }
-            if (type == DataType.DOUBLE_RANGE) {
-                return typedData.withAppliesTo(doubleRangeAppliesTo);
             }
             return typedData;
         }).toList()));

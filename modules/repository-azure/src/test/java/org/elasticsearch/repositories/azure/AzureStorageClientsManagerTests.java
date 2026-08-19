@@ -31,6 +31,8 @@ import org.elasticsearch.repositories.azure.AzureStorageService.AzureStorageClie
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -70,9 +72,8 @@ public class AzureStorageClientsManagerTests extends ESTestCase {
     private AzureStorageService azureStorageService;
     private AzureStorageClientsManager azureClientsManager;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initClientsManager() throws Exception {
         idGenerators = ConcurrentCollections.newConcurrentMap();
         clientNames = IntStream.range(0, between(2, 5)).mapToObj(i -> randomIdentifier() + "_" + i).toList();
 
@@ -112,9 +113,8 @@ public class AzureStorageClientsManagerTests extends ESTestCase {
         assertNotNull(azureClientsManager.getPerProjectStorageSettings());
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void cleanup() throws Exception {
         clusterService.close();
         threadPool.close();
     }

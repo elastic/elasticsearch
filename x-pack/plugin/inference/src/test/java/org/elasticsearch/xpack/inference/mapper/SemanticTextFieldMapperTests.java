@@ -63,9 +63,9 @@ import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.EndpointMetadataTests;
 import org.elasticsearch.inference.InferenceService;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -179,7 +179,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             globalModelRegistry.putDefaultIdIfAbsent(
                 new InferenceService.DefaultConfigId(
                     model.getInferenceEntityId(),
-                    new MinimalServiceSettings(model),
+                    new EndpointClusterState(model),
                     mock(InferenceService.class)
                 )
             );
@@ -301,7 +301,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
 
     @Override
     protected DenseVectorFieldMapper.DenseVectorIndexOptions getExplicitDenseVectorIndexOptions(
-        MinimalServiceSettings modelSettings,
+        EndpointClusterState modelSettings,
         IndexVersion indexVersion
     ) {
         TaskType taskType = modelSettings.taskType();
@@ -336,7 +336,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         MapperService mapperService = createSemanticMapperService(fieldMapping, IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5);
         DocumentMapper mapper = mapperService.documentMapper();
         assertEquals(Strings.toString(expectedMapping), mapper.mappingSource().toString());
-        assertSemanticField(mapperService, fieldName, false, new MinimalServiceSettings(JINA_V5_TEXT_MODEL), null, null);
+        assertSemanticField(mapperService, fieldName, false, new EndpointClusterState(JINA_V5_TEXT_MODEL), null, null);
         assertInferenceEndpoints(mapperService, fieldName, DEFAULT_EIS_JINA_V5_INFERENCE_ID, DEFAULT_EIS_JINA_V5_INFERENCE_ID);
 
         ParsedDocument doc1 = mapper.parse(source(this::writeField));
@@ -399,7 +399,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             }
 
             MapperService iterMapperService = createSemanticMapperServiceWithIndexVersion(fieldMapping, indexVersion);
-            assertSemanticField(iterMapperService, fieldName, false, new MinimalServiceSettings(expectedModel), null, null);
+            assertSemanticField(iterMapperService, fieldName, false, new EndpointClusterState(expectedModel), null, null);
             assertInferenceEndpoints(
                 iterMapperService,
                 fieldName,
@@ -625,7 +625,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             final XContentBuilder fieldMapping = semanticMapping("field", null, searchInferenceId);
             final XContentBuilder expectedMapping = semanticMapping("field", DEFAULT_EIS_JINA_V5_INFERENCE_ID, searchInferenceId);
             final MapperService mapperService = createSemanticMapperService(fieldMapping, IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5);
-            assertSemanticField(mapperService, fieldName, false, new MinimalServiceSettings(JINA_V5_TEXT_MODEL), null, null);
+            assertSemanticField(mapperService, fieldName, false, new EndpointClusterState(JINA_V5_TEXT_MODEL), null, null);
             assertInferenceEndpoints(mapperService, fieldName, DEFAULT_EIS_JINA_V5_INFERENCE_ID, searchInferenceId);
             assertSerialization.accept(expectedMapping, mapperService);
         }
@@ -723,7 +723,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             })));
             assertThat(e.getMessage(), containsString("Field [semantic] of type [semantic_text] can't be used in multifields"));
         } else {
-            MinimalServiceSettings sparseModelSettings = createRandomModelSettings(TaskType.SPARSE_EMBEDDING);
+            EndpointClusterState sparseModelSettings = createRandomModelSettings(TaskType.SPARSE_EMBEDDING);
             var mapperService = createSemanticMapperService(fieldMapping(b -> {
                 b.field("type", "text");
                 b.startObject("fields");
@@ -767,7 +767,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         final String fieldName = "semantic";
         final String inferenceId = "test_service";
         final String searchInferenceId = "search_test_service";
-        final MinimalServiceSettings sparseModelSettings = createRandomModelSettings(TaskType.SPARSE_EMBEDDING);
+        final EndpointClusterState sparseModelSettings = createRandomModelSettings(TaskType.SPARSE_EMBEDDING);
 
         {
             MapperService mapperService = createSemanticMapperService(semanticMapping(fieldName, inferenceId));
@@ -787,8 +787,8 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
     public void testUpdateModelSettings() throws IOException {
         for (int depth = 1; depth < 5; depth++) {
             String fieldName = randomFieldName(depth);
-            MinimalServiceSettings sparseSettings = createRandomModelSettings(TaskType.SPARSE_EMBEDDING);
-            MinimalServiceSettings denseSettings = createRandomModelSettings(TaskType.TEXT_EMBEDDING);
+            EndpointClusterState sparseSettings = createRandomModelSettings(TaskType.SPARSE_EMBEDDING);
+            EndpointClusterState denseSettings = createRandomModelSettings(TaskType.TEXT_EMBEDDING);
             MapperService mapperService = createSemanticMapperService(semanticMapping(fieldName, "test_model"));
             assertSemanticField(mapperService, fieldName, false, null, null, null);
             {
@@ -845,7 +845,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         for (int depth = 1; depth < 5; depth++) {
             String inferenceId = "test_model";
             String fieldName = randomFieldName(depth);
-            MinimalServiceSettings sparseSettings = createRandomModelSettings(TaskType.SPARSE_EMBEDDING);
+            EndpointClusterState sparseSettings = createRandomModelSettings(TaskType.SPARSE_EMBEDDING);
             var sparseVectorIndexOptions = SparseVectorFieldTypeTests.randomSparseVectorIndexOptions();
             var expectedIndexOptions = sparseVectorIndexOptions == null
                 ? null
@@ -863,8 +863,8 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
     public void testSparseVectorMappingUpdate() throws IOException {
         for (int i = 0; i < 5; i++) {
             Model model = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
-            when(globalModelRegistry.getMinimalServiceSettings(anyString())).thenAnswer(
-                invocation -> { return new MinimalServiceSettings(model); }
+            when(globalModelRegistry.getEndpointClusterState(anyString())).thenAnswer(
+                invocation -> { return new EndpointClusterState(model); }
             );
 
             final ChunkingSettings chunkingSettings = generateRandomChunkingSettings(false);
@@ -874,7 +874,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             MapperService mapperService = createSemanticMapperService(
                 semanticMapping(fieldName, model.getInferenceEntityId(), null, null, chunkingSettings, indexOptions)
             );
-            assertSemanticField(mapperService, fieldName, false, new MinimalServiceSettings(model), chunkingSettings, indexOptions);
+            assertSemanticField(mapperService, fieldName, false, new EndpointClusterState(model), chunkingSettings, indexOptions);
 
             final SemanticIndexOptions newIndexOptions = randomSemanticIndexOptions(TaskType.SPARSE_EMBEDDING);
             final ChunkingSettings newChunkingSettings = generateRandomChunkingSettingsOtherThan(chunkingSettings);
@@ -882,7 +882,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
                 mapperService,
                 semanticMapping(fieldName, model.getInferenceEntityId(), null, null, newChunkingSettings, newIndexOptions)
             );
-            assertSemanticField(mapperService, fieldName, false, new MinimalServiceSettings(model), newChunkingSettings, newIndexOptions);
+            assertSemanticField(mapperService, fieldName, false, new EndpointClusterState(model), newChunkingSettings, newIndexOptions);
         }
     }
 
@@ -909,7 +909,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             assertSemanticField(mapperService, fieldName, false, null, null, null);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
 
-            MinimalServiceSettings sparseSettings = createRandomModelSettings(TaskType.SPARSE_EMBEDDING);
+            EndpointClusterState sparseSettings = createRandomModelSettings(TaskType.SPARSE_EMBEDDING);
             mapperService = createSemanticMapperService(semanticMapping(fieldName, inferenceId, sparseSettings));
             assertSemanticField(mapperService, fieldName, true, sparseSettings, null, null);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
@@ -971,7 +971,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
     protected void assertEmbeddingsField(
         MapperService mapperService,
         FieldMapper embeddingsMapper,
-        MinimalServiceSettings modelSettings,
+        EndpointClusterState modelSettings,
         @Nullable SemanticIndexOptions expectedIndexOptions
     ) {
         if (modelSettings.taskType() == TaskType.SPARSE_EMBEDDING) {
@@ -999,13 +999,13 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             Model model1 = TestModel.createRandomInstance(taskType);
             Model model2 = TestModel.createRandomInstance(taskType);
 
-            when(globalModelRegistry.getMinimalServiceSettings(anyString())).thenAnswer(invocation -> {
+            when(globalModelRegistry.getEndpointClusterState(anyString())).thenAnswer(invocation -> {
                 var modelId = (String) invocation.getArguments()[0];
                 if (modelId.equals(model1.getInferenceEntityId())) {
-                    return new MinimalServiceSettings(model1);
+                    return new EndpointClusterState(model1);
                 }
                 if (modelId.equals(model2.getInferenceEntityId())) {
-                    return new MinimalServiceSettings(model2);
+                    return new EndpointClusterState(model2);
                 }
                 return null;
             });
@@ -1034,14 +1034,14 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             });
 
             MapperService mapperService = createSemanticMapperServiceWithIndexVersion(mapping, indexVersion);
-            assertSemanticField(mapperService, fieldName1, false, new MinimalServiceSettings(model1), null, indexOptions);
+            assertSemanticField(mapperService, fieldName1, false, new EndpointClusterState(model1), null, indexOptions);
             assertInferenceEndpoints(
                 mapperService,
                 fieldName1,
                 model1.getInferenceEntityId(),
                 setSearchInferenceId ? searchInferenceId : model1.getInferenceEntityId()
             );
-            assertSemanticField(mapperService, fieldName2, false, new MinimalServiceSettings(model2), null, indexOptions);
+            assertSemanticField(mapperService, fieldName2, false, new EndpointClusterState(model2), null, indexOptions);
             assertInferenceEndpoints(
                 mapperService,
                 fieldName2,
@@ -1216,7 +1216,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             null,
             new SemanticTextField.InferenceResult(
                 model.getInferenceEntityId(),
-                new MinimalServiceSettings(model),
+                new EndpointClusterState(model),
                 null,
                 Map.of("field", List.of(new SemanticTextField.Chunk(0, embedding.toBytesRef(XContentType.JSON.xContent()))))
             ),
@@ -1247,7 +1247,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             semanticMapping(
                 fieldName,
                 inferenceId,
-                new MinimalServiceSettings(
+                new EndpointClusterState(
                     "my-service",
                     TaskType.TEXT_EMBEDDING,
                     1024,
@@ -1262,7 +1262,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             semanticMapping(
                 fieldName,
                 inferenceId,
-                new MinimalServiceSettings(
+                new EndpointClusterState(
                     "my-service",
                     TaskType.TEXT_EMBEDDING,
                     1024,
@@ -1277,7 +1277,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             semanticMapping(
                 fieldName,
                 inferenceId,
-                new MinimalServiceSettings(
+                new EndpointClusterState(
                     "my-service",
                     TaskType.TEXT_EMBEDDING,
                     1024,
@@ -1292,7 +1292,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             semanticMapping(
                 fieldName,
                 inferenceId,
-                new MinimalServiceSettings(
+                new EndpointClusterState(
                     "my-service",
                     TaskType.TEXT_EMBEDDING,
                     1024,
@@ -1306,8 +1306,8 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
 
     public void testSettingAndUpdatingChunkingSettings() throws IOException {
         Model model = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
-        when(globalModelRegistry.getMinimalServiceSettings(anyString())).thenAnswer(
-            invocation -> { return new MinimalServiceSettings(model); }
+        when(globalModelRegistry.getEndpointClusterState(anyString())).thenAnswer(
+            invocation -> { return new EndpointClusterState(model); }
         );
 
         final ChunkingSettings chunkingSettings = generateRandomChunkingSettings(false);
@@ -1317,11 +1317,11 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         MapperService mapperService = createSemanticMapperService(
             semanticMapping(fieldName, model.getInferenceEntityId(), null, null, chunkingSettings, indexOptions)
         );
-        assertSemanticField(mapperService, fieldName, false, new MinimalServiceSettings(model), chunkingSettings, indexOptions);
+        assertSemanticField(mapperService, fieldName, false, new EndpointClusterState(model), chunkingSettings, indexOptions);
 
         ChunkingSettings newChunkingSettings = generateRandomChunkingSettingsOtherThan(chunkingSettings);
         merge(mapperService, semanticMapping(fieldName, model.getInferenceEntityId(), null, null, newChunkingSettings, indexOptions));
-        assertSemanticField(mapperService, fieldName, false, new MinimalServiceSettings(model), newChunkingSettings, indexOptions);
+        assertSemanticField(mapperService, fieldName, false, new EndpointClusterState(model), newChunkingSettings, indexOptions);
     }
 
     public void testModelSettingsRequiredWithChunks() throws IOException {
@@ -1329,8 +1329,8 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         TaskType taskType = TaskType.SPARSE_EMBEDDING;
         Model model = TestModel.createRandomInstance(taskType);
 
-        when(globalModelRegistry.getMinimalServiceSettings(anyString())).thenAnswer(
-            invocation -> { return new MinimalServiceSettings(model); }
+        when(globalModelRegistry.getEndpointClusterState(anyString())).thenAnswer(
+            invocation -> { return new EndpointClusterState(model); }
         );
 
         ChunkingSettings chunkingSettings = generateRandomChunkingSettings(false);
@@ -1371,7 +1371,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
     public void testPre811IndexSemanticTextDenseVectorRaisesError() throws IOException {
         assumeTrue("Test only applies to legacy format", useLegacyFormat);
         Model model = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
-        MinimalServiceSettings modelSettings = new MinimalServiceSettings(model);
+        EndpointClusterState modelSettings = new EndpointClusterState(model);
         String fieldName = randomAlphaOfLength(8);
 
         MapperService mapperService = createSemanticMapperService(
@@ -1404,7 +1404,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
     public void testPre811IndexSemanticTextSparseVectorRaisesError() throws IOException {
         assumeTrue("Test only applies to legacy format", useLegacyFormat);
         Model model = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
-        MinimalServiceSettings modelSettings = new MinimalServiceSettings(model);
+        EndpointClusterState modelSettings = new EndpointClusterState(model);
         String fieldName = randomAlphaOfLength(8);
 
         MapperService mapperService = createSemanticMapperService(
@@ -1464,7 +1464,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         final String fieldName = "semantic";
         final String inferenceId = "test_service";
         final EndpointMetadata endpointMetadata = EndpointMetadataTests.randomNonEmptyInstance();
-        final MinimalServiceSettings modelSettings = new MinimalServiceSettings(
+        final EndpointClusterState modelSettings = new EndpointClusterState(
             "test-service",
             TaskType.SPARSE_EMBEDDING,
             null,
@@ -1482,7 +1482,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
 
     public void testMappingWithEndpointMetadata() throws IOException {
         final EndpointMetadata endpointMetadata = EndpointMetadataTests.randomNonEmptyInstance();
-        final MinimalServiceSettings modelSettingsWithMetadata = new MinimalServiceSettings(
+        final EndpointClusterState modelSettingsWithMetadata = new EndpointClusterState(
             "test-service",
             TaskType.SPARSE_EMBEDDING,
             null,
@@ -1517,7 +1517,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
 
     public void testDefaultIndexOptions() throws IOException {
         for (int i = 0; i < 200; i++) {
-            final MinimalServiceSettings modelSettings = createRandomModelSettings();
+            final EndpointClusterState modelSettings = createRandomModelSettings();
             final IndexVersion indexVersion = useLegacyFormat == false && randomBoolean()
                 ? IndexVersion.current()
                 : SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat);
@@ -1532,7 +1532,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
 
     public void testSpecifiedDenseVectorIndexOptions() throws IOException {
         IndexVersion indexVersion = SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat());
-        MinimalServiceSettings denseModelSettings = new MinimalServiceSettings(
+        EndpointClusterState denseModelSettings = new EndpointClusterState(
             randomAlphaOfLength(4),
             TaskType.TEXT_EMBEDDING,
             100,
@@ -1638,7 +1638,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
     }
 
     public void testSetElementTypeInDenseVectorIndexOptions() throws IOException {
-        MinimalServiceSettings denseModelSettings = new MinimalServiceSettings(
+        EndpointClusterState denseModelSettings = new EndpointClusterState(
             randomAlphaOfLength(4),
             TaskType.TEXT_EMBEDDING,
             100,
@@ -1698,7 +1698,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
 
     public void testInvalidElementTypeOverride() {
         for (int i = 0; i < 10; i++) {
-            final MinimalServiceSettings modelSettings = createRandomModelSettings(TaskType.TEXT_EMBEDDING);
+            final EndpointClusterState modelSettings = createRandomModelSettings(TaskType.TEXT_EMBEDDING);
             final DenseVectorFieldMapper.ElementType modelElementType = modelSettings.elementType();
 
             final DenseVectorFieldMapper.ElementType overrideElementType;
@@ -1737,7 +1737,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         for (int i = 0; i < 10; i++) {
             IndexVersion indexVersion = SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat());
             SparseVectorFieldMapper.SparseVectorIndexOptions testIndexOptions = randomSparseVectorIndexOptions(false);
-            MinimalServiceSettings sparseModelSettings = createRandomModelSettings(TaskType.SPARSE_EMBEDDING);
+            EndpointClusterState sparseModelSettings = createRandomModelSettings(TaskType.SPARSE_EMBEDDING);
             var mapperService = createSemanticMapperServiceWithIndexVersion(
                 semanticMapping(
                     "field",
@@ -1806,11 +1806,11 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             IndexVersion indexVersion = randomFrom(supportedVersions);
             createMapperService(
                 indexVersion,
-                semanticMapping("field", denseModel.getInferenceEntityId(), new MinimalServiceSettings(denseModel))
+                semanticMapping("field", denseModel.getInferenceEntityId(), new EndpointClusterState(denseModel))
             );
             createMapperService(
                 indexVersion,
-                semanticMapping("field", sparseModel.getInferenceEntityId(), new MinimalServiceSettings(sparseModel))
+                semanticMapping("field", sparseModel.getInferenceEntityId(), new EndpointClusterState(sparseModel))
             );
         }
     }

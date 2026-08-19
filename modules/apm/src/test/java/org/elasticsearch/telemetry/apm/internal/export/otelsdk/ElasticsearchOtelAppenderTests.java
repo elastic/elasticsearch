@@ -289,6 +289,8 @@ public class ElasticsearchOtelAppenderTests extends ESTestCase {
         SpanContext spanCtx = record.getSpanContext();
         assertThat(spanCtx.isValid(), equalTo(true));
         assertThat(spanCtx.getTraceId(), equalTo(traceId));
+        // "trace.id" key must not appear as an attribute
+        assertThat(record.getAttributes().get(AttributeKey.stringKey("trace.id")), nullValue());
     }
 
     public void testMissingTraceIdLeavesInvalidSpanContext() {

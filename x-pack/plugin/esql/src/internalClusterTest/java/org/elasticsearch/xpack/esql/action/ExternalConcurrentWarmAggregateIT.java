@@ -48,7 +48,7 @@ public class ExternalConcurrentWarmAggregateIT extends AbstractExternalDataSourc
 
     @Override
     protected QueryPragmas getPragmas() {
-        return new QueryPragmas(Settings.builder().put("parsing_parallelism", 1).build());
+        return new QueryPragmas(Settings.builder().put("external_parsing_parallelism", 1).build());
     }
 
     /**

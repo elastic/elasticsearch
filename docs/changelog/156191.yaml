@@ -1,0 +1,5 @@
+area: Transform
+issues: []
+pr: 156191
+summary: Preserve headers through Builder copy
+type: bug

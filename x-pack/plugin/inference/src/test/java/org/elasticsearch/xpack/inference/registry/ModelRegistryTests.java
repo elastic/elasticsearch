@@ -11,9 +11,9 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.EndpointClusterState;
+import org.elasticsearch.inference.EndpointClusterStateTests;
 import org.elasticsearch.inference.InferenceService;
-import org.elasticsearch.inference.MinimalServiceSettings;
-import org.elasticsearch.inference.MinimalServiceSettingsTests;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -78,10 +78,10 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
     public void testIdMatchedDefault() {
         var defaultConfigIds = new ArrayList<InferenceService.DefaultConfigId>();
         defaultConfigIds.add(
-            new InferenceService.DefaultConfigId("foo", MinimalServiceSettings.sparseEmbedding("my_service"), mock(InferenceService.class))
+            new InferenceService.DefaultConfigId("foo", EndpointClusterState.sparseEmbedding("my_service"), mock(InferenceService.class))
         );
         defaultConfigIds.add(
-            new InferenceService.DefaultConfigId("bar", MinimalServiceSettings.sparseEmbedding("my_service"), mock(InferenceService.class))
+            new InferenceService.DefaultConfigId("bar", EndpointClusterState.sparseEmbedding("my_service"), mock(InferenceService.class))
         );
 
         var matched = ModelRegistry.idMatchedDefault("bar", defaultConfigIds);
@@ -92,10 +92,10 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
 
     public void testContainsPreconfiguredInferenceEndpointId() {
         registry.addDefaultIds(
-            new InferenceService.DefaultConfigId("foo", MinimalServiceSettings.sparseEmbedding("my_service"), mock(InferenceService.class))
+            new InferenceService.DefaultConfigId("foo", EndpointClusterState.sparseEmbedding("my_service"), mock(InferenceService.class))
         );
         registry.addDefaultIds(
-            new InferenceService.DefaultConfigId("bar", MinimalServiceSettings.sparseEmbedding("my_service"), mock(InferenceService.class))
+            new InferenceService.DefaultConfigId("bar", EndpointClusterState.sparseEmbedding("my_service"), mock(InferenceService.class))
         );
         assertTrue(registry.containsPreconfiguredInferenceEndpointId("foo"));
         assertFalse(registry.containsPreconfiguredInferenceEndpointId("baz"));
@@ -104,20 +104,20 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
     public void testTaskTypeMatchedDefaults() {
         var defaultConfigIds = new ArrayList<InferenceService.DefaultConfigId>();
         defaultConfigIds.add(
-            new InferenceService.DefaultConfigId("s1", MinimalServiceSettings.sparseEmbedding("my_service"), mock(InferenceService.class))
+            new InferenceService.DefaultConfigId("s1", EndpointClusterState.sparseEmbedding("my_service"), mock(InferenceService.class))
         );
         defaultConfigIds.add(
-            new InferenceService.DefaultConfigId("s2", MinimalServiceSettings.sparseEmbedding("my_service"), mock(InferenceService.class))
+            new InferenceService.DefaultConfigId("s2", EndpointClusterState.sparseEmbedding("my_service"), mock(InferenceService.class))
         );
         defaultConfigIds.add(
             new InferenceService.DefaultConfigId(
                 "d1",
-                MinimalServiceSettings.textEmbedding("my_service", 384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+                EndpointClusterState.textEmbedding("my_service", 384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
                 mock(InferenceService.class)
             )
         );
         defaultConfigIds.add(
-            new InferenceService.DefaultConfigId("c1", MinimalServiceSettings.completion("my_service"), mock(InferenceService.class))
+            new InferenceService.DefaultConfigId("c1", EndpointClusterState.completion("my_service"), mock(InferenceService.class))
         );
 
         var matched = ModelRegistry.taskTypeMatchedDefaults(TaskType.SPARSE_EMBEDDING, defaultConfigIds);
@@ -135,12 +135,10 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
         var mockServiceB = mock(InferenceService.class);
         when(mockServiceB.name()).thenReturn("service-b");
 
-        registry.addDefaultIds(new InferenceService.DefaultConfigId(id, MinimalServiceSettingsTests.randomInstance(), mockServiceA));
+        registry.addDefaultIds(new InferenceService.DefaultConfigId(id, EndpointClusterStateTests.randomInstance(), mockServiceA));
         var ise = expectThrows(
             IllegalStateException.class,
-            () -> registry.addDefaultIds(
-                new InferenceService.DefaultConfigId(id, MinimalServiceSettingsTests.randomInstance(), mockServiceB)
-            )
+            () -> registry.addDefaultIds(new InferenceService.DefaultConfigId(id, EndpointClusterStateTests.randomInstance(), mockServiceB))
         );
         assertThat(
             ise.getMessage(),
@@ -165,11 +163,11 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
         registry.storeModel(model, storeListener, TimeValue.THIRTY_SECONDS);
         assertTrue(storeListener.actionGet(TimeValue.THIRTY_SECONDS));
 
-        assertMinimalServiceSettings(registry, model);
+        assertEndpointClusterState(registry, model);
     }
 
-    public static void assertMinimalServiceSettings(ModelRegistry registry, Model model) {
-        var settings = registry.getMinimalServiceSettings(model.getInferenceEntityId());
+    public static void assertEndpointClusterState(ModelRegistry registry, Model model) {
+        var settings = registry.getEndpointClusterState(model.getInferenceEntityId());
         assertNotNull(settings);
         assertThat(settings.taskType(), Matchers.equalTo(model.getTaskType()));
         assertThat(settings.dimensions(), Matchers.equalTo(model.getServiceSettings().dimensions()));

@@ -11,18 +11,22 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.ByteBuffersDirectory;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.common.lucene.store.FilterIndexOutput;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -33,11 +37,14 @@ import org.elasticsearch.index.store.ByteSizeDirectory;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.foreign.MemorySegment;
+import java.lang.ref.Reference;
 import java.nio.ByteBuffer;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
@@ -226,6 +233,7 @@ public class IndexDirectory extends ByteSizeDirectory {
 
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
+        context = maybeAddStatelessAdviceHint(name, context);
 
         if (cacheDirectory.containsFile(name) == false) {
             LocalFileRef localFile;
@@ -293,6 +301,25 @@ public class IndexDirectory extends ByteSizeDirectory {
             return ref::decRef;
         }
         return () -> {};
+    }
+
+    /**
+     * Appends a {@link StatelessAdviceHint} to the IOContext for file types that have been validated
+     * for MADV_RANDOM on the indexing tier. Currently supports stored fields data files (.fdt).
+     */
+    static IOContext maybeAddStatelessAdviceHint(String name, IOContext context) {
+        var ext = IndexFileNames.getExtension(name);
+        if (LuceneFilesExtensions.FDT.getExtension().equals(ext) && context.hints().contains(DataAccessHint.RANDOM)) {
+            var existingHints = context.hints();
+            var allHints = new IOContext.FileOpenHint[existingHints.size() + 1];
+            int i = 0;
+            for (var hint : existingHints) {
+                allHints[i++] = hint;
+            }
+            allHints[i] = StatelessAdviceHint.STORED_FIELDS;
+            return context.withHints(allHints);
+        }
+        return context;
     }
 
     @Override
@@ -731,8 +758,12 @@ public class IndexDirectory extends ByteSizeDirectory {
      * the {@link RefCounted} does not allow incrementing the ref, then {@link ReopeningIndexInput} will reopen the IndexInput from the
      * cache directory. When it reopens an IndexInput it takes care of restoring the position in the file as well as the clone or slice
      * state.
+     * <p>
+     * Because {@link #reopenInputFromCache()} may swap and close the delegate at any time, direct access to the delegate's memory is
+     * exposed through {@link DirectAccessInput}, whose segments are scoped to a single callback, rather than through Lucene's
+     * {@link MemorySegmentAccessInput}, whose segments must remain valid until the input is closed.
      */
-    class ReopeningIndexInput extends BlobCacheBufferedIndexInput {
+    class ReopeningIndexInput extends BlobCacheBufferedIndexInput implements DirectAccessInput {
 
         private final String name;
         private final IOContext context;
@@ -1120,6 +1151,68 @@ public class IndexDirectory extends ByteSizeDirectory {
                 b.position(offset + len);
                 position += len;
                 return null;
+            });
+        }
+
+        @Override
+        public boolean withMemorySegmentSlice(long offset, long length, CheckedConsumer<MemorySegment, IOException> action)
+            throws IOException {
+            if (length < getBufferSize()) {
+                // A read this small is cheaper through the buffer: one refill serves several consecutive reads, whereas every
+                // direct access pays for an executeLocallyOrReopen. This is the same trade-off readBytes makes with its own
+                // `len < bufferSize` check. Only single reads are affected.
+                return false;
+            }
+            return executeLocallyOrReopen(current -> {
+                IndexInput inner = current.getDelegate();
+                // We do not need to unwrap, as getDelegate() is the innermost input.
+                // If this changes and a wrapper is introduced, either ensure it implements DAI/MSAI too, or unwrap it to get the
+                // underlying DAI/MSAI, then remove this assertion
+                assert FilterIndexInput.unwrap(inner) == inner : "unexpected wrapper: getDelegate() should be the innermost input";
+                if (inner instanceof MemorySegmentAccessInput msai) {
+                    MemorySegment slice = msai.segmentSliceOrNull(offset, length);
+                    if (slice == null) {
+                        // the requested range straddles an mmap chunk boundary
+                        return false;
+                    }
+                    try {
+                        action.accept(slice);
+                    } finally {
+                        // keep the owner of the mmap arena reachable across the action, which may be a native downcall
+                        Reference.reachabilityFence(msai);
+                    }
+                    return true;
+                }
+                if (inner instanceof DirectAccessInput dai) {
+                    return dai.withMemorySegmentSlice(offset, length, action);
+                }
+                return false;
+            });
+        }
+
+        @Override
+        public boolean withSliceAddresses(
+            long[] offsets,
+            int length,
+            int count,
+            MemorySegment addressesScratch,
+            CheckedConsumer<MemorySegment, IOException> action
+        ) throws IOException {
+            if (DirectAccessInput.checkSlicesArgs(offsets, count, addressesScratch)) {
+                return false;
+            }
+            return executeLocallyOrReopen(current -> {
+                IndexInput inner = current.getDelegate();
+                // We do not need to unwrap, as getDelegate() is the innermost input.
+                // See also withMemorySegmentSlice.
+                assert FilterIndexInput.unwrap(inner) == inner : "unexpected wrapper: getDelegate() should be the innermost input";
+                if (inner instanceof MemorySegmentAccessInput msai) {
+                    return IndexInputUtils.resolveFromMmap(msai, offsets, length, count, addressesScratch, action);
+                }
+                if (inner instanceof DirectAccessInput dai) {
+                    return dai.withSliceAddresses(offsets, length, count, addressesScratch, action);
+                }
+                return false;
             });
         }
 

@@ -237,6 +237,7 @@ public class CsvTestsDataLoader {
         new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv", "k8s-settings.json"),
         new TestDataset("k8s-downsampled", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json"),
         new TestDataset("k8s_stored_source", "k8s-mappings.json", "k8s.csv").withSetting("k8s-stored-source-settings.json"),
+        new TestDataset("empty-k8s", "k8s-extra-mappings.json", "k8s-empty.csv").withSetting("k8s-settings.json"),
         new TestDataset(
             "promql_classic_histogram",
             "mapping-promql-classic-histogram-passthrough.json",
@@ -340,6 +341,7 @@ public class CsvTestsDataLoader {
         new TestDataset("many_numbers").withSetting("many_numbers-settings.json"),
         new TestDataset("mmr_text_vector_keyword"),
         new TestDataset("json_logs"),
+        new TestDataset("network_direction_networks"),
         new TestDataset("flattened_otel_logs"),
         new TestDataset("flattened_many"),
         new TestDataset("flattened_keyed"),
@@ -358,6 +360,7 @@ public class CsvTestsDataLoader {
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json").withIndex("ts_window_nanos")
             .withTypeMapping(Map.of("@timestamp", "date_nanos")),
         new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv"),
+        new TestDataset("date_fn_fields", "mapping-date_fn_fields.json", "date_fn_fields.csv"),
         new TestDataset("trim_test")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
@@ -1637,7 +1640,31 @@ public class CsvTestsDataLoader {
     /** An index alias to create alongside the main test indices. */
     public record AliasConfig(String aliasName, String indexName) {}
 
-    private interface IndexCreator {
+    /**
+     * Functional interface for creating an index during dataset loading. Callers may supply a
+     * custom implementation to apply additional index settings (e.g. a different index mode) on
+     * top of the per-dataset defaults.
+     */
+    public interface IndexCreator {
         void createIndex(RestClient client, String indexName, String mapping, Settings indexSettings) throws IOException;
+    }
+
+    /**
+     * Loads the given datasets using a caller-supplied {@link IndexCreator}, for example to create
+     * the same data under alternative index settings (e.g. a different {@code index.mode}).
+     *
+     * <p>Does not load enrich policies, views, or aliases — only the per-dataset indices and their
+     * data. Callers that need those must load them separately.
+     */
+    public static void loadDataSetIntoEs(RestClient client, Collection<TestDataset> datasets, IndexCreator indexCreator)
+        throws IOException {
+        Set<String> loaded = new HashSet<>();
+        for (TestDataset dataset : datasets) {
+            load(client, dataset, indexCreator);
+            loaded.add(dataset.indexName());
+        }
+        if (loaded.isEmpty() == false) {
+            forceMerge(client, loaded);
+        }
     }
 }

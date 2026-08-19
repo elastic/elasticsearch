@@ -44,6 +44,39 @@ public final class EscfColumnTransforms {
     }
 
     /**
+     * Returns {@code true} when every present row is JSON {@code null} or an empty object ({@code {}},
+     * the zero-entry {@link EscfRowBuffer#emptyObject} {@code KEY_VALUE} row). Used by object-valued
+     * mappers such as {@code flattened}: a leaf column at the field's own path can only contain these
+     * two no-op shapes; anything else is unexpected.
+     */
+    public static boolean allNullOrEmptyObject(EscfColumn column) {
+        if (column.kind() != EscfColumnKind.UNION) {
+            // Non-union columns hold a single uniform type, never null or an empty object, so any
+            // present row disqualifies. Check presence without visiting individual rows.
+            if (column.validity == null) {
+                return column.docCount == 0; // dense: all rows present
+            }
+            return column.validity.cardinality() == 0; // sparse: no present rows
+        }
+        // Union column: visit only present rows; each carries its own type byte.
+        for (PresentDocIterator it = column.presentDocs();;) {
+            int row = it.nextDoc();
+            if (row == DocIdSetIterator.NO_MORE_DOCS) {
+                break;
+            }
+            byte type = column.typeByteForPresent(row);
+            if (type == SourceValueType.NULL) {
+                continue;
+            }
+            // next() returning true means the object has at least one entry.
+            if (type != SourceValueType.KEY_VALUE || column.getKeyValue(row).next()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Returns a cursor that stringifies every present value to its UTF-8 keyword form. Nested and
      * flat arrays are flattened to one tuple per leaf element (same doc-id repeated); absent rows
      * and empty arrays emit nothing. JSON null emits a tuple with {@code value()==null}.

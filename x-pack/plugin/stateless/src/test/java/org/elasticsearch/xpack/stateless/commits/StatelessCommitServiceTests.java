@@ -3010,6 +3010,39 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
+    public void testPendingUploadSizeCalculation() throws IOException {
+        var commitUploadStarted = new CountDownLatch(1);
+        var commitUploadBlocked = new CountDownLatch(1);
+
+        try (var testHarness = createNode((n, r) -> r.run(), (n, r) -> {
+            commitUploadStarted.countDown();
+            safeAwait(commitUploadBlocked);
+            r.run();
+        }, 2)) {
+            StatelessCommitRef commitRef = testHarness.generateIndexCommits(1).get(0);
+            testHarness.commitService.onCommitCreation(commitRef);
+            var vbcc = testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commitRef.getGeneration());
+
+            safeAwait(commitUploadStarted);
+
+            var shardStats = testHarness.commitService.getShardCommitStats().findFirst().get();
+            assertEquals(vbcc.getTotalSizeInBytes(), shardStats.pendingUploadBytes());
+
+            commitUploadBlocked.countDown();
+            waitUntilBCCIsUploaded(testHarness.commitService, testHarness.shardId, commitRef.getGeneration());
+
+            var shardStatsAfterUpload = testHarness.commitService.getShardCommitStats().findFirst().get();
+            assertEquals(0, shardStatsAfterUpload.pendingUploadBytes());
+
+            testHarness.commitService.closeShard(testHarness.shardId);
+
+            var shardStatsAfterClose = testHarness.commitService.getShardCommitStats().findFirst();
+            // No stats for closed shards.
+            assertTrue(shardStatsAfterClose.isEmpty());
+        }
+    }
+
     private Set<StaleCompoundCommit> staleCommits(List<StatelessCommitRef> commits, ShardId shardId) {
         return commits.stream().map(commit -> staleCommit(shardId, commit)).collect(Collectors.toSet());
     }

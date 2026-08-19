@@ -40,13 +40,18 @@ The direction, the decisions that constrain it, and the build order. Update as d
 - Per-field pipeline selection: `NumericPipelineSelector` (`@FunctionalInterface`
   `select(fieldName, type) -> NumericPipelineTemplate`) injected into `ColumNARDocValuesFormat`
   at construction time alongside an explicit `blockSize`. The selector answers "which pipeline
-  type?" without knowing the block size; the format applies its `blockSize` to the returned
-  template. Four named factories on `NumericPipeline` satisfy `NumericPipelineTemplate` as method
-  references (`defaultPipeline`, `monotonicLongPipeline`, `doubleGaugePipeline`,
-  `doubleCounterPipeline`). Server-side wiring into `PerFieldFormatSupplier` is a follow-up (see
-  Next).
+  type?" without knowing the block size; the format applies it via
+  `NumericPipelineTemplate.build(int)`. The four named factories (`defaultPipeline`,
+  `monotonicLongPipeline`, `doubleGaugePipeline`, `doubleCounterPipeline`) are usable as method
+  references: `(f, t) -> NumericPipeline::defaultPipeline`. Server-side wiring into
+  `PerFieldFormatSupplier` is a follow-up (see Next).
 
 ## Next
+
+- **Required before the first format bump**: readers must validate recorded ids against the segment
+  header version while loading metadata; add v0 fixture reads and a BWC fixture test class.
+  While ColumNAR is behind a feature flag and has no stable on-disk compatibility commitment,
+  a format-version bump is required only for layout changes, not for id additions.
 
 - **Server-side selector wiring**: implement a concrete `NumericPipelineSelector` in server that
   inspects `FieldType`, `IndexMode`, and `MetricType` to route each field to the correct pipeline

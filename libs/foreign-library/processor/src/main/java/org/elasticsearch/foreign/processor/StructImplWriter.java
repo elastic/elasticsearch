@@ -16,6 +16,7 @@ import org.elasticsearch.foreign.processor.model.LibraryModel;
 import org.elasticsearch.foreign.processor.model.NativeType;
 import org.elasticsearch.foreign.processor.model.ScalarFieldModel;
 import org.elasticsearch.foreign.processor.model.StructFieldModel;
+import org.elasticsearch.foreign.processor.model.StructInterfaceModel;
 import org.elasticsearch.foreign.processor.model.StructLayoutModel;
 import org.elasticsearch.foreign.processor.model.StructModel;
 
@@ -34,6 +35,7 @@ import javax.lang.model.element.TypeElement;
 
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Addressable;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Arena;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Charset;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayoutPathElement;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemorySegment;
@@ -52,6 +54,7 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_groupEleme
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_sequenceElement;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_varHandleSequenceWithoutOffset;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_varHandleWithoutOffset;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.emitPushUtf16LEConstant;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.fieldClassDesc;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.primitiveClassDesc;
 
@@ -114,6 +117,9 @@ final class StructImplWriter {
             emitConstructor(cb, structImplDesc);
             emitSegmentAccessor(cb, structImplDesc);
             emitFieldAccessors(cb, structImplDesc, model, prefix, fields, perPlatform, singleLayout);
+            if (struct instanceof StructInterfaceModel sim && sim.sizeofMethodName() != null) {
+                emitSizeofMethod(cb, structImplDesc, sim.sizeofMethodName(), perPlatform, singleLayout);
+            }
         });
 
         try (var os = filer.createClassFile(structImplQualifiedName, sourceElement).openOutputStream()) {
@@ -411,7 +417,11 @@ final class StructImplWriter {
         });
     }
 
-    /** Emits a getter for an inline string field: {@code return MemorySegmentAdapter.getString(segment, fieldOffset);}. */
+    /**
+     * Emits a getter for an inline string field: {@code return MemorySegmentAdapter.getString(segment, fieldOffset);}
+     * for a narrow (UTF-8) field, or the charset-aware overload with {@code StandardCharsets.UTF_16LE} when
+     * {@link InlineStringFieldModel#wide()}.
+     */
     private static void emitInlineStringFieldGetter(
         ClassBuilder cb,
         ClassDesc structImplDesc,
@@ -424,18 +434,29 @@ final class StructImplWriter {
             code.aload(0);
             code.getfield(structImplDesc, "segment", CD_MemorySegment);
             emitInlineStringOffset(code, structImplDesc, field, perPlatform, singleLayout);
-            code.invokestatic(
-                CD_MemorySegmentAdapter,
-                "getString",
-                MethodTypeDesc.of(CD_String, CD_MemorySegment, ClassDesc.ofDescriptor("J"))
-            );
+            if (field.wide()) {
+                emitPushUtf16LEConstant(code);
+                code.invokestatic(
+                    CD_MemorySegmentAdapter,
+                    "getString",
+                    MethodTypeDesc.of(CD_String, CD_MemorySegment, ClassDesc.ofDescriptor("J"), CD_Charset)
+                );
+            } else {
+                code.invokestatic(
+                    CD_MemorySegmentAdapter,
+                    "getString",
+                    MethodTypeDesc.of(CD_String, CD_MemorySegment, ClassDesc.ofDescriptor("J"))
+                );
+            }
             code.areturn();
         });
     }
 
     /**
      * Emits a setter for an inline string field:
-     * {@code void name(String v) { MemorySegmentAdapter.setString(segment, fieldOffset, v); }}.
+     * {@code void name(String v) { MemorySegmentAdapter.setString(segment, fieldOffset, v); }} for a narrow
+     * (UTF-8) field, or the charset-aware overload with {@code StandardCharsets.UTF_16LE} when
+     * {@link InlineStringFieldModel#wide()}.
      */
     private static void emitInlineStringFieldSetter(
         ClassBuilder cb,
@@ -450,11 +471,20 @@ final class StructImplWriter {
             code.getfield(structImplDesc, "segment", CD_MemorySegment);
             emitInlineStringOffset(code, structImplDesc, field, perPlatform, singleLayout);
             code.aload(1);
-            code.invokestatic(
-                CD_MemorySegmentAdapter,
-                "setString",
-                MethodTypeDesc.of(CD_void, CD_MemorySegment, ClassDesc.ofDescriptor("J"), CD_String)
-            );
+            if (field.wide()) {
+                emitPushUtf16LEConstant(code);
+                code.invokestatic(
+                    CD_MemorySegmentAdapter,
+                    "setString",
+                    MethodTypeDesc.of(CD_void, CD_MemorySegment, ClassDesc.ofDescriptor("J"), CD_String, CD_Charset)
+                );
+            } else {
+                code.invokestatic(
+                    CD_MemorySegmentAdapter,
+                    "setString",
+                    MethodTypeDesc.of(CD_void, CD_MemorySegment, ClassDesc.ofDescriptor("J"), CD_String)
+                );
+            }
             code.return_();
         });
     }
@@ -476,6 +506,31 @@ final class StructImplWriter {
         } else {
             code.loadConstant(singleLayout.byteOffset(MemoryLayout.PathElement.groupElement(field.name())));
         }
+    }
+
+    /**
+     * Emits the {@code @Sizeof} method: returns the struct's total byte size, either as a
+     * compile-time constant (layout identical across platforms) or as {@code LAYOUT.byteSize()}
+     * (per-platform layout, already resolved for the running platform in {@code <clinit>}).
+     */
+    private static void emitSizeofMethod(
+        ClassBuilder cb,
+        ClassDesc structImplDesc,
+        String sizeofMethodName,
+        boolean perPlatform,
+        MemoryLayout singleLayout
+    ) {
+        MethodTypeDesc methodDesc = MethodTypeDesc.of(ClassDesc.ofDescriptor("I"));
+        cb.withMethodBody(sizeofMethodName, methodDesc, ClassFile.ACC_PUBLIC, code -> {
+            if (perPlatform) {
+                code.getstatic(structImplDesc, "LAYOUT", CD_StructLayout);
+                code.invokeinterface(CD_MemoryLayout, "byteSize", MTD_byteSize);
+                code.l2i();
+            } else {
+                code.loadConstant((int) singleLayout.byteSize());
+            }
+            code.ireturn();
+        });
     }
 
     /** Emits the appropriate typed return instruction for a scalar field. */

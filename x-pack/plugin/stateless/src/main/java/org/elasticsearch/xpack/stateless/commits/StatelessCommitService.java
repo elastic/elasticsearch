@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -65,7 +66,9 @@ import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
+import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.threadpool.Scheduler;
@@ -215,6 +218,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
+    /// We use an optimistic default value of 1 Gb/sec to run unrestricted on a fresh node.
+    /// This is loosely based on the fact that a node provides at least 15 Gigabit max network throughput (which is about ~1.7 GiB).
+    public static final Setting<ByteSizeValue> STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE = Setting.byteSizeSetting(
+        "stateless.upload.average_throughput_initial_value",
+        ByteSizeValue.ofGb(1),
+        Setting.Property.NodeScope
+    );
+
     /**
      * Maximum time to wait for the search tier to respond to a new-uploaded-commit notification before freeing the local files associated
      * with that BCC. The deferred consumers (e.g. local Lucene and translog file release) fire as soon as the notification response is
@@ -233,6 +244,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
     public static final String BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC = "es.bcc.timestamp_range.histogram";
     public static final String BCC_MISSING_TIMESTAMP_METRIC = "es.bcc.missing_timestamp.total";
+    public static final String BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC = "es.bcc.average_upload_throughput.current";
     public static final String BCC_NOTIFICATION_TIME_HISTOGRAM_METRIC = "es.bcc.notification_time.histogram";
     public static final String BCC_SIZE_ATTRIBUTE_KEY = "es_bcc_size";
 
@@ -258,6 +270,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private Scheduler.Cancellable scheduledShardInactivityMonitorFuture;
     private final TimeValue virtualBccUploadMaxAge;
     private final TimeValue gcpListenerTranslogSyncTimeout;
+    private final ExponentiallyWeightedMovingAverage commitUploadThroughputMiBSec;
     private final ScheduledUploadMonitor scheduledUploadMonitor;
     private final int bccMaxAmountOfCommits;
     private final long bccUploadMaxSizeInBytes;
@@ -271,6 +284,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final LongHistogram bccAgeHistogram;
     private final DoubleHistogram bccTimestampRangeHistogram;
     private final LongCounter bccMissingTimestampCounter;
+    private final DoubleGauge averageCommitUploadThroughputGauge;
     private final LongHistogram bccNotificationTimeHistogram;
 
     /**
@@ -335,6 +349,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.shardInactivityMonitor = new ShardInactivityMonitor();
         this.virtualBccUploadMaxAge = STATELESS_UPLOAD_VBCC_MAX_AGE.get(settings);
         this.gcpListenerTranslogSyncTimeout = STATELESS_GCP_LISTENER_TRANSLOG_SYNC_TIMEOUT.get(settings);
+        /// `alpha` determines how much older data points influence the average, a value of 1 means that the mean is equal
+        /// to the latest data point.
+        /// We use a slight recency biased value.
+        this.commitUploadThroughputMiBSec = new ExponentiallyWeightedMovingAverage(
+            0.6,
+            STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE.get(settings).getBytes()
+        );
         this.scheduledUploadMonitor = new ScheduledUploadMonitor(
             threadPool,
             threadPool.generic(),
@@ -392,6 +413,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 BCC_MISSING_TIMESTAMP_METRIC,
                 "Number of uploaded batched compound commits where none of the compound commits have a @timestamp range",
                 "count"
+            );
+        this.averageCommitUploadThroughputGauge = telemetryProvider.getMeterRegistry()
+            .registerDoubleGauge(
+                BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC,
+                "moving average of batch compound commit upload throughput",
+                "MiB/s",
+                () -> new DoubleWithAttributes(commitUploadThroughputMiBSec.getAverage())
             );
         this.bccNotificationTimeHistogram = telemetryProvider.getMeterRegistry()
             .registerLongHistogram(
@@ -536,6 +564,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public void markCommitDeleted(ShardId shardId, long generation) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         commitState.markCommitDeleted(generation);
+    }
+
+    public double getAverageCommitUploadThroughputMiBSec() {
+        return commitUploadThroughputMiBSec.getAverage();
+    }
+
+    public Stream<? extends ShardCommitUploadStats> getShardCommitStats() {
+        return shardsCommitsStates.values().stream().filter(scs -> scs.isClosed() == false);
     }
 
     @Override
@@ -924,6 +960,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             @Override
             public void onResponse(BccUploadResult uploadResult) {
                 maybeLogSlowBccUpload(virtualBcc, uploadResult);
+                commitUploadThroughputMiBSec.addValue(uploadResult.uploadThroughputMiBPerSec());
+                commitState.pendingUploadBytes.addAndGet(-1 * virtualBcc.getTotalSizeInBytes());
                 final BatchedCompoundCommit uploadedBcc = uploadResult.batchedCompoundCommit();
                 try {
                     // Use the largest translog release file from all CCs to release translog files for cleaning.
@@ -1390,7 +1428,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return getSafe(shardsCommitsStates, shardId);
     }
 
-    class ShardCommitState implements IndexEngineLocalReaderListener, CommitBCCResolver {
+    class ShardCommitState implements IndexEngineLocalReaderListener, CommitBCCResolver, ShardCommitUploadStats {
         private static final long EMPTY_GENERATION_NOTIFIED_SENTINEL = -1;
 
         private enum State {
@@ -1424,6 +1462,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // and STATELESS_COMMITS_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.
         private volatile VirtualBatchedCompoundCommit currentVirtualBcc = null;
         private final Map<Long, VirtualBatchedCompoundCommit> pendingUploadBccGenerations = new ConcurrentHashMap<>();
+        private AtomicLong pendingUploadBytes = new AtomicLong(0);
         private final Map<Long, VirtualBatchedCompoundCommit> recentlyUploadedVbccs = new ConcurrentHashMap<>();
         private final Map<Long, Releasable> recentlyUploadedCleanups = new ConcurrentHashMap<>();
         private volatile BatchedCompoundCommit latestUploadedBcc = null;
@@ -1839,6 +1878,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
         }
 
+        @Override
+        public ShardId shardId() {
+            return shardId;
+        }
+
+        @Override
+        public long pendingUploadBytes() {
+            return pendingUploadBytes.get();
+        }
+
         private Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBcc() {
             return pendingUploadBccGenerations.values()
                 .stream()
@@ -2029,6 +2078,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     expectedVirtualBcc.getPrimaryTermAndGeneration().generation(),
                     expectedVirtualBcc
                 );
+                pendingUploadBytes.addAndGet(expectedVirtualBcc.getTotalSizeInBytes());
                 assert previous == null : "expected null, but got " + previous;
                 // reset after add to pending list so that vbcc is always visible as either pending or current
                 currentVirtualBcc = null;

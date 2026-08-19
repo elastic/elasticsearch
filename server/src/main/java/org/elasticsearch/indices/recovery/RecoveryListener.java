@@ -149,7 +149,7 @@ public interface RecoveryListener {
     }
 
     /// Returns a listener which delegates `onRecoveryDone` and `onRecoveryAborted` unchanged to the given listener.
-    //// Before delegating `onRecoveryFailure`, it first runs `beforeFailure`.
+    /// Before delegating `onRecoveryFailure`, it first runs `beforeFailure`.
     static RecoveryListener runBeforeFailure(RecoveryListener listener, Consumer<RecoveryFailedException> beforeFailure) {
         return new RecoveryListener() {
             @Override

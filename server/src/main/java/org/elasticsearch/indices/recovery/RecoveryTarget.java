@@ -480,6 +480,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             // to recover from in case of a full cluster shutdown just when this code executes...
             multiFileWriter.renameAllTempFiles();
             final Store store = store();
+            // covered by RecoveryTarget store ref.
             assert store.hasReferences();
             try {
                 if (indexShard.routingEntry().isPromotableToPrimary()) {
@@ -599,32 +600,29 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private static void bootstrap(final IndexShard indexShard, long globalCheckpoint) throws IOException {
         assert indexShard.routingEntry().isPromotableToPrimary();
         final var store = indexShard.store();
-        store.incRef();
-        try {
-            final var translogLocation = indexShard.shardPath().resolveTranslog();
-            if (indexShard.hasTranslog() == false) {
-                if (Assertions.ENABLED) {
-                    if (indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot()) {
-                        long localCheckpoint = Long.parseLong(
-                            store.readLastCommittedSegmentsInfo().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
-                        );
-                        assert localCheckpoint == globalCheckpoint : localCheckpoint + " != " + globalCheckpoint;
-                    }
+        //
+        assert store.hasReferences();
+        final var translogLocation = indexShard.shardPath().resolveTranslog();
+        if (indexShard.hasTranslog() == false) {
+            if (Assertions.ENABLED) {
+                if (indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot()) {
+                    long localCheckpoint = Long.parseLong(
+                        store.readLastCommittedSegmentsInfo().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
+                    );
+                    assert localCheckpoint == globalCheckpoint : localCheckpoint + " != " + globalCheckpoint;
                 }
-                if (isReadOnlyVerified(indexShard.indexSettings().getIndexMetadata())) {
-                    Translog.deleteAll(translogLocation);
-                }
-                return;
             }
-            final String translogUUID = Translog.createEmptyTranslog(
-                indexShard.shardPath().resolveTranslog(),
-                globalCheckpoint,
-                indexShard.shardId(),
-                indexShard.getPendingPrimaryTerm()
-            );
-            store.associateIndexWithNewTranslog(translogUUID);
-        } finally {
-            store.decRef();
+            if (isReadOnlyVerified(indexShard.indexSettings().getIndexMetadata())) {
+                Translog.deleteAll(translogLocation);
+            }
+            return;
         }
+        final String translogUUID = Translog.createEmptyTranslog(
+            indexShard.shardPath().resolveTranslog(),
+            globalCheckpoint,
+            indexShard.shardId(),
+            indexShard.getPendingPrimaryTerm()
+        );
+        store.associateIndexWithNewTranslog(translogUUID);
     }
 }

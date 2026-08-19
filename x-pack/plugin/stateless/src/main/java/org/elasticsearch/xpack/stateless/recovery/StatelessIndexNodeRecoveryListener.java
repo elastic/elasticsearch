@@ -155,7 +155,7 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
     private void beforeRecoveryOnSplitTarget(
         final IndexShard indexShard,
         final BlobContainer existingBlobContainer,
-        final ActionListener<Void> releaseAfterListener,
+        final ActionListener<Void> listener,
         final IndexSettings indexSettings
     ) {
         splitTargetService.startSplitTargetShardRecovery(
@@ -163,8 +163,8 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
             indexSettings.getIndexMetadata(),
             new ThreadedActionListener<>(
                 threadPool.generic(),
-                releaseAfterListener.delegateFailureAndWrap(
-                    (listener1, unused) -> beforeRecoveryOnIndexingShard(indexShard, existingBlobContainer, releaseAfterListener)
+                listener.delegateFailureAndWrap(
+                    (listener1, unused) -> beforeRecoveryOnIndexingShard(indexShard, existingBlobContainer, listener)
                 )
             )
         );

@@ -47,7 +47,9 @@ public class InferenceIndexMappingsCompatibilityTests extends MapperServiceTestC
         3,
         InferenceIndex.mappingsV3(),
         4,
-        InferenceIndex.mappingsV4()
+        InferenceIndex.mappingsV4(),
+        5,
+        InferenceIndex.mappingsV5()
     );
 
     /**

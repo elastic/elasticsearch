@@ -306,8 +306,8 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         }
     }
 
-    // Non-foldable values (WITH { ... } allows constants, nested maps and parameters) are skipped here and fail later at
-    // fold time.
+    // WITH { ... } yields constants and parameters, which all fold; the parser rejects map values. Anything else is
+    // skipped here and fails later at fold time.
     private Expression foldableOption(String name) {
         Expression value = options.get(name);
         return value != null && value.foldable() ? value : null;

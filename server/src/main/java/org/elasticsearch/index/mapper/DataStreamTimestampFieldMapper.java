@@ -312,7 +312,8 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             bounds = indexSettings.getTimestampBounds();
             isDateNanos = context.mappingLookup().getMapper(DEFAULT_PATH).typeName().equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE);
         }
-        int docCount = context.docCount();
+
+        final int docCount = context.docCount();
         for (int doc = 0; doc < docCount; doc++) {
             long timestamp = context.timestampAt(doc);
             if (shouldValidateTimestamp) {

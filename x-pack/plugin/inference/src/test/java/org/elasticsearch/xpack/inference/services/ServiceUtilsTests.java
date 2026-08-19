@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.Utils.modifiableMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertMapStringsToSecureString;
@@ -255,7 +256,7 @@ public class ServiceUtilsTests extends ESTestCase {
 
     public void testConvertToUri_CreatesUri() {
         var validation = new ValidationException();
-        var uri = convertToUri("www.elastic.co", "name", "scope", validation);
+        var uri = convertToUri("www.elastic.co", "name", SERVICE_SETTINGS, validation);
 
         assertNotNull(uri);
         assertTrue(validation.validationErrors().isEmpty());
@@ -264,7 +265,7 @@ public class ServiceUtilsTests extends ESTestCase {
 
     public void testConvertToUri_DoesNotThrowNullPointerException_WhenPassedNull() {
         var validation = new ValidationException();
-        var uri = convertToUri(null, "name", "scope", validation);
+        var uri = convertToUri(null, "name", SERVICE_SETTINGS, validation);
 
         assertNull(uri);
         assertTrue(validation.validationErrors().isEmpty());
@@ -272,22 +273,24 @@ public class ServiceUtilsTests extends ESTestCase {
 
     public void testConvertToUri_AddsValidationError_WhenUrlIsInvalid() {
         var validation = new ValidationException();
-        var uri = convertToUri("^^", "name", "scope", validation);
+        var uri = convertToUri("^^", "name", SERVICE_SETTINGS, validation);
 
         assertNull(uri);
         assertThat(validation.validationErrors().size(), is(1));
-        assertThat(validation.validationErrors().get(0), containsString("[scope] Invalid url [^^] received for field [name]"));
+        assertThat(validation.validationErrors().get(0), containsString("[service_settings] Invalid url [^^] received for field [name]"));
     }
 
     public void testConvertToUri_AddsValidationError_WhenUrlIsInvalid_PreservesReason() {
         var validation = new ValidationException();
-        var uri = convertToUri("^^", "name", "scope", validation);
+        var uri = convertToUri("^^", "name", SERVICE_SETTINGS, validation);
 
         assertNull(uri);
         assertThat(validation.validationErrors().size(), is(1));
         assertThat(
             validation.validationErrors().get(0),
-            is("[scope] Invalid url [^^] received for field [name]. Error: unable to parse url [^^]. Reason: Illegal character in path")
+            is(
+                "[service_settings] Invalid url [^^] received for field [name]. Error: unable to parse url [^^]. Reason: Illegal character in path"
+            )
         );
     }
 
@@ -340,7 +343,7 @@ public class ServiceUtilsTests extends ESTestCase {
     public void testExtractRequiredSecureString_CreatesSecureString() {
         var validation = new ValidationException();
         Map<String, Object> map = modifiableMap(Map.of("key", "value"));
-        var secureString = extractRequiredSecureString(map, "key", "scope", validation);
+        var secureString = extractRequiredSecureString(map, "key", SERVICE_SETTINGS, validation);
 
         assertTrue(validation.validationErrors().isEmpty());
         assertNotNull(secureString);
@@ -351,12 +354,12 @@ public class ServiceUtilsTests extends ESTestCase {
     public void testExtractRequiredSecureString_AddsException_WhenFieldDoesNotExist() {
         var validation = new ValidationException();
         Map<String, Object> map = modifiableMap(Map.of("key", "value"));
-        var secureString = extractRequiredSecureString(map, "abc", "scope", validation);
+        var secureString = extractRequiredSecureString(map, "abc", SERVICE_SETTINGS, validation);
 
         assertNull(secureString);
         assertFalse(validation.validationErrors().isEmpty());
         assertThat(map.size(), is(1));
-        assertThat(validation.validationErrors().get(0), is("[scope] does not contain the required setting [abc]"));
+        assertThat(validation.validationErrors().get(0), is("[service_settings] does not contain the required setting [abc]"));
     }
 
     public void testExtractRequiredSecureString_AddsException_WhenFieldIsEmpty() {
@@ -387,12 +390,12 @@ public class ServiceUtilsTests extends ESTestCase {
         validation.addValidationError("previous error");
 
         Map<String, Object> map = modifiableMap(Map.of("key", "value"));
-        var createdString = extractRequiredSecureString(map, "abc", "scope", validation);
+        var createdString = extractRequiredSecureString(map, "abc", SERVICE_SETTINGS, validation);
 
         assertNull(createdString);
         assertThat(validation.validationErrors(), hasSize(2));
         assertThat(map.size(), is(1));
-        assertThat(validation.validationErrors().get(1), is("[scope] does not contain the required setting [abc]"));
+        assertThat(validation.validationErrors().get(1), is("[service_settings] does not contain the required setting [abc]"));
     }
 
     public void testExtractRequiredString_AddsException_WhenFieldIsEmpty() {
@@ -411,7 +414,7 @@ public class ServiceUtilsTests extends ESTestCase {
         var validation = new ValidationException();
         validation.addValidationError("previous error");
         Map<String, Object> map = modifiableMap(Map.of("abc", 1));
-        assertEquals(Integer.valueOf(1), extractOptionalPositiveInteger(map, "abc", "scope", validation));
+        assertEquals(Integer.valueOf(1), extractOptionalPositiveInteger(map, "abc", SERVICE_SETTINGS, validation));
         assertThat(validation.validationErrors(), hasSize(1));
     }
 
@@ -419,7 +422,7 @@ public class ServiceUtilsTests extends ESTestCase {
         var validation = new ValidationException();
         validation.addValidationError("previous error");
         Map<String, Object> map = modifiableMap(Map.of("abc", 1));
-        assertThat(extractOptionalPositiveInteger(map, "not_abc", "scope", validation), is(nullValue()));
+        assertThat(extractOptionalPositiveInteger(map, "not_abc", SERVICE_SETTINGS, validation), is(nullValue()));
         assertThat(validation.validationErrors(), hasSize(1));
     }
 
@@ -428,7 +431,7 @@ public class ServiceUtilsTests extends ESTestCase {
         validation.addValidationError("previous error");
         String setting = "abc";
         Map<String, Object> map = modifiableMap(Map.of(setting, "not_an_int"));
-        assertThat(extractOptionalPositiveInteger(map, setting, "scope", validation), is(nullValue()));
+        assertThat(extractOptionalPositiveInteger(map, setting, SERVICE_SETTINGS, validation), is(nullValue()));
         assertThat(validation.validationErrors(), hasSize(2));
         assertThat(validation.validationErrors().getLast(), containsString("cannot be converted to a [Integer]"));
     }
@@ -441,12 +444,12 @@ public class ServiceUtilsTests extends ESTestCase {
         Map<String, Object> map = modifiableMap(Map.of(zeroKey, 0, negativeKey, -1));
 
         // Test zero
-        assertThat(extractOptionalPositiveInteger(map, zeroKey, "scope", validation), is(nullValue()));
+        assertThat(extractOptionalPositiveInteger(map, zeroKey, SERVICE_SETTINGS, validation), is(nullValue()));
         assertThat(validation.validationErrors(), hasSize(2));
         assertThat(validation.validationErrors().getLast(), containsString("[" + zeroKey + "] must be a positive integer"));
 
         // Test a negative number
-        assertThat(extractOptionalPositiveInteger(map, negativeKey, "scope", validation), is(nullValue()));
+        assertThat(extractOptionalPositiveInteger(map, negativeKey, SERVICE_SETTINGS, validation), is(nullValue()));
         assertThat(validation.validationErrors(), hasSize(3));
         assertThat(validation.validationErrors().getLast(), containsString("[" + negativeKey + "] must be a positive integer"));
     }
@@ -462,9 +465,9 @@ public class ServiceUtilsTests extends ESTestCase {
         int negativeValue = -123;
         Map<String, Object> map = modifiableMap(Map.of(positiveKey, positiveValue, zeroKey, zeroValue, negativeKey, negativeValue));
 
-        assertThat(extractOptionalInteger(map, positiveKey, "scope", validation), is(positiveValue));
-        assertThat(extractOptionalInteger(map, zeroKey, "scope", validation), is(zeroValue));
-        assertThat(extractOptionalInteger(map, negativeKey, "scope", validation), is(negativeValue));
+        assertThat(extractOptionalInteger(map, positiveKey, SERVICE_SETTINGS, validation), is(positiveValue));
+        assertThat(extractOptionalInteger(map, zeroKey, SERVICE_SETTINGS, validation), is(zeroValue));
+        assertThat(extractOptionalInteger(map, negativeKey, SERVICE_SETTINGS, validation), is(negativeValue));
         assertThat(validation.validationErrors(), hasSize(1));
     }
 
@@ -472,7 +475,7 @@ public class ServiceUtilsTests extends ESTestCase {
         var validation = new ValidationException();
         validation.addValidationError("previous error");
         Map<String, Object> map = modifiableMap(Map.of("abc", 1));
-        assertThat(extractOptionalInteger(map, "not_abc", "scope", validation), is(nullValue()));
+        assertThat(extractOptionalInteger(map, "not_abc", SERVICE_SETTINGS, validation), is(nullValue()));
         assertThat(validation.validationErrors(), hasSize(1));
     }
 
@@ -481,7 +484,7 @@ public class ServiceUtilsTests extends ESTestCase {
         validation.addValidationError("previous error");
         String setting = "abc";
         Map<String, Object> map = modifiableMap(Map.of(setting, "not_an_int"));
-        assertThat(extractOptionalInteger(map, setting, "scope", validation), is(nullValue()));
+        assertThat(extractOptionalInteger(map, setting, SERVICE_SETTINGS, validation), is(nullValue()));
         assertThat(validation.validationErrors(), hasSize(2));
         assertThat(validation.validationErrors().getLast(), containsString("cannot be converted to a [Integer]"));
     }
@@ -490,7 +493,7 @@ public class ServiceUtilsTests extends ESTestCase {
         var validation = new ValidationException();
         validation.addValidationError("previous error");
         Map<String, Object> map = modifiableMap(Map.of("abc", 3));
-        assertEquals(Long.valueOf(3), extractOptionalPositiveLong(map, "abc", "scope", validation));
+        assertEquals(Long.valueOf(3), extractOptionalPositiveLong(map, "abc", SERVICE_SETTINGS, validation));
         assertThat(validation.validationErrors(), hasSize(1));
     }
 
@@ -498,7 +501,7 @@ public class ServiceUtilsTests extends ESTestCase {
         var validation = new ValidationException();
         validation.addValidationError("previous error");
         Map<String, Object> map = modifiableMap(Map.of("abc", 4_000_000_000L));
-        assertEquals(Long.valueOf(4_000_000_000L), extractOptionalPositiveLong(map, "abc", "scope", validation));
+        assertEquals(Long.valueOf(4_000_000_000L), extractOptionalPositiveLong(map, "abc", SERVICE_SETTINGS, validation));
         assertThat(validation.validationErrors(), hasSize(1));
     }
 
@@ -524,7 +527,7 @@ public class ServiceUtilsTests extends ESTestCase {
         var validation = new ValidationException();
         validation.addValidationError("previous error");
         Map<String, Object> map = modifiableMap(Map.of("key", actualValue));
-        var parsedInt = ServiceUtils.extractRequiredPositiveIntegerBetween(map, "key", minValue, maxValue, "scope", validation);
+        var parsedInt = ServiceUtils.extractRequiredPositiveIntegerBetween(map, "key", minValue, maxValue, SERVICE_SETTINGS, validation);
 
         assertThat(validation.validationErrors(), hasSize(1));
         assertNotNull(parsedInt);
@@ -548,7 +551,7 @@ public class ServiceUtilsTests extends ESTestCase {
         var validation = new ValidationException();
         validation.addValidationError("previous error");
         Map<String, Object> map = modifiableMap(Map.of("key", actualValue));
-        var parsedInt = ServiceUtils.extractRequiredPositiveIntegerBetween(map, "key", minValue, maxValue, "scope", validation);
+        var parsedInt = ServiceUtils.extractRequiredPositiveIntegerBetween(map, "key", minValue, maxValue, SERVICE_SETTINGS, validation);
 
         assertThat(validation.validationErrors(), hasSize(2));
         assertNull(parsedInt);
@@ -559,7 +562,7 @@ public class ServiceUtilsTests extends ESTestCase {
     public void testExtractOptionalTimeValue_ReturnsNull_WhenKeyDoesNotExist() {
         var validation = new ValidationException();
         Map<String, Object> map = modifiableMap(Map.of("key", 1));
-        var timeValue = extractOptionalTimeValue(map, "a", "scope", validation);
+        var timeValue = extractOptionalTimeValue(map, "a", SERVICE_SETTINGS, validation);
 
         assertNull(timeValue);
         assertTrue(validation.validationErrors().isEmpty());
@@ -568,7 +571,7 @@ public class ServiceUtilsTests extends ESTestCase {
     public void testExtractOptionalTimeValue_CreatesTimeValue_Of3Seconds() {
         var validation = new ValidationException();
         Map<String, Object> map = modifiableMap(Map.of("key", "3s"));
-        var timeValue = extractOptionalTimeValue(map, "key", "scope", validation);
+        var timeValue = extractOptionalTimeValue(map, "key", SERVICE_SETTINGS, validation);
 
         assertTrue(validation.validationErrors().isEmpty());
         assertNotNull(timeValue);
@@ -579,7 +582,7 @@ public class ServiceUtilsTests extends ESTestCase {
     public void testExtractOptionalTimeValue_ReturnsNullAndAddsException_WhenTimeValueIsInvalid_InvalidUnit() {
         var validation = new ValidationException();
         Map<String, Object> map = modifiableMap(Map.of("key", "3abc"));
-        var timeValue = extractOptionalTimeValue(map, "key", "scope", validation);
+        var timeValue = extractOptionalTimeValue(map, "key", SERVICE_SETTINGS, validation);
 
         assertFalse(validation.validationErrors().isEmpty());
         assertNull(timeValue);
@@ -596,7 +599,7 @@ public class ServiceUtilsTests extends ESTestCase {
     public void testExtractOptionalTimeValue_ReturnsNullAndAddsException_WhenTimeValueIsInvalid_NegativeNumber() {
         var validation = new ValidationException();
         Map<String, Object> map = modifiableMap(Map.of("key", "-3d"));
-        var timeValue = extractOptionalTimeValue(map, "key", "scope", validation);
+        var timeValue = extractOptionalTimeValue(map, "key", SERVICE_SETTINGS, validation);
 
         assertFalse(validation.validationErrors().isEmpty());
         assertNull(timeValue);

@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -42,7 +43,7 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
         "inference_api_disable_eis_rate_limiting"
     );
     private static final String TEST_SERVICE_NAME = "test-service";
-    private static final String TEST_SCOPE = "some-scope";
+    private static final SettingsScope TEST_SCOPE = SettingsScope.SERVICE_SETTINGS;
     private static final int TEST_REQUESTS_PER_MINUTE = 100;
     private static final String TEST_UNKNOWN_FIELD_NAME = "some-unknown-field";
 

@@ -1055,6 +1055,7 @@ book_no:keyword | highlight_title:keyword
 # query matches literal terms in the returned text. Only the row containing the literal term "prosper" is highlighted.
 highlightMatchOnSemanticText
 required_capability: highlight_v6
+required_capability: semantic_text_field_caps
 
 FROM semantic_text
 | WHERE match(semantic_text_field, "prosper")
@@ -1073,6 +1074,7 @@ live long and prosper                                                 | live lon
 # MATCH_PHRASE on a semantic_text field also matches literal terms, wrapping the whole phrase in a single span.
 highlightMatchPhraseOnSemanticText
 required_capability: highlight_v6
+required_capability: semantic_text_field_caps
 
 FROM semantic_text
 | WHERE match(semantic_text_field, "prosper")

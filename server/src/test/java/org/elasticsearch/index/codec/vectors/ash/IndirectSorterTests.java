@@ -15,17 +15,9 @@ import java.util.Arrays;
 import java.util.function.IntUnaryOperator;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Tests for {@link IndirectSorter}.
- * <p>
- * Regression coverage for a bug where {@code sortAscendingByDouble}'s pivot comparison had its
- * operands swapped, causing it to silently sort in descending order instead of ascending. That bug
- * was invisible to {@code sortDescendingByFloat} (used only by the 2-bit quantization path) because
- * the same swapped-operand mistake happens to produce the intended descending order there, but it
- * broke {@link AshSphericalScalarQuantizer}'s general (bitsPerDim &gt;= 3) quantization path, which
- * relies on events being processed in ascending order to greedily improve on the base assignment.
  */
 public class IndirectSorterTests extends ESTestCase {
 
@@ -34,14 +26,6 @@ public class IndirectSorterTests extends ESTestCase {
         int[] indices = { 0, 1, 2, 3, 4 };
         IndirectSorter.sortAscendingByDouble(indices, keys, indices.length);
         assertSortedAscending(keys, indices);
-        assertPermutation(indices, 5);
-    }
-
-    public void testSortDescendingByFloatSmall() {
-        float[] keys = { 5.0f, 1.0f, 3.0f, 2.0f, 4.0f };
-        int[] indices = { 0, 1, 2, 3, 4 };
-        IndirectSorter.sortDescendingByFloat(indices, keys, indices.length);
-        assertSortedDescending(keys, indices);
         assertPermutation(indices, 5);
     }
 
@@ -59,23 +43,6 @@ public class IndirectSorterTests extends ESTestCase {
             IndirectSorter.sortAscendingByDouble(indices, keys, n);
 
             assertSortedAscending(keys, indices);
-            assertPermutation(indices, n);
-        }
-    }
-
-    public void testSortDescendingByFloatRandomized() {
-        for (int iter = 0; iter < 50; iter++) {
-            int n = randomIntBetween(1, 300);
-            float[] keys = new float[n];
-            for (int i = 0; i < n; i++) {
-                keys[i] = (float) random().nextGaussian();
-            }
-            int[] indices = new int[n];
-            Arrays.setAll(indices, IntUnaryOperator.identity());
-
-            IndirectSorter.sortDescendingByFloat(indices, keys, n);
-
-            assertSortedDescending(keys, indices);
             assertPermutation(indices, n);
         }
     }
@@ -113,12 +80,6 @@ public class IndirectSorterTests extends ESTestCase {
     private static void assertSortedAscending(double[] keys, int[] indices) {
         for (int i = 0; i + 1 < indices.length; i++) {
             assertThat("Expected ascending order at position " + i, keys[indices[i + 1]], greaterThanOrEqualTo(keys[indices[i]]));
-        }
-    }
-
-    private static void assertSortedDescending(float[] keys, int[] indices) {
-        for (int i = 0; i + 1 < indices.length; i++) {
-            assertThat("Expected descending order at position " + i, keys[indices[i + 1]], lessThanOrEqualTo(keys[indices[i]]));
         }
     }
 

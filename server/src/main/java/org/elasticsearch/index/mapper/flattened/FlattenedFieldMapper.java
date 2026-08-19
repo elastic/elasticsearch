@@ -858,9 +858,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             SearchExecutionContext context,
             @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
-            throw new UnsupportedOperationException(
-                "[fuzzy] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields."
-            );
+            throw new IllegalArgumentException("[fuzzy] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
@@ -872,9 +870,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             MultiTermQuery.RewriteMethod method,
             SearchExecutionContext context
         ) {
-            throw new UnsupportedOperationException(
-                "[regexp] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields."
-            );
+            throw new IllegalArgumentException("[regexp] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
@@ -884,7 +880,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             boolean caseInsensitive,
             SearchExecutionContext context
         ) {
-            throw new UnsupportedOperationException(
+            throw new IllegalArgumentException(
                 "[wildcard] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields."
             );
         }

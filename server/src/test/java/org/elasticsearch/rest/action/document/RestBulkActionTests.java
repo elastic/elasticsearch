@@ -32,6 +32,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
@@ -478,7 +479,7 @@ public class RestBulkActionTests extends ESTestCase {
                 null,
                 null,
                 null,
-                MeterRegistry.NOOP.getLongHistogram(IncrementalBulkService.CHUNK_WAIT_TIME_HISTOGRAM_NAME),
+                LongHistogram.NOOP,
                 emptySet(),
                 new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY),
                 threadPool

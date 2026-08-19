@@ -1160,7 +1160,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
          * rewriter's iteration order is otherwise dependent on the in-scope set's iteration
          * order). Each line carries the site, the field name, and a reason string short enough
          * that a {@code grep "site=MV_EXPAND_ARG"} or
-         * {@code grep "site=MATCH_OPERATOR_LHS"} produces a usable inventory.
+         * {@code grep "site=LOOKUP_JOIN_ON"} produces a usable inventory.
          */
         private static void logRewriterSkipEvents(List<AstKeywordFieldRewriter.SkipEvent> events) {
             if (events.isEmpty()) {
@@ -1188,7 +1188,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             return switch (site) {
                 case MV_EXPAND_ARG -> "MV_EXPAND grammar slot accepts only an attribute, not an expression";
                 case ENRICH_BODY -> "ENRICH ON / WITH grammar slots accept only attributes, not expressions";
-                case MATCH_OPERATOR_LHS -> "match operator [:] LHS accepts only an attribute, not an expression";
                 case LOOKUP_JOIN_ON -> "LOOKUP JOIN ... ON ... accepts only an attribute, not an expression";
                 case QUALIFIED_NAME_BRACKETS -> "[<index>].[<field>] qualified-reference brackets accept only an identifier";
             };

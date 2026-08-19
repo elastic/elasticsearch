@@ -4750,17 +4750,20 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(idAttr.name(), equalTo("id"));
     }
 
+    /** Name of the conflicted sub-field under test; must match the key in the parent's properties map. */
+    private static final String CONFLICTED_SUBFIELD = "analyzed";
+
     public void testTypeConflictedMultifieldIsCleanedAfterAnalysis() {
         // A conflicted sub-field must be neutralized so its parent FieldAttribute is transportable.
         LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
         typesToIndices.put(KEYWORD.typeName(), Set.of("conflict-a"));
         typesToIndices.put(DataType.TEXT.typeName(), Set.of("conflict-b"));
-        assertConflictedMultifieldIsCleaned(new InvalidMappedField("analyzed", typesToIndices));
+        assertConflictedMultifieldIsCleaned(new InvalidMappedField(CONFLICTED_SUBFIELD, typesToIndices));
     }
 
     public void testTsRoleConflictedMultifieldIsCleanedAfterAnalysis() {
         // InvalidMappedTsField is not a TypeConflictedField but also throws on transport, so it must be neutralized too.
-        EsField cleanedParent = assertConflictedMultifieldIsCleaned(new InvalidMappedTsField("analyzed", "role conflict"));
+        EsField cleanedParent = assertConflictedMultifieldIsCleaned(new InvalidMappedTsField(CONFLICTED_SUBFIELD, "role conflict"));
         // The rebuilt parent keeps its keyword type so exact-match/sort still work.
         assertThat(cleanedParent, instanceOf(KeywordEsField.class));
     }
@@ -4768,7 +4771,7 @@ public class AnalyzerTests extends ESTestCase {
     private static EsField assertConflictedMultifieldIsCleaned(EsField conflictedMultifield) {
         EsField parent = new KeywordEsField(
             "my_field",
-            Map.of("analyzed", conflictedMultifield),
+            Map.of(CONFLICTED_SUBFIELD, conflictedMultifield),
             true,
             256,
             false,
@@ -4796,8 +4799,8 @@ public class AnalyzerTests extends ESTestCase {
         EsField cleanedParent = null;
         for (FieldAttribute parentAttribute : parentAttributes) {
             // The conflict is replaced by a transportable UnsupportedEsField, not dropped: the sub-field key stays.
-            assertThat(parentAttribute.field().getProperties(), hasKey("analyzed"));
-            assertThat(parentAttribute.field().getProperties().get("analyzed"), instanceOf(UnsupportedEsField.class));
+            assertThat(parentAttribute.field().getProperties(), hasKey(CONFLICTED_SUBFIELD));
+            assertThat(parentAttribute.field().getProperties().get(CONFLICTED_SUBFIELD), instanceOf(UnsupportedEsField.class));
             cleanedParent = parentAttribute.field();
         }
         return cleanedParent;
@@ -4870,6 +4873,29 @@ public class AnalyzerTests extends ESTestCase {
         // The mapped keyword type is kept (not the PUNK marker) and its conflicted sub-field is neutralized to unsupported.
         assertThat(parentField, instanceOf(KeywordEsField.class));
         assertThat(parentField.getProperties().get("sub"), instanceOf(UnsupportedEsField.class));
+    }
+
+    public void testConflictedSubfieldNestedTwoLevelsDeepIsCleaned() {
+        // Not a reachable mapping shape today (https://github.com/elastic/elasticsearch/issues/144400 keeps multi-level sub-fields
+        // from resolving under a proper field attribute), but the cleaner already recurses, so guard the >1-level case.
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put(KEYWORD.typeName(), Set.of("idx-a"));
+        typesToIndices.put(DataType.TEXT.typeName(), Set.of("idx-b"));
+        EsField sub = new KeywordEsField(
+            "sub",
+            Map.of(CONFLICTED_SUBFIELD, new InvalidMappedField(CONFLICTED_SUBFIELD, typesToIndices)),
+            true,
+            256,
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE
+        );
+        EsField parent = new KeywordEsField("my_field", Map.of("sub", sub), true, 256, false, false, EsField.TimeSeriesFieldType.NONE);
+
+        EsField parentField = shippedFieldAfterAnalysis("my_field", parent, "FROM idx | SORT my_field | LIMIT 2");
+        EsField cleanedSub = parentField.getProperties().get("sub");
+        assertThat(cleanedSub, instanceOf(KeywordEsField.class));
+        assertThat(cleanedSub.getProperties().get(CONFLICTED_SUBFIELD), instanceOf(UnsupportedEsField.class));
     }
 
     public void testUnsupportedParentWithPropagatedSubfieldIsUntouched() {

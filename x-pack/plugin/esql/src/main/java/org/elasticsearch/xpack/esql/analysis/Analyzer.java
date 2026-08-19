@@ -3504,8 +3504,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         /**
          * A conflict object nested in a healthy parent's {@code properties} throws when the parent serializes, so swap it for a
-         * transportable {@link UnsupportedEsField}. Healthy sub-fields are kept as-is (rebuilding the parent would downgrade an
-         * unsupported one and lose its original types), so the parent is rebuilt only when a nested conflict was actually replaced.
+         * transportable {@link UnsupportedEsField} instead of stripping the properties: a text parent resolves its exact keyword
+         * sub-field from this map on the data node ({@code TextEsField#getExactInfo}, used by Lucene pushdown), and the unsupported
+         * replacement keeps the conflict's original types for error messages. Healthy sub-fields are kept as-is (rebuilding the
+         * parent would downgrade an unsupported one and lose its original types), so the parent is rebuilt only when a nested
+         * conflict was actually replaced.
          */
         private static EsField stripNestedConflicts(EsField field) {
             Map<String, EsField> properties = field.getProperties();

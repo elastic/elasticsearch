@@ -542,6 +542,7 @@ id:keyword | tags:keyword | n:integer
 // become their own dotted columns instead. Here "extra" is a scalar in one document and an object in the other, so both an "extra"
 // and an "extra.baz" column appear.
 objectFieldFlattensToLeafColumns
+required_capability: optional_fields_load_all
 required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -578,6 +579,7 @@ FROM synthetic_source_partial_mapping
 // LOAD_ALL unions every leaf across the indices into its own keyword column; a row carries a value only where that leaf
 // exists. A bare scalar "unmapped" (id 4) is its own column and never collides with the object twin that contributes leaves.
 multiIndexDivergentUnmappedFieldShapes
+required_capability: optional_fields_load_all
 required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -597,6 +599,7 @@ id:keyword | unmapped:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keywor
 
 // same query as above but eliminate the only value that makes "unmapped" column "visible"
 multiIndexDivergentUnmappedFieldShapes_NoNullObjectTypedColumn
+required_capability: optional_fields_load_all
 required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -616,6 +619,7 @@ id:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword | unmapped.foo:ke
 
 // same query as above but eliminate the only value that makes "unmapped" column "visible" and then reference it again!
 multiIndexDivergentUnmappedFieldShapes_NullObjectTypedColumn_ForcedBackIn
+required_capability: optional_fields_load_all
 required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -635,6 +639,7 @@ id:keyword  | unmapped:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keywo
 ;
 
 multiIndexReferencedUnmappedObjectStillExpandsLeaves
+required_capability: optional_fields_load_all
 required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -674,6 +679,7 @@ id:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword | unmapped.foo:ke
 ;
 
 multiIndexDropNestedObjectWildcardHidesSyntheticLeaf
+required_capability: optional_fields_load_all
 required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -693,6 +699,7 @@ id:keyword | unmapped:keyword | unmapped.bar:keyword | unmapped.foo:keyword
 ;
 
 multiIndexDropFixedSuffixWildcardKeepsUnmatchedSyntheticLeaf
+required_capability: optional_fields_load_all
 required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -712,6 +719,7 @@ id:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword | unmapped.foo:ke
 ;
 
 multiIndexKeepOrdersExpandedLeavesStarFirst
+required_capability: optional_fields_load_all
 required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -731,6 +739,7 @@ id:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword | unmapped.foo:ke
 ;
 
 multiIndexKeepOrdersRealColumnAfterExpandedLeaves
+required_capability: optional_fields_load_all
 required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -751,6 +760,7 @@ bar7                 | null                       | null                 | null 
 
 // unmapped.foo is keyword-mapped only in unmapped_multi_mapped and lives in _source in the other four indices
 multiIndexMappedFieldLoadsBothLegs
+required_capability: optional_fields_load_all
 required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -864,6 +874,7 @@ id:keyword | unmapped.foo:keyword
 ;
 
 multiIndexKeepOrdersRealColumnAfterExpandedLeaves_WithMultiWildcardNested
+required_capability: optional_fields_load_all
 required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -883,6 +894,7 @@ null                      |null              |7           |bar7                 
 ;
 
 multiIndexKeepOrdersRealColumnAfterExpandedLeaves_WithMultiWildcardNested_AndMetadataIndex
+required_capability: optional_fields_load_all
 required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -900,6 +912,7 @@ FROM unmapped_multi_mapped, unmapped_multi_synthetic METADATA _index
 ;
 
 multiIndexKeepOrdersRealColumnAfterExpandedLeaves_WithMultiWildcardNested_AndActualMappedFields
+required_capability: optional_fields_load_all
 required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -927,6 +940,7 @@ FROM unmapped_multi_* METADATA _index
 // merged column is an unsupported type conflict whose values are all null - reading it requires a cast - even though the four sibling indices
 // could otherwise surface it from _source.
 multiIndexTypeConflictSingleLeafIsUnsupportedAndNull
+required_capability: optional_fields_load_all
 required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -953,6 +967,7 @@ id:keyword | unmapped.foo:unsupported
 // Each dotted leaf is mapped as two different types across the mapped indices - unmapped.foo keyword vs text, unmapped.bar keyword vs version,
 // unmapped.deep.leaf keyword vs ip - so every one is an unsupported type conflict and stays null regardless of the values in the _source legs.
 multiIndexTypeConflictAllLeavesAreUnsupportedAndNull
+required_capability: optional_fields_load_all
 required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -979,6 +994,7 @@ id:keyword | unmapped.foo:unsupported | unmapped.bar:unsupported | unmapped.deep
 // The bare scalar unmapped is fully unmapped (an object in the two mapped indices, a keyword scalar only in unmapped_multi_stored_mixed at id 4), so
 // its expansion still surfaces scalar4, while the dotted unmapped.foo is a keyword-vs-text conflict that stays an unsupported null column alongside it.
 multiIndexTypeConflictScalarUnmappedCoexistsWithConflict
+required_capability: optional_fields_load_all
 required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -1005,6 +1021,7 @@ id:keyword | unmapped:keyword | unmapped.foo:unsupported
 // Casting the conflicting unmapped.foo to keyword resolves the union type: both mapped legs (keyword and text) and the unmapped _source legs are
 // read as keyword, so the values that were null under the raw conflict now surface - the keyword leg (ids 1, 3, 5, 8, 9) and the text leg (ids 10, 11).
 multiIndexTypeConflictResolvedByExplicitCast
+required_capability: optional_fields_load_all
 required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -1031,6 +1048,7 @@ id:keyword | foo:keyword
 
 // WHERE on the cast-resolved union column filters the computed keyword value (not pushed to Lucene), keeping only ids with a value.
 multiIndexTypeConflictCastThenFilteredByWhere
+required_capability: optional_fields_load_all
 required_capability: optional_fields_fix_load_object_from_synthetic_source
 
 SET unmapped_fields="LOAD_ALL"\;

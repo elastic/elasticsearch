@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 156595
+summary: "[Inference API] Fix inference/_update to allow rotating secrets"
+type: bug

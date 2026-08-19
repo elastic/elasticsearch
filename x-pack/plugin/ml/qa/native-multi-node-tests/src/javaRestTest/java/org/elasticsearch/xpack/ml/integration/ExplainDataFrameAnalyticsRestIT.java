@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -14,9 +16,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -26,7 +31,16 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster CLUSTER = NativeMultiNodeTestCluster.CLUSTER;
+
+    @Override
+    protected String getTestRestCluster() {
+        return CLUSTER.getHttpAddresses();
+    }
 
     private static String basicAuth(String user) {
         return UsernamePasswordToken.basicAuthHeaderValue(user, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);

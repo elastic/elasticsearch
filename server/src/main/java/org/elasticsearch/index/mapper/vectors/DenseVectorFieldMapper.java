@@ -2994,9 +2994,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE) && experimentalFeaturesEnabled) {
                 if (quantizationType == QuantizationType.ASH && !Build.current().isSnapshot()) {
-                    throw new IllegalArgumentException(
-                        "'quantization_type' 'ash' is only available in snapshot builds for field [" + sliceField + "]"
-                    );
+                    throw new IllegalArgumentException("quantization_type 'ash' is only available in snapshot builds");
                 }
                 if (quantizationType == QuantizationType.ASH && Build.current().isSnapshot()) {
                     return new ESNextDiskASHVectorsFormat(

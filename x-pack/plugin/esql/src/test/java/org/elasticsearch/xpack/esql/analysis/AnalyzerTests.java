@@ -2536,6 +2536,33 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
+    public void testEvalResolvesForwardReferenceWithImplicitCasting() {
+        analyzer().addIndex("hosts", "mapping-hosts.json").query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 == "127.0.0.1", TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
+            | STATS count = COUNT(*) BY field
+            """);
+    }
+
+    public void testEvalResolvesForwardReferenceWithImplicitCasting2() {
+        analyzer().addIndex("hosts", "mapping-hosts.json").query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 IN ("127.0.0.1", "192.168.1.1"), TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
+            | STATS count = COUNT(*) BY field
+            """);
+    }
+
+    public void testEvalResolvesForwardReferenceWithImplicitCasting3() {
+        analyzer().addIndex("hosts", "mapping-hosts.json").query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 IN ("127.0.0.1", "192.168.1.1"::ip), TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
+            | STATS count = COUNT(*) BY field
+            """);
+    }
+
     public void testDenseVectorImplicitCastingKnn() {
         checkDenseVectorCastingHexKnn("float_vector");
         checkDenseVectorCastingKnn("float_vector");

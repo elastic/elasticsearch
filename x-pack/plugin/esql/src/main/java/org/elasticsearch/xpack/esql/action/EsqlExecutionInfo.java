@@ -365,7 +365,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * Marks the overall result as partial directly, independent of the per-cluster status path used for
      * shard/node failures. This is required for pure external-source queries (e.g. {@code EXTERNAL "file://..."}),
      * which carry no {@code clusterInfo} entry to drive {@link #swapCluster} — so a lenient external read that
-     * drops data (e.g. a {@code max_record_size} truncation under a non-strict {@code error_mode}) has no cluster
+     * drops data (e.g. a {@code external_max_record_size} truncation under a non-strict {@code error_mode}) has no cluster
      * to flip. Sticky like the cluster-driven path: once partial, always partial.
      */
     public void markPartial() {

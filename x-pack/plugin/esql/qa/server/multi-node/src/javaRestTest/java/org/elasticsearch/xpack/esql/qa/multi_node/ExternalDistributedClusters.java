@@ -50,7 +50,7 @@ public class ExternalDistributedClusters {
             spec.setting("path.repo", FixtureUtils.pathRepoRootForIcebergFixtures(ExternalDistributedClusters.class));
             // file:// fixtures live under the iceberg-fixtures root (not csvDataPath), so the allowlist must point here.
             spec.setting(
-                "esql.datasource.local_allowed_paths",
+                "esql.external.local_allowed_paths",
                 FixtureUtils.pathRepoRootForIcebergFixtures(ExternalDistributedClusters.class)
             );
             spec.setting("s3.client.default.endpoint", s3EndpointSupplier);

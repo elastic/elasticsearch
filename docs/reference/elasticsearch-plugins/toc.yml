@@ -1,19 +1,7 @@
 toc:
   - file: index.md
-  - file: plugin-management.md
-    children:
-      - file: installation.md
-      - file: plugin-management-custom-url.md
-      - file: installing-multiple-plugins.md
-      - file: mandatory-plugins.md
-      - file: listing-removing-updating.md
-      - file: _other_command_line_parameters.md
-      - file: _plugins_directory.md
-      - file: manage-plugins-using-configuration-file.md
-      - title: Upload custom plugins and bundles
-        crosslink: docs-content://deploy-manage/deploy/elastic-cloud/upload-custom-plugins-bundles.md
-      - title: Manage plugins and extensions through the API
-        crosslink: docs-content://deploy-manage/deploy/elastic-cloud/manage-plugins-extensions-through-api.md
+  - title: Plugins and bundles
+    crosslink: docs-content://deploy-manage/plugins-and-bundles.md
   - file: api-extension-plugins.md
   - file: analysis-plugins.md
     children:

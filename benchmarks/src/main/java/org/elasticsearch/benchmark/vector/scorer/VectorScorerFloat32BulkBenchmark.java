@@ -101,7 +101,7 @@ public class VectorScorerFloat32BulkBenchmark extends VectorScorerBulkBenchmark 
         private final float[][] vectorData;
         private final float[] queryVector;
 
-        VectorData(int dims, int numVectors, int numVectorsToScore, Random random, VectorScorerBulkBenchmark.AccessMode accessMode) {
+        VectorData(int dims, int numVectors, int numVectorsToScore, Random random, DataAccessPattern accessMode) {
             super(numVectors, numVectorsToScore, random, accessMode);
 
             vectorData = new float[numVectors][];

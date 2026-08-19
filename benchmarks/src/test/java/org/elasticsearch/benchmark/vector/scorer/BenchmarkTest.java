@@ -100,13 +100,13 @@ public class BenchmarkTest extends ESTestCase {
 
     @FunctionalInterface
     public interface CreateBenchmarkFunction<V> {
-        VectorScorerBulkBenchmark apply(V data, VectorImplementation impl, VectorScorerBulkBenchmark.AccessMode access) throws IOException;
+        VectorScorerBulkBenchmark apply(V data, VectorImplementation impl, DataAccessPattern access) throws IOException;
     }
 
     public <V> void test(
-        Function<VectorScorerBulkBenchmark.AccessMode, V> vectorData,
+        Function<DataAccessPattern, V> vectorData,
         CreateBenchmarkFunction<V> createBenchmark,
-        VectorScorerBulkBenchmark.AccessMode accessMode,
+        DataAccessPattern accessMode,
         float delta
     ) throws Exception {
         V data = vectorData.apply(accessMode);
@@ -119,9 +119,9 @@ public class BenchmarkTest extends ESTestCase {
     }
 
     public <V> void testQuery(
-        Function<VectorScorerBulkBenchmark.AccessMode, V> vectorData,
+        Function<DataAccessPattern, V> vectorData,
         CreateBenchmarkFunction<V> createBenchmark,
-        VectorScorerBulkBenchmark.AccessMode accessMode,
+        DataAccessPattern accessMode,
         float delta
     ) throws IOException {
         assumeTrue("Only test with heap segments", supportsHeapSegments());

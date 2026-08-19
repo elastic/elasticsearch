@@ -64,7 +64,7 @@ public class VectorScorerInt4BulkBenchmark extends VectorScorerBulkBenchmark {
         final float centroidDp;
         final float[] queryVector;
 
-        VectorData(int dims, int numVectors, int numVectorsToScore, Random random, VectorScorerBulkBenchmark.AccessMode accessMode) {
+        VectorData(int dims, int numVectors, int numVectorsToScore, Random random, DataAccessPattern accessMode) {
             super(numVectors, numVectorsToScore, random, accessMode);
 
             packedVectors = new byte[numVectors][];

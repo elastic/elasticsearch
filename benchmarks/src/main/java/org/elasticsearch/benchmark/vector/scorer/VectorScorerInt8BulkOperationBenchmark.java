@@ -102,7 +102,7 @@ public class VectorScorerInt8BulkOperationBenchmark {
         private final byte[][] vectors;
 
         VectorData(int dims, int numVectors, int numVectorsToScore, Random random) {
-            super(numVectors, numVectorsToScore, random, VectorScorerBulkBenchmark.AccessMode.RANDOM);
+            super(numVectors, numVectorsToScore, random, DataAccessPattern.RANDOM);
 
             vectors = new byte[numVectors][];
             for (int v = 0; v < numVectors; v++) {

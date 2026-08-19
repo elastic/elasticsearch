@@ -49,11 +49,6 @@ import java.util.stream.IntStream;
 @State(Scope.Thread)
 public abstract class VectorScorerBulkBenchmark {
 
-    public enum AccessMode {
-        SEQUENTIAL,
-        RANDOM
-    }
-
     static {
         Utils.configureBenchmarkLogging();
     }
@@ -72,7 +67,7 @@ public abstract class VectorScorerBulkBenchmark {
     public DirectoryType directoryType;
 
     @Param("RANDOM")
-    public AccessMode accessMode;
+    public DataAccessPattern accessMode;
 
     public int numVectorsToScore;
 
@@ -93,7 +88,7 @@ public abstract class VectorScorerBulkBenchmark {
         final int[] ordinals;
         final int targetOrd;
 
-        VectorData(int numVectors, int numVectorsToScore, Random random, AccessMode accessMode) {
+        VectorData(int numVectors, int numVectorsToScore, Random random, DataAccessPattern accessMode) {
             this.numVectorsToScore = numVectorsToScore;
 
             ordinals = switch (accessMode) {

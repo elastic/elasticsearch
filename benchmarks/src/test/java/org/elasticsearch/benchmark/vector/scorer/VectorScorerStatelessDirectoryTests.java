@@ -87,13 +87,13 @@ public class VectorScorerStatelessDirectoryTests extends BenchmarkTest {
             NUM_VECTORS,
             NUM_VECTORS_TO_SCORE,
             random(),
-            VectorScorerBulkBenchmark.AccessMode.RANDOM
+            DataAccessPattern.RANDOM
         );
 
-        var memoryMapped = createBenchmark(data, DirectoryType.MMAP, VectorScorerBulkBenchmark.AccessMode.RANDOM);
+        var memoryMapped = createBenchmark(data, DirectoryType.MMAP, DataAccessPattern.RANDOM);
         try {
             float[] expected = memoryMapped.scoreMultipleBulk();
-            var stateless = createBenchmark(data, DirectoryType.STATELESS_INDEX_LOCAL, VectorScorerBulkBenchmark.AccessMode.RANDOM);
+            var stateless = createBenchmark(data, DirectoryType.STATELESS_INDEX_LOCAL, DataAccessPattern.RANDOM);
             try {
                 assertArrayEquals(expected, stateless.scoreMultipleBulk(), DELTA);
             } finally {
@@ -107,7 +107,7 @@ public class VectorScorerStatelessDirectoryTests extends BenchmarkTest {
     private static VectorScorerInt4BulkBenchmark createBenchmark(
         VectorScorerInt4BulkBenchmark.VectorData data,
         DirectoryType directoryType,
-        VectorScorerBulkBenchmark.AccessMode accessMode
+        DataAccessPattern accessMode
     ) throws IOException {
         var bench = new VectorScorerInt4BulkBenchmark();
         bench.function = VectorSimilarityType.DOT_PRODUCT;

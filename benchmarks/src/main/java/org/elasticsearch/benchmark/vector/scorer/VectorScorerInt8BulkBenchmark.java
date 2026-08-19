@@ -138,7 +138,7 @@ public class VectorScorerInt8BulkBenchmark extends VectorScorerBulkBenchmark {
         private final byte[][] vectorData;
         private final byte[] queryVector;
 
-        VectorData(int dims, int numVectors, int numVectorsToScore, Random random, VectorScorerBulkBenchmark.AccessMode accessMode) {
+        VectorData(int dims, int numVectors, int numVectorsToScore, Random random, DataAccessPattern accessMode) {
             super(numVectors, numVectorsToScore, random, accessMode);
 
             vectorData = new byte[numVectors][];

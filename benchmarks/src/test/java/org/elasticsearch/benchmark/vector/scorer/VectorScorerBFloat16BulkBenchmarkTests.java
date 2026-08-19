@@ -27,29 +27,29 @@ public class VectorScorerBFloat16BulkBenchmarkTests extends BenchmarkTest {
     }
 
     public void testSequential() throws Exception {
-        test(this::createData, this::createBenchmark, VectorScorerBulkBenchmark.AccessMode.SEQUENTIAL, delta);
+        test(this::createData, this::createBenchmark, DataAccessPattern.SEQUENTIAL, delta);
     }
 
     public void testRandom() throws Exception {
-        test(this::createData, this::createBenchmark, VectorScorerBulkBenchmark.AccessMode.RANDOM, delta);
+        test(this::createData, this::createBenchmark, DataAccessPattern.RANDOM, delta);
     }
 
     public void testQuerySequential() throws Exception {
-        testQuery(this::createData, this::createBenchmark, VectorScorerBulkBenchmark.AccessMode.SEQUENTIAL, delta);
+        testQuery(this::createData, this::createBenchmark, DataAccessPattern.SEQUENTIAL, delta);
     }
 
     public void testQueryRandom() throws Exception {
-        testQuery(this::createData, this::createBenchmark, VectorScorerBulkBenchmark.AccessMode.RANDOM, delta);
+        testQuery(this::createData, this::createBenchmark, DataAccessPattern.RANDOM, delta);
     }
 
-    private VectorScorerBFloat16BulkBenchmark.VectorData createData(VectorScorerBulkBenchmark.AccessMode accessMode) {
+    private VectorScorerBFloat16BulkBenchmark.VectorData createData(DataAccessPattern accessMode) {
         return new VectorScorerBFloat16BulkBenchmark.VectorData(dims, 1000, 200, random(), accessMode);
     }
 
     private VectorScorerBFloat16BulkBenchmark createBenchmark(
         VectorScorerBFloat16BulkBenchmark.VectorData d,
         VectorImplementation impl,
-        VectorScorerBulkBenchmark.AccessMode accessMode
+        DataAccessPattern accessMode
     ) throws java.io.IOException {
         var bench = new VectorScorerBFloat16BulkBenchmark();
         bench.function = function;

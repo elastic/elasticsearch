@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.telemetry.apm;
+package org.elasticsearch.telemetry.apm.internal.metrics;
 
 import io.opentelemetry.api.metrics.Meter;
 
@@ -26,14 +26,14 @@ import java.util.function.Function;
  *
  * @param <T> delegated instrument
  */
-public abstract class AbstractInstrument<T> implements Instrument {
+abstract class AbstractInstrument<T> implements Instrument {
     protected final AtomicReference<T> delegate = new AtomicReference<>();
     private final String name;
     protected final Function<Meter, T> instrumentBuilder;
 
-    public AbstractInstrument(Meter meter, Builder<T> builder) {
+    AbstractInstrument(Meter meter, Builder<T> builder) {
         this.name = builder.getName();
-        this.instrumentBuilder = m -> builder.build(m);
+        this.instrumentBuilder = builder::build;
         this.delegate.set(this.instrumentBuilder.apply(meter));
     }
 

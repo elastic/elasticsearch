@@ -28,30 +28,66 @@ import org.elasticsearch.rest.RestStatus;
 public final class ExternalUnavailableException extends ExternalException {
 
     private final boolean throttling;
+    /** Server-supplied wait hint in milliseconds; 0 means absent. */
+    private final long retryAfterMs;
 
     public ExternalUnavailableException(String message, Throwable cause) {
         super(message, cause);
         this.throttling = false;
+        this.retryAfterMs = 0L;
     }
 
     public ExternalUnavailableException(Throwable cause, String message, Object... args) {
         super(cause, message, args);
         this.throttling = false;
+        this.retryAfterMs = 0L;
     }
 
     public ExternalUnavailableException(String message, Object... args) {
         super(message, args);
         this.throttling = false;
+        this.retryAfterMs = 0L;
     }
 
     public ExternalUnavailableException(boolean throttling, Throwable cause, String message, Object... args) {
         super(cause, message, args);
         this.throttling = throttling;
+        this.retryAfterMs = 0L;
     }
 
     public ExternalUnavailableException(boolean throttling, String message, Object... args) {
         super(message, args);
         this.throttling = throttling;
+        this.retryAfterMs = 0L;
+    }
+
+    /**
+     * Constructs a throttle exception carrying an explicit server-supplied retry-after hint.
+     *
+     * @param throttling     {@code true} for a 429/503 throttle signal
+     * @param retryAfterMs   server-suggested wait in milliseconds; 0 means absent
+     * @param cause          underlying cause
+     * @param message        format string
+     * @param args           format arguments
+     */
+    public ExternalUnavailableException(boolean throttling, long retryAfterMs, Throwable cause, String message, Object... args) {
+        super(cause, message, args);
+        this.throttling = throttling;
+        this.retryAfterMs = retryAfterMs > 0 ? retryAfterMs : 0L;
+    }
+
+    /**
+     * Constructs a throttle exception carrying an explicit server-supplied retry-after hint (no cause).
+     *
+     * @param throttling     {@code true} for a 429/503 throttle signal
+     * @param retryAfterMs   server-suggested wait in milliseconds; 0 means absent
+     * @param message        format string
+     * @param args           format arguments
+     */
+    public ExternalUnavailableException(boolean throttling, long retryAfterMs, String message, Object... args) {
+        super(message, args);
+        this.throttling = throttling;
+        this.retryAfterMs = retryAfterMs > 0 ? retryAfterMs : 0L;
     }
 
     @Override
@@ -65,6 +101,32 @@ public final class ExternalUnavailableException extends ExternalException {
      */
     public boolean throttling() {
         return throttling;
+    }
+
+    /**
+     * Server-supplied retry-after hint in milliseconds, or {@code 0} if the server sent no hint.
+     * When non-zero, the retry policy uses this as the backoff delay instead of its computed value,
+     * provided the hint fits within the remaining time budget.
+     */
+    public long retryAfterMs() {
+        return retryAfterMs;
+    }
+
+    /**
+     * Parses a {@code Retry-After} HTTP header value (integer seconds as sent by S3, Azure, and GCS)
+     * to milliseconds. Returns {@code 0} if the value is absent, blank, non-positive, or unparseable
+     * (the HTTP-date form is not supported — cloud stores use integer seconds in practice).
+     */
+    public static long parseRetryAfterMs(String headerValue) {
+        if (headerValue == null || headerValue.isBlank()) {
+            return 0L;
+        }
+        try {
+            long seconds = Long.parseLong(headerValue.strip());
+            return seconds > 0 ? seconds * 1000L : 0L;
+        } catch (NumberFormatException e) {
+            return 0L;
+        }
     }
 
     /**

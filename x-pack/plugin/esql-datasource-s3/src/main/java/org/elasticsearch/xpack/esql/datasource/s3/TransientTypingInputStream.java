@@ -62,8 +62,17 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
     private ExternalUnavailableException wrap(Exception e) {
         // A mid-body read fault is a transport fault (the request already succeeded), so it is always transient;
         // flag throttling for the rare 503/429 surfaced during the body read so it shares the throttle budget.
-        boolean throttling = e instanceof S3Exception s3e && ExternalUnavailableException.isThrottlingStatus(s3e.statusCode());
-        return new ExternalUnavailableException(throttling, e, "transient read failure for [{}]", path);
+        long retryAfterMs = 0L;
+        boolean throttling = false;
+        if (e instanceof S3Exception s3e) {
+            throttling = ExternalUnavailableException.isThrottlingStatus(s3e.statusCode());
+            if (throttling && s3e.awsErrorDetails() != null && s3e.awsErrorDetails().sdkHttpResponse() != null) {
+                retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(
+                    s3e.awsErrorDetails().sdkHttpResponse().firstMatchingHeader("Retry-After").orElse(null)
+                );
+            }
+        }
+        return new ExternalUnavailableException(throttling, retryAfterMs, e, "transient read failure for [{}]", path);
     }
 
     @Override

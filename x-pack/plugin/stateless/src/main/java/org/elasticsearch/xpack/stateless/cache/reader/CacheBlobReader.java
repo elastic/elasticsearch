@@ -63,5 +63,4 @@ public interface CacheBlobReader {
     default String executorName() {
         return StatelessPlugin.SHARD_READ_THREAD_POOL;
     }
-
 }

@@ -58,10 +58,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
      * On JDK 27, where compact object headers became the default, C2 can miscompile conversions that
      * read freshly allocated arrays, zeroing the leading bytes/chars of UTF-8 round-trips.
      */
-    private static final List<String> JDK27_C2_BUG_WORKAROUND = List.of(
-        "-XX:+UnlockDiagnosticVMOptions",
-        "-XX:-SpecialEncodeISOArray"
-    );
+    private static final List<String> JDK27_C2_BUG_WORKAROUND = List.of("-XX:+UnlockDiagnosticVMOptions", "-XX:-SpecialEncodeISOArray");
 
     @Inject
     protected abstract ProviderFactory getProviderFactory();

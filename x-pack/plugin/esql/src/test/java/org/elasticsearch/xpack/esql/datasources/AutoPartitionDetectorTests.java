@@ -82,9 +82,9 @@ public class AutoPartitionDetectorTests extends ESTestCase {
     }
 
     /**
-     * The null default is gone: the listing boundary always resolves a config, so a null here is a programming
-     * error rather than a user-reachable state. Previously this silently returned the Hive detector, which is how
-     * an unset partition_detection came to mean "hive" everywhere.
+     * {@code fromConfig} no longer defaults a null config to the Hive detector. The listing boundary always
+     * resolves a {@link PartitionConfig}, so a null here is a programming error rather than a user-reachable
+     * state.
      */
     public void testNullConfigIsRejected() {
         expectThrows(NullPointerException.class, () -> AutoPartitionDetector.fromConfig(null));

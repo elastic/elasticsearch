@@ -194,7 +194,7 @@ public final class GlobExpander {
                 //
                 // The fold lives here rather than in PartitionConfig.fromConfig — where the sibling empty-template
                 // fold lives — because folding it to NONE there would also gate off the hint rewrite
-                // (effectivePattern short-circuits on NONE), which main does not do for this shape. Leaving the
+                // (effectivePattern short-circuits on NONE), which the pre-fix behaviour did not do for this shape. Leaving the
                 // strategy at TEMPLATE and returning no detector changes detection only, the strictly smaller
                 // behaviour delta, and keeps the template grammar out of PartitionConfig.
                 if (template == null || TemplatePartitionDetector.parseTemplateColumns(template).isEmpty()) {

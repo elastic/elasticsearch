@@ -26,14 +26,18 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 
 /**
- * Reproductions for the {@code partition_detection} dataset setting having no effect on the read path.
+ * Regression pins for the {@code partition_detection} and {@code partition_path} dataset settings reaching the read
+ * path.
  *
- * <p>Each test states what the setting promises the user and fails while that promise is unmet. The two
- * {@code testMachineryHonours*} tests are the control: they call the {@code expandGlob} overload that DOES take a
- * {@link PartitionConfig} and pass today, which proves the detection machinery is implemented and working. Every
- * other test drives {@link GlobExpander#expand} — the overload {@code ExternalSourceResolver} actually calls, which
- * carries no {@link PartitionConfig} and hard-passes {@code null} — and fails, because the user's setting cannot
- * reach the detector through it.
+ * <p>These began as reproductions. Against {@code main} the resolver reduced every partition setting to one
+ * boolean and called expander entry points that carried no {@link PartitionConfig}, so the Hive detector ran
+ * whatever the user asked for; seven of these tests were red for that reason. They pass now, and a red one means
+ * the settings have stopped reaching the detector.
+ *
+ * <p>The two {@code testMachineryHonours*} tests date from that period, when they were the controls: they handed a
+ * resolved config straight to the detectors and passed while the rest failed, which located the fault in the wiring
+ * rather than the detectors. They no longer differ in kind from the others — every test now drives the same
+ * settings-map entry point — but they are kept as the narrowest statement of what each strategy does.
  */
 public class PartitionDetectionSettingReproTests extends ESTestCase {
 
@@ -72,9 +76,9 @@ public class PartitionDetectionSettingReproTests extends ESTestCase {
     // ---------------------------------------------------------------------------------------------------------
 
     /**
-     * {@code partition_detection: none} is documented as the way to turn partition detection off. Through the
-     * resolver's entry point it does not: the Hive detector runs anyway and injects a {@code year} column that is
-     * in none of the user's files.
+     * {@code partition_detection: none} is documented as the way to turn partition detection off. Against
+     * {@code main} it did not: the Hive detector ran anyway and injected a {@code year} column present in none of
+     * the user's files.
      */
     public void testNoneDisablesDetection() throws IOException {
         FileList listing = expandAsResolverDoes(HIVE_PATTERN, HIVE_TREE, Map.of("partition_detection", "none"));
@@ -83,8 +87,8 @@ public class PartitionDetectionSettingReproTests extends ESTestCase {
 
     /**
      * {@code partition_detection: none} and {@code hive_partitioning: false} both mean "do not derive columns from
-     * the path". They must agree. Today only the second one works, so the user who follows the documented setting
-     * gets a different schema from the user who follows the undocumented one.
+     * the path". They must agree. Against {@code main} only the second worked, so the documented setting and the undocumented one produced
+     * different schemas.
      */
     public void testNoneAgreesWithHivePartitioningFalse() throws IOException {
         FileList viaDocumentedSetting = expandAsResolverDoes(HIVE_PATTERN, HIVE_TREE, Map.of("partition_detection", "none"));
@@ -126,9 +130,9 @@ public class PartitionDetectionSettingReproTests extends ESTestCase {
     }
 
     /**
-     * A {@code partition_path} template is the only way to describe a non-Hive layout. Through the resolver's entry
-     * point it is dropped: the Hive detector finds no {@code key=value} segment, so the user gets no partition
-     * columns at all — nothing to filter on, and therefore nothing to prune on either.
+     * A {@code partition_path} template is the only way to describe a non-Hive layout. Against {@code main} it was
+     * dropped: the Hive detector found no {@code key=value} segment, so the dataset had no partition columns to
+     * filter or prune on.
      */
     public void testTemplateExtractsColumnsFromANonHiveLayout() throws IOException {
         FileList listing = expandAsResolverDoes(
@@ -140,8 +144,8 @@ public class PartitionDetectionSettingReproTests extends ESTestCase {
     }
 
     /**
-     * Setting {@code partition_path} alone promotes AUTO to TEMPLATE ({@code PartitionConfig.fromConfig}). That
-     * promotion is unreachable from the read path, so the template is ignored here too.
+     * Setting {@code partition_path} alone promotes AUTO to TEMPLATE ({@code PartitionConfig.fromConfig}). Against
+     * {@code main} that promotion never reached the read path.
      */
     public void testPartitionPathAlonePromotesAutoToTemplate() throws IOException {
         FileList listing = expandAsResolverDoes(FLAT_PATTERN, FLAT_TREE, Map.of("partition_path", "{year}"));
@@ -150,8 +154,8 @@ public class PartitionDetectionSettingReproTests extends ESTestCase {
 
     /**
      * An explicit {@code template} strategy must beat Hive-shaped directory names — that is the whole point of
-     * naming a strategy rather than letting AUTO guess. Today the Hive detector runs regardless, so a user whose
-     * directories happen to look Hive-shaped cannot override the interpretation.
+     * naming a strategy rather than letting AUTO guess. Against {@code main} the Hive detector ran regardless, so a
+     * Hive-shaped layout could not be reinterpreted.
      */
     public void testTemplateStrategyOverridesAHiveShapedLayout() throws IOException {
         FileList listing = expandAsResolverDoes(
@@ -163,9 +167,8 @@ public class PartitionDetectionSettingReproTests extends ESTestCase {
     }
 
     /**
-     * The four strategies are meant to be four different behaviours. Through the read path they collapse onto one:
-     * every value produces byte-identical partition columns, which is what "the setting does nothing" looks like
-     * when you cannot see the wiring.
+     * The four strategies are four behaviours. Against {@code main} they collapsed onto one: every value produced
+     * identical partition columns.
      */
     public void testStrategiesAreDistinguishable() throws IOException {
         Set<Set<String>> distinctResults = new LinkedHashSet<>();
@@ -184,8 +187,8 @@ public class PartitionDetectionSettingReproTests extends ESTestCase {
      * filter hints and the {@code hivePartitioning} flag — but not the partition strategy. The cached {@link FileList} carries its
      * {@code PartitionMetadata}, so once the strategy affects detection, two datasets differing only in
      * {@code partition_detection} collide on one cache entry and one of them is served the other's partition
-     * columns. This is latent today precisely because the setting is inert — it becomes a wrong answer the moment
-     * the setting is wired, so it belongs in the same change.
+     * columns. This was latent while the setting was unread; wiring it makes the collision a wrong answer, so the key binds the
+     * strategy in the same change.
      */
     public void testListingCacheIdentityBindsThePartitionStrategy() throws IOException {
         FileList none = GlobExpander.expandGlob(HIVE_PATTERN, provider(HIVE_TREE), null, partitionSettings("none", null));
@@ -207,9 +210,8 @@ public class PartitionDetectionSettingReproTests extends ESTestCase {
     // ---------------------------------------------------------------------------------------------------------
 
     /**
-     * Expands exactly the way {@code ExternalSourceResolver} does: it reduces the dataset's settings to the single
-     * {@code hivePartitioning} boolean and calls the {@link GlobExpander#expand} overload that carries no
-     * {@link PartitionConfig}. Mirrors {@code ExternalSourceResolver.isHivePartitioningEnabled}.
+     * Expands the way {@code ExternalSourceResolver} does: it hands the dataset's settings map to
+     * {@link GlobExpander#expand}, which resolves the {@link PartitionConfig} once at the boundary.
      */
     private static FileList expandAsResolverDoes(String pattern, List<StorageEntry> tree, Map<String, Object> settings) throws IOException {
         return GlobExpander.expand(pattern, provider(tree), null, settings, MAX, MAX);

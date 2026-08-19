@@ -5365,10 +5365,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void testPartitionKeyCollisionAcceptedWithDetectionNone() throws Exception {
         Path root = createTempDir();
         Path east = Files.createDirectories(root.resolve("region=east"));
-        // The file carries a REAL region column AND sits under region=east/. That is the shape the defect traps: on
-        // main the path-derived region shadowed the physical one and the declaration was rejected outright, with no
-        // way to opt out. The physical values are deliberately different from the directory's so the assertion can
-        // tell which one was read.
+        // The file carries a real region column AND sits under region=east/. That is the shape the defect covers:
+        // on main the path-derived region shadowed the physical one and the declaration was rejected, with no
+        // opt-out. The physical values differ from the directory's so the assertion can tell which one was read.
         Files.writeString(east.resolve("part1.csv"), "emp_no:integer,first_name:keyword,region:keyword\n1,Alice,emea\n2,Bob,emea\n");
 
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));

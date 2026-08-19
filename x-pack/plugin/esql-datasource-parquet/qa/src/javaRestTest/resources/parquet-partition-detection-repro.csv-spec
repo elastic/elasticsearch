@@ -86,7 +86,7 @@ FROM repro_shadow
 | STATS count = COUNT(*) BY languages
 | SORT languages NULLS LAST;
 
-warningRegex:.*one or more physical columns are shadowed by same-named Hive partition keys.*
+warningRegex:.*one or more physical columns are shadowed by same-named Hive partition keys.*Set partition_detection to none to read the physical column instead.*
 warningRegex:.*physical column \[languages\] is shadowed by a same-named Hive partition key.*
 
 count:long | languages:integer

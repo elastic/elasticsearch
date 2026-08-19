@@ -960,10 +960,11 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * The {@code NONE} gate in {@code effectivePattern} replaced a {@code hivePartitioning == false} short-circuit,
-     * so a template-partitioned dataset can now narrow its glob from a filter hint — it never could before, because
-     * pruning keyed off the Hive boolean. Driven through the PUBLIC entry so it exercises the boundary resolution,
-     * not just the rewrite helper.
+     * A template-partitioned dataset narrows its glob from a filter hint. No such dataset could before: the
+     * production listing paths passed no {@link PartitionConfig}, and the template rewrite needs one. Separately,
+     * {@code effectivePattern} gated the rewrite on the Hive boolean, which is the wrong axis once a strategy
+     * exists; it gates on {@code Strategy.NONE} now. Driven through the public entry point so it exercises the
+     * boundary resolution, not just the rewrite helper.
      */
     public void testTemplateConfigNarrowsGlobWithHints() throws IOException {
         Map<String, List<StorageEntry>> tree = new HashMap<>();

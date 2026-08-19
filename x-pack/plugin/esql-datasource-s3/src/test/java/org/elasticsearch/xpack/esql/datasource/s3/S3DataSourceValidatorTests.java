@@ -285,10 +285,13 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasetPartitionDetectionInvalid() {
-        expectThrows(
+        ValidationException e = expectThrows(
             ValidationException.class,
             () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "banana"))
         );
+        // One actionable message, not that message plus Enum.valueOf's raw "No enum constant ...".
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.getMessage(), not(containsString("No enum constant")));
     }
 
     public void testValidateDatasetPartitionDetectionAllValues() {

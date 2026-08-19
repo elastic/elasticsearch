@@ -124,7 +124,15 @@ public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) 
         }
 
         Object detectionValue = config.get(CONFIG_PARTITIONING_DETECTION);
-        Strategy declared = detectionValue != null ? Strategy.parse(detectionValue.toString()) : null;
+        Strategy declared;
+        try {
+            declared = detectionValue != null ? Strategy.parse(detectionValue.toString()) : null;
+        } catch (IllegalArgumentException e) {
+            // An unparseable value is already reported by the caller, which validates this key as an enum and
+            // produces an actionable message. Rethrowing here would append Enum.valueOf's raw "No enum constant"
+            // text as a second error on the same setting.
+            return;
+        }
 
         Object templateValue = config.get(CONFIG_PARTITIONING_PATH);
         String template = templateValue != null ? templateValue.toString() : null;

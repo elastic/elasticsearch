@@ -84,9 +84,9 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
      * than throwing (see {@code GlobExpander.resolveDetector}'s guard). The dataset predates
      * {@code partition_detection} reaching the read path, so this pins that it keeps reading.
      *
-     * <p>It previously asserted only that the query did not fail with "unknown option [partition_path]", which is
-     * how a completely inert setting survived review: an acceptance assertion cannot tell a working template from a
-     * dropped one. It now asserts the resulting columns.
+     * <p>It previously asserted only that the query did not fail with "unknown option [partition_path]". An
+     * acceptance assertion cannot tell an applied template from an unapplied one, so it passed while the setting
+     * was unread. It now asserts the resulting columns.
      */
     public void testPartitionPathValidatesAndParses() throws Exception {
         Path root = createTempDir().resolve("template_csv");

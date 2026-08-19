@@ -99,33 +99,6 @@ public final class DatasetRegistry {
     }
 
     /**
-     * Ensures a {@code dataset} named {@code name} bound to {@code dataSource} + {@code resource} with the given
-     * format {@code settings} and, when non-null, a declared schema, issuing
-     * {@code PUT /_query/dataset/<name>} only when the content differs from the cached one. The owning
-     * {@code data_source} must already exist.
-     * <p>
-     * The content signature is the request body itself, which is deterministic and ordered. That is what makes a
-     * declaration part of the identity of a registration: re-registering the same name with a different schema — or
-     * with the same columns in a different order — differs in the body and so re-issues the create-or-replace PUT,
-     * where a signature built only from {@code dataSource}/{@code resource}/{@code settings} would collapse the two
-     * and silently serve the first declaration to the second caller.
-     */
-    public static synchronized void ensureDataset(
-        RestClient client,
-        String name,
-        String dataSource,
-        String resource,
-        Map<String, Object> settings,
-        @Nullable Map<String, Object> mappings
-    ) throws IOException {
-        String signature = datasetRequestBody(dataSource, resource, settings, mappings);
-        if (signature.equals(datasets.get(name)) == false) {
-            putDataset(client, name, dataSource, resource, settings, mappings);
-            datasets.put(name, signature);
-        }
-    }
-
-    /**
      * Derives a valid (lowercase, index-name-safe) dataset name from an arbitrary resource path/URL by
      * lowercasing it and collapsing every run of non-alphanumeric characters to a single underscore, then
      * prepending {@code prefix} to guarantee a letter-led, collision-free name across callers.
@@ -273,7 +246,8 @@ public final class DatasetRegistry {
      * The {@code PUT /_query/dataset/<name>} body: {@code data_source}, {@code resource}, {@code settings} when
      * non-empty, then the declared {@code mappings} when there is one. {@code mappings} is appended last, so for a
      * given settings map a body without a declaration is byte-for-byte what this registry emitted before declared
-     * schemas were reachable. Doubles as {@link #ensureDataset}'s content signature.
+     * schemas were reachable. (The directive-based {@link #ensureDataset} signs the raw {@code WITH} text, which already contains any
+     * declaration, so it needs no separate mappings term.)
      */
     static String datasetRequestBody(
         String dataSource,

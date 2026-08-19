@@ -1,4 +1,22 @@
-
+// CSV-only spec: a dataset that DECLARES its schema instead of letting the read derive one.
+//
+// A declaration rides the `dataset:` directive under the reserved `mappings` key, which DatasetRegistry lifts
+// out of the WITH JSON and sends as the PUT body's top-level `mappings` field -- settings validation rejects
+// unknown setting names, so a declaration cannot ride inside `settings`. Every other key in the WITH object
+// stays a format setting, so a case can cross a declaration with any format option.
+//
+// Do NOT add `required_capability: dataset_declared_schema`: that capability is advertised on
+// PUT /_query/dataset/{name}, not on POST /_query, and a csv-spec's required_capability lines resolve against
+// the query endpoint only -- the line would skip every case here forever. The harness checks the PUT-side
+// capability itself in AbstractExternalSourceSpecTestCase.
+//
+// employees_no_mv.csv has a TYPED, column-aligned header ("birth_date:date     ,emp_no:integer,...", 23
+// columns, 100 rows, emp_no 10001..10100). A declared `path` binds against the NAME HALF of that typed header
+// ("emp_no:integer" -> "emp_no"), the same derivation the undeclared read uses, so a declaration names the same
+// physical column. Dataset names encode their options: the same name always carries the same declaration.
+//
+// Every case here asserts a read that DIFFERS from an undeclared one. A declaration that merely restates the
+// file changes nothing by construction and is therefore not worth hand-writing.
 
 // Strict declaration that renames and retypes: physical emp_no/first_name are exposed as id/name, and
 // every other column of the file is hidden. Discriminating by construction -- if the declaration were

@@ -2237,9 +2237,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         boolean[] captured = new boolean[1];
         IndicesService indicesService = mock(IndicesService.class);
         withTemporaryClusterService((clusterService, threadPool) -> {
-            ProjectMetadata projectMetadataWithTemplate = ProjectMetadata.builder(
-                clusterService.state().metadata().getProject(projectId)
-            ).put("managed-template", managedTemplate).build();
+            ProjectMetadata projectMetadataWithTemplate = ProjectMetadata.builder(clusterService.state().metadata().getProject(projectId))
+                .put("managed-template", managedTemplate)
+                .build();
             ClusterState clusterState = ClusterState.builder(clusterService.state())
                 .putProjectMetadata(projectMetadataWithTemplate)
                 .build();
@@ -2290,16 +2290,14 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
      * {@code IndexSettingProvider} must receive {@code registryInstalledTemplate=false}.
      */
     public void testRegistryInstalledTemplateIsFalseForNonManagedTemplate() throws Exception {
-        ComposableIndexTemplate nonManagedTemplate = ComposableIndexTemplate.builder()
-            .indexPatterns(List.of("te*"))
-            .build();
+        ComposableIndexTemplate nonManagedTemplate = ComposableIndexTemplate.builder().indexPatterns(List.of("te*")).build();
 
         boolean[] captured = new boolean[] { true };
         IndicesService indicesService = mock(IndicesService.class);
         withTemporaryClusterService((clusterService, threadPool) -> {
-            ProjectMetadata projectMetadataWithTemplate = ProjectMetadata.builder(
-                clusterService.state().metadata().getProject(projectId)
-            ).put("non-managed-template", nonManagedTemplate).build();
+            ProjectMetadata projectMetadataWithTemplate = ProjectMetadata.builder(clusterService.state().metadata().getProject(projectId))
+                .put("non-managed-template", nonManagedTemplate)
+                .build();
             ClusterState clusterState = ClusterState.builder(clusterService.state())
                 .putProjectMetadata(projectMetadataWithTemplate)
                 .build();

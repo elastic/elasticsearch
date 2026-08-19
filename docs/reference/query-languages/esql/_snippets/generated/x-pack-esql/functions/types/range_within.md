@@ -6,4 +6,6 @@
 | --- | --- | --- |
 | date | date_range {applies_to}`stack: preview 9.5.0` | boolean |
 | date_range {applies_to}`stack: preview 9.5.0` | date_range {applies_to}`stack: preview 9.5.0` | boolean |
+| double {applies_to}`stack: preview 9.6.0` | double_range {applies_to}`stack: preview 9.6.0` | boolean |
+| double_range {applies_to}`stack: preview 9.6.0` | double_range {applies_to}`stack: preview 9.6.0` | boolean |
 

@@ -506,7 +506,8 @@ public class EsqlSession {
                     // Apply the out-of-band request filter to external-source (dataset) leaves, translated
                     // against each source's schema. Index leaves keep their existing filter path. Version-gated:
                     // the translated predicate can contain mv_in_range, which older nodes cannot deserialize.
-                    // The rewrite is fail-closed: an unsupported construct throws IllegalArgumentException (a 400).
+                    // Fail-closed by default: an unsupported construct throws VerificationException (a 400).
+                    // With allow_partial_dsl_filter=true: applies only the translatable subset, emits a warning.
                     // This callback runs outside the SubscribableListener chain below, so a synchronous throw here
                     // would not be routed to the listener — catch it and fail the query explicitly.
                     final LogicalPlan plan;
@@ -516,7 +517,8 @@ public class EsqlSession {
                             request.filter(),
                             RequestFilterRewriter.REQUEST_FILTER_ON_DATASET_FEATURE_FLAG.isEnabled(),
                             finalConfiguration,
-                            minimumVersion
+                            minimumVersion,
+                            Boolean.TRUE.equals(request.allowPartialDslFilter())
                         );
                     } catch (Exception e) {
                         listener.onFailure(e);

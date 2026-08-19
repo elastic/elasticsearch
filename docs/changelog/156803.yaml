@@ -2,5 +2,8 @@ area: Mapping
 issues:
  - 132352
 pr: 156803
-summary: Correctly load nested document source from `SearchExecutionContext`
+summary: Correctly load nested document source from `SearchExecutionContext`. Fixes
+  a bug where phrase queries against match_only_text fields would not return results
+  for nested documents, because the wrong source document would be loaded to check
+  term positions.
 type: bug

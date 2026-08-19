@@ -59,6 +59,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
@@ -164,6 +165,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             + "is deprecated and will be removed in a future version";
 
     private static final int DEFAULT_BBQ_IVF_QUANTIZE_BITS = 1;
+    private static final int DEFAULT_ASH_IVF_QUANTIZE_BITS = 2;
 
     /**
      * The heuristic to utilize when executing a filtered search against vectors indexed in an HNSW graph.
@@ -526,7 +528,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     false,
                     bits,
                     experimentalFeaturesEnabled,
-                    false
+                    false,
+                    BBQIVFIndexOptions.QuantizationType.OSQ
                 );
             }
 
@@ -2174,12 +2177,31 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
                 boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
 
+                BBQIVFIndexOptions.QuantizationType quantizationType;
+                if (Build.current().isSnapshot()) {
+                    // Parse quantization_type before bits so we can set the correct default
+                    String quantizationTypeString = XContentMapValues.nodeStringValue(indexOptionsMap.remove("quantization_type"), "osq");
+                    quantizationType = BBQIVFIndexOptions.QuantizationType.fromString(quantizationTypeString);
+                } else {
+                    quantizationType = BBQIVFIndexOptions.QuantizationType.OSQ;
+                }
+
+                boolean isAsh = quantizationType == BBQIVFIndexOptions.QuantizationType.ASH;
                 Object quantizeBitsNode = indexOptionsMap.remove("bits");
-                int quantizeBits = XContentMapValues.nodeIntegerValue(quantizeBitsNode, DEFAULT_BBQ_IVF_QUANTIZE_BITS);
-                if ((quantizeBits == 1 || quantizeBits == 2 || quantizeBits == 4 || quantizeBits == 7) == false) {
-                    throw new IllegalArgumentException(
-                        "'bits' must be 1, 2, 4 or 7, got: " + quantizeBits + " for field [" + fieldName + "]"
-                    );
+                int defaultBits = isAsh ? DEFAULT_ASH_IVF_QUANTIZE_BITS : DEFAULT_BBQ_IVF_QUANTIZE_BITS;
+                int quantizeBits = XContentMapValues.nodeIntegerValue(quantizeBitsNode, defaultBits);
+                if (isAsh) {
+                    if ((quantizeBits == 1 || quantizeBits == 2 || quantizeBits == 3 || quantizeBits == 4 || quantizeBits == 8) == false) {
+                        throw new IllegalArgumentException(
+                            "'bits' must be 1, 2, 3, 4 or 8 for ASH quantization, got: " + quantizeBits + " for field [" + fieldName + "]"
+                        );
+                    }
+                } else {
+                    if ((quantizeBits == 1 || quantizeBits == 2 || quantizeBits == 4 || quantizeBits == 7) == false) {
+                        throw new IllegalArgumentException(
+                            "'bits' must be 1, 2, 4 or 7, got: " + quantizeBits + " for field [" + fieldName + "]"
+                        );
+                    }
                 }
                 if (rescoreVector == null) {
                     // adjust the oversampling factor based on quantization scheme
@@ -2193,6 +2215,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
                 boolean doPrecondition = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("precondition"), false);
                 boolean autoCalibrate = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("auto_calibrate"), false);
+                if (isAsh && autoCalibrate) {
+                    throw new IllegalArgumentException(
+                        "'auto_calibrate' is not supported with 'quantization_type' 'ash' for field [" + fieldName + "]"
+                    );
+                }
 
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new BBQIVFIndexOptions(
@@ -2205,7 +2232,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     doPrecondition,
                     quantizeBits,
                     experimentalFeaturesEnabled,
-                    autoCalibrate
+                    autoCalibrate,
+                    quantizationType
                 );
             }
 
@@ -2890,6 +2918,34 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final boolean doPrecondition;
         final boolean experimentalFeaturesEnabled;
         final boolean autoCalibrate;
+        final QuantizationType quantizationType;
+
+        public enum QuantizationType {
+            OSQ("osq"),
+            ASH("ash");
+
+            private final String name;
+
+            QuantizationType(String name) {
+                this.name = name;
+            }
+
+            @Override
+            public String toString() {
+                return name;
+            }
+
+            public static QuantizationType fromString(String name) {
+                for (QuantizationType type : QuantizationType.values()) {
+                    if (type.name.equalsIgnoreCase(name)) {
+                        return type;
+                    }
+                }
+                throw new IllegalArgumentException(
+                    "Unknown quantization type: " + name + " must be one of " + Arrays.toString(QuantizationType.values())
+                );
+            }
+        }
 
         public BBQIVFIndexOptions(
             int clusterSize,
@@ -2901,7 +2957,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean doPrecondition,
             int bits,
             boolean experimentalFeaturesEnabled,
-            boolean autoCalibrate
+            boolean autoCalibrate,
+            QuantizationType quantizationType
         ) {
             super(VectorIndexType.BBQ_DISK, rescoreVector);
             this.clusterSize = clusterSize;
@@ -2913,6 +2970,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.doPrecondition = doPrecondition;
             this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
             this.autoCalibrate = autoCalibrate;
+            this.quantizationType = quantizationType;
         }
 
         @Override
@@ -2937,24 +2995,45 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             }
             if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE) && experimentalFeaturesEnabled) {
-                IvfMergeConfigResolver mergeConfigResolver = autoCalibrate
-                    ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
-                    : IvfMergeConfigResolver.useCodecDefault();
-                return new ESNextDiskBBQVectorsFormat(
-                    QuantEncoding.fromBits((byte) bits),
-                    clusterSize,
-                    ESNextDiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                    elementType,
-                    onDiskRescore,
-                    mergingExecutorService,
-                    numMergeWorkers,
-                    doPrecondition,
-                    ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                    flatIndexThreshold,
-                    sliceField,
-                    IvfFlushConfigSource.empty(),
-                    mergeConfigResolver
-                );
+                if (quantizationType == QuantizationType.ASH && !Build.current().isSnapshot()) {
+                    throw new IllegalArgumentException("quantization_type 'ash' is only available in snapshot builds");
+                }
+                if (quantizationType == QuantizationType.ASH && Build.current().isSnapshot()) {
+                    return new ESNextDiskASHVectorsFormat(
+                        clusterSize,
+                        ESNextDiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                        elementType,
+                        onDiskRescore,
+                        mergingExecutorService,
+                        numMergeWorkers,
+                        flatIndexThreshold,
+                        sliceField,
+                        IvfFlushConfigSource.empty(),
+                        IvfMergeConfigResolver.useCodecDefault(),
+                        bits,
+                        ESNextDiskASHVectorsFormat.DEFAULT_PROJECTED_DIMS_FRACTION,
+                        ESNextDiskASHVectorsFormat.DEFAULT_QUERY_BITS_PER_DIM
+                    );
+                } else {
+                    IvfMergeConfigResolver mergeConfigResolver = autoCalibrate
+                        ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
+                        : IvfMergeConfigResolver.useCodecDefault();
+                    return new ESNextDiskBBQVectorsFormat(
+                        QuantEncoding.fromBits((byte) bits),
+                        clusterSize,
+                        ESNextDiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                        elementType,
+                        onDiskRescore,
+                        mergingExecutorService,
+                        numMergeWorkers,
+                        doPrecondition,
+                        ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                        flatIndexThreshold,
+                        sliceField,
+                        IvfFlushConfigSource.empty(),
+                        mergeConfigResolver
+                    );
+                }
             } else if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE)) {
                 IvfMergeConfigResolver mergeConfigResolver = autoCalibrate
                     ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
@@ -2995,7 +3074,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return false;
             }
             BBQIVFIndexOptions that = (BBQIVFIndexOptions) update;
-            return this.doPrecondition == that.doPrecondition && this.autoCalibrate == that.autoCalibrate;
+            return this.doPrecondition == that.doPrecondition
+                && this.autoCalibrate == that.autoCalibrate
+                && Objects.equals(this.quantizationType, that.quantizationType);
         }
 
         @Override
@@ -3008,6 +3089,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 && bits == that.bits
                 && doPrecondition == that.doPrecondition
                 && autoCalibrate == that.autoCalibrate
+                && Objects.equals(quantizationType, that.quantizationType)
                 && Objects.equals(rescoreVector, that.rescoreVector);
         }
 
@@ -3018,8 +3100,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 flatIndexThreshold,
                 defaultVisitPercentage,
                 onDiskRescore,
+                bits,
                 doPrecondition,
                 autoCalibrate,
+                quantizationType,
                 rescoreVector
             );
         }
@@ -3047,6 +3131,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             if (autoCalibrate) {
                 builder.field("auto_calibrate", true);
+            }
+            if (quantizationType == QuantizationType.ASH) {
+                builder.field("quantization_type", quantizationType);
             }
         }
 
@@ -3076,6 +3163,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public int getBits() {
             return bits;
+        }
+
+        public QuantizationType getQuantizationType() {
+            return quantizationType;
         }
 
         @Override
@@ -4070,7 +4161,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void parse(DocumentParserContext context) throws IOException {
+    public ParseResult parse(DocumentParserContext context) throws IOException {
         if (context.doc().getByKey(fieldType().name()) != null) {
             throw new IllegalArgumentException(
                 "Field ["
@@ -4081,20 +4172,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
             );
         }
         if (Token.VALUE_NULL == context.parser().currentToken()) {
-            return;
+            return ParseResult.INDEXED;
         }
         if (fieldType().dims == null) {
             int dims = fieldType().element.parseDimensionCount(context);
             DenseVectorFieldMapper.Builder builder = (Builder) getMergeBuilder();
             builder.dimensions(dims);
             context.addDynamicMapper(builder, fullPath());
-            return;
+            return ParseResult.INDEXED;
         }
         if (fieldType().indexed) {
             parseKnnVectorAndIndex(context);
         } else {
             parseBinaryDocValuesVectorAndIndex(context);
         }
+        return ParseResult.INDEXED;
     }
 
     private void parseKnnVectorAndIndex(DocumentParserContext context) throws IOException {

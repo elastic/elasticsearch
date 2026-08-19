@@ -895,7 +895,8 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 ) {
                     DocumentParserContext subContext = nestedContext.switchParser(subParser);
                     subParser.nextToken();
-                    embeddingsField.parse(subContext);
+                    var embeddingsParseResult = embeddingsField.parse(subContext);
+                    assert embeddingsParseResult instanceof FieldMapper.ParseResult.Indexed;
                 }
 
                 parseChunkValueReference(nestedContext, mapper.fieldType(), entry.getKey(), chunk);
@@ -930,7 +931,8 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             ) {
                 DocumentParserContext subContext = context.switchParser(subParser);
                 subParser.nextToken();
-                offsetsField.parse(subContext);
+                var offsetsParseResult = offsetsField.parse(subContext);
+                assert offsetsParseResult instanceof FieldMapper.ParseResult.Indexed;
             }
         }
     }

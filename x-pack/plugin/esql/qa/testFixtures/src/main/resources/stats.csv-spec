@@ -2409,7 +2409,7 @@ y:long | x:keyword
 
 
 shadowingTheGroup
-skip_flattened_rewrite: field_extract_multivalue_null
+skip_flattened_rewrite: field_extract_shadowing_warning
 required_capability: stats_alias_collision_warnings
 FROM employees
 | STATS gender = MAX(emp_no), gender = MIN(emp_no) BY gender
@@ -3022,7 +3022,6 @@ max:integer
 ;
 
 groupingFilterIsAlwaysTrue
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: per_agg_filtering
 FROM employees
 | MV_EXPAND job_positions
@@ -3039,7 +3038,6 @@ max:integer | job_positions:keyword
 ;
 
 groupingFilterIsAlwaysFalse
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: per_agg_filtering
 FROM employees
 | MV_EXPAND job_positions
@@ -3056,7 +3054,6 @@ null        | H
 ;
 
 groupingFilterSometimesMatches
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: per_agg_filtering
 FROM employees
 | MV_EXPAND job_positions
@@ -3603,7 +3600,6 @@ VALUES(color):keyword | color:keyword
 ;
 
 filterOrdinalValues
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fix_filter_ordinals
 from employees 
 | MV_EXPAND job_positions

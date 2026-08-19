@@ -67,7 +67,7 @@ public class ExternalNullFieldParallelWarningIT extends AbstractExternalDataSour
 
     /** Baseline: a small (serial-path) all-unparseable declared-long CSV delivers the null-fill warnings. */
     public void testSerialPathDeliversNullFieldWarnings() throws Exception {
-        assumeTrue("parsing_parallelism pragma is snapshot-only", Build.current().isSnapshot());
+        assumeTrue("external_parsing_parallelism pragma is snapshot-only", Build.current().isSnapshot());
         List<String> warnings = runAndCollectWarnings("null_field_small", SMALL_ROWS, SMALL_ROWS);
         assertTrue(
             "serial path must deliver at least one per-field parse warning, got: " + warnings,
@@ -84,7 +84,7 @@ public class ExternalNullFieldParallelWarningIT extends AbstractExternalDataSour
      * deliver at least one per-field parse warning, so a client does not conclude the parse was clean.
      */
     public void testParallelPathDeliversNullFieldWarnings() throws Exception {
-        assumeTrue("parsing_parallelism pragma is snapshot-only", Build.current().isSnapshot());
+        assumeTrue("external_parsing_parallelism pragma is snapshot-only", Build.current().isSnapshot());
         List<String> warnings = runAndCollectWarnings("null_field_large", LARGE_ROWS, LARGE_ROWS);
         assertTrue(
             "parallel path must still deliver at least one per-field parse warning, got: " + warnings,
@@ -95,7 +95,7 @@ public class ExternalNullFieldParallelWarningIT extends AbstractExternalDataSour
     /**
      * Registers a single-column CSV of {@code rows} unparseable values with the column declared {@code long}
      * under {@code error_mode:null_field}, runs {@code STATS total=COUNT(*), present=COUNT(val)} on a random
-     * coordinator with {@code parsing_parallelism=4}, asserts the data is correct (all values null-filled), and
+     * coordinator with {@code external_parsing_parallelism=4}, asserts the data is correct (all values null-filled), and
      * returns that coordinator's accumulated response {@code Warning} headers.
      */
     private List<String> runAndCollectWarnings(String datasetName, int rows, long expectedTotal) throws Exception {

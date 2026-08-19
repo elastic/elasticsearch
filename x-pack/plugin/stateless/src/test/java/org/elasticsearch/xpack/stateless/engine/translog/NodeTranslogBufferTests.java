@@ -237,7 +237,9 @@ public class NodeTranslogBufferTests extends ESTestCase {
         when(shardSyncState.createDirectory(1, 1)).thenThrow(new RuntimeException("simulated failure while building directory"));
 
         NodeTranslogBuffer translogBuffer = new NodeTranslogBuffer(bigArrays, 1000);
-        assertTrue(translogBuffer.writeToBuffer(shardSyncState, serialized(new byte[40]), 1, new Translog.Location(0, 0, 50)));
+        assertTrue(
+            translogBuffer.writeToBuffer(shardSyncState, serialized(new byte[40]), new long[] { 1 }, new Translog.Location(0, 0, 50))
+        );
 
         var e = expectThrows(RuntimeException.class, () -> translogBuffer.complete(1, Set.of(shardSyncState)));
         assertThat(e.getMessage(), equalTo("simulated failure while building directory"));
@@ -255,7 +257,9 @@ public class NodeTranslogBufferTests extends ESTestCase {
         when(inactiveShard.getShardId()).thenReturn(new ShardId("inactive", "_na_", 0));
 
         NodeTranslogBuffer translogBuffer = new NodeTranslogBuffer(bigArrays, 1000);
-        assertTrue(translogBuffer.writeToBuffer(inactiveShard, serialized(new byte[40]), 1, new Translog.Location(0, 0, 50)));
+        assertTrue(
+            translogBuffer.writeToBuffer(inactiveShard, serialized(new byte[40]), new long[] { 1 }, new Translog.Location(0, 0, 50))
+        );
 
         assertNull(translogBuffer.complete(0, Collections.emptySet()));
 

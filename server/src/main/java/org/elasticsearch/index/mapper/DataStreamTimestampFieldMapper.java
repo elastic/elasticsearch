@@ -13,6 +13,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
@@ -137,15 +138,13 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         if (DateFieldMapper.CONTENT_TYPE.equals(mapper.typeName()) == false
             && DateFieldMapper.DATE_NANOS_CONTENT_TYPE.equals(mapper.typeName()) == false) {
             throw new IllegalArgumentException(
-                "data stream timestamp field ["
-                    + DEFAULT_PATH
-                    + "] is of type ["
-                    + mapper.typeName()
-                    + "], but ["
-                    + DateFieldMapper.CONTENT_TYPE
-                    + ","
-                    + DateFieldMapper.DATE_NANOS_CONTENT_TYPE
-                    + "] is expected"
+                Strings.format(
+                    "data stream timestamp field [%s] is of type [%s], but [%s,%s] is expected",
+                    DEFAULT_PATH,
+                    mapper.typeName(),
+                    DateFieldMapper.CONTENT_TYPE,
+                    DateFieldMapper.DATE_NANOS_CONTENT_TYPE
+                )
             );
         }
 
@@ -270,20 +269,22 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         final long startTime = bounds.startTime();
         if (value < startTime) {
             throw new IllegalArgumentException(
-                "time series index @timestamp value ["
-                    + resolution.toInstant(originValue)
-                    + "] must be larger than "
-                    + Instant.ofEpochMilli(startTime)
+                Strings.format(
+                    "time series index @timestamp value [%s] must be larger than %s",
+                    resolution.toInstant(originValue),
+                    Instant.ofEpochMilli(startTime)
+                )
             );
         }
 
         final long endTime = bounds.endTime();
         if (value >= endTime) {
             throw new IllegalArgumentException(
-                "time series index @timestamp value ["
-                    + resolution.toInstant(originValue)
-                    + "] must be smaller than "
-                    + Instant.ofEpochMilli(endTime)
+                Strings.format(
+                    "time series index @timestamp value [%s] must be smaller than %s",
+                    resolution.toInstant(originValue),
+                    Instant.ofEpochMilli(endTime)
+                )
             );
         }
     }

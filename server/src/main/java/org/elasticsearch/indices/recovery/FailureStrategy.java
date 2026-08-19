@@ -19,6 +19,7 @@ public enum FailureStrategy {
     private final boolean retryOnDataNode;
 
     FailureStrategy(boolean notifyMaster, boolean retryOnDataNode) {
+        assert !retryOnDataNode || !notifyMaster : "Should never retry on data node AND notify master";
         this.notifyMaster = notifyMaster;
         this.retryOnDataNode = retryOnDataNode;
     }

@@ -1096,7 +1096,9 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         /**
          * Opens the file, preferring local disk (via {@link IndexDirectory#openInputPreferLocal}) when the directory is an
          * {@link IndexDirectory} so that BCC chunk requests can be served directly from the indexing node's disk during the
-         * notification window. Falls back to the standard {@link Directory#openInput} (cache path) otherwise.
+         * notification window. Falls back to the standard {@link Directory#openInput} (cache path) otherwise. In production
+         * the directory is always an {@link IndexDirectory}; the fallback exists for tests that supply a plain
+         * {@link Directory} implementation.
          */
         private IndexInput openInput(IOContext context) throws IOException {
             if (directory instanceof IndexDirectory indexDir) {

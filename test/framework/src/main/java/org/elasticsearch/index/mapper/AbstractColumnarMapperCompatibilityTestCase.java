@@ -18,6 +18,7 @@ import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.LongValuesCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.document.column.TokenStreamColumn;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
@@ -353,6 +354,8 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                         perDoc.get(doc).add(new FieldDescriptor(name, ft, null, BytesRef.deepCopyOf(cursor.nextValue())));
                     }
                 }
+            } else if (column instanceof TokenStreamColumn) {
+                // inverted-index-only; no doc values to compare
             } else {
                 throw new AssertionError("unsupported column type in test harness: " + column.getClass());
             }
@@ -381,7 +384,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
      * String values are normalized to {@link BytesRef} so string and binary representations of the
      * same data compare equal.
      */
-    private record FieldDescriptor(String name, FieldType fieldType, @Nullable Long longValue, @Nullable BytesRef bytesValue)
+    protected record FieldDescriptor(String name, FieldType fieldType, @Nullable Long longValue, @Nullable BytesRef bytesValue)
         implements
             Comparable<FieldDescriptor> {
 

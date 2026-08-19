@@ -9,6 +9,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -17,6 +20,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Columnar ↔ x-content compatibility tests for the time-series metadata mappers
@@ -107,5 +111,32 @@ public class TsidExtractingIdFieldMapperColumnarCompatibilityTests extends Abstr
                 doc(id3, ROUTING_1, TSID_A, 103L, SOURCE_T3)
             )
         );
+    }
+
+    /**
+     * The columnar path splits {@code _id} into two columns: a DV-only {@code BinaryColumn} and a
+     * {@code TokenStreamColumn} (indexed, empty token streams). The x-content path combines both
+     * into a single {@code SyntheticIdField}, so the x-content descriptor for {@code _id} carries
+     * both indexing options and doc-values while the columnar descriptor has only doc-values.
+     */
+    @Override
+    protected void assertFieldSetsEqual(List<FieldDescriptor> expected, List<FieldDescriptor> actual, String message) {
+        super.assertFieldSetsEqual(
+            expected.stream().map(this::normalizeSyntheticId).toList(),
+            actual.stream().map(this::normalizeSyntheticId).toList(),
+            message
+        );
+    }
+
+    private FieldDescriptor normalizeSyntheticId(FieldDescriptor fd) {
+        if (SyntheticIdField.NAME.equals(fd.name())
+            && fd.fieldType().docValuesType() == DocValuesType.BINARY
+            && fd.fieldType().indexOptions() != IndexOptions.NONE) {
+            FieldType dvOnly = new FieldType();
+            dvOnly.setDocValuesType(DocValuesType.BINARY);
+            dvOnly.freeze();
+            return new FieldDescriptor(fd.name(), dvOnly, fd.longValue(), fd.bytesValue());
+        }
+        return fd;
     }
 }

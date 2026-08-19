@@ -546,6 +546,51 @@ public class NativeMemoryCapacityTests extends ESTestCase {
         }
     }
 
+    /**
+     * Mirrors the exact scenario reported in the field: a small {@code xpack.ml.max_ml_node_size}
+     * (~2GB) with a single model whose memory requirement (an ELSER model, ~3.7GB) is larger than the
+     * largest possible ML node can hold. The requirement is unsatisfiable, so the decider takes the
+     * "node bigger than the largest possible node" branch. The emitted node/tier sizes must still be
+     * bounded: Cloud reads the capacity back as a {@code long} through a {@code double}, so a value of
+     * {@code 2^63} or more corrupts the persisted autoscaling entity and blocks all autoscaling. This
+     * complements {@link #testAutoscalingCapacityDoesNotOverflowSerialization()}, which forces the
+     * general overflow path with synthetic requirements, by exercising the specific reported inputs.
+     */
+    public void testAutoscalingCapacityWithModelLargerThanMaxMlNodeSize() {
+        int maxMemoryPercent = 30;
+        boolean useAuto = false;
+        // ELSER's model memory estimate (~3.7GB), larger than the largest ML node a 2GB max_ml_node_size allows.
+        long elserModelRequirement = ByteSizeValue.ofMb(3766).getBytes();
+        // Single model, so the tier requirement equals the node requirement.
+        NativeMemoryCapacity capacity = new NativeMemoryCapacity(elserModelRequirement, elserModelRequirement);
+        // ML native memory available on the largest node a 2GB max_ml_node_size permits.
+        long mlNativeMemoryForLargestMlNode = NativeMemoryCalculator.allowedBytesForMl(
+            ByteSizeValue.ofMb(2048).getBytes(),
+            maxMemoryPercent,
+            useAuto
+        );
+
+        for (int numMlAvailabilityZones : new int[] { 1, 2, 3 }) {
+            MlMemoryAutoscalingCapacity autoscalingCapacity = capacity.autoscalingCapacity(
+                maxMemoryPercent,
+                useAuto,
+                mlNativeMemoryForLargestMlNode,
+                numMlAvailabilityZones
+            ).build();
+
+            assertThat(autoscalingCapacity.nodeSize().getBytes(), lessThanOrEqualTo(NativeMemoryCapacity.MAX_AUTOSCALING_CAPACITY_BYTES));
+            assertThat(autoscalingCapacity.tierSize().getBytes(), lessThanOrEqualTo(NativeMemoryCapacity.MAX_AUTOSCALING_CAPACITY_BYTES));
+            // The emitted value must survive Cloud's long -> double -> long round-trip, i.e. its nearest
+            // double stays strictly below 2^63 = (double) Long.MAX_VALUE.
+            assertThat((double) autoscalingCapacity.nodeSize().getBytes(), lessThan((double) Long.MAX_VALUE));
+            assertThat((double) autoscalingCapacity.tierSize().getBytes(), lessThan((double) Long.MAX_VALUE));
+            // The node is sized to hold the model even though that exceeds max_ml_node_size (the reported symptom).
+            assertThat(autoscalingCapacity.nodeSize().getBytes(), greaterThanOrEqualTo(elserModelRequirement));
+            // The tier is still at least as big as a single node.
+            assertThat(autoscalingCapacity.tierSize().getBytes(), greaterThanOrEqualTo(autoscalingCapacity.nodeSize().getBytes()));
+        }
+    }
+
     public void testAutoscalingCapacityConsistency() {
         final BiConsumer<NativeMemoryCapacity, Integer> consistentAutoAssertions = (nativeMemory, memoryPercentage) -> {
             MlMemoryAutoscalingCapacity autoscalingCapacity = nativeMemory.autoscalingCapacity(25, true, Long.MAX_VALUE, 1).build();

@@ -265,9 +265,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
   method: testRelocatingIndexShardFetchesFirstRegionOnly
   issue: https://github.com/elastic/elasticsearch/issues/152526
-- class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
-  method: testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexIsDeleted
-  issue: https://github.com/elastic/elasticsearch/issues/152539
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/152914
@@ -459,9 +456,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.ReservedRealmAuthIT
   method: testAuthenticationUsingReservedRealm
   issue: https://github.com/elastic/elasticsearch/issues/156884
-- class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
-  method: testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexCloses
-  issue: https://github.com/elastic/elasticsearch/issues/153888
 - class: org.elasticsearch.search.aggregations.metrics.TDigestPercentilesIT
   method: testMultiValuedField
   issue: https://github.com/elastic/elasticsearch/issues/157040

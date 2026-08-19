@@ -16,18 +16,18 @@ public enum FailureStrategy {
     FAIL_SEND(true, false);
 
     private final boolean notifyMaster;
-    private final boolean retry;
+    private final boolean retryOnDataNode;
 
-    FailureStrategy(boolean notifyMaster, boolean retry) {
+    FailureStrategy(boolean notifyMaster, boolean retryOnDataNode) {
         this.notifyMaster = notifyMaster;
-        this.retry = retry;
+        this.retryOnDataNode = retryOnDataNode;
     }
 
     public boolean notifyMaster() {
         return notifyMaster;
     }
 
-    public boolean retry() {
-        return retry;
+    public boolean retryOnDataNode() {
+        return retryOnDataNode;
     }
 }

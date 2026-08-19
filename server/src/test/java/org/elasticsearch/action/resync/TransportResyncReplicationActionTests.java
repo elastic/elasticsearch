@@ -52,7 +52,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -179,7 +178,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                     indexServices,
                     threadPool,
                     shardStateAction,
-                    new ActionFilters(new HashSet<>()),
+                    ActionFilters.EMPTY,
                     new IndexingPressure(Settings.EMPTY),
                     EmptySystemIndices.INSTANCE,
                     TestProjectResolvers.DEFAULT_PROJECT_ONLY

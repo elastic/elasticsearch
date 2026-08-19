@@ -285,7 +285,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 // "Alerting V2" views prefix
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(ReservedRolesStore.ALERTING_V2_ALERT_VIEWS, ReservedRolesStore.ALERTING_V2_RULE_VIEWS)
-                    .privileges("indices:admin/esql/view/put") // TODO: use named index privilege when available in serverless
+                    .privileges("create_view")
                     .build(),
                 // "Alerts as data" public index aliases used in Security Solution,
                 // Observability, etc.

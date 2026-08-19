@@ -9,6 +9,7 @@
 
 package org.elasticsearch.snapshots;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
@@ -37,12 +38,14 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.MockLog;
 
 import java.util.HashMap;
 import java.util.List;
@@ -77,8 +80,26 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
         final int docCount = createRepositoryAndSnapshottedIndex();
         assertThat("a never-restored index has no history UUID", historyUuid(), nullValue());
 
-        initializeRestoreOverOpenIndex();
-        awaitRestoreCompleted();
+        // Without the REOPENED transition, applying the restored metadata in place throws (IndexSettings rejects an in-place history
+        // UUID change), which IndicesClusterStateService#updateIndices falls back to handling as an ordinary failed shard: it still ends
+        // up reusing the on-disk store (IndexRemovalReason.FAILURE keeps it too) once the shard is retried, so that fallback path would
+        // pass the assertions below even though it isn't the single clean transition this test means to verify. Assert directly that no
+        // shard failure occurred, so a regression that disables the transition is caught here rather than silently masked.
+        try (var mockLog = MockLog.capture(IndicesClusterStateService.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no shard failure while applying the open-index restore transition",
+                    IndicesClusterStateService.class.getName(),
+                    Level.WARN,
+                    "marking and sending shard failed"
+                )
+            );
+
+            initializeRestoreOverOpenIndex();
+            awaitRestoreCompleted();
+
+            mockLog.assertAllExpectationsMatched();
+        }
 
         assertThat("restore must assign a history UUID", historyUuid(), notNullValue());
         assertHitCount(prepareSearch(INDEX_NAME).setSize(0), docCount);

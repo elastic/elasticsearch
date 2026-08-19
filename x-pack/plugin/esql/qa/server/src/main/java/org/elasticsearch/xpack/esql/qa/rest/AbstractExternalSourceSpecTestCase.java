@@ -746,6 +746,13 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static final String HIVE_SUFFIX = "_hive";
 
     /**
+     * Hive-partitioned fixture whose partition key collides with a real payload column (see the
+     * {@code generateHiveShadowParquet_employees} fixture task). Checked before {@link #HIVE_SUFFIX}; the name still
+     * contains {@code _hive} so the HTTP glob-skip applies to it too.
+     */
+    private static final String HIVE_SHADOW_SUFFIX = "_hive_shadow";
+
+    /**
      * Resolve a template name to an actual path based on storage backend and format.
      *
      * @param templateName the template name (e.g., "employees", "employees_multifile", or "employees_multifile_ubn")
@@ -771,6 +778,9 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         } else if (templateName.endsWith(MULTIFILE_SUFFIX)) {
             // Multi-file template: employees_multifile -> multifile/*.parquet
             relativePath = "multifile/*." + format;
+        } else if (templateName.endsWith(HIVE_SHADOW_SUFFIX)) {
+            // Hive layout whose partition key shadows a same-named payload column.
+            relativePath = "hive-partitioned-shadow/**/*." + format;
         } else if (templateName.endsWith(HIVE_SUFFIX)) {
             // Hive-partitioned template: employees_hive -> hive-partitioned/**/*.parquet
             // (uses ** so the glob recurses into lang=*/ partition directories; HivePartitionDetector

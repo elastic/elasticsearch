@@ -97,7 +97,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      * The byte-array fast path buffers a whole segment into one {@code byte[]}; it must only engage at or
      * below {@link NdJsonPageIterator#BYTE_ARRAY_FAST_PATH_MAX_SIZE}, so a larger segment streams instead of
      * allocating a humongous buffer. This bound is what keeps per-open-segment memory small under the
-     * {@code max_concurrent_open_segments} cap (so the count cap suffices without circuit-breaker
+     * {@code external_max_concurrent_open_segments} cap (so the count cap suffices without circuit-breaker
      * accounting). Guards that invariant against regression.
      */
     public void testByteArrayFastPathIsBoundedBySegmentSize() {
@@ -376,7 +376,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                 new NdJsonRecordSplitter(8)
             )
         );
-        assertThat(ex.getMessage(), Matchers.containsString("max_record_size [8]"));
+        assertThat(ex.getMessage(), Matchers.containsString("external_max_record_size [8]"));
     }
 
     /**
@@ -481,7 +481,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             )
         ) {
             IOException ex = expectThrows(IOException.class, trimmed::readAllBytes);
-            assertThat(ex.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+            assertThat(ex.getMessage(), Matchers.containsString("external_max_record_size [" + maxRecordBytes + "]"));
         }
     }
 
@@ -3348,7 +3348,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         byte[] content = sb.toString().getBytes(StandardCharsets.UTF_8);
 
         // 64kb is the minimum allowed segment_size; the ~480 KB buffer still splits into several segments.
-        Settings settings = Settings.builder().put("esql.datasource.ndjson.segment_size", "64kb").build();
+        Settings settings = Settings.builder().put("esql.external.ndjson.segment_size", "64kb").build();
         NdJsonFormatReader reader = new NdJsonFormatReader(settings, blockFactory);
         BytesStorageObject obj = new BytesStorageObject("mem://multi-segment.ndjson", content);
 
@@ -3382,11 +3382,11 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      * Regression for the byte-array max-record-size cap fix and its follow-up: on
      * the byte-array fast path the cap is now enforced per-record inside {@link NdJsonPageDecoder} (on the
      * pass Jackson already makes — no separate buffer sweep), instead of by a pre-read cap stream. Under
-     * {@link ErrorPolicy#STRICT} an oversized record must still surface a {@code max_record_size [N]} error
+     * {@link ErrorPolicy#STRICT} an oversized record must still surface a {@code external_max_record_size [N]} error
      * rather than parse silently. Because enforcement moved to decode time, the failure now surfaces through
      * the iterator's standard error path (a client-class {@code RuntimeException}) rather than as a raw
      * {@link IOException} thrown from {@code readAllBytes()} during construction; the user-facing
-     * {@code max_record_size [N]} wording is preserved on the root cause.
+     * {@code external_max_record_size [N]} wording is preserved on the root cause.
      */
     public void testByteArrayFastPathStrictModeEnforcesMaxRecordBytes() {
         int maxRecordBytes = 16;
@@ -3413,12 +3413,12 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
             rootCause = rootCause.getCause();
         }
-        assertThat(rootCause.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+        assertThat(rootCause.getMessage(), Matchers.containsString("external_max_record_size [" + maxRecordBytes + "]"));
     }
 
     /**
      * Companion lenient-mode contract: oversized records on the byte-array fast path must be dropped (not
-     * surfaced) so the user-visible {@code max_record_size} contract from PR #150240 is preserved. Since the
+     * surfaced) so the user-visible {@code external_max_record_size} contract from PR #150240 is preserved. Since the
      * issue 965 change, the drop happens per-record inside {@link NdJsonPageDecoder} (no buffer compaction),
      * so the surrounding rows keep both their values and their file offsets.
      */
@@ -3494,7 +3494,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      * Issue 965 feedback (streaming cap gap): the fallback/streaming branch used to wrap only a
      * {@code CountingInputStream}, so oversized records parsed with no cap when the object streamed (length
      * unknown, &gt;16 MiB, or a single-threaded read). Strict policy must now surface a
-     * {@code max_record_size [N]} error on that path too. Forces the streaming branch with an object whose
+     * {@code external_max_record_size [N]} error on that path too. Forces the streaming branch with an object whose
      * {@code length()} throws (as decompressing wrappers do).
      */
     public void testStreamingFallbackStrictModeEnforcesMaxRecordBytes() {
@@ -3521,7 +3521,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
             rootCause = rootCause.getCause();
         }
-        assertThat(rootCause.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+        assertThat(rootCause.getMessage(), Matchers.containsString("external_max_record_size [" + maxRecordBytes + "]"));
     }
 
     /**
@@ -3560,7 +3560,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             warnings.stream()
                 .anyMatch(
                     w -> w.contains("truncated")
-                        && w.contains("max_record_size [" + maxRecordBytes + "]")
+                        && w.contains("external_max_record_size [" + maxRecordBytes + "]")
                         && w.contains("byte [" + expectedTruncationByte + "]")
                 )
         );

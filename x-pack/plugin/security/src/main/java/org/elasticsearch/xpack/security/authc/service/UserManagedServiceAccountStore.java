@@ -71,12 +71,10 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
  * alongside the {@code service_account_token} documents that {@link IndexServiceAccountTokenStore} manages. Every
  * field written here is already part of the index's strict mapping.
  * <p>
- * Not supported in multi-project clusters. Service account credentials are cached by
- * {@link CachingServiceAccountTokenStore} under a qualified token name that carries no project dimension, so
- * identically named accounts in two projects would share cache entries. Multi-project deployments replace the token
- * store wholesale through {@code SecurityExtension#getServiceAccountTokenStore}; {@link org.elasticsearch.xpack.security.Security}
- * correspondingly does not construct this store when the project resolver supports multiple projects, and the cache
- * below assumes a single project for the same reason.
+ * Not supported in multi-project clusters, which replace the service account token store through
+ * {@code SecurityExtension#getServiceAccountTokenStore} and so leave an account created here unable to hold a
+ * credential; {@link org.elasticsearch.xpack.security.Security} correspondingly does not construct this store when the
+ * project resolver supports multiple projects.
  */
 public final class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.CacheInvalidator {
 

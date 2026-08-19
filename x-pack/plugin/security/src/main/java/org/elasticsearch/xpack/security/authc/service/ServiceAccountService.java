@@ -165,14 +165,14 @@ public class ServiceAccountService {
         if (indexServiceAccountTokenStore == null) {
             throw new IllegalStateException("Can't create token because index service account token store not configured");
         }
-        indexServiceAccountTokenStore.createToken(authentication, request, listener);
+        indexServiceAccountTokenStore.createBuiltInToken(authentication, request, listener);
     }
 
     public void deleteIndexToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
         if (indexServiceAccountTokenStore == null) {
             throw new IllegalStateException("Can't delete token because index service account token store not configured");
         }
-        indexServiceAccountTokenStore.deleteToken(request, listener);
+        indexServiceAccountTokenStore.deleteBuiltInToken(request, listener);
     }
 
     public void findTokensFor(GetServiceAccountCredentialsRequest request, ActionListener<GetServiceAccountCredentialsResponse> listener) {

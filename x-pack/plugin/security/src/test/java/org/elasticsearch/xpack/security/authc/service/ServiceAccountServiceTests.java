@@ -605,14 +605,14 @@ public class ServiceAccountServiceTests extends ESTestCase {
         final CreateServiceAccountTokenRequest request = mock(CreateServiceAccountTokenRequest.class);
         final ActionListener<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
         serviceAccountService.createIndexToken(authentication, request, future);
-        verify(indexServiceAccountTokenStore).createToken(eq(authentication), eq(request), eq(future));
+        verify(indexServiceAccountTokenStore).createBuiltInToken(eq(authentication), eq(request), eq(future));
     }
 
     public void testDeleteIndexTokenWillDelegate() {
         final DeleteServiceAccountTokenRequest request = mock(DeleteServiceAccountTokenRequest.class);
         final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         serviceAccountService.deleteIndexToken(request, future);
-        verify(indexServiceAccountTokenStore).deleteToken(eq(request), eq(future));
+        verify(indexServiceAccountTokenStore).deleteBuiltInToken(eq(request), eq(future));
     }
 
     public void testFindTokensFor() {

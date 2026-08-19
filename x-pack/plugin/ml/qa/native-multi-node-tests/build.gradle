@@ -45,7 +45,7 @@ tasks.named("processJavaRestTestResources").configure { dependsOn("copyKeyCerts"
 tasks.named("javaRestTest").configure {
   dependsOn "copyKeyCerts"
   usesDefaultDistribution("uses xpack.security transport SSL, ML native processes, and the trial license")
-  // All IT classes share one 3-node cluster (see MlNativeIntegTestCase#CLUSTER); the shared-cluster
+  // All IT classes share one 3-node cluster (see Clusters#CLUSTER); the shared-cluster
   // contract requires serial execution.
   maxParallelForks = 1
 }

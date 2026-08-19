@@ -105,6 +105,10 @@ public class InferenceFeatures implements FeatureSpecification {
         "inference.elastic.reasoning_task_settings"
     );
     public static final NodeFeature SEMANTIC_TEXT_EMBEDDING_TASK = new NodeFeature("semantic_text.inference_using_embedding_task");
+    // Kept in getFeatures() for BWC: 9.5 nodes check clusterHasFeature(INFERENCE_INFERENCE_INDEX_DOC_TYPE) when the
+    // .inference index does not yet exist to decide whether to include doc_type in documents. Removing this from
+    // getFeatures() would cause 9.5 nodes in a mixed 9.5/9.6 cluster to see the feature absent and incorrectly
+    // omit doc_type. Safe to drop once the minimum supported version is past 9.5.
     public static final NodeFeature INFERENCE_INFERENCE_INDEX_DOC_TYPE = new NodeFeature("inference.inference_index_doc_type");
     public static final NodeFeature INFERENCE_CLEAR_PREFERENCES_CACHE = new NodeFeature("inference.clear_preferences_cache");
     public static final NodeFeature INFERENCE_ANTHROPIC_COMPLETION_URL_ADDED = new NodeFeature("inference.anthropic.completion_url_added");

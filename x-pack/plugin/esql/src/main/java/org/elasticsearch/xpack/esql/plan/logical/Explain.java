@@ -20,11 +20,6 @@ import java.util.Objects;
 
 public class Explain extends LeafPlan implements TelemetryAware {
 
-    public enum Type {
-        PARSED,
-        ANALYZED
-    }
-
     /**
      * Output columns for EXPLAIN command.
      * - cluster: the cluster alias (empty string for local cluster)
@@ -40,6 +35,21 @@ public class Explain extends LeafPlan implements TelemetryAware {
         new ReferenceAttribute(Source.EMPTY, null, "type", DataType.KEYWORD),
         new ReferenceAttribute(Source.EMPTY, null, "plan", DataType.KEYWORD)
     );
+
+    public static final int COL_CLUSTER = colIndex("cluster");
+    public static final int COL_NODE = colIndex("node");
+    public static final int COL_ROLE = colIndex("role");
+    public static final int COL_TYPE = colIndex("type");
+    public static final int COL_PLAN = colIndex("plan");
+
+    private static int colIndex(String name) {
+        for (int i = 0; i < OUTPUT_ATTRIBUTES.size(); i++) {
+            if (name.equals(OUTPUT_ATTRIBUTES.get(i).name())) {
+                return i;
+            }
+        }
+        throw new IllegalStateException("No column named '" + name + "' in EXPLAIN output attributes");
+    }
 
     private final LogicalPlan query;
 

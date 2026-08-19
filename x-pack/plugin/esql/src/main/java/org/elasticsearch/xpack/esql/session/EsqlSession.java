@@ -145,7 +145,6 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -219,13 +218,42 @@ public class EsqlSession {
     private final PlannerSettings plannerSettings;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final String clusterName;
+    private final String localNodeName;
     private final String clusterUuid;
     private final IpLocationService ipLocationService;
 
-    private boolean explainMode;
-    private String parsedPlanString;
-    private String optimizedLogicalPlanString;
+    // Set on the SEARCH thread in execute(), read in listener callbacks on transport threads.
+    private volatile boolean explainMode;
+    private volatile String parsedPlanString;
+    /**
+     * Coordinator-level plans of the subplans actually executed by {@link #executeSubPlan} (INLINE STATS,
+     * IN subqueries, subquery joins, approximation), in execution order. Populated in explain mode only.
+     * Plan strings are captured eagerly: the plans may embed {@link LocalRelation} results whose pages are
+     * released once the phase that consumes them completes.
+     * <p>
+     * Written by {@link #executeSubPlan} before each {@code runner.run()} call: the first write
+     * occurs on the SEARCH thread; subsequent writes occur in transport-thread runner callbacks
+     * (as the recursive subplan chain progresses). Thread safety of the list contents is guaranteed
+     * by the sequential callback chain: all writes complete before the
+     * {@link #createExplainListener} callback fires, establishing a happens-before relationship
+     * via the executor. ({@code final} publishes the field reference safely but does not make the
+     * list thread-safe.)
+     */
+    private final List<ExplainSubPlan> explainSubPlans = new ArrayList<>();
+    /**
+     * Physical plan of the whole coordinator query, captured in explain mode after all logical subplans
+     * (InlineJoin, AbstractSubqueryJoin, ApproximationPlan) have been resolved and the final main plan
+     * is about to execute. For simple queries with no subplans it is captured from the single
+     * {@link #executeSubPlans} call instead.
+     * <p>
+     * Written from transport-thread callbacks (runner callbacks inside {@link #executeSubPlan} or the
+     * {@link #executeSubPlans} else-branch); volatile for cross-thread visibility to the
+     * {@link #createExplainListener} callback.
+     */
+    private volatile String coordinatorPhysicalPlanString;
     private final ProjectMetadata projectMetadata;
+
+    private record ExplainSubPlan(String logicalPlan, String physicalPlan) {}
 
     /**
      * Snapshot of the planning stages this session has completed so far. Read once by the failure-
@@ -306,6 +334,7 @@ public class EsqlSession {
         this.plannerSettings = plannerSettings;
         this.crossProjectModeDecider = services.crossProjectModeDecider();
         this.clusterName = services.clusterService().getClusterName().value();
+        this.localNodeName = services.clusterService().getNodeName();
         this.clusterUuid = resolveClusterUuid(services.clusterService());
         this.projectMetadata = projectMetadata;
         this.ipLocationService = services.ipLocationService();
@@ -334,10 +363,25 @@ public class EsqlSession {
         TimeSpanMarker parsingProfile = executionInfo.queryProfile().parsing();
         parsingProfile.start();
         EsqlStatement statement = parse(request);
+        // Unwrap EXPLAIN right after parsing: Explain is a leaf plan holding the target query as a
+        // field rather than a child, so plan traversals do not descend into it. It must be removed
+        // before view and IN subquery resolution and pre-analysis, which would otherwise silently
+        // skip the inner query.
+        LogicalPlan parsedPlan = statement.plan();
         // Capture the true parsed plan — before view resolution, before any analyzer rule runs.
         // PROMQL syntax still visible, views still as UnresolvedRelation, surrogate rewrites not
-        // applied. This is the form closest to user intent for failure-path triage.
-        planSnapshot = planSnapshot.withParsed(statement.plan());
+        // applied. This is the form closest to user intent for failure-path triage. For EXPLAIN
+        // queries, the Explain(...) wrapper is captured here so that failure logs are not identical
+        // to a plain failed query.
+        planSnapshot = planSnapshot.withParsed(parsedPlan);
+        if (parsedPlan instanceof Explain explain) {
+            explainMode = true;
+            parsedPlan = explain.query();
+            parsedPlanString = parsedPlan.toString();
+            // The traversal-based command telemetry only sees the unwrapped query, so count the
+            // EXPLAIN command itself here.
+            planTelemetry.command(explain);
+        }
         parsingProfile.stop();
 
         // Resolve all query settings up front, immediately after parse, so every downstream phase only reads
@@ -348,7 +392,9 @@ public class EsqlSession {
             statement,
             SettingsValidationContext.from(remoteClusterService)
         );
-        gatherSettingsMetrics(request, statement);
+        if (explainMode == false) {
+            gatherSettingsMetrics(request, statement);
+        }
         if (QuerySettings.APPROXIMATION.get(resolved) != null) {
             EsqlLicenseChecker.checkQueryApproximation(verifier.licenseState());
         }
@@ -360,7 +406,7 @@ public class EsqlSession {
         // rewritten away into SemiJoin/AntiJoin/MarkJoin — during resolution. The WHERE counter is set by the analyzer/verifier plan
         // walk via FeatureMetric.WHERE matching SemiJoin/AntiJoin/MarkJoin too.
         viewResolver.replaceViews(
-            statement.plan(),
+            parsedPlan,
             QuerySettings.PROJECT_ROUTING.get(resolved),
             (query, viewName) -> parser.parseView(
                 query,
@@ -389,15 +435,20 @@ public class EsqlSession {
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
 
-        // this is stack telemetry
-        gatherViewMetrics(viewResolution);
-        gatherInSubqueryMetrics(viewResolution);
-
-        // this is APM
-        gatherPlanTelemetry(viewResolution.plan(), statement.settings());
-
-        // Trigger IP location database downloads for any IP_LOCATION command
-        requestIpLocationDownloads(viewResolution.plan());
+        // Skip all telemetry and side effects in explain mode: the EXPLAIN command itself was
+        // already counted at parse time (planTelemetry.command(explain)). Traversing the inner
+        // query would inflate FeatureMetric.VIEW, FeatureMetric.IN_SUBQUERY, STATS, WHERE, etc.
+        // with diagnostic invocations that are not real feature usage; and requestIpLocationDownloads
+        // must not trigger a real database download for a diagnostic call.
+        if (explainMode == false) {
+            // stack telemetry
+            gatherViewMetrics(viewResolution);
+            gatherInSubqueryMetrics(viewResolution);
+            // APM
+            gatherPlanTelemetry(viewResolution.plan(), statement.settings());
+            // Trigger IP location database downloads for any IP_LOCATION command
+            requestIpLocationDownloads(viewResolution.plan());
+        }
 
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
 
@@ -428,18 +479,8 @@ public class EsqlSession {
         // ViewCompaction.postIndexResolution(), which runs as an analyzer rule after ResolveTable so
         // lenient field-caps can pair each shadow with its strict sibling.
         LogicalPlan plan = ViewCompaction.preIndexResolution(viewResolution.plan());
-        // Run structural checks that don't need analysis or index resolution. Doing this here
-        // (after view resolution, before pre-analysis) lets a malformed query fail-fast without
-        // paying for field-caps round trips.
-        Configuration configurationToUse = configuration;
-        if (plan instanceof Explain explain) {
-            explainMode = true;
-            plan = explain.query();
-            parsedPlanString = plan.toString();
-            // For EXPLAIN mode, enable profile to capture plans from all nodes
-            configurationToUse = configuration.withExplainOnly();
-        }
-        final Configuration finalConfiguration = configurationToUse;
+        // For EXPLAIN (detected and unwrapped right after parsing), enable profile to capture plans from all nodes
+        final Configuration finalConfiguration = explainMode ? configuration.withExplainOnly() : configuration;
         final FoldContext foldContext = finalConfiguration.newFoldContext();
 
         analyzedPlan(
@@ -565,9 +606,7 @@ public class EsqlSession {
 
         // In explain mode, wrap the listener to transform results into EXPLAIN table format.
         // We use the same execution path as normal queries to ensure accuracy.
-        listener = explainMode
-            ? createExplainListener(listener, optimizedPlan, request, physicalPlanOptimizer, planTimeProfile, configuration, planRunner)
-            : listener;
+        listener = explainMode ? createExplainListener(listener, optimizedPlan, planTimeProfile, configuration, planRunner) : listener;
 
         // Always use the same execution path - executeSubPlans handles both simple queries and those with subplans
         executeSubPlans(
@@ -648,62 +687,85 @@ public class EsqlSession {
     }
 
     /**
+     * Records a coordinator-level subplan (INLINE STATS, IN subquery, subquery join, approximation)
+     * for EXPLAIN output. Call once per subplan, before {@code runner.run()}, in explain mode only.
+     * Both {@link #executeSubPlan} (first call on SEARCH thread; subsequent calls in runner
+     * callbacks) must go through this method — adding a new subplan execution path without calling
+     * it silently drops rows from EXPLAIN output.
+     */
+    private void recordExplainSubPlan(LogicalPlan subPlan, PhysicalPlan physicalSubPlan) {
+        explainSubPlans.add(new ExplainSubPlan(subPlan.toString(), physicalSubPlan.toString()));
+    }
+
+    /**
+     * Records the final coordinator physical plan for EXPLAIN output. Call once per query, at the
+     * point the main plan is about to run (after all subplans have resolved their StubRelations).
+     * Two call sites must stay in sync:
+     * <ol>
+     *   <li>{@link #executeSubPlans} else-branch — simple single-phase plans</li>
+     *   <li>{@link #executeSubPlan} when {@code newSubPlan == null} — multi-phase plans</li>
+     * </ol>
+     * Adding a new execution path without calling this silently drops the optimizedPhysicalPlan
+     * row from EXPLAIN output (caught by the assertion in {@link #createExplainListener}).
+     */
+    private void recordExplainCoordinatorPlan(PhysicalPlan physicalPlan) {
+        coordinatorPhysicalPlanString = physicalPlan.toString();
+    }
+
+    /**
      * Creates a listener that intercepts execution results and transforms them into EXPLAIN output.
      * This ensures EXPLAIN shows exactly the same plans that would be executed.
      */
     private ActionListener<Result> createExplainListener(
         ActionListener<Result> delegate,
         LogicalPlan optimizedPlan,
-        EsqlQueryRequest request,
-        PhysicalPlanOptimizer physicalPlanOptimizer,
         PlanTimeProfile planTimeProfile,
         Configuration configuration,
         PlanRunner planRunner
     ) {
-        // Capture the coordinator physical plan string before execution
-        PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
-        String physicalPlanString = physicalPlan.toString();
-
-        // Capture subplan information before execution (for INLINE STATS, LOOKUP JOIN)
-        List<List<Object>> subplanValues = new ArrayList<>();
-        var subPlansResults = new HashSet<LocalRelation>();
-        var subPlan = InlineJoin.firstSubPlan(optimizedPlan, subPlansResults);
-        if (subPlan != null) {
-            int subPlanIndex = 0;
-            InlineJoin.LogicalPlanTuple currentSubPlan = subPlan;
-            while (currentSubPlan != null) {
-                String subPlanStr = currentSubPlan.stubReplacedSubPlan().toString();
-                subplanValues.add(List.of("", clusterName, "subplan-" + subPlanIndex, "logicalPlan", subPlanStr));
-                PhysicalPlan subPhysicalPlan = logicalPlanToPhysicalPlan(
-                    currentSubPlan.stubReplacedSubPlan(),
-                    request,
-                    physicalPlanOptimizer,
-                    planTimeProfile
-                );
-                subplanValues.add(List.of("", clusterName, "subplan-" + subPlanIndex, "physicalPlan", subPhysicalPlan.toString()));
-                subPlanIndex++;
-                currentSubPlan = InlineJoin.firstSubPlan(currentSubPlan.stubReplacedSubPlan(), subPlansResults);
-            }
-        }
+        // Stable snapshots: optimizedPlan may be mutated by later phases (plan substitution), so
+        // capture its string now. parsedPlanString is stable (set once at parse time) but copied
+        // here as a local to avoid the this.parsedPlanString qualification inside the lambda.
+        // coordinatorPhysicalPlanString and explainSubPlans are NOT captured here; they are written
+        // during execution and read via `this` inside the callback, which fires only after all
+        // writes complete (sequential callback chain).
+        String optimizedLogicalPlanString = optimizedPlan.toString();
+        String parsedPlanString = this.parsedPlanString;
 
         return delegate.delegateFailureAndWrap((next, result) -> {
-            List<List<Object>> values = Collections.synchronizedList(new ArrayList<>());
+            List<List<Object>> values = new ArrayList<>();
             String localCluster = "";
-            String coordinatorNode = clusterName;
 
-            // Add coordinator plans (captured before execution)
-            values.add(List.of(localCluster, coordinatorNode, "coordinator", "parsedPlan", parsedPlanString));
-            values.add(List.of(localCluster, coordinatorNode, "coordinator", "optimizedLogicalPlan", optimizedLogicalPlanString));
-            values.add(List.of(localCluster, coordinatorNode, "coordinator", "optimizedPhysicalPlan", physicalPlanString));
+            // Add coordinator plans (captured before/during execution)
+            values.add(List.of(localCluster, localNodeName, "coordinator", "parsedPlan", parsedPlanString));
+            values.add(List.of(localCluster, localNodeName, "coordinator", "optimizedLogicalPlan", optimizedLogicalPlanString));
+            // All success paths call recordExplainCoordinatorPlan before this callback fires.
+            // The assert catches any new path that forgets to do so (fails loudly in tests).
+            assert coordinatorPhysicalPlanString != null
+                : "EXPLAIN: coordinatorPhysicalPlanString must be set by recordExplainCoordinatorPlan on all success paths";
+            if (coordinatorPhysicalPlanString != null) {
+                values.add(List.of(localCluster, localNodeName, "coordinator", "optimizedPhysicalPlan", coordinatorPhysicalPlanString));
+            } else {
+                LOGGER.warn("EXPLAIN: coordinatorPhysicalPlanString not set; optimizedPhysicalPlan row omitted");
+            }
 
-            // Add subplan information (captured before execution)
-            values.addAll(subplanValues);
+            // Add the coordinator-level plans of the subplans that were actually executed (recorded
+            // by executeSubPlan as execution progresses)
+            int subPlanIndex = 0;
+            for (ExplainSubPlan subPlan : explainSubPlans) {
+                values.add(List.of(localCluster, localNodeName, "subplan-" + subPlanIndex, "logicalPlan", subPlan.logicalPlan()));
+                values.add(List.of(localCluster, localNodeName, "subplan-" + subPlanIndex, "physicalPlan", subPlan.physicalPlan()));
+                subPlanIndex++;
+            }
 
             // Extract plans from profile data (captured during execution)
             // This includes: data node plans, node_reduce plans, and final coordinator plans
             if (result.completionInfo() != null && result.completionInfo().planProfiles() != null) {
                 for (var planProfile : result.completionInfo().planProfiles()) {
                     String cluster = planProfile.clusterName() != null ? planProfile.clusterName() : "";
+                    // nodeName is non-null in practice (PlanProfile.readString never produces null),
+                    // but fall back to "" rather than localNodeName to avoid mislabelling a remote
+                    // node as the local coordinator on any future BWC path.
                     String node = planProfile.nodeName() != null ? planProfile.nodeName() : "";
                     String planTree = planProfile.planTree() != null ? planProfile.planTree() : "";
                     String logicalPlanTree = planProfile.logicalPlanTree() != null ? planProfile.logicalPlanTree() : "";
@@ -783,6 +845,9 @@ public class EsqlSession {
             );
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
+            if (explainMode) {
+                recordExplainCoordinatorPlan(physicalPlan);
+            }
             Map<String, PinnedColumns> pinnedReads = new HashMap<>();
             collectPinnedReads(optimizedPlan, pinnedReads);
             // execute main plan. Wrap the listener so the coordinator reconciles any data-node-captured
@@ -1081,6 +1146,10 @@ public class EsqlSession {
             physicalSubPlan = Mapper.ensureExchangeForSubPlan(physicalSubPlan);
         }
 
+        if (explainMode) {
+            recordExplainSubPlan(subPlan.subPlan, physicalSubPlan);
+        }
+
         executionInfo.startSubPlans(subPlan.isSubqueryJoinSubPlan());
 
         runner.run(physicalSubPlan, configuration, foldContext, planTimeProfile, listener.delegateFailureAndWrap((next, result) -> {
@@ -1098,6 +1167,12 @@ public class EsqlSession {
                     executionInfo.finishSubPlans();
                     collectPinnedReads(newMainPlan, pinnedReads);
                     var newPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request, physicalPlanOptimizer, planTimeProfile);
+                    if (explainMode) {
+                        // Capture the post-substitution physical plan — the one that actually runs. For
+                        // InlineJoin and similar the plan is only meaningful after all subplans have resolved
+                        // StubRelations into real LocalRelation data, so this is the earliest correct point.
+                        recordExplainCoordinatorPlan(newPhysicalPlan);
+                    }
                     runner.run(
                         newPhysicalPlan,
                         configuration,
@@ -2424,7 +2499,6 @@ public class EsqlSession {
         if (logicalPlan.optimized() == false) {
             throw new IllegalStateException("Expected optimized plan");
         }
-        optimizedLogicalPlanString = logicalPlan.toString();
         PhysicalPlan plan = mapper.map(optimizedPlan);
         LOGGER.debug("Physical plan:\n{}", plan);
         return plan;

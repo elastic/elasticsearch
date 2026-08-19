@@ -472,23 +472,7 @@ public class BulkRequest extends UntypedActionRequest
     }
 
     /**
-     * Attaches pre-built ESCF batches to this request, keyed by the index name the producer put on the
-     * {@link IndexRequest}s whose rows they hold — a concrete index, an alias, or a data stream name.
-     * One batch per name covers all rows for that name; the coordinator resolves the concrete write
-     * index of every item and scatters the batch into per-(concrete index, shard) sub-batches, so a
-     * single batch may legitimately fan out across several data stream backing indices. Coordinator-only
-     * — not serialized. The caller retains ownership and must close the batches after the bulk response
-     * is received.
-     *
-     * <p>Because the items carry no inline source, two things that would normally be read out of
-     * {@code _source} must be supplied by the producer:
-     * <ul>
-     *   <li>items targeting a time series data stream must carry
-     *       {@link IndexRequest#setTimeSeriesTimestamp}, otherwise backing index selection fails while
-     *       parsing the empty source;</li>
-     *   <li>items targeting an index that routes on {@code _tsid} must carry a pre-computed
-     *       {@link IndexRequest#tsid}.</li>
-     * </ul>
+     * Attaches pre-built ESCF batches to this request, keyed by the index name.
      *
      * <p>TODO: implement serialization for ingest-node forwarding.
      */
@@ -635,8 +619,6 @@ public class BulkRequest extends UntypedActionRequest
         bulkRequest.requireAlias(requireAlias());
         bulkRequest.requireDataStream(requireDataStream());
         bulkRequest.requestParamsUsed(requestParamsUsed());
-        // Carry the batches over: without this every row-bearing item in the clone would be indexed
-        // with the empty inline source it was submitted with.
         bulkRequest.setPreBuiltBatches(getPreBuiltBatches());
         return bulkRequest;
     }

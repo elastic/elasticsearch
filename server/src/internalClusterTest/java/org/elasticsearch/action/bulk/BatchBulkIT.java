@@ -2207,11 +2207,6 @@ public class BatchBulkIT extends ESIntegTestCase {
         assertThat(item.getFailureMessage(), containsString("must carry a source-row reference"));
     }
 
-    /**
-     * A producer keys its batches by the name it writes to, which for a data stream is the data stream name
-     * — it has no way to know the backing index. The coordinator resolves the concrete write index and
-     * scatters the batch onto that index's shards.
-     */
     public void testPreBuiltBatchTargetsDataStreamName() throws Exception {
         String dataStream = "logs-prebuilt-ds";
         putBatchDataStreamTemplate(dataStream, 3);
@@ -2267,7 +2262,6 @@ public class BatchBulkIT extends ESIntegTestCase {
         });
     }
 
-    /** The same resolution, via a write alias: the batch is keyed by the alias the requests target. */
     public void testPreBuiltBatchTargetsAliasName() throws IOException {
         String index = "test-prebuilt-alias-backed";
         String alias = "test-prebuilt-alias";

@@ -11,6 +11,7 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -55,6 +56,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class SourceBatchSharderTests extends ESTestCase {
 
@@ -69,10 +71,6 @@ public class SourceBatchSharderTests extends ESTestCase {
 
     private static final Instant IN_GEN_1 = Instant.parse("2024-03-01T00:00:00Z");
     private static final Instant IN_GEN_2 = Instant.parse("2024-09-01T00:00:00Z");
-
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
 
     /** Builds a plain {@link IndexMetadata} with no routing path (Unpartitioned strategy). */
     private static IndexMetadata plainMetadata(String name, int shards) {
@@ -225,13 +223,13 @@ public class SourceBatchSharderTests extends ESTestCase {
             Index concreteIndex = request.getConcreteWriteIndex(abstraction, project);
             IndexRouting routing = IndexRouting.fromIndexMetadata(project.getIndexSafe(concreteIndex));
             request.preRoutingProcess(routing);
-            SourceBatchSharder.ShardTarget target = sharder == null
+            SourceBatchSharder.ConcreteIndexTarget target = sharder == null
                 ? null
                 : sharder.prepareRouting(request, concreteIndex, routing, project);
             int shardId = request.route(routing);
             request.postRoutingProcess(routing);
             if (target != null) {
-                target.recordRouting(request, shardId);
+                target.recordRoutedShard(request, shardId);
             }
             requestsByShard.computeIfAbsent(new ShardId(concreteIndex, shardId), ignored -> new ArrayList<>()).add(item);
         }
@@ -260,10 +258,6 @@ public class SourceBatchSharderTests extends ESTestCase {
     private static Map<String, Object> asMap(BytesReference source) {
         return XContentHelper.convertToMap(source, false, XContentType.JSON).v2();
     }
-
-    // -------------------------------------------------------------------------
-    // Tests: create()
-    // -------------------------------------------------------------------------
 
     public void testCreateReturnsNullWhenNoBatches() {
         assertThat(SourceBatchSharder.create(new BulkRequest()), nullValue());
@@ -367,10 +361,6 @@ public class SourceBatchSharderTests extends ESTestCase {
         assertThat(result.size(), equalTo(requestsByShard.size()));
         sharder.close();
     }
-
-    // -------------------------------------------------------------------------
-    // Tests: fan-out across data stream backing indices
-    // -------------------------------------------------------------------------
 
     /**
      * The case the sharder exists to handle: one producer batch keyed by the data stream name, whose rows a
@@ -479,10 +469,10 @@ public class SourceBatchSharderTests extends ESTestCase {
                 assertThat(e.getMessage(), containsString("routes by extracting fields from _source"));
                 continue;
             }
-            SourceBatchSharder.ShardTarget target = sharder.prepareRouting(request, concreteIndex, routing, project);
+            SourceBatchSharder.ConcreteIndexTarget target = sharder.prepareRouting(request, concreteIndex, routing, project);
             int shardId = request.route(routing);
             request.postRoutingProcess(routing);
-            target.recordRouting(request, shardId);
+            target.recordRoutedShard(request, shardId);
             requestsByShard.computeIfAbsent(new ShardId(concreteIndex, shardId), ignored -> new ArrayList<>())
                 .add(new BulkItemRequest(i, request));
         }
@@ -494,10 +484,6 @@ public class SourceBatchSharderTests extends ESTestCase {
         assertThat(totalRows, equalTo(2));
         sharder.close();
     }
-
-    // -------------------------------------------------------------------------
-    // Tests: dropped rows and repeated scatter
-    // -------------------------------------------------------------------------
 
     public void testDroppedRowsGoToDiscardBucket() throws IOException {
         int numDocs = randomIntBetween(6, 20);
@@ -558,10 +544,6 @@ public class SourceBatchSharderTests extends ESTestCase {
         sharder.close();
     }
 
-    // -------------------------------------------------------------------------
-    // Tests: error cases
-    // -------------------------------------------------------------------------
-
     public void testRejectsItemWithoutSourceRow() throws IOException {
         EscfBatch batch = buildBatch(1);
         BulkRequest bulkRequest = new BulkRequest();
@@ -598,6 +580,38 @@ public class SourceBatchSharderTests extends ESTestCase {
         sharder.close();
     }
 
+    public void testRejectsInlineItemForAnUnbatchedName() throws IOException {
+        EscfBatch batch = buildBatch(1);
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.setPreBuiltBatches(Map.of("myindex", batch));
+        IndexMetadata other = plainMetadata("otherindex", 1);
+        ProjectMetadata project = project(plainMetadata("myindex", 1), other);
+        SourceBatchSharder sharder = SourceBatchSharder.create(bulkRequest);
+
+        // Inline source in a bulk that carries batches: its shard's rows could not line up with its items.
+        IndexRequest request = new IndexRequest("otherindex").id("doc-0").source(new HashMap<>());
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> sharder.prepareRouting(request, other.getIndex(), IndexRouting.fromIndexMetadata(other), project)
+        );
+        assertThat(e.getMessage(), containsString("the two cannot be mixed"));
+        sharder.close();
+    }
+
+    public void testRejectsNonIndexRequestItem() {
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> SourceBatchSharder.requireBatchItem(new DeleteRequest("myindex", "doc-0"))
+        );
+        assertThat(e.getMessage(), containsString("cannot be mixed with pre-built source batches"));
+    }
+
+    public void testRequireBatchItemPassesThroughIndexRequests() throws IOException {
+        EscfBatch batch = buildBatch(1);
+        IndexRequest request = rowRequest("myindex", batch, 0);
+        assertThat(SourceBatchSharder.requireBatchItem(request), sameInstance(request));
+    }
+
     public void testRejectsTwoBatchesFeedingOneConcreteIndex() throws IOException {
         EscfBatch viaName = buildBatch(2);
         EscfBatch viaAlias = buildBatch(2);
@@ -615,8 +629,8 @@ public class SourceBatchSharderTests extends ESTestCase {
         SourceBatchSharder sharder = SourceBatchSharder.create(bulkRequest);
         IndexRouting routing = IndexRouting.fromIndexMetadata(md);
         IndexRequest first = (IndexRequest) bulkRequest.requests.get(0);
-        SourceBatchSharder.ShardTarget target = sharder.prepareRouting(first, md.getIndex(), routing, project);
-        target.recordRouting(first, first.route(routing));
+        SourceBatchSharder.ConcreteIndexTarget target = sharder.prepareRouting(first, md.getIndex(), routing, project);
+        target.recordRoutedShard(first, first.route(routing));
 
         IndexRequest second = (IndexRequest) bulkRequest.requests.get(1);
         var e = expectThrows(IllegalArgumentException.class, () -> sharder.prepareRouting(second, md.getIndex(), routing, project));
@@ -643,10 +657,10 @@ public class SourceBatchSharderTests extends ESTestCase {
         IndexRouting routing = IndexRouting.fromIndexMetadata(md);
 
         IndexRequest first = (IndexRequest) bulkRequest.requests.get(0);
-        sharder.prepareRouting(first, md.getIndex(), routing, project).recordRouting(first, 0);
+        sharder.prepareRouting(first, md.getIndex(), routing, project).recordRoutedShard(first, 0);
         IndexRequest second = (IndexRequest) bulkRequest.requests.get(1);
-        SourceBatchSharder.ShardTarget target = sharder.prepareRouting(second, md.getIndex(), routing, project);
-        var e = expectThrows(IllegalArgumentException.class, () -> target.recordRouting(second, 0));
+        SourceBatchSharder.ConcreteIndexTarget target = sharder.prepareRouting(second, md.getIndex(), routing, project);
+        var e = expectThrows(IllegalArgumentException.class, () -> target.recordRoutedShard(second, 0));
         assertThat(e.getMessage(), containsString("not strictly greater"));
         sharder.close();
     }
@@ -659,8 +673,8 @@ public class SourceBatchSharderTests extends ESTestCase {
 
         SourceBatchSharder sharder = SourceBatchSharder.create(bulkRequest);
         IndexRequest request = (IndexRequest) bulkRequest.requests.get(0);
-        SourceBatchSharder.ShardTarget target = sharder.prepareRouting(request, md.getIndex(), IndexRouting.fromIndexMetadata(md), project);
-        var e = expectThrows(IllegalStateException.class, () -> target.recordRouting(request, 2));
+        SourceBatchSharder.ConcreteIndexTarget target = sharder.prepareRouting(request, md.getIndex(), IndexRouting.fromIndexMetadata(md), project);
+        var e = expectThrows(IllegalStateException.class, () -> target.recordRoutedShard(request, 2));
         assertThat(e.getMessage(), containsString("outside the shard count"));
         sharder.close();
     }
@@ -699,10 +713,6 @@ public class SourceBatchSharderTests extends ESTestCase {
         assertShardsAligned(requestsByShard, sharder.shardBatches());
         sharder.close();
     }
-
-    // -------------------------------------------------------------------------
-    // Tests: validateBatchAlignment
-    // -------------------------------------------------------------------------
 
     public void testValidateRejectsRowBearingItemWithNoBatch() throws IOException {
         EscfBatch batch = buildBatch(1);

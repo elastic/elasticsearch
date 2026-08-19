@@ -58,9 +58,7 @@ public class BulkShardBatch implements Writeable {
     }
 
     /**
-     * Returns true if {@code items} map 1:1 and in order onto {@code batch}'s rows. The wire format carries no explicit
-     * row number — {@link #attachBatchToItems} reconstructs it from item ordinal — so a batch may only be attached when
-     * this holds. A mismatch indicates a bug in the batch producer's shard routing or in the coordinator's scatter logic.
+     * Returns true if {@code items} map 1:1 and in order onto {@code batch}'s rows.
      */
     static boolean rowsAlignWithItems(SourceBatch batch, List<BulkItemRequest> items) {
         if (items.size() != batch.docCount()) {

@@ -244,7 +244,9 @@ public class StaleTranslogsGCIT extends AbstractStatelessPluginIntegTestCase {
         ObjectStoreService objectStoreService = getCurrentMasterObjectStoreService();
         AtomicInteger nodes = new AtomicInteger(1);
 
-        String indexNodeA = buildNodeWithIndex(nodes, settings); // has the persistent task and will be isolated
+        // Keep index A's allocation pinned to node A so that later isolating A leaves the cluster RED. Otherwise the shard can relocate
+        // to C, the cluster goes green, and C's newly assigned GC task deletes B's translogs while the disruption is still active.
+        String indexNodeA = buildNodeWithIndex(nodes, settings, true); // has the persistent task and will be isolated
         String indexNodeB = buildNodeWithIndex(nodes, settings); // will stop, and its folder should not be deleted by isolated node A
         String indexNodeC = buildNodeWithIndex(nodes, settings); // will have a new persistent task once node A is isolated
 
@@ -261,11 +263,23 @@ public class StaleTranslogsGCIT extends AbstractStatelessPluginIntegTestCase {
         networkDisruption.startDisrupting();
         ensureStableCluster(2, masterNode);
 
+        // Pinning index A keeps the master's view RED while A is isolated; StaleTranslogsGCService skips deletion when health is RED.
+        assertBusy(() -> {
+            ClusterHealthStatus health = client(masterNode).admin()
+                .cluster()
+                .health(new ClusterHealthRequest(TEST_REQUEST_TIMEOUT))
+                .actionGet()
+                .getStatus();
+            assertThat("cluster should stay RED while A is isolated with pinned allocation", health, equalTo(ClusterHealthStatus.RED));
+        });
+
         expectThrows(
             TimeoutException.class,
             "Should timeout since it cannot find a consistent cluster state",
             () -> cleanStaleTranslogs(indexNodeA, 1)
         );
+        // C holds the GC task on the master's side; RED health must prevent it from deleting B's translogs mid-disruption.
+        cleanStaleTranslogs(indexNodeC);
         assertThat(
             "The translog files of node B should not have been deleted",
             objectStoreService.getTranslogBlobContainer(ephemeralIdB).listBlobs(OperationPurpose.TRANSLOG).keySet(),
@@ -275,10 +289,11 @@ public class StaleTranslogsGCIT extends AbstractStatelessPluginIntegTestCase {
         logger.info("--> stop disrupting cluster");
         networkDisruption.stopDisrupting();
         ensureStableCluster(3);
+        ensureGreen();
 
         cleanStaleTranslogs(indexNodeC);
         assertThat(
-            "The translog files of node B should not have been deleted",
+            "The translog files of node B should have been deleted",
             objectStoreService.getTranslogBlobContainer(ephemeralIdB).listBlobs(OperationPurpose.TRANSLOG).keySet(),
             is(empty())
         );
@@ -476,6 +491,10 @@ public class StaleTranslogsGCIT extends AbstractStatelessPluginIntegTestCase {
     }
 
     private String buildNodeWithIndex(AtomicInteger nodes, Settings settings) {
+        return buildNodeWithIndex(nodes, settings, false);
+    }
+
+    private String buildNodeWithIndex(AtomicInteger nodes, Settings settings, boolean keepAllocationRequirement) {
         String indexNode = startIndexNode(settings);
         ensureStableCluster(nodes.incrementAndGet());
         createIndex(
@@ -486,7 +505,9 @@ public class StaleTranslogsGCIT extends AbstractStatelessPluginIntegTestCase {
         );
         ensureGreen(indexNode);
         indexDocs(indexNode, randomIntBetween(1, 5));
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", (String) null), indexNode);
+        if (keepAllocationRequirement == false) {
+            updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", (String) null), indexNode);
+        }
         return indexNode;
     }
 }

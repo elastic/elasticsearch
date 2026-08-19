@@ -26,10 +26,14 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.readiness.ReadinessRequest;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.readiness.TransportReadinessAction;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -47,7 +51,10 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -62,6 +69,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeRole.SEARCH_ROLE;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
@@ -154,14 +162,277 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
                 )
             );
 
-            new SigtermTerminationHandler(client, threadPool, null, null, pollInterval, timeout, nodeId).handleTermination();
+            RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+            new SigtermTerminationHandler(
+                client,
+                threadPool,
+                null,
+                null,
+                pollInterval,
+                timeout,
+                nodeId,
+                new SigtermShutdownMetrics(meterRegistry)
+            ).handleTermination();
 
             mockLog.assertAllExpectationsMatched();
 
             verify(client, times(1)).execute(eq(PutShutdownNodeAction.INSTANCE), any(), any());
             verify(client, times(1)).execute(eq(GetShutdownStatusAction.INSTANCE), any(), any());
+
+            assertShutdownAndMigrationMetrics(meterRegistry, SigtermTerminationHandler.ShutdownStatus.COMPLETE, false, true);
         } finally {
             threadPool.shutdownNow();
+        }
+    }
+
+    public void testMigrationMetricSkippedWhenPutShutdownFails() {
+        final TimeValue pollInterval = randomPositiveTimeValue();
+        final TimeValue timeout = randomPositiveTimeValue();
+        final String nodeId = randomAlphaOfLength(10);
+
+        final var client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocation -> {
+            ActionListener<AcknowledgedResponse> listener = invocation.getArgument(2);
+            listener.onFailure(new RuntimeException("put shutdown failed"));
+            return null;
+        }).when(client).execute(eq(PutShutdownNodeAction.INSTANCE), any(), any());
+
+        final var meterRegistry = new RecordingMeterRegistry();
+        new SigtermTerminationHandler(
+            client,
+            threadPool,
+            null,
+            null,
+            pollInterval,
+            timeout,
+            nodeId,
+            new SigtermShutdownMetrics(meterRegistry)
+        ).handleTermination();
+
+        final List<Measurement> shutdownMeasurements = meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SigtermShutdownMetrics.SHUTDOWN_DURATION_HISTOGRAM);
+        assertThat(shutdownMeasurements, hasSize(1));
+        assertThat(
+            shutdownMeasurements.getFirst().attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_STATUS),
+            equalTo(SigtermTerminationHandler.ShutdownStatus.FAILED.name().toLowerCase(Locale.ROOT))
+        );
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SigtermShutdownMetrics.SHARD_MIGRATION_DURATION_HISTOGRAM),
+            hasSize(0)
+        );
+    }
+
+    public void testMigrationMetricNotCompletedWhenGetShutdownFails() {
+        final TimeValue pollInterval = randomPositiveTimeValue();
+        final TimeValue timeout = randomPositiveTimeValue();
+        final String nodeId = randomAlphaOfLength(10);
+
+        final var client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocation -> {
+            ActionListener<AcknowledgedResponse> listener = invocation.getArgument(2);
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return null;
+        }).when(client).execute(eq(PutShutdownNodeAction.INSTANCE), any(), any());
+        doAnswer(invocation -> {
+            ActionListener<GetShutdownStatusAction.Response> listener = invocation.getArgument(2);
+            listener.onFailure(new RuntimeException("get shutdown status failed"));
+            return null;
+        }).when(client).execute(eq(GetShutdownStatusAction.INSTANCE), any(), any());
+
+        final var meterRegistry = new RecordingMeterRegistry();
+        new SigtermTerminationHandler(
+            client,
+            threadPool,
+            null,
+            null,
+            pollInterval,
+            timeout,
+            nodeId,
+            new SigtermShutdownMetrics(meterRegistry)
+        ).handleTermination();
+
+        final List<Measurement> migrationMeasurements = meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SigtermShutdownMetrics.SHARD_MIGRATION_DURATION_HISTOGRAM);
+        assertThat(migrationMeasurements, hasSize(1));
+        assertThat(
+            migrationMeasurements.getFirst().attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_MIGRATION_COMPLETED),
+            equalTo(false)
+        );
+
+        final List<Measurement> shutdownMeasurements = meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SigtermShutdownMetrics.SHUTDOWN_DURATION_HISTOGRAM);
+        assertThat(shutdownMeasurements, hasSize(1));
+        assertThat(shutdownMeasurements.getFirst().attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_TIMED_OUT), equalTo(false));
+    }
+
+    public void testMigrationMetricUsesMigrationCompleteTimeBeforeOverallComplete() throws Exception {
+        final var taskQueue = new DeterministicTaskQueue(new Random(random().nextLong()));
+        taskQueue.setExecutionDelayVariabilityMillis(0);
+        final var deterministicThreadPool = taskQueue.getThreadPool();
+        final TimeValue pollInterval = TimeValue.timeValueMillis(5);
+        final TimeValue timeout = timeValueSeconds(10);
+        final String nodeId = randomAlphaOfLength(10);
+
+        // Three polls: migration COMPLETE on the second, plugins ready only on the last.
+        // Migration lasts 1 * pollInterval; overall shutdown lasts 2 * pollInterval.
+        final int totalPolls = 3;
+        final var rounds = new AtomicInteger(totalPolls);
+
+        final var client = mock(Client.class);
+        when(client.threadPool()).thenReturn(deterministicThreadPool);
+        doAnswer(invocation -> {
+            ActionListener<AcknowledgedResponse> listener = invocation.getArgument(2);
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return null;
+        }).when(client).execute(eq(PutShutdownNodeAction.INSTANCE), any(), any());
+
+        doAnswer(invocation -> {
+            int remaining = rounds.decrementAndGet();
+            final boolean migrationComplete = remaining <= 1; // incomplete on first poll, complete from second onward
+            final boolean pluginsReady = remaining == 0;
+            ActionListener<GetShutdownStatusAction.Response> listener = invocation.getArgument(2);
+            listener.onResponse(
+                new GetShutdownStatusAction.Response(
+                    Collections.singletonList(
+                        new SingleNodeShutdownStatus(
+                            SingleNodeShutdownMetadata.builder()
+                                .setNodeId(nodeId)
+                                .setNodeEphemeralId(nodeId)
+                                .setType(SingleNodeShutdownMetadata.Type.SIGTERM)
+                                .setReason(this.getTestName())
+                                .setStartedAtMillis(randomNonNegativeLong())
+                                .setGracePeriod(timeout)
+                                .build(),
+                            new ShutdownShardMigrationStatus(
+                                migrationComplete
+                                    ? SingleNodeShutdownMetadata.Status.COMPLETE
+                                    : SingleNodeShutdownMetadata.Status.IN_PROGRESS,
+                                0,
+                                0,
+                                0
+                            ),
+                            ShutdownPersistentTasksStatus.fromRemainingTasks(0, 0),
+                            new ShutdownPluginsStatus(pluginsReady),
+                            ShutdownShardSnapshotsStatus.fromShardCounts(0, 0, 0)
+                        )
+                    )
+                )
+            );
+            return null;
+        }).when(client).execute(eq(GetShutdownStatusAction.INSTANCE), any(), any());
+
+        final var meterRegistry = new RecordingMeterRegistry();
+        final var handler = new SigtermTerminationHandler(
+            client,
+            deterministicThreadPool,
+            null,
+            null,
+            pollInterval,
+            timeout,
+            nodeId,
+            new SigtermShutdownMetrics(meterRegistry)
+        );
+
+        // handleTermination blocks on a latch while deferred polls are scheduled. Drive the queue from this thread.
+        // First poll runs synchronously on the handler thread and schedules (totalPolls - 1) deferred polls.
+        final var handlerThread = new Thread(handler::handleTermination, "sigterm-handler");
+        handlerThread.start();
+        assertBusy(() -> assertTrue("first poll should have scheduled the next deferred poll", taskQueue.hasDeferredTasks()));
+        for (int i = 0; i < totalPolls - 1; i++) {
+            assertTrue("expected deferred poll " + (i + 1), taskQueue.hasDeferredTasks());
+            taskQueue.advanceTime();
+            taskQueue.runAllRunnableTasks();
+        }
+        assertFalse("no further deferred polls after overall COMPLETE", taskQueue.hasDeferredTasks());
+        assertFalse(taskQueue.hasRunnableTasks());
+        safeJoin(handlerThread);
+
+        verify(client, times(totalPolls)).execute(eq(GetShutdownStatusAction.INSTANCE), any(), any());
+
+        final List<Measurement> migrationMeasurements = meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SigtermShutdownMetrics.SHARD_MIGRATION_DURATION_HISTOGRAM);
+        assertThat(migrationMeasurements, hasSize(1));
+        assertThat(migrationMeasurements.getFirst().getDouble(), equalTo(pollInterval.millis() / 1000.0));
+        assertThat(
+            migrationMeasurements.getFirst().attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_MIGRATION_COMPLETED),
+            equalTo(true)
+        );
+
+        final List<Measurement> shutdownMeasurements = meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SigtermShutdownMetrics.SHUTDOWN_DURATION_HISTOGRAM);
+        assertThat(shutdownMeasurements, hasSize(1));
+        assertThat(shutdownMeasurements.getFirst().getDouble(), equalTo((totalPolls - 1L) * pollInterval.millis() / 1000.0));
+        assertThat(
+            shutdownMeasurements.getFirst().attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_STATUS),
+            equalTo(SigtermTerminationHandler.ShutdownStatus.COMPLETE.name().toLowerCase(Locale.ROOT))
+        );
+        assertThat(shutdownMeasurements.getFirst().attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_TIMED_OUT), equalTo(false));
+    }
+
+    public void testShutdownTimeoutRecordsTimedOutMetrics() {
+        final TimeValue pollInterval = TimeValue.timeValueMillis(5);
+        // Short timeout so the test waits for the latch to expire rather than for shutdown to complete.
+        final TimeValue timeout = TimeValue.timeValueMillis(100);
+        final String nodeId = randomAlphaOfLength(10);
+
+        final var testThreadPool = new TestThreadPool(this.getTestName());
+        try {
+            final var client = mock(Client.class);
+            when(client.threadPool()).thenReturn(testThreadPool);
+            doAnswer(invocation -> {
+                ActionListener<AcknowledgedResponse> listener = invocation.getArgument(2);
+                listener.onResponse(AcknowledgedResponse.TRUE);
+                return null;
+            }).when(client).execute(eq(PutShutdownNodeAction.INSTANCE), any(), any());
+
+            doAnswer(invocation -> {
+                ActionListener<GetShutdownStatusAction.Response> listener = invocation.getArgument(2);
+                listener.onResponse(
+                    new GetShutdownStatusAction.Response(
+                        Collections.singletonList(
+                            new SingleNodeShutdownStatus(
+                                SingleNodeShutdownMetadata.builder()
+                                    .setNodeId(nodeId)
+                                    .setNodeEphemeralId(nodeId)
+                                    .setType(SingleNodeShutdownMetadata.Type.SIGTERM)
+                                    .setReason(this.getTestName())
+                                    .setStartedAtMillis(randomNonNegativeLong())
+                                    .setGracePeriod(timeout)
+                                    .build(),
+                                // Keep migration incomplete so overall status never reaches COMPLETE before the timeout.
+                                new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.IN_PROGRESS, 0, 0, 0),
+                                ShutdownPersistentTasksStatus.fromRemainingTasks(0, 0),
+                                new ShutdownPluginsStatus(true),
+                                ShutdownShardSnapshotsStatus.fromShardCounts(0, 0, 0)
+                            )
+                        )
+                    )
+                );
+                return null;
+            }).when(client).execute(eq(GetShutdownStatusAction.INSTANCE), any(), any());
+
+            final var meterRegistry = new RecordingMeterRegistry();
+            new SigtermTerminationHandler(
+                client,
+                testThreadPool,
+                null,
+                null,
+                pollInterval,
+                timeout,
+                nodeId,
+                new SigtermShutdownMetrics(meterRegistry)
+            ).handleTermination();
+
+            assertShutdownAndMigrationMetrics(meterRegistry, SigtermTerminationHandler.ShutdownStatus.IN_PROGRESS, true, false);
+
+            final List<Measurement> shutdownMeasurements = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SigtermShutdownMetrics.SHUTDOWN_DURATION_HISTOGRAM);
+            assertThat(shutdownMeasurements.getFirst().getDouble(), greaterThanOrEqualTo(timeout.millis() / 1000.0));
+        } finally {
+            testThreadPool.shutdownNow();
         }
     }
 
@@ -383,9 +654,39 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
             remoteClient,
             timeValueSeconds(1),
             null,
-            "local-node"
+            "local-node",
+            SigtermShutdownMetrics.NOOP
         );
         handler.blockTermination();
+    }
+
+    private static void assertShutdownAndMigrationMetrics(
+        RecordingMeterRegistry meterRegistry,
+        SigtermTerminationHandler.ShutdownStatus expectedShutdownStatus,
+        boolean expectedTimedOut,
+        boolean expectedMigrationCompleted
+    ) {
+        final List<Measurement> shutdownMeasurements = meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SigtermShutdownMetrics.SHUTDOWN_DURATION_HISTOGRAM);
+        assertThat(shutdownMeasurements, hasSize(1));
+        assertThat(
+            shutdownMeasurements.getFirst().attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_STATUS),
+            equalTo(expectedShutdownStatus.name().toLowerCase(Locale.ROOT))
+        );
+        assertThat(
+            shutdownMeasurements.getFirst().attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_TIMED_OUT),
+            equalTo(expectedTimedOut)
+        );
+        assertThat(shutdownMeasurements.getFirst().getDouble(), greaterThanOrEqualTo(0.0));
+
+        final List<Measurement> migrationMeasurements = meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SigtermShutdownMetrics.SHARD_MIGRATION_DURATION_HISTOGRAM);
+        assertThat(migrationMeasurements, hasSize(1));
+        assertThat(
+            migrationMeasurements.getFirst().attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_MIGRATION_COMPLETED),
+            equalTo(expectedMigrationCompleted)
+        );
+        assertThat(migrationMeasurements.getFirst().getDouble(), greaterThanOrEqualTo(0.0));
     }
 
     public void shutdownRequiresPolling(
@@ -443,6 +744,7 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
                 return null; // real method is void
             }).when(client).execute(eq(GetShutdownStatusAction.INSTANCE), any(), any());
 
+            RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
             SigtermTerminationHandler handler = new SigtermTerminationHandler(
                 client,
                 threadPool,
@@ -450,11 +752,13 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
                 null,
                 pollInterval,
                 timeout,
-                nodeId
+                nodeId,
+                new SigtermShutdownMetrics(meterRegistry)
             );
             handler.handleTermination();
 
             verify(client, times(initialRounds)).execute(eq(GetShutdownStatusAction.INSTANCE), any(), any());
+            assertShutdownAndMigrationMetrics(meterRegistry, SigtermTerminationHandler.ShutdownStatus.COMPLETE, false, true);
         } finally {
             threadPool.shutdownNow();
         }

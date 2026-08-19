@@ -8,40 +8,28 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
-import org.elasticsearch.compute.operator.ResponseHeadersCollector;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  * A variant of {@link RefCountingListener} with the following differences:
  * 1. Automatically cancels sub tasks on failure (via runOnTaskFailure)
  * 2. Collects driver profiles from sub tasks.
- * 3. Collects response headers from sub tasks, specifically warnings emitted during compute
- * 4. Collects failures and returns the most appropriate exception to the caller.
+ * 3. Collects failures and returns the most appropriate exception to the caller.
  */
 final class ComputeListener implements Releasable {
     private final DriverCompletionInfo.AtomicAccumulator completionInfoAccumulator = new DriverCompletionInfo.AtomicAccumulator();
     private final EsqlRefCountingListener refs;
-    private final ResponseHeadersCollector responseHeaders;
     private final Runnable runOnFailure;
 
-    ComputeListener(ThreadPool threadPool, Runnable runOnFailure, ActionListener<DriverCompletionInfo> delegate) {
+    ComputeListener(Runnable runOnFailure, ActionListener<DriverCompletionInfo> delegate) {
         this.runOnFailure = runOnFailure;
-        this.responseHeaders = new ResponseHeadersCollector(threadPool.getThreadContext());
         // listener that executes after all the sub-listeners refs (created via acquireCompute) have completed
-        // ContextPreservingActionListener ensures finish() and the root delegate always fire on the
-        // construction-time thread context, even when the last ref drains on a transport response thread
-        // with a blank ThreadContext (e.g. ExchangeSourceHandler.RemoteSinkFetcher completing via transport).
-        this.refs = new EsqlRefCountingListener(
-            ContextPreservingActionListener.wrapPreservingContext(delegate.delegateFailure((l, ignored) -> {
-                responseHeaders.finish();
-                delegate.onResponse(completionInfoAccumulator.finish());
-            }), threadPool.getThreadContext())
-        );
+        this.refs = new EsqlRefCountingListener(delegate.delegateFailure((l, ignored) -> {
+            delegate.onResponse(completionInfoAccumulator.finish());
+        }));
     }
 
     /**
@@ -59,18 +47,14 @@ final class ComputeListener implements Releasable {
     }
 
     /**
-     * Acquires a new listener that collects compute result. This listener will also collect warnings emitted during compute
+     * Acquires a new listener that collects compute result.
      */
     ActionListener<DriverCompletionInfo> acquireCompute() {
         final ActionListener<Void> delegate = acquireAvoid();
         return ActionListener.wrap(info -> {
-            responseHeaders.collect();
             completionInfoAccumulator.accumulate(info);
             delegate.onResponse(null);
-        }, e -> {
-            responseHeaders.collect();
-            delegate.onFailure(e);
-        });
+        }, delegate::onFailure);
     }
 
     @Override

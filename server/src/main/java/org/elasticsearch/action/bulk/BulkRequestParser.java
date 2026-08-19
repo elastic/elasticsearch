@@ -464,20 +464,20 @@ public final class BulkRequestParser {
                             } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                                 if (sliceProvided || defaultRoutingFromSlice) {
                                     throw new IllegalArgumentException(
-                                        "Action/metadata line [" + line + "] contains both [routing] and [_slice]"
+                                        "Action/metadata line [" + line + "] contains both [routing] and [slice]"
                                     );
                                 }
                                 routing = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                                 routingProvided = true;
                             } else if (SLICE.match(currentFieldName, parser.getDeprecationHandler())) {
                                 if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-                                    throw new IllegalArgumentException("request does not support [_slice]");
+                                    throw new IllegalArgumentException("request does not support [slice]");
                                 }
                                 final String sliceValue = parser.text();
                                 SliceIndexing.validateUserSliceValue(sliceValue);
                                 if (routingProvided) {
                                     throw new IllegalArgumentException(
-                                        "Action/metadata line [" + line + "] contains both [routing] and [_slice]"
+                                        "Action/metadata line [" + line + "] contains both [routing] and [slice]"
                                     );
                                 }
                                 routing = stringDeduplicator.computeIfAbsent(sliceValue, Function.identity());

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
@@ -281,7 +282,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of("traces-2024.01.01", IndexMode.STANDARD),
+            Map.of("traces-2024.01.01", new IndexProperties(IndexMode.STANDARD, 0)),
             List.of()
         );
         FragmentExec plan = new FragmentExec(relation);
@@ -296,7 +297,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of("index1", IndexMode.STANDARD, "index2", IndexMode.STANDARD),
+            Map.of("index1", new IndexProperties(IndexMode.STANDARD, 0), "index2", new IndexProperties(IndexMode.STANDARD, 0)),
             List.of()
         );
         FragmentExec plan = new FragmentExec(relation);
@@ -311,7 +312,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of("remote:idx", IndexMode.STANDARD, "local_idx", IndexMode.STANDARD),
+            Map.of("remote:idx", new IndexProperties(IndexMode.STANDARD, 0), "local_idx", new IndexProperties(IndexMode.STANDARD, 0)),
             List.of()
         );
         FragmentExec plan = new FragmentExec(relation);
@@ -330,7 +331,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
         assertFalse("executionInfo must start as non-partial", executionInfo.isPartial());
 
-        DriverCompletionInfo partialCompletion = new DriverCompletionInfo(0, 0, 0, 0, 0, 0, List.of(), List.of(), Map.of(), true);
+        DriverCompletionInfo partialCompletion = new DriverCompletionInfo(0, 0, 0, 0, 0, 0, List.of(), List.of(), Map.of(), true, Set.of());
         Result partialResult = new Result(List.of(), List.of(), Map.of(), EsqlTestUtils.TEST_CFG, partialCompletion, executionInfo);
         TransportEsqlStreamQueryAction.markPartialFromCompletionInfo(partialResult);
         assertTrue("is_partial must be true when completionInfo.partial() is true", executionInfo.isPartial());

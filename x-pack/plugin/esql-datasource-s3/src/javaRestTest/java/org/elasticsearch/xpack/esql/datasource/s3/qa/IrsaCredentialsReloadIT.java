@@ -26,6 +26,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -94,7 +95,8 @@ public class IrsaCredentialsReloadIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .setting("esql.datasource.managed_identity.enabled", "true")
+        .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
+        .setting("esql.external.managed_identity.enabled", "true")
         // Start with a token that does NOT match what the STS fixture expects, so the initial query
         // fails; the test then rewrites this file to the valid value at runtime.
         .configFile(WEB_IDENTITY_TOKEN_FILE_LOCATION, Resource.fromString("not ready yet"))

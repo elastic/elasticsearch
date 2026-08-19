@@ -1,5 +1,0 @@
-area: Ranking
-issues: []
-pr: 155099
-summary: Fix error caused by empty reranker results
-type: bug

@@ -52,6 +52,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -67,6 +68,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.encryption.spi.EncryptionServiceRegistry;
@@ -160,7 +162,6 @@ import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.elasticsearch.xpack.esql.view.ViewService;
 
 import java.io.IOException;
-import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -192,7 +193,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
      * This is a separate pool from {@link #computePool()} on purpose. These tasks block their thread on network I/O
      * (a sequential decompressed stream read pulls compressed bytes from the object store) and on the parser's bounded
      * hand-off queues; the compute {@code Driver} that consumes the parsed pages runs on {@link #computePool()}. If the
-     * two shared a fixed pool, the segmentator plus {@code parsing_parallelism} parser tasks would occupy every slot
+     * two shared a fixed pool, the segmentator plus {@code external_parsing_parallelism} parser tasks would occupy every slot
      * and starve their own consumer, deadlocking the query (observed as a stalled heap-attack external query). Keeping
      * them apart also prevents a single heavy external query from starving compute. In-flight cloud API calls are still
      * bounded by the per-scheme permit semaphore in {@code StorageProviderRegistry}; the permits and this pool solve
@@ -348,6 +349,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     private final List<PlanCheckerProvider> extraCheckerProviders = new ArrayList<>();
     private final List<DataSourcePlugin> dataSourcePlugins = new ArrayList<>();
+    private final List<QueryMetricsListener> metricsCollectors = new ArrayList<>();
 
     private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
 
@@ -378,13 +380,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             .flatMap(p -> p.checkers(services.projectResolver(), services.clusterService()).stream())
             .toList();
 
-        // Force Federation to initialize now so the kill-switch property is validated (fail fast on an invalid value)
-        // and the disabled state is logged at startup, rather than lazily on the first federation operation.
-        try {
-            MethodHandles.publicLookup().ensureInitialized(Federation.class);
-        } catch (IllegalAccessException e) {
-            throw new IllegalStateException("Failed to initialize " + Federation.class.getName(), e);
-        }
+        // Report the effective federation state at startup rather than lazily on the first federation operation. Logging
+        // is all this call does: an invalid value for the operator property is rejected when Federation#REGISTERED is
+        // initialized, which getSettings() has already triggered by reading FEDERATION_ENABLED off the class.
+        Federation.logEffectiveState(services.clusterService().getSettings());
 
         // Discover DataSourcePlugin implementations via SPI (META-INF/services)
         // This discovers built-in plugins from this plugin's classloader
@@ -406,24 +405,34 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         DataSourceCredentials dataSourceCredentials = new DataSourceCredentials(encryptionService);
 
         boolean isStateless = DiscoveryNode.isStateless(settings);
+        // The external source settings are registered only while the federation feature is registered (see
+        // Federation#settings), so an unregistered node has neither a configured value to start from nor an update
+        // consumer to attach: ClusterSettings rejects a consumer for a setting it does not know. The credential gates
+        // below are therefore off outright rather than resolved from settings, which states the invariant here instead
+        // of resting on startup validation having already rejected the keys.
+        boolean federationRegistered = Federation.isRegistered();
+
         // Read through MANAGED_IDENTITY_ENABLED, which falls back to the deprecated workload_identity key, so a
         // pre-rename operator config is still honored. Its update consumer fires on changes to either key because the
         // setting's raw value resolves the fallback.
         AtomicBoolean managedIdentityEnabled = new AtomicBoolean(
-            isStateless == false && ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.get(settings)
+            federationRegistered && isStateless == false && ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.get(settings)
         );
-        services.clusterService()
-            .getClusterSettings()
-            .addSettingsUpdateConsumer(
-                ExternalSourceSettings.MANAGED_IDENTITY_ENABLED,
-                v -> managedIdentityEnabled.set(isStateless == false && v)
-            );
-
-        // Disabled by default; an operator can enable it dynamically;
-        AtomicBoolean federatedIdentityEnabled = new AtomicBoolean(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED.get(settings));
-        services.clusterService()
-            .getClusterSettings()
-            .addSettingsUpdateConsumer(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED, federatedIdentityEnabled::set);
+        // Disabled by default; while the feature is registered an operator can enable it dynamically.
+        AtomicBoolean federatedIdentityEnabled = new AtomicBoolean(
+            federationRegistered && ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED.get(settings)
+        );
+        if (federationRegistered) {
+            services.clusterService()
+                .getClusterSettings()
+                .addSettingsUpdateConsumer(
+                    ExternalSourceSettings.MANAGED_IDENTITY_ENABLED,
+                    v -> managedIdentityEnabled.set(isStateless == false && v)
+                );
+            services.clusterService()
+                .getClusterSettings()
+                .addSettingsUpdateConsumer(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED, federatedIdentityEnabled::set);
+        }
 
         // Local-disk gate: parsed once at startup (NodeScope setting — no update consumer needed).
         LocalFileAccess localFileAccess = LocalFileAccess.create(settings);
@@ -467,9 +476,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             );
 
         ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings);
-        services.clusterService()
-            .getClusterSettings()
-            .addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
+        if (federationRegistered) {
+            services.clusterService()
+                .getClusterSettings()
+                .addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
+        }
 
         // Build the format metadata the dataset CRUD validator uses to (a) accept format-specific
         // fields (e.g. CSV's "delimiter") so they persist in cluster state and reach the format reader
@@ -543,6 +554,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             });
         }
 
+        QueryMetricsListener collector = metricsCollectors.isEmpty() ? QueryMetricsListener.NOOP : metrics -> {
+            for (var c : metricsCollectors) {
+                c.onQueryCompleted(metrics);
+            }
+        };
+
         return List.of(
             new PlanExecutor(
                 new IndexResolver(services.client(), flattenedDataTypeEnabled::get),
@@ -576,7 +593,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ),
             new ViewService(services.clusterService(), parser),
             new DataSourceService(services.clusterService(), crudValidators, encryptionService),
-            new DatasetService(services.clusterService(), crudValidators)
+            new DatasetService(services.clusterService(), crudValidators),
+            new PluginComponentBinding<>(QueryMetricsListener.class, collector)
         );
     }
 
@@ -617,8 +635,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
-                DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING,
-                DatasetService.MAX_DATASETS_COUNT_SETTING,
                 GROK_WATCHDOG_MAX_EXECUTION_TIME
             )
         );
@@ -627,11 +643,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Inference command settings
         settings.addAll(InferenceSettings.getSettings());
 
-        // External source rate limiting settings
-        settings.addAll(ExternalSourceSettings.settings());
-
-        // External source cache settings
-        settings.addAll(ExternalSourceCacheSettings.settings());
+        // The federation gate, every external source knob below it, and the data source / dataset count ceilings,
+        // registered only while an operator leaves the feature registered. On a node where the feature is
+        // unregistered these keys are unknown, so carrying one in elasticsearch.yml fails startup instead of
+        // configuring a feature that is not there.
+        settings.addAll(Federation.settings());
 
         return Collections.unmodifiableList(settings);
     }
@@ -685,10 +701,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 new RestGetViewAction()
             )
         );
-        // Federation (external data sources) REST handlers are registered only when the feature is on. When
-        // suppressed the routes are unregistered, so PUT/GET/DELETE of data sources and datasets return the
+        // Federation (external data sources) REST handlers are registered only when the feature is on. When it is
+        // not available the routes are unregistered, so PUT/GET/DELETE of data sources and datasets return the
         // framework's standard "no handler found for uri" (400), as if the feature never existed.
-        if (Federation.isAvailable()) {
+        if (Federation.isAvailable(restHandlersServices.settings())) {
             handlers.add(new RestPutDataSourceAction());
             handlers.add(new RestGetDataSourceAction());
             handlers.add(new RestDeleteDataSourceAction());
@@ -726,6 +742,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(EnrichLookupOperator.Status.ENTRY);
         entries.add(LookupFromIndexOperator.Status.ENTRY);
         entries.add(StreamingLookupFromIndexOperator.StreamingLookupStatus.ENTRY);
+        entries.add(RemoteFetchOperator.Status.ENTRY);
         entries.add(SampleOperator.Status.ENTRY);
         entries.add(MetricsInfoOperator.Status.ENTRY);
         entries.add(TsInfoOperator.Status.ENTRY);
@@ -804,6 +821,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     public void loadExtensions(ExtensionLoader loader) {
         extraCheckerProviders.addAll(loader.loadExtensions(PlanCheckerProvider.class));
         dataSourcePlugins.addAll(loader.loadExtensions(DataSourcePlugin.class));
+        loadMetricsCollectors(loader);
+    }
+
+    protected void loadMetricsCollectors(ExtensionLoader loader) {
+        metricsCollectors.addAll(loader.loadExtensions(QueryMetricsListener.class));
     }
 
     @Override

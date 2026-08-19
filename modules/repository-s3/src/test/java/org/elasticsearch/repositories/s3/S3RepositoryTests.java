@@ -57,6 +57,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.hamcrest.Matchers;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
@@ -79,9 +81,8 @@ public class S3RepositoryTests extends ESTestCase {
     private RepositoriesService repositoriesService;
     private ProjectId projectId;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initRepositoriesService() throws Exception {
         threadPool = new TestThreadPool(getClass().getName());
         final TransportService transportService = new TransportService(
             Settings.EMPTY,
@@ -105,12 +106,7 @@ public class S3RepositoryTests extends ESTestCase {
         client.initialize(
             Map.of(
                 VerifyNodeRepositoryCoordinationAction.TYPE,
-                new VerifyNodeRepositoryCoordinationAction.LocalAction(
-                    new ActionFilters(Set.of()),
-                    transportService,
-                    clusterService,
-                    client
-                )
+                new VerifyNodeRepositoryCoordinationAction.LocalAction(ActionFilters.EMPTY, transportService, clusterService, client)
             ),
             transportService.getTaskManager(),
             localNode::getId,
@@ -132,9 +128,8 @@ public class S3RepositoryTests extends ESTestCase {
         repositoriesService.start();
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void cleanup() throws Exception {
         repositoriesService.stop();
         clusterService.stop();
         threadPool.shutdownNow();

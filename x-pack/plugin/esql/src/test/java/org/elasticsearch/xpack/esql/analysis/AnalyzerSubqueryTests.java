@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -1838,7 +1839,13 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     private static EsIndex sampleDataTsLongIndex() {
         Map<String, EsField> mapping = new LinkedHashMap<>(loadMapping("mapping-sample_data.json"));
         mapping.put("@timestamp", new EsField("@timestamp", LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
-        return new EsIndex("sample_data_ts_long", mapping, Map.of("sample_data_ts_long", IndexMode.STANDARD), Map.of(), Map.of());
+        return new EsIndex(
+            "sample_data_ts_long",
+            mapping,
+            Map.of("sample_data_ts_long", new IndexProperties(IndexMode.STANDARD, 0)),
+            Map.of(),
+            Map.of()
+        );
     }
 
     /**

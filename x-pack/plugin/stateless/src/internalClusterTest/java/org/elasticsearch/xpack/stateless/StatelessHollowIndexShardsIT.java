@@ -89,7 +89,6 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -110,6 +109,7 @@ import org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.IndexEngineDynamicSettings;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
@@ -118,6 +118,7 @@ import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
+import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -269,7 +270,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             RefreshManagerService refreshManagerService,
             ReshardIndexService reshardIndexService,
             DocumentParsingProvider documentParsingProvider,
-            IndexEngine.EngineMetrics engineMetrics
+            IndexEngine.EngineMetrics engineMetrics,
+            IndexEngineDynamicSettings indexEngineDynamicSettings
         ) {
             Semaphore newIndexEngineStartedSemaphore = newIndexEngineStartedSemaphoreReference.get();
             if (newIndexEngineStartedSemaphore != null) {
@@ -289,7 +291,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 refreshManagerService,
                 reshardIndexService,
                 documentParsingProvider,
-                engineMetrics
+                engineMetrics,
+                indexEngineDynamicSettings
             );
         }
     }
@@ -814,14 +817,6 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         assertHitCount(client().prepareSearch(clusterInfo.indexName).setSize(0).setTrackTotalHits(true), clusterInfo.numDocs + moreDocs);
     }
 
-    @TestLogging(value = "org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction:TRACE", reason = """
-        We have seen flakes in this test where assertRequestsFinished() fails during test teardown.
-        See https://github.com/elastic/elasticsearch/issues/151861 for details.
-        In the instance captured there, an internal:index/shard/recovery/stateless_primary_relocation/start task is running during teardown.
-        It seems likely that the race between the index close and the relocation that hollows shards is leaving some asynchronous process
-        hanging so that it never completes its listener chain. This would be a genuine race condition.
-        By enabling trace logging on TransportStatelessPrimaryRelocationAction, we should get more detail about where that task got to.
-        """)
     public void testCloseWhileShardsAreHollowed() throws Exception {
         startMasterOnlyNode();
         final var indexNodeSettings = Settings.builder()
@@ -2702,6 +2697,10 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO)
             .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 5) // so that relocations are fast in case of replaying translog
+            .put(
+                StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(),
+                StatelessSnapshotSettings.StatelessSnapshotEnabledStatus.ENABLED
+            )
             .build();
         List<String> indexNodes = startIndexNodes(randomIntBetween(2, 4), indexNodeSettings);
         startSearchNode();

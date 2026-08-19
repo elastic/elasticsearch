@@ -21,6 +21,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -47,6 +48,7 @@ import java.util.Set;
 
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
@@ -301,8 +303,8 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
     public void testFuzzyQuery() {
         KeyedFlattenedFieldType ft = createFieldType();
 
-        UnsupportedOperationException e = expectThrows(
-            UnsupportedOperationException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> ft.fuzzyQuery("value", Fuzziness.fromEdits(2), 1, 50, true, randomMockContext())
         );
         assertEquals("[fuzzy] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
@@ -364,6 +366,19 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         assertEquals(inclusiveLower, ft.rangeQuery("lower", null, true, false, MOCK_CONTEXT));
     }
 
+    public void testSingleSidedRangeQueryChargesBreakerOnceAndMarksPreCharged() {
+        KeyedFlattenedFieldType ft = createFieldType();
+        SearchExecutionContext context = mock(SearchExecutionContext.class);
+        when(context.allowExpensiveQueries()).thenReturn(true);
+
+        Query query = ft.rangeQuery("lower", null, true, false, context);
+
+        assertTrue("single-sided keyed range must build a TermRangeQuery", query instanceof TermRangeQuery);
+        long ramBytesUsed = ((TermRangeQuery) query).ramBytesUsed();
+        verify(context).addCircuitBreakerMemory(ramBytesUsed, ChildMemoryCircuitBreaker.CATEGORY_RANGE + ":" + ft.name());
+        verify(context).markQueryMemoryPreCharged(query);
+    }
+
     /**
      * Both bounds open is the same set the dedicated {@code existsQuery} produces, so the keyed
      * mapper rejects it with a message pointing the caller at the right API. The earlier "must
@@ -414,8 +429,8 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
     public void testRegexpQuery() {
         KeyedFlattenedFieldType ft = createFieldType();
 
-        UnsupportedOperationException e = expectThrows(
-            UnsupportedOperationException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> ft.regexpQuery("valu*", 0, 0, 10, null, randomMockContext())
         );
         assertEquals("[regexp] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
@@ -424,8 +439,8 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
     public void testWildcardQuery() {
         KeyedFlattenedFieldType ft = createFieldType();
 
-        UnsupportedOperationException e = expectThrows(
-            UnsupportedOperationException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> ft.wildcardQuery("valu*", null, false, randomMockContext())
         );
         assertEquals("[wildcard] queries are not currently supported on keyed [flattened] fields.", e.getMessage());

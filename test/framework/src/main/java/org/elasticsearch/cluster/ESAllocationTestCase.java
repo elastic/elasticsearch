@@ -389,6 +389,18 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     /**
+     * Start all shards that are in an initializing state.
+     *
+     * @return the cluster state with all initializing shards started
+     */
+    public static ClusterState startInitializingShards(AllocationService allocationService, ClusterState clusterState) {
+        return allocationService.applyStartedShards(
+            clusterState,
+            RoutingNodesHelper.shardsWithState(clusterState.getRoutingNodes(), INITIALIZING)
+        );
+    }
+
+    /**
      * Mark the given shards as started, then perform a reroute (which may start some other shards initializing).
      *
      * @return the cluster state after completing the reroute.

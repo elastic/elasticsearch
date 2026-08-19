@@ -58,37 +58,34 @@ public class AnthropicResponseHandler extends BaseResponseHandler {
     }
 
     /**
-     * Validates the status code throws an RetryException if not in the range [200, 300).
+     * Handles failure status codes by returning a RetryException.
+     * Only called when the HTTP response status code is not in the range [200, 300).
      *
      * The Anthropic API error codes are documented <a href="https://docs.anthropic.com/en/api/errors">here</a>.
      * @param outboundRequest The originating request
      * @param result  The http response and body
-     * @throws RetryException Throws if status code is {@code >= 300 or < 200 }
+     * @return a RetryException describing the failure
      */
     @Override
-    protected void checkForFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
-        if (result.isSuccessfulResponse()) {
-            return;
-        }
-
+    public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
         // handle error codes
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {
-            throw new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
+            return new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode == 529) {
-            throw new RetryException(true, buildError(SERVER_BUSY, outboundRequest, result));
+            return new RetryException(true, buildError(SERVER_BUSY, outboundRequest, result));
         } else if (statusCode > 500) {
-            throw new RetryException(false, buildError(SERVER_ERROR, outboundRequest, result));
+            return new RetryException(false, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode == 429) {
-            throw new RetryException(true, buildError(buildRateLimitErrorMessage(result), outboundRequest, result));
+            return new RetryException(true, buildError(buildRateLimitErrorMessage(result), outboundRequest, result));
         } else if (statusCode == 403) {
-            throw new RetryException(false, buildError(PERMISSION_DENIED, outboundRequest, result));
+            return new RetryException(false, buildError(PERMISSION_DENIED, outboundRequest, result));
         } else if (statusCode == 401) {
-            throw new RetryException(false, buildError(AUTHENTICATION, outboundRequest, result));
+            return new RetryException(false, buildError(AUTHENTICATION, outboundRequest, result));
         } else if (statusCode >= 300 && statusCode < 400) {
-            throw new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
+            return new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
         } else {
-            throw new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
+            return new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
         }
     }
 

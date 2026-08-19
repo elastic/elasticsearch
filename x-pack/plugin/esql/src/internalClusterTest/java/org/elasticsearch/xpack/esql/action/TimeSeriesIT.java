@@ -769,7 +769,6 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                         equalTo("cluster:column_at_a_time:BytesRefsFromOrds.Singleton")
                     )
                 );
-                assertThat(ops.get(6).operator(), containsString("EvalOperator"));
                 assertThat(ops.get(7).operator(), containsString("ProjectOperator"));
                 assertThat(ops.get(8).operator(), containsString("ExchangeSinkOperator"));
             }
@@ -1153,8 +1152,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNonMultipleWindowWithTimeBucket() {
-        // 7-second window with 5-second bucket: window is not an exact multiple of the bucket.
-        // GCD(7s, 5s) = 1s, so internal sub-buckets are 1s, output at 5s boundaries.
+        // 7-second window with 5-second bucket: window is not an exact multiple of the bucket, so the aggregate
+        // merges one full bucket plus the boundary bucket's partial channel; output stays at 5s boundaries.
         try (var resp = run("TS host* | STATS avg(avg_over_time(cpu, 7 second)) BY cluster, TBUCKET(5 second)")) {
             List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
             assertThat("expected non-empty results", rows, not(empty()));

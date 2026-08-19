@@ -318,19 +318,22 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
         return count;
     }
 
-    static Map<IndexMode, IndexStats> getStatsWithoutCache(IndicesService indicesService) {
+    static Map<IndexMode, IndexStats> getStatsWithoutCache(IndicesService indicesService, IndexMode[] availableModes) {
         Map<IndexMode, IndexStats> stats = new EnumMap<>(IndexMode.class);
-        for (IndexMode mode : IndexMode.availableModes()) {
+        for (IndexMode mode : availableModes) {
             stats.put(mode, new IndexStats());
         }
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
                 if (indexShard.isSystem()) {
-                    continue; // skip system indices
+                    continue;
                 }
                 final ShardRouting shardRouting = indexShard.routingEntry();
                 final IndexMode indexMode = indexShard.indexSettings().getMode();
                 final IndexStats indexStats = stats.get(indexMode);
+                if (indexStats == null) {
+                    continue;
+                }
                 try {
                     if (shardRouting.primary() && shardRouting.recoverySource() == null) {
                         if (shardRouting.shardId().id() == 0) {
@@ -370,7 +373,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
 
         @Override
         protected Map<IndexMode, IndexStats> refresh() {
-            return refresh ? getStatsWithoutCache(indicesService) : getNoRefresh();
+            return refresh ? getStatsWithoutCache(indicesService, IndexMode.availableModes()) : getNoRefresh();
         }
 
         @Override

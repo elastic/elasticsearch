@@ -7,15 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.eirf;
+package org.elasticsearch.sourcebatch;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.sourcebatch.ArrayReader;
-import org.elasticsearch.sourcebatch.KeyValueReader;
-import org.elasticsearch.sourcebatch.SourceRow;
-import org.elasticsearch.sourcebatch.SourceSchema;
-import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.Text;
@@ -40,7 +35,7 @@ import java.util.List;
  * {@code FIELD_NAME, START_OBJECT}, then recurses into children, then {@code END_OBJECT}.
  * For leaf nodes it emits {@code FIELD_NAME} then the value token.
  */
-public final class EirfRowXContentParser extends AbstractXContentParser {
+public final class SourceRowXContentParser extends AbstractXContentParser {
 
     /**
      * A node in the schema tree. Built once per batch from {@link SourceSchema}.
@@ -168,7 +163,7 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
     // Compound iteration stack (arrays and key-value objects within arrays)
     private static final byte COMPOUND_ARRAY = 0;
     private static final byte COMPOUND_KV = 1;
-    private Object[] compoundReaders = new Object[4]; // EirfArray or EirfKeyValue
+    private Object[] compoundReaders = new Object[4]; // ArrayReader or KeyValueReader
     private byte[] compoundTypes = new byte[4];
     private boolean[] compoundNeedValue = new boolean[4]; // for KV frames: true after emitting FIELD_NAME
     private int compoundDepth;
@@ -176,7 +171,7 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
     // Whether we've emitted the root START_OBJECT yet
     private boolean started;
 
-    public EirfRowXContentParser(SchemaNode root, SourceRow row) {
+    public SourceRowXContentParser(SchemaNode root, SourceRow row) {
         super(NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, RestApiVersion.current());
         this.root = root;
         this.row = row;

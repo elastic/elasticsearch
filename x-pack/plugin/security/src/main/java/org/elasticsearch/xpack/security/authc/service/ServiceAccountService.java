@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNod
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.service.BuiltInServiceAccount;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
@@ -73,6 +74,14 @@ public class ServiceAccountService {
         return ACCOUNTS.keySet();
     }
 
+    public static Map<String, BuiltInServiceAccount> getBuiltInServiceAccounts() {
+        return Map.copyOf(ACCOUNTS);
+    }
+
+    /**
+     * Retained under its original name for callers outside this repository. In-repo code uses
+     * {@link #getBuiltInServiceAccounts()}, which is the canonical accessor and states which accounts are returned.
+     */
     public static Map<String, ServiceAccount> getServiceAccounts() {
         return Map.copyOf(ACCOUNTS);
     }
@@ -182,7 +191,7 @@ public class ServiceAccountService {
     }
 
     public static void getRoleDescriptorForPrincipal(String principal, ActionListener<RoleDescriptor> listener) {
-        final ServiceAccount account = ACCOUNTS.get(principal);
+        final BuiltInServiceAccount account = ACCOUNTS.get(principal);
         if (account == null) {
             listener.onFailure(
                 new ElasticsearchSecurityException("cannot load role for service account [" + principal + "] - no such service account")

@@ -15,11 +15,14 @@ import org.elasticsearch.foreign.Function;
 import org.elasticsearch.foreign.Platform;
 import org.elasticsearch.foreign.StructFactory;
 import org.elasticsearch.foreign.Variadic;
+import org.elasticsearch.foreign.WideString;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
@@ -63,6 +66,9 @@ import static org.elasticsearch.foreign.processor.model.StructSpecParser.ARRAY_F
  * @param isProtected {@code true} when the method is declared {@code protected} (only possible for abstract-class
  *        specs); always {@code false} for interface-based specs
  * @param boundsChecks native-call bounds checks from parameter annotations, one entry per annotated parameter
+ * @param wideStringParamIndices 0-based indices of {@code String} parameters annotated with {@code @WideString},
+ *        marshaled as UTF-16LE rather than the implicit UTF-8 default; empty for {@code @StructFactory} methods
+ *        and for {@code @Function} methods with no wide-string parameters
  */
 public record MethodModel(
     String methodName,
@@ -78,7 +84,8 @@ public record MethodModel(
     String structReturnSimpleName,
     String packedElementSimpleName,
     boolean isProtected,
-    List<BoundsCheckModel> boundsChecks
+    List<BoundsCheckModel> boundsChecks,
+    Set<Integer> wideStringParamIndices
 ) {
 
     /**
@@ -115,8 +122,9 @@ public record MethodModel(
      * @param enclosingStructNames simple names of {@code @StructSpecification} types enclosed in the same interface,
      *        used to validate {@code @StructFactory} return types
      * @param unavailableOn enum constant names of platforms where the enclosing {@code @LibrarySpecification} is
-     *        unavailable, used to derive the {@code @CaptureSystemError} capture channel ({@code errno} vs
-     *        {@code GetLastError}) from the library's target platform family
+     *        unavailable, used to reject {@code @WideString} parameters on libraries unavailable on Windows and to
+     *        derive the {@code @CaptureSystemError} capture channel ({@code errno} vs {@code GetLastError}) from the
+     *        library's target platform family
      */
     public static MethodModel from(
         ExecutableElement method,
@@ -157,6 +165,16 @@ public record MethodModel(
                 messager.printMessage(Kind.ERROR, "@StructFactory method '" + methodName + "' must not have @Critical", method);
                 return null;
             }
+            for (var param : method.getParameters()) {
+                if (param.getAnnotation(WideString.class) != null) {
+                    messager.printMessage(
+                        Kind.ERROR,
+                        "@StructFactory method '" + methodName + "' must not have @WideString on any parameter",
+                        method
+                    );
+                    return null;
+                }
+            }
             return buildStructFactoryModel(method, methodName, enclosingStructNames, messager);
         }
 
@@ -179,6 +197,8 @@ public record MethodModel(
 
         List<NativeType> paramTypes = new ArrayList<>();
         List<String> paramStructSimpleNames = new ArrayList<>();
+        Set<Integer> wideStringParamIndices = new LinkedHashSet<>();
+        int paramIndex = 0;
         for (var param : method.getParameters()) {
             NativeType paramType = ModelUtil.classifyType(param.asType());
             String structSimpleName = null;
@@ -199,6 +219,31 @@ public record MethodModel(
             }
             paramTypes.add(paramType);
             paramStructSimpleNames.add(structSimpleName);
+            if (param.getAnnotation(WideString.class) != null) {
+                if (paramType != NativeType.STRING) {
+                    messager.printMessage(
+                        Kind.ERROR,
+                        "@WideString may only be applied to String parameters, got "
+                            + param.asType()
+                            + " on parameter '"
+                            + param.getSimpleName()
+                            + "'",
+                        param
+                    );
+                    return null;
+                }
+                wideStringParamIndices.add(paramIndex);
+            }
+            paramIndex++;
+        }
+
+        if (wideStringParamIndices.isEmpty() == false && unavailableOn.contains(Platform.WINDOWS_X64.name())) {
+            messager.printMessage(
+                Kind.ERROR,
+                "@WideString on '" + methodName + "' is invalid: enclosing @LibrarySpecification lists WINDOWS_X64 in unavailableOn",
+                method
+            );
+            return null;
         }
 
         boolean isCritical = method.getAnnotation(Critical.class) != null;
@@ -244,7 +289,8 @@ public record MethodModel(
             null,
             null,
             isProtected,
-            boundsChecks
+            boundsChecks,
+            Collections.unmodifiableSet(wideStringParamIndices)
         );
     }
 
@@ -369,7 +415,8 @@ public record MethodModel(
             structReturnSimpleName,
             packedElementSimpleName,
             isProtected,
-            List.of()
+            List.of(),
+            Set.of() // @StructFactory params cannot carry @WideString (enforced above before this call)
         );
     }
 

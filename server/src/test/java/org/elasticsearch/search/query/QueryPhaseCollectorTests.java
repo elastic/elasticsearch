@@ -40,6 +40,8 @@ import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.DummyTotalHitCountCollector;
+import org.apache.lucene.util.BitSetIterator;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -1439,7 +1441,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         }
     }
 
-    public void testCompetitiveIteratorWithAggsUnion() throws IOException {
+    public void testCompetitiveIteratorWithAggsUnionAdvance() throws IOException {
         // When both collectors provide non-null competitive iterators, the result is their union:
         // only documents that neither collector considers competitive are skipped.
         MockCollector topDocsMock = new MockCollector(randomFrom(ScoreMode.values()), null, iteratorOf(0, 2, 4));
@@ -1450,49 +1452,33 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         assertNotNull(union);
         assertTrue(topDocsMock.competitiveIteratorCalled);
         assertTrue(aggsMock.competitiveIteratorCalled);
-        assertEquals(0, union.advance(0));
-        assertEquals(1, union.advance(1));
-        assertEquals(2, union.advance(2));
-        assertEquals(3, union.advance(3));
-        assertEquals(4, union.advance(4));
-        assertEquals(5, union.advance(5));
-        assertEquals(DocIdSetIterator.NO_MORE_DOCS, union.advance(6));
+        assertEquals(1, union.advance(1));  // skips 0
+        assertEquals(4, union.advance(4));  // skips 2, 3
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, union.advance(6));  // skips 5
+    }
+
+    public void testCompetitiveIteratorWithAggsUnionNextDoc() throws IOException {
+        MockCollector topDocsMock = new MockCollector(randomFrom(ScoreMode.values()), null, iteratorOf(0, 2, 4));
+        MockCollector aggsMock = new MockCollector(randomScoreModeExceptTopScores(), null, iteratorOf(1, 3, 5));
+        QueryPhaseCollector qpc = new QueryPhaseCollector(topDocsMock, null, resolveTerminateAfterChecker(0), aggsMock, null);
+        LeafCollector leafCollector = qpc.getLeafCollector(searcher.getLeafContexts().get(0));
+        DocIdSetIterator union = leafCollector.competitiveIterator();
+        assertNotNull(union);
+        assertEquals(0, union.nextDoc());
+        assertEquals(1, union.nextDoc());
+        assertEquals(2, union.nextDoc());
+        assertEquals(3, union.nextDoc());
+        assertEquals(4, union.nextDoc());
+        assertEquals(5, union.nextDoc());
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, union.nextDoc());
     }
 
     private static DocIdSetIterator iteratorOf(int... docs) {
-        return new DocIdSetIterator() {
-            int doc = -1;
-            int idx = 0;
-
-            @Override
-            public int docID() {
-                return doc;
-            }
-
-            @Override
-            public int nextDoc() {
-                if (idx >= docs.length) {
-                    return doc = NO_MORE_DOCS;
-                }
-                return doc = docs[idx++];
-            }
-
-            @Override
-            public int advance(int target) {
-                while (idx < docs.length && docs[idx] < target) {
-                    idx++;
-                }
-                if (idx >= docs.length) {
-                    return doc = NO_MORE_DOCS;
-                }
-                return doc = docs[idx++];
-            }
-
-            @Override
-            public long cost() {
-                return docs.length;
-            }
-        };
+        FixedBitSet bits = new FixedBitSet(docs[docs.length - 1] + 1);
+        for (int doc : docs) {
+            bits.set(doc);
+        }
+        return new BitSetIterator(bits, docs.length);
     }
 
     public void testLeafCollectorsAreNotPulledOnceTerminatedAfter() throws IOException {

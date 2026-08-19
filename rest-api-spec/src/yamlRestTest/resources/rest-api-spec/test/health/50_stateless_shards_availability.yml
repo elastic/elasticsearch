@@ -60,7 +60,7 @@
   - match: { indicators.shards_availability.diagnosis.0.affected_resources.indices.0: "${_project_id_prefix_}red_index" }
 
 ---
-# Stateless reports RED (stateful is YELLOW) when every replica copy is unavailable
+# Stateless reports red (stateful is yellow) when every replica copy is unavailable
 "Red when all replicas are unassigned on a stateless cluster":
   - requires:
       cluster_features: "gte_v8.7.0"

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.integration;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -21,6 +23,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.diversification.DiversifyRetrieverBuilder;
@@ -48,6 +51,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -120,8 +124,68 @@ abstract class AbstractInferenceFieldDiversifyRetrieverIT extends ESIntegTestCas
     abstract Object generateFieldValue();
 
     public void testDiversifyOnInferenceField() throws Exception {
-        indexName = randomIndexName();
         final int docCount = randomIntBetween(10, 20);
+        prepareIndex(docCount);
+
+        for (InferenceFieldConfig inferenceField : inferenceFields) {
+            int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(inferenceField.elementType(), VECTOR_DIMENSIONS);
+            for (DenseVectorFieldMapper.ElementType elementType : DenseVectorFieldMapper.ElementType.values()) {
+                // Query vectors using any element type should work, provided that they have the same embedding length as the field's
+                // embeddings. Bit vectors pack 8 dimensions into each byte, so they can only be compared against other bit vectors.
+                if (DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, VECTOR_DIMENSIONS) != embeddingLength) {
+                    continue;
+                }
+
+                VectorData queryVector = generateRandomQueryVector(elementType);
+                assertDiversify(inferenceField, queryVector, docCount);
+            }
+        }
+    }
+
+    public void testQueryVectorRequired() throws Exception {
+        final int docCount = randomIntBetween(10, 20);
+        prepareIndex(docCount);
+
+        for (InferenceFieldConfig inferenceField : inferenceFields) {
+            DiversifyRetrieverBuilder retriever = new DiversifyRetrieverBuilder(
+                CompoundRetrieverBuilder.RetrieverSource.from(new StandardRetrieverBuilder(new MatchAllQueryBuilder())),
+                ResultDiversificationType.MMR,
+                inferenceField.fieldName(),
+                docCount,
+                docCount,
+                null,
+                null,
+                randomFloatBetween(0.0f, 1.0f, true)
+            );
+
+            SearchSourceBuilder source = new SearchSourceBuilder().retriever(retriever).size(docCount);
+            SearchRequest request = new SearchRequest(new String[] { indexName }, source);
+
+            // Each document has multiple chunk embeddings, so the diversify retriever must select the embedding closest to the query
+            // vector. It cannot do that without a query vector, so the search fails on the coordinating node when the retriever
+            // results are combined.
+            String message = describe(inferenceField);
+            ElasticsearchStatusException e = expectThrows(
+                ElasticsearchStatusException.class,
+                internalCluster().coordOnlyNodeClient().search(request)
+            );
+            assertThat(message, ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(message, e.getSuppressed().length, equalTo(1));
+            assertThat(
+                message,
+                e.getSuppressed()[0].getMessage(),
+                containsString(
+                    Strings.format(
+                        "[query_vector] or [query_vector_builder] must be supplied when diversifying on inference field [%s]",
+                        inferenceField.fieldName()
+                    )
+                )
+            );
+        }
+    }
+
+    private void prepareIndex(int docCount) throws IOException {
+        indexName = randomIndexName();
         final Map<String, String> fieldNameToInferenceIdMap = inferenceFields.stream()
             .collect(Collectors.toMap(InferenceFieldConfig::fieldName, InferenceFieldConfig::inferenceId));
         assertAcked(prepareCreate(indexName).setMapping(generateMapping(fieldNameToInferenceIdMap)));
@@ -140,20 +204,6 @@ abstract class AbstractInferenceFieldDiversifyRetrieverIT extends ESIntegTestCas
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         assertNoFailures(bulk.get(TEST_REQUEST_TIMEOUT));
         ensureGreen(indexName);
-
-        for (InferenceFieldConfig inferenceField : inferenceFields) {
-            int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(inferenceField.elementType(), VECTOR_DIMENSIONS);
-            for (DenseVectorFieldMapper.ElementType elementType : DenseVectorFieldMapper.ElementType.values()) {
-                // Query vectors using any element type should work, provided that they have the same embedding length as the field's
-                // embeddings. Bit vectors pack 8 dimensions into each byte, so they can only be compared against other bit vectors.
-                if (DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, VECTOR_DIMENSIONS) != embeddingLength) {
-                    continue;
-                }
-
-                VectorData queryVector = generateRandomQueryVector(elementType);
-                assertDiversify(inferenceField, queryVector, docCount);
-            }
-        }
     }
 
     private void assertDiversify(InferenceFieldConfig inferenceField, VectorData queryVector, int docCount) throws Exception {
@@ -174,12 +224,7 @@ abstract class AbstractInferenceFieldDiversifyRetrieverIT extends ESIntegTestCas
 
         // Issue the search from the coordinating-only node: it holds no shards, so every hit must be serialized from a data node across
         // the transport layer.
-        String message = Strings.format(
-            "Diversifying on field [%s] with task type [%s] and element type [%s]",
-            inferenceField.fieldName(),
-            inferenceField.taskType(),
-            inferenceField.elementType()
-        );
+        String message = describe(inferenceField);
         assertNoFailuresAndResponse(internalCluster().coordOnlyNodeClient().search(request), response -> {
             // Diversification trims the returned hits, but the inner retriever's total hit count is preserved
             assertThat(message, response.getHits().getTotalHits().value(), equalTo((long) docCount));
@@ -223,6 +268,15 @@ abstract class AbstractInferenceFieldDiversifyRetrieverIT extends ESIntegTestCas
             elementType,
             "api_key",
             "my_api_key"
+        );
+    }
+
+    private static String describe(InferenceFieldConfig inferenceField) {
+        return Strings.format(
+            "Diversifying on field [%s] with task type [%s] and element type [%s]",
+            inferenceField.fieldName(),
+            inferenceField.taskType(),
+            inferenceField.elementType()
         );
     }
 }

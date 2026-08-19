@@ -446,6 +446,11 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                         final ExchangeResponse resp = new ExchangeResponse(bsi);
                         final long responseBytes = resp.ramBytesUsedByPage();
                         estimatedPageSizeInBytes.getAndUpdate(curr -> Math.max(responseBytes, curr / 2));
+                        // Old remotes send ESQL warnings as transport response headers on every exchange
+                        // page fetch. Strip them here — warnings are delivered through the structured
+                        // DriverCompletionInfo.warnings path, and leaving them in the thread context would
+                        // cause duplicates when ResponseHeadersCollector merges them back later.
+                        transportService.getThreadPool().getThreadContext().takeResponseHeaders("Warning");
                         return resp;
                     }
                 }, responseExecutor)

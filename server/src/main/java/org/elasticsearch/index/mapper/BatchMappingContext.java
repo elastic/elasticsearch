@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.column.Column;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.recycler.Recycler;
@@ -85,8 +86,10 @@ public final class BatchMappingContext {
      */
     public LuceneLongColumn mappedLongColumn(String fieldName) {
         for (LuceneColumn column : columns) {
-            if (column instanceof LuceneLongColumn longColumn && fieldName.equals(longColumn.name())) {
-                return longColumn;
+            if (column instanceof Column namedColumn && fieldName.equals(namedColumn.name())) {
+                assert column instanceof LuceneLongColumn
+                    : "expected LuceneLongColumn for [" + fieldName + "] but got [" + column.getClass() + "]";
+                return (LuceneLongColumn) column;
             }
         }
         return null;

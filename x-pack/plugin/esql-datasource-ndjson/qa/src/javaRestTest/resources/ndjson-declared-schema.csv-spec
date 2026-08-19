@@ -1,0 +1,62 @@
+// NDJSON-only spec: a declaration binds to the physical JSON KEY — a third binding path, distinct from a text
+// header's names and from a columnar footer's names.
+//
+// See csv-declared-schema.csv-spec (esql-datasource-csv/qa) for how a declaration is modelled in a `dataset:`
+// directive and why `required_capability: dataset_declared_schema` must never appear.
+//
+// employees_no_mv.ndjson is generated from the typed-header CSV, so each record's keys are the CSV column names
+// and the values carry JSON types: emp_no a number, first_name a string, salary a number.
+//
+// Every declared `path` here names an UNDOTTED key deliberately. A dotted declared path is currently broken on
+// this format — `prepareSchema` turns it into nested traversal because `hasDottedPrefixConflict` consults only
+// the declaration and never the file — so dotted binding gets a case once that is fixed, not before.
+
+// Rename and widen by JSON key: the logical names read differently-named keys, and salary's JSON number is read
+// as a 64-bit integer rather than the integer an undeclared read reports.
+strictDeclaredSchemaBindsByJsonKeyOnNdjson
+required_capability: dataset_in_from_command
+dataset: employees_declared_ndjson: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "name": {"type": "keyword", "path": "first_name"}, "pay": {"type": "long", "path": "salary"}}}}
+
+FROM employees_declared_ndjson
+| SORT id
+| LIMIT 3;
+
+id:long | name:keyword | pay:long
+10001   | "Georgi"     | 57305
+10002   | "Bezalel"    | 56371
+10003   | "Parto"      | 61805
+;
+
+// Coercion on this format: a JSON number read as a declared double and a JSON boolean read as declared text. Both
+// are real casts — an undeclared read reports salary as an integer and still_hired as a boolean, so neither output
+// type is what inference would pick. Two logical columns may not share one physical column, so each reads its own.
+strictDeclaredCoercionFromJsonNumberAndBooleanOnNdjson
+required_capability: dataset_in_from_command
+dataset: employees_declared_ndjson_coerce: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "pay_double": {"type": "double", "path": "salary"}, "hired_text": {"type": "keyword", "path": "still_hired"}}}}
+
+FROM employees_declared_ndjson_coerce
+| SORT id
+| LIMIT 3;
+
+id:long | pay_double:double | hired_text:keyword
+10001   | 57305.0           | "true"
+10002   | 56371.0           | "true"
+10003   | 61805.0           | "false"
+;
+
+// Overlay (`dynamic: true`): the declaration retypes one key and inference supplies every other key. `salary` is
+// declared without a `path`, so it binds to the key of the same name — the declaration's only effect is the type.
+overlayDeclaredSchemaRetypesOneKeyOnNdjson
+required_capability: dataset_in_from_command
+dataset: employees_overlay_ndjson: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "true", "properties": {"salary": {"type": "double"}}}}
+
+FROM employees_overlay_ndjson
+| KEEP emp_no, first_name, salary
+| SORT emp_no
+| LIMIT 3;
+
+emp_no:integer | first_name:keyword | salary:double
+10001          | "Georgi"           | 57305.0
+10002          | "Bezalel"          | 56371.0
+10003          | "Parto"            | 61805.0
+;

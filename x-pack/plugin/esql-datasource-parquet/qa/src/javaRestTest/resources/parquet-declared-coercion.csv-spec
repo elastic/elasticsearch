@@ -44,3 +44,20 @@ id:long | change:double
 10002   | -7.23
 10003   | 14.68
 ;
+
+// Casting TO string — the widest row in the coercion matrix: `supports` admits string, any numeric, boolean and
+// ip as sources for a declared keyword. An undeclared read reports salary as an integer and still_hired as a
+// boolean, so the declared type is what produces text here.
+strictDeclaredNumericAndBooleanReadAsKeywordOnParquet
+required_capability: dataset_in_from_command
+dataset: employees_declared_tostring: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "pay_text": {"type": "keyword", "path": "salary"}, "hired_text": {"type": "keyword", "path": "still_hired"}}}}
+
+FROM employees_declared_tostring
+| SORT id
+| LIMIT 3;
+
+id:long | pay_text:keyword | hired_text:keyword
+10001   | "57305"          | "true"
+10002   | "56371"          | "true"
+10003   | "61805"          | "false"
+;

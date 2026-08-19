@@ -36,7 +36,6 @@ import java.util.Set;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
-import static org.elasticsearch.rest.RestController.CLUSTER_NAME_HTTP_HEADER;
 import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER;
 import static org.elasticsearch.rest.RestController.ERROR_TRACE_DEFAULT;
 
@@ -250,9 +249,6 @@ public final class RestResponse implements Releasable {
             }
             if (headers.containsKey(ELASTIC_PRODUCT_HTTP_HEADER)) {
                 headers = Maps.copyMapWithRemovedEntry(headers, ELASTIC_PRODUCT_HTTP_HEADER);
-            }
-            if (headers.containsKey(CLUSTER_NAME_HTTP_HEADER)) {
-                headers = Maps.copyMapWithRemovedEntry(headers, CLUSTER_NAME_HTTP_HEADER);
             }
         }
         return headers;

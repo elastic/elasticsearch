@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -65,6 +66,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -387,17 +389,91 @@ public class DefaultRestChannelTests extends ESTestCase {
         )) {
             try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
                 threadPool.getThreadContext().addResponseHeader("X-elastic-product", "some product response header");
-                threadPool.getThreadContext().addResponseHeader("Elastic-Cluster-Name", "some-cluster-name");
                 threadPool.getThreadContext().addResponseHeader("Warning", "some product response header");
                 String someRandomResponseHeader = "some-random-response-header-" + randomAlphaOfLength(8);
                 threadPool.getThreadContext().addResponseHeader(someRandomResponseHeader, "should transpire to http response");
                 channel.sendResponse(response);
                 assertThat(responseReference.get().containsHeader(someRandomResponseHeader), is(true));
                 assertThat(responseReference.get().containsHeader("X-elastic-product"), is(false));
-                assertThat(responseReference.get().containsHeader("Elastic-Cluster-Name"), is(false));
                 assertThat(responseReference.get().containsHeader("Warning"), is(false));
             }
         }
+    }
+
+    public void testClusterNameHeaderDisabledByDefault() {
+        final HttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
+        final DefaultRestChannel channel = new DefaultRestChannel(
+            httpChannel,
+            httpRequest,
+            request,
+            bigArrays,
+            HttpHandlingSettings.fromSettings(Settings.EMPTY),
+            threadPool.getThreadContext(),
+            CorsHandler.fromSettings(Settings.EMPTY),
+            httpTracer,
+            instrumentation
+        );
+
+        channel.sendResponse(testRestResponse());
+
+        final ArgumentCaptor<TestHttpResponse> responseCaptor = ArgumentCaptor.forClass(TestHttpResponse.class);
+        verify(httpChannel).sendResponse(responseCaptor.capture(), any());
+        assertThat(responseCaptor.getValue().containsHeader(DefaultRestChannel.CLUSTER_NAME_HEADER), is(false));
+    }
+
+    public void testClusterNameHeaderEmittedWhenEnabled() {
+        final String clusterName = randomAlphaOfLengthBetween(3, 12);
+        final Settings settings = Settings.builder()
+            .put(HttpTransportSettings.SETTING_HTTP_CLUSTER_NAME_HEADER_ENABLED.getKey(), true)
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName)
+            .build();
+        final HttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
+        final DefaultRestChannel channel = new DefaultRestChannel(
+            httpChannel,
+            httpRequest,
+            request,
+            bigArrays,
+            HttpHandlingSettings.fromSettings(settings),
+            threadPool.getThreadContext(),
+            CorsHandler.fromSettings(settings),
+            httpTracer,
+            instrumentation
+        );
+
+        channel.sendResponse(testRestResponse());
+
+        final ArgumentCaptor<TestHttpResponse> responseCaptor = ArgumentCaptor.forClass(TestHttpResponse.class);
+        verify(httpChannel).sendResponse(responseCaptor.capture(), any());
+        assertThat(responseCaptor.getValue().headers().get(DefaultRestChannel.CLUSTER_NAME_HEADER), contains(clusterName));
+    }
+
+    public void testClusterNameHeaderWithheldFromUnauthenticatedResponses() {
+        final String clusterName = randomAlphaOfLengthBetween(3, 12);
+        final Settings settings = Settings.builder()
+            .put(HttpTransportSettings.SETTING_HTTP_CLUSTER_NAME_HEADER_ENABLED.getKey(), true)
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName)
+            .build();
+        final HttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
+        final DefaultRestChannel channel = new DefaultRestChannel(
+            httpChannel,
+            httpRequest,
+            request,
+            bigArrays,
+            HttpHandlingSettings.fromSettings(settings),
+            threadPool.getThreadContext(),
+            CorsHandler.fromSettings(settings),
+            httpTracer,
+            instrumentation
+        );
+
+        channel.sendResponse(new RestResponse(randomFrom(RestStatus.UNAUTHORIZED, RestStatus.FORBIDDEN), "unauthenticated"));
+
+        final ArgumentCaptor<TestHttpResponse> responseCaptor = ArgumentCaptor.forClass(TestHttpResponse.class);
+        verify(httpChannel).sendResponse(responseCaptor.capture(), any());
+        assertThat(responseCaptor.getValue().containsHeader(DefaultRestChannel.CLUSTER_NAME_HEADER), is(false));
     }
 
     public void testUnsupportedHttpMethod() {

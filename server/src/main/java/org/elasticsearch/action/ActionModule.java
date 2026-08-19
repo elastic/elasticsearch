@@ -213,7 +213,6 @@ import org.elasticsearch.action.termvectors.TransportShardMultiTermsVectorAction
 import org.elasticsearch.action.termvectors.TransportTermVectorsAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -235,7 +234,6 @@ import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
 import org.elasticsearch.health.stats.HealthApiStatsAction;
 import org.elasticsearch.health.stats.HealthApiStatsTransportAction;
 import org.elasticsearch.http.HttpPreRequest;
-import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.indices.SystemIndices;
@@ -532,17 +530,7 @@ public class ActionModule extends AbstractModule {
         if (customController != null) {
             restController = customController;
         } else {
-            final String clusterNameHeaderValue = HttpTransportSettings.SETTING_HTTP_CLUSTER_NAME_HEADER_ENABLED.get(settings)
-                ? ClusterName.CLUSTER_NAME_SETTING.get(settings).value()
-                : null;
-            restController = new RestController(
-                restInterceptor,
-                nodeClient,
-                circuitBreakerService,
-                usageService,
-                telemetryProvider,
-                clusterNameHeaderValue
-            );
+            restController = new RestController(restInterceptor, nodeClient, circuitBreakerService, usageService, telemetryProvider);
         }
         reservedClusterStateService = new ReservedClusterStateService(
             clusterService,

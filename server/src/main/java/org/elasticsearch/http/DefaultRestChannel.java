@@ -48,6 +48,15 @@ public class DefaultRestChannel extends AbstractRestChannel {
     static final String CONTENT_TYPE = "content-type";
     static final String CONTENT_LENGTH = "content-length";
     static final String SET_COOKIE = "set-cookie";
+    /**
+     * Response header carrying this node's {@code cluster.name}, emitted only when
+     * {@link HttpTransportSettings#SETTING_HTTP_CLUSTER_NAME_HEADER_ENABLED} is enabled. This is the self-managed
+     * equivalent of the {@code X-Found-Handling-Cluster} header added by the Elastic Cloud proxy, and deliberately
+     * avoids the discouraged {@code X-} prefix (RFC 6648). It is withheld from unauthenticated responses (matching how
+     * {@link org.elasticsearch.rest.RestResponse#filterHeaders} treats the {@code X-elastic-product} header) so the
+     * cluster name is not exposed to callers that failed authentication.
+     */
+    static final String CLUSTER_NAME_HEADER = "Elastic-Cluster-Name";
 
     private final HttpRequest httpRequest;
     private final Recycler<BytesRef> recycler;
@@ -160,6 +169,15 @@ public class DefaultRestChannel extends AbstractRestChannel {
             addCustomHeaders(httpResponse, restResponse.filterHeaders(threadContext.getResponseHeaders()));
 
             HttpUtils.addDateHeader(httpResponse, Instant.now());
+
+            // Optionally surface the cluster name so clients (e.g. telemetry agents) can capture it without an extra
+            // request, mirroring the X-Found-Handling-Cluster header added by the Elastic Cloud proxy. It is withheld
+            // from unauthenticated responses so the cluster name is not disclosed to callers that failed authentication.
+            if (settings.clusterNameHeaderValue() != null
+                && restResponse.status() != RestStatus.UNAUTHORIZED
+                && restResponse.status() != RestStatus.FORBIDDEN) {
+                setHeaderField(httpResponse, CLUSTER_NAME_HEADER, settings.clusterNameHeaderValue());
+            }
 
             // If our response doesn't specify a content-type header, set one
             setHeaderField(httpResponse, CONTENT_TYPE, restResponse.contentType(), false);

@@ -9,8 +9,11 @@
 
 package org.elasticsearch.http;
 
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_CLUSTER_NAME_HEADER_ENABLED;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION_LEVEL;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED;
@@ -20,6 +23,11 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEAD
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_RESET_COOKIES;
 
+/**
+ * @param clusterNameHeaderValue the {@code cluster.name} to emit in the {@code Elastic-Cluster-Name} response header,
+ *                               or {@code null} when {@link HttpTransportSettings#SETTING_HTTP_CLUSTER_NAME_HEADER_ENABLED}
+ *                               is disabled (the default).
+ */
 public record HttpHandlingSettings(
     int maxContentLength,
     int maxChunkSize,
@@ -28,7 +36,8 @@ public record HttpHandlingSettings(
     boolean resetCookies,
     boolean compression,
     int compressionLevel,
-    boolean detailedErrorsEnabled
+    boolean detailedErrorsEnabled,
+    @Nullable String clusterNameHeaderValue
 ) {
 
     public static HttpHandlingSettings fromSettings(Settings settings) {
@@ -40,7 +49,8 @@ public record HttpHandlingSettings(
             SETTING_HTTP_RESET_COOKIES.get(settings),
             SETTING_HTTP_COMPRESSION.get(settings),
             SETTING_HTTP_COMPRESSION_LEVEL.get(settings),
-            SETTING_HTTP_DETAILED_ERRORS_ENABLED.get(settings)
+            SETTING_HTTP_DETAILED_ERRORS_ENABLED.get(settings),
+            SETTING_HTTP_CLUSTER_NAME_HEADER_ENABLED.get(settings) ? ClusterName.CLUSTER_NAME_SETTING.get(settings).value() : null
         );
     }
 }

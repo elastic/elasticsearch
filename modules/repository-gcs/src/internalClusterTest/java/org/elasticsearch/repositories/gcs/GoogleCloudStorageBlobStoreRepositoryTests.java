@@ -45,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -61,9 +62,13 @@ import org.threeten.bp.Duration;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -75,6 +80,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.IntStream;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.common.io.Streams.readFully;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
@@ -333,6 +339,76 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     @Override
     public void testRequestStats() throws Exception {
         super.testRequestStats();
+    }
+
+    /**
+     * Guards the {@code sun.net.httpserver.maxReqTime} setting applied to test JVMs by {@code ElasticsearchTestBasePlugin}.
+     *
+     * <p>Without it that setting defaults to {@code -1}, meaning a worker will block forever reading a request whose
+     * header block never terminates. The mock server runs on a two-thread executor and {@code sun.net.httpserver} will
+     * not dispatch a second exchange for a connection that already has one in flight, so a single such request makes
+     * the fixture unresponsive until the client's own read timeout fires — which is what failed
+     * {@link #testSnapshotWithLargeSegmentFiles} in issue 156468, by way of a shard snapshot failing and leaving the
+     * snapshot {@code PARTIAL}.
+     *
+     * <p>The wedging sockets are held open for the whole test: the only thing that can restore service is the server
+     * timing those requests out by itself. The test first confirms the fixture really is stalled, so that it cannot
+     * pass vacuously if the executor is ever given more threads.
+     */
+    public void testMockServerRecoversFromRequestThatNeverCompletes() throws Exception {
+        final String configured = System.getProperty("sun.net.httpserver.maxReqTime");
+        final int maxReqTimeSeconds = configured == null ? -1 : Integer.parseInt(configured);
+        assumeTrue("requires sun.net.httpserver.maxReqTime > 0, normally set for all test JVMs by the build", maxReqTimeSeconds > 0);
+
+        final InetSocketAddress address = httpServerAddress();
+        final List<Socket> wedgingSockets = new ArrayList<>();
+        try {
+            // One per mock server worker thread, so that no worker is left able to serve anything.
+            for (int i = 0; i < MOCK_SERVER_WORKER_THREADS; i++) {
+                final Socket socket = new Socket(address.getAddress(), address.getPort());
+                wedgingSockets.add(socket);
+                final OutputStream out = socket.getOutputStream();
+                // A request line and headers but no terminating blank line. Deliberately a plain list request: when
+                // these sockets are eventually closed the server treats EOF as end-of-head and runs the handler, so it
+                // has to be something the fixture can serve harmlessly.
+                out.write(("GET /storage/v1/b/bucket/o?prefix=never-completes-" + i + " HTTP/1.1\r\n").getBytes(StandardCharsets.US_ASCII));
+                out.write("Host: localhost\r\n".getBytes(StandardCharsets.US_ASCII));
+                out.write((CLIENT_ID_HEADER + ": never-completes\r\n").getBytes(StandardCharsets.US_ASCII));
+                out.flush();
+            }
+
+            assertBusy(
+                () -> assertFalse("fixture should be stalled while every worker is wedged", isServerResponsive(address, 2_000)),
+                30,
+                SECONDS
+            );
+
+            assertBusy(
+                () -> assertTrue(
+                    "fixture should recover by itself once maxReqTime closes the wedged requests",
+                    isServerResponsive(address, 5_000)
+                ),
+                maxReqTimeSeconds * 3L + 30,
+                SECONDS
+            );
+        } finally {
+            IOUtils.closeWhileHandlingException(wedgingSockets);
+        }
+    }
+
+    /** @return whether a well-formed request on a fresh connection is answered within {@code timeoutMillis}. */
+    private static boolean isServerResponsive(InetSocketAddress address, int timeoutMillis) throws IOException {
+        try (Socket probe = new Socket(address.getAddress(), address.getPort())) {
+            probe.setSoTimeout(timeoutMillis);
+            final OutputStream out = probe.getOutputStream();
+            out.write("GET /storage/v1/b/bucket/o?prefix=responsiveness-probe HTTP/1.1\r\n".getBytes(StandardCharsets.US_ASCII));
+            out.write((CLIENT_ID_HEADER + ": responsiveness-probe\r\n").getBytes(StandardCharsets.US_ASCII));
+            out.write("Host: localhost\r\n\r\n".getBytes(StandardCharsets.US_ASCII));
+            out.flush();
+            return probe.getInputStream().read() != -1;
+        } catch (SocketTimeoutException e) {
+            return false;
+        }
     }
 
     // todo(szybia): remove once problem is solved. issue #152286: SocketTimeoutException on GCP request.

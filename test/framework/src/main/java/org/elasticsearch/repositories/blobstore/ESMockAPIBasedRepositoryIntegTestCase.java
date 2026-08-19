@@ -79,23 +79,36 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
 
     private static final byte[] BUFFER = new byte[1024];
 
+    /**
+     * Maximum number of requests the mock server will service concurrently. Low, so tests exercise contention, which
+     * also means a single request that never finishes arriving can starve the fixture entirely — see
+     * {@code sun.net.httpserver.maxReqTime}, set for test JVMs by the build.
+     */
+    protected static final int MOCK_SERVER_WORKER_THREADS = 2;
+
     private static HttpServer httpServer;
     private static ExecutorService executorService;
     protected Map<String, HttpHandler> handlers;
+
+    private static final String WORKER_THREAD_NAME_MARKER = ESMockAPIBasedRepositoryIntegTestCase.class.getName();
+
+    /**
+     * Keeps the stall described in {@link MockHttpServerStallWatchdog} observable now that
+     * {@code sun.net.httpserver.maxReqTime} stops it from failing tests. Warns only; never fails a test.
+     */
+    private static final MockHttpServerStallWatchdog stallWatchdog = new MockHttpServerStallWatchdog(WORKER_THREAD_NAME_MARKER);
 
     private static final Logger log = LogManager.getLogger(ESMockAPIBasedRepositoryIntegTestCase.class);
 
     @BeforeClass
     public static void startHttpServer() throws Exception {
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        ThreadFactory threadFactory = TestEsExecutors.testOnlyDaemonThreadFactory(
-            "[" + ESMockAPIBasedRepositoryIntegTestCase.class.getName() + "]"
-        );
+        ThreadFactory threadFactory = TestEsExecutors.testOnlyDaemonThreadFactory("[" + WORKER_THREAD_NAME_MARKER + "]");
         // the EncryptedRepository can require more than one connection open at one time
         executorService = EsExecutors.newScaling(
             ESMockAPIBasedRepositoryIntegTestCase.class.getName(),
             1,
-            2,
+            MOCK_SERVER_WORKER_THREADS,
             60,
             TimeUnit.SECONDS,
             true,
@@ -113,6 +126,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
             });
         });
         httpServer.start();
+        stallWatchdog.start();
     }
 
     @Before
@@ -124,6 +138,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
 
     @AfterClass
     public static void stopHttpServer() {
+        stallWatchdog.stop();
         httpServer.stop(0);
         ThreadPool.terminate(executorService, 10, TimeUnit.SECONDS);
         httpServer = null;
@@ -252,6 +267,11 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
             }
         }
         return Collections.emptyMap();
+    }
+
+    /** The mock server's address, for tests that need to drive it directly over sockets rather than through a client. */
+    protected static InetSocketAddress httpServerAddress() {
+        return httpServer.getAddress();
     }
 
     protected static String httpServerUrl() {
@@ -429,6 +449,8 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
 
         @Override
         public void handle(HttpExchange exchange) throws IOException {
+            final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI();
+            stallWatchdog.requestStarted(request);
             try {
                 handler.handle(exchange);
             } catch (Throwable t) {
@@ -442,6 +464,8 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
                     t
                 );
                 throw t;
+            } finally {
+                stallWatchdog.requestFinished(request);
             }
         }
 

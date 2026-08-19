@@ -224,6 +224,19 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             test.systemProperty("io.netty.noKeySetOptimization", "true");
             test.systemProperty("io.netty.recycler.maxCapacityPerThread", "0");
 
+            // Bound how long a com.sun.net.httpserver worker may spend reading a single request. This defaults to -1,
+            // meaning no limit, so a request whose header block never completes parks a server thread indefinitely.
+            // The mock HTTP servers used by the blob store repository tests run on a 2-thread executor, so a single
+            // such request makes the whole fixture unresponsive until the client's own read timeout fires, failing the
+            // test. See https://github.com/elastic/elasticsearch/issues/156468. 30s is far longer than any legitimate
+            // request to an in-process mock server and well under the clients' read timeouts.
+            // Set on the JVM command line rather than from test code because sun.net.httpserver.ServerConfig reads
+            // this in its static initialiser, so setting it programmatically is silently ignored once any HttpServer
+            // has been created in the JVM.
+            if (System.getProperty("sun.net.httpserver.maxReqTime") == null) {
+                test.systemProperty("sun.net.httpserver.maxReqTime", "30");
+            }
+
             test.testLogging(logging -> {
                 logging.setShowExceptions(true);
                 logging.setShowCauses(true);

@@ -9,15 +9,15 @@ package org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.TimestampComponentType;
+import org.junit.BeforeClass;
 
 public class BitmaskRegistryTests extends ESTestCase {
 
-    private BitmaskRegistry<SubTokenType> commonRegistry;
-    private SubTokenType type1, type2, type3;
+    private static BitmaskRegistry<SubTokenType> commonRegistry;
+    private static SubTokenType type1, type2, type3;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @BeforeClass
+    public static void setUpRegistry() {
         commonRegistry = new BitmaskRegistry<>();
         type1 = new SubTokenType("Type1", null, new int[] { 4, 8, 16 }, TimestampComponentType.NA);
         type2 = new SubTokenType("Type2", null, new int[] { 32, 64, 128 }, TimestampComponentType.NA);

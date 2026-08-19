@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.logsdb.patternedtext.charparser.api;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.TimestampFormat;
+import org.junit.BeforeClass;
 
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -21,9 +22,8 @@ public class ParserTests extends ESTestCase {
     private static Parser parser;
     private static StringBuilder patternedMessage;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @BeforeClass
+    public static void setUpParser() throws Exception {
         parser = ParserFactory.createParser();
         patternedMessage = new StringBuilder();
     }

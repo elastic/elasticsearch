@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.EncodingType;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,9 +22,8 @@ public class PatternUtilsParseMultiTokenFormatTests extends ESTestCase {
     private List<TokenType> tokenTypes;
     private Set<Character> boundaryChars;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setUpTypes() {
         this.tokenTypes = createTestTokenTypes();
         this.boundaryChars = Schema.getInstance().getAllTokenBoundaryChars();
     }

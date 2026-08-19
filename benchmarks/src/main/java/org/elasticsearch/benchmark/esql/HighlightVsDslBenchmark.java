@@ -192,12 +192,25 @@ public class HighlightVsDslBenchmark {
     public void run(Blackhole bh) throws IOException {
         if (highlightOperator != null) {
             highlightOperator.addInput(page);
-            bh.consume(highlightOperator.getOutput());
+            Page output = highlightOperator.getOutput();
+            bh.consume(output);
+            closeAppendedBlocks(output);
         } else {
             for (int i = 0; i < BLOCK_LENGTH; i++) {
                 final String content = contents[i];
                 bh.consume(dslHighlighter.highlightField(leafReader, i, () -> content));
             }
+        }
+    }
+
+    /**
+     * Closes blocks appended by {@link HighlightOperator}, leaving the shared input block
+     * alive for later invocations. {@link Page#releaseBlocks()} would also free the input
+     * because {@link Page#appendBlocks} aliases it without {@code incRef}.
+     */
+    private static void closeAppendedBlocks(Page output) {
+        for (int i = 1; i < output.getBlockCount(); i++) {
+            output.getBlock(i).close();
         }
     }
 
@@ -251,6 +264,9 @@ public class HighlightVsDslBenchmark {
         builder.withFormatter(new CustomPassageFormatter("<em>", "</em>", new DefaultEncoder(), maxPassages));
         builder.withBreakIterator(() -> BreakIterator.getSentenceInstance(Locale.ROOT));
         builder.withFieldMatcher(FIELD::equals);
+        // Default `text` mappings index positions without offsets, so production Query DSL
+        // highlighting uses ANALYSIS. POSTINGS is only selected when the mapping sets
+        // `index_options: offsets`. Keep ANALYSIS so this side measures that common path.
         return new CustomUnifiedHighlighter(
             builder,
             UnifiedHighlighter.OffsetSource.ANALYSIS,
@@ -393,8 +409,7 @@ public class HighlightVsDslBenchmark {
                     sawTag |= block.getBytesRef(block.getFirstValueIndex(i), scratch).utf8ToString().contains("<em>");
                 }
             }
-            // Keep the input block for later benchmark iterations.
-            block.close();
+            closeAppendedBlocks(output);
         } else {
             for (int i = 0; i < BLOCK_LENGTH; i++) {
                 final String content = contents[i];

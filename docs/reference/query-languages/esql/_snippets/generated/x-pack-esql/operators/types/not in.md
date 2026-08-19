@@ -9,6 +9,7 @@
 | cartesian_shape | cartesian_shape | boolean |
 | date_range {applies_to}`stack: preview 9.5.0` | date_range {applies_to}`stack: preview 9.5.0` | boolean |
 | double | double | boolean |
+| double_range {applies_to}`stack: preview 9.6.0` | double_range {applies_to}`stack: preview 9.6.0` | boolean |
 | geo_point | geo_point | boolean |
 | geo_shape | geo_shape | boolean |
 | integer | integer | boolean |

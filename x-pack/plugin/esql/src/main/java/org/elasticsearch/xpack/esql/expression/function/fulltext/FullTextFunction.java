@@ -704,10 +704,10 @@ public abstract class FullTextFunction extends Function
         return (logicalPlan, failures) -> {
             if (logicalPlan instanceof Filter f) {
                 checkFullTextFunctionsInFilter(f, failures, true);
-                // After optimization, if this filter is still directly above a coordinator join, the push-down
-                // optimizer could not move it to the data nodes. Full-text functions require a Lucene shard
-                // context that the coordinator does not have for the data-side index.
-                if (f.child() instanceof Join join && join.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR) {
+                // After optimization, if a coordinator-executed join still sits anywhere beneath this filter
+                // (not just as a direct child), the push-down optimizer could not move the filter to the data
+                // nodes. Full-text functions require a Lucene shard context that the coordinator does not have.
+                if (f.anyMatch(p -> p instanceof Join join && join.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR)) {
                     failures.add(
                         fail(
                             this,

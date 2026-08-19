@@ -9,100 +9,155 @@
 
 package org.elasticsearch.columnar.numeric;
 
-import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.DataOutput;
+import org.apache.lucene.util.ArrayUtil;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 
 /**
- * Write-side buffer for per-block {@link BlockTransform} stage metadata. Implements
- * {@link MetadataWriter} by accumulating bytes in a {@link ByteBuffersDataOutput}; call
- * {@link #reset()} between blocks and {@link #copyTo(DataOutput)} to flush to the main output.
+ * In-memory auto-growing buffer for stage metadata. Implements {@link MetadataWriter}
+ * for use during encoding, and provides {@link #writeTo} for flushing to a
+ * {@link DataOutput}.
+ *
+ * <p>The byte layout for {@link #writeInt} and {@link #writeLong} match Lucene's {@code DataOutput.writeLong}
+ * format (two little-endian ints, low int first) for compatibility with
+ * {@code DataInput.readLong}.
  */
 final class MetadataBuffer implements MetadataWriter {
 
-    private final ByteBuffersDataOutput buf = new ByteBuffersDataOutput();
+    private static final int DEFAULT_CAPACITY = 64;
+    private static final int MAX_VINT_BYTES = 5;
+    private static final int MAX_VLONG_BYTES = 10;
 
-    /** Clears the buffer so it is ready for the next block. */
-    void reset() {
-        buf.reset();
+    private byte[] data;
+    private int dataSize;
+
+    MetadataBuffer() {
+        this(DEFAULT_CAPACITY);
     }
 
-    /** Copies accumulated bytes to {@code out}. */
-    void copyTo(DataOutput out) throws IOException {
-        buf.copyTo(out);
+    /**
+     * Creates a metadata buffer with the specified initial capacity.
+     *
+     * @param initialCapacity the initial buffer capacity in bytes
+     */
+    MetadataBuffer(int initialCapacity) {
+        this.data = new byte[initialCapacity];
+        this.dataSize = 0;
     }
 
-    /** Returns the number of bytes accumulated in the buffer. */
-    long size() {
-        return buf.size();
+    /**
+     * Returns the number of bytes currently stored.
+     *
+     * @return the buffer size in bytes
+     */
+    public int size() {
+        return dataSize;
     }
 
-    /** Returns a copy of the accumulated bytes as a new array. */
-    byte[] toArrayCopy() {
-        return buf.toArrayCopy();
+    /**
+     * Writes all accumulated bytes to the given output.
+     *
+     * @param out the output to write to
+     */
+    public void writeTo(final DataOutput out) throws IOException {
+        out.writeBytes(data, dataSize);
     }
 
-    @Override
-    public MetadataWriter writeByte(byte v) {
-        buf.writeByte(v);
-        return this;
+    /** Resets the buffer for reuse without releasing the backing array. */
+    public void clear() {
+        dataSize = 0;
     }
 
-    @Override
-    public MetadataWriter writeInt(int v) {
-        buf.writeInt(v);
-        return this;
+    /**
+     * Returns the raw backing array. Only the first {@link #size()} bytes contain valid data;
+     * the array may be longer due to growth pre-allocation. Do not retain a reference across a
+     * {@link #clear()} call or any subsequent write, as those may replace the backing array.
+     *
+     * @return the raw backing array; valid range is {@code [0, size())}
+     */
+    public byte[] getBytes() {
+        return data;
     }
 
-    @Override
-    public MetadataWriter writeLong(long v) {
-        buf.writeLong(v);
-        return this;
-    }
-
-    @Override
-    public MetadataWriter writeVInt(int v) {
-        try {
-            buf.writeVInt(v);
-        } catch (IOException e) {
-            // Writing to memory via ByteBuffersDataOutput, so this should never happen
-            throw new UncheckedIOException(e);
+    private void ensureCapacity(int additional) {
+        if (data.length < dataSize + additional) {
+            data = ArrayUtil.grow(data, dataSize + additional);
         }
+    }
+
+    @Override
+    public MetadataWriter writeByte(byte value) {
+        ensureCapacity(Byte.BYTES);
+        data[dataSize++] = value;
         return this;
     }
 
     @Override
-    public MetadataWriter writeVLong(long v) {
-        try {
-            buf.writeVLong(v);
-        } catch (IOException e) {
-            // Writing to memory via ByteBuffersDataOutput, so this should never happen
-            throw new UncheckedIOException(e);
-        }
+    public MetadataWriter writeZInt(int value) {
+        return encodeVInt((value >> 31) ^ (value << 1));
+    }
+
+    @Override
+    public MetadataWriter writeZLong(long value) {
+        return encodeVLong((value >> 63) ^ (value << 1));
+    }
+
+    @Override
+    public MetadataWriter writeLong(long value) {
+        ensureCapacity(Long.BYTES);
+        final int lo = (int) value;
+        final int hi = (int) (value >> 32);
+        data[dataSize++] = (byte) lo;
+        data[dataSize++] = (byte) (lo >> 8);
+        data[dataSize++] = (byte) (lo >> 16);
+        data[dataSize++] = (byte) (lo >> 24);
+        data[dataSize++] = (byte) hi;
+        data[dataSize++] = (byte) (hi >> 8);
+        data[dataSize++] = (byte) (hi >> 16);
+        data[dataSize++] = (byte) (hi >> 24);
         return this;
     }
 
     @Override
-    public MetadataWriter writeZInt(int v) {
-        try {
-            buf.writeZInt(v);
-        } catch (IOException e) {
-            // Writing to memory via ByteBuffersDataOutput, so this should never happen
-            throw new UncheckedIOException(e);
-        }
+    public MetadataWriter writeInt(int value) {
+        ensureCapacity(Integer.BYTES);
+        data[dataSize++] = (byte) value;
+        data[dataSize++] = (byte) (value >> 8);
+        data[dataSize++] = (byte) (value >> 16);
+        data[dataSize++] = (byte) (value >> 24);
         return this;
     }
 
     @Override
-    public MetadataWriter writeZLong(long v) {
-        try {
-            buf.writeZLong(v);
-        } catch (IOException e) {
-            // Writing to memory via ByteBuffersDataOutput, so this should never happen
-            throw new UncheckedIOException(e);
+    public MetadataWriter writeVInt(int value) {
+        assert value >= 0 : "writeVInt requires non-negative value, got: " + value + ". Use writeZInt for signed values";
+        return encodeVInt(value);
+    }
+
+    @Override
+    public MetadataWriter writeVLong(long value) {
+        assert value >= 0 : "writeVLong requires non-negative value, got: " + value + ". Use writeZLong for signed values";
+        return encodeVLong(value);
+    }
+
+    private MetadataWriter encodeVInt(int value) {
+        ensureCapacity(MAX_VINT_BYTES);
+        while ((value & ~0x7F) != 0) {
+            data[dataSize++] = (byte) ((value & 0x7F) | 0x80);
+            value >>>= 7;
         }
+        data[dataSize++] = (byte) value;
+        return this;
+    }
+
+    private MetadataWriter encodeVLong(long value) {
+        ensureCapacity(MAX_VLONG_BYTES);
+        for (int i = 0; i < 9 && (value & ~0x7FL) != 0; i++) {
+            data[dataSize++] = (byte) ((value & 0x7FL) | 0x80L);
+            value >>>= 7;
+        }
+        data[dataSize++] = (byte) value;
         return this;
     }
 }

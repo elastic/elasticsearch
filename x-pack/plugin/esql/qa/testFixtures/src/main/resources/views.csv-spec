@@ -2428,3 +2428,19 @@ language_code:integer | language_name:keyword | _index:keyword
 4                     | German                | languages
 4                     | German                | view_languages_meta_index
 ;
+
+deeplyNestedViewsWithMetadata
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_metadata_behavior_changes
+
+FROM view_languages_nested_a METADATA _index
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword | _index:keyword          | viewC_index:keyword | viewB_index:keyword       | viewA_index:keyword
+1                     | English               | view_languages_nested_a | languages           | view_languages_nested_c   | view_languages_nested_b
+2                     | French                | view_languages_nested_a | languages           | view_languages_nested_c   | view_languages_nested_b
+3                     | Spanish               | view_languages_nested_a | languages           | view_languages_nested_c   | view_languages_nested_b
+4                     | German                | view_languages_nested_a | languages           | view_languages_nested_c   | view_languages_nested_b
+;

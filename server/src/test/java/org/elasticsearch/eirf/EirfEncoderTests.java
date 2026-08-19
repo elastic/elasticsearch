@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.sourcebatch.InlineArrayReader;
+import org.elasticsearch.sourcebatch.SourceRowToXContent;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.test.ESTestCase;
@@ -222,7 +223,7 @@ public class EirfEncoderTests extends ESTestCase {
         EirfBatch batch = EirfEncoder.encode(sources, XContentType.JSON);
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
-        EirfRowToXContent.writeRow(batch.getRowReader(0), batch.schema(), builder);
+        SourceRowToXContent.writeRow(batch.getRowReader(0), batch.schema(), builder);
         builder.close();
         Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
         List<Object> items = (List<Object>) map.get("items");
@@ -244,7 +245,7 @@ public class EirfEncoderTests extends ESTestCase {
         EirfBatch batch = EirfEncoder.encode(sources, XContentType.JSON);
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
-        EirfRowToXContent.writeRow(batch.getRowReader(0), batch.schema(), builder);
+        SourceRowToXContent.writeRow(batch.getRowReader(0), batch.schema(), builder);
         builder.close();
         Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
         List<Object> matrix = (List<Object>) map.get("matrix");

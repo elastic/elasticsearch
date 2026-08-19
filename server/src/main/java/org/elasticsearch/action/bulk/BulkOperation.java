@@ -428,7 +428,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             return;
         }
 
-        // Build per-shard EIRF batches for shards that ended up batchable (initial-pass only). For
+        // Build per-shard batches for shards that ended up batchable (initial-pass only). For
         // shards marked non-batchable, no batch is produced and the items keep their inline source.
         Map<ShardId, SourceBatch> shardBatches = batchEncoders == null ? Collections.emptyMap() : batchEncoders.finalizeBatches();
 

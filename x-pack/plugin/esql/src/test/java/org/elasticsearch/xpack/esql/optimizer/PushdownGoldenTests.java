@@ -48,6 +48,8 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
 
     private static final String SALARIES_RESOURCE = "s3://bucket/golden_salaries.parquet";
 
+    private static final String PACK_DIMS_AGG = "pack_dims_agg";
+
     public void testFilterPushdownNoUnmapped() {
         String query = """
             FROM sample_data
@@ -266,6 +268,7 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
             """;
         builder(query).stages(STAGES)
             .since(DatasetMetadata.ESQL_DATASOURCES)
+            .expectationChangesAt(PACK_DIMS_AGG)
             .datasetMetadata(salariesDatasetMetadata())
             .externalSourceResolution(salariesExternalSourceResolution())
             .run();

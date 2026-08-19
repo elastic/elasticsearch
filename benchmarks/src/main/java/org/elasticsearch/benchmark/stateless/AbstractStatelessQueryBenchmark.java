@@ -125,7 +125,7 @@ public abstract class AbstractStatelessQueryBenchmark {
         System.setProperty(StatelessDirectoryFactory.FIRST_BYTE_LATENCY_MS_PROP, Long.toString(firstByteLatencyMs));
         deleteRecursively(workPath);
         Files.createDirectories(workPath);
-        directory = StatelessDirectoryFactory.create(dataPath, workPath, extraNodeSettings());
+        directory = StatelessDirectoryFactory.newSearchDirectory(dataPath, workPath, extraNodeSettings());
         if (cacheState == CacheState.HOT) {
             preWarm(directory);
         }

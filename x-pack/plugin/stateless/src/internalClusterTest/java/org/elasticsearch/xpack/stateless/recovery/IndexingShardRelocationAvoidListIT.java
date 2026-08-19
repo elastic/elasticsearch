@@ -23,7 +23,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -485,18 +484,6 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
 
         public AvoidListTestStatelessPlugin(Settings settings) {
             super(settings);
-        }
-
-        @Override
-        public Collection<Object> createComponents(PluginServices services) {
-            final Collection<Object> components = super.createComponents(services);
-            components.add(
-                new PluginComponentBinding<>(
-                    StatelessCommitService.class,
-                    components.stream().filter(c -> c instanceof StatelessCommitService).findFirst().orElseThrow()
-                )
-            );
-            return components;
         }
 
         @Override

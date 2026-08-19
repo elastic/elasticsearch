@@ -22,6 +22,7 @@ import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -52,8 +54,10 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.getEvictionPolicy;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.maybeEvictLeastUsed;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.maybeScheduleDecayAndNewEpoch;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
+import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING;
 import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING;
 import static org.hamcrest.Matchers.equalTo;
@@ -62,6 +66,13 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
+
+    /// The cache maintenance settings, all of which fall back to the cache boost preference setting.
+    private static final List<Setting<Boolean>> CACHE_MAINTENANCE_SETTINGS = List.of(
+        StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
+        StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,
+        StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING
+    );
 
     public void testDemoteAllSkippedWhenShardLocallyAllocatedAtTaskExecution() throws IOException {
         runDemoteAllTest(true, false);
@@ -262,9 +273,9 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             )
         ) {
-            cacheRegion(cacheService, generateFileCacheKey(), regionSize, 0);
+            cacheRegion(cacheService, generateFileCacheKey(), regionSize, 0, randomRegionTimestampMillis());
             // This is the 1st region since the entry is inserted at the head of freq list.
-            final RefCounted firstRegion = cacheRegion(cacheService, generateFileCacheKey(), regionSize, 0);
+            final RefCounted firstRegion = cacheRegion(cacheService, generateFileCacheKey(), regionSize, 0, randomRegionTimestampMillis());
             // Decay synchronously (DecayAndNewEpochTask uses DIRECT_EXECUTOR_SERVICE, which runs tasks inline).
             final boolean decayed = randomBoolean();
             if (decayed) {
@@ -306,7 +317,7 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
     private boolean fillAndMaybeDecay(SharedBlobCacheService<FileCacheKey> cacheService, DeterministicTaskQueue taskQueue) {
         final boolean shouldDecay = randomBoolean();
         while (freeRegionCount(cacheService) > 0) {
-            cacheRegion(cacheService, generateFileCacheKey(), cacheRegionSizeInBytes(1), 0);
+            cacheRegion(cacheService, generateFileCacheKey(), cacheRegionSizeInBytes(1), 0, randomRegionTimestampMillis());
         }
         if (shouldDecay) {
             maybeScheduleDecayAndNewEpoch(cacheService);
@@ -317,7 +328,7 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
 
     private void evictRandomly(SharedBlobCacheService<FileCacheKey> cacheService, long regionSize, boolean decayed) {
         if (decayed == false) {
-            cacheRegion(cacheService, generateFileCacheKey(), regionSize, 0);
+            cacheRegion(cacheService, generateFileCacheKey(), regionSize, 0, randomRegionTimestampMillis());
         } else {
             assertThat(maybeEvictLeastUsed(cacheService, generateFileCacheKey(), regionSize, 0), is(true));
         }
@@ -352,8 +363,20 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
         ) {
             final ShardId shardId = new ShardId("index", randomUUID(), 0);
             final var cacheKey = new FileCacheKey(shardId, 1L, "file");
-            SharedBlobCacheServiceTestUtils.cacheRegion(cacheService, cacheKey, cacheRegionSizeInBytes(250), 0);
-            SharedBlobCacheServiceTestUtils.cacheRegion(cacheService, cacheKey, cacheRegionSizeInBytes(250), 1);
+            SharedBlobCacheServiceTestUtils.cacheRegion(
+                cacheService,
+                cacheKey,
+                cacheRegionSizeInBytes(250),
+                0,
+                randomRegionTimestampMillis()
+            );
+            SharedBlobCacheServiceTestUtils.cacheRegion(
+                cacheService,
+                cacheKey,
+                cacheRegionSizeInBytes(250),
+                1,
+                randomRegionTimestampMillis()
+            );
             assertThat(
                 SharedBlobCacheServiceTestUtils.countCachedRegionsByFreq(cacheService, key -> key.shardId().equals(shardId)),
                 equalTo(Map.of(1, 2))
@@ -443,6 +466,54 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testCacheMaintenanceSettingsFallBackToCacheBoostPreference() {
+        for (boolean cacheBoostPreferenceEnabled : new boolean[] { true, false }) {
+            final var settings = Settings.builder()
+                .put(STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), cacheBoostPreferenceEnabled)
+                .build();
+            for (Setting<Boolean> maintenanceSetting : CACHE_MAINTENANCE_SETTINGS) {
+                assertThat(maintenanceSetting.get(settings), equalTo(cacheBoostPreferenceEnabled));
+            }
+        }
+        for (Setting<Boolean> maintenanceSetting : CACHE_MAINTENANCE_SETTINGS) {
+            assertThat("unset boost preference leaves the maintenance settings off", maintenanceSetting.get(Settings.EMPTY), is(false));
+        }
+    }
+
+    public void testExplicitCacheMaintenanceSettingOverridesCacheBoostPreference() {
+        for (boolean cacheBoostPreferenceEnabled : new boolean[] { true, false }) {
+            for (Setting<Boolean> overriddenSetting : CACHE_MAINTENANCE_SETTINGS) {
+                final var settings = Settings.builder()
+                    .put(STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), cacheBoostPreferenceEnabled)
+                    .put(overriddenSetting.getKey(), cacheBoostPreferenceEnabled == false)
+                    .build();
+                assertThat(overriddenSetting.get(settings), equalTo(cacheBoostPreferenceEnabled == false));
+                for (Setting<Boolean> otherSetting : CACHE_MAINTENANCE_SETTINGS) {
+                    if (otherSetting.getKey().equals(overriddenSetting.getKey()) == false) {
+                        assertThat(otherSetting.get(settings), equalTo(cacheBoostPreferenceEnabled));
+                    }
+                }
+            }
+        }
+    }
+
+    /// Removing a cluster-level override must return the setting to the value derived from the node's boost preference, not to `false`.
+    public void testCacheMaintenanceSettingResetsToCacheBoostPreferenceDerivedValue() {
+        final var nodeSettings = Settings.builder().put(STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true).build();
+        for (Setting<Boolean> maintenanceSetting : CACHE_MAINTENANCE_SETTINGS) {
+            final var clusterSettings = createClusterSettings(nodeSettings);
+            final var enabled = new AtomicBoolean();
+            clusterSettings.initializeAndWatch(maintenanceSetting, enabled::set);
+            assertTrue(enabled.get());
+
+            clusterSettings.applySettings(Settings.builder().put(maintenanceSetting.getKey(), false).build());
+            assertFalse(enabled.get());
+
+            clusterSettings.applySettings(Settings.EMPTY);
+            assertTrue(enabled.get());
+        }
+    }
+
     EvictionPolicy<FileCacheKey> getDelegatePolicy(EvictionPolicy<FileCacheKey> evictionPolicy) {
         if (evictionPolicy instanceof SwitchingEvictionPolicy switchingEvictionPolicy) {
             return switchingEvictionPolicy.getDelegate();
@@ -456,6 +527,7 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
         settingSet.add(STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING);
         settingSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING);
         settingSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING);
+        settingSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING);
         settingSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING);
         return new ClusterSettings(settings, settingSet);
     }

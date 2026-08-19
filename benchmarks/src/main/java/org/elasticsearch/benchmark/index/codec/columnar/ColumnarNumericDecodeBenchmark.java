@@ -61,6 +61,9 @@ public class ColumnarNumericDecodeBenchmark {
     @Param({ "MONOTONIC_TIMESTAMPS", "COUNTER_STEADY", "GAUGE", "DOUBLE_GAUGE", "DOUBLE_COUNTER", "RANDOM_FULL" })
     private String workload;
 
+    @Param({ "128", "512" })
+    private int blockSize;
+
     @Param("200000")
     private int docCount;
 
@@ -71,7 +74,7 @@ public class ColumnarNumericDecodeBenchmark {
     @Setup(Level.Trial)
     public void setup() throws IOException {
         final long[] values = NumericData.generate(workload, docCount);
-        directory = format.buildSegment(FIELD, workload, values, "columnar-decode-");
+        directory = format.buildSegment(FIELD, workload, values, "columnar-decode-", blockSize);
         reader = DirectoryReader.open(directory);
         leafReader = reader.leaves().getFirst().reader();
     }

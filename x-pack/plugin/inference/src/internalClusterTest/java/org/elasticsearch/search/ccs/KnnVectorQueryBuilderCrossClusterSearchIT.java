@@ -69,9 +69,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void setupClusters() throws Exception {
         configureClusters();
     }
 

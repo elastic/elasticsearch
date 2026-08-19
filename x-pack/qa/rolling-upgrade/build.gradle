@@ -5,6 +5,7 @@
  * 2.0.
  */
 
+import org.elasticsearch.gradle.internal.BwcVersions
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
@@ -16,15 +17,20 @@ apply plugin: 'elasticsearch.bc-upgrade-test'
 smartRetry.pruneIndividualTests.set(false)
 
 dependencies {
-  javaRestTestImplementation(testArtifact(project(":qa:rolling-upgrade"), "javaRestTest"))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation(project(':x-pack:qa'))
+  javaRestTestImplementation(testArtifact(project(':server')))
+  javaRestTestImplementation(testArtifact(project(xpackModule('inference'))))
 }
 
 buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
+    // Disable ML tests for incompatible systems
+    if (BwcVersions.isMlCompatible(bwcVersion) == false) {
+      systemProperty 'tests.ml.skip', 'true'
+    }
   }
 }
 

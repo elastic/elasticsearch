@@ -9,6 +9,9 @@
 :::{include} ../count.md
 :::
 
+:::{include} ../limitk.md
+:::
+
 :::{include} ../max.md
 :::
 

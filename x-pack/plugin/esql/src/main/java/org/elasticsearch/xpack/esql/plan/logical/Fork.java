@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,6 +28,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -265,8 +267,8 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
         }
         Fork fork = (Fork) plan;
 
-        fork.forEachDown(Fork.class, otherFork -> {
-            if (fork == otherFork) {
+        forEachForkSkippingSubqueries(fork, otherFork -> {
+            if (otherFork == fork) {
                 return;
             }
 
@@ -307,5 +309,21 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
                 }
             }
         });
+    }
+
+    /**
+     * Traverses the plan tree downward, invoking {@code action} for each {@link Fork} encountered,
+     * but does not descend into the right-hand side (subquery plan) of an {@link AbstractSubqueryJoin}.
+     * The right side is a separate query scope; a FORK inside it is independent of any FORK in the
+     * enclosing query.
+     */
+    static void forEachForkSkippingSubqueries(LogicalPlan plan, Consumer<Fork> action) {
+        if (plan instanceof Fork fork) {
+            action.accept(fork);
+        }
+        List<LogicalPlan> children = plan instanceof AbstractSubqueryJoin join ? List.of(join.left()) : plan.children();
+        for (LogicalPlan child : children) {
+            forEachForkSkippingSubqueries(child, action);
+        }
     }
 }

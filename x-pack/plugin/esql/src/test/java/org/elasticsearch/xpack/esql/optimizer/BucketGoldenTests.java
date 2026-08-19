@@ -14,6 +14,8 @@ import java.util.EnumSet;
 
 public class BucketGoldenTests extends GoldenTestCase {
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.LOGICAL_OPTIMIZATION);
+    private static final String ESQL_BUCKET_INCLUDE_EMPTY_BUCKETS = "esql_bucket_include_empty_buckets";
+    private static final String PACK_DIMS_AGG = "pack_dims_agg";
 
     public void testIncludeEmptyBuckets_dateRange() {
         runGoldenTest("""
@@ -36,10 +38,13 @@ public class BucketGoldenTests extends GoldenTestCase {
             """, STAGES, TransportVersionUtils.randomVersionSupporting(TransportVersion.fromName("esql_bucket_include_empty_buckets")));
     }
 
+    // Grouping BY the `cluster` dimension packs it, so at `pack_dims_agg` the PackDims node folds into the TimeSeriesAggregate
+    // as PACKDIMSAGG; the older separate-PackDims shape lives in [before_pack_dims_agg]. The window is floored at the
+    // include_empty_buckets feature this query requires.
     public void testIncludeEmptyBuckets_timeSeriesAndDimension() {
-        runGoldenTest("""
+        builder("""
             TS k8s | STATS COUNT(2*network.bytes_in+1)
                      BY cluster, TBUCKET(6, "2024-05-10T00:00:00Z", "2024-05-10T00:30:00Z", {"include_empty_buckets": true})
-            """, STAGES, TransportVersionUtils.randomVersionSupporting(TransportVersion.fromName("esql_bucket_include_empty_buckets")));
+            """).stages(STAGES).since(ESQL_BUCKET_INCLUDE_EMPTY_BUCKETS).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 }

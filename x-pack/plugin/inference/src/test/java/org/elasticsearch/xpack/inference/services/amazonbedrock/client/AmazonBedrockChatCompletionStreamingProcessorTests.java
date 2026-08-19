@@ -53,8 +53,7 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
     private AmazonBedrockChatCompletionStreamingProcessor processor;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createProcessor() throws Exception {
         ThreadPool threadPool = mock();
         when(threadPool.executor(UTILITY_THREAD_POOL_NAME)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         processor = new AmazonBedrockChatCompletionStreamingProcessor(threadPool, "model");

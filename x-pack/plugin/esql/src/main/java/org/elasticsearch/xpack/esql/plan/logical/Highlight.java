@@ -258,8 +258,9 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
             failures.add(fail(this, "{}", e.getMessage()));
             return;
         } catch (IllegalArgumentException e) {
-            // The analyzer value isn't a string. Type errors have already been reported by verifyValue.
-            verifyQuery(null, failures);
+            // The analyzer value isn't a string. Type errors have already been reported by verifyValue, but still
+            // validate the query with the default analyzer so query errors are surfaced too.
+            verifyQuery(defaultAnalyzer(analysisRegistry), failures);
             return;
         }
         verifyQuery(analyzer, failures);
@@ -268,10 +269,14 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
     private Analyzer resolveAnalyzer(AnalysisRegistry analysisRegistry) {
         Expression value = options == null ? null : foldableOption(ANALYZER);
         if (value == null) {
-            return null;
+            return defaultAnalyzer(analysisRegistry);
         }
         String name = HighlightOptions.analyzerName(ANALYZER, value, FoldContext.small());
         return PlannerUtils.resolveAnalyzer(name, analysisRegistry);
+    }
+
+    private static Analyzer defaultAnalyzer(AnalysisRegistry analysisRegistry) {
+        return PlannerUtils.resolveAnalyzer(HighlightQueryBuilders.DEFAULT_ANALYZER_NAME, analysisRegistry);
     }
 
     private void verifyQuery(Analyzer analyzer, Failures failures) {
@@ -301,8 +306,8 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         }
     }
 
-    // Non-foldable values (WITH { ... } allows constants, nested maps and parameters) are skipped here and fail later at
-    // fold time.
+    // WITH { ... } yields constants and parameters, which all fold; the parser rejects map values. Anything else is
+    // skipped here and fails later at fold time.
     private Expression foldableOption(String name) {
         Expression value = options.get(name);
         return value != null && value.foldable() ? value : null;

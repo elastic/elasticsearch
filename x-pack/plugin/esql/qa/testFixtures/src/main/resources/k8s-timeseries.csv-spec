@@ -1625,8 +1625,8 @@ TS k8s
 | STATS metric_type = "network.cost", cnt = COUNT(COUNT_OVER_TIME(network.cost)) BY cluster
 | SORT cluster;
 
-cnt:long | cluster:keyword | metric_type:keyword
-3        | prod            | network.cost
-3        | qa              | network.cost
-3        | staging         | network.cost
+metric_type:keyword | cnt:long | cluster:keyword
+network.cost        | 3        | prod
+network.cost        | 3        | qa
+network.cost        | 3        | staging
 ;

@@ -232,6 +232,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     }
 
     ConnectionProvider buildConnectionProvider(int maxConnections) {
+        logger.info("Created ConnectionProvider with {} maxConnections", maxConnections);
         return ConnectionProvider.builder("azure-sdk-connection-pool")
             .maxConnections(maxConnections)
             .pendingAcquireMaxCount(PENDING_CONNECTION_QUEUE_SIZE) // This determines the max outstanding queued requests

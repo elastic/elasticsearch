@@ -1122,7 +1122,8 @@ public final class DocumentParser {
                 // the tsid is normally set on the coordinating node during shard routing and passed to the data node via the index request
                 // but when applying a translog operation, shard routing is not happening, and we have to create the tsid from source
                 SourceToParse.Source sourceObject = source.source();
-                // TODO: this can likely operate on eirf if present opposed to materlizing the originl source bytes if not present.
+                // TODO: this can likely operate on the batch row if present opposed to materializing the original source bytes if not
+                // present.
                 tsid = forIndexDimensions.buildTsid(sourceObject.xContentType(), sourceObject.originalBytes());
             }
             this.tsid = tsid;

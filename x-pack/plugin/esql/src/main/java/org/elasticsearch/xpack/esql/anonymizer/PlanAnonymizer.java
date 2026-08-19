@@ -91,7 +91,7 @@ public final class PlanAnonymizer {
         if (r.concreteQualifiedIndices().isEmpty() == false) {
             sb.append(", concrete=[");
             boolean first = true;
-            for (String concrete : new TreeMap<>(r.indexNameWithModes()).keySet()) {
+            for (String concrete : new TreeMap<>(r.indexProperties()).keySet()) {
                 if (first == false) {
                     sb.append(", ");
                 }

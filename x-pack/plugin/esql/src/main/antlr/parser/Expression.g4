@@ -7,15 +7,16 @@
 parser grammar Expression;
 
 booleanExpression
-    : NOT booleanExpression                                                      #logicalNot
-    | valueExpression                                                            #booleanDefault
-    | regexBooleanExpression                                                     #regexExpression
-    | left=booleanExpression operator=AND right=booleanExpression                #logicalBinary
-    | left=booleanExpression operator=OR right=booleanExpression                 #logicalBinary
-    | valueExpression (NOT)? IN LP valueExpression (COMMA valueExpression)* RP   #logicalIn
-    | valueExpression (NOT)? IN subquery                                         #logicalInSubquery
-    | valueExpression IS NOT? NULL                                               #isNull
-    | matchBooleanExpression                                                     #matchExpression
+    : NOT booleanExpression                                                                    #logicalNot
+    | valueExpression                                                                          #booleanDefault
+    | regexBooleanExpression                                                                   #regexExpression
+    | left=booleanExpression operator=AND right=booleanExpression                              #logicalBinary
+    | left=booleanExpression operator=OR right=booleanExpression                               #logicalBinary
+    | valueExpression (NOT)? IN LP valueExpression (COMMA valueExpression)* RP                 #logicalIn
+    | {this.isDevVersion()}? LP valueExpression (COMMA valueExpression)+ RP (NOT)? IN subquery #logicalInMultiColumnSubquery
+    | valueExpression (NOT)? IN subquery                                                       #logicalInSubquery
+    | valueExpression IS NOT? NULL                                                             #isNull
+    | matchBooleanExpression                                                                   #matchExpression
     ;
 
 regexBooleanExpression
@@ -65,8 +66,8 @@ functionParam
     ;
 
 lambda
-    : LP (identifier (COMMA identifier)*)? RP ARROW booleanExpression
-    | identifier ARROW booleanExpression
+    : {this.isDevVersion()}? LP (identifier (COMMA identifier)*)? RP ARROW booleanExpression
+    | {this.isDevVersion()}? identifier ARROW booleanExpression
     ;
 
 mapExpression

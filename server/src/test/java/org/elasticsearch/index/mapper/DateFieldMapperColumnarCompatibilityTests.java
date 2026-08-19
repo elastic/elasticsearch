@@ -29,7 +29,6 @@ public class DateFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
         return Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            // DateFieldMapper.supportsColumnarParse requires multiValue == false.
             .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
             .build();
     }
@@ -155,6 +154,129 @@ public class DateFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
                 1L,
                 doc("d1", 1L, "{\"f\":1705320000000}"),
                 doc("d2", 2L, "{\"f\":0}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
+
+    public void testIndexedStringValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "date").field("index", true).endObject()),
+            columnarSettings(),
+            batch("indexed string value", 1L, doc("d1", 1L, "{\"f\":\"2024-01-15T12:00:00.000Z\"}"))
+        );
+    }
+
+    public void testIndexedLongValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "date").field("index", true).endObject()),
+            columnarSettings(),
+            batch("indexed long value", 1L, doc("d1", 1L, "{\"f\":1705320000000}"))
+        );
+    }
+
+    public void testIndexedWithAbsentDoc() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "date").field("index", true).endObject()),
+            columnarSettings(),
+            batch(
+                "indexed with absent doc",
+                1L,
+                doc("d1", 1L, "{\"f\":\"2024-01-01T00:00:00.000Z\"}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":\"2024-03-15T08:30:00.000Z\"}")
+            )
+        );
+    }
+
+    public void testIndexedMultipleDocs() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "date").field("index", true).endObject()),
+            columnarSettings(),
+            batch(
+                "indexed multiple docs",
+                1L,
+                doc("d1", 1L, "{\"f\":\"2020-01-01T00:00:00.000Z\"}"),
+                doc("d2", 2L, "{\"f\":\"2021-06-15T12:00:00.000Z\"}"),
+                doc("d3", 3L, "{\"f\":\"2022-12-31T23:59:59.999Z\"}"),
+                doc("d4", 4L, "{}")
+            )
+        );
+    }
+
+    /**
+     * Columnar-mode settings leaving {@code doc_values.multi_value} at its default of {@code true},
+     * so array values reach the mapper instead of being rejected at parse time.
+     */
+    private static Settings multiValueColumnarSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+            .build();
+    }
+
+    /**
+     * {@link DateFieldMapper#supportsColumnarParse} accepts {@code doc_values.multi_value=true} —
+     * the setting defaults to {@code true}, so rejecting it would take every date field in a
+     * columnar index off the columnar path. Multi-valued documents themselves are not implemented:
+     * they arrive as an ESCF {@code ARRAY} column and the kind switch in
+     * {@link DateFieldMapper#mapColumnBatch} throws, which makes {@code ShardBatchMapper} fall the
+     * chunk back to the row path. This test pins the gap that fallback papers over.
+     */
+    @AwaitsFix(bugUrl = "columnar mapColumnBatch does not implement multi-valued date fields; ARRAY columns fall back to the row path")
+    public void testMultiValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "date").endObject()),
+            multiValueColumnarSettings(),
+            // Every present value is an array so the column is a plain ARRAY; mixing in a scalar
+            // would make it a UNION and trip the same switch for a different reason.
+            batch(
+                "multi-value dates",
+                1L,
+                doc("d1", 1L, "{\"f\":[\"2024-01-01T00:00:00.000Z\",\"2024-02-01T00:00:00.000Z\"]}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":[\"2024-03-01T00:00:00.000Z\"]}")
+            )
+        );
+    }
+
+    /**
+     * As {@link #testMultiValue}, for a null value. A null makes the column a UNION rather than a
+     * plain STRING, which the same kind switch rejects.
+     */
+    @AwaitsFix(bugUrl = "columnar mapColumnBatch does not implement null date values; UNION columns fall back to the row path")
+    public void testNullValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "date").field("null_value", "2024-01-01T00:00:00.000Z").endObject()),
+            columnarSettings(),
+            batch(
+                "null date value",
+                1L,
+                doc("d1", 1L, "{\"f\":\"2024-05-01T00:00:00.000Z\"}"),
+                doc("d2", 2L, "{\"f\":null}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
+
+    /**
+     * {@link DateFieldMapper#supportsColumnarParse} accepts {@code ignore_malformed=true} — the
+     * logsdb index modes default it to {@code true}. Per-value error handling
+     * ({@code addIgnoredField} plus the ignored-source stored copy) is not implemented in
+     * {@code mapColumnBatch}, so an unparseable value throws out of {@code fieldType().parse} in
+     * {@code datesFromStrings} and the chunk falls back to the row path, which applies
+     * {@code ignore_malformed} properly.
+     */
+    @AwaitsFix(bugUrl = "columnar mapColumnBatch does not implement ignore_malformed; malformed dates fall back to the row path")
+    public void testIgnoreMalformed() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "date").field("ignore_malformed", true).endObject()),
+            columnarSettings(),
+            batch(
+                "ignore_malformed dates",
+                1L,
+                doc("d1", 1L, "{\"f\":\"2024-01-15T12:00:00.000Z\"}"),
+                doc("d2", 2L, "{\"f\":\"not-a-date\"}"),
                 doc("d3", 3L, "{}")
             )
         );

@@ -123,7 +123,8 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(
             IndexSearcher.getMaxClauseCount(),
             context.getCircuitBreaker(),
-            context::isQueryMemoryPreCharged
+            context::isQueryMemoryPreCharged,
+            MaxClauseCountQueryVisitor.segmentCountOrDefault(context.getIndexReader())
         );
         Query query = toQuery(context, visitor);
         if (query != null) {

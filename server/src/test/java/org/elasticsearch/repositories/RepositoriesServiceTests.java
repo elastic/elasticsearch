@@ -116,7 +116,7 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("local").name("local").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
         NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
-        var actionFilters = new ActionFilters(Set.of());
+        var actionFilters = ActionFilters.EMPTY;
         client.initialize(
             Map.of(
                 VerifyNodeRepositoryCoordinationAction.TYPE,

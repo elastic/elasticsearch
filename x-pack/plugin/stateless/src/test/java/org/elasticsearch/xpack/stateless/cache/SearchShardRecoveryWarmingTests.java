@@ -621,7 +621,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 mockIndexShard(self),
                 null,
                 null,
-                Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), WarmTarget.withUnknownTimestamp(1L)),
+                Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), WarmTarget.withUnknownTimestamp(1L, 1L)),
                 resume
             );
             // recovery is NOT resumed
@@ -676,7 +676,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 mockIndexShard(self),
                 null,
                 null,
-                Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), WarmTarget.withUnknownTimestamp(1L)),
+                Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), WarmTarget.withUnknownTimestamp(1L, 1L)),
                 resume
             );
             // recovery resumed (synchronously)
@@ -740,7 +740,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 mockIndexShard(self),
                 null,
                 null,
-                Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), new WarmTarget(1L, 1L)),
+                Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), new WarmTarget(1L, 1L, 1L)),
                 resume
             );
             // Note: must not assert that `resume` is still incomplete here; the timeout is 1-10ms and races with an assertion.

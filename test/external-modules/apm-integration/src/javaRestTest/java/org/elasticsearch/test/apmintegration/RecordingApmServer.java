@@ -31,6 +31,7 @@ import io.opentelemetry.proto.collector.trace.v1.TraceServiceGrpc;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -49,10 +50,12 @@ import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 @SuppressForbidden(reason = "Uses an HTTP server for testing; creates temp files for TLS certificates")
 public class RecordingApmServer extends ExternalResource {
@@ -145,18 +148,16 @@ public class RecordingApmServer extends ExternalResource {
     private Thread consumerThread() {
         return new Thread(() -> {
             while (running && Thread.currentThread().isInterrupted() == false) {
-                if (consumer != null) {
-                    try {
-                        ReceivedTelemetry msg = received.poll(1L, TimeUnit.SECONDS);
-                        if (msg != null) {
-                            consumer.accept(msg);
-                        }
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        return;
-                    } catch (Exception e) {
-                        logger.warn("failed to process message", e);
+                try {
+                    ReceivedTelemetry msg = received.poll(1L, TimeUnit.SECONDS);
+                    if (msg != null) {
+                        consumer.accept(msg);
                     }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                } catch (Exception e) {
+                    logger.warn("failed to process message", e);
                 }
             }
         });
@@ -369,6 +370,27 @@ public class RecordingApmServer extends ExternalResource {
 
     public void addMessageConsumer(Consumer<ReceivedTelemetry> messageConsumer) {
         this.consumer = messageConsumer;
+    }
+
+    public <T extends ReceivedTelemetry> T await(
+        Class<T> type,
+        Predicate<T> predicate,
+        int timeoutSeconds,
+        CheckedRunnable<Exception> action
+    ) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<T> matched = new AtomicReference<>();
+        addMessageConsumer(msg -> {
+            if (type.isInstance(msg) && predicate.test(type.cast(msg)) && matched.compareAndSet(null, type.cast(msg))) {
+                logger.debug("matched {}: {}", type.getSimpleName(), msg);
+                latch.countDown();
+            }
+        });
+        action.run();
+        if (latch.await(timeoutSeconds, TimeUnit.SECONDS) == false) {
+            throw new AssertionError("Timed out after " + timeoutSeconds + "s waiting for a matching " + type.getSimpleName());
+        }
+        return matched.get();
     }
 
     /**

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
@@ -112,6 +113,15 @@ final class EscfUnionColumn extends EscfColumn {
         return new KeyValueReader(ref.bytes, ref.offset, ref.length);
     }
 
+    // TODO: Union pretty much is a var column with a type byte vector. Refactor to make this extend var column.
+    @Override
+    public ObjectTupleCursor<BytesRef> bytesRefCursor(boolean retainValues) {
+        return new AbstractVarColumn.BytesRefTupleCursor(
+            presentDocs(),
+            new AbstractVarColumn.DenseBytesRefValuesCursor(docCount, offsets, data, retainValues)
+        );
+    }
+
     /** The contiguous bytes for document {@code row}'s value, sliced from the payload (zero-copy when contiguous). */
     private BytesRef value(int row) {
         int off0 = intAt(offsets, row);
@@ -135,4 +145,5 @@ final class EscfUnionColumn extends EscfColumn {
         int[] newOffsets = rebasedOffsets(offsets, docCount);
         return EscfColumnData.ofUnion(docCount, validity, typeVec, newOffsets, newData);
     }
+
 }

@@ -33,6 +33,26 @@ public final class NumberColumnTransform {
 
     private NumberColumnTransform() {}
 
+    /**
+     * Converts a LONG {@link EscfColumn} whose values are
+     * {@link HalfFloatPoint#halfFloatToSortableShort} encoded sortable shorts into a BINARY
+     * {@link EscfColumnData} containing the 2-byte {@link HalfFloatPoint} BKD point encoding for
+     * each value. Use the result with a {@link org.elasticsearch.escf.LuceneBinaryColumn} to emit
+     * the points column for an indexed {@code half_float} field.
+     */
+    public static EscfColumnData toHalfFloatPointBinaryColumn(EscfColumn source, Recycler<BytesRef> recycler) {
+        assert source.kind() == EscfColumnKind.LONG : "expected LONG, got " + EscfColumnKind.name(source.kind());
+        EscfColumnBuilder builder = newBytesBuilder(recycler);
+        final byte[] buf = new byte[Short.BYTES];
+        final BytesRef ref = new BytesRef(buf);
+        LongTupleCursor cursor = source.longCursor();
+        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+            HalfFloatPoint.encodeDimension(HalfFloatPoint.sortableShortToHalfFloat((short) cursor.longValue()), buf, 0);
+            builder.setBinary(doc, ref);
+        }
+        return builder.finish(source.docCount());
+    }
+
     public static EscfColumnData toSortableLongColumn(
         EscfColumn source,
         NumberFieldMapper.NumberType type,
@@ -105,7 +125,8 @@ public final class NumberColumnTransform {
     ) {
         AbstractXContentParser.checkCoerceString(coerce, classForType(type));
         EscfColumnBuilder builder = newLongBuilder(recycler);
-        ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor();
+        // retainValues=false: each value is parsed inside the loop body, before the cursor advances.
+        ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
         final long min = integerMinForType(type);
         final long max = integerMaxForType(type);
         final long[] scratch = new long[1];
@@ -374,6 +395,12 @@ public final class NumberColumnTransform {
     private static EscfColumnBuilder newLongBuilder(Recycler<BytesRef> recycler) {
         EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler);
         b.lockScalar(EscfColumnKind.LONG);
+        return b;
+    }
+
+    private static EscfColumnBuilder newBytesBuilder(Recycler<BytesRef> recycler) {
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler);
+        b.lockScalar(EscfColumnKind.BINARY);
         return b;
     }
 }

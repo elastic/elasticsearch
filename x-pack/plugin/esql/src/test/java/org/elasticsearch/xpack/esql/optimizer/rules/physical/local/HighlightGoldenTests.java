@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 
@@ -17,6 +20,15 @@ import java.util.EnumSet;
  * including the generated {@code highlight_<field>} output column.
  */
 public class HighlightGoldenTests extends GoldenTestCase {
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public HighlightGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
 
     /**
      * HIGHLIGHT survives logical and local physical optimization, producing a {@code HighlightExec}

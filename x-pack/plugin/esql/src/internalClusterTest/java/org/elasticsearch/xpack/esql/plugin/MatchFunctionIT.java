@@ -273,7 +273,59 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double"));
-            assertValues(resp.values(), List.of(List.of(1, 0.0), List.of(6, 0.0)));
+            // Runtime match scores one point per matched query term.
+            assertValues(resp.values(), List.of(List.of(1, 1.0), List.of(6, 1.0)));
+        }
+    }
+
+    public void testWhereRuntimeMatchWithOptionsAndScore() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE match(to_text(concat(content, " extra")), "fox dog", { "operator": "AND", "boost": 1.5 })
+            | KEEP id, _score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            // Two matched terms, each weighted by the boost.
+            assertValues(resp.values(), List.of(List.of(6, 3.0)));
+        }
+    }
+
+    public void testWhereRuntimeMatchTermWithScore() {
+        var query = """
+            FROM test METADATA _score
+            | EVAL new_id = id + 1
+            | WHERE new_id:"3" OR new_id:"2"
+            | KEEP id, new_id, _score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "new_id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "integer", "double"));
+            // Exact (non-text) runtime matches score 1.0; each row matches exactly one side of the OR.
+            assertValues(resp.values(), List.of(List.of(1, 2, 1.0), List.of(2, 3, 1.0)));
+        }
+    }
+
+    public void testWhereRuntimeMatchAndPushedDownMatchWithScore() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE match(content, "fox") AND match(to_text(concat(content, " extra")), "dog")
+            | KEEP id, _score
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            List<List<Object>> valuesList = getValuesList(resp.values());
+            assertEquals(1, valuesList.size());
+            assertEquals(6, valuesList.get(0).get(0));
+            // The pushed-down side contributes its BM25 score, the runtime side adds 1.0 for the matched term.
+            assertThat((double) valuesList.get(0).get(1), Matchers.greaterThan(1.0));
         }
     }
 

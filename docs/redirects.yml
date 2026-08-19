@@ -683,6 +683,10 @@ redirects:
         anchors: { 'semantic-text-params', 'configuring-inference-endpoints', 'chunking-behavior', 'limitations', 'document-count-discrepancy' }
 
   'reference/query-languages/esql/esql-federated-data.md': 'reference/query-languages/esql/esql-data-federation.md'
+  'reference/columnar/index.md': 'reference/elasticsearch/columnar/index.md'
+
+  # Multimodal tutorial moved to docs-content under vector search
+  'reference/elasticsearch/mapping-reference/semantic-field-quickstart.md': 'docs-content://solutions/search/multimodal-search/multimodal-search-tutorial.md'
 
   # Related to https://github.com/elastic/docs-content-internal/issues/595
   'reference/query-languages/esql/limitations.md':

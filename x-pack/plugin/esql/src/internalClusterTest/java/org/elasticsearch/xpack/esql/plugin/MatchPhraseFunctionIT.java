@@ -574,7 +574,6 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testSimpleWhereRuntimeMatchPhraseWithScore() {
-        // Runtime match_phrase does not contribute to the score, so matching rows keep a 0.0 score.
         var query = """
             FROM test METADATA _score
             | WHERE match_phrase(to_text(concat(content, " extra")), "brown fox")
@@ -585,7 +584,39 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double"));
-            assertValues(resp.values(), List.of(List.of(1, 0.0), List.of(6, 0.0)));
+            // A runtime match_phrase scores the boost (1.0 by default) on match.
+            assertValues(resp.values(), List.of(List.of(1, 1.0), List.of(6, 1.0)));
+        }
+    }
+
+    public void testWhereRuntimeMatchPhraseWithBoostAndScore() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE match_phrase(to_text(concat(content, " extra")), "brown fox", { "boost": 2.0 })
+            | KEEP id, _score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValues(resp.values(), List.of(List.of(1, 2.0), List.of(6, 2.0)));
+        }
+    }
+
+    public void testWhereRuntimeMatchPhraseKeywordWithScore() {
+        var query = """
+            FROM test METADATA _score
+            | EVAL exact = concat(content, "")
+            | WHERE match_phrase(exact, "This is a brown fox")
+            | KEEP id, _score
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            // Keyword expressions match by exact value equality and score 1.0.
+            assertValues(resp.values(), List.of(List.of(1, 1.0)));
         }
     }
 

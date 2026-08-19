@@ -9,13 +9,11 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import org.elasticsearch.core.Nullable;
-
 /**
  * Per-segment (per-field) IVF configuration persisted in {@code mivf}. It has four parts:
  * <ul>
  *     <li>{@link #centroidIndexFormat()} specifying the centroid indexing format</li>
- *     <li>{@link #quantEncoding()} for scalar quant used when indexing doc vectors</li>
+ *     <li>{@link #quantConfig()} for the quantization strategy (OSQ or ASH)</li>
  *     <li>{@link #usePrecondition()} for whether a preconditioner is written and used on flush/merge and on the reader</li>
  *     <li>{@link #rescoreOversample()} for kNN rescore candidate expansion, read with query</li>
  * </ul>
@@ -27,16 +25,30 @@ import org.elasticsearch.core.Nullable;
  */
 public record IvfSegmentConfig(
     CentroidIndexFormat centroidIndexFormat,
-    QuantEncoding quantEncoding,
+    QuantConfig quantConfig,
     boolean usePrecondition,
-    float rescoreOversample,
-    @Nullable AshConfig ash
+    float rescoreOversample
 ) {
 
     /**
-     * ASH (Asymmetric Scalar Hashing) configuration for the encoding and write path.
+     * Discriminated quantization configuration for an IVF segment.
+     * Each IVF segment uses either OSQ (Optimal Scalar Quantization) or ASH (Asymmetric Scalar Hashing).
      */
-    public record AshConfig(float projectedDimsFraction, int bitsPerDim, int trainingIterations, int trainingFactor) {
+    public sealed interface QuantConfig permits OsqConfig, AshConfig {}
+
+    /**
+     * OSQ (Optimal Scalar Quantization) configuration — used by BBQ writers/readers.
+     * Wraps the existing {@link QuantEncoding} which provides packing, dimension math, and bit-width metadata.
+     */
+    public record OsqConfig(QuantEncoding encoding) implements QuantConfig {}
+
+    /**
+     * ASH (Asymmetric Scalar Hashing) configuration — used by ASH writers/readers.
+     * ASH handles its own packing via {@code AsymmetricHashingScorer} and does not use {@link QuantEncoding}.
+     */
+    public record AshConfig(float projectedDimsFraction, int bitsPerDim, int trainingIterations, int trainingFactor)
+        implements
+            QuantConfig {
         public static final float DEFAULT_PROJECTED_DIMS_FRACTION = 0.5f;
         public static final int DEFAULT_BITS_PER_DIM = 2;
         public static final int DEFAULT_TRAINING_ITERATIONS = 5;
@@ -55,40 +67,42 @@ public record IvfSegmentConfig(
 
     public static final IvfSegmentConfig NONE = new IvfSegmentConfig(
         CentroidIndexFormat.FLAT,
-        QuantEncoding.ONE_BIT_4BIT_QUERY,
+        new OsqConfig(QuantEncoding.ONE_BIT_4BIT_QUERY),
         false,
-        Float.NaN,
-        null
+        Float.NaN
     );
 
     public static IvfSegmentConfig fromCodecDefaults(
         CentroidIndexFormat centroidIndexFormat,
-        QuantEncoding quantEncoding,
+        QuantConfig quantConfig,
         boolean doPrecondition
     ) {
-        return new IvfSegmentConfig(centroidIndexFormat, quantEncoding, doPrecondition, Float.NaN, null);
+        return new IvfSegmentConfig(centroidIndexFormat, quantConfig, doPrecondition, Float.NaN);
     }
 
-    /** Convenience constructor for non-ASH configs (uses default ASH params, disabled). */
     public static IvfSegmentConfig of(
         CentroidIndexFormat centroidIndexFormat,
-        QuantEncoding quantEncoding,
+        QuantConfig quantConfig,
         boolean usePrecondition,
         float rescoreOversample
     ) {
-        return new IvfSegmentConfig(centroidIndexFormat, quantEncoding, usePrecondition, rescoreOversample, null);
+        return new IvfSegmentConfig(centroidIndexFormat, quantConfig, usePrecondition, rescoreOversample);
     }
 
-    public static IvfSegmentConfig fromCodecDefaultsWithAsh(CentroidIndexFormat centroidIndexFormat, QuantEncoding quantEncoding) {
-        return fromCodecDefaultsWithAsh(centroidIndexFormat, quantEncoding, AshConfig.defaults());
+    /**
+     * Returns the {@link QuantEncoding} from an {@link OsqConfig}.
+     * @throws ClassCastException if this config uses a different quantization strategy
+     */
+    public QuantEncoding osqEncoding() {
+        return ((OsqConfig) quantConfig).encoding();
     }
 
-    public static IvfSegmentConfig fromCodecDefaultsWithAsh(
-        CentroidIndexFormat centroidIndexFormat,
-        QuantEncoding quantEncoding,
-        AshConfig ash
-    ) {
-        return new IvfSegmentConfig(centroidIndexFormat, quantEncoding, false, Float.NaN, ash);
+    /**
+     * Returns the {@link AshConfig} from this segment config.
+     * @throws ClassCastException if this config uses a different quantization strategy
+     */
+    public AshConfig ashConfig() {
+        return (AshConfig) quantConfig;
     }
 
     /**
@@ -109,7 +123,7 @@ public record IvfSegmentConfig(
      */
     public static IvfSegmentConfig withEffectiveRescoreOversample(IvfSegmentConfig raw, Float queryOverride, float mappingDefault) {
         float effective = effectiveRescoreOversample(raw.rescoreOversample(), queryOverride, mappingDefault);
-        return new IvfSegmentConfig(raw.centroidIndexFormat(), raw.quantEncoding(), raw.usePrecondition(), effective, raw.ash());
+        return new IvfSegmentConfig(raw.centroidIndexFormat(), raw.quantConfig(), raw.usePrecondition(), effective);
     }
 
     /** Per-leaf IVF collector size (includes 2x factor for overspill duplicates). */

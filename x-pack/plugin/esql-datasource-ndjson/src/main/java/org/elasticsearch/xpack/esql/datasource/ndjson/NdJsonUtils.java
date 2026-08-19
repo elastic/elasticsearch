@@ -49,6 +49,15 @@ class NdJsonUtils {
      *       identity-keyed field-name cache relies on. Equality-based lookups remain correct
      *       regardless.</li>
      * </ul>
+     * <p>
+     * The {@code StreamReadConstraints} defaults are deliberately left alone. Every limit that is enabled by
+     * default is <em>line-attributable</em> — number length, name length, nesting depth and string length all
+     * describe one record — which is what lets {@link NdJsonPageDecoder#onNdjsonLineParseError} treat a
+     * violation as a whole-line failure and drop just that line. {@code maxDocumentLength} and
+     * {@code maxTokenCount} are cumulative across the stream rather than per record, so enabling either here
+     * would break that assumption twice over: the limit would trip on whichever innocent line happened to
+     * cross the threshold, and the fresh parser created during recovery restarts the count, so the limit would
+     * never actually bound anything. Bound the input with {@code max_record_size} instead.
      */
     static final JsonFactory JSON_FACTORY = new JsonFactoryBuilder().disable(StreamReadFeature.AUTO_CLOSE_SOURCE)
         .enable(StreamReadFeature.USE_FAST_DOUBLE_PARSER)

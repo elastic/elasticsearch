@@ -1011,9 +1011,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     private static Settings cacheEnabledSettings() {
         return Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
     }
 
@@ -1484,9 +1484,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         String failOnPathSuffix = "f1.parquet";
 
         Settings cacheSettings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheSettings)) {
@@ -1543,9 +1543,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         String failOnPathSuffix = "f0.parquet";
 
         Settings cacheSettings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheSettings)) {
@@ -2632,9 +2632,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemasByPath);
 
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         // FFW-specific assertions of listing-cache + anchor-schema-cache reuse.
@@ -2811,9 +2811,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
      */
     public void testMultiFileCacheReducesSchemaLoaderCallsPerStrategy() throws Exception {
         Settings cacheSettings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         for (FormatReader.SchemaResolution strategy : MULTI_FILE_STRATEGIES) {
@@ -3062,9 +3062,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of(), schemasByPath);
 
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
@@ -3107,9 +3107,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of(), schemasByPath);
 
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
@@ -3154,9 +3154,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         // The file-metadata cache is freshness-discovery (like listing) and shares the listing TTL, so a
         // short listing TTL is what expires it and forces the re-probe.
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "500ms")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "500ms")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
@@ -3188,9 +3188,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of(), schemasByPath);
 
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", false)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", false)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
@@ -3226,9 +3226,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of("s3://bucket/d/", listing), schemasByPath);
 
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", false)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", false)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
@@ -3260,9 +3260,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         NullMtimeStorageProvider nullMtimeProvider = new NullMtimeStorageProvider(schemasByPath);
 
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {

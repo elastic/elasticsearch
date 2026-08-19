@@ -238,7 +238,8 @@ tasks.named("sourcesJar").configure {
 
 // ---------------------------------------------------------------------------
 
-ext.testsEnabled = switch(OS.current()) {
+// Parquet-rs is disabled for GA; tests only run in snapshot builds.
+ext.testsEnabled = buildParams.snapshotBuild && switch(OS.current()) {
   case OS.WINDOWS -> false // Not supported
   case OS.LINUX -> {
     // The native lib requires glibc >= 2.30, (max version from 'nm -D ./libesql_parquet_rs.so | grep '@GLIBC')

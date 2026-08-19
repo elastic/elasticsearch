@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -73,6 +74,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -864,6 +866,33 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
                 new ReferenceAttribute(EMPTY, "gender", KEYWORD)
             )
         );
+    }
+
+    /**
+     * A branch ending in {@code STATS} has an {@link Aggregate}, not a {@link Project}, as its root. Restricting the
+     * branch output to the Fork output columns must not reach past that root into an internal projection: here the
+     * internal projection carries the packed time-series dimensions that {@code UnpackDims} above it consumes, and the
+     * second {@code STATS} is what leaves the {@code Aggregate} on top.
+     */
+    public void testPruneColumnsKeepsInternalProjectionsInForkBranchEndingInStats() {
+        var query = """
+            TS k8s
+            | FORK
+                (STATS latest = AVG(AVG_OVER_TIME(network.eth0.rx)) BY pod | STATS latest = MAX(latest) BY pod)
+                (STATS latest = AVG(AVG_OVER_TIME(network.eth0.rx)) BY pod | STATS latest = MAX(latest) BY pod)
+            | KEEP pod, latest
+            """;
+
+        var plan = planMetrics(query);
+
+        var fork = as(as(as(plan, Project.class).child(), Limit.class).child(), Fork.class);
+        assertThat(Expressions.names(fork.output()), containsInAnyOrder("pod", "latest"));
+        for (LogicalPlan branch : fork.children()) {
+            var unpackDims = branch.collectFirstChildren(p -> p instanceof UnpackDims);
+            assertThat(unpackDims, hasSize(1));
+            var unpack = as(unpackDims.get(0), UnpackDims.class);
+            assertThat(unpack.child().outputSet(), hasItem(unpack.packed()));
+        }
     }
 
     /**

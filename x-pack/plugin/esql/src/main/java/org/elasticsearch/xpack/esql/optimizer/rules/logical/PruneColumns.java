@@ -38,7 +38,11 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyPlans.skipPlan;
@@ -326,20 +330,9 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 var outputAttrs = localRelation.output().stream().filter(x -> forkOutputNames.contains(x.name())).toList();
                 newSubPlan = new LocalRelation(localRelation.source(), outputAttrs, localRelation.supplier());
             } else {
-                // otherwise, we first prune the projections of the top-level Project of each subplan
+                // otherwise, we first restrict the subplan's own output to the pruned fork output
                 subPlan.outputSet().stream().filter(x -> forkOutputNames.contains(x.name())).forEach(usedAttrs::add);
-
-                Holder<Boolean> projectVisited = new Holder<>(false);
-                newSubPlan = subPlan.transformDown(Project.class, p -> {
-                    if (projectVisited.get()) {
-                        return p;
-                    }
-                    projectVisited.set(true);
-                    // filter projections based on fork output attributes
-                    var prunedAttrs = p.projections().stream().filter(x -> forkOutputNames.contains(x.name())).toList();
-                    return new Project(p.source(), p.child(), prunedAttrs);
-                });
-                newSubPlan = pruneColumns(newSubPlan, usedAttrs, false);
+                newSubPlan = pruneColumns(restrictBranchOutput(subPlan, prunedForkAttrs, forkOutputNames), usedAttrs, false);
             }
             if (false == newSubPlan.equals(subPlan)) {
                 subPlanChanged = true;
@@ -350,6 +343,37 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             fork = fork.replaceSubPlansAndOutput(newChildren, prunedForkAttrs);
         }
         return fork;
+    }
+
+    /**
+     * Restricts a Fork branch's output to the (already pruned) Fork output columns. Matching is by name because a branch
+     * and the Fork output never share attribute ids.
+     * <p>
+     * Only the branch's own output node is rewritten. Descending to the first {@link Project} instead would corrupt any
+     * branch whose root is not a Project - for instance one ending in {@code STATS}, which leaves an
+     * {@link Aggregate} on top. The filter would then apply to an internal projection and drop columns that are not part
+     * of the Fork's user-visible output but are still consumed inside the branch, such as the packed dimensions feeding
+     * {@link org.elasticsearch.xpack.esql.plan.logical.UnpackDims}.
+     */
+    private static LogicalPlan restrictBranchOutput(LogicalPlan branch, List<Attribute> forkOutput, Set<String> forkOutputNames) {
+        if (branch instanceof Project project) {
+            return new Project(
+                project.source(),
+                project.child(),
+                project.projections().stream().filter(x -> forkOutputNames.contains(x.name())).toList()
+            );
+        }
+        // Follow the Fork output order rather than the branch's own: each branch becomes a MergeExec child, and MergeExec
+        // lines a child's columns up with its output positionally, so a branch surfacing them in a different order would
+        // silently mix up columns across branches.
+        Map<String, Attribute> branchOutputByName = new LinkedHashMap<>();
+        for (Attribute attribute : branch.output()) {
+            branchOutputByName.putIfAbsent(attribute.name(), attribute);
+        }
+        List<Attribute> retained = forkOutput.stream().map(a -> branchOutputByName.get(a.name())).filter(Objects::nonNull).toList();
+        // A Project added here never compares equal to the branch it wraps, so adding one unconditionally would report a
+        // change on every pass and the rule would not converge. Only wrap when it actually changes the branch's output.
+        return retained.equals(branch.output()) ? branch : new Project(branch.source(), branch, retained);
     }
 
     /**

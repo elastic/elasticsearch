@@ -3700,6 +3700,15 @@ public class EsqlCapabilities {
          */
         FIX_PARTIAL_PREFIX_COMPOUND_TOPN_PUSHDOWN,
 
+        /**
+         * Fix for {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumns} descending into an inner
+         * projection when restricting the output of a {@code FORK} branch whose root is not a {@code Project} — for
+         * example a branch ending in {@code STATS}, which leaves an {@code Aggregate} on top. The misdirected filter
+         * could drop columns consumed by inner nodes such as the packed dimension grouping feeding
+         * {@code UnpackDims}, causing {@code Plan [...] optimized incorrectly due to missing references}.
+         */
+        FORK_PRUNE_COLUMNS_INNER_PROJECT_FIX,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

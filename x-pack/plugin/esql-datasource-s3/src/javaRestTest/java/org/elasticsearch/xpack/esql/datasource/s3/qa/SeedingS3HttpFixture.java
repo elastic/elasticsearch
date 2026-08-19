@@ -44,8 +44,8 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
         super(
             true,
             null,
-            bucket,
-            "" /* no base path: external sources address objects by full key */,
+            () -> bucket,
+            () -> "" /* no base path: external sources address objects by full key */,
             () -> S3ConsistencyModel.STRONG_MPUS,
             authorizationPredicate
         );

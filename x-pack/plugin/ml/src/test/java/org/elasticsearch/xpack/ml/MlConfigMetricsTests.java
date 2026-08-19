@@ -61,10 +61,8 @@ public class MlConfigMetricsTests extends ESTestCase {
     private Supplier<Collection<LongWithAttributes>> authTypeObserver;
     private Supplier<Collection<LongWithAttributes>> projectRoutingObserver;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initMlConfigMetricsTestDeps() throws Exception {
         threadPool = createThreadPool(
             new ScalingExecutorBuilder(MachineLearning.UTILITY_THREAD_POOL_NAME, 0, 1, TimeValue.timeValueMinutes(10), false)
         );
@@ -76,11 +74,9 @@ public class MlConfigMetricsTests extends ESTestCase {
         projectRoutingObserver = captureLongsGauge(meterRegistry, "es.ml.datafeeds.cps.project_routing.current");
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void closeThreadPool() throws Exception {
         threadPool.close();
-        super.tearDown();
     }
 
     public void testComputeCountsShouldBucketMixedConfigs() {

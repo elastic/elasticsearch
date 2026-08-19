@@ -2113,6 +2113,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
+        public Builder priority(int priority) {
+            settings = Settings.builder().put(settings).put(SETTING_PRIORITY, priority).build();
+            return this;
+        }
+
         /**
          * Builder to create IndexMetadata that has an increased shard count (used for re-shard).
          * The new shard count must be a multiple of the original shard count as well as a factor

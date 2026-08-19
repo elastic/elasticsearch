@@ -272,31 +272,33 @@ public final class BytesRefArrowBufBlock extends AbstractArrowBufBlock<BytesRefV
                     newValidity = allocator.buffer(validityBufferLength(length));
                     newValidity.setZero(0, newValidity.capacity());
                 }
+
+                int byteIdx = 0;
+                for (int i = 0; i < length; i++) {
+                    int pos = positions[offset + i];
+                    newValueOffsets.setInt((long) i * Integer.BYTES, byteIdx);
+                    if (isNull(pos) == false) {
+                        int srcStart = valueOffsetsBuffer.getInt((long) pos * Integer.BYTES);
+                        int byteLen = valueByteLength(pos);
+                        if (byteLen > 0) {
+                            newValues.setBytes(byteIdx, valueBuffer, srcStart, byteLen);
+                            byteIdx += byteLen;
+                        }
+                        if (newValidity != null) {
+                            setValidityBit(newValidity, i);
+                        }
+                    }
+                }
+                newValueOffsets.setInt((long) length * Integer.BYTES, byteIdx);
+
+                var result = new BytesRefArrowBufBlock(newValues, newValueOffsets, newValidity, null, length, 0, blockFactory);
                 success = true;
+                return result;
             } finally {
                 if (success == false) {
                     ArrowUtils.releaseBuffers(newValues, newValueOffsets, newValidity);
                 }
             }
-
-            int byteIdx = 0;
-            for (int i = 0; i < length; i++) {
-                int pos = positions[offset + i];
-                newValueOffsets.setInt((long) i * Integer.BYTES, byteIdx);
-                if (isNull(pos) == false) {
-                    int srcStart = valueOffsetsBuffer.getInt((long) pos * Integer.BYTES);
-                    int byteLen = valueByteLength(pos);
-                    if (byteLen > 0) {
-                        newValues.setBytes(byteIdx, valueBuffer, srcStart, byteLen);
-                        byteIdx += byteLen;
-                    }
-                    if (newValidity != null) {
-                        setValidityBit(newValidity, i);
-                    }
-                }
-            }
-            newValueOffsets.setInt((long) length * Integer.BYTES, byteIdx);
-            return new BytesRefArrowBufBlock(newValues, newValueOffsets, newValidity, null, length, 0, blockFactory);
         }
 
         // Multi-valued: compute total values and total bytes
@@ -322,39 +324,41 @@ public final class BytesRefArrowBufBlock extends AbstractArrowBufBlock<BytesRefV
                 newValidity.setZero(0, newValidity.capacity());
             }
             newOffsets = allocator.buffer((long) (length + 1) * Integer.BYTES);
+
+            int byteIdx = 0;
+            int valueIdx = 0;
+            for (int i = 0; i < length; i++) {
+                int pos = positions[offset + i];
+                newOffsets.setInt((long) i * Integer.BYTES, valueIdx);
+                if (isNull(pos) == false) {
+                    if (newValidity != null) {
+                        setValidityBit(newValidity, i);
+                    }
+                    int first = getFirstValueIndex(pos);
+                    int count = getValueCount(pos);
+                    for (int v = 0; v < count; v++) {
+                        int srcStart = valueOffsetsBuffer.getInt((long) (first + v) * Integer.BYTES);
+                        int byteLen = valueByteLength(first + v);
+                        newValueOffsets.setInt((long) valueIdx * Integer.BYTES, byteIdx);
+                        if (byteLen > 0) {
+                            newValues.setBytes(byteIdx, valueBuffer, srcStart, byteLen);
+                            byteIdx += byteLen;
+                        }
+                        valueIdx++;
+                    }
+                }
+            }
+            newOffsets.setInt((long) length * Integer.BYTES, valueIdx);
+            newValueOffsets.setInt((long) valueIdx * Integer.BYTES, byteIdx);
+
+            var result = new BytesRefArrowBufBlock(newValues, newValueOffsets, newValidity, newOffsets, length, length + 1, blockFactory);
             success = true;
+            return result;
         } finally {
             if (success == false) {
                 ArrowUtils.releaseBuffers(newValues, newValueOffsets, newValidity, newOffsets);
             }
         }
-
-        int byteIdx = 0;
-        int valueIdx = 0;
-        for (int i = 0; i < length; i++) {
-            int pos = positions[offset + i];
-            newOffsets.setInt((long) i * Integer.BYTES, valueIdx);
-            if (isNull(pos) == false) {
-                if (newValidity != null) {
-                    setValidityBit(newValidity, i);
-                }
-                int first = getFirstValueIndex(pos);
-                int count = getValueCount(pos);
-                for (int v = 0; v < count; v++) {
-                    int srcStart = valueOffsetsBuffer.getInt((long) (first + v) * Integer.BYTES);
-                    int byteLen = valueByteLength(first + v);
-                    newValueOffsets.setInt((long) valueIdx * Integer.BYTES, byteIdx);
-                    if (byteLen > 0) {
-                        newValues.setBytes(byteIdx, valueBuffer, srcStart, byteLen);
-                        byteIdx += byteLen;
-                    }
-                    valueIdx++;
-                }
-            }
-        }
-        newOffsets.setInt((long) length * Integer.BYTES, valueIdx);
-        newValueOffsets.setInt((long) valueIdx * Integer.BYTES, byteIdx);
-        return new BytesRefArrowBufBlock(newValues, newValueOffsets, newValidity, newOffsets, length, length + 1, blockFactory);
     }
 
     @SuppressWarnings("unchecked")
@@ -372,16 +376,40 @@ public final class BytesRefArrowBufBlock extends AbstractArrowBufBlock<BytesRefV
             return (BytesRefBlock) blockFactory().newConstantNullBlock(getPositionCount());
         }
         var allocator = blockFactory.arrowAllocator();
-        ArrowBuf newValidity = allocator.buffer(validityBufferLength(valueCount));
-        newValidity.setZero(0, newValidity.capacity());
-        for (int i = 0; i < valueCount; i++) {
-            if (mask.getBoolean(i) && isNull(i) == false) {
-                setValidityBit(newValidity, i);
+        ArrowBuf newValidity = null;
+        boolean success = false;
+        boolean sharedRetained = false;
+        try {
+            newValidity = allocator.buffer(validityBufferLength(valueCount));
+            newValidity.setZero(0, newValidity.capacity());
+            for (int i = 0; i < valueCount; i++) {
+                if (mask.getBoolean(i) && isNull(i) == false) {
+                    setValidityBit(newValidity, i);
+                }
+            }
+
+            ArrowUtils.retainBuffers(valueBuffer, valueOffsetsBuffer, offsetBuffer);
+            sharedRetained = true;
+
+            var result = new BytesRefArrowBufBlock(
+                valueBuffer,
+                valueOffsetsBuffer,
+                newValidity,
+                offsetBuffer,
+                valueCount,
+                offsetCount,
+                blockFactory
+            );
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                if (sharedRetained) {
+                    ArrowUtils.releaseBuffers(valueBuffer, valueOffsetsBuffer, offsetBuffer);
+                }
+                ArrowUtils.releaseBuffers(newValidity);
             }
         }
-
-        ArrowUtils.retainBuffers(valueBuffer, valueOffsetsBuffer, offsetBuffer);
-        return new BytesRefArrowBufBlock(valueBuffer, valueOffsetsBuffer, newValidity, offsetBuffer, valueCount, offsetCount, blockFactory);
     }
 
     @Override
@@ -396,19 +424,43 @@ public final class BytesRefArrowBufBlock extends AbstractArrowBufBlock<BytesRefV
             return new BytesRefArrowBufBlock(valueBuffer, valueOffsetsBuffer, null, null, expandedPositionCount, 0, blockFactory);
         }
         var allocator = blockFactory.arrowAllocator();
-        ArrowBuf newValidity = allocator.buffer(validityBufferLength(expandedPositionCount));
-        for (int i = 0; i < newValidity.capacity(); i++) {
-            newValidity.setByte(i, (byte) 0xFF);
-        }
-        for (int p = 0; p < valueCount; p++) {
-            if (isNull(p)) {
-                int expandedPos = getFirstValueIndex(p);
-                int byteIndex = expandedPos / 8;
-                newValidity.setByte(byteIndex, newValidity.getByte(byteIndex) & ~(1 << (expandedPos % 8)));
+        ArrowBuf newValidity = null;
+        boolean success = false;
+        boolean sharedRetained = false;
+        try {
+            newValidity = allocator.buffer(validityBufferLength(expandedPositionCount));
+            for (int i = 0; i < newValidity.capacity(); i++) {
+                newValidity.setByte(i, (byte) 0xFF);
+            }
+            for (int p = 0; p < valueCount; p++) {
+                if (isNull(p)) {
+                    int expandedPos = getFirstValueIndex(p);
+                    int byteIndex = expandedPos / 8;
+                    newValidity.setByte(byteIndex, newValidity.getByte(byteIndex) & ~(1 << (expandedPos % 8)));
+                }
+            }
+            ArrowUtils.retainBuffers(valueBuffer, valueOffsetsBuffer);
+            sharedRetained = true;
+
+            var result = new BytesRefArrowBufBlock(
+                valueBuffer,
+                valueOffsetsBuffer,
+                newValidity,
+                null,
+                expandedPositionCount,
+                0,
+                blockFactory
+            );
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                if (sharedRetained) {
+                    ArrowUtils.releaseBuffers(valueBuffer, valueOffsetsBuffer);
+                }
+                ArrowUtils.releaseBuffers(newValidity);
             }
         }
-        ArrowUtils.retainBuffers(valueBuffer, valueOffsetsBuffer);
-        return new BytesRefArrowBufBlock(valueBuffer, valueOffsetsBuffer, newValidity, null, expandedPositionCount, 0, blockFactory);
     }
 
     @Override
@@ -479,49 +531,58 @@ public final class BytesRefArrowBufBlock extends AbstractArrowBufBlock<BytesRefV
                 newOffsets = allocator.buffer((long) (batchSize + 1) * Integer.BYTES);
                 newValidity = allocator.buffer(validityBufferLength(batchSize));
                 newValidity.setZero(0, newValidity.capacity());
+
+                int byteIdx = 0;
+                int valueIdx = 0;
+                for (int p = batchStart; p < batchEnd; p++) {
+                    int outPos = p - batchStart;
+                    newOffsets.setInt((long) outPos * Integer.BYTES, valueIdx);
+                    int pStart = positions.getFirstValueIndex(p);
+                    int pEnd = pStart + positions.getValueCount(p);
+                    int valuesForPos = 0;
+                    for (int i = pStart; i < pEnd; i++) {
+                        int vp = positions.getInt(i);
+                        if (vp >= getPositionCount()) {
+                            continue;
+                        }
+                        int vStart = getFirstValueIndex(vp);
+                        int vCount = getValueCount(vp);
+                        for (int v = 0; v < vCount; v++) {
+                            int srcStart = valueOffsetsBuffer.getInt((long) (vStart + v) * Integer.BYTES);
+                            int length = valueByteLength(vStart + v);
+                            newValueOffsets.setInt((long) valueIdx * Integer.BYTES, byteIdx);
+                            if (length > 0) {
+                                newValues.setBytes(byteIdx, valueBuffer, srcStart, length);
+                                byteIdx += length;
+                            }
+                            valueIdx++;
+                            valuesForPos++;
+                        }
+                    }
+                    if (valuesForPos > 0) {
+                        setValidityBit(newValidity, outPos);
+                    }
+                }
+                newOffsets.setInt((long) batchSize * Integer.BYTES, valueIdx);
+                newValueOffsets.setInt((long) valueIdx * Integer.BYTES, byteIdx);
+                position = batchEnd;
+
+                var result = new BytesRefArrowBufBlock(
+                    newValues,
+                    newValueOffsets,
+                    newValidity,
+                    newOffsets,
+                    batchSize,
+                    batchSize + 1,
+                    factory
+                );
                 success = true;
+                return result;
             } finally {
                 if (success == false) {
                     ArrowUtils.releaseBuffers(newValues, newValueOffsets, newOffsets, newValidity);
                 }
             }
-
-            int byteIdx = 0;
-            int valueIdx = 0;
-            for (int p = batchStart; p < batchEnd; p++) {
-                int outPos = p - batchStart;
-                newOffsets.setInt((long) outPos * Integer.BYTES, valueIdx);
-                int pStart = positions.getFirstValueIndex(p);
-                int pEnd = pStart + positions.getValueCount(p);
-                int valuesForPos = 0;
-                for (int i = pStart; i < pEnd; i++) {
-                    int vp = positions.getInt(i);
-                    if (vp >= getPositionCount()) {
-                        continue;
-                    }
-                    int vStart = getFirstValueIndex(vp);
-                    int vCount = getValueCount(vp);
-                    for (int v = 0; v < vCount; v++) {
-                        int srcStart = valueOffsetsBuffer.getInt((long) (vStart + v) * Integer.BYTES);
-                        int length = valueByteLength(vStart + v);
-                        newValueOffsets.setInt((long) valueIdx * Integer.BYTES, byteIdx);
-                        if (length > 0) {
-                            newValues.setBytes(byteIdx, valueBuffer, srcStart, length);
-                            byteIdx += length;
-                        }
-                        valueIdx++;
-                        valuesForPos++;
-                    }
-                }
-                if (valuesForPos > 0) {
-                    setValidityBit(newValidity, outPos);
-                }
-            }
-            newOffsets.setInt((long) batchSize * Integer.BYTES, valueIdx);
-            newValueOffsets.setInt((long) valueIdx * Integer.BYTES, byteIdx);
-            position = batchEnd;
-
-            return new BytesRefArrowBufBlock(newValues, newValueOffsets, newValidity, newOffsets, batchSize, batchSize + 1, factory);
         }
 
         @Override

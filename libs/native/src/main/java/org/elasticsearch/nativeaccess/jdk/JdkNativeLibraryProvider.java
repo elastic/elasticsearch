@@ -13,7 +13,6 @@ import org.elasticsearch.nativeaccess.lib.JavaLibrary;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.ParquetRsLibrary;
-import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.util.Map;
 
@@ -25,8 +24,6 @@ public class JdkNativeLibraryProvider extends NativeLibraryProvider {
             Map.of(
                 JavaLibrary.class,
                 JdkJavaLibrary::new,
-                PosixCLibrary.class,
-                JdkPosixCLibrary::new,
                 Kernel32Library.class,
                 JdkKernel32Library::new,
                 ParquetRsLibrary.class,

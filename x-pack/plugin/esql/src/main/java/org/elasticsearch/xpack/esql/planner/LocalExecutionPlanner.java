@@ -1149,6 +1149,7 @@ public class LocalExecutionPlanner {
         final Integer rowSize = topNByExec.estimatedRowSize();
         PhysicalOperation source = plan(topNByExec.child(), context);
 
+        int channelsBefore = source.layout.numberOfChannels();
         var resolved = resolveGroupKeys(topNByExec.groupings(), source, context);
         source = resolved.source();
         List<Integer> groupKeys = resolved.groupKeys();
@@ -1159,7 +1160,7 @@ public class LocalExecutionPlanner {
         // Build topNCommon AFTER inserting any CategorizeEvalOperators so that elementTypes
         // and encoders cover the newly added int channels.
         var common = topNCommon(rowSize, topNByExec.order(), topNByExec.limitPerGroup(), topNByExec.docValuesAttributes(), source, context);
-        return source.with(
+        source = source.with(
             new GroupedTopNOperator.GroupedTopNOperatorFactory(
                 common.limit,
                 asList(common.elementTypes),
@@ -1172,6 +1173,7 @@ public class LocalExecutionPlanner {
             ),
             source.layout
         );
+        return projectAwayInternalChannels(source, channelsBefore);
     }
 
     private record TopNCommon(ElementType[] elementTypes, TopNEncoder[] encoders, List<TopNOperator.SortOrder> orders, int limit) {}
@@ -2246,6 +2248,7 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(limitBy.child(), context);
         int limitValue = (Integer) limitBy.limitPerGroup().fold(context.foldCtx);
 
+        int channelsBefore = source.layout.numberOfChannels();
         var resolved = resolveGroupKeys(limitBy.groupings(), source, context);
         source = resolved.source();
         List<Integer> groupKeys = resolved.groupKeys();
@@ -2256,7 +2259,27 @@ public class LocalExecutionPlanner {
         for (int channel = 0; channel < inverse.size(); channel++) {
             elementTypes.add(PlannerUtils.toElementType(inverse.get(channel).type()));
         }
-        return source.with(new GroupedLimitOperator.Factory(limitValue, groupKeys, elementTypes), source.layout);
+        source = source.with(new GroupedLimitOperator.Factory(limitValue, groupKeys, elementTypes), source.layout);
+        return projectAwayInternalChannels(source, channelsBefore);
+    }
+
+    /**
+     * Projects away any channels appended beyond {@code channelsBefore} by {@link #resolveGroupKeys}.
+     * Those channels (e.g. the integer categorize channel added by {@link #addCategorizeChannel}) are
+     * internal grouping keys; they must not leak into downstream pages or through an exchange, because
+     * different shards assign independent integer IDs and the coordinator would group incorrectly.
+     */
+    private PhysicalOperation projectAwayInternalChannels(PhysicalOperation source, int channelsBefore) {
+        if (source.layout.numberOfChannels() == channelsBefore) {
+            return source;
+        }
+        List<Integer> projection = IntStream.range(0, channelsBefore).boxed().toList();
+        List<Layout.ChannelSet> inverse = source.layout.inverse();
+        var builder = new Layout.Builder();
+        for (int ch = 0; ch < channelsBefore; ch++) {
+            builder.append(inverse.get(ch));
+        }
+        return source.with(new ProjectOperatorFactory(projection), builder.build());
     }
 
     /**

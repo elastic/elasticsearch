@@ -106,9 +106,9 @@ public class ShardHeapEstimator {
             long shardHeap = computeShardHeapUsage(metric);
             totalShardHeapInBytes += shardHeap;
             maxShardHeapInBytes = Math.max(maxShardHeapInBytes, shardHeap);
-            lowestMetricQuality = metric.getMetricQuality() == MetricQuality.EXACT ? lowestMetricQuality
-                : lowestMetricQuality.compareTo(metric.getMetricQuality()) > 0 ? lowestMetricQuality
-                : metric.getMetricQuality();
+            if (metric.getMetricQuality().isLowerQualityThan(lowestMetricQuality)) {
+                lowestMetricQuality = metric.getMetricQuality();
+            }
             metricVisitor.accept(entry.getKey(), metric);
         }
         return new ShardMetricsAggregation(mappingSizeInBytes, totalShardHeapInBytes, maxShardHeapInBytes, lowestMetricQuality);

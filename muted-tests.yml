@@ -137,18 +137,6 @@ tests:
 - class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
   method: testKnnVectors
   issue: https://github.com/elastic/elasticsearch/issues/156756
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
-  method: testGroupingAggregate {TestCase=<positive longs>}
-  issue: https://github.com/elastic/elasticsearch/issues/156838
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
-  method: testGroupingAggregate {TestCase=<big positive doubles>}
-  issue: https://github.com/elastic/elasticsearch/issues/156839
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
-  method: testGroupingAggregate {TestCase=<small positive doubles>}
-  issue: https://github.com/elastic/elasticsearch/issues/156840
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
-  method: testGroupingAggregate {TestCase=<positive ints>}
-  issue: https://github.com/elastic/elasticsearch/issues/156841
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValuesByteRefGroupingAggregatorFunctionTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/155069

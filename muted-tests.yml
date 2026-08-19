@@ -487,9 +487,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.RestartIT
   method: testRestart {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/155609
-- class: org.elasticsearch.xpack.slm.SLMStatDisruptionIT
-  method: testCurrentlyRunningSnapshotNotRecordedAsFailure
-  issue: https://github.com/elastic/elasticsearch/issues/155621
 - class: org.elasticsearch.xpack.downsample.DownsampleRateIT
   method: testTimeSeriesQuerying_RandomDocuments
   issue: https://github.com/elastic/elasticsearch/issues/153348

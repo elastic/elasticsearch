@@ -377,6 +377,7 @@ public class CsvTestsDataLoader {
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json").withIndex("ts_window_nanos")
             .withTypeMapping(Map.of("@timestamp", "date_nanos")),
         new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv"),
+        new TestDataset("date_fn_fields", "mapping-date_fn_fields.json", "date_fn_fields.csv"),
         new TestDataset("trim_test")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 

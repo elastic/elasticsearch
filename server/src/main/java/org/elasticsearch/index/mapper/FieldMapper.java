@@ -458,11 +458,9 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
-     * Whether a {@code null} token is treated as absent (silently discarded) by this mapper. When {@code true}, a leading
-     * null does not consume the single-value slot enforced by {@link #isSingleValueEnforced()}, so {@code [null, "val"]}
-     * behaves identically to {@code ["val"]}. Defaults to {@code true}; override in mappers that expose {@code null_value}
-     * to return {@code false} when a {@code null_value} is configured (making the null produce a real indexed value that
-     * should count toward the single-value constraint).
+     * Whether a {@code null} token is silently discarded by this mapper. When {@code true}, a leading null does not consume
+     * the single-value slot enforced by {@link #isSingleValueEnforced()}, so {@code [null, "val"]} is treated as {@code ["val"]}.
+     * Overridden by mappers with {@code null_value} support to return {@code nullValue == null}.
      */
     protected boolean nullIsAbsent() {
         return true;

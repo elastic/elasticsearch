@@ -134,7 +134,8 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         }
 
         if (redirectsMultipleValues()) {
-            // Position 0 → primary column (null_value substitutes → v2); positions 1+ → ._on_failure (null stays null → v1).
+            // Position 0 → primary column: null_value substitution applies, so expected output is v2 (transformed).
+            // Positions 1+ → ._on_failure: raw bytes stored without substitution, so expected output is v1 (raw input).
             List<Tuple<String, String>> values = ESTestCase.randomList(2, maxValues, this::generateValue);
             List<String> expected = new ArrayList<>();
             for (int i = 0; i < values.size(); i++) {

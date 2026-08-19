@@ -251,9 +251,14 @@ public class ExternalSourceSettingsTests extends ESTestCase {
             .put("esql.external.managed_identity.enabled", true)
             .put("esql.datasource.federated_identity.enabled", false)
             .put("esql.external.federated_identity.enabled", true)
+            .putList("esql.datasource.local_allowed_paths", "/data/old")
+            .putList("esql.external.local_allowed_paths", "/data/new")
             .build();
         assertTrue(ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.get(settings));
         assertTrue(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED.get(settings));
+        // The list setting resolves its fallback through a different Setting.listSetting overload than the booleans,
+        // so cover it too.
+        assertEquals(List.of("/data/new"), ExternalSourceSettings.LOCAL_ALLOWED_PATHS.get(settings));
         // No deprecation warnings: fallback resolution is lazy, so a pre-rename key that loses to the new key is
         // never read.
     }
@@ -319,8 +324,19 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         assertFalse("disabling the pre-rename managed key must fire the consumer (security-critical)", managedEnabled.get());
         assertFalse("disabling the pre-rename federated key must fire the consumer (security-critical)", federatedEnabled.get());
 
+        // The deepest fallback: a dynamic update through the original 9.5 workload_identity spelling must still
+        // propagate up the whole chain to the managed-identity consumer, again in both directions.
+        clusterSettings.applySettings(Settings.builder().put("esql.datasource.workload_identity.enabled", true).build());
+        assertTrue("enabling the pre-rename workload key dynamically must fire the managed consumer", managedEnabled.get());
+
+        clusterSettings.applySettings(Settings.builder().put("esql.datasource.workload_identity.enabled", false).build());
+        assertFalse("disabling the pre-rename workload key must fire the managed consumer (security-critical)", managedEnabled.get());
+
         assertSettingDeprecationsAndWarnings(
-            new Setting<?>[] { ExternalSourceSettings.MANAGED_IDENTITY_ENABLED_OLD, ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED_OLD }
+            new Setting<?>[] {
+                ExternalSourceSettings.MANAGED_IDENTITY_ENABLED_OLD,
+                ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED_OLD,
+                ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED_OLD }
         );
     }
 

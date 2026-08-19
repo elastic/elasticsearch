@@ -88,6 +88,31 @@ teardown:
   - match: { error.root_cause.0.reason: "cannot retry an action for an index [my_index] that has not encountered an error when running a Lifecycle Policy" }
 
 ---
+"Test Invalid Retry With Lookup Index":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /{index}/_ilm/retry
+          capabilities: [ ilm_lookup_index_rejection ]
+      reason: "Lookup index rejection for ILM retry was added in a later version"
+
+  - do:
+      indices.create:
+        index: my_lookup_index
+        body:
+          settings:
+            index.mode: lookup
+            index.lifecycle.name: "my_lifecycle"
+
+  - do:
+      catch: bad_request
+      ilm.retry:
+        index: "my_lookup_index"
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "index [my_lookup_index] is a lookup index and cannot be managed by ILM" }
+
+---
 "Test Invalid Re-run With Invalid Index":
   - do:
       indices.create:

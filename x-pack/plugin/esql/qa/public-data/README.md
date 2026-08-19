@@ -156,6 +156,41 @@ one shard per corpus (ClickBench split per variant) → merge/verdict step whose
 run's pass/fail. Wire the nightly schedule in Buildkite settings; the red-run notification hook
 is a marked TBD in the yml pending an owner/channel.
 
+## Datasources and matrix coverage
+
+The nine catalogued corpora, all on **anonymous S3** (the only active provider). Every workload
+covers **all four read shapes** (SCAN, AGGREGATE, TOPN, LIMIT) — including the ClickBench text
+legs, whose 6-query `query_subset` was chosen to keep all four; read shape is therefore not
+repeated per row.
+
+| corpus | what it is | format | codec | layout | partitioning | scale | quality |
+|---|---|---|---|---|---|---|---|
+| `clickbench` | 100M-row web-analytics hits (immutable since 2022), one logical corpus in 5 physical variants | parquet | snappy | single_file | none | huge | clean |
+| | — same rows, 100 Parquet shards (glob) | parquet | snappy | uniform_shards | none | huge | clean |
+| | — same rows, one 15.5 GiB headerless gzip text file each | csv, tsv, ndjson | gzip | single_file | none | huge | clean |
+| `cse-cic-ids2018` | Real dirty security logs (CICFlowMeter CSVs): embedded mid-file headers, Excel row-truncation, Infinity/NaN columns, clock-skew rows | csv | uncompressed | uniform_shards | none | medium | schema-drift |
+| `openaq` | 298 few-hundred-byte gzip CSVs of air-quality readings in `year=/month=` subtrees; per-object overhead + detected partition columns are the case | csv | gzip | nested_hive | hive | small | clean |
+| `clickbench-dirty` | Failure-only: deliberately wrong configs over pinned ClickBench objects (mislabeled format, mispointed glob, zero-byte, nonexistent key) — each must fail with a clean client error | csv, parquet | uncompressed | single_file, uniform_shards | none | small | mislabeled |
+| `ookla-fixed-2024` | 26M broadband speed-test tiles, four 2024 quarters | parquet | snappy | hive_partitioned | hive | medium | clean |
+| `ghcnd-usw3` | 195 NOAA station files × 2 mirrored trees with proven-identical rows but different dialects (headered vs systematically headerless) | csv | uncompressed, gzip | many_small | none | medium | schema-drift |
+| `overture-divisions` | 4.7M map divisions, deeply nested schema (structs/maps/arrays + geometry); carries the nested-read probe (q30) | parquet | zstd | single_file | none | medium | clean |
+| `btc-tx-skew` | Bitcoin transactions, six pinned dates spanning 2011 (~1 MB) vs 2024 (~600 MB): a genuine 1000× shard-size skew | parquet | snappy | skewed_shards | none | large | clean |
+| `abo-listings` | 147K Amazon product listings, extreme per-attribute nesting (language-tagged value arrays), pins frozen since 2021 | ndjson | gzip | uniform_shards | none | small | clean |
+
+Dimension closure against the issue's matrix:
+
+- **Formats**: all four (parquet, csv, tsv, ndjson). **Codecs**: all four (snappy, gzip, zstd,
+  uncompressed; parquet compression is internal, so text carries gzip/uncompressed).
+- **Layouts**: single_file, uniform_shards, many_small, skewed_shards, hive_partitioned,
+  nested_hive — all except **WIDE_SINGLE_ROW_GROUP** (declared gap: no anonymously-readable
+  public carrier; Common Crawl denies anonymous S3, Overture parts carry 256 row groups).
+- **Partitioning**: none, hive-detected (OpenAQ nested + Ookla flat), plus the disclosed
+  partition-key-shadowing case (BTC runs `hive_partitioning: false` because `date=` path keys
+  would shadow the physical column).
+- **Scale**: small → huge. **Quality**: clean, schema-drift, mislabeled (failure corpus).
+- **Providers**: S3 active; HTTPS backup-only by decision; GCS/Azure modeled but not yet usable
+  (declared gaps, activation is a catalog edit).
+
 ## Phase status
 
 Phases 0–4 delivered: ClickBench (5 legs incl. the gzip text subsets), CSE-CIC-IDS2018 (dirty

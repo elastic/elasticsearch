@@ -129,9 +129,10 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
             dotted-key resolution, and objects or missing keys returning `null` - see [ES|QL and flattened
             fields](/reference/query-languages/esql/esql-flattened-fields.md#esql-flattened-fields-behaviors).
 
-            The full-text functions (`MATCH`, `MATCH_PHRASE`, `KQL`, `KNN`) and the `:` operator require a
-            directly mapped field, so they do not accept a `FIELD_EXTRACT` expression as an argument; use `==`,
-            `LIKE`, `RLIKE`, or `WILDCARD` to filter on an extracted value.
+            `MATCH`, `MATCH_PHRASE`, and the `:` operator accept a `FIELD_EXTRACT` expression and match it at
+            runtime. `KQL`, `QSTR`, and `KNN` require a directly mapped field, so they do not accept a
+            `FIELD_EXTRACT` expression as an argument; use `==`, `LIKE`, `RLIKE`, or `WILDCARD` to filter on an
+            extracted value with those.
             ::::""",
         examples = @Example(file = "field_extract", tag = "field_extract_host_name")
     )

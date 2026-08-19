@@ -13,6 +13,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -318,10 +319,12 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         // This is intentional: the columnar write path has no partial-commit mechanism.
         LongTupleCursor cursor = timestampColumn.tuples();
         int docCount = context.docCount();
-        int nextPresent = cursor.nextDoc();
-        for (int doc = 0; doc < docCount; doc++) {
-            if (nextPresent != doc) {
-                throw new IllegalArgumentException("document [" + doc + "] is missing data stream timestamp field [" + DEFAULT_PATH + "]");
+        int expected = 0;
+        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+            if (doc != expected) {
+                throw new IllegalArgumentException(
+                    "document [" + expected + "] is missing data stream timestamp field [" + DEFAULT_PATH + "]"
+                );
             }
             if (shouldValidateTimestamp) {
                 try {
@@ -330,7 +333,10 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
                     throw new IllegalArgumentException("document [" + doc + "]: " + e.getMessage(), e);
                 }
             }
-            nextPresent = cursor.nextDoc();
+            expected++;
+        }
+        if (expected != docCount) {
+            throw new IllegalArgumentException("document [" + expected + "] is missing data stream timestamp field [" + DEFAULT_PATH + "]");
         }
     }
 

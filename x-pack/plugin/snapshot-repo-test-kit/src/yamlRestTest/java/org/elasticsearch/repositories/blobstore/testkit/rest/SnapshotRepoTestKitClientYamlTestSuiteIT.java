@@ -9,6 +9,7 @@ package org.elasticsearch.repositories.blobstore.testkit.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -23,7 +24,7 @@ public class SnapshotRepoTestKitClientYamlTestSuiteIT extends ESClientYamlSuiteT
 
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .plugin("x-pack-snapshot-repo-test-kit")
-        .setting("path.repo", () -> repoDirectory.getRoot().getPath())
+        .setting("path.repo", SnapshotRepoTestKitClientYamlTestSuiteIT::repoDirectoryPath)
         .setting("xpack.security.enabled", "false")
         .build();
 
@@ -42,5 +43,10 @@ public class SnapshotRepoTestKitClientYamlTestSuiteIT extends ESClientYamlSuiteT
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         return ESClientYamlSuiteTestCase.createParameters();
+    }
+
+    @SuppressForbidden(reason = "TemporaryFolder uses java.io.File")
+    private static String repoDirectoryPath() {
+        return repoDirectory.getRoot().getPath();
     }
 }

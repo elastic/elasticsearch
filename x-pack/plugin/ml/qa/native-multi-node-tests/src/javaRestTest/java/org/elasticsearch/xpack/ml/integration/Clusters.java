@@ -14,7 +14,7 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
  * The single 3-node cluster shared by every IT class in this project, whether it talks to the cluster over the
  * transport client (see {@link MlNativeIntegTestCase}) or the REST client ({@code ESRestTestCase} subclasses).
  */
-public abstract class NativeMultiNodeTestCluster {
+public abstract class Clusters {
 
     // Name must match the transport client's discovery.seed_hosts / cluster.name handshake in
     // MlNativeIntegTestCase#buildTestCluster.
@@ -62,5 +62,5 @@ public abstract class NativeMultiNodeTestCluster {
         .shared(true)
         .build();
 
-    private NativeMultiNodeTestCluster() {}
+    private Clusters() {}
 }

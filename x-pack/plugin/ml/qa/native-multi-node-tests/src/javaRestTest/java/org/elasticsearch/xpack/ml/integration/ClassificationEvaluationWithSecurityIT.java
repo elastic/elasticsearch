@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
     @ClassRule
-    public static ElasticsearchCluster CLUSTER = NativeMultiNodeTestCluster.CLUSTER;
+    public static final ElasticsearchCluster CLUSTER = Clusters.CLUSTER;
 
     @Override
     protected String getTestRestCluster() {

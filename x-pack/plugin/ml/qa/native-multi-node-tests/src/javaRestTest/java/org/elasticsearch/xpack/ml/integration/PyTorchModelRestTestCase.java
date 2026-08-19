@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.hasSize;
 public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster CLUSTER = NativeMultiNodeTestCluster.CLUSTER;
+    public static final ElasticsearchCluster CLUSTER = Clusters.CLUSTER;
 
     protected static final String BASIC_AUTH_VALUE_SUPER_USER = UsernamePasswordToken.basicAuthHeaderValue(
         "x_pack_rest_user",

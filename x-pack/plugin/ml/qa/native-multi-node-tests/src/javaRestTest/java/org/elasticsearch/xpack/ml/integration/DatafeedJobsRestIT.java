@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class DatafeedJobsRestIT extends ESRestTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster CLUSTER = NativeMultiNodeTestCluster.CLUSTER;
+    public static final ElasticsearchCluster CLUSTER = Clusters.CLUSTER;
 
     @Override
     protected String getTestRestCluster() {

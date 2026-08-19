@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.not;
 public class TrainedModelIT extends ESRestTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster CLUSTER = NativeMultiNodeTestCluster.CLUSTER;
+    public static final ElasticsearchCluster CLUSTER = Clusters.CLUSTER;
 
     @Override
     protected String getTestRestCluster() {

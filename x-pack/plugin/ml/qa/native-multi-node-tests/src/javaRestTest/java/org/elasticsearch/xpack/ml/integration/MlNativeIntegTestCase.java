@@ -154,7 +154,7 @@ import static org.hamcrest.Matchers.is;
 abstract class MlNativeIntegTestCase extends ESIntegTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster CLUSTER = NativeMultiNodeTestCluster.CLUSTER;
+    public static final ElasticsearchCluster CLUSTER = Clusters.CLUSTER;
 
     @Rule
     public final TestRule templateDecoratorRule = TemplateDecoratorRule.initDefault();
@@ -270,7 +270,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             externalClusterClientSettings(),
             nodePlugins(),
             getClientWrapper(),
-            NativeMultiNodeTestCluster.CLUSTER_NAME,
+            Clusters.CLUSTER_NAME,
             transportAddresses
         );
     }

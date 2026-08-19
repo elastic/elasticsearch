@@ -1247,7 +1247,7 @@ public class LocalExecutionPlanner {
         ElementType[] elementTypes = new ElementType[source.layout.numberOfChannels()];
         TopNEncoder[] encoders = new TopNEncoder[source.layout.numberOfChannels()];
         Set<NameId> remoteFetchHandleIds = inputAttributes.stream()
-            .filter(RemoteFetchHandle::isAttribute)
+            .filter(RemoteFetchHandle::isRemoteFetchHandleCarrier)
             .map(Attribute::id)
             .collect(Collectors.toSet());
         List<Layout.ChannelSet> inverse = source.layout.inverse();

@@ -220,7 +220,7 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
         );
 
         // A non-synthetic user column with the reserved name must not satisfy the internal handle contract.
-        assertFalse(RemoteFetchHandle.isAttribute(userColumn));
+        assertFalse(RemoteFetchHandle.isRemoteFetchHandleCarrier(userColumn));
         assertTrue(
             RemoteFetchReductionPlanner.planReduceDriverTopN(
                 contextFactory(),

@@ -118,7 +118,7 @@ public final class ReductionPlanner {
          * remote-fetch schema. All other reductions forward the original doc-based columns, which the coordinator can no
          * longer consume, so fail here instead of surfacing an obscure schema mismatch at exchange time.
          */
-        if (originalPlan.output().stream().anyMatch(RemoteFetchHandle::isAttribute)) {
+        if (originalPlan.output().stream().anyMatch(RemoteFetchHandle::isRemoteFetchHandleCarrier)) {
             boolean producesHandle = reductionPlan.nodeReducePlan()
                 .anyMatch(
                     p -> p instanceof EvalExec eval && eval.fields().stream().anyMatch(a -> a.child() instanceof RemoteFetchHandleFunction)
@@ -130,8 +130,7 @@ public final class ReductionPlanner {
             }
         }
 
-        // TODO: How we generate intermediate attributes prevents us from cleanly checking dependencies here. We should always be
-        // able to perform this check.
+        // Intermediate attributes prevent clean dependency verification for these plan shapes, so skip the check for them.
         if (Assertions.ENABLED == false
             || (reductionPlan.dataNodePlan().child() instanceof FragmentExec fragment
                 && skipConsistencyCheckAfterReductionPlanning(fragment.fragment()))) {

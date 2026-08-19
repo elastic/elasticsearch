@@ -262,7 +262,7 @@ final class RemoteFetchReductionPlanner {
     }
 
     private static Optional<Attribute> remoteFetchHandleAttribute(List<Attribute> attributes) {
-        return attributes.stream().filter(RemoteFetchHandle::isAttribute).findFirst();
+        return attributes.stream().filter(RemoteFetchHandle::isRemoteFetchHandleCarrier).findFirst();
     }
 
     private static boolean isFetchable(Attribute attr) {

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -48,7 +49,7 @@ final class DistributedPlanPlanner {
         Map<String, OriginalIndices> clusterToConcreteIndices,
         TransportVersion minimumTransportVersion
     ) {
-        var splitPlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(resolvedPlan, configuration);
+        Tuple<PhysicalPlan, PhysicalPlan> splitPlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(resolvedPlan, configuration);
         PhysicalPlan coordinatorPlan = splitPlan.v1();
         PhysicalPlan dataNodePlan = splitPlan.v2();
         boolean hasConcreteIndices = clusterToConcreteIndices.values().stream().anyMatch(indices -> indices.indices().length > 0);

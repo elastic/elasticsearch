@@ -112,7 +112,7 @@ public record RemoteFetchHandle(String nodeId, String retainedSessionId, int sha
     /**
      * Whether an attribute is the internal binary carrier for remote fetch handles.
      */
-    public static boolean isAttribute(Attribute attribute) {
+    public static boolean isRemoteFetchHandleCarrier(Attribute attribute) {
         return attribute.synthetic() && attribute.name().equals(ATTRIBUTE_NAME) && attribute.dataType() == DataType.KEYWORD;
     }
 }

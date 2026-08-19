@@ -1117,11 +1117,10 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * Verifies that {@link IndicesService#createShard} retains a store reference for the duration of
-     * {@link IndexShard#startRecovery}. Without that ref, deleting the index while recovery is starting
-     * can drop the store to zero refs and cause assertion errors when recovery tries to grab its own refs.
+     * Verifies that {@link IndicesService#createShard} grabs a store reference, kept until the recovery
+     * listener completes.
      */
-    public void testStartRecoveryHoldsRefOnStore() throws Exception {
+    public void testStartRecoveryGrabsRefOnStore() throws Exception {
         final var recovering = new CountDownLatch(1);
         final var proceedRecovering = new CountDownLatch(1);
         final IndexEventListener indexListener = new IndexEventListener() {
@@ -1146,7 +1145,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             final var deleteFuture = indicesAdmin().prepareDelete(indexName).execute();
             assertAcked(deleteFuture.actionGet());
             assertTrue(shard.store().isClosing());
-            assertTrue("startRecovery must retain a store ref until it returns", shard.store().hasReferences());
+            assertTrue("recovery must retain a store ref until the recovery listener completes", shard.store().hasReferences());
 
             proceedRecovering.countDown();
 

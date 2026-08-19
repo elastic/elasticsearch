@@ -124,7 +124,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         this.shardId = indexShard.shardId();
         this.store = indexShard.store();
         this.multiFileWriter = createMultiFileWriter();
-        // make sure the store is not released until we are done.
+        // Store ref is held by IndicesService for the recovery lifetime so this should always succeed.
+        // Retain a store ref for this target's lifetime (while they are in-flight RecoveryRefs).
         store.mustIncRef();
     }
 
@@ -479,7 +480,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             // to recover from in case of a full cluster shutdown just when this code executes...
             multiFileWriter.renameAllTempFiles();
             final Store store = store();
-            store.incRef();
+            assert store.hasReferences();
             try {
                 if (indexShard.routingEntry().isPromotableToPrimary()) {
                     store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetadata);

@@ -1006,48 +1006,52 @@ public class IndicesService extends AbstractLifecycleComponent
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
         IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
+        // Take a store ref when the recovery task actually runs, and release it before invoking the recovery listener
+        // to avoid conflicting with a concurrent shard closure. If the shard is closed, the recovery will notice and
+        // call the listener (which will dec the ref).
+        final var store = indexShard.store();
+        final var storeRefHeld = new AtomicBoolean();
+        final Runnable releaseStoreRefIfHeld = () -> {
+            if (storeRefHeld.compareAndSet(true, false)) {
+                store.decRef();
+            }
+        };
         throttlingRecoveryService.enqueue(
             projectId,
-            recoveryListener,
+            RecoveryListener.runBefore(recoveryListener, releaseStoreRefIfHeld),
             recoveryState,
             indexService.getMetadata(),
             shardRouting.allocationId().getId(),
             indexShard.recoveryStats(),
             listener -> {
-                // Hold a store ref across startRecovery. The shard may start concurrently closing after enqueue and
-                // recovery setup still needs to take store refs. If the store is already closed, the recovery will
-                // fail anyway.
-                final var store = indexShard.store();
+                // If the shard has already closed, abort early.
                 if (store.tryIncRef() == false) {
                     assert indexShard.state() == IndexShardState.CLOSED : indexShard.state();
                     listener.onRecoveryAborted();
                     return;
                 }
-                try {
-                    indexShard.startRecovery(
-                        recoveryState,
-                        recoveryTargetService,
-                        postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, listener),
-                        repositoriesService,
-                        (mapping, l) -> {
-                            assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
-                                : "mapping update consumer only required by local shards recovery";
-                            AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
-                                // concrete index - no name clash, it uses uuid
-                                .setConcreteIndex(shardRouting.index())
-                                .source(mapping.source().string(), XContentType.JSON);
-                            client.execute(
-                                TransportAutoPutMappingAction.TYPE,
-                                putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
-                                new RefCountAwareThreadedActionListener<>(threadPool.generic(), l.map(ignored -> null))
-                            );
-                        },
-                        this,
-                        clusterStateVersion
-                    );
-                } finally {
-                    store.decRef();
-                }
+                storeRefHeld.set(true);
+                indexShard.startRecovery(
+                    recoveryState,
+                    recoveryTargetService,
+                    postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, listener),
+                    repositoriesService,
+                    (mapping, l) -> {
+                        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
+                            : "mapping update consumer only required by local shards recovery";
+                        AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
+                            // concrete index - no name clash, it uses uuid
+                            .setConcreteIndex(shardRouting.index())
+                            .source(mapping.source().string(), XContentType.JSON);
+                        client.execute(
+                            TransportAutoPutMappingAction.TYPE,
+                            putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
+                            new RefCountAwareThreadedActionListener<>(threadPool.generic(), l.map(ignored -> null))
+                        );
+                    },
+                    this,
+                    clusterStateVersion
+                );
             }
         );
     }

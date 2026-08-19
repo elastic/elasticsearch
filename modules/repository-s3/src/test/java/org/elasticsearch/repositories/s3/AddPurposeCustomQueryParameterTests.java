@@ -78,8 +78,8 @@ public class AddPurposeCustomQueryParameterTests extends ESSingleNodeTestCase {
         createIndex(indexName);
         prepareIndex(indexName).setSource("foo", "bar").get();
 
-        final var bucket = randomIdentifier();
-        final var basePath = randomIdentifier();
+        final var bucket = randomIdentifier("bucket-");
+        final var basePath = randomIdentifier("base_path_");
 
         runCustomQueryParameterTest(bucket, basePath, null, Settings.EMPTY, NO_CUSTOM_QUERY_PARAMETER);
         runCustomQueryParameterTest(bucket, basePath, "default", Settings.EMPTY, NO_CUSTOM_QUERY_PARAMETER);
@@ -105,8 +105,8 @@ public class AddPurposeCustomQueryParameterTests extends ESSingleNodeTestCase {
         final var httpFixture = new S3HttpFixture(
             true,
             null,
-            bucket,
-            basePath,
+            () -> bucket,
+            () -> basePath,
             S3ConsistencyModel::randomConsistencyModel,
             (key, token) -> true
         ) {

@@ -1169,8 +1169,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             assertTrue(shard.store().isClosing());
             assertTrue("recovery must retain a store ref until the recovery listener completes", shard.store().hasReferences());
 
-            proceedRecovering.countDown();
-
         } finally {
             proceedRecovering.countDown();
             TestPlugin.removeIndexEventListener(indexListener);

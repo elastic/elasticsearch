@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.index.IndexMode;
@@ -48,8 +49,11 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
@@ -59,6 +63,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -67,6 +72,7 @@ import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.DocVectorConsumers;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.InsertPartialWindowAggregates;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
@@ -112,6 +118,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.kql.query.KqlQueryBuilder;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -2878,6 +2885,188 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             containsInAnyOrder("_tsid", "@timestamp", "network.total_bytes_in", TemporalityAttribute.NAME)
         );
         as(readMetrics.child(), EsQueryExec.class);
+    }
+
+    /**
+     * A window that is not an exact multiple of the time bucket ({@code 7m = 5m + 2m}) is decomposed by
+     * {@code InsertPartialWindowAggregates} into the full windowed aggregate plus a partial sibling with no window,
+     * filtered to the trailing remainder. Both execute as ordinary aggregates on the data node (INITIAL) and are
+     * paired only on the coordinator (FINAL); the sibling's state crosses the exchange as ordinary intermediate
+     * attributes.
+     */
+    public void testNonMultipleWindowInsertsPartialAggregate() {
+        var query = "TS k8s | STATS sum(rate(network.total_bytes_in, 7 minute)) BY TBUCKET(5 minute)";
+        var plan = plannerOptimizerTimeSeries.plan(query, EsqlTestUtils.TEST_SEARCH_STATS, metricsAnalyzer().buildAnalyzer());
+        List<TimeSeriesAggregateExec> tsAggs = new ArrayList<>();
+        plan.forEachDown(TimeSeriesAggregateExec.class, tsAggs::add);
+        assertThat(tsAggs, hasSize(2));
+        assertThat(tsAggs.get(0).getMode(), equalTo(AggregatorMode.FINAL));
+        assertThat(tsAggs.get(1).getMode(), equalTo(AggregatorMode.INITIAL));
+        for (TimeSeriesAggregateExec agg : tsAggs) {
+            Rate full = null;
+            for (NamedExpression ne : agg.aggregates()) {
+                if (Alias.unwrap(ne) instanceof Rate rate && rate.hasWindow()) {
+                    full = rate;
+                }
+            }
+            assertNotNull("expected the windowed rate in " + agg.getMode(), full);
+            assertThat(full.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(7)));
+            assertFalse(full.hasFilter());
+            AggregateFunction sibling = InsertPartialWindowAggregates.findPartialSibling(
+                agg.aggregates(),
+                full,
+                Duration.ofMinutes(2),
+                FoldContext.small()
+            );
+            assertNotNull("expected a partial sibling for the 7m window over 5m buckets in " + agg.getMode(), sibling);
+            assertThat(sibling, instanceOf(Rate.class));
+            assertFalse(sibling.hasWindow());
+            assertThat(sibling.filter(), instanceOf(WindowFilter.class));
+        }
+        TimeSeriesAggregateExec finalAgg = tsAggs.get(0);
+        assertTrue(
+            "expected the sibling's state in the intermediate attributes",
+            finalAgg.intermediateAttributes().stream().anyMatch(a -> a.name().contains("$partial"))
+        );
+        var exchange = as(finalAgg.child(), ExchangeExec.class);
+        assertThat(exchange.output(), equalTo(finalAgg.intermediateAttributes()));
+    }
+
+    /**
+     * Windows leaving the same remainder over the same input share one partial sibling: {@code 7m} and {@code 12m}
+     * over 5-minute buckets both need the trailing {@code 2m}, so only one sibling is planted.
+     */
+    public void testNonMultipleWindowsShareOnePartialAggregate() {
+        var query = "TS k8s"
+            + " | STATS sum(rate(network.total_bytes_in, 7 minute)), avg(rate(network.total_bytes_in, 12 minute))"
+            + " BY TBUCKET(5 minute)";
+        var plan = plannerOptimizerTimeSeries.plan(query, EsqlTestUtils.TEST_SEARCH_STATS, metricsAnalyzer().buildAnalyzer());
+        List<TimeSeriesAggregateExec> tsAggs = new ArrayList<>();
+        plan.forEachDown(TimeSeriesAggregateExec.class, tsAggs::add);
+        assertThat(tsAggs, hasSize(2));
+        for (TimeSeriesAggregateExec agg : tsAggs) {
+            List<Rate> rates = new ArrayList<>();
+            for (NamedExpression ne : agg.aggregates()) {
+                if (Alias.unwrap(ne) instanceof Rate rate) {
+                    rates.add(rate);
+                }
+            }
+            // the 7m and 12m windows plus one shared sibling
+            assertThat(rates, hasSize(3));
+            Rate full7m = rates.stream().filter(r -> windowOf(r).equals(Duration.ofMinutes(7))).findFirst().orElseThrow();
+            Rate full12m = rates.stream().filter(r -> windowOf(r).equals(Duration.ofMinutes(12))).findFirst().orElseThrow();
+            AggregateFunction sibling7m = InsertPartialWindowAggregates.findPartialSibling(
+                agg.aggregates(),
+                full7m,
+                Duration.ofMinutes(2),
+                FoldContext.small()
+            );
+            AggregateFunction sibling12m = InsertPartialWindowAggregates.findPartialSibling(
+                agg.aggregates(),
+                full12m,
+                Duration.ofMinutes(2),
+                FoldContext.small()
+            );
+            assertNotNull(sibling7m);
+            assertSame("both windows must share the one planted sibling", sibling7m, sibling12m);
+        }
+    }
+
+    /**
+     * A pre-existing aggregate with the sibling's exact shape is reused instead of planting a duplicate: a window
+     * smaller than the bucket is rewritten by the analyzer to the same filtered, windowless form, so the {@code 2m}
+     * aggregate below doubles as the partial sibling of the {@code 7m} window.
+     */
+    public void testNonMultipleWindowReusesSmallWindowAggregate() {
+        var query = "TS k8s"
+            + " | STATS min(max_over_time(network.bytes_in, 2 minute)), avg(max_over_time(network.bytes_in, 7 minute))"
+            + " BY TBUCKET(5 minute)";
+        var plan = plannerOptimizerTimeSeries.plan(query, EsqlTestUtils.TEST_SEARCH_STATS, metricsAnalyzer().buildAnalyzer());
+        List<TimeSeriesAggregateExec> tsAggs = new ArrayList<>();
+        plan.forEachDown(TimeSeriesAggregateExec.class, tsAggs::add);
+        assertThat(tsAggs, hasSize(2));
+        for (TimeSeriesAggregateExec agg : tsAggs) {
+            List<Max> maxes = new ArrayList<>();
+            for (NamedExpression ne : agg.aggregates()) {
+                if (Alias.unwrap(ne) instanceof Max max) {
+                    maxes.add(max);
+                }
+            }
+            // no third aggregate is planted: the rewritten 2m window is the sibling
+            assertThat(maxes, hasSize(2));
+            Max full7m = maxes.stream().filter(AggregateFunction::hasWindow).findFirst().orElseThrow();
+            Max smallWindow = maxes.stream().filter(m -> m.hasWindow() == false).findFirst().orElseThrow();
+            AggregateFunction sibling = InsertPartialWindowAggregates.findPartialSibling(
+                agg.aggregates(),
+                full7m,
+                Duration.ofMinutes(2),
+                FoldContext.small()
+            );
+            assertSame("the 7m window must reuse the rewritten 2m aggregate as its sibling", smallWindow, sibling);
+        }
+    }
+
+    /**
+     * A filtered aggregate with a non-multiple window gets a sibling whose filter is the aggregate's own filter
+     * extended by the {@link WindowFilter} over the remainder, and the sibling is still found by its structural
+     * signature.
+     */
+    public void testNonMultipleWindowWithFilteredAggregate() {
+        var query = "TS k8s" + " | STATS sum(rate(network.total_bytes_in, 7 minute)) WHERE pod == \"one\"" + " BY TBUCKET(5 minute)";
+        var plan = plannerOptimizerTimeSeries.plan(query, EsqlTestUtils.TEST_SEARCH_STATS, metricsAnalyzer().buildAnalyzer());
+        List<TimeSeriesAggregateExec> tsAggs = new ArrayList<>();
+        plan.forEachDown(TimeSeriesAggregateExec.class, tsAggs::add);
+        assertThat(tsAggs, hasSize(2));
+        for (TimeSeriesAggregateExec agg : tsAggs) {
+            Rate full = null;
+            for (NamedExpression ne : agg.aggregates()) {
+                if (Alias.unwrap(ne) instanceof Rate rate && rate.hasWindow()) {
+                    full = rate;
+                }
+            }
+            assertNotNull(full);
+            assertTrue("the inline filter must stay on the windowed aggregate", full.hasFilter());
+            AggregateFunction sibling = InsertPartialWindowAggregates.findPartialSibling(
+                agg.aggregates(),
+                full,
+                Duration.ofMinutes(2),
+                FoldContext.small()
+            );
+            assertNotNull("expected a partial sibling despite the aggregate's own filter", sibling);
+            List<Expression> conjuncts = Predicates.splitAnd(sibling.filter());
+            assertThat(conjuncts, hasSize(2));
+            assertTrue("the sibling keeps the aggregate's own filter as a conjunct", conjuncts.stream().anyMatch(full.filter()::equals));
+            assertTrue("the sibling adds the remainder filter", conjuncts.stream().anyMatch(c -> c instanceof WindowFilter));
+        }
+    }
+
+    /**
+     * An exact multiple needs no partial state: the final phase merges whole buckets, so no sibling is planted and
+     * the plan is unchanged.
+     */
+    public void testExactMultipleWindowPlansNoPartialAggregate() {
+        var query = "TS k8s | STATS sum(rate(network.total_bytes_in, 10 minute)) BY TBUCKET(5 minute)";
+        var plan = plannerOptimizerTimeSeries.plan(query, EsqlTestUtils.TEST_SEARCH_STATS, metricsAnalyzer().buildAnalyzer());
+        List<TimeSeriesAggregateExec> tsAggs = new ArrayList<>();
+        plan.forEachDown(TimeSeriesAggregateExec.class, tsAggs::add);
+        assertThat(tsAggs, hasSize(2));
+        for (TimeSeriesAggregateExec agg : tsAggs) {
+            List<Rate> rates = new ArrayList<>();
+            for (NamedExpression ne : agg.aggregates()) {
+                if (Alias.unwrap(ne) instanceof Rate rate) {
+                    rates.add(rate);
+                }
+            }
+            assertThat(rates, hasSize(1));
+            assertThat(windowOf(rates.get(0)), equalTo(Duration.ofMinutes(10)));
+            assertFalse(rates.get(0).hasFilter());
+        }
+        TimeSeriesAggregateExec finalAgg = tsAggs.get(0);
+        assertFalse(finalAgg.intermediateAttributes().stream().anyMatch(a -> a.name().contains("$partial")));
+    }
+
+    private static Duration windowOf(AggregateFunction af) {
+        return af.hasWindow() ? (Duration) af.window().fold(FoldContext.small()) : Duration.ZERO;
     }
 
     /**

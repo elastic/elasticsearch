@@ -36,6 +36,7 @@ import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
@@ -61,6 +62,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -1828,6 +1830,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
         ParquetStorageObjectAdapter adapter = (ParquetStorageObjectAdapter) inputFile;
         ColumnInfo[] columnInfos = buildColumnInfos(projectedSchema, projectedAttributes, declaredDateFormats);
+        String[] absentColumnWarnings = buildAbsentColumnWarnings(projectedAttributes, columnInfos);
         validatePlannerTypesAgainstFile(
             logger,
             storageObject.path().toString(),
@@ -1978,6 +1981,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // Constructor succeeded — iterator now owns preloadedMetadata. Set the flag after
             // construction so that a throw inside the constructor does not suppress cleanup.
             metadataHandedOff = true;
+            if (warningSink != null && absentColumnWarnings.length > 0) {
+                return new DeferredWarnProducer(iterator, absentColumnWarnings, warningSink);
+            }
             return iterator;
         } finally {
             if (metadataHandedOff == false) {
@@ -2095,6 +2101,113 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * Top-level fields are recognised via {@link MessageType#containsField}; leaf paths are
      * joined with {@code "."} (mirroring {@link ColumnChunkPrefetcher}'s prefetch key).
      */
+    /**
+     * Returns the names of declared columns that are absent from the file (null columnInfo) and
+     * warrant an informational warning. Empty array when there is nothing to warn about.
+     * Used by {@link DeferredWarnProducer} and {@link ParquetColumnIterator} to defer the warning
+     * to the first page produced so that row-group-pruned files (zero rows) do not emit spurious
+     * absent-column warnings.
+     */
+    private static String[] buildAbsentColumnWarnings(List<Attribute> attributes, ColumnInfo[] columnInfos) {
+        List<String> names = null;
+        for (int i = 0; i < columnInfos.length; i++) {
+            if (columnInfos[i] == null) {
+                Attribute attr = attributes.get(i);
+                if (attr.dataType() != DataType.NULL
+                    && attr.dataType() != DataType.UNSUPPORTED
+                    && ColumnExtractor.ROW_POSITION_COLUMN.equals(attr.name()) == false) {
+                    if (names == null) {
+                        names = new ArrayList<>();
+                    }
+                    names.add(attr.name());
+                }
+            }
+        }
+        return names != null ? names.toArray(String[]::new) : EMPTY_STRING_ARRAY;
+    }
+
+    private static final String[] EMPTY_STRING_ARRAY = new String[0];
+
+    /**
+     * Wraps {@link OptimizedParquetColumnIterator} (which implements both
+     * {@link CloseableIterator}{@code <Page>} and {@link ColumnExtractorProducer}) and defers
+     * absent-declared-column informational warnings to the first page produced. If the underlying
+     * iterator produces no pages (all row groups pruned by predicate statistics), the warning is
+     * never emitted — consistent with {@link org.elasticsearch.xpack.esql.datasources.SchemaAdaptingIterator}'s lazy-emit design.
+     */
+    private static final class DeferredWarnProducer implements CloseableIterator<Page>, ColumnExtractorProducer {
+        private final OptimizedParquetColumnIterator delegate;
+        @Nullable
+        private String[] pendingWarnings;
+        @Nullable
+        private Consumer<String> pendingSink;
+
+        DeferredWarnProducer(OptimizedParquetColumnIterator delegate, String[] pendingWarnings, Consumer<String> pendingSink) {
+            this.delegate = delegate;
+            this.pendingWarnings = pendingWarnings;
+            this.pendingSink = pendingSink;
+        }
+
+        private void emitOnce() {
+            Consumer<String> sink = pendingSink;
+            if (sink == null) {
+                return;
+            }
+            pendingSink = null;
+            String[] names = pendingWarnings;
+            pendingWarnings = null;
+            for (String name : names) {
+                sink.accept(SkipWarnings.absentDeclaredColumnMessage(name));
+            }
+        }
+
+        @Override
+        public boolean hasNext() {
+            return delegate.hasNext();
+        }
+
+        @Override
+        public Page tryAdvance() {
+            Page p = delegate.tryAdvance();
+            if (p != null) {
+                emitOnce();
+            }
+            return p;
+        }
+
+        @Override
+        public Page next() {
+            // Use finally so the absent-column warning is delivered even when delegate throws:
+            // the column-absence context is useful alongside a fatal read error (e.g. corrupt
+            // chunk, network failure) and must not be silently dropped on the first failed page.
+            try {
+                return delegate.next();
+            } finally {
+                emitOnce();
+            }
+        }
+
+        @Override
+        public SubscribableListener<Void> waitForReady() {
+            return delegate.waitForReady();
+        }
+
+        @Override
+        public ColumnExtractor createColumnExtractor(@Nullable Consumer<String> driverThreadWarningSink) throws IOException {
+            return delegate.createColumnExtractor(driverThreadWarningSink);
+        }
+
+        @Override
+        public void setExtractorId(int id) {
+            delegate.setExtractorId(id);
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+    }
+
     /** Formatter-free overload for callers with no declared date formats (tests, extractor paths). */
     static ColumnInfo[] buildColumnInfos(MessageType projectedSchema, List<Attribute> attributes) {
         return buildColumnInfos(projectedSchema, attributes, Map.of());
@@ -2740,6 +2853,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
          */
         @Nullable
         private final Consumer<String> warningSink;
+        /** Deferred absent-column warnings emitted on the first batch (null when already emitted or nothing to warn). */
+        @Nullable
+        private String[] pendingAbsentWarnings;
+        /** Sink for deferred absent-column warnings; nulled after first emission. */
+        @Nullable
+        private Consumer<String> pendingAbsentWarnSink;
 
         /**
          * The coercion-failure sink for this read, or {@code null} under {@code fail_fast} — the
@@ -2762,6 +2881,19 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 );
             }
             return coercionWarnings;
+        }
+
+        private void emitAbsentColumnWarningsOnce() {
+            Consumer<String> sink = pendingAbsentWarnSink;
+            if (sink == null) {
+                return;
+            }
+            pendingAbsentWarnSink = null;
+            String[] names = pendingAbsentWarnings;
+            pendingAbsentWarnings = null;
+            for (String name : names) {
+                sink.accept(SkipWarnings.absentDeclaredColumnMessage(name));
+            }
         }
 
         ParquetColumnIterator(
@@ -2797,6 +2929,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             reader.setRequestedSchema(projectedSchema);
 
             this.columnInfos = buildColumnInfos(projectedSchema, attributes, declaredDateFormats);
+            String[] absentWarnings = buildAbsentColumnWarnings(attributes, this.columnInfos);
+            if (absentWarnings.length > 0 && warningSink != null) {
+                this.pendingAbsentWarnings = absentWarnings;
+                this.pendingAbsentWarnSink = warningSink;
+            }
             boolean foundListCol = false;
             int rowPosIdx = -1;
             for (int i = 0; i < columnInfos.length; i++) {
@@ -3029,6 +3166,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     rowBudget -= rowsToRead;
                 }
                 counters.addRowsEmitted(rowsToRead);
+                // Emit only after the page is fully built: if any column read above threw, we
+                // should not warn about absent columns — no data was produced for this batch.
+                emitAbsentColumnWarningsOnce();
                 return new Page(blocks);
             } finally {
                 counters.addTotalReadNanos(System.nanoTime() - startNanos);

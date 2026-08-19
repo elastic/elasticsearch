@@ -55,6 +55,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -2701,6 +2702,145 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat("the absent declared column must emit a response Warning header", warnings, not(empty()));
     }
 
+    public void testAbsentDeclaredColumnEmitsResponseWarningParquet() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("emp_no", new DatasetFieldMapping("integer", null));
+        properties.put("first_name", new DatasetFieldMapping("keyword", null));
+        properties.put("department", new DatasetFieldMapping("keyword", null)); // absent from the 2-column Parquet fixture
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        Path parquet = createTempDir().resolve("employees.parquet");
+        Files.write(parquet, twoColumnParquetFixtureBytes());
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_parquet_absent_warn",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+
+        List<String> warnings = new CopyOnWriteArrayList<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> queryFailure = new AtomicReference<>();
+        client().execute(
+            EsqlQueryAction.INSTANCE,
+            syncEsqlQueryRequest("FROM employees_parquet_absent_warn | SORT emp_no | LIMIT 5"),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(EsqlQueryResponse r) {
+                    // Do NOT close r here: the transport framework's respondAndRelease wrapper
+                    // calls r.decRef() after onResponse returns; closing manually causes a
+                    // double-release AssertionError.
+                    try {
+                        internalCluster().getInstance(TransportService.class)
+                            .getThreadPool()
+                            .getThreadContext()
+                            .getResponseHeaders()
+                            .getOrDefault("Warning", List.of())
+                            .stream()
+                            .filter(w -> w.contains("declared column [department] is not present"))
+                            .forEach(warnings::add);
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    queryFailure.set(e);
+                    latch.countDown();
+                }
+            }
+        );
+        assertTrue("query did not complete within timeout", latch.await(30, java.util.concurrent.TimeUnit.SECONDS));
+        if (queryFailure.get() != null) {
+            throw queryFailure.get();
+        }
+        assertThat("the absent declared column must emit a response Warning header on Parquet", warnings, not(empty()));
+    }
+
+    public void testAbsentDeclaredColumnEmitsResponseWarningNdjson() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("emp_no", new DatasetFieldMapping("integer", null));
+        properties.put("first_name", new DatasetFieldMapping("keyword", null));
+        properties.put("department", new DatasetFieldMapping("keyword", null)); // absent from the 2-field NDJSON fixture
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        Path ndjson = createTempFile("dataset-absent-warn-", ".ndjson");
+        Files.writeString(
+            ndjson,
+            String.join("\n", "{\"emp_no\":1,\"first_name\":\"Alice\"}", "{\"emp_no\":2,\"first_name\":\"Bob\"}") + "\n"
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_ndjson_absent_warn",
+                    "local_ds",
+                    ndjson.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "ndjson")),
+                    mapping
+                )
+            )
+        );
+
+        List<String> warnings = new CopyOnWriteArrayList<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> queryFailure = new AtomicReference<>();
+        client().execute(
+            EsqlQueryAction.INSTANCE,
+            syncEsqlQueryRequest("FROM employees_ndjson_absent_warn | SORT emp_no | LIMIT 5"),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(EsqlQueryResponse r) {
+                    // Do NOT close r here: the transport framework's respondAndRelease wrapper
+                    // calls r.decRef() after onResponse returns; closing manually causes a
+                    // double-release AssertionError.
+                    try {
+                        // `department` is absent from every record in the file, so schema
+                        // inference never includes it → ColumnMapping assigns it a -1 slot →
+                        // SchemaAdaptingIterator fires absentDeclaredColumnMessage ("is not
+                        // present"), not absentInRecordMessage ("is absent in some records").
+                        // The latter is used only for columns present in the file schema but
+                        // missing from individual JSON objects (per-record sparseness).
+                        internalCluster().getInstance(TransportService.class)
+                            .getThreadPool()
+                            .getThreadContext()
+                            .getResponseHeaders()
+                            .getOrDefault("Warning", List.of())
+                            .stream()
+                            .filter(w -> w.contains("declared column [department] is not present"))
+                            .forEach(warnings::add);
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    queryFailure.set(e);
+                    latch.countDown();
+                }
+            }
+        );
+        assertTrue("query did not complete within timeout", latch.await(30, java.util.concurrent.TimeUnit.SECONDS));
+        if (queryFailure.get() != null) {
+            throw queryFailure.get();
+        }
+        assertThat("the absent declared column must emit a response Warning header on NDJSON", warnings, not(empty()));
+    }
+
     public void testDeclaredTypeConflictingWithPhysicalParquetTypeRejected() throws Exception {
         // Parquet columns carry their own type. A declared type with a defined read-time coercion (e.g. long->datetime,
         // long->keyword) is coerced; one with NO coercion (long->ip here — the ip mapper only ingests string tokens) is
@@ -4048,6 +4188,30 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             )
         );
         return run(syncEsqlQueryRequest("FROM " + dataset + " | EVAL v = ts::long | KEEP v | SORT v | LIMIT 1"), TIMEOUT);
+    }
+
+    private byte[] twoColumnParquetFixtureBytes() throws IOException {
+        MessageType schema = MessageTypeParser.parseMessageType(
+            "message employees { required int32 emp_no; required binary first_name (UTF8); }"
+        );
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            String[] names = { "Alice", "Bob", "Carol" };
+            for (int i = 0; i < names.length; i++) {
+                Group g = factory.newGroup();
+                g.add("emp_no", i + 1);
+                g.add("first_name", names[i]);
+                writer.write(g);
+            }
+        }
+        return baos.toByteArray();
     }
 
     private byte[] parquetRenameFixtureBytes() throws IOException {

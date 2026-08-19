@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -25,7 +26,9 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -44,7 +47,7 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
         ColumnMapping mapping = new ColumnMapping(new int[] { 0, 1 }, null);
 
         IntBlock aBlock = blockFactory.newConstantIntBlockWith(42, 3);
-        Block bBlock = blockFactory.newConstantBytesRefBlockWith(new org.apache.lucene.util.BytesRef("hello"), 3);
+        Block bBlock = blockFactory.newConstantBytesRefBlockWith(new BytesRef("hello"), 3);
         Page inputPage = new Page(3, new Block[] { aBlock, bBlock });
 
         try (SchemaAdaptingIterator iter = new SchemaAdaptingIterator(singlePageIterator(inputPage), schema, mapping, blockFactory)) {
@@ -65,7 +68,7 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
         ColumnMapping mapping = new ColumnMapping(new int[] { 1, 0 }, null);
 
         IntBlock aBlock = blockFactory.newConstantIntBlockWith(10, 2);
-        Block bBlock = blockFactory.newConstantBytesRefBlockWith(new org.apache.lucene.util.BytesRef("x"), 2);
+        Block bBlock = blockFactory.newConstantBytesRefBlockWith(new BytesRef("x"), 2);
         Page inputPage = new Page(2, new Block[] { aBlock, bBlock });
 
         try (SchemaAdaptingIterator iter = new SchemaAdaptingIterator(singlePageIterator(inputPage), unified, mapping, blockFactory)) {
@@ -82,7 +85,7 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
         ColumnMapping mapping = new ColumnMapping(new int[] { 0, -1, 1 }, null);
 
         IntBlock aBlock = blockFactory.newConstantIntBlockWith(1, 4);
-        Block bBlock = blockFactory.newConstantBytesRefBlockWith(new org.apache.lucene.util.BytesRef("v"), 4);
+        Block bBlock = blockFactory.newConstantBytesRefBlockWith(new BytesRef("v"), 4);
         Page inputPage = new Page(4, new Block[] { aBlock, bBlock });
 
         try (SchemaAdaptingIterator iter = new SchemaAdaptingIterator(singlePageIterator(inputPage), unified, mapping, blockFactory)) {
@@ -162,7 +165,7 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
         ColumnMapping mapping = new ColumnMapping(new int[] { 0, 1, -1 }, null);
 
         IntBlock aBlock = blockFactory.newConstantIntBlockWith(7, 3);
-        Block bBlock = blockFactory.newConstantBytesRefBlockWith(new org.apache.lucene.util.BytesRef("hello"), 3);
+        Block bBlock = blockFactory.newConstantBytesRefBlockWith(new BytesRef("hello"), 3);
         Page inputPage = new Page(3, new Block[] { aBlock, bBlock });
 
         try (SchemaAdaptingIterator iter = new SchemaAdaptingIterator(singlePageIterator(inputPage), unified, mapping, blockFactory)) {
@@ -188,7 +191,7 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
         // File emits [b, a]; mapping reorders to [a, b] for unified output.
         ColumnMapping mapping = new ColumnMapping(new int[] { 1, 0 }, null);
 
-        Block bBlock = blockFactory.newConstantBytesRefBlockWith(new org.apache.lucene.util.BytesRef("greetings"), 2);
+        Block bBlock = blockFactory.newConstantBytesRefBlockWith(new BytesRef("greetings"), 2);
         IntBlock aBlock = blockFactory.newConstantIntBlockWith(99, 2);
         Page inputPage = new Page(2, new Block[] { bBlock, aBlock });
 
@@ -230,7 +233,7 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
         // unified[0]=a → local 1 with cast to LONG; unified[1]=b → local 0, no cast; unified[2]=c → missing.
         ColumnMapping mapping = new ColumnMapping(new int[] { 1, 0, -1 }, new DataType[] { DataType.LONG, null, null });
 
-        Block bBlock = blockFactory.newConstantBytesRefBlockWith(new org.apache.lucene.util.BytesRef("x"), 2);
+        Block bBlock = blockFactory.newConstantBytesRefBlockWith(new BytesRef("x"), 2);
         IntBlock aBlock = blockFactory.newConstantIntBlockWith(123_456, 2);
         Page inputPage = new Page(2, new Block[] { bBlock, aBlock });
 
@@ -318,14 +321,20 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
      * Mirrors production usage: full attributes include partition columns appended after
      * data columns, but only the data prefix is passed to SchemaAdaptingIterator (callers
      * derive the data-attribute view from their own attribute list, not from the mapping).
+     * <p>
+     * Mapping {@code {1, 0}} means the file emits blocks in [name, id] order; the adapter
+     * reorders to the unified [id, name] order. The input page therefore carries nameBlock
+     * at local position 0 and idBlock at local position 1.
      */
     public void testDataColumnSubListWithPartitionSuffix() {
         List<Attribute> dataColumns = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        // mapping[0]=1: output slot 0 (id) comes from local slot 1; mapping[1]=0: output slot 1 (name) from local slot 0.
         ColumnMapping mapping = new ColumnMapping(new int[] { 1, 0 }, null);
 
+        // File emits [name, id] — name at local position 0, id at local position 1.
+        Block nameBlock = blockFactory.newConstantBytesRefBlockWith(new BytesRef("Alice"), 2);
         IntBlock idBlock = blockFactory.newConstantIntBlockWith(7, 2);
-        Block nameBlock = blockFactory.newConstantBytesRefBlockWith(new org.apache.lucene.util.BytesRef("Alice"), 2);
-        Page inputPage = new Page(2, new Block[] { idBlock, nameBlock });
+        Page inputPage = new Page(2, new Block[] { nameBlock, idBlock });
 
         List<Attribute> fullAttributes = List.of(
             attr("id", DataType.INTEGER),
@@ -340,7 +349,8 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
             assertThat(result.getBlockCount(), equalTo(2));
             assertThat(result.getPositionCount(), equalTo(2));
 
-            IntBlock resultId = result.getBlock(1);
+            // Output slot 0 is id (from local slot 1 = idBlock).
+            IntBlock resultId = result.getBlock(0);
             assertThat(resultId.getInt(0), equalTo(7));
         }
     }
@@ -366,7 +376,7 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
         // Non-identity mapping (reorder) so adaptSchema does not short-circuit; width matches data-only.
         ColumnMapping mapping = new ColumnMapping(new int[] { 1, 0 }, null);
 
-        Block valueBlock = blockFactory.newConstantBytesRefBlockWith(new org.apache.lucene.util.BytesRef("alpha"), 2);
+        Block valueBlock = blockFactory.newConstantBytesRefBlockWith(new BytesRef("alpha"), 2);
         IntBlock idBlock = blockFactory.newConstantIntBlockWith(7, 2);
         // File-natural order is [value, id]; mapping reorders to the unified [id, value].
         Page inputPage = new Page(2, new Block[] { valueBlock, idBlock });
@@ -493,6 +503,202 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
 
         try (SchemaAdaptingIterator iter = new SchemaAdaptingIterator(singlePageIterator(inputPage), unified, mapping, adapterFactory)) {
             return iter.next();
+        }
+    }
+
+    // --- Block type validation tests ---
+
+    /**
+     * A reader that emits an IntBlock for a LONG column (the identity-mapping shape of issue #1399)
+     * must fail immediately with the column name and both element types — not with a bare
+     * ClassCastException somewhere inside the compute engine.
+     */
+    public void testBlockTypeMismatchIdentityMappingThrowsWithColumnName() {
+        List<Attribute> schema = List.of(attr("emp_no", DataType.LONG));
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, null); // identity, no cast
+
+        IntBlock wrongBlock = blockFactory.newConstantIntBlockWith(42, 2); // INT, not LONG
+        Page inputPage = new Page(2, new Block[] { wrongBlock });
+
+        try (SchemaAdaptingIterator iter = new SchemaAdaptingIterator(singlePageIterator(inputPage), schema, mapping, blockFactory)) {
+            IllegalStateException ex = expectThrows(IllegalStateException.class, iter::next);
+            assertThat(ex.getMessage(), containsString("column [emp_no]"));
+            assertThat(ex.getMessage(), containsString("INT"));
+            assertThat(ex.getMessage(), containsString("LONG"));
+        }
+    }
+
+    /**
+     * Same mismatch on the non-identity (reorder) pass-through arm — column name and both types
+     * must appear in the message.
+     */
+    public void testBlockTypeMismatchNonIdentityPassThroughThrowsWithColumnName() {
+        List<Attribute> schema = List.of(attr("b", DataType.KEYWORD), attr("salary", DataType.LONG));
+        ColumnMapping mapping = new ColumnMapping(new int[] { 1, 0 }, null); // reorder, no cast
+
+        // File emits [salary_as_int, b]; after reorder, position 1 in output is salary_as_int (INT).
+        IntBlock salaryBlock = blockFactory.newConstantIntBlockWith(50000, 3); // INT, not LONG
+        Block bBlock = blockFactory.newConstantBytesRefBlockWith(new BytesRef("eng"), 3);
+        Page inputPage = new Page(3, new Block[] { salaryBlock, bBlock });
+
+        try (SchemaAdaptingIterator iter = new SchemaAdaptingIterator(singlePageIterator(inputPage), schema, mapping, blockFactory)) {
+            IllegalStateException ex = expectThrows(IllegalStateException.class, iter::next);
+            assertThat(ex.getMessage(), containsString("column [salary]"));
+            assertThat(ex.getMessage(), containsString("INT"));
+            assertThat(ex.getMessage(), containsString("LONG"));
+        }
+    }
+
+    /**
+     * A constant-null block (ElementType.NULL, produced by the -1 arm of mapPage) must not trigger
+     * the type check even when the declared type differs — null-fill is valid for any declared type.
+     */
+    public void testConstantNullBlockExemptFromTypeCheck() {
+        List<Attribute> schema = List.of(attr("a", DataType.INTEGER), attr("absent", DataType.LONG));
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0, -1 }, null);
+
+        IntBlock aBlock = blockFactory.newConstantIntBlockWith(1, 2);
+        Page inputPage = new Page(2, new Block[] { aBlock });
+
+        try (SchemaAdaptingIterator iter = new SchemaAdaptingIterator(singlePageIterator(inputPage), schema, mapping, blockFactory)) {
+            Page result = iter.next(); // must not throw despite null-fill ElementType.NULL vs declared LONG
+            assertThat(result.getPositionCount(), equalTo(2));
+            assertTrue(result.getBlock(1).isNull(0));
+        }
+    }
+
+    /**
+     * A cast slot produces the correct output type via castBlock; the type check must pass
+     * even though the source block type (INT) differs from the declared output type (LONG).
+     */
+    public void testCastSlotOutputTypePassesCheck() {
+        List<Attribute> schema = List.of(attr("val", DataType.LONG));
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.LONG });
+
+        IntBlock intBlock = blockFactory.newConstantIntBlockWith(7, 2); // INT source, LONG declared
+        Page inputPage = new Page(2, new Block[] { intBlock });
+
+        try (SchemaAdaptingIterator iter = new SchemaAdaptingIterator(singlePageIterator(inputPage), schema, mapping, blockFactory)) {
+            Page result = iter.next(); // must not throw: castBlock produced a LongBlock
+            LongBlock longBlock = result.getBlock(0);
+            assertThat(longBlock.getLong(0), equalTo(7L));
+        }
+    }
+
+    // --- Absent-column warning tests ---
+
+    /**
+     * When a mapping has -1 slots and an informationalWarningSink is provided, the iterator
+     * must emit exactly one warning per absent column on the first page, with the CSV-identical
+     * message text so dedup works across formats. Warnings are deferred to the first
+     * {@code adaptPage} call (not fired at construction) so that splits whose row groups are
+     * entirely pruned by predicate statistics do not emit spurious warnings.
+     */
+    public void testAbsentColumnWarningDeferredToFirstPage() {
+        List<Attribute> schema = List.of(attr("emp_no", DataType.INTEGER), attr("department", DataType.KEYWORD));
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0, -1 }, null); // department absent
+
+        List<String> warnings = new ArrayList<>();
+
+        IntBlock empNoBlock = blockFactory.newConstantIntBlockWith(1, 2);
+        Page inputPage = new Page(2, new Block[] { empNoBlock });
+
+        try (
+            SchemaAdaptingIterator iter = new SchemaAdaptingIterator(
+                singlePageIterator(inputPage),
+                schema,
+                mapping,
+                blockFactory,
+                -1,
+                null,
+                warnings::add
+            )
+        ) {
+            assertThat("no warning before first page", warnings.size(), equalTo(0));
+            iter.next(); // warning fires lazily on first adaptPage
+        }
+
+        assertThat(warnings.size(), equalTo(1));
+        assertThat(warnings.get(0), equalTo(SkipWarnings.absentDeclaredColumnMessage("department")));
+    }
+
+    /**
+     * Multiple absent columns must each emit their own warning.
+     */
+    public void testMultipleAbsentColumnsEachWarn() {
+        List<Attribute> schema = List.of(attr("emp_no", DataType.INTEGER), attr("dept", DataType.KEYWORD), attr("salary", DataType.LONG));
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0, -1, -1 }, null);
+
+        List<String> warnings = new ArrayList<>();
+
+        IntBlock empNoBlock = blockFactory.newConstantIntBlockWith(1, 1);
+        Page inputPage = new Page(1, new Block[] { empNoBlock });
+
+        try (
+            SchemaAdaptingIterator iter = new SchemaAdaptingIterator(
+                singlePageIterator(inputPage),
+                schema,
+                mapping,
+                blockFactory,
+                -1,
+                null,
+                warnings::add
+            )
+        ) {
+            iter.next();
+        }
+
+        assertThat(warnings.size(), equalTo(2));
+        assertThat(warnings.get(0), containsString("[dept]"));
+        assertThat(warnings.get(1), containsString("[salary]"));
+    }
+
+    /**
+     * When no warning sink is supplied (null), absent columns must be null-filled silently
+     * with no NullPointerException.
+     */
+    public void testNullUnsupportedAbsentColumnsDoNotWarn() {
+        // NULL and UNSUPPORTED typed absent columns must not emit a warning — they are already
+        // semantically null and do not represent a user-visible declared column.
+        List<String> emitted = new ArrayList<>();
+
+        List<Attribute> schema = List.of(
+            attr("real", DataType.LONG),
+            attr("nullTyped", DataType.NULL),
+            attr("unsupportedTyped", DataType.UNSUPPORTED)
+        );
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0, -1, -1 }, null);
+
+        LongBlock realBlock = blockFactory.newConstantLongBlockWith(7L, 1);
+        Page inputPage = new Page(1, new Block[] { realBlock });
+
+        try (
+            SchemaAdaptingIterator iter = new SchemaAdaptingIterator(
+                singlePageIterator(inputPage),
+                schema,
+                mapping,
+                blockFactory,
+                -1,
+                null,
+                emitted::add
+            )
+        ) {
+            iter.next(); // consume
+        }
+        assertThat("NULL/UNSUPPORTED absent columns must not produce a warning", emitted, org.hamcrest.Matchers.empty());
+    }
+
+    public void testNoWarningWhenSinkIsNull() {
+        List<Attribute> schema = List.of(attr("a", DataType.INTEGER), attr("absent", DataType.KEYWORD));
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0, -1 }, null);
+
+        IntBlock aBlock = blockFactory.newConstantIntBlockWith(5, 2);
+        Page inputPage = new Page(2, new Block[] { aBlock });
+
+        // 5-arg constructor passes null as warningSink implicitly via the 6-arg chain
+        try (SchemaAdaptingIterator iter = new SchemaAdaptingIterator(singlePageIterator(inputPage), schema, mapping, blockFactory)) {
+            Page result = iter.next(); // must not throw
+            assertTrue(result.getBlock(1).isNull(0));
         }
     }
 

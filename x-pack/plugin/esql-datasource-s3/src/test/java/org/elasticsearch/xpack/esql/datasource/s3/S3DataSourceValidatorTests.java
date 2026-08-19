@@ -292,12 +292,58 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasetPartitionDetectionAllValues() {
-        for (String strategy : new String[] { "auto", "hive", "template", "none", "AUTO", "HIVE", "TEMPLATE", "NONE" }) {
+        for (String strategy : new String[] { "auto", "hive", "none", "AUTO", "HIVE", "NONE" }) {
             assertEquals(
                 strategy,
                 validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", strategy)).get("partition_detection")
             );
         }
+        // template carries its path template with it; on its own it would be a strategy that detects nothing.
+        for (String strategy : new String[] { "template", "TEMPLATE" }) {
+            assertEquals(
+                strategy,
+                validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", strategy, "partition_path", "{year}"))
+                    .get("partition_detection")
+            );
+        }
+    }
+
+    /**
+     * The three combinations in which one of the partition settings would be silently ignored. Rejected at
+     * registration only — {@code PartitionConfig.fromConfig} still resolves them leniently so datasets stored
+     * before this validation existed keep reading.
+     */
+    public void testValidateDatasetRejectsSilentlyIgnoredPartitionSettings() {
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "template"))
+        );
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "hive_partitioning", "false"))
+        );
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "partition_path", "{year}"))
+        );
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", "false", "partition_path", "{year}"))
+        );
+    }
+
+    /** hive_partitioning:true asserts nothing — it is the default — so it never contradicts a strategy. */
+    public void testValidateDatasetAcceptsHivePartitioningTrueWithAnyStrategy() {
+        assertEquals(
+            "hive",
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "hive_partitioning", "true"))
+                .get("partition_detection")
+        );
+        assertEquals(
+            "none",
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "hive_partitioning", "true"))
+                .get("partition_detection")
+        );
     }
 
     public void testValidateDatasetSchemeCaseInsensitive() {

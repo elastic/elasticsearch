@@ -52,13 +52,37 @@ public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) 
         }
     }
 
+    /**
+     * Resolves the three partition settings into one strategy, leniently: this runs on every query against every
+     * already-stored dataset, so it never throws on a stored value. Contradictions are rejected at registration
+     * instead — see {@link #validate}.
+     *
+     * <p>Resolution order matters. The {@code partition_path} promotion of {@code AUTO} to {@code TEMPLATE} is
+     * applied first, then {@code hive_partitioning} folds on top: a dataset carrying
+     * {@code {hive_partitioning: false, partition_path: ...}} resolved to "no partitions" before this method read
+     * {@code hive_partitioning} at all, and must keep resolving that way.
+     *
+     * <p>Only the literal {@code "false"} disables detection, matching the boolean check this replaced — any other
+     * value (including {@code "yes"}, {@code 0} or a nonsense string) leaves detection enabled, because the setting
+     * is stored free-form and existing datasets rely on that reading. An explicit {@code true} carries no
+     * information: it is the default, so it is ignored rather than pinning the strategy to {@code HIVE}.
+     */
     public static PartitionConfig fromConfig(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
             return DEFAULT;
         }
 
         Object detectionValue = config.get(CONFIG_PARTITIONING_DETECTION);
-        Strategy strategy = detectionValue != null ? Strategy.parse(detectionValue.toString()) : Strategy.AUTO;
+        Strategy strategy = null;
+        if (detectionValue != null) {
+            try {
+                strategy = Strategy.parse(detectionValue.toString());
+            } catch (IllegalArgumentException e) {
+                // A value stored before the setting was validated as an enum. Reading must not fail on it; the
+                // registration path rejects it, and validate() reports it with an actionable message.
+                strategy = null;
+            }
+        }
         if (strategy == null) {
             strategy = Strategy.AUTO;
         }
@@ -70,6 +94,78 @@ public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) 
             strategy = Strategy.TEMPLATE;
         }
 
+        // A template strategy with nothing to templatise detects nothing. Falling back to Hive here would silently
+        // substitute a different strategy for the one the user named.
+        if (Strategy.TEMPLATE == strategy && (template == null || template.isEmpty())) {
+            strategy = Strategy.NONE;
+        }
+
+        if (hivePartitioningDisabled(config)) {
+            strategy = Strategy.NONE;
+        }
+
         return new PartitionConfig(strategy, template);
+    }
+
+    /** Whether {@code hive_partitioning} is present and set to the literal {@code "false"}. */
+    private static boolean hivePartitioningDisabled(Map<String, Object> config) {
+        Object value = config.get(CONFIG_PARTITIONING_HIVE);
+        return value != null && "false".equalsIgnoreCase(value.toString());
+    }
+
+    /**
+     * Registration-time validation. Rejects the combinations in which one of the three settings would be silently
+     * ignored, so a new dataset cannot be registered with a setting that does nothing. Deliberately stricter than
+     * {@link #fromConfig}, which must keep reading datasets that were stored before these checks existed.
+     */
+    public static void validate(Map<String, Object> config) {
+        if (config == null || config.isEmpty()) {
+            return;
+        }
+
+        Object detectionValue = config.get(CONFIG_PARTITIONING_DETECTION);
+        Strategy declared = detectionValue != null ? Strategy.parse(detectionValue.toString()) : null;
+
+        Object templateValue = config.get(CONFIG_PARTITIONING_PATH);
+        String template = templateValue != null ? templateValue.toString() : null;
+        boolean hasTemplate = template != null && template.isEmpty() == false;
+
+        if (hivePartitioningDisabled(config) && declared != null && declared != Strategy.NONE) {
+            throw new IllegalArgumentException(
+                "["
+                    + CONFIG_PARTITIONING_HIVE
+                    + "] is false, which disables partition detection, but ["
+                    + CONFIG_PARTITIONING_DETECTION
+                    + "] is ["
+                    + declared.name().toLowerCase(Locale.ROOT)
+                    + "]; set ["
+                    + CONFIG_PARTITIONING_DETECTION
+                    + "] to [none] instead of using ["
+                    + CONFIG_PARTITIONING_HIVE
+                    + "]"
+            );
+        }
+
+        if (declared == Strategy.TEMPLATE && hasTemplate == false) {
+            throw new IllegalArgumentException(
+                "["
+                    + CONFIG_PARTITIONING_DETECTION
+                    + "] is [template] but no ["
+                    + CONFIG_PARTITIONING_PATH
+                    + "] was given; template detection needs a path template such as [{year}/{month}]"
+            );
+        }
+
+        // A template alongside anything that resolves to "no partitions" is the silent-drop this validation exists
+        // to prevent: the template would be accepted, stored, and never used.
+        if (hasTemplate && (declared == Strategy.NONE || hivePartitioningDisabled(config))) {
+            throw new IllegalArgumentException(
+                "["
+                    + CONFIG_PARTITIONING_PATH
+                    + "] is set but partition detection is disabled, so the template would be ignored; remove ["
+                    + CONFIG_PARTITIONING_PATH
+                    + "] or enable partition detection"
+            );
+        }
     }
 }

@@ -30,6 +30,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
@@ -82,7 +83,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
           }
         }""";
 
-    private final ShardBatchIndexer shardBatchIndexer = new ShardBatchIndexer(Settings.EMPTY);
+    private final ShardBatchIndexer shardBatchIndexer = new ShardBatchIndexer(Settings.EMPTY, BytesRefRecycler.NON_RECYCLING_INSTANCE);
 
     private final List<IndexShard> trackedShards = new ArrayList<>();
 

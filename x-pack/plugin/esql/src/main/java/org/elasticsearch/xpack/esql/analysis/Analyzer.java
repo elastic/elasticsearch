@@ -1554,8 +1554,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Skip when the right field failed to resolve (multi-column subquery, empty mapping)
             // since we have no concrete attribute to project.
             LogicalPlan right = subqueryJoin.right();
-            if (rightFields.size() == 1
-                && rightFields.get(0).resolved()
+            if (rightFields.stream().allMatch(Attribute::resolved)
                 && right.anyMatch(p -> p instanceof Project || p instanceof Aggregate) == false) {
                 right = new Project(subqueryJoin.source(), right, rightFields);
             }
@@ -1588,25 +1587,37 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // Re-resolve rightFields if they became stale (e.g. after ImplicitCasting recreated the right subtree)
                 if (rightFields.stream().anyMatch(a -> a.resolved() == false)) {
                     List<Attribute> rightOutput = semiJoin.right().output();
-                    if (rightOutput.size() == 1) {
-                        return singletonList(resolveSingleRightField(semiJoin, rightOutput.get(0)));
+                    int expectedCount2 = semiJoin.config().leftFields().size();
+                    if (rightOutput.size() == expectedCount2) {
+                        List<Attribute> reresolved = new ArrayList<>(expectedCount2);
+                        for (Attribute rightAttr : rightOutput) {
+                            reresolved.add(resolveSingleRightField(semiJoin, rightAttr));
+                        }
+                        return reresolved;
                     }
                 }
                 return rightFields;
             }
             List<Attribute> rightOutput = semiJoin.right().output();
-            if (rightOutput.size() != 1) {
-                return singletonList(
-                    new UnresolvedAttribute(
-                        semiJoin.source(),
-                        "*",
-                        "IN subquery must return exactly one column, found ["
-                            + rightOutput.stream().map(Attribute::name).collect(Collectors.joining(", "))
-                            + "]"
-                    )
-                );
+            int expectedCount = semiJoin.config().leftFields().size();
+            if (rightOutput.size() != expectedCount) {
+                String foundCols = rightOutput.stream().map(Attribute::name).collect(Collectors.joining(", "));
+                String msg = expectedCount == 1
+                    ? "IN subquery must return exactly one column, found [" + foundCols + "]"
+                    : "Multi-column IN subquery with ["
+                        + expectedCount
+                        + "] left fields must return exactly ["
+                        + expectedCount
+                        + "] columns, found ["
+                        + foundCols
+                        + "]";
+                return List.of(new UnresolvedAttribute(semiJoin.source(), "*", msg));
             }
-            return singletonList(resolveSingleRightField(semiJoin, rightOutput.get(0)));
+            List<Attribute> resolved = new ArrayList<>(expectedCount);
+            for (Attribute rightAttr : rightOutput) {
+                resolved.add(resolveSingleRightField(semiJoin, rightAttr));
+            }
+            return resolved;
         }
 
         /**
@@ -2104,11 +2115,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private List<Alias> resolveFields(List<Alias> fields, List<Attribute> initialInputs) {
+            Set<String> evalFieldNames = new HashSet<>(fields.size());
+            for (Alias f : fields) {
+                evalFieldNames.add(f.name());
+            }
             List<Attribute> allResolvedInputs = new ArrayList<>(initialInputs);
             List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
             for (Alias field : fields) {
-                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, allResolvedInputs));
+                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> {
+                    Attribute resolved = resolveAttribute(ua, allResolvedInputs);
+                    // If the unresolved attribute references another EVAL field, give it another opportunity to resolve
+                    // in the next pass (after implicit casting has run). If we set customMessage() it won't try to resolve again
+                    if (resolved instanceof UnresolvedAttribute u && u.customMessage() && evalFieldNames.contains(ua.name())) {
+                        return ua;
+                    }
+                    return resolved;
+                });
 
                 changed |= result != field;
                 newFields.add(result);

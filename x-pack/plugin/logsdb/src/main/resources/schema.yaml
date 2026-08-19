@@ -46,6 +46,7 @@ predefined_constructs:
     - ms: "millisecond"                            # Millisecond value (0-999)
     - us: "microsecond"                            # Microsecond value (0-999999)
     - ns: "nanosecond"                             # Nanosecond value
+    - ES: "seconds since epoch"                    # Whole instant as Unix epoch seconds; value = seconds*1000 ms (e.g. BGL/Thunderbird)
     - TZh: "timezone offset in hours"              # Timezone hour offset, e.g.: "-05", "+02"
     - TZm: "timezone offset in minutes"            # Timezone minute offset, e.g.: "-30", "+15"
     - TZhm: "timezone offset in hours and minutes" # Combined timezone offset, e.g.: "-0500", "+0230"
@@ -171,6 +172,15 @@ schema:
       constraint: "{8} && 20000101-21001231"
       description: "Compact date as a single integer yyyymmdd, decomposed into yyyy-mm-dd"
       timestamp_component_type: "YYYYMMDD"
+    - name: "epochSeconds"
+      base_type: "%I"
+      # a Unix epoch in seconds within int range (~2001-09 .. ~2036). Used as the first half of the
+      # "<epoch> <date>" format (BGL/Thunderbird); its value is used directly (seconds*1000 = ms), no calendar
+      # parsing, and the following date is ignored.
+      # TODO: currently this is int-bounded, which is good to ~2038; Switching to long to represent variables would remove this restriction
+      constraint: "1000000000-2100000000"
+      description: "Unix time in seconds since the epoch (10-digit integer)"
+      timestamp_component_type: "ES"
     - name: "MM"
       base_type: "%I"
       constraint: "1-12"
@@ -368,6 +378,20 @@ schema:
       encoding_type: "%T"
       format: "$DD/$Mon/$YYYY:$hh:$mm:$ss"
       description: "Date and time in Apache log format"
+    - name: "date-dot"
+      encoding_type: "%A"
+      format: "$YYYY.$MM.$DD"
+      description: "Dot-separated date YYYY.MM.DD (e.g. BGL/Thunderbird); only meaningful after an epoch"
+    - name: "epoch-seconds"
+      # standalone this is just a plain integer (%I); its epoch value is used only inside $epoch-date-timestamp.
+      encoding_type: "%I"
+      format: "$epochSeconds"
+      description: "Unix epoch seconds as a plain integer"
+    - name: "bgl-datetime"
+      encoding_type: "%T"
+      # e.g. 2005-06-03-15.42.50.363779
+      format: "$YYYY-$MM-$DD-$hh.$mm.$ss.$us"
+      description: "BGL date-time with microsecond resolution (yyyy-MM-dd-HH.mm.ss.ffffff)"
 
   # Multi-token types define patterns that span across multiple tokens (space/tab separated).
   # These are used for complex patterns like timestamps that might include multiple tokens.
@@ -378,6 +402,12 @@ schema:
   #          Each referenced element must be separated by spaces to indicate token boundaries
   #   description: human-readable description
   multi_token_types:
+    - name: "epoch-date-timestamp"
+      encoding_type: "%T"
+      # e.g.: "1117838570 2005.06.03" -> the epoch seconds ARE the instant; the trailing date is
+      # collapsed into the %T span and IGNORED when computing the value (millisecond-timestamp is epoch*1000).
+      format: "$epoch-seconds $date-dot"
+      description: "Unix epoch seconds followed by its (ignored) YYYY.MM.DD date (BGL/Thunderbird)"
     - name: "spark-datetime-timestamp"
       encoding_type: "%T"
       # e.g 17/06/09 20:10:40

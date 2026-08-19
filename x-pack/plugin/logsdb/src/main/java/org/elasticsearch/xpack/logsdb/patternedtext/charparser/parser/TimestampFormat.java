@@ -35,13 +35,12 @@ public final class TimestampFormat {
      */
     private final int[] timestampComponentsOrder;
 
-    private final int numTimestampComponents;
-
     private final int yearIndex;
     private final int twoDigitYearIndex;
     private final int compactDateIndex;
     private final int compactTimeIndex;
     private final int compactDateYyyymmddIndex;
+    private final int epochSecondsIndex;
     private final int monthIndex;
     private final int dayIndex;
     private final int hourIndex;
@@ -60,74 +59,42 @@ public final class TimestampFormat {
         boolean amPm = false;
 
         this.timestampComponentsOrder = timestampComponentsOrder;
-        int timestampComponentsCount = 0;
         this.yearIndex = timestampComponentsOrder[TimestampComponentType.YEAR_CODE];
         this.twoDigitYearIndex = timestampComponentsOrder[TimestampComponentType.TWO_DIGIT_YEAR_CODE];
         this.compactDateIndex = timestampComponentsOrder[TimestampComponentType.COMPACT_DATE_YYMMDD_CODE];
         this.compactTimeIndex = timestampComponentsOrder[TimestampComponentType.COMPACT_TIME_HHMMSS_CODE];
         this.compactDateYyyymmddIndex = timestampComponentsOrder[TimestampComponentType.COMPACT_DATE_YYYYMMDD_CODE];
-        // A year is OPTIONAL: BSD/RFC-3164 syslog timestamps ("MMM dd HH:mm:ss", e.g. Linux/OpenSSH) carry no
-        // year. When none is present, toTimestamp() substitutes DEFAULT_YEAR_WHEN_ABSENT. Month, day, hour,
-        // minute and second stay required (enforced below), so a bare time can still never become a timestamp.
-        // A compact date (yymmdd or yyyymmdd) carries year+month+day in one value, so it satisfies all three.
-        if (yearIndex >= 0 || twoDigitYearIndex >= 0 || compactDateIndex >= 0 || compactDateYyyymmddIndex >= 0) {
-            timestampComponentsCount++;
-        }
+        this.epochSecondsIndex = timestampComponentsOrder[TimestampComponentType.EPOCH_SECONDS_CODE];
         this.monthIndex = timestampComponentsOrder[TimestampComponentType.MONTH_CODE];
-        if (monthIndex < 0 && compactDateIndex < 0 && compactDateYyyymmddIndex < 0) {
+        if (monthIndex < 0 && compactDateIndex < 0 && compactDateYyyymmddIndex < 0 && epochSecondsIndex < 0) {
             throw new IllegalArgumentException("Timestamp format must include a month component");
         }
-        timestampComponentsCount++;
         this.dayIndex = timestampComponentsOrder[TimestampComponentType.DAY_CODE];
-        if (dayIndex < 0 && compactDateIndex < 0 && compactDateYyyymmddIndex < 0) {
+        if (dayIndex < 0 && compactDateIndex < 0 && compactDateYyyymmddIndex < 0 && epochSecondsIndex < 0) {
             throw new IllegalArgumentException("Timestamp format must include a day component");
         }
-        timestampComponentsCount++;
         this.hourIndex = timestampComponentsOrder[TimestampComponentType.HOUR_CODE];
-        if (hourIndex < 0 && compactTimeIndex < 0) {
+        if (hourIndex < 0 && compactTimeIndex < 0 && epochSecondsIndex < 0) {
             throw new IllegalArgumentException("Timestamp format must include an hour component");
         }
-        timestampComponentsCount++;
         this.amPmIndex = timestampComponentsOrder[TimestampComponentType.AM_PM_CODE];
         if (amPmIndex >= 0) {
-            timestampComponentsCount++;
             amPm = true;
         }
         this.minuteIndex = timestampComponentsOrder[TimestampComponentType.MINUTE_CODE];
-        if (minuteIndex < 0 && compactTimeIndex < 0) {
+        if (minuteIndex < 0 && compactTimeIndex < 0 && epochSecondsIndex < 0) {
             throw new IllegalArgumentException("Timestamp format must include a minute component");
         }
-        timestampComponentsCount++;
         this.secondIndex = timestampComponentsOrder[TimestampComponentType.SECOND_CODE];
-        if (secondIndex < 0 && compactTimeIndex < 0) {
+        if (secondIndex < 0 && compactTimeIndex < 0 && epochSecondsIndex < 0) {
             throw new IllegalArgumentException("Timestamp format must include a second component");
         }
-        timestampComponentsCount++;
         this.millisecondIndex = timestampComponentsOrder[TimestampComponentType.MILLISECOND_CODE];
-        if (millisecondIndex >= 0) {
-            timestampComponentsCount++;
-        }
         this.microsecondIndex = timestampComponentsOrder[TimestampComponentType.MICROSECOND_CODE];
-        if (microsecondIndex >= 0) {
-            timestampComponentsCount++;
-        }
         this.nanosecondIndex = timestampComponentsOrder[TimestampComponentType.NANOSECOND_CODE];
-        if (nanosecondIndex >= 0) {
-            timestampComponentsCount++;
-        }
         this.timezoneOffsetHoursIndex = timestampComponentsOrder[TimestampComponentType.TIMEZONE_OFFSET_HOURS_CODE];
-        if (timezoneOffsetHoursIndex >= 0) {
-            timestampComponentsCount++;
-        }
         this.timezoneOffsetMinutesIndex = timestampComponentsOrder[TimestampComponentType.TIMEZONE_OFFSET_MINUTES_CODE];
-        if (timezoneOffsetMinutesIndex >= 0) {
-            timestampComponentsCount++;
-        }
         this.timezoneOffsetHoursAndMinutesIndex = timestampComponentsOrder[TimestampComponentType.TIMEZONE_OFFSET_HOURS_AND_MINUTES_CODE];
-        if (timezoneOffsetHoursAndMinutesIndex >= 0) {
-            timestampComponentsCount++;
-        }
-        this.numTimestampComponents = timestampComponentsCount;
 
         this.dateTimeFormatter = amPm
             ? DateTimeFormatter.ofPattern(javaTimeFormat, Locale.US)
@@ -138,15 +105,16 @@ public final class TimestampFormat {
         return javaTimeFormat;
     }
 
-    public int getNumTimestampComponents() {
-        return numTimestampComponents;
-    }
-
     public int[] getTimestampComponentsOrder() {
         return timestampComponentsOrder;
     }
 
     public long toTimestamp(int[] parsedTimestampComponents) {
+        if (epochSecondsIndex >= 0) {
+            // seconds-since-epoch already IS the instant: milliseconds = seconds * 1000, no calendar arithmetic.
+            // Any accompanying date (e.g. BGL/Thunderbird's trailing "YYYY.MM.DD") is deliberately ignored here.
+            return (long) parsedTimestampComponents[epochSecondsIndex] * 1000L;
+        }
         int year, month, day, hour, minute, second, nanos, timezoneOffset;
         if (compactDateIndex >= 0) {
             // compact date yymmdd in a single value: rightmost two digits = day, then month, then 2-digit year (20yy)
@@ -180,7 +148,8 @@ public final class TimestampFormat {
             compactTime /= 100;
             hour = compactTime % 100;
         } else {
-            hour = parsedTimestampComponents[hourIndex];
+            // date-only timestamps have no time components: default hour/minute/second to 0 (midnight)
+            hour = hourIndex >= 0 ? parsedTimestampComponents[hourIndex] : 0;
             // Handle AM/PM if present
             if (amPmIndex >= 0) {
                 int amPmCode = parsedTimestampComponents[amPmIndex];
@@ -190,8 +159,8 @@ public final class TimestampFormat {
                     hour += 12; // Convert PM hour to 24-hour format
                 }
             }
-            minute = parsedTimestampComponents[minuteIndex];
-            second = parsedTimestampComponents[secondIndex];
+            minute = minuteIndex >= 0 ? parsedTimestampComponents[minuteIndex] : 0;
+            second = secondIndex >= 0 ? parsedTimestampComponents[secondIndex] : 0;
         }
         if (millisecondIndex >= 0) {
             nanos = parsedTimestampComponents[millisecondIndex] * 1_000_000;

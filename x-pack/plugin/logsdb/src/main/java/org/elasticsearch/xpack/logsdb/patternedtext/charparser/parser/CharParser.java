@@ -401,8 +401,8 @@ public final class CharParser implements Parser {
                         : indexWithinRawMessage;
                     int currentSubTokenLength = currentSubTokenEndIndex - currentSubTokenStartIndex;
 
-                    if (currentSubTokenLength == 0) {
-                        // empty tokens (for example, just "-") should have a zero bitmask, so we must change from the default non-zero
+                    if (currentSubTokenLength == 0 || currentSubTokenLength == 1 && currentSubTokenSignPrefix != null) {
+                        // empty subtokens, like `-`
                         currentSubTokenBitmask = 0;
                     }
 

@@ -212,7 +212,7 @@ public class SchemaCompilerTests extends ESTestCase {
         assertEquals(CharCodes.SUBTOKEN_DELIMITER_CHAR_CODE, charToCharType[':']);
         assertEquals(CharCodes.TOKEN_DELIMITER_CHAR_CODE, charToCharType[' ']);
 
-        assertEquals(6, compiledSchema.maxSubTokensPerToken);
+        assertEquals(7, compiledSchema.maxSubTokensPerToken);
         assertEquals(5, compiledSchema.maxTokensPerMultiToken);
 
         int[] smallIntegerSubTokenBitmasks = compiledSchema.smallIntegerSubTokenBitmasks;
@@ -401,7 +401,6 @@ public class SchemaCompilerTests extends ESTestCase {
         MultiTokenType timestamp1Type = multiTokenBitmaskRegistry.getHighestPriorityType(rfc_1123_timestamp_bitmask);
         assertEquals(7, timestamp1Type.getNumSubTokens());
         TimestampFormat rfc1123TimestampFormat = timestamp1Type.getTimestampFormat();
-        assertEquals(7, rfc1123TimestampFormat.getNumTimestampComponents());
         int[] timestampComponentsOrder = rfc1123TimestampFormat.getTimestampComponentsOrder();
         assertEquals(TimestampComponentType.values().length, timestampComponentsOrder.length);
         // RFC-1123-timestamp type format is: "$Mon, $DD $YYYY $timeS $AP"

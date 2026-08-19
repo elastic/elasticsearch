@@ -13,6 +13,7 @@ public enum TimestampComponentType {
     COMPACT_DATE_YYMMDD("YYMMDD"),
     COMPACT_TIME_HHMMSS("HHMMSS"),
     COMPACT_DATE_YYYYMMDD("YYYYMMDD"),
+    EPOCH_SECONDS("ES"),
     MONTH("M"),
     DAY("D"),
     HOUR("h"),
@@ -38,6 +39,7 @@ public enum TimestampComponentType {
     public static final int COMPACT_DATE_YYMMDD_CODE;
     public static final int COMPACT_TIME_HHMMSS_CODE;
     public static final int COMPACT_DATE_YYYYMMDD_CODE;
+    public static final int EPOCH_SECONDS_CODE;
     public static final int MONTH_CODE;
     public static final int DAY_CODE;
     public static final int HOUR_CODE;
@@ -58,6 +60,7 @@ public enum TimestampComponentType {
         COMPACT_DATE_YYMMDD_CODE = COMPACT_DATE_YYMMDD.ordinal();
         COMPACT_TIME_HHMMSS_CODE = COMPACT_TIME_HHMMSS.ordinal();
         COMPACT_DATE_YYYYMMDD_CODE = COMPACT_DATE_YYYYMMDD.ordinal();
+        EPOCH_SECONDS_CODE = EPOCH_SECONDS.ordinal();
         MONTH_CODE = MONTH.ordinal();
         DAY_CODE = DAY.ordinal();
         HOUR_CODE = HOUR.ordinal();

@@ -52,6 +52,33 @@ public class ParserTests extends ESTestCase {
         assertEquals("foo[]bar %I", patternedMessage.toString());
     }
 
+    public void testEmptySubtoken() throws ParseException {
+        String message = "foo/ 9";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("foo/ %I", patternedMessage.toString());
+        message = "foo// 9";
+        parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("foo// %I", patternedMessage.toString());
+        message = "/ 9";
+        parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("/ %I", patternedMessage.toString());
+        message = "// 9";
+        parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("// %I", patternedMessage.toString());
+        message = "foo--bar 9";
+        parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("foo--bar %I", patternedMessage.toString());
+        message = "--foo--bar 9";
+        parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("--foo--bar %I", patternedMessage.toString());
+    }
+
     public void testMultipleInteriorGroupsEachExtracted() throws ParseException {
         // several interior groups in one token each split and extract independently
         String message = "req(1)id(2)seq(3)";
@@ -753,5 +780,46 @@ public class ParserTests extends ESTestCase {
         assertSingleDouble("x 1.5e3 y", "x %F y", 1.5e3);
         assertSingleDouble("x 6.022e23 y", "x %F y", 6.022e23);
         assertSingleDouble("x -2.5e+10 y", "x %F y", -2.5e+10);
+    }
+
+    // BGL/Thunderbird timestamps. The first is "<epoch-seconds> <date>" where the epoch IS the instant and the
+    // trailing YYYY.MM.DD date is collapsed into the %T span but ignored; the second is a full date-time with
+    // microseconds (yyyy-MM-dd-HH.mm.ss.ffffff). Before these were added char decomposed them to ints.
+    public void testEpochDateTimestampCollapses() throws ParseException {
+        List<Argument<?>> parsed = assertPattern("x 1117838570 2005.06.03 y", "x %T y");
+        assertEquals("exactly one argument", 1, parsed.size());
+        assertThat(parsed.getFirst(), instanceOf(Timestamp.class));
+        // value comes straight from the epoch (seconds * 1000), NOT from parsing the date
+        assertEquals(1117838570L * 1000L, ((Timestamp) parsed.getFirst()).getTimestampMillis());
+    }
+
+    public void testBglDateTimeCollapses() throws ParseException {
+        assertPattern("x 2005-06-03-15.42.50.363779 y", "x %T y");
+    }
+
+    public void testBglTimestampsInContext() throws ParseException {
+        // real BGL line prefix: leading '-' is a lone sign char and stays literal (NOT an argument), then epoch+date
+        // -> %T, then the full datetime -> %T
+        assertPattern("- 1117838570 2005.06.03 node 2005-06-03-15.42.50.363779 node RAS",
+            "- %T node %T node RAS");
+    }
+
+    public void testLoneSignIsNotAnArgument() throws ParseException {
+        // a sign character with no digits is not a number - it must stay literal, never a spurious %I
+        assertPattern("x - y", "x - y");
+        assertPattern("x + y", "x + y");
+        // sign + digits is still an integer
+        assertPattern("x -5 y", "x %I y");
+        assertPattern("x +10 y", "x %I y");
+    }
+
+    public void testEpochTimestampGuards() throws ParseException {
+        // a bare date is NOT a timestamp on its own (only the epoch makes it one)
+        assertPattern("x 2005.06.03 y", "x %I.%I.%I y");
+        // a lone epoch-range integer without a following date stays a plain integer
+        assertPattern("x 1117838570 y", "x %I y");
+        // out-of-range "date" and a 2-part decimal are unaffected
+        assertPattern("x 1.2.3 y", "x %I.%I.%I y");
+        assertSingleDouble("x 3.14 y", "x %F y", 3.14);
     }
 }

@@ -105,6 +105,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -280,9 +281,11 @@ public class CsvIT extends ESTestCase {
         assertThat("Not enough specs found " + urls, urls, hasSize(greaterThan(0)));
 
         var specs = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
+        var seed = Optional.ofNullable(System.getProperty("tests.seed"))
+            .map(s -> Long.parseUnsignedLong(s, 16))
+            .orElseGet(System::nanoTime);
         // forbidden aip require to pass random explicitly, however LuceneTestCase#random() is not yet initialized.
-        // Falling back to a new instance as repeatable scenario order is not essential here.
-        Collections.shuffle(specs, new Random(0));
+        Collections.shuffle(specs, new Random(seed));
         Collections.sort(specs, Comparator.comparing(spec -> GROUPS_WITH_VIEWS.contains((String) spec[1])));
         return specs;
     }

@@ -318,10 +318,6 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // _id derivation for time-series indices is driven from TimeSeriesIdFieldMapper.postColumnarParse,
-        // which calls createColumns below. Returning true here prevents this mapper from blocking
-        // the columnar batch path; the actual column is emitted by createColumns, not by
-        // preColumnarParse/postColumnarParse on this mapper.
         return true;
     }
 
@@ -334,17 +330,6 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         // nested docs (addSyntheticIdFieldsToNestedDocs) must be added here or in TimeSeriesIdFieldMapper.
     }
 
-    /**
-     * Columnar twin of {@link #createField}: derives the {@code _id} per document from the
-     * coordinator-supplied {@code _tsid} and the mapped {@code @timestamp}, then emits a single
-     * {@link org.elasticsearch.sourcebatch.LuceneColumn} covering the whole batch. Called from
-     * {@link TimeSeriesIdFieldMapper#postColumnarParse}, which drives {@code _id} in the columnar
-     * path, mirroring how the row path's {@code TimeSeriesIdFieldMapper.postParse} calls
-     * {@link #createField}.
-     *
-     * <p>Requires both {@link BatchMappingContext#tsids()} and {@link BatchMappingContext#routings()}
-     * to be populated (set on the coordinating node for modern time-series indices).
-     */
     static void createColumns(BatchMappingContext context, BytesRef[] tsids) {
         final int docCount = context.docCount();
         final BytesRef[] routings = context.routings();

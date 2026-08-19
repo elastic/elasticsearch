@@ -154,8 +154,7 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
         // Support only the modern path where the routing hash is coordinator-computed and stored
         // in IndexRequest#routing() (i.e. on or after TIME_SERIES_ROUTING_HASH_IN_ID). Older
         // indices reconstruct the hash from the id, which is not yet derived on the columnar path.
-        return indexSettings.getMode().isTsdb()
-            && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID);
+        return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID);
     }
 
     @Override
@@ -170,6 +169,7 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
         for (int d = 0; d < docCount; d++) {
             final BytesRef routing = routings[d];
             assert routing != null : "_ts_routing_hash must not be null for doc [" + d + "]";
+            // TODO: look to avoid converting to string as performance improvement
             hashes[d] = Uid.encodeId(routing.utf8ToString());
         }
         context.addColumn(MappedColumns.binaryColumn(hashes, NAME, TS_ROUTING_HASH_DV_TYPE));

@@ -87,7 +87,7 @@ public final class QueryPhaseCollector implements TwoPhaseCollector {
 
     @Override
     public ScoreMode scoreMode() {
-        ScoreMode scoreMode;
+        final ScoreMode scoreMode;
         if (aggsCollector == null) {
             scoreMode = topDocsCollector.scoreMode();
         } else {
@@ -95,17 +95,29 @@ public final class QueryPhaseCollector implements TwoPhaseCollector {
             if (topDocsCollector.scoreMode() == aggsCollector.scoreMode()) {
                 scoreMode = topDocsCollector.scoreMode();
             } else if (topDocsCollector.scoreMode().needsScores() || aggsCollector.scoreMode().needsScores()) {
-                scoreMode = ScoreMode.COMPLETE;
+                if (topDocsCollector.scoreMode().isExhaustive() || aggsCollector.scoreMode().isExhaustive()) {
+                    // one of the two collectors needs scores, and one of the two collects every match
+                    scoreMode = ScoreMode.COMPLETE;
+                } else {
+                    // both collectors may skip documents, and TOP_SCORES is pointless as setMinCompetitiveScore is a no-op with aggs
+                    scoreMode = ScoreMode.TOP_DOCS_WITH_SCORES;
+                }
             } else {
+                // neither collector needs scores, and one of the two collects every match
+                assert topDocsCollector.scoreMode().isExhaustive() || aggsCollector.scoreMode().isExhaustive();
                 scoreMode = ScoreMode.COMPLETE_NO_SCORES;
             }
-            // TODO for aggs that return TOP_DOCS, score mode becomes exhaustive unless top docs collector agrees on the score mode
         }
-        if (minScore != null) {
-            // TODO if we had TOP_DOCS, shouldn't we return TOP_DOCS_WITH_SCORES instead of COMPLETE?
-            scoreMode = scoreMode == ScoreMode.TOP_SCORES ? ScoreMode.TOP_SCORES : ScoreMode.COMPLETE;
+        if (minScore == null || scoreMode.needsScores()) {
+            return scoreMode;
         }
-        return scoreMode;
+        // min_score needs scores, yet it does not require exhaustive collection
+        if (scoreMode.isExhaustive()) {
+            assert scoreMode == ScoreMode.COMPLETE_NO_SCORES;
+            return ScoreMode.COMPLETE;
+        }
+        assert scoreMode == ScoreMode.TOP_DOCS;
+        return ScoreMode.TOP_DOCS_WITH_SCORES;
     }
 
     /**

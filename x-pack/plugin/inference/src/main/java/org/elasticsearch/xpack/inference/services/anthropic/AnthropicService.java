@@ -25,7 +25,6 @@ import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -59,9 +58,6 @@ public class AnthropicService extends SenderService<AnthropicModel> {
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
 
     private static final String CHAT_COMPLETION_ERROR_PREFIX = "anthropic chat completions";
-    private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new AnthropicChatCompletionResponseHandler(
-        CHAT_COMPLETION_ERROR_PREFIX
-    );
 
     public AnthropicService(
         HttpRequestSender.Factory factory,
@@ -119,10 +115,11 @@ public class AnthropicService extends SenderService<AnthropicModel> {
         var anthropicModel = (AnthropicChatCompletionModel) model;
         var overriddenModel = AnthropicChatCompletionModel.of(anthropicModel, inputs.getRequest());
 
+        var handler = new AnthropicChatCompletionResponseHandler(CHAT_COMPLETION_ERROR_PREFIX, inputs.getRequest().excludeReasoning());
         var requestManager = new GenericRequestManager<>(
             getServiceComponents().threadPool(),
             overriddenModel,
-            UNIFIED_CHAT_COMPLETION_HANDLER,
+            handler,
             (unifiedChatInput) -> new AnthropicUnifiedChatCompletionRequest(unifiedChatInput, overriddenModel),
             UnifiedChatInput.class
         );

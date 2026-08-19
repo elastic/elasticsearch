@@ -99,6 +99,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
     private static final VectorSpecies<Float> FLOAT_SPECIES_512 = FloatVector.SPECIES_512;
     private static final VectorSpecies<Float> FLOAT_SPECIES_256 = FloatVector.SPECIES_256;
+    private static final VectorSpecies<Float> FLOAT_SPECIES_128 = FloatVector.SPECIES_128;
     private static final VectorSpecies<Byte> BYTE_SPECIES_256 = ByteVector.SPECIES_256;
     private static final VectorSpecies<Byte> BYTE_SPECIES_128 = ByteVector.SPECIES_128;
     private static final VectorSpecies<Byte> BYTE_SPECIES_64 = ByteVector.SPECIES_64;
@@ -218,7 +219,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
     @Override
     public float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length) {
-        if (aOffset == 0 && bOffset == 0 && length == a.length) {
+        if (aOffset == 0 && bOffset == 0 && length == a.length && a.length == b.length) {
             return dotProduct(a, b);
         }
 
@@ -734,36 +735,37 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
-    public float ipFloatBit(float[] q, byte[] d) {
-        if (q.length >= 16) {
+    public float ipFloatBit(float[] q, int qOffset, byte[] d, int dOffset, int qLength) {
+        if (qLength >= 16) {
             if (VECTOR_BITSIZE >= 512) {
-                return ipFloatBit512(q, d);
+                return ipFloatBit512(q, qOffset, d, dOffset, qLength);
             } else if (VECTOR_BITSIZE == 256) {
-                return ipFloatBit256(q, d);
+                return ipFloatBit256(q, qOffset, d, dOffset, qLength);
+            } else if (VECTOR_BITSIZE == 128) {
+                return ipFloatBit128(q, qOffset, d, dOffset, qLength);
             }
         }
-        return DefaultESVectorUtilSupport.ipFloatBitImpl(q, d);
+        return DefaultESVectorUtilSupport.ipFloatBitImpl(q, qOffset, d, dOffset, qLength);
     }
 
-    static float ipFloatBit512(float[] q, byte[] d) {
-        assert q.length == d.length * Byte.SIZE;
+    static float ipFloatBit512(float[] q, int qOffset, byte[] d, int dOffset, int qLength) {
         int i = 0;
         float sum = 0;
 
         int sectionLength = FLOAT_SPECIES_512.length() * 4;
-        if (q.length >= sectionLength) {
+        if (qLength >= sectionLength) {
             FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES_512);
             FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES_512);
             FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES_512);
             FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES_512);
-            int limit = limit(q.length, sectionLength);
+            int limit = limit(qLength, sectionLength);
             for (; i < limit; i += sectionLength) {
-                var floats0 = FloatVector.fromArray(FLOAT_SPECIES_512, q, i);
-                var floats1 = FloatVector.fromArray(FLOAT_SPECIES_512, q, i + FLOAT_SPECIES_512.length());
-                var floats2 = FloatVector.fromArray(FLOAT_SPECIES_512, q, i + FLOAT_SPECIES_512.length() * 2);
-                var floats3 = FloatVector.fromArray(FLOAT_SPECIES_512, q, i + FLOAT_SPECIES_512.length() * 3);
+                var floats0 = FloatVector.fromArray(FLOAT_SPECIES_512, q, qOffset + i);
+                var floats1 = FloatVector.fromArray(FLOAT_SPECIES_512, q, qOffset + i + FLOAT_SPECIES_512.length());
+                var floats2 = FloatVector.fromArray(FLOAT_SPECIES_512, q, qOffset + i + FLOAT_SPECIES_512.length() * 2);
+                var floats3 = FloatVector.fromArray(FLOAT_SPECIES_512, q, qOffset + i + FLOAT_SPECIES_512.length() * 3);
 
-                long maskBits = Long.reverse((long) BitUtil.VH_BE_LONG.get(d, i / 8));
+                long maskBits = Long.reverse((long) BitUtil.VH_BE_LONG.get(d, dOffset + i / 8));
                 var mask0 = VectorMask.fromLong(FLOAT_SPECIES_512, maskBits);
                 var mask1 = VectorMask.fromLong(FLOAT_SPECIES_512, maskBits >> 16);
                 var mask2 = VectorMask.fromLong(FLOAT_SPECIES_512, maskBits >> 32);
@@ -779,13 +781,13 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         }
 
         sectionLength = FLOAT_SPECIES_256.length();
-        if (q.length - i >= sectionLength) {
+        if (qLength - i >= sectionLength) {
             FloatVector acc = FloatVector.zero(FLOAT_SPECIES_256);
-            int limit = limit(q.length, sectionLength);
+            int limit = limit(qLength, sectionLength);
             for (; i < limit; i += sectionLength) {
-                var floats = FloatVector.fromArray(FLOAT_SPECIES_256, q, i);
+                var floats = FloatVector.fromArray(FLOAT_SPECIES_256, q, qOffset + i);
 
-                long maskBits = Integer.reverse(d[i / 8]) >> 24;
+                long maskBits = Integer.reverse(d[dOffset + i / 8]) >> 24;
                 var mask = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits);
 
                 acc = acc.add(floats, mask);
@@ -793,30 +795,31 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             sum += acc.reduceLanes(VectorOperators.ADD);
         }
 
-        // that should have got them all (q.length is a multiple of 8, which fits in a 256-bit vector)
-        assert i == q.length;
+        if (i < qLength) {
+            sum += DefaultESVectorUtilSupport.ipFloatBitImpl(q, qOffset + i, d, dOffset + i / 8, qLength - i);
+        }
+
         return sum;
     }
 
-    static float ipFloatBit256(float[] q, byte[] d) {
-        assert q.length == d.length * Byte.SIZE;
+    static float ipFloatBit256(float[] q, int qOffset, byte[] d, int dOffset, int qLength) {
         int i = 0;
         float sum = 0;
 
         int sectionLength = FLOAT_SPECIES_256.length() * 4;
-        if (q.length >= sectionLength) {
+        if (qLength >= sectionLength) {
             FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES_256);
             FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES_256);
             FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES_256);
             FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES_256);
-            int limit = limit(q.length, sectionLength);
+            int limit = limit(qLength, sectionLength);
             for (; i < limit; i += sectionLength) {
-                var floats0 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i);
-                var floats1 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length());
-                var floats2 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length() * 2);
-                var floats3 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length() * 3);
+                var floats0 = FloatVector.fromArray(FLOAT_SPECIES_256, q, qOffset + i);
+                var floats1 = FloatVector.fromArray(FLOAT_SPECIES_256, q, qOffset + i + FLOAT_SPECIES_256.length());
+                var floats2 = FloatVector.fromArray(FLOAT_SPECIES_256, q, qOffset + i + FLOAT_SPECIES_256.length() * 2);
+                var floats3 = FloatVector.fromArray(FLOAT_SPECIES_256, q, qOffset + i + FLOAT_SPECIES_256.length() * 3);
 
-                long maskBits = Integer.reverse((int) BitUtil.VH_BE_INT.get(d, i / 8));
+                long maskBits = Integer.reverse((int) BitUtil.VH_BE_INT.get(d, dOffset + i / 8));
                 var mask0 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits);
                 var mask1 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits >> 8);
                 var mask2 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits >> 16);
@@ -832,13 +835,13 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         }
 
         sectionLength = FLOAT_SPECIES_256.length();
-        if (q.length - i >= sectionLength) {
+        if (qLength - i >= sectionLength) {
             FloatVector acc = FloatVector.zero(FLOAT_SPECIES_256);
-            int limit = limit(q.length, sectionLength);
+            int limit = limit(qLength, sectionLength);
             for (; i < limit; i += sectionLength) {
-                var floats = FloatVector.fromArray(FLOAT_SPECIES_256, q, i);
+                var floats = FloatVector.fromArray(FLOAT_SPECIES_256, q, qOffset + i);
 
-                long maskBits = Integer.reverse(d[i / 8]) >> 24;
+                long maskBits = Integer.reverse(d[dOffset + i / 8]) >> 24;
                 var mask = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits);
 
                 acc = acc.add(floats, mask);
@@ -846,8 +849,66 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             sum += acc.reduceLanes(VectorOperators.ADD);
         }
 
-        // that should have got them all (q.length is a multiple of 8, which fits in a 256-bit vector)
-        assert i == q.length;
+        if (i < qLength) {
+            sum += DefaultESVectorUtilSupport.ipFloatBitImpl(q, qOffset + i, d, dOffset + i / 8, qLength - i);
+        }
+        return sum;
+    }
+
+    static float ipFloatBit128(float[] q, int qOffset, byte[] d, int dOffset, int qLength) {
+        int i = 0;
+        float sum = 0;
+
+        int sectionLength = FLOAT_SPECIES_128.length() * 4;
+        if (qLength >= sectionLength) {
+            FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES_128);
+            FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES_128);
+            FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES_128);
+            FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES_128);
+            int limit = limit(qLength, sectionLength);
+            for (; i < limit; i += sectionLength) {
+                var floats0 = FloatVector.fromArray(FLOAT_SPECIES_128, q, qOffset + i);
+                var floats1 = FloatVector.fromArray(FLOAT_SPECIES_128, q, qOffset + i + FLOAT_SPECIES_128.length());
+                var floats2 = FloatVector.fromArray(FLOAT_SPECIES_128, q, qOffset + i + FLOAT_SPECIES_128.length() * 2);
+                var floats3 = FloatVector.fromArray(FLOAT_SPECIES_128, q, qOffset + i + FLOAT_SPECIES_128.length() * 3);
+
+                long maskBits = Integer.reverse((short) BitUtil.VH_BE_SHORT.get(d, dOffset + i / 8)) >> 16;
+                var mask0 = VectorMask.fromLong(FLOAT_SPECIES_128, maskBits);
+                var mask1 = VectorMask.fromLong(FLOAT_SPECIES_128, maskBits >> 4);
+                var mask2 = VectorMask.fromLong(FLOAT_SPECIES_128, maskBits >> 8);
+                var mask3 = VectorMask.fromLong(FLOAT_SPECIES_128, maskBits >> 12);
+
+                acc0 = acc0.add(floats0, mask0);
+                acc1 = acc1.add(floats1, mask1);
+                acc2 = acc2.add(floats2, mask2);
+                acc3 = acc3.add(floats3, mask3);
+            }
+            sum += acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD)
+                + acc3.reduceLanes(VectorOperators.ADD);
+        }
+
+        sectionLength = FLOAT_SPECIES_128.length() * 2; // x2 (8 floats) as we can only run the scalar tail on full data bytes
+        if (qLength - i >= sectionLength) {
+            FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES_128);
+            FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES_128);
+            int limit = limit(qLength, sectionLength);
+            for (; i < limit; i += sectionLength) {
+                var floats0 = FloatVector.fromArray(FLOAT_SPECIES_128, q, qOffset + i);
+                var floats1 = FloatVector.fromArray(FLOAT_SPECIES_128, q, qOffset + i + FLOAT_SPECIES_128.length());
+
+                long maskBits = Integer.reverse(d[dOffset + i / 8]) >> 24;
+                var mask0 = VectorMask.fromLong(FLOAT_SPECIES_128, maskBits);
+                var mask1 = VectorMask.fromLong(FLOAT_SPECIES_128, maskBits >> 4);
+
+                acc0 = acc0.add(floats0, mask0);
+                acc1 = acc1.add(floats1, mask1);
+            }
+            sum += acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD);
+        }
+
+        if (i < qLength) {
+            sum += DefaultESVectorUtilSupport.ipFloatBitImpl(q, qOffset + i, d, dOffset + i / 8, qLength - i);
+        }
         return sum;
     }
 

@@ -146,23 +146,26 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
     }
 
     public void testIpFloatBit() {
-        byte[] d = new byte[random().nextInt(128)];
-        float[] q = new float[d.length * 8];
+        float[] q = VectorTestUtils.randomFloatVector(randomIntBetween(8, 128));
+        byte[] d = new byte[(q.length + Byte.SIZE - 1) / Byte.SIZE];
         random().nextBytes(d);
 
+        int qOffset = randomInt(q.length / 2) & -Byte.SIZE;  // multiple of 8
+        int qLength = randomInt(q.length / 2 - randomInt(1));    // can be arbitrary
+        int dOffset = randomInt(d.length - qLength / Byte.SIZE - 1);
+
         float sum = 0;
-        for (int i = 0; i < q.length; i++) {
-            q[i] = random().nextFloat();
-            if (((d[i / 8] << (i % 8)) & 0x80) == 0x80) {
-                sum += q[i];
+        for (int i = 0; i < qLength; i++) {
+            if (((d[dOffset + i / 8] << (i % 8)) & 0x80) == 0x80) {
+                sum += q[qOffset + i];
             }
         }
 
-        double delta = 1e-5 * q.length;
+        double delta = 1e-5 * qLength;
 
-        assertEquals(sum, ESVectorUtil.ipFloatBit(q, d), delta);
-        assertEquals(sum, defaultedProvider.getVectorUtilSupport().ipFloatBit(q, d), delta);
-        assertEquals(sum, panamaProvider.getVectorUtilSupport().ipFloatBit(q, d), delta);
+        assertEquals(sum, ESVectorUtil.ipFloatBit(q, qOffset, d, dOffset, qLength), delta);
+        assertEquals(sum, defaultedProvider.getVectorUtilSupport().ipFloatBit(q, qOffset, d, dOffset, qLength), delta);
+        assertEquals(sum, panamaProvider.getVectorUtilSupport().ipFloatBit(q, qOffset, d, dOffset, qLength), delta);
     }
 
     public void testIpFloatByte() {
@@ -186,7 +189,11 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         assertThat((double) panamaProvider.getVectorUtilSupport().ipFloatByte(q, d), closeTo(expected, delta));
     }
 
-    public void testBitAndCount() {
+    public void testIntBitAndCount() {
+        testBasicBitAndImpl(ESVectorUtil::andBitCountInt);
+    }
+
+    public void testLongBitAndCount() {
         testBasicBitAndImpl(ESVectorUtil::andBitCountLong);
     }
 
@@ -206,17 +213,21 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         testBasicIpByteBinImpl(panamaProvider.getVectorUtilSupport()::ipByteBinByte);
     }
 
-    void testBasicBitAndImpl(ToLongBiFunction<byte[], byte[]> bitAnd) {
-        assertEquals(0, bitAnd.applyAsLong(new byte[] { 0 }, new byte[] { 0 }));
-        assertEquals(0, bitAnd.applyAsLong(new byte[] { 1 }, new byte[] { 0 }));
-        assertEquals(0, bitAnd.applyAsLong(new byte[] { 0 }, new byte[] { 1 }));
-        assertEquals(1, bitAnd.applyAsLong(new byte[] { 1 }, new byte[] { 1 }));
-        byte[] a = new byte[31];
-        byte[] b = new byte[31];
+    private interface BitAnd {
+        int bitAnd(byte[] a, int aOffset, byte[] b, int bOffset, int length);
+    }
+
+    void testBasicBitAndImpl(BitAnd bitAnd) {
+        assertEquals(0, bitAnd.bitAnd(new byte[] { 0 }, 0, new byte[] { 0 }, 0, 1));
+        assertEquals(0, bitAnd.bitAnd(new byte[] { 1 }, 0, new byte[] { 0 }, 0, 1));
+        assertEquals(0, bitAnd.bitAnd(new byte[] { 0 }, 0, new byte[] { 1 }, 0, 1));
+        assertEquals(1, bitAnd.bitAnd(new byte[] { 1 }, 0, new byte[] { 1 }, 0, 1));
+        byte[] a = new byte[33];
+        byte[] b = new byte[33];
         random().nextBytes(a);
         random().nextBytes(b);
-        int expected = scalarBitAnd(a, b);
-        assertEquals(expected, bitAnd.applyAsLong(a, b));
+        int expected = scalarBitAnd(a, 1, b, 1, 31);
+        assertEquals(expected, bitAnd.bitAnd(a, 1, b, 1, 31));
     }
 
     void testBasicIpByteBinImpl(ToLongBiFunction<byte[], byte[]> ipByteBinFunc) {
@@ -542,6 +553,28 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float actual = panamaProvider.getVectorUtilSupport().dotProduct(a, aOffset, b, bOffset, length);
         assertEquals(expected, actual, 1e-3f * length);
         actual = nativeProvider.getVectorUtilSupport().dotProduct(a, aOffset, b, bOffset, length);
+        assertEquals(expected, actual, 1e-3f * length);
+    }
+
+    public void testDotProductOffsetDifferentLengthArrays() {
+        // Regression test: the offset-based dotProduct must work when a and b have different total
+        // lengths. A previous short-circuit optimization incorrectly delegated to dotProduct(a, b)
+        // which requires a.length == b.length.
+        int aSize = randomIntBetween(16, 128);
+        int bSize = randomIntBetween(aSize + 1, aSize * 4);
+        int length = aSize; // dot over the full extent of a, but only a prefix of b
+        float[] a = randomFloatVector(aSize);
+        float[] b = randomFloatVector(bSize);
+        // Manual reference dot product
+        float expected = 0f;
+        for (int i = 0; i < length; i++) {
+            expected += a[i] * b[i];
+        }
+        float actual = defaultedProvider.getVectorUtilSupport().dotProduct(a, 0, b, 0, length);
+        assertEquals(expected, actual, 1e-3f * length);
+        actual = panamaProvider.getVectorUtilSupport().dotProduct(a, 0, b, 0, length);
+        assertEquals(expected, actual, 1e-3f * length);
+        actual = nativeProvider.getVectorUtilSupport().dotProduct(a, 0, b, 0, length);
         assertEquals(expected, actual, 1e-3f * length);
     }
 
@@ -1138,10 +1171,10 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         return res;
     }
 
-    static int scalarBitAnd(byte[] a, byte[] b) {
+    static int scalarBitAnd(byte[] a, int aOffset, byte[] b, int bOffset, int length) {
         int res = 0;
-        for (int i = 0; i < a.length; i++) {
-            res += Integer.bitCount((a[i] & b[i]) & 0xFF);
+        for (int i = 0; i < length; i++) {
+            res += Integer.bitCount((a[aOffset + i] & b[bOffset + i]) & 0xFF);
         }
         return res;
     }

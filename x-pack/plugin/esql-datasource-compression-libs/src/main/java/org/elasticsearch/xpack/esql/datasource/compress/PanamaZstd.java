@@ -184,9 +184,9 @@ public final class PanamaZstd {
 
     /**
      * Overload of {@link #wrap(InputStream)} that accounts the wrapper's native footprint against
-     * {@code breaker}. The reservation is added with {@code addWithoutBreaking} once the stream is
-     * constructed and released on {@link InputStream#close()}, so it never trips mid-file — it only
-     * makes the ~256 KB-per-stream libzstd context visible to the breaker. A {@code null} breaker
+     * {@code breaker}. Construction charges with {@code addEstimateBytesAndMaybeBreak} so a saturated
+     * breaker rejects the stream before decode starts. Window growth after the first read uses
+     * {@code addWithoutBreaking} and is released on {@link InputStream#close()}. A {@code null} breaker
      * disables accounting and reproduces the historical behavior of {@link #wrap(InputStream)}.
      *
      * @throws IllegalStateException if {@link #isAvailable()} returns {@code false}

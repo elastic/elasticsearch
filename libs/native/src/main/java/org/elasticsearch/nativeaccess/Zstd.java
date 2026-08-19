@@ -40,8 +40,8 @@ public final class Zstd {
     private static final VarHandle SIZE_VH = varHandleWithoutOffset(BUFFER_LAYOUT, PathElement.groupElement("size"));
     private static final VarHandle POS_VH = varHandleWithoutOffset(BUFFER_LAYOUT, PathElement.groupElement("pos"));
 
-    // The two ZSTD_inBuffer/ZSTD_outBuffer struct holders, 24 bytes each ({ void* ptr; size_t size; size_t pos; }).
-    private static final long DSTREAM_STRUCT_HOLDER_BYTES = 2L * 24L;
+    // The two ZSTD_inBuffer/ZSTD_outBuffer struct holders allocated in the DStream arena.
+    private static final long DSTREAM_STRUCT_HOLDER_BYTES = 2L * BUFFER_LAYOUT.byteSize();
 
     // ZSTD_d_windowLogMax enum value (ZSTD_dParameter) — the streaming decoder refuses to allocate a
     // back-reference window larger than (1 << value). Stable API since libzstd 1.4.0.

@@ -375,6 +375,16 @@ public class PanamaZstdInputStreamTests extends ESTestCase {
         assertEquals(0L, breaker.getUsed());
     }
 
+    public void testConstructionChargeTripsBreaker() throws IOException {
+        byte[] compressed = compress(randomBytesForCompression(1024));
+        UsedBytesCircuitBreaker breaker = new UsedBytesCircuitBreaker(1L);
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> new PanamaZstdInputStream(new ByteArrayInputStream(compressed), zstd, breaker)
+        );
+        assertEquals(0L, breaker.getUsed());
+    }
+
     /**
      * A {@code null} breaker disables accounting and must reproduce the historical behavior — no
      * charge, and a clean full round-trip. This pins that the nullable-breaker contract stays intact.
@@ -489,20 +499,32 @@ public class PanamaZstdInputStreamTests extends ESTestCase {
     }
 
     /**
-     * Minimal {@link CircuitBreaker} that only tracks the running used-bytes total via
-     * {@link #addWithoutBreaking(long)} — enough to assert the wrapper's charge/uncharge symmetry.
-     * The production path uses {@code addWithoutBreaking} exclusively, so the estimate/break and
-     * config accessors are unused here and are stubbed to inert values.
+     * Minimal {@link CircuitBreaker} that tracks used bytes. Construction charges via
+     * {@link #addEstimateBytesAndMaybeBreak(long, String)} and trips when {@code used} would exceed
+     * the configured limit; window refresh and close use {@link #addWithoutBreaking(long)}.
      */
     private static final class UsedBytesCircuitBreaker implements CircuitBreaker {
         private final AtomicLong used = new AtomicLong();
+        private final long limit;
+
+        UsedBytesCircuitBreaker() {
+            this(Long.MAX_VALUE);
+        }
+
+        UsedBytesCircuitBreaker(long limit) {
+            this.limit = limit;
+        }
 
         @Override
         public void circuitBreak(String fieldName, long bytesNeeded) {}
 
         @Override
         public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-            used.addAndGet(bytes);
+            long next = used.addAndGet(bytes);
+            if (next > limit) {
+                used.addAndGet(-bytes);
+                throw new CircuitBreakingException("zstd-dstream", bytes, limit, Durability.TRANSIENT);
+            }
         }
 
         @Override
@@ -517,7 +539,7 @@ public class PanamaZstdInputStreamTests extends ESTestCase {
 
         @Override
         public long getLimit() {
-            return Long.MAX_VALUE;
+            return limit;
         }
 
         @Override

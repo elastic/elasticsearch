@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.zstd;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasource.compress.PanamaZstd;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 
@@ -64,9 +65,9 @@ public class ZstdDecompressionCodec implements DecompressionCodec {
     }
 
     @Override
-    public InputStream decompress(InputStream raw, CircuitBreaker breaker) throws IOException {
-        // Account the Panama streaming context (~256 KB per file) against the query breaker so the
-        // reservation is visible; PanamaZstd uses addWithoutBreaking, so this never rejects a file.
+    public InputStream decompress(InputStream raw, @Nullable CircuitBreaker breaker) throws IOException {
+        // Account the Panama streaming context against the query breaker. Construction charges with
+        // addEstimateBytesAndMaybeBreak so a saturated breaker rejects the stream before decode starts.
         return panamaZstd.wrap(raw, breaker);
     }
 }

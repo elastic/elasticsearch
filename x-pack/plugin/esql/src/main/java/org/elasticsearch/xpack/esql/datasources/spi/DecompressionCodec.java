@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -49,15 +50,17 @@ public interface DecompressionCodec {
     /**
      * Breaker-aware variant of {@link #decompress(InputStream)}. Codecs that hold a native
      * decompression footprint (e.g. zstd's streaming context) override this to account that
-     * footprint against {@code breaker}. The default implementation ignores the breaker and
+     * footprint against {@code breaker}. {@code breaker} may be {@code null}; implementations must
+     * skip accounting in that case. The default implementation ignores the breaker and
      * delegates to {@link #decompress(InputStream)}, preserving existing behavior for codecs
      * (gzip, bzip2) with no native reservation to track.
      *
      * @param raw     the compressed input stream
-     * @param breaker circuit breaker to account the decompressor's native footprint against
+     * @param breaker circuit breaker to account the decompressor's native footprint against, or
+     *                {@code null} to skip accounting
      * @return an input stream that yields decompressed bytes
      */
-    default InputStream decompress(InputStream raw, CircuitBreaker breaker) throws IOException {
+    default InputStream decompress(InputStream raw, @Nullable CircuitBreaker breaker) throws IOException {
         return decompress(raw);
     }
 }

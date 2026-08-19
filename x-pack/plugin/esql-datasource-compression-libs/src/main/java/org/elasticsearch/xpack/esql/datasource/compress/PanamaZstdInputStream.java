@@ -105,8 +105,9 @@ public final class PanamaZstdInputStream extends FilterInputStream {
      * {@link PanamaZstd#isAvailable()} before constructing — this constructor assumes the native
      * binding is loaded.
      *
-     * <p>The breaker reservation uses {@code addWithoutBreaking}: it never rejects a stream mid-file,
-     * it only makes the per-stream libzstd context visible. It is released exactly once on
+     * <p>Construction charges with {@code addEstimateBytesAndMaybeBreak} so a saturated breaker
+     * rejects the stream before decode starts. Subsequent window growth uses {@code addWithoutBreaking}
+     * so an in-flight stream is never aborted mid-file. The reservation is released exactly once on
      * {@link #close()} (idempotent via {@link #isClosed}).
      */
     PanamaZstdInputStream(InputStream in, Zstd zstd, CircuitBreaker breaker) {
@@ -129,7 +130,7 @@ public final class PanamaZstdInputStream extends FilterInputStream {
         if (breaker != null) {
             try {
                 charged = s.accountedBytes();
-                breaker.addWithoutBreaking(charged);
+                breaker.addEstimateBytesAndMaybeBreak(charged, "zstd-dstream");
             } catch (Throwable t) {
                 s.close();
                 throw t;

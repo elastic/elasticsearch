@@ -1,6 +1,6 @@
 # Java/Gradle resolver - design notes
 
-This is the running log for the Java/Gradle flakiness *resolution layer* in `build-tools-internal` (`org.elasticsearch.gradle.internal.flakiness`): it replaces the old TypeScript regex/path detectors with an authoritative, Gradle-model-backed resolver, wired into a five-step Buildkite topology.
+This is the running log for the Java/Gradle flakiness *resolution layer* in `build-tools-internal` (`org.elasticsearch.gradle.internal.flakiness`): it replaces the old TypeScript regex/path detectors with an authoritative, Gradle-model-backed resolver, wired into a three-step Buildkite topology.
 
 It is an honest account of the design, what was verified, and the residual risks.
 
@@ -15,19 +15,25 @@ The three Gradle invocations run sequentially inside **one** orchestration step 
 1. bootstrap    (TS)     gather refs (git diff / muted-tests.yml diff / FLAKINESS_CLASSES)
                          -> flakiness-refs.json, then upload the [orchestration, generate] group     (contract 1)
 2. orchestration (1 step, 1 gradle agent, key flakiness-orchestration:run) runs, in order:
-   a. resolve   (Gradle) read refs (file-contents provider) + read the FlakinessModelService at EXECUTION time
-                         -> flakiness-base-targets.json  (rich targets + unresolved)
-                         -> flakiness-compile-tasks.txt  (the distinct compile task paths of the RUNNABLE targets)
-   b. compile   (Gradle) PLAIN `run-gradle.sh <task paths from flakiness-compile-tasks.txt>`.
+   a. resolve   (Gradle) `flakinessResolveProject`, UNQUALIFIED: it runs in EVERY project that registered it
+                         and each project decides for itself whether it owns a ref
+                         -> build/flakiness/project-targets/<project>.json             (its resolved targets)
+                         -> build/flakiness/project-targets/<project>.compile-tasks.txt (its compile tasks)
+   b. compile   (Gradle) PLAIN `run-gradle.sh $(cat .../*.compile-tasks.txt | sort -u)`.
                          Its non-zero exit is the SOLE build_failed signal (writes buildFailed plan.json + marker).
-   c. scan      (Gradle) ASM-scan the LOCAL compiled output dirs named in flakiness-base-targets.json, flatten
-                         abstract bases, and emit ready batch commands -> flakiness-plan.json         (contract 2)
+   c. scan      (Gradle) read the per-project files DIRECTLY (no merge task), fold them back into ref order,
+                         ASM-scan the LOCAL compiled output, flatten abstract bases, emit ready batch commands
+                         -> flakiness-plan.json                                          (contract 2)
 3. generate     (TS, separate step, default node agent, key flakiness-orchestration:generate)
                          download+read flakiness-plan.json -> map plan.commands to BK steps -> upload batches + analyze.
                          buildFailed -> upload only the analyze/build_failed record. no plan -> no-op (upstream failed).
 ```
 
-Boundary held: **Java owns build-model/bytecode facts AND batch-command generation; TS owns Buildkite orchestration + JUnit analysis.** The two contracts between the layers are `flakiness-refs.json` (gather -> resolve) and `flakiness-plan.json` (scan -> generate; now also carrying the ready `commands`), plus the intermediate `flakiness-base-targets.json` / `flakiness-compile-tasks.txt` (resolve -> compile/scan), which are consumed only by shell/Java and carry no TS type.
+Boundary held: **Java owns build-model/bytecode facts AND batch-command generation; TS owns Buildkite orchestration + JUnit analysis.**
+The two contracts between the layers are `flakiness-refs.json` (gather -> resolve) and `flakiness-plan.json` (scan -> generate; also carrying the ready `commands`).
+The only other hand-off is the per-project `build/flakiness/project-targets/` directory (resolve -> compile/scan), which is consumed by shell/Java only and carries no TS type.
+
+**There is exactly one place where TS/shell touches the intermediate data**, and it is a `cat`: the compile phase runs between resolve and scan, so someone has to turn the resolved targets into a task list before scan exists. Each project writes its own newline-terminated `<project>.compile-tasks.txt`, and the orchestration shell concatenates them (`cat .../*.compile-tasks.txt | sort -u`). No JSON parsing in shell, no extra Gradle task, no extra phase.
 
 ### Why orchestration is one step (fixes a latent cross-agent bug)
 
@@ -36,8 +42,6 @@ That is **broken on real CI**: Buildkite steps run on fresh agents with no share
 (The split only appeared to work in local verification because a single workspace was reused.)
 Running resolve/compile/scan in one step on one agent keeps the compiled output on local disk for scan and warms the gradle daemon across the three invocations.
 `generate`, by contrast, ships no build output and needs node, so it is its OWN step on the default agent - it downloads `flakiness-plan.json` (uploaded as an artifact by the orchestration step) and reads it.
-
-This is purely a topology decision: it does **not** change the three gradle invocations, and it does **not** change the CC / whole-build-configuration facts (P0 below) - resolve still runs `--no-configuration-cache`.
 
 **Failure attribution (P2) is preserved entirely in-shell**, phase by phase:
 - resolve non-zero -> resolver/infra defect, **not** build_failed: no marker, exit rc (the red orchestration step is the signal for pipeline owners; the separate `generate` step then finds no plan and no-ops).
@@ -48,25 +52,75 @@ This is purely a topology decision: it does **not** change the three gradle invo
 
 Both orchestration steps are keyed `flakiness-orchestration:*` (not `flakiness-detection:`), so a red/failed orchestration or generate run is never fallback-recorded as a test batch by the external metric predicate (P2a).
 
-## The BuildService (the core of the design)
+## The per-project resolve task (the core of the design)
 
-`FlakinessModelService` is a Gradle `BuildService<None>` holding a `Map<projectPath, ProjectInfo>`.
-It is the configuration-cache-blessed, isolated-projects-clean channel that carries the cross-project model.
-The idiom mirrors `ProjectSubscribeBuildService`/`ProjectSubscribeServicePlugin`.
+`flakinessResolveProject` is registered in **every** project with test sources, from `ElasticsearchTestBasePlugin` behind the `-Pflakiness.resolve` gate (a normal build pays nothing), and invoked **unqualified**.
+It reads only its own project - no `getRootProject()`/`getAllprojects()`/`getSubprojects()`/`getByPath()`; the repo root comes from `ProjectLayout.getSettingsDirectory()` (`Project.getRootDir()` has an empty ArchUnit baseline) - so the shape is isolated-projects-clean.
 
-- **Populate at configuration, per project, from the project's OWN model - incrementally, no `afterEvaluate`.** In `ElasticsearchTestBasePlugin.apply(project)` (the per-project test hook), guarded behind `-Pflakiness.resolve`, we `registerIfAbsent` the service and call `FlakinessProjectModel.contribute`, which wires lazy reactions (mirroring `MutedTestPlugin`): `sourceSets.configureEach` records each recognised test source set as it is configured (catching `internalClusterTest`/`javaRestTest`/`yamlRestTest`, added by plugins applied later in the build script), and registers the project's late-read `Test`-task supplier.
-  The service **accumulates** the per-source-set contributions into that project's `ProjectInfo`.
-  This replaced an earlier `afterEvaluate` snapshot, which `GradlePluginConventionsArchUnitSpec` forbids; `configureEach`/`withPlugin` are order-independent and lazy.
-  It reads only *this* project - no `getAllprojects()`/`getSubprojects()`/`getRootProject()`, no `afterEvaluate` - so it is isolated-projects-clean and convention-compliant.
-  Note this does **not** change P0: the whole-build-config requirement is independent of `afterEvaluate`.
-- **Read at execution.** `FlakinessResolveTask` declares the service via `@ServiceReference` + `usesService` and reads `service.get().projects()` in its `@TaskAction`.
-  Because Elasticsearch does not use configuration-on-demand, every project is configured before any task executes (**with the crucial caveat about the configuration cache below**), so the assembled map is complete when the task consumes it.
-- **Fully authoritative model.** `ProjectInfo` carries `projectPath`, `projectDir`, and per source set a `SourceSetInfo` with the real `javaSrcDirs`/`resourceSrcDirs`, the real compiled `outputDir`, and the real `compile<Ss>Java` task path.
-  Resolution (`RefResolver`) works entirely off these real dirs - it no longer assumes the `src/<ss>/java` layout.
-- **Test-task facts read LATE (see "Which task actually runs this test?" below).** `enabled` / `testClassesDirs` are mutated after our hook installs, so they are *not* in `ProjectInfo`; each project registers a supplier that the resolve task invokes from its own `@TaskAction`.
+Two properties make it work, and they are independent:
 
-This replaces the prototype's root-plugin `getAllprojects()` walk, which was both an `IsolatedProjectsArchUnitSpec` violation and returned an **empty** model (subprojects are not configured at root-config time).
-Both problems are gone: the walk is deleted, and the model is populated from each project's own configuration.
+### 1. Self-selection (who owns which ref)
+
+Nothing outside Gradle computes which project owns a ref.
+Each project asks the question itself: **does a ref's file lie under one of *my* source sets' `srcDirs`?**
+That is precisely what `RefResolver` already answers, so the ownership probe *is* the real resolver, run against this project's source-set model with an **empty `Test`-task lookup**:
+
+```java
+new RefResolver(repoRoot, List.of(thisProject), path -> List.of(), 0).resolve(refs).targets().isEmpty() == false
+```
+
+Two consequences:
+
+- **It is authoritative, and it disambiguates nested projects.** `:x-pack:plugin:logsdb` and `:x-pack:plugin:logsdb:qa:rolling-upgrade` have *nested project directories* but *disjoint `srcDirs`*, so exactly one of them claims a given test file. A directory-prefix or nearest-ancestor-build-script heuristic cannot get this right in general; `srcDirs` can, and needs no settings parsing, no `git ls-files`, and no cross-project access.
+- **It is the cheap exit.** `RefResolver` consults the `Test` tasks only *after* it has decided a ref belongs to one of the project's source sets. So a project that owns nothing never calls the lookup, never realizes `tasks.withType(Test)` - the expensive part - and emits an empty model (`ownsRefs: false`) and an empty result. Measured on the real build: **3 projects realized `Test` tasks (1 + 70 + 637 = 708), 447 projects cheap-exited.**
+
+The probe itself costs a handful of path comparisons per ref, plus (for class refs) one `Files.isRegularFile` probe per java source dir - roughly 2-3k `stat` calls across the whole build, which is noise.
+
+This replaced `owning-projects.mjs`, a bootstrap-time node script that mapped refs to projects with a nearest-ancestor-build-script heuristic and then named `:proj:flakinessResolveProject` on the command line. That file is **deleted**: it was wrong in the corners (a directory with a non-`include`d build script, or a project without one), it duplicated resolution logic in a second language, and it had to be kept in sync with the Java resolver by hand.
+
+### 2. The model crosses the configuration/execution boundary as a task INPUT
+
+The project's whole model is captured into a single `Provider<String>` set on the task's `@Input`:
+
+```java
+Provider<String> modelJson = project.provider(() -> FlakinessJson.writeProjectModel(snapshot(project, refsJson.getOrNull())));
+...
+t.getProjectModelJson().set(modelJson);   // @Input Property<String>
+```
+
+Gradle asks a task-input provider for its execution-time value while **storing** the configuration cache entry, and stores the **computed value** in place of the provider. Two things fall out:
+
+1. **Timing.** The lambda runs *after the entire configuration phase*. Iterating `tasks.withType(Test)` there **realizes** the tasks, which runs every pending `configureEach`/`named` action on them - so `elasticsearch.bwc-test`'s `tasks.named("javaRestTest") { enabled = false }` and its `testClassesDirs = sourceSets.javaRestTest.output.classesDirs` reassignment are both applied, and the whole `v<version>#bwcTest` family exists. There is no "later" left in which the values could change.
+2. **Serializability.** The lambda closes over the live `Project`, but by store time it has been replaced by a `String`. The task action touches no Gradle model at all.
+
+`snapshot(project, ...)` reuses the *existing* readers verbatim - `FlakinessProjectModel.sourceSetInfo` and `FlakinessProjectModel.testTaskSnapshot` - and `RefResolver` / `TestTaskSelector` / `PlanBuilder` / `FlakinessJson` are untouched by the topology.
+
+Two `Provider` kinds behave differently here, and both behaviours are what this feature wants:
+
+| provider | encoded as | consequence |
+|---|---|---|
+| `project.provider { ... }` (the model) | **fixed value** computed at store time | post-mutation model frozen into the entry; not recomputed on reuse |
+| `providers.fileContents(refs).getAsText()` **queried inside** that lambda | **value source obtained at configuration time** | a changed `flakiness-refs.json` **invalidates** the entry, so ownership is recomputed |
+
+That second row is deliberate and is a change from the earlier spike. The ownership decision depends on the refs, so the refs *must* be a configuration input: otherwise a reused entry would serve a frozen "I own nothing" verdict for a project the new refs actually touch, and the pipeline would silently resolve nothing for it. Verified below.
+
+### Output layout, and why it is one shared directory
+
+Each project writes two files into `<repoRoot>/build/flakiness/project-targets/`, named after its project path (`:x-pack:plugin:logsdb:qa:rolling-upgrade` -> `x-pack.plugin.logsdb.qa.rolling-upgrade.*`):
+
+- `<project>.json` - a `ProjectTargetsFile`: each resolved target plus the **index of the ref that produced it**;
+- `<project>.compile-tasks.txt` - the compile task paths of that project's runnable targets, newline-**terminated**.
+
+They deliberately do *not* live in each project's own `build/` directory. The consumers - `flakinessScan` and the orchestration shell - must find the files without knowing the project set, and a `**/build/flakiness/*.json` glob would mean walking every build output directory in the repo (a `@InputFiles` fingerprint over hundreds of thousands of files). One flat directory makes discovery O(#projects) and the shell glue a `cat`. Each project writes only its own uniquely named files, so no two tasks overlap, and the orchestration `rm -rf`s the directory first so a reused CI workspace cannot leak a previous run's answer.
+
+### No merge task
+
+`flakinessScan` consumes the per-project files directly (`@InputFiles` over `project-targets/*.json`) and does the fold itself via the pure `FlakinessTargets.merge`. Two things genuinely need the global view, and both belong on the *scan* side of the compile step:
+
+- **ref ordering** - each per-project entry carries its ref index, so the merged list reproduces the refs file's order;
+- **the `unresolved` verdict** - a class ref is unresolved only if *no* project claimed it. This is why the per-project task deliberately runs the resolver one ref at a time and throws away its own per-ref "unresolved" verdicts: "not in *this* project" is not "not anywhere".
+
+The only consumer that must run *before* compile is the compile task list, and each project can derive its own share of that - so there is no phase left for a merge task to occupy. `flakiness-base-targets.json` and `flakiness-compile-tasks.txt` no longer exist.
 
 ## Which task actually runs this test? (the disposition layer)
 
@@ -98,31 +152,32 @@ Dispositions, in order:
 `CommandBuilder` builds the gradle invocation from `runnableTasks`, so no layer of the pipeline constructs a task path from a convention any more.
 Compile-task and ASM-scan-dir derivation likewise now key off "is runnable", not "is bwc".
 
-### The lifecycle crux: a LATE read, in the task action
+### The lifecycle crux: a LATE read, at configuration-cache store time
 
-`enabled` and `testClassesDirs` are **mutated after** `FlakinessProjectModel.contribute` runs (the bwc/distro plugins may be applied later in the build script), and the `v<version>#bwcTest` / `destructiveDistroTest.*` families are **registered** later still.
-Snapshotting them eagerly inside a `configureEach` callback reads pre-mutation values and silently produces the wrong answer - the same class of trap as P1a.
+`enabled` and `testClassesDirs` are **mutated after** the resolve task is registered (the bwc/distro plugins may be applied later in the build script), and the `v<version>#bwcTest` / `destructiveDistroTest.*` families are **registered** later still.
+Snapshotting them eagerly - in a `configureEach` callback, or anywhere during plain configuration - reads pre-mutation values and silently produces the wrong answer.
 
-So the service stores, per project, a **late-read supplier** (`registerTestTasks`), invoked only when `FlakinessModelService#testTasks(projectPath)` is called from `FlakinessResolveTask`'s `@TaskAction`.
-Two properties make that correct by construction:
-- by execution time the project has finished configuring, so every `Test` task exists;
-- *iterating* `tasks.withType(Test)` **realizes** the tasks, and realization runs all of their pending `configureEach`/`named` configuration actions - including `enabled = false` and the `testClassesDirs` reassignment.
-  There is no "later" left in which the values could change.
+The store-time provider (above) is what makes the read late enough, and it is late by *construction*, not by convention: Gradle only asks for the value once the configuration phase is over and the task graph is computed. Direct proof, by line number in an `--info` log of a storing run of the real build:
 
-No `afterEvaluate`, no `getAllprojects()`/`getSubprojects()`/`getRootProject()`; each supplier closes over *its own* project only.
-Both ArchUnit specs still pass.
+```
+line   27 .. 1906 : "Evaluating project ..."   (532 lines - the whole build configures)
+line 1907        : "All projects evaluated."
+line 1910        : "Tasks to be executed: [task ':benchmarks:flakinessResolveProject', ...]"
+line 1939        : "flakiness: capturing model for :libs:dissect (realizing its Test tasks)"
+line 2021        : "flakiness: capturing model for :qa:packaging (realizing its Test tasks)"
+line 2392        : "flakiness: capturing model for :x-pack:plugin:logsdb:qa:rolling-upgrade (realizing its Test tasks)"
+line 3249        : "> Task :libs:dissect:flakinessResolveProject"
+line 7597        : "Configuration cache entry stored."
+```
 
-**Config-cache posture (called out explicitly).** Those suppliers hold live `Project` references from configuration into execution.
-That is config-cache-hostile *by construction*, not just by workflow: previously the resolve step merely *needed* whole-build configuration (P0) while the task code itself was CC-clean; now the build service also retains Gradle state.
-Since resolve already runs `--no-configuration-cache` this changes nothing operationally, but it does mean "make resolve CC-compatible" is no longer a matter of removing a flag.
-Everything the suppliers *return* is still a plain Gradle-free record (`TestTaskInfo`), so the resolution logic stays pure and unit-testable.
+Strictly after every project is evaluated, strictly before any task action.
 
 ### Fan-out cap
 
 A bwc project registers one task per wire-compatible version - **68 candidates** for `:x-pack:plugin:logsdb:qa:rolling-upgrade` (67 `v<version>#bwcTest` + `bcUpgradeTest`), each booting a real multi-node cluster - so the fan-out is capped at **2** by default (`-Pflakiness.taskCap`).
 Candidates are ordered **newest-first**: a numeric-aware ("natural") comparison of the task name, descending.
 That prefers the newest versions, orders `v8.19.10` *above* `v8.19.9` (plain lexicographic would not), and is a total order over unique task names - so the selection is reproducible regardless of registration order (asserted in `TestTaskSelectorTests`).
-What was dropped is recorded in the plan's new `taskSelections[]`, mirroring `expansions[]`: `selected 2 of 68 candidate tasks (cap 2)`.
+What was dropped is recorded in the plan's `taskSelections[]`, mirroring `expansions[]`: `selected 2 of 68 candidate tasks (cap 2)`.
 
 ### Packaging policy (an AGENT-CAPABILITY decision, not a model fact)
 
@@ -135,7 +190,7 @@ If a packaging-capable agent is ever wired up, the policy - not the model - is w
 
 ### Multi-task command shape
 
-The batching unit changed from a plan entry to an **(entry, task path) pair**.
+The batching unit is an **(entry, task path) pair**.
 An entry with N runnable tasks contributes N units, which are then batched per kind exactly as before.
 Consequences:
 - `javaRestTest` has batch cap 1, so the capped bwc set becomes **one Buildkite step per bwc version** - clean per-task attribution for the analyzer (a genuine incompatibility with one old version does not get mixed into another version's runs);
@@ -143,32 +198,24 @@ Consequences:
 
 ## PROBLEMS
 
-### P0 (NEW, critical) - the configuration cache defeats whole-build population
-This is the sharpest edge and the most important finding of the rework.
-The design needs *every* test project to be configured so it can contribute its model.
-Under the **configuration cache**, Gradle only configures the projects reachable from the requested task graph - and `flakinessResolve` is a single root-project task, so the subprojects that own the refs never configure, their `configureEach`/`withPlugin` reactions never fire, and the service is **empty**.
+### P0 (RESOLVED, and the claim that motivated it was WRONG) - the configuration cache
 
-Verified empirically on the real build:
-- `./gradlew flakinessResolve -Pflakiness.resolve` (no CC) -> `2 refs -> 2 base targets across 450 projects`.
-- `./gradlew flakinessResolve -Pflakiness.resolve --configuration-cache` -> **fails**, "FlakinessModelService is empty but there are 2 refs to resolve".
-- `./gradlew flakinessResolve -Pflakiness.resolve --no-configuration-cache` -> `2 -> 2 across 450`.
+The earlier root-task topology had a single root `flakinessResolve` reading a cross-project model that every test project pushed into a `FlakinessModelService` (a `BuildService`) during its own configuration. Under the configuration cache that task saw an **empty** model, so the step had to run `--no-configuration-cache`.
 
-Resolution: the resolve invocation **must** run with `--no-configuration-cache` (it is wired explicitly in `runners/buildkite.ts` `resolveCommand` and `entrypoints/local.ts`).
-This costs nothing - the refs change every run, so CC would miss every time anyway.
-The `FlakinessResolveTask` fails fast (throws) when the model is empty while there are refs to resolve, so this failure mode is **loud**, never the prototype's silent 0-targets trap.
-The `scan` step, by contrast, is CC-safe: it only reads `flakiness-base-targets.json` and the output dirs (no cross-project model), so it needs no such flag.
+The explanation recorded at the time was **wrong**, and it survived in code comments and an ArchUnit baseline comment until this migration. It said CC "only configures the projects reachable from the requested root task". It does not: **CC does not imply configuration-on-demand.** Measured on this repo, a CC storing run emits **532 `Evaluating project` lines** - the whole build configures, exactly as without CC. The data was there; it just could not cross the boundary.
 
-The tasks *themselves* are configuration-cache-clean (no `getProject()`, no `Project`/`Gradle` fields, managed properties + injected services only, refs/base-targets read via a file-contents provider).
-It is the *whole-build-configuration requirement* of the resolve step that is intrinsically incompatible with CC - a workflow property, not a bug in the task code.
+The actual mechanism is a lifecycle mismatch: under CC a `BuildService` is **re-instantiated at execution time from its serializable `Parameters`**, so any state accumulated into it during configuration is discarded. Without CC, configuration and execution share one build session and therefore one service instance, which is the only reason the fan-in worked at all. Confirmed independently of *which* projects configure: with `--configuration-cache --rerun-tasks`, the old `flakinessResolve` failed with "FlakinessModelService is empty" even when `:libs:dissect:help` **and** `:libs:dissect:compileTestJava` were requested alongside it.
+
+The whole fan-in is now **deleted** (`FlakinessModelService`, `FlakinessProjectModel.contribute`, `FlakinessResolveTask` and its empty-model fail-fast guard, the `flakinessResolve` registration). Task inputs, not shared service state, carry the model. `--no-configuration-cache` is gone from `runners/buildkite.ts`, `entrypoints/local.ts`, the func test, and the docs.
 
 ### P1 - Config-pass cost x3
-The pipeline runs three Gradle invocations (resolve, compile, scan) where the prototype ran one - now all on one agent, so the gradle daemon stays warm across them. resolve and scan both apply `-Pflakiness.resolve`, so each configures the whole build and repopulates the service (scan does not even use it).
-This is more configuration work, mitigated by resolve/scan being cheap config-only / file-read tasks. compile is a plain invocation (no `-Pflakiness.resolve`), so it does not populate the service.
+The pipeline runs three Gradle invocations (resolve, compile, scan) on one agent, so the gradle daemon stays warm across them. resolve and scan both apply `-Pflakiness.resolve`, so each configures the whole build (scan does not need the model, only its own file inputs). compile is a plain invocation, so it configures nothing extra.
+What CC buys is that a *repeat* resolve costs nothing (see the timing table); it does **not** reduce the cost of the first, storing run. Getting to "configure only the owning projects" needs isolated projects or configuration-on-demand, which is separate, much larger work.
 
 ### P2 - Failure attribution (in-shell in the orchestration step; generate is a separate step)
 Only the **compile** phase's non-zero exit means `build_failed`: the orchestration shell writes `{"buildFailed":true,"reason":"precompile"}` into `flakiness-plan.json` + the `flakiness-precompile.json` marker, then exits non-zero.
 A failure in the **resolve** or **scan** phase is a resolver/tool/infra defect and is NOT reported as `build_failed` - the shell exits non-zero without writing a marker, so the orchestration step just goes red and reads downstream as an infra/pipeline problem.
-The separate `generate` step is wired `depends_on` orchestration with `allow_failure: true`, so it always runs: on a compile failure it reads the buildFailed plan and uploads the analyze-only pipeline that records the single `build_failed`; on a resolve/scan failure it finds no plan (the orchestration wrote none) and no-ops cleanly (logs, exit 0, uploads nothing) rather than erroring.
+The separate `generate` step is wired `depends_on` orchestration with `allow_failure: true`, so it always runs: on a compile failure it reads the buildFailed plan and uploads the analyze-only pipeline that records the single `build_failed`; on a resolve/scan failure it finds no plan and no-ops cleanly (logs, exit 0, uploads nothing) rather than erroring.
 
 ### P2a - Step-key namespacing
 The external metric treats a job as a flakiness test-batch job iff `step_key.startsWith("flakiness-detection:") && step_key !== "flakiness-detection:analyze"`.
@@ -179,25 +226,17 @@ Only the actual test batch steps (`flakiness-detection:unit` etc.) and `analyze`
 
 ### P3 - Class-ref resolution still needs a filesystem probe
 Unmute/explicit refs carry only an FQCN; mapping it to a source set means checking where `<pkg>/<Name>.java` exists on disk under the source set's real `javaSrcDirs`.
-The model gives authoritative source *dirs*, not the file inventory, so a disk probe per candidate root is unavoidable (the resolver runs it at task-execution time, so it is not a config-cache concern).
+The model gives authoritative source *dirs*, not the file inventory, so a disk probe per candidate root is unavoidable.
+Under self-selection every project runs that probe over its own source dirs (rather than one project running it over all of them). Same total work, now parallel and CC-cached.
 
-### P7 (NEW) - `Test`-task realization cost
+### P7 - `Test`-task realization cost
 Reading the task facts *requires realizing* the project's `Test` tasks, which runs arbitrary task-configuration code (testClusters wiring, distribution resolution, ...).
-Mitigations: it happens only under `-Pflakiness.resolve` (a normal build realizes nothing extra), only at execution time, and only for the projects that actually **own a resolved target** - which is why the facts are fetched per project on demand (`FlakinessModelService#testTasks`) instead of being a field of `ProjectInfo`.
-Realizing them for all ~450 projects would be indefensible; realizing them for 1-3 is cheap.
+Mitigations: it happens only under `-Pflakiness.resolve`; only at configuration-cache store time; and only for the projects that actually **own a resolved ref**, which is what the self-selection cheap exit guarantees.
+Realizing them for all ~450 projects would be indefensible; realizing them for 1-3 is cheap (measured below: the whole unqualified run is no slower than the old single root task).
 
-Measured on this repo (warm daemon, 3 runs each), realizing the `Test` tasks of the three proof projects - **706 tasks** (`:qa:packaging` alone has 636) including resolving each task's `testClassesDirs` FileCollection:
+Realizing `Test` tasks inside a store-time provider is **permitted** - no error, no CC problem, no deprecation, on 708 `Test` tasks across the three probe projects (`:qa:packaging` alone realized 637). This was the main uncertainty going in, and it simply worked. It is still arbitrary user code running late in the build, so a pathological project could in principle throw there; the failure would be a red resolve step, not a wrong answer.
 
-| | run 1 | run 2 | run 3 |
-|---|---|---|---|
-| no realization | 4.85s | 3.58s | 3.71s |
-| realize 3 projects (706 `Test` tasks) | 3.60s | 3.83s | 3.69s |
-
-i.e. **below run-to-run noise**; the whole-build configuration pass (P0/P1) dominates completely.
-Honest caveat: this is one machine, one project set.
-A pathological project whose `Test` tasks resolve heavy configurations on realization could be slower, and the failure mode would be a slow (or, if such realization throws, red) resolve step rather than a wrong answer.
-
-### P8 (NEW, unsolved) - `onlyIf` predicates are invisible
+### P8 (unsolved) - `onlyIf` predicates are invisible
 `enabled` is a plain property we can read; **`onlyIf` is a `Spec<Task>` evaluated by Gradle at execution time** and cannot be introspected (and must not be speculatively evaluated - the predicates close over live task state).
 Two live cases:
 - `elasticsearch.bwc-test`: `onlyIf("BWC tests enabled") { project.bwc_tests_enabled }` on every `v<version>#*` task;
@@ -214,29 +253,24 @@ If we later want to close the gap properly, the honest options are (a) have the 
 
 ## Review-driven refinements
 
-- **Clear error when `flakiness-refs.json` is missing (was an opaque Gradle message).** `refsJson` is now `@Optional`; when the file is absent the task action throws a `GradleException` naming the path and telling the operator that the gather/bootstrap step is expected to have written it (or to pass `-Pflakiness.refs=<path>` for a standalone run), instead of Gradle's "property 'refsJson' doesn't have a configured value".
-- **No `afterEvaluate`.** Model population is now the incremental `configureEach`/`withPlugin` idiom (see the BuildService section), fixing the `GradlePluginConventionsArchUnitSpec` violation.
-  Independent of P0/CC.
-- **Java owns batch-command generation.** The batching that used to live in the TS `commands.ts` (dedupe, collapse-yaml-suites, dedup-runners, cap-batching, per-kind command strings, the repeat-rest wrapper) is ported to `CommandBuilder`, and the scan task attaches the ready batch commands to `flakiness-plan.json`'s new `commands` array.
+- **Clear error when `flakiness-refs.json` is missing.** `refsJson` is `@Optional` on both tasks; when the file is absent the action throws a `GradleException` naming the path and telling the operator that the gather/bootstrap step is expected to have written it (or to pass `-Pflakiness.refs=<path>` for a standalone run), instead of Gradle's "property 'refsJson' doesn't have a configured value".
+- **No `afterEvaluate`, no cross-project access.** `GradlePluginConventionsArchUnitSpec` and `IsolatedProjectsArchUnitSpec` both pass.
+- **Java owns batch-command generation.** The batching that used to live in the TS `commands.ts` (dedupe, collapse-yaml-suites, dedup-runners, cap-batching, per-kind command strings, the repeat-rest wrapper) lives in `CommandBuilder`, and the scan task attaches the ready batch commands to `flakiness-plan.json`'s `commands` array.
   Each command is **target-neutral**: it carries the literal `__GRADLE__` placeholder where the gradle binary belongs (both plain invocations and inside `repeat-rest-test.sh <iters> __GRADLE__ <tasks>`), which the thin TS runner layer replaces with `.ci/scripts/run-gradle.sh` (CI) or `./gradlew` (local).
-  This is what lets `generate` be a minimal, node-only step that just maps commands to BK steps.
-  The `FLAKINESS_ITERS` override now flows to Java: the plugin reads `-Pflakiness.iters` (set by `local.ts` for `--iters`) or the `FLAKINESS_ITERS` env var (carried in the CI build env, so the manual pipeline's override keeps working with **no yml change** - verified: `FLAKINESS_ITERS=7 flakinessScan` emits `-Dtests.iters=7`).
-- **Quieter annotations.** Abstract expansions are logged to console only (they are already in `plan.json`); an unresolved-refs `warning` annotation is emitted only when the list is non-empty (a silently-unresolved unmute is a real false-negative); the always-on `info` "Flakiness resolver" annotation is gone.
+  The `FLAKINESS_ITERS` override flows to Java: the plugin reads `-Pflakiness.iters` (set by `local.ts` for `--iters`) or the `FLAKINESS_ITERS` env var (carried in the CI build env, so the manual pipeline's override keeps working with **no yml change**).
+- **Quieter annotations.** Abstract expansions are logged to console only (they are already in `plan.json`); an unresolved-refs `warning` annotation is emitted only when the list is non-empty; the always-on `info` "Flakiness resolver" annotation is gone.
 
 ## BENEFITS
 
-- **Fully authoritative model, now genuinely delivered.** Project boundaries, source-set shape (real `srcDirs`), compiled output locations (real `outputDir`), the compile task paths (real `compile<Ss>Java`), and the **tasks that actually re-run a target** (real `Test` tasks: `enabled` + `testClassesDirs`) all come from each project's live configured model - not path conventions, build.gradle regexes, or plugin markers.
-  The prototype's P1a (source-set shape / output dirs / bwc falling back to convention because the live model was unavailable at root-config time) is resolved: the model is read where it exists, in each project.
-- **Abstract detection + subclass expansion via bytecode.** `ClassHierarchyScanner` reads `ACC_ABSTRACT` + the super-class chain off the compiled `.class` files (ASM, already on the classpath), so an unmuted abstract base deterministically expands to its concrete subclasses (sorted FQCN, capped).
-  TS cannot do this.
-- **No batch steps until compile succeeds.** The batch steps are only *created* by `generate`, which runs after a successful orchestration (resolve -> compile -> scan).
-  A PR that does not compile uploads only the analyze/build_failed record, so the skipped-batch `waiting_failed` metric noise structurally cannot occur.
+- **Fully authoritative model.** Project boundaries, source-set shape (real `srcDirs`), compiled output locations (real `outputDir`), the compile task paths (real `compile<Ss>Java`), the **tasks that actually re-run a target** (real `Test` tasks: `enabled` + `testClassesDirs`), and now **which project owns a ref** all come from each project's live configured model - not path conventions, build.gradle regexes, plugin markers, or a node-side heuristic.
+- **Abstract detection + subclass expansion via bytecode.** `ClassHierarchyScanner` reads `ACC_ABSTRACT` + the super-class chain off the compiled `.class` files (ASM, already on the classpath), so an unmuted abstract base deterministically expands to its concrete subclasses (sorted FQCN, capped). TS cannot do this.
+- **No batch steps until compile succeeds.** The batch steps are only *created* by `generate`, which runs after a successful orchestration. A PR that does not compile uploads only the analyze/build_failed record, so the skipped-batch `waiting_failed` metric noise structurally cannot occur.
+- **Task disposition is derived, not assumed.** The bare-task assumption is gone from every layer. bwc targets are genuinely re-run (as `v<version>#bwcTest`); packaging targets are skipped with a reason that is *true* (`requires-packaging-host`); a source set with no enabled `Test` task says exactly that (`no-runnable-task`).
+- **The configuration cache is on.** Resolve and scan both store an entry with 0 problems and both reuse it. No `--no-configuration-cache` anywhere in the pipeline.
 
-- **Task disposition is derived, not assumed.** The bare-task assumption is gone from every layer. bwc targets are now genuinely re-run (as `v<version>#bwcTest`) instead of being marked not-applicable; packaging targets are skipped with a reason that is *true* (`requires-packaging-host`) rather than a marker that was merely convenient; and a source set with no enabled `Test` task says exactly that (`no-runnable-task`) instead of emitting a task that Gradle reports `SKIPPED` and the analyzer scores as a `hang`.
+## PROOF: real-build run of the whole flow, configuration cache ENABLED
 
-## PROOF: real-build run of the disposition layer
-
-Hand-written `flakiness-refs.json` covering all three cases, then `./gradlew -Pflakiness.resolve --no-configuration-cache flakinessResolve` on the real build:
+`flakiness-refs.json` covering all three cases (bwc, packaging, ordinary unit test):
 
 ```json
 { "mergeBase": "hand-written-proof",
@@ -246,85 +280,55 @@ Hand-written `flakiness-refs.json` covering all three cases, then `./gradlew -Pf
     { "source": "changed-file", "path": "libs/dissect/src/test/java/org/elasticsearch/dissect/DissectParserTests.java" } ] }
 ```
 
+### (a) resolve - unqualified, every project, correct results
+
 ```
-> Task :flakinessResolve
-flakiness resolve: 3 refs -> 3 base targets, 0 unresolved (across 450 projects), 2 compile tasks
+$ rm -rf build/flakiness .gradle/configuration-cache flakiness-plan.json
+$ ./gradlew -Pflakiness.resolve --configuration-cache flakinessResolveProject
+Calculating task graph as no cached configuration is available for tasks: flakinessResolveProject
+flakiness resolve[:libs:dissect]: 3 refs -> 1 targets (model: 1 source sets, 1 Test tasks)
+  ref[2] test org.elasticsearch.dissect.DissectParserTests -> [:libs:dissect:test]
+flakiness resolve[:qa:packaging]: 3 refs -> 1 targets (model: 1 source sets, 637 Test tasks)
+  ref[1] test org.elasticsearch.packaging.test.ArchiveTests -> skip (requires-packaging-host)
+flakiness resolve[:x-pack:plugin:logsdb:qa:rolling-upgrade]: 3 refs -> 1 targets (model: 2 source sets, 70 Test tasks)
+  ref[0] javaRestTest org.elasticsearch.xpack.logsdb.LogsdbIndexingRollingUpgradeIT -> [:x-pack:plugin:logsdb:qa:rolling-upgrade:v9.6.0#bwcTest, :x-pack:plugin:logsdb:qa:rolling-upgrade:v9.5.1#bwcTest]
+
+BUILD SUCCESSFUL in 3s
+468 actionable tasks: 450 executed, 18 up-to-date
+Configuration cache entry stored.
+```
+
+All three probe cases:
+- **bwc** - the disabled bare `:x-pack:plugin:logsdb:qa:rolling-upgrade:javaRestTest` appears nowhere; the two newest `v<version>#bwcTest` tasks do (`candidateTasks: 68`);
+- **packaging** - 636 `destructiveDistroTest.*`/`destructiveDistroUpgradeTest.*` candidates found, entry is `skip` / `requires-packaging-host`;
+- **ordinary project** - `:libs:dissect` resolves to the plain enabled bare task.
+
+The 447 other projects each wrote an empty `{"projectPath": "...", "resolved": []}` and an empty compile-tasks file.
+
+### (b) compile - the shell glue, and scan -> the plan
+
+```
+$ TASKS=$(cat build/flakiness/project-targets/*.compile-tasks.txt 2>/dev/null | sort -u)
+$ echo "$TASKS"
+:libs:dissect:compileTestJava
+:x-pack:plugin:logsdb:qa:rolling-upgrade:compileJavaRestTestJava
+$ ./gradlew $TASKS
+BUILD SUCCESSFUL
+
+$ ./gradlew -Pflakiness.resolve --configuration-cache flakinessScan
+> Task :flakinessScan
+flakiness plan: 3 refs -> 3 targets (from 450 project files), 3 entries, 3 commands, 0 expansions, 0 unresolved -> .../flakiness-plan.json
   javaRestTest :x-pack:plugin:logsdb:qa:rolling-upgrade org.elasticsearch.xpack.logsdb.LogsdbIndexingRollingUpgradeIT -> [:x-pack:plugin:logsdb:qa:rolling-upgrade:v9.6.0#bwcTest, :x-pack:plugin:logsdb:qa:rolling-upgrade:v9.5.1#bwcTest]
   test :qa:packaging org.elasticsearch.packaging.test.ArchiveTests -> skip (requires-packaging-host)
   test :libs:dissect org.elasticsearch.dissect.DissectParserTests -> [:libs:dissect:test]
 
-BUILD SUCCESSFUL in 3s
+BUILD SUCCESSFUL in 4s
+Configuration cache entry stored.
 ```
 
-`flakiness-base-targets.json` (all three cases; note `candidateTasks` - the model really did see 68 and 636 candidates, and the disabled bare tasks are absent from `runnableTasks`):
+The resulting `flakiness-plan.json` is **byte-identical** to the one the old root-task + merge-task flow produced (`diff` clean), including the one command per capped bwc version:
 
 ```json
-{
-  "targets" : [ {
-    "gradleProject" : ":x-pack:plugin:logsdb:qa:rolling-upgrade",
-    "sourceSet" : "javaRestTest",
-    "kind" : "javaRestTest",
-    "fqcn" : "org.elasticsearch.xpack.logsdb.LogsdbIndexingRollingUpgradeIT",
-    "compileTaskPath" : ":x-pack:plugin:logsdb:qa:rolling-upgrade:compileJavaRestTestJava",
-    "outputDir" : ".../x-pack/plugin/logsdb/qa/rolling-upgrade/build/classes/java/javaRestTest",
-    "runnableTasks" : [ ":x-pack:plugin:logsdb:qa:rolling-upgrade:v9.6.0#bwcTest", ":x-pack:plugin:logsdb:qa:rolling-upgrade:v9.5.1#bwcTest" ],
-    "candidateTasks" : 68,
-    "skipReason" : null
-  }, {
-    "gradleProject" : ":qa:packaging",
-    "sourceSet" : "test",
-    "kind" : "test",
-    "fqcn" : "org.elasticsearch.packaging.test.ArchiveTests",
-    "compileTaskPath" : ":qa:packaging:compileTestJava",
-    "outputDir" : ".../qa/packaging/build/classes/java/test",
-    "runnableTasks" : [ ],
-    "candidateTasks" : 636,
-    "skipReason" : "requires-packaging-host"
-  }, {
-    "gradleProject" : ":libs:dissect",
-    "sourceSet" : "test",
-    "kind" : "test",
-    "fqcn" : "org.elasticsearch.dissect.DissectParserTests",
-    "compileTaskPath" : ":libs:dissect:compileTestJava",
-    "outputDir" : ".../libs/dissect/build/classes/java/test",
-    "runnableTasks" : [ ":libs:dissect:test" ],
-    "candidateTasks" : 1,
-    "skipReason" : null
-  } ],
-  "unresolved" : [ ]
-}
-```
-
-(a) **bwc** - `runnableTasks` are the two newest `v<version>#bwcTest` task paths; the disabled bare `:x-pack:plugin:logsdb:qa:rolling-upgrade:javaRestTest` appears nowhere.
-Its `compileJavaRestTestJava` IS in `flakiness-compile-tasks.txt` (previously a bwc target was excluded from compilation because it was skipped).
-(b) **packaging** - the model discovered 636 `destructiveDistroTest.*` / `destructiveDistroUpgradeTest.*` candidates and the entry is `skip` / `requires-packaging-host`.
-(c) **ordinary project** - `:libs:dissect` resolves to the plain enabled bare task, unchanged.
-
-Then the plain compile of the two emitted task paths (`BUILD SUCCESSFUL`, 45s) and `flakinessScan` -> `flakiness-plan.json`:
-
-```json
-{
-  "buildFailed" : false,
-  "entries" : [ {
-    "gradleProject" : ":x-pack:plugin:logsdb:qa:rolling-upgrade", "sourceSet" : "javaRestTest", "kind" : "javaRestTest",
-    "fqcn" : "org.elasticsearch.xpack.logsdb.LogsdbIndexingRollingUpgradeIT", "disposition" : "run",
-    "runnableTasks" : [ ":x-pack:plugin:logsdb:qa:rolling-upgrade:v9.6.0#bwcTest", ":x-pack:plugin:logsdb:qa:rolling-upgrade:v9.5.1#bwcTest" ]
-  }, {
-    "gradleProject" : ":qa:packaging", "sourceSet" : "test", "kind" : "test",
-    "fqcn" : "org.elasticsearch.packaging.test.ArchiveTests", "disposition" : "skip",
-    "reason" : "requires-packaging-host", "runnableTasks" : [ ]
-  }, {
-    "gradleProject" : ":libs:dissect", "sourceSet" : "test", "kind" : "test",
-    "fqcn" : "org.elasticsearch.dissect.DissectParserTests", "disposition" : "run",
-    "runnableTasks" : [ ":libs:dissect:test" ]
-  } ],
-  "expansions" : [ ],
-  "taskSelections" : [ {
-    "gradleProject" : ":x-pack:plugin:logsdb:qa:rolling-upgrade", "sourceSet" : "javaRestTest",
-    "selected" : [ ":x-pack:plugin:logsdb:qa:rolling-upgrade:v9.6.0#bwcTest", ":x-pack:plugin:logsdb:qa:rolling-upgrade:v9.5.1#bwcTest" ],
-    "total" : 68, "cap" : 2
-  } ],
-  "unresolved" : [ ],
   "commands" : [ {
     "kind" : "test", "label" : "unit tests", "key" : "flakiness-detection:unit",
     "command" : "__GRADLE__ -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :libs:dissect:test --tests org.elasticsearch.dissect.DissectParserTests"
@@ -335,66 +339,96 @@ Then the plain compile of the two emitted task paths (`BUILD SUCCESSFUL`, 45s) a
     "kind" : "javaRestTest", "label" : "java rest tests", "key" : "flakiness-detection:java-rest",
     "command" : ".buildkite/.../repeat-rest-test.sh 10 __GRADLE__ :x-pack:plugin:logsdb:qa:rolling-upgrade:v9.5.1#bwcTest --tests org.elasticsearch.xpack.logsdb.LogsdbIndexingRollingUpgradeIT --rerun"
   } ]
-}
 ```
 
-The two bwc versions land in **separate** batch commands (javaRestTest cap 1) and the ordinary unit command is byte-for-byte what the previous convention-based builder produced.
-(`#` mid-word is not a shell comment, so the task paths need no quoting.)
+### (c) `Configuration cache entry stored` with 0 problems, and reused on a repeat run
 
-### Proof of the lifecycle claim (why the late read is the point)
-The values above cannot be obtained any earlier.
-An independent init-script spike confirmed the same reads at execution time, and confirmed what a project's tasks look like once configured:
+From the machine-readable CC report (`totalProblemCount` in `configuration-cache-report.html`) of every storing run:
 
 ```
-SPIKE PROJECT :x-pack:plugin:logsdb:qa:rolling-upgrade
-SPIKE   TASK name=bcUpgradeTest    enabled=true  dirs=[.../build/classes/java/javaRestTest]
-SPIKE   TASK name=javaRestTest     enabled=false dirs=[.../build/classes/java/javaRestTest]
-SPIKE   TASK name=test             enabled=false dirs=[.../build/classes/java/test]
-SPIKE   TASK name=v8.19.0#bwcTest  enabled=true  dirs=[.../build/classes/java/javaRestTest]
-... (67 v<version>#bwcTest tasks in total)
-SPIKE PROJECT :qa:packaging
-SPIKE   TASK name=test                                enabled=false dirs=[.../qa/packaging/build/classes/java/test]
-SPIKE   TASK name=destructiveDistroTest.default-deb    enabled=true  dirs=[.../qa/packaging/build/classes/java/test]
-...
+problems=0 action=storing  tasks=flakinessResolveProject
+problems=0 action=storing  tasks=flakinessScan
 ```
 
-`FlakinessResolvePluginFuncTest` covers the same lifecycle hermetically: its `:bwcish` fixture flips the bare task off through `tasks.matching {}.configureEach {}` and registers three alternative `Test` tasks **after** `FlakinessProjectModel.contribute` has run, and asserts the resolver picks `v9.6.0#altTest` + `v9.5.1#altTest` (never `:bwcish:test`) with `candidateTasks == 3`.
-An eager snapshot fails that test.
+Reuse, with the outputs deleted (not `--rerun-tasks`, which would perturb the measurement):
+
+```
+$ rm -rf build/flakiness
+$ ./gradlew -Pflakiness.resolve --configuration-cache flakinessResolveProject
+Reusing configuration cache.
+flakiness resolve[:libs:dissect]: 3 refs -> 1 targets (model: 1 source sets, 1 Test tasks)
+  ref[2] test org.elasticsearch.dissect.DissectParserTests -> [:libs:dissect:test]
+flakiness resolve[:qa:packaging]: 3 refs -> 1 targets (model: 1 source sets, 637 Test tasks)
+  ref[1] test org.elasticsearch.packaging.test.ArchiveTests -> skip (requires-packaging-host)
+flakiness resolve[:x-pack:plugin:logsdb:qa:rolling-upgrade]: 3 refs -> 1 targets (model: 2 source sets, 70 Test tasks)
+  ref[0] javaRestTest org.elasticsearch.xpack.logsdb.LogsdbIndexingRollingUpgradeIT -> [:x-pack:plugin:logsdb:qa:rolling-upgrade:v9.6.0#bwcTest, :x-pack:plugin:logsdb:qa:rolling-upgrade:v9.5.1#bwcTest]
+
+BUILD SUCCESSFUL in 710ms
+450 actionable tasks: 450 executed
+Configuration cache entry reused.
+```
+
+`450 actionable tasks: 450 executed` - the tasks genuinely **ran** (no `UP-TO-DATE`, no `NO-SOURCE`), with identical results, and the per-project files were rewritten byte-for-byte.
+
+**Refs-change invalidation (the one staleness surface, closed).** With an entry stored for the 3 refs above, appending a 4th ref owned by a *different* project:
+
+```
+$ ./gradlew -Pflakiness.resolve --configuration-cache flakinessResolveProject
+Calculating task graph as configuration cache cannot be reused because file 'flakiness-refs.json' has changed.
+flakiness resolve[:libs:grok]: 4 refs -> 1 targets (model: 1 source sets, 1 Test tasks)
+  ref[3] test org.elasticsearch.grok.GrokTests -> [:libs:grok:test]
+```
+
+The newly-owning project self-selects **in**, because reading the refs inside the model provider makes them a configuration input. A frozen ownership verdict would have been a silent false negative; it is not possible.
+
+### (d) TIMING - the main risk of self-selection, measured
+
+Warm daemon, same machine, same 3 refs, 3 runs each. "Old" is the deleted root `flakinessResolve` (which *had* to run `--no-configuration-cache`); "new" is the unqualified per-project task across all 450 projects.
+
+| | run 1 | run 2 | run 3 |
+|---|---|---|---|
+| OLD root `flakinessResolve`, `--no-configuration-cache` | 4.95s | 4.62s | 5.37s |
+| NEW unqualified `flakinessResolveProject`, CC **storing** | 5.37s | 4.40s | 4.92s |
+| NEW unqualified `flakinessResolveProject`, CC **reused** | 2.52s | 2.53s | 2.61s |
+
+(wall clock including JVM/daemon handshake; `BUILD SUCCESSFUL in` reports 3-4s storing, ~1s reused.)
+
+**Running the task in 450 projects costs nothing measurable.** The whole-build configuration pass dominates completely, and it happened in the old topology too. On a repeat run CC makes it ~2x faster than the old flow could ever be. The reason the fan-out is free is the cheap exit: 447 projects do a handful of path comparisons and write a 60-byte file.
+
+### (e) the cheap exit really is cheap - non-owning projects do not realize their `Test` tasks
+
+From the `--info` log of a storing run across all 450 projects:
+
+```
+$ grep -c "owns no ref; skipping Test-task realization"    -> 447
+$ grep    "realized .* Test tasks"
+flakiness: :libs:dissect realized 1 Test tasks
+flakiness: :x-pack:plugin:logsdb:qa:rolling-upgrade realized 70 Test tasks
+flakiness: :qa:packaging realized 637 Test tasks
+```
+
+Exactly the three owning projects realize anything; `:qa:packaging` realizes its 637 `Test` tasks **only because it owns a ref**. And, from the same log, `grep -c "Evaluating project"` -> **532**: the whole build still configures under CC, which is the measurement that disproves the old "CC only configures the reachable projects" claim.
 
 ## Verification (what was actually run)
 
-- **Java pure-core + task-helper unit tests - PASS.** `:build-tools-internal:test --tests "...flakiness.*"`: `FlakinessResolverTests` (7), `FlakinessResolveTaskTests` (2), `FlakinessScanTaskTests` (1), `CommandBuilderTests` (11), `TestTaskSelectorTests` (11) = **32 green**.
-  Covers ASM abstract detection + deterministic/capped expansion on real generated bytecode; authoritative changed-file + class/explicit-ref resolution over real `srcDirs`; yaml suite/case; plan flattening; abstract-with-no-subclass surfaced as unresolved; Jackson round-trips; the task-specific compile-task-list / scan-dir derivations; the full batch-command generation (per-kind command shapes with the `__GRADLE__` marker, cap-batching, dedupe/collapse/dedup-runners, iters override); and the whole disposition layer - output-dir overlap matching (incl. multi-`classesDirs` membership and non-normalized paths), bare-task-canonical vs fall-back-to-alternatives vs `no-runnable-task` vs `requires-packaging-host`, the newest-first natural ordering (`v8.19.10` above `v8.19.9`) and its order-independence, a zero cap, and the non-destructive-wins-over-destructive rule.
-- **ArchUnit specs - PASS (executed this time).** `:build-tools-internal:test --tests "*IsolatedProjectsArchUnitSpec*" --tests "*GradlePluginConventionsArchUnitSpec*"` = 14 + 4 green, i.e. the late-read design introduces no `afterEvaluate` and no cross-project `getAllprojects()`/`getSubprojects()`/`getRootProject()`.
-- **Func test - PASS.** `FlakinessResolvePluginFuncTest` (TestKit, extends `AbstractGradleInternalPluginFuncTest`) builds a **three**-project fixture (`:app` with an abstract base + two concrete subclasses; `:other` a second project; `:bwcish` reproducing the disabled-bare-task shape), each contributing its model via the exact `FlakinessProjectModel.contribute` registration snippet (configureEach, no afterEvaluate).
-  It runs resolve -> plain compile of the emitted task paths -> scan and asserts: the service populated from per-project config (3 authoritative base targets across ALL projects, with correct `compileTaskPath`/`outputDir`); cross-project boundary resolution; the abstract base flattened to its two concrete subclasses with `expandedFrom`; that `plan.commands` carries a target-neutral (`__GRADLE__`) unit-test batch command covering the ordinary projects; and the disposition layer end-to-end - `:bwcish` resolves to `[v9.6.0#altTest, v9.5.1#altTest]` (never the disabled `:bwcish:test`), is compiled, reports `selected 2 of 3` in `taskSelections`, and its emitted commands name the alternative tasks.
-  The `:bwcish` fixture flips `enabled` through `tasks.matching {}.configureEach {}` and registers the alternatives **after** `contribute` has run, so it fails if the read is not late.
-  It runs with `--no-configuration-cache` (see P0) and is listed in `IntegTestCoverageArchUnitSpec.KNOWN_CC_INCOMPATIBLE`.
-- **FLAKINESS_ITERS override via env - PASS.** `FLAKINESS_ITERS=7 flakinessScan` emitted a command with `-Dtests.iters=7` (no `-Pflakiness.iters` needed), proving the manual CI override works with no yml change.
-- **Missing-refs error - PASS.** `flakinessResolve` with no `flakiness-refs.json` throws the clear "flakiness-refs.json not found at ...; pass -Pflakiness.refs=<path>" message, not Gradle's opaque one.
-- **Real-build resolve - PASS, and the CC failure mode reproduced.** See P0: `2 refs -> 2 base targets across 450 projects` without CC (both default and explicit `--no-configuration-cache`); empty (loud failure) with `--configuration-cache`.
-  This proves populate->read works end-to-end and that the fail-fast guard fires.
-- **Full 3-Gradle-invocation flow on the real build, ONE workspace - PASS (this is the point of the merge).** resolve (`:libs:dissect`, one changed-file + one unmute) -> `flakiness-base-targets.json` with authoritative `compileTaskPath`/`outputDir` + `flakiness-compile-tasks.txt` = `:libs:dissect:compileTestJava`; plain `./gradlew $(cat flakiness-compile-tasks.txt)` (BUILD SUCCESSFUL); `flakinessScan` reads the LOCAL compiled output and writes `flakiness-plan.json` with 2 concrete `run` entries.
-  Because compile and scan ran in the same workspace, scan saw the compiled classes - which is exactly the cross-agent bug the single-step merge fixes.
+- **Java unit tests - PASS.** `:build-tools-internal:test --tests "*ArchUnitSpec*" --tests "*flakiness*"` -> 68 tests, 0 failures:
+  `ConfigurationCacheArchUnitSpec` 3, `GradleApiUsageArchUnitSpec` 2, `GradlePluginConventionsArchUnitSpec` 4, `IsolatedProjectsArchUnitSpec` 14, `LoggingArchUnitSpec` 2, `TaskModellingArchUnitSpec` 6, `CommandBuilderTests` 11, `FlakinessPerProjectJsonTests` 2, `FlakinessResolverTests` 7, `FlakinessScanTaskTests` 1, `FlakinessTargetsTests` 5, `TestTaskSelectorTests` 11.
+  `FlakinessTargetsTests` replaces `FlakinessResolveTaskTests` and additionally pins the fold: ref-order restoration across projects, the global `unresolved` verdict (class refs only), and dedupe of the same identity claimed twice.
+- **`IntegTestCoverageArchUnitSpec` - PASS (5 tests).** Including "no new AbstractGradleInternalPluginFuncTest subclass disables configuration cache" and "the cc-incompatible baseline contains no stale entries" - the latter is what forced the `FlakinessResolvePluginFuncTest` entry (and its now-wrong explanatory comment) out of `KNOWN_CC_INCOMPATIBLE`.
+- **Func test - PASS (2 tests), with the configuration cache ENABLED** (`disableConfigurationCache` is gone). `FlakinessResolvePluginFuncTest` builds a four-project fixture and runs the unqualified resolve -> plain compile -> scan. It asserts: every project ran the task; the three owning projects each wrote their own share with correct `compileTaskPath`/`outputDir`; `:untouched` wrote an **empty** share with `ownsRefs: false` and an **empty `testTasks` list** (the cheap exit, observed in the dumped model); the adversarial `:bwcish` fixture - which disables the bare task through `matching {}.configureEach {}` and registers three alternatives **after** the resolve task is registered - captures the post-mutation state (`test.enabled == false`, 3 `#altTest` tasks) and resolves to `[v9.6.0#altTest, v9.5.1#altTest]`, never `:bwcish:test`; the concatenated per-project compile lists; `Configuration cache entry stored`; the abstract base flattened to its two concrete subclasses; the capped fan-out in `taskSelections`; and the target-neutral (`__GRADLE__`) batch commands. A second test pins that a class ref no project owns is reported `unresolved` exactly once by the scan step.
+- **Real-build end-to-end - PASS.** See PROOF above; `flakiness-plan.json` byte-identical to the old flow's.
+- **TS suite - PASS.** `cd .buildkite && npx vitest run scripts/flakiness-detection` -> 11 files / 121 tests. Updated for the new orchestration shell: unqualified `flakinessResolveProject`, an explicit assertion that the command contains **no** `--no-configuration-cache`, the `rm -rf build/flakiness/project-targets` hygiene step, and the `cat .../*.compile-tasks.txt | sort -u` compile glue.
 - **`:build-tools-internal` compiles (main + test + integTest) - PASS.**
-- **TS suite - PASS.** `npx vitest run scripts/flakiness-detection`: 11 files / **121 tests** green (asserts the two orchestration steps `flakiness-orchestration:{run,generate}`; the orchestration resolve/compile/scan-only shell with in-shell attribution; the separate node-agent generate step with `depends_on` orchestration `allow_failure: true`; `generate` reading the plan local-or-download, mapping `plan.commands` with `__GRADLE__` -> `.ci/scripts/run-gradle.sh`, no-op on missing plan; the quieter annotations; `planCommandsToRunnable`/`withGradleBinary` for both targets; and the new disposition plumbing - `planEntryToSkippedTest` carrying the skip `reason` into `flakiness-skipped.json`, `notApplicablePayload` recording that reason (with a `not-runnable` fallback for a legacy artifact), and `generate` logging the capped `taskSelections` to the console rather than as an annotation).
 
 ### NOT run (per brief / environmental)
 - The full ES build.
-  `:build-tools-internal:spotlessJavaCheck` still cannot be *created* in this environment ("You need to add a repository containing google-java-format:1.19.2"), but `spotlessApply` runs and was used to format the sources; note it targets `src/main/java` only, so the test sources are outside its scope.
-  `tsc --noEmit` is not available either (typescript is not a dev dependency here); run via `npx -p typescript` it reports only two pre-existing errors in the untouched `runners/buildkite.test.ts` (verified pre-existing by stashing this change), and none in any file touched here.
-- The `ConfigurationCacheArchUnitSpec` / `TaskModellingArchUnitSpec` / `IntegTestCoverageArchUnitSpec` specs were read but not executed; the code was written to satisfy them (tasks have no `getProject()`/`Project` fields - the live `Project` is captured by the *build service's* supplier, not by a task; no eager task creation; the func test stays baselined in `KNOWN_CC_INCOMPATIBLE`).
-  The two specs the brief names (`IsolatedProjects*`, `GradlePluginConventions*`) WERE executed and pass.
-- The Buildkite pipeline in CI (the yml + dynamic uploads are written and the pure `toResolvePipeline`/ `toBuildkitePipeline` structure is unit-tested, but not run on a real agent).
+  `:build-tools-internal:spotlessJavaCheck` cannot be *created* in this environment ("You need to add a repository containing google-java-format:1.19.2"), but `spotlessApply` runs and was used to format the sources; note it targets `src/main/java` only, so the test sources are outside its scope.
+- The Buildkite pipeline on a real agent (the yml + dynamic uploads are written and the pure `toResolvePipeline`/`toBuildkitePipeline` structure is unit-tested).
 
 ## Honest assessment
 
-- The **authoritative-model** pitch is now fully delivered *including the disposition*: source-set shape, output dirs, compile task paths, and now the set of tasks that genuinely re-run a target are all read from each project's real configured model, with zero cross-project access.
-  The last convention assumption in the pipeline (`:project:<kind>`) is gone, and with it both a false negative (bwc tests reported `not_applicable` and never re-run) and a false positive (packaging targets scored as `hang` because a disabled task ran zero tests).
-- The **riskiest** part is P0: the resolve step depends on the whole build being configured, which the configuration cache does not do for a root task, so resolve must run `--no-configuration-cache`.
-  This is correct and cheap today, but it is a standing constraint - if a future change made the flakiness pipeline rely on CC for resolve, it would silently under-populate.
-  The fail-fast guard turns that into a loud failure rather than the prototype's silent-empty, which is the key safety property.
-- The **second-riskiest** part is now P8: `onlyIf` is invisible, so a task that is `enabled` but skipped at execution still yields a 0-test `hang`.
-  The feature shrinks that hole a lot (it removes the two big `enabled = false` cases) without closing it, and the right fix is runner-side, not resolver-side.
-- Residual risks: (1) the `rest-api-spec/test/<suitePath>.yml` yaml-suite layout is still encoded as a constant (it is an ESClientYamlSuiteTestCase-wide convention, not a per-project layout assumption, so low risk); (2) the config-pass cost is 3x, plus `Test`-task realization for the owning projects (P7 - measured as noise); (3) the build service now holds live `Project` references from configuration into execution, deepening the no-configuration-cache dependency from a workflow constraint into a structural one; (4) the packaging skip is a policy about *this agent*, so it will read as a wrong answer the day a packaging-capable agent exists - which is why it is a named constant with a documented rationale rather than an inline condition; (5) the incremental `sourceSets.configureEach` registration relies on each test source set being *realized* during configuration - true under the whole-build (no-CC) config the resolve step runs, since the java/test plugins realize the source sets via their compile/test tasks.
-  The earlier node-on-gradle-image risk is **resolved**: `generate` is now its own step on the default node-capable agent (only resolve/compile/scan run on the gradle image), so nothing assumes node is present on the gradle image.
+- The design is now **smaller and less subtle** than what it replaced. Deleted: `FlakinessModelService` (a `BuildService` holding live `Project` references from configuration into execution), `FlakinessResolveTask` (the root fan-in) with its empty-model fail-fast guard, `FlakinessMergeTargetsTask`, `FlakinessProjectModel.contribute` (the `configureEach` push + late-read `Supplier` registration), `owning-projects.mjs` (a second, heuristic implementation of ref->project mapping in another language), the `flakiness-base-targets.json`/`flakiness-compile-tasks.txt` intermediates, and every `--no-configuration-cache` flag. Added: the ownership probe (one reuse of `RefResolver`), `FlakinessTargets` (a pure fold), and a second output file per project.
+- The **riskiest** remaining part is P8: `onlyIf` is invisible, so a task that is `enabled` but skipped at execution still yields a 0-test `hang`. The feature shrinks that hole a lot without closing it, and the right fix is runner-side, not resolver-side.
+- **Staleness surface.** On CC reuse the model is served from the entry, not recomputed. That is sound because everything that could change it - build scripts, `gradle.properties`, project properties, version files read at configuration time, and now `flakiness-refs.json` itself - is a CC input and invalidates the entry. The refs case is verified above; it is the only one specific to this feature.
+- **CC reuse across PRs is near-zero**, because the refs differ. Reuse is near-total for the local/dev loop and for re-runs of the same PR. On a cold CI agent this topology costs the same as the old one (the timing table's "storing" row); it is just no longer broken, and no longer needs a flag to stay unbroken.
+- Residual risks: (1) the `rest-api-spec/test/<suitePath>.yml` yaml-suite layout is still encoded as a constant (an `ESClientYamlSuiteTestCase`-wide convention, not a per-project layout assumption, so low risk); (2) the per-project outputs live in one shared `build/flakiness/project-targets/` directory rather than each project's own build dir - a deliberate trade for cheap discovery, documented in `FlakinessProjectResolve.TARGETS_DIR`, with `rm -rf` hygiene in the orchestration shell so a reused workspace cannot leak; (3) `Test`-task realization runs arbitrary user code inside a store-time provider (P7) - a pathological project would make the resolve step red, not wrong; (4) the packaging skip is a policy about *this agent*, so it will read as a wrong answer the day a packaging-capable agent exists - which is why it is a named constant with a documented rationale.

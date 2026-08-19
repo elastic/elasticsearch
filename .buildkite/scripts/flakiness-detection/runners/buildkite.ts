@@ -162,14 +162,15 @@ const FLAKINESS_PRECOMPILE_ARTIFACT = "flakiness-precompile.json";
 // steps are uploaded later, dynamically, by the generate step (toBuildkitePipeline).
 //
 //   orchestration (Gradle agent):
-//     resolve  reads flakiness-refs.json, resolves via the project model,
-//              writes flakiness-base-targets.json + flakiness-compile-tasks.txt.
-//     compile  PLAIN invocation of the tasks listed in flakiness-compile-tasks.txt.
-//              Its non-zero exit is the ONLY build_failed signal; on failure it writes
-//              flakiness-plan.json (buildFailed) + flakiness-precompile.json, then exits
-//              non-zero. It does NOT run generate - the separate generate step handles it.
-//     scan     reads flakiness-base-targets.json, ASM-scans the LOCAL compiled output
-//              (produced by the compile phase on the same agent), writes flakiness-plan.json.
+//     resolve  runs `flakinessResolveProject` UNQUALIFIED, so every project runs it and each one
+//              decides for itself whether it owns a ref; the owners write their share into
+//              build/flakiness/project-targets/ (<project>.json + <project>.compile-tasks.txt).
+//     compile  PLAIN invocation of the concatenated *.compile-tasks.txt. Its non-zero exit is the
+//              ONLY build_failed signal; on failure it writes flakiness-plan.json (buildFailed) +
+//              flakiness-precompile.json, then exits non-zero. It does NOT run generate - the
+//              separate generate step handles it.
+//     scan     reads the per-project targets directly (no merge task), ASM-scans the LOCAL compiled
+//              output (produced by the compile phase on the same agent), writes flakiness-plan.json.
 //
 //   generate (TS, default agent): downloads flakiness-plan.json (+ precompile marker) from the
 //     orchestration step's artifacts and uploads the batch + analyze steps.
@@ -195,10 +196,11 @@ const FLAKINESS_PRECOMPILE_ARTIFACT = "flakiness-precompile.json";
 const FLAKINESS_REFS_ARTIFACT = "flakiness-refs.json";
 // Written by the scan step (or, on failure, by the compile step), consumed by the generate step.
 const FLAKINESS_PLAN_ARTIFACT = "flakiness-plan.json";
-// Written by the resolve step. base-targets is consumed by the scan step; compile-tasks by the compile step.
-// Both are shell/Java contracts only (no TS type); TS just downloads/uploads them by name.
-const FLAKINESS_BASE_TARGETS_ARTIFACT = "flakiness-base-targets.json";
-const FLAKINESS_COMPILE_TASKS_ARTIFACT = "flakiness-compile-tasks.txt";
+// Where each project drops its share of the resolve answer: `<project>.json` (consumed by the scan step)
+// and `<project>.compile-tasks.txt` (concatenated by the compile phase). Shell/Java contracts only (no TS
+// type). Keep in sync with FlakinessProjectResolve.TARGETS_DIR on the Java side.
+const FLAKINESS_TARGETS_DIR = "build/flakiness/project-targets";
+const FLAKINESS_TARGETS_ARTIFACTS = `${FLAKINESS_TARGETS_DIR}/*.json`;
 
 const ORCHESTRATION_KEY = "flakiness-orchestration:run";
 const GENERATE_KEY = "flakiness-orchestration:generate";
@@ -250,11 +252,14 @@ function orchestrationCommand(): string {
     "set +e",
     "",
     "# --- resolve ---",
-    // --no-configuration-cache is REQUIRED, not an optimisation: the resolve task reads the per-project model
-    // from a shared build service every test project populates during its OWN configuration. Under the
-    // configuration cache Gradle only configures the projects reachable from the requested root task, so the
-    // owning projects never configure and the service is empty. See JAVA_RESOLVER_NOTES.md.
-    `${innerGradleTimeout(RESOLVE_TIMEOUT_MINUTES)} .ci/scripts/run-gradle.sh -Pflakiness.resolve --no-configuration-cache flakinessResolve`,
+    // Drop anything a reused workspace left behind, so the compile phase only ever concatenates this run's
+    // answer (each project overwrites its own files, but a project removed from the build would not).
+    `rm -rf ${FLAKINESS_TARGETS_DIR}`,
+    // UNQUALIFIED task name: Gradle runs `flakinessResolveProject` in every project that registered it, and
+    // each project self-selects on whether a ref lands in its own source sets (FlakinessProjectResolve).
+    // The configuration cache is deliberately left ON - the per-project topology carries the model through
+    // task inputs, which survive the configuration/execution boundary. See JAVA_RESOLVER_NOTES.md.
+    `${innerGradleTimeout(RESOLVE_TIMEOUT_MINUTES)} .ci/scripts/run-gradle.sh -Pflakiness.resolve flakinessResolveProject`,
     "rc=$?",
     `if [ "$$rc" -ne 0 ]; then`,
     `  echo "flakiness resolve failed (rc=$$rc): resolver/infra defect, not a PR build failure."`,
@@ -262,7 +267,9 @@ function orchestrationCommand(): string {
     "fi",
     "",
     "# --- compile (plain invocation of the resolved task list; empty list = clean skip) ---",
-    `TASKS=$(cat ${FLAKINESS_COMPILE_TASKS_ARTIFACT} 2>/dev/null)`,
+    // The only glue the per-project topology needs: concatenate what the owning projects each wrote. No
+    // Gradle task and no JSON parsing in shell - the per-project files are plain newline-terminated lists.
+    `TASKS=$(cat ${FLAKINESS_TARGETS_DIR}/*.compile-tasks.txt 2>/dev/null | sort -u)`,
     `if [ -n "$$TASKS" ]; then`,
     `  ${innerGradleTimeout(COMPILE_TIMEOUT_MINUTES)} .ci/scripts/run-gradle.sh $$TASKS`,
     "  rc=$?",
@@ -324,12 +331,7 @@ export function toResolvePipeline(cfg: AgentConfig): Pipeline {
     agents: { ...cfg.agents },
     // Everything a later, separate agent needs: the plan, the precompile marker (compile failure), plus the
     // intermediates for debugging. The generate step downloads the plan from here.
-    artifact_paths: [
-      FLAKINESS_BASE_TARGETS_ARTIFACT,
-      FLAKINESS_COMPILE_TASKS_ARTIFACT,
-      FLAKINESS_PLAN_ARTIFACT,
-      FLAKINESS_PRECOMPILE_ARTIFACT,
-    ],
+    artifact_paths: [FLAKINESS_TARGETS_ARTIFACTS, FLAKINESS_PLAN_ARTIFACT, FLAKINESS_PRECOMPILE_ARTIFACT],
     retry: NO_AUTO_RETRY,
   };
   const generate: PipelineStep = {

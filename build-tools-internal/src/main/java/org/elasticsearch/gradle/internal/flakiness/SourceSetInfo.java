@@ -14,7 +14,7 @@ import java.util.List;
 
 /**
  * A Gradle-free snapshot of one test source set of one project, captured from the project's <em>own</em>
- * configured model (never a cross-project read) and stored in the {@link FlakinessModelService}.
+ * configured model (never a cross-project read) and carried to the resolve task as a task input.
  *
  * <p>Every field is authoritative - read straight off the live {@code SourceSet} / compile task at the
  * project's own configuration time (see {@link FlakinessProjectModel}):

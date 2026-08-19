@@ -246,12 +246,8 @@ public class FlakinessResolverTests {
         assertThat(refs.refs().get(1).method(), equalTo("test {yaml=x/y}"));
         assertThat(refs.refs().get(2).spec(), equalTo("org.foo.BazTests.testX"));
 
-        List<BaseTarget> targets = List.of(
-            planTarget(":server", "test", "test", "org.foo.FooTests", null, List.of(":server:test"), 1, null)
-        );
-        FlakinessJson.BaseTargetsFile file = new FlakinessJson.BaseTargetsFile(targets, List.of());
-        String tjson = FlakinessJson.writeBaseTargetsFile(file);
-        assertThat(FlakinessJson.parseBaseTargetsFile(tjson), equalTo(file));
+        // The per-project targets envelope (the resolve -> scan hand-off) is pinned by
+        // FlakinessPerProjectJsonTests, including that its java.nio.file.Path fields survive the trip.
 
         FlakinessPlan plan = FlakinessPlan.buildFailed("precompile");
         String pjson = FlakinessJson.writePlan(plan);

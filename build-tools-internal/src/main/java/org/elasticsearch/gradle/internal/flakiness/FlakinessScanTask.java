@@ -11,11 +11,17 @@ package org.elasticsearch.gradle.internal.flakiness;
 
 import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan.PlanEntry;
 import org.gradle.api.DefaultTask;
+import org.gradle.api.GradleException;
+import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
@@ -23,26 +29,47 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
 /**
  * The bytecode-enrichment (scan) half of the {@code resolve - compile - scan} Gradle flow. Runs as a
- * separate Gradle invocation <em>after</em> the compile step, so the compiled output directories named in
- * {@code flakiness-base-targets.json} already exist on disk. It reads those base targets, ASM-scans the
+ * separate Gradle invocation <em>after</em> the compile step, so the compiled output directories named in the
+ * resolved targets already exist on disk.
+ *
+ * <p>It reads the per-project outputs of {@link FlakinessResolveProjectTask} <b>directly</b> - there is no
+ * merge task - folds them into one ordered target list ({@link FlakinessTargets#merge}), ASM-scans the
  * compiled classes of the bytecode-enriched kinds (flattening abstract bases into concrete subclasses), and
  * writes {@code flakiness-plan.json} (contract 2).
  *
- * <p>The task needs no cross-project model - the base targets already carry each source set's authoritative
- * {@code outputDir} - so it simply reads its input file at execution time. It is configuration-cache-clean:
- * no {@code getProject()}, no live model, only managed properties.
+ * <p>The task needs no project model - the per-project targets already carry each source set's authoritative
+ * {@code outputDir} - so it is configuration-cache-clean: no {@code getProject()}, no live model, only
+ * managed properties and plain file inputs.
  */
 public abstract class FlakinessScanTask extends DefaultTask {
 
-    /** The whole {@code flakiness-base-targets.json} text, supplied lazily as an input. */
+    /**
+     * The per-project {@code <project>.json} files written by {@code flakinessResolveProject}, collected from
+     * {@link FlakinessProjectResolve#TARGETS_DIR}. A project that owns no ref writes an empty one, so an
+     * absent file simply means that project's resolve task never ran.
+     */
+    @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public abstract ConfigurableFileCollection getProjectTargetsFiles();
+
+    /**
+     * The whole {@code flakiness-refs.json} text. Needed only for the global {@code unresolved} verdict: a
+     * class ref is unresolved exactly when no project claimed it, which no single project can decide.
+     */
     @Input
-    public abstract Property<String> getBaseTargetsJson();
+    @Optional
+    public abstract Property<String> getRefsJson();
+
+    /** The refs file path, purely for a clear error message when the file is missing. */
+    @Internal
+    public abstract Property<String> getRefsPath();
 
     /** Deterministic cap on how many concrete subclasses of an abstract base to run. */
     @Input
@@ -69,11 +96,27 @@ public abstract class FlakinessScanTask extends DefaultTask {
 
     @TaskAction
     public void scan() throws IOException {
-        FlakinessJson.BaseTargetsFile input = FlakinessJson.parseBaseTargetsFile(getBaseTargetsJson().get());
-        List<BaseTarget> targets = input.targets();
+        if (getRefsJson().isPresent() == false) {
+            throw new GradleException(
+                "flakiness-refs.json not found at "
+                    + getRefsPath().getOrElse("flakiness-refs.json")
+                    + "; the scan step expects the gather/bootstrap step to have written it. For a "
+                    + "standalone run, pass -Pflakiness.refs=<path> pointing at a refs file."
+            );
+        }
+        List<FlakinessRef> refs = FlakinessJson.parseRefs(getRefsJson().get()).refs();
+
+        // Sorted so the fold is reproducible regardless of file-collection iteration order.
+        List<File> files = getProjectTargetsFiles().getFiles().stream().sorted(Comparator.comparing(File::getPath)).toList();
+        List<FlakinessJson.ProjectTargetsFile> perProject = new ArrayList<>(files.size());
+        for (File f : files) {
+            perProject.add(FlakinessJson.parseProjectTargets(Files.readString(f.toPath())));
+        }
+        FlakinessJson.BaseTargetsFile merged = FlakinessTargets.merge(refs, perProject);
+        List<BaseTarget> targets = merged.targets();
 
         ClassHierarchyScanner scanner = ClassHierarchyScanner.scan(scanDirs(targets));
-        FlakinessPlan plan = PlanBuilder.build(targets, input.unresolved(), scanner, getSubclassCap().get(), getTaskCap().get());
+        FlakinessPlan plan = PlanBuilder.build(targets, merged.unresolved(), scanner, getSubclassCap().get(), getTaskCap().get());
 
         // Java owns batch-command generation now: attach the ready, target-neutral batch commands to the
         // plan so the TS generate step is a thin consumer (see CommandBuilder / PlanCommand).
@@ -85,13 +128,28 @@ public abstract class FlakinessScanTask extends DefaultTask {
         out.getParentFile().mkdirs();
         Files.writeString(out.toPath(), FlakinessJson.writePlan(plan));
         getLogger().lifecycle(
-            "flakiness plan: {} entries, {} commands, {} expansions, {} unresolved -> {}",
+            "flakiness plan: {} refs -> {} targets (from {} project files), {} entries, {} commands, {} expansions, "
+                + "{} unresolved -> {}",
+            refs.size(),
+            targets.size(),
+            files.size(),
             plan.entries().size(),
             plan.commands().size(),
             plan.expansions().size(),
             plan.unresolved().size(),
             out
         );
+        for (BaseTarget t : targets) {
+            if (t.runnable()) {
+                getLogger().lifecycle("  {} {} {} -> {}", t.kind(), t.gradleProject(), identityOf(t), t.runnableTasks());
+            } else {
+                getLogger().lifecycle("  {} {} {} -> skip ({})", t.kind(), t.gradleProject(), identityOf(t), t.skipReason());
+            }
+        }
+    }
+
+    private static String identityOf(BaseTarget t) {
+        return t.fqcn() != null ? t.fqcn() : t.suitePath() != null ? t.suitePath() : t.sourceSet();
     }
 
     /**

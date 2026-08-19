@@ -16,7 +16,7 @@ import java.util.List;
 /**
  * A resolved base target: the project/sourceSet/kind a {@link FlakinessRef} was resolved to, before
  * bytecode enrichment. It is fully authoritative - every field is derived from the owning project's real
- * configured model (via {@link FlakinessModelService}), including the exact {@code compileTaskPath} the
+ * configured model (captured by {@link FlakinessProjectResolve}), including the exact {@code compileTaskPath} the
  * compile step must run, the {@code outputDir} the scan step must scan, and the {@code runnableTasks} that
  * actually re-run this target.
  *
@@ -30,7 +30,7 @@ import java.util.List;
  * the resolver now names the tasks that genuinely run the target (making bwc tests re-runnable), and only
  * reports {@code skipReason} when the model or the agent's capabilities really leave nothing to run.
  *
- * <p>Serialized to {@code flakiness-base-targets.json} (the resolve-&gt;compile/scan hand-off), so it must
+ * <p>Serialized into each project's {@code <project>.json} (the resolve-&gt;scan hand-off), so it must
  * round-trip through Jackson.
  *
  * @param gradleProject   owning Gradle project path

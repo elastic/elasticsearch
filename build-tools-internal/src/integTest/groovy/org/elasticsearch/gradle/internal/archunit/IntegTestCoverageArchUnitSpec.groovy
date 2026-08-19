@@ -79,12 +79,6 @@ class IntegTestCoverageArchUnitSpec extends Specification {
     private static final Set<String> KNOWN_CC_INCOMPATIBLE = [
         "BuildPluginFuncTest",
         "DraResolvePluginFuncTest",
-        // The flakiness resolve step must configure the WHOLE build so every test project contributes its
-        // model to the shared build service; under the configuration cache Gradle only configures the
-        // projects reachable from the requested root task, so CI runs `flakinessResolve` with
-        // `--no-configuration-cache`. The func test mirrors that. This is a workflow requirement of the
-        // resolve step, not an unfixable CC bug in the task code (the tasks themselves are CC-clean).
-        "FlakinessResolvePluginFuncTest",
         "ElasticsearchDistributionPluginFuncTest",
         "GlobalBuildInfoPluginFuncTest",
         "InternalBwcGitPluginFuncTest",

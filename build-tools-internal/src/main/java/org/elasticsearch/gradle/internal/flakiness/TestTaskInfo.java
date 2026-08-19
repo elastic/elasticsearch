@@ -14,7 +14,7 @@ import java.util.List;
 
 /**
  * A Gradle-free snapshot of one {@code Test} task of one project, taken <em>after that project has finished
- * configuring</em> (see {@link FlakinessModelService#testTasks}).
+ * configuring</em> (see {@link FlakinessProjectModel#testTaskSnapshot}).
  *
  * <p>These three facts are what let the resolver answer "which task actually runs this test class?" without
  * any per-project convention knowledge: a {@code Test} task runs the classes in its {@code testClassesDirs},
@@ -27,7 +27,8 @@ import java.util.List;
  * <p><b>Post-configuration values are mandatory.</b> {@code enabled} and {@code testClassesDirs} are mutated
  * by convention plugins and build scripts that may run after the flakiness model hook is installed, so
  * snapshotting them from inside a {@code configureEach} callback would capture pre-mutation values. They are
- * therefore read lazily, at task-execution time (see {@link FlakinessProjectModel#testTaskSnapshot}).
+ * therefore read late - at configuration-cache store time, after the whole configuration phase has run (see
+ * {@link FlakinessProjectModel#testTaskSnapshot}).
  *
  * @param name             the task name, e.g. {@code test}, {@code v9.6.0#bwcTest}
  * @param taskPath         the fully qualified task path, e.g. {@code :libs:dissect:test}

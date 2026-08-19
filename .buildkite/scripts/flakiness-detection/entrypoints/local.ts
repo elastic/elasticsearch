@@ -1,5 +1,5 @@
 import { execSync } from "child_process";
-import { readFileSync, writeFileSync } from "fs";
+import { readFileSync, readdirSync, rmSync, writeFileSync } from "fs";
 import { resolve } from "path";
 
 import { explicitRefs } from "../detectors/explicit-list.ts";
@@ -11,20 +11,24 @@ import { renderMarkdown } from "../analyzer/render.ts";
 
 const REFS_FILE = "flakiness-refs.json";
 const PLAN_FILE = "flakiness-plan.json";
-// Newline-separated Gradle compile task paths the resolve step wrote (possibly empty).
-const COMPILE_TASKS_FILE = "flakiness-compile-tasks.txt";
+// Where each project drops its share of the resolve answer. Keep in sync with
+// FlakinessProjectResolve.TARGETS_DIR on the Java side.
+const TARGETS_DIR = "build/flakiness/project-targets";
 const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../../..`);
 
-// Read the resolver's compile task list. Absent/empty = nothing to compile.
+// The one bit of glue the per-project resolve topology needs: concatenate the newline-terminated compile
+// task lists the owning projects each wrote. Absent/empty = nothing to compile. (The CI orchestration shell
+// does exactly this with `cat .../*.compile-tasks.txt | sort -u`.)
 function readCompileTasks(root: string): string[] {
+  const dir = resolve(root, TARGETS_DIR);
+  let names: string[];
   try {
-    return readFileSync(resolve(root, COMPILE_TASKS_FILE), "utf8")
-      .split("\n")
-      .map((t) => t.trim())
-      .filter((t) => t !== "");
+    names = readdirSync(dir).filter((f) => f.endsWith(".compile-tasks.txt"));
   } catch {
     return [];
   }
+  const tasks = names.flatMap((f) => readFileSync(resolve(dir, f), "utf8").split("\n"));
+  return [...new Set(tasks.map((t) => t.trim()).filter((t) => t !== ""))].sort();
 }
 
 export async function run(): Promise<void> {
@@ -50,12 +54,14 @@ export async function run(): Promise<void> {
   const refsFile: FlakinessRefsFile = { mergeBase: "", refs: explicitRefs(specs) };
   writeFileSync(resolve(PROJECT_ROOT, REFS_FILE), JSON.stringify(refsFile, null, 2));
 
-  // Phase 2 (resolve): run the Java resolver locally to produce the base targets + compile task list.
-  // Requires the root build to apply `elasticsearch.internal-flakiness-resolve` (see JAVA_RESOLVER_NOTES.md).
-  // --no-configuration-cache is required so every project configures and contributes its model to the
-  // shared build service (see runners/buildkite.ts + JAVA_RESOLVER_NOTES.md).
-  console.log(">>> ./gradlew -Pflakiness.resolve --no-configuration-cache flakinessResolve");
-  execSync("./gradlew -Pflakiness.resolve --no-configuration-cache flakinessResolve", { cwd: PROJECT_ROOT, stdio: "inherit" });
+  // Phase 2 (resolve): run the Java resolver locally. The task name is deliberately UNQUALIFIED - Gradle
+  // runs it in every project that registered it and each project self-selects on whether it owns a ref
+  // (see FlakinessProjectResolve). Requires the root build to apply
+  // `elasticsearch.internal-flakiness-resolve` (see JAVA_RESOLVER_NOTES.md). The configuration cache is left
+  // ON: the model travels through task inputs, so it survives the configuration/execution boundary.
+  rmSync(resolve(PROJECT_ROOT, TARGETS_DIR), { recursive: true, force: true });
+  console.log(">>> ./gradlew -Pflakiness.resolve flakinessResolveProject");
+  execSync("./gradlew -Pflakiness.resolve flakinessResolveProject", { cwd: PROJECT_ROOT, stdio: "inherit" });
 
   // Phase 3 (compile): plainly compile the tasks the resolver listed. A compile failure is the only
   // build_failed signal (mirroring the CI compile step); bail early so we do not scan doomed output.

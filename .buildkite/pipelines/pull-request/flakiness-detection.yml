@@ -17,7 +17,7 @@ steps:
       # analyze steps. The single gradle agent for resolve/compile/scan is required: BK steps
       # have no shared workspace, so a separate scan step would not see compile's build/classes
       # output (see JAVA_RESOLVER_NOTES.md). The resolver (build-tools-internal
-      # `flakinessResolve`/`flakinessScan`) owns all resolution and batch-command generation now;
+      # `flakinessResolveProject`/`flakinessScan`) owns all resolution and batch-command generation now;
       # this step no longer classifies files, locates classes, or detects BWC.
       # Topology: bootstrap → [orchestration (gradle agent) + generate (node agent)] → batch + analyze.
       - label: "gather refs (bootstrap)"

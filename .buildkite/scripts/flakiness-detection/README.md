@@ -4,7 +4,7 @@ Detects test flakiness by repeatedly running a focused subset of tests and produ
 
 The package gathers input references from one of three sources, hands them to a Java/Gradle resolver that turns them into a plan carrying ready batch commands, then either uploads those commands as a Buildkite sub-pipeline or executes them locally. A JUnit XML analyzer summarises the run as a markdown report.
 
-> **Architecture note (B2).** Resolution of inputs to concrete test targets - which Gradle project / source set / kind a file or class belongs to, whether a class is abstract (and its concrete subclasses), and **which Gradle task actually re-runs it** - is done by a **Java/Gradle resolver** in `build-tools-internal` (`org.elasticsearch.gradle.internal.flakiness`, task `flakinessResolve`), not by TypeScript path regexes.
+> **Architecture note (B2).** Resolution of inputs to concrete test targets - which Gradle project / source set / kind a file or class belongs to, whether a class is abstract (and its concrete subclasses), and **which Gradle task actually re-runs it** - is done by a **Java/Gradle resolver** in `build-tools-internal` (`org.elasticsearch.gradle.internal.flakiness`, tasks `flakinessResolveProject` / `flakinessScan`), not by TypeScript path regexes.
 > **Batch-command generation** (dedupe, yaml-suite collapse, per-cap batching, and assembly of the per-batch Gradle command string) also lives in Java now: the `flakinessScan` task emits ready commands into `flakiness-plan.json`'s `commands` array.
 > Each command carries the literal token `__GRADLE__` wherever the gradle binary belongs; the TS runner layer substitutes it with `.ci/scripts/run-gradle.sh` (Buildkite) or `./gradlew` (local), so Java stays target neutral.
 > TS owns only input gathering, gradle-binary substitution, Buildkite orchestration, and JUnit analysis.
@@ -47,7 +47,7 @@ node .buildkite/scripts/flakiness-detection/entrypoints/local.ts \
     <Class>[ <Class>...]
 ```
 
-Arguments become `explicit` refs (same specs as `FLAKINESS_CLASSES`); `local.ts` writes `flakiness-refs.json`, runs `./gradlew -Pflakiness.resolve flakinessResolve`, plainly compiles the resolver's listed tasks (a compile failure prints `buildFailed` and exits 1), runs `./gradlew -Pflakiness.resolve flakinessScan` to produce the plan, then substitutes `__GRADLE__` → `./gradlew` in each of the plan's batch commands and executes them sequentially (directly, not via the BK-agent wrapper). After the runner finishes, the analyzer scans freshly-written JUnit XML and prints a markdown summary to stdout. (Requires the root build to apply `elasticsearch.internal-flakiness-resolve`; it is applied but inert unless `-Pflakiness.resolve` is set.)
+Arguments become `explicit` refs (same specs as `FLAKINESS_CLASSES`); `local.ts` writes `flakiness-refs.json`, runs `./gradlew -Pflakiness.resolve flakinessResolveProject` (unqualified, so every project runs it and self-selects), plainly compiles the tasks the owning projects listed (a compile failure prints `buildFailed` and exits 1), runs `./gradlew -Pflakiness.resolve flakinessScan` to produce the plan, then substitutes `__GRADLE__` → `./gradlew` in each of the plan's batch commands and executes them sequentially (directly, not via the BK-agent wrapper). After the runner finishes, the analyzer scans freshly-written JUnit XML and prints a markdown summary to stdout. (Requires the root build to apply `elasticsearch.internal-flakiness-resolve`; it is applied but inert unless `-Pflakiness.resolve` is set.)
 
 Tips:
 - `--iters N` overrides the iteration count. Because Java now owns iteration counts (baked into the plan's batch commands), the override is passed through to the scan task as `-Pflakiness.iters=N` rather than applied by TS afterwards. The defaults (100 unit iters / 20 integ iters / 10 REST loops / 1 hour suite timeout) are CI-scale.
@@ -57,7 +57,7 @@ Tips:
 
 The pipeline topology is `bootstrap → [orchestration + generate] → batch + analyze`.
 Step 1 (bootstrap, TS) gathers `FlakinessRef[]` into `flakiness-refs.json` and uploads two steps: an orchestration step and a separate generate step.
-The orchestration step runs three phases sequentially on ONE gradle agent: `resolve` (refs → `flakiness-base-targets.json` + `flakiness-compile-tasks.txt`), `compile` (a plain invocation of the listed compile tasks - its non-zero exit is the only `build_failed` signal), and `scan` (ASM-scans the compiled output into `flakiness-plan.json`, including the ready batch `commands`).
+The orchestration step runs three phases sequentially on ONE gradle agent: `resolve` (refs → one `<project>.json` + `<project>.compile-tasks.txt` per owning project under `build/flakiness/project-targets/`), `compile` (a plain invocation of the listed compile tasks - its non-zero exit is the only `build_failed` signal), and `scan` (ASM-scans the compiled output into `flakiness-plan.json`, including the ready batch `commands`).
 The generate step (TS, on the default node-capable agent) downloads `flakiness-plan.json`, substitutes `__GRADLE__` in each batch command, and uploads the batch + analyze steps.
 The analyzer then summarises the JUnit XML from the batch jobs.
 
@@ -99,10 +99,12 @@ A `FlakinessRef` (defined in `domain.ts`) is one of: `{source:"changed-file", pa
 ### Module 1b: Java resolver (`build-tools-internal`)
 
 The resolver is split across two Gradle tasks and a plain compile between them, so the compile is a first-class step whose non-zero exit is the sole `build_failed` signal.
-`flakinessResolve` reads `flakiness-refs.json`, resolves each ref to a base target using the real project graph, and writes `flakiness-base-targets.json` plus `flakiness-compile-tasks.txt` (the newline-separated compile task paths for the affected source sets).
+`flakinessResolveProject` is a **per-project** task registered in every project with test sources and invoked **unqualified**, so Gradle runs it everywhere and each project decides for itself whether a ref lands in one of its own source sets' `srcDirs`.
+A project that owns nothing exits before realizing its `Test` tasks (the expensive part) and writes an empty result; the owners write `build/flakiness/project-targets/<project>.json` (their resolved targets) plus `<project>.compile-tasks.txt` (the compile task paths of their runnable targets).
+Concatenating those text files is the compile phase's whole input - the only glue between the phases.
 Each target also carries `runnableTasks`: the **enabled** `Test` tasks whose `testClassesDirs` overlap the owning source set's output - so a project that disables the conventional bare task and points other tasks at the same output (BWC's `v<version>#bwcTest`, packaging's `destructiveDistroTest.*`) resolves to those real tasks instead of a task Gradle would report `SKIPPED`. Targets with nothing runnable carry a precise `skipReason` (`no-runnable-task`, `requires-packaging-host`).
 The `compile` step then plainly runs those tasks; on failure it writes a `buildFailed` `flakiness-plan.json` and `flakiness-precompile.json` and exits non-zero, skipping `scan`.
-`flakinessScan` reads the base targets, ASM-scans the compiled test classes to flatten abstract bases into concrete subclasses (deterministic, capped), does all batching (dedupe, yaml-suite collapse, per-cap slicing), and writes `flakiness-plan.json` - including a `commands` array of ready per-batch Gradle command strings, each carrying the `__GRADLE__` binary placeholder.
+`flakinessScan` reads the per-project files directly (there is no merge task), folds them back into ref order, decides which class refs *no* project claimed (`unresolved`), ASM-scans the compiled test classes to flatten abstract bases into concrete subclasses (deterministic, capped), does all batching (dedupe, yaml-suite collapse, per-cap slicing), and writes `flakiness-plan.json` - including a `commands` array of ready per-batch Gradle command strings, each carrying the `__GRADLE__` binary placeholder.
 Each plan entry carries `disposition:"run"|"skip"` (skip → `not_applicable` downstream). See `JAVA_RESOLVER_NOTES.md`.
 
 ### Module 2: commands
@@ -256,13 +258,15 @@ flakiness-detection/
   entrypoints/
     pr.ts                bootstrap: gather changed-file + unmute refs → refs.json → upload resolve pipeline
     manual.ts            bootstrap: FLAKINESS_CLASSES → explicit refs → refs.json → upload resolve pipeline
-    local.ts             argv driven: refs → flakinessResolve → compile tasks → flakinessScan → planCommandsToRunnable → runLocally
+    local.ts             argv driven: refs → flakinessResolveProject → compile tasks → flakinessScan → planCommandsToRunnable → runLocally
     generate.ts          reads flakiness-plan.json → planCommandsToRunnable + upload batches/analyze; folds skip/buildFailed
     analyze.ts           final BK step — classifies each job, uploads outcomes artifact + report annotation
 
 build-tools-internal/.../gradle/internal/flakiness/   (the Java resolver)
-  FlakinessResolvePlugin / FlakinessResolveTask        Gradle glue (root plugin + flakinessResolve task)
+  FlakinessResolvePlugin / FlakinessScanTask           root plugin + the scan task
+  FlakinessProjectResolve / FlakinessResolveProjectTask per-project self-selecting resolve
   RefResolver / ClassHierarchyScanner / PlanBuilder    pure core (refs→targets, ASM enrichment, plan)
+  FlakinessTargets                                     pure fold of the per-project answers
   FlakinessRef / BaseTarget / FlakinessPlan / Kinds    records + wire constants
   FlakinessJson                                        Jackson (de)serialization of the contracts
 ```

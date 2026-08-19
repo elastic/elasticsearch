@@ -7,7 +7,7 @@ export const AGENTS = {
 };
 
 // The test kinds. In the B2 architecture these are assigned authoritatively by the Java resolver
-// (build-tools-internal `FlakinessResolveTask`) from the real Gradle project model + compiled bytecode,
+// (build-tools-internal `FlakinessResolveProjectTask`) from the real Gradle project model + compiled bytecode,
 // not by path regexes. Keep this union in sync with `Kinds.java` on the Java side - the strings are a
 // hard wire contract shared by `flakiness-plan.json`.
 export type TestKind =

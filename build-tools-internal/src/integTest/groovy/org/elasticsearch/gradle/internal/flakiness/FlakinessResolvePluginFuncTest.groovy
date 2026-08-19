@@ -16,29 +16,39 @@ import org.gradle.testkit.runner.TaskOutcome
 import groovy.json.JsonSlurper
 
 /**
- * End-to-end functional test for the flakiness resolver's Gradle lifecycle. It proves the property the
- * prototype got wrong (JAVA_RESOLVER_NOTES.md P1a): the {@link FlakinessModelService} is populated from each
- * project's <em>own</em> configuration and read back by the {@code flakinessResolve} task at <em>execution</em>
- * time - so a real multi-project build resolves refs to correct, authoritative base targets rather than
- * silently resolving nothing.
+ * End-to-end functional test for the flakiness resolver's Gradle lifecycle, run with the <b>configuration
+ * cache enabled</b> (the harness default - this test deliberately does not disable it).
  *
- * <p>The fixture is a two-project build:
+ * <p>It proves the two properties the design rests on:
+ * <ol>
+ *   <li><b>Self-selection.</b> {@code flakinessResolveProject} is registered in every project and invoked
+ *       <em>unqualified</em>, so it runs everywhere; each project decides on its own whether a ref lands in
+ *       one of its source sets. {@code :untouched} owns nothing and must write an empty result without
+ *       realizing its {@code Test} tasks.</li>
+ *   <li><b>Post-mutation correctness of the store-time capture.</b> {@code :bwcish} reproduces the shape of
+ *       {@code elasticsearch.bwc-test} / {@code elasticsearch.distro-test}: the bare conventional task is
+ *       disabled and differently named {@code Test} tasks are pointed at the SAME source-set output, both
+ *       <em>after</em> the resolve task has been registered. An eager snapshot reads the pre-mutation values
+ *       and wrongly emits the disabled bare task, so this fixture fails any capture that is not late.</li>
+ * </ol>
+ *
+ * <p>The fixture is a four-project build:
  * <ul>
  *   <li>{@code :app} - a {@code test} source set with an abstract base and two concrete subclasses, to
  *       exercise ASM abstract-flattening on really-compiled bytecode;</li>
- *   <li>{@code :other} - a second project, to prove cross-project boundary resolution (longest projectDir
- *       prefix) over a service that holds more than one project.</li>
+ *   <li>{@code :other} - a second project, to prove cross-project boundary resolution;</li>
+ *   <li>{@code :bwcish} - the disabled-bare-task shape described above;</li>
+ *   <li>{@code :untouched} - owns none of the refs.</li>
  * </ul>
  *
- * <p>Each subproject contributes its model via the exact registration snippet
- * {@link org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin} uses (registerIfAbsent +
- * {@link FlakinessProjectModel#contribute}, i.e. lazy configureEach/withPlugin, no afterEvaluate). Applying
- * the full {@code ElasticsearchTestBasePlugin} in the lightweight TestKit harness is impractical (it drags in
- * entitlements, test-rerun, etc.); the real plugin's apply path is instead verified by a full-build
- * {@code flakinessResolve} run (see JAVA_RESOLVER_NOTES.md Verification).
+ * <p>Each subproject registers the task via the exact snippet
+ * {@link org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin} uses
+ * ({@link FlakinessProjectResolve#register}). Applying the full {@code ElasticsearchTestBasePlugin} in the
+ * lightweight TestKit harness is impractical (it drags in entitlements, test-rerun, etc.); the real plugin's
+ * apply path is instead verified by a full-build run (see JAVA_RESOLVER_NOTES.md Verification).
  *
- * <p>The three invocations mirror the three Gradle Buildkite steps: resolve, a plain compile of the emitted
- * task paths, then scan.
+ * <p>The three invocations mirror the three Gradle phases of the Buildkite orchestration step: the
+ * unqualified resolve, a plain compile of the task paths the projects emitted, then scan.
  */
 class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
@@ -48,36 +58,20 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
     }
 
     def setup() {
-        // The resolve step intrinsically requires the WHOLE build to be configured, because every test
-        // project must contribute its own model to the shared service. Under the configuration cache Gradle
-        // only configures the projects reachable from the requested root task, so the owning subprojects
-        // would never configure and the service would be empty - which is exactly why CI runs
-        // `flakinessResolve` with `--no-configuration-cache` (see JAVA_RESOLVER_NOTES.md). This func test
-        // therefore disables the configuration cache to mirror how the step actually runs; it is listed in
-        // IntegTestCoverageArchUnitSpec.KNOWN_CC_INCOMPATIBLE for the same reason.
-        disableConfigurationCache("resolve requires whole-build configuration, which the configuration cache does not perform for a root task")
-
-        // A subproject build script that applies the java plugin and contributes its own model to the
-        // shared service exactly as ElasticsearchTestBasePlugin does under -Pflakiness.resolve: via the
-        // lazy configureEach/withPlugin registration in FlakinessProjectModel.contribute - NO afterEvaluate.
-        def contribute = """
+        // A subproject build script that applies the java plugin and registers its own resolve task exactly
+        // as ElasticsearchTestBasePlugin does under -Pflakiness.resolve.
+        def register = """
             plugins { id 'java' }
-            def flakinessModel = gradle.sharedServices.registerIfAbsent(
-                org.elasticsearch.gradle.internal.flakiness.FlakinessModelService.NAME,
-                org.elasticsearch.gradle.internal.flakiness.FlakinessModelService)
-            org.elasticsearch.gradle.internal.flakiness.FlakinessProjectModel.contribute(project, flakinessModel)
+            org.elasticsearch.gradle.internal.flakiness.FlakinessProjectResolve.register(project, 'flakiness-refs.json', 2)
         """
 
-        subProject(":app") << contribute
-        subProject(":other") << contribute
+        subProject(":app") << register
+        subProject(":other") << register
+        subProject(":untouched") << register
 
-        // :bwcish reproduces the shape of `elasticsearch.bwc-test` / `elasticsearch.distro-test`: the bare
-        // conventional task is disabled and differently named Test tasks are pointed at the SAME source-set
-        // output. Both mutations happen AFTER FlakinessProjectModel.contribute has run, and the `enabled`
-        // flip is deferred through `matching {}.configureEach {}` exactly as bwc-test.gradle does - so an
-        // eager snapshot in a configureEach callback would read the pre-mutation values and wrongly emit the
-        // disabled bare task. This is what the late read has to get right.
-        subProject(":bwcish") << contribute << """
+        // :bwcish flips the bare task off through `matching {}.configureEach {}` and registers the
+        // alternatives AFTER the resolve task has been registered, exactly as bwc-test.gradle does.
+        subProject(":bwcish") << register << """
             tasks.matching { it.name == 'test' }.configureEach { enabled = false }
             ['v9.6.0#altTest', 'v9.5.1#altTest', 'v9.4.0#altTest'].each { name ->
                 tasks.register(name, Test) {
@@ -96,9 +90,12 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         javaTestClass("other", "com/other/OtherTests", "class OtherTests {}")
 
         javaTestClass("bwcish", "com/bwcish/BwcishTests", "class BwcishTests {}")
+
+        // :untouched has tests, but no ref points at them - it must self-select OUT.
+        javaTestClass("untouched", "com/untouched/UntouchedTests", "class UntouchedTests {}")
     }
 
-    def "populates the model per-project and resolves, compiles and scans end-to-end"() {
+    def "each project self-selects, resolves its own share, and the flow compiles and scans end-to-end"() {
         given: "a refs file with an abstract-base unmute (:app), a changed file (:other) and a disabled-bare-task project (:bwcish)"
         file("flakiness-refs.json").text = """
             { "mergeBase": "test",
@@ -108,16 +105,20 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
                 { "source": "changed-file", "path": "bwcish/src/test/java/com/bwcish/BwcishTests.java" } ] }
         """
 
-        when: "resolve reads the service at execution time"
-        def resolveResult = gradleRunner("-Pflakiness.resolve", "flakinessResolve").build()
+        when: "the resolve task is invoked UNQUALIFIED, so it runs in every project"
+        def resolveResult = gradleRunner("-Pflakiness.resolve", "flakinessResolveProject").build()
 
-        then: "it produced authoritative base targets across BOTH projects (not the silent-empty trap)"
-        resolveResult.task(":flakinessResolve").outcome == TaskOutcome.SUCCESS
-        def baseTargets = new JsonSlurper().parse(file("flakiness-base-targets.json"))
-        baseTargets.targets.size() == 3
-        baseTargets.unresolved.isEmpty()
+        then: "every project ran it, including the one that owns nothing"
+        [":app", ":other", ":bwcish", ":untouched"].every {
+            resolveResult.task("${it}:flakinessResolveProject").outcome == TaskOutcome.SUCCESS
+        }
 
-        def appTarget = baseTargets.targets.find { it.gradleProject == ":app" }
+        and: "the owning projects each wrote their own authoritative share"
+        def app = projectTargets("app")
+        app.resolved.size() == 1
+        app.resolved[0].refIndex == 0
+        def appTarget = app.resolved[0].target
+        appTarget.gradleProject == ":app"
         appTarget.fqcn == "com.example.AbstractFooTests"
         appTarget.sourceSet == "test"
         appTarget.kind == "test"
@@ -127,24 +128,42 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         appTarget.runnableTasks == [":app:test"]
         appTarget.skipReason == null
 
-        def otherTarget = baseTargets.targets.find { it.gradleProject == ":other" }
+        def otherTarget = projectTargets("other").resolved[0].target
+        otherTarget.gradleProject == ":other"
         otherTarget.fqcn == "com.other.OtherTests"
         otherTarget.compileTaskPath == ":other:compileTestJava"
         otherTarget.runnableTasks == [":other:test"]
 
+        and: "the project that owns nothing wrote an EMPTY share and never realized its Test tasks"
+        projectTargets("untouched").resolved.isEmpty()
+        compileTasksOf("untouched").isEmpty()
+        def untouchedModel = new JsonSlurper().parse(file("untouched/build/flakiness/project-model.json"))
+        untouchedModel.ownsRefs == false
+        // The cheap exit: no Test task was realized, so none is in the captured model.
+        untouchedModel.testTasks.isEmpty()
+        untouchedModel.sourceSets.isEmpty()
+
         and: "the disabled-bare-task project resolves to its real alternatives, newest-first and capped"
-        def bwcishTarget = baseTargets.targets.find { it.gradleProject == ":bwcish" }
+        def bwcishModel = new JsonSlurper().parse(file("bwcish/build/flakiness/project-model.json"))
+        bwcishModel.ownsRefs == true
+        // Proof the capture was late: the mutations applied after registration are visible.
+        bwcishModel.testTasks.find { it.name == "test" }.enabled == false
+        bwcishModel.testTasks.count { it.name.endsWith("#altTest") } == 3
+
+        def bwcishTarget = projectTargets("bwcish").resolved[0].target
         bwcishTarget.runnableTasks == [":bwcish:v9.6.0#altTest", ":bwcish:v9.5.1#altTest"]
         bwcishTarget.runnableTasks.every { it != ":bwcish:test" }
         bwcishTarget.candidateTasks == 3
         bwcishTarget.skipReason == null
 
-        and: "the emitted compile task list covers all three projects"
-        def compileTasks = file("flakiness-compile-tasks.txt").text.readLines().findAll { it.trim() }
-        compileTasks as Set == [":app:compileTestJava", ":other:compileTestJava", ":bwcish:compileTestJava"] as Set
+        and: "the per-project compile task lists, concatenated, cover all three owning projects"
+        allCompileTasks() as Set == [":app:compileTestJava", ":other:compileTestJava", ":bwcish:compileTestJava"] as Set
+
+        and: "the configuration cache entry was stored without problems"
+        resolveResult.output.contains("Configuration cache entry stored")
 
         when: "the emitted compile tasks are run plainly, then scan enriches the compiled output"
-        gradleRunner(compileTasks as String[]).build()
+        gradleRunner(allCompileTasks() as String[]).build()
         def scanResult = gradleRunner("-Pflakiness.resolve", "flakinessScan").build()
 
         then: "the abstract base is flattened to its two concrete subclasses; the other test passes through"
@@ -164,6 +183,10 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         other.fqcn == "com.other.OtherTests"
         other.disposition == "run"
         other.expandedFrom == null
+
+        and: "the untouched project contributes nothing to the plan"
+        plan.entries.every { it.gradleProject != ":untouched" }
+        plan.unresolved.isEmpty()
 
         and: "the capped fan-out is reported"
         plan.taskSelections.size() == 1
@@ -187,6 +210,47 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         bwcishCmds.every { it.command.contains(":bwcish:test ") == false }
         bwcishCmds.collect { it.command }.join(" ").contains(":bwcish:v9.6.0#altTest --tests com.bwcish.BwcishTests")
         bwcishCmds.collect { it.command }.join(" ").contains(":bwcish:v9.5.1#altTest --tests com.bwcish.BwcishTests")
+    }
+
+    /**
+     * A class ref no project owns must be reported as {@code unresolved} exactly once - the one verdict that
+     * needs the global view, and the reason the per-project tasks throw their own away.
+     */
+    def "a class ref no project owns is reported unresolved by the scan step"() {
+        given:
+        file("flakiness-refs.json").text = """
+            { "mergeBase": "test",
+              "refs": [ { "source": "unmute", "className": "com.nowhere.GoneTests" } ] }
+        """
+
+        when:
+        gradleRunner("-Pflakiness.resolve", "flakinessResolveProject").build()
+        gradleRunner("-Pflakiness.resolve", "flakinessScan").build()
+
+        then:
+        def plan = new JsonSlurper().parse(file("flakiness-plan.json"))
+        plan.entries.isEmpty()
+        plan.unresolved.size() == 1
+        plan.unresolved[0].ref.className == "com.nowhere.GoneTests"
+        plan.unresolved[0].reason == "no-source-file"
+    }
+
+    private Object projectTargets(String project) {
+        new JsonSlurper().parse(file("${FlakinessProjectResolve.TARGETS_DIR}/${project}.json"))
+    }
+
+    private List<String> compileTasksOf(String project) {
+        file("${FlakinessProjectResolve.TARGETS_DIR}/${project}.compile-tasks.txt").text.readLines().findAll { it.trim() }
+    }
+
+    /** What the orchestration shell does: concatenate every project's compile task list. */
+    private List<String> allCompileTasks() {
+        file(FlakinessProjectResolve.TARGETS_DIR).listFiles()
+            .findAll { it.name.endsWith(".compile-tasks.txt") }
+            .collectMany { it.text.readLines() }
+            .findAll { it.trim() }
+            .unique()
+            .sort()
     }
 
     private void javaTestClass(String project, String internalName, String body) {

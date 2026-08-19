@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Path;
 import java.util.List;
 
 /**
@@ -33,12 +34,45 @@ public final class FlakinessJson {
     public record RefsFile(String mergeBase, List<FlakinessRef> refs) {}
 
     /**
-     * The {@code flakiness-base-targets.json} envelope - the resolve-&gt;compile/scan hand-off. Carries the
-     * resolved {@link BaseTarget}s (which the compile step turns into compile task paths and the scan step
-     * scans) and the {@code unresolved} refs (folded verbatim into the plan by the scan step).
+     * The resolved {@link BaseTarget}s (which the compile step turns into compile task paths and the scan
+     * step scans) plus the {@code unresolved} refs (folded verbatim into the plan by the scan step). Produced
+     * in-memory by {@link FlakinessTargets#merge} from the per-project {@link ProjectTargetsFile}s.
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record BaseTargetsFile(List<BaseTarget> targets, List<FlakinessPlan.Unresolved> unresolved) {}
+
+    /**
+     * One project's whole flakiness model, carried as a task {@code @Input} string (see
+     * {@link FlakinessProjectResolve}). Task inputs are the channel that survives the configuration-cache
+     * boundary, which is why the model travels this way rather than through shared mutable state.
+     *
+     * <p>{@code Path} components round-trip through Jackson's built-in {@code java.nio.file.Path} handlers
+     * (written as {@code file:} URIs), so the same records the pure resolver already consumes are reused
+     * verbatim - no parallel string-only DTOs.
+     *
+     * @param bwcTestPlugin whether {@code elasticsearch.bwc-test} is applied; informational only (the
+     *                      disposition is derived from the {@code Test} tasks themselves, never from this)
+     * @param ownsRefs      whether this project claimed at least one ref. When {@code false} the model is
+     *                      deliberately empty: the project short-circuited before realizing its {@code Test}
+     *                      tasks, which is what makes the unqualified, run-in-every-project invocation cheap
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record ProjectModel(
+        String projectPath,
+        Path projectDir,
+        List<SourceSetInfo> sourceSets,
+        List<TestTaskInfo> testTasks,
+        boolean bwcTestPlugin,
+        boolean ownsRefs
+    ) {}
+
+    /** A resolved target together with the index of the ref that produced it (see {@link ProjectModel}). */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record RefTarget(int refIndex, BaseTarget target) {}
+
+    /** One project's share of the resolve answer, folded together by {@link FlakinessTargets#merge}. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record ProjectTargetsFile(String projectPath, List<RefTarget> resolved) {}
 
     public static RefsFile parseRefs(String json) {
         try {
@@ -48,19 +82,35 @@ public final class FlakinessJson {
         }
     }
 
-    public static String writeBaseTargetsFile(BaseTargetsFile file) {
+    public static String writeProjectModel(ProjectModel model) {
         try {
-            return MAPPER.writeValueAsString(file);
+            return MAPPER.writeValueAsString(model);
         } catch (IOException e) {
-            throw new UncheckedIOException("Failed to serialize flakiness-base-targets.json", e);
+            throw new UncheckedIOException("Failed to serialize the flakiness project model", e);
         }
     }
 
-    public static BaseTargetsFile parseBaseTargetsFile(String json) {
+    public static ProjectModel parseProjectModel(String json) {
         try {
-            return MAPPER.readValue(json, BaseTargetsFile.class);
+            return MAPPER.readValue(json, ProjectModel.class);
         } catch (IOException e) {
-            throw new UncheckedIOException("Failed to parse flakiness-base-targets.json", e);
+            throw new UncheckedIOException("Failed to parse the flakiness project model", e);
+        }
+    }
+
+    public static String writeProjectTargets(ProjectTargetsFile file) {
+        try {
+            return MAPPER.writeValueAsString(file);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to serialize project-targets.json", e);
+        }
+    }
+
+    public static ProjectTargetsFile parseProjectTargets(String json) {
+        try {
+            return MAPPER.readValue(json, ProjectTargetsFile.class);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to parse project-targets.json", e);
         }
     }
 

@@ -14,33 +14,30 @@ import org.gradle.api.Project;
 import org.gradle.api.provider.Provider;
 
 /**
- * Registers the flakiness resolution tasks on the root project. Gated behind the {@code -Pflakiness.resolve}
- * project property, so a normal build pays nothing (the plugin returns immediately in {@link #apply}).
+ * Registers the root-project half of flakiness resolution - just {@code flakinessScan}. Gated behind the
+ * {@code -Pflakiness.resolve} project property, so a normal build pays nothing (the plugin returns
+ * immediately in {@link #apply}).
  *
- * <p><b>Lifecycle-correct model gathering.</b> Unlike the prototype (which walked {@code getAllprojects()} at
- * root-configuration time - an {@code IsolatedProjectsArchUnitSpec} violation that also returned an empty
- * model because subprojects were not yet configured, JAVA_RESOLVER_NOTES.md P1a), this plugin owns no
- * cross-project model. Each test project contributes its own {@link ProjectInfo} to the
- * {@link FlakinessModelService} during that project's own configuration (from
- * {@link org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin}); the {@code flakinessResolve} task
- * reads the assembled model back at execution time. This plugin only registers the service and the two
- * tasks.
+ * <p><b>There is no cross-project model here.</b> Resolution happens per project, in
+ * {@code flakinessResolveProject} (registered by
+ * {@link org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin} via {@link FlakinessProjectResolve}),
+ * with each project self-selecting on whether it owns a ref. This plugin owns no project walk, no shared
+ * build service, and no merge step: {@code flakinessScan} reads the per-project outputs directly.
  *
  * <p>Three Gradle invocations use these:
  * <ol>
- *   <li>{@code flakinessResolve} - refs + model -&gt; {@code flakiness-base-targets.json} +
- *       {@code flakiness-compile-tasks.txt};</li>
- *   <li>a plain compile of the task paths in {@code flakiness-compile-tasks.txt} (no plugin involvement) -
- *       its exit code is the sole {@code build_failed} signal;</li>
- *   <li>{@code flakinessScan} - base targets + compiled output -&gt; {@code flakiness-plan.json}.</li>
+ *   <li>{@code flakinessResolveProject}, <b>unqualified</b> - refs + each project's own model -&gt; one
+ *       {@code <project>.json} + {@code <project>.compile-tasks.txt} per project under
+ *       {@link FlakinessProjectResolve#TARGETS_DIR};</li>
+ *   <li>a plain compile of the concatenated {@code *.compile-tasks.txt} (no plugin involvement) - its exit
+ *       code is the sole {@code build_failed} signal;</li>
+ *   <li>{@code flakinessScan} - per-project targets + compiled output -&gt; {@code flakiness-plan.json}.</li>
  * </ol>
  */
 public class FlakinessResolvePlugin implements Plugin<Project> {
 
     public static final String ENABLE_PROPERTY = "flakiness.resolve";
     public static final String REFS_PROPERTY = "flakiness.refs";
-    public static final String BASE_TARGETS_PROPERTY = "flakiness.baseTargets";
-    public static final String COMPILE_TASKS_PROPERTY = "flakiness.compileTasks";
     public static final String PLAN_PROPERTY = "flakiness.plan";
     public static final String CAP_PROPERTY = "flakiness.subclassCap";
     /** Deterministic cap on how many candidate {@code Test} tasks one target may fan out to. */
@@ -49,9 +46,7 @@ public class FlakinessResolvePlugin implements Plugin<Project> {
     /** Environment variable operators set to override iteration counts (mirrors the old TS behaviour). */
     public static final String ITERS_ENV = "FLAKINESS_ITERS";
 
-    private static final String DEFAULT_REFS = "flakiness-refs.json";
-    private static final String DEFAULT_BASE_TARGETS = "flakiness-base-targets.json";
-    private static final String DEFAULT_COMPILE_TASKS = "flakiness-compile-tasks.txt";
+    public static final String DEFAULT_REFS = "flakiness-refs.json";
     private static final String DEFAULT_PLAN = "flakiness-plan.json";
 
     @Override
@@ -63,50 +58,30 @@ public class FlakinessResolvePlugin implements Plugin<Project> {
             throw new IllegalStateException("elasticsearch.internal-flakiness-resolve must be applied to the root project");
         }
 
-        // Ensure the shared service exists so the resolve task's @ServiceReference always resolves, even in
-        // the degenerate case where no test project registered it. registerIfAbsent is the isolated-projects-
-        // clean cross-project channel (mirrors ProjectSubscribeServicePlugin).
-        Provider<FlakinessModelService> model = project.getGradle()
-            .getSharedServices()
-            .registerIfAbsent(FlakinessModelService.NAME, FlakinessModelService.class);
-
         String refsPath = stringProperty(project, REFS_PROPERTY, DEFAULT_REFS);
-        String baseTargetsPath = stringProperty(project, BASE_TARGETS_PROPERTY, DEFAULT_BASE_TARGETS);
-        String compileTasksPath = stringProperty(project, COMPILE_TASKS_PROPERTY, DEFAULT_COMPILE_TASKS);
         String planPath = stringProperty(project, PLAN_PROPERTY, DEFAULT_PLAN);
         int cap = intProperty(project, CAP_PROPERTY, PlanBuilder.DEFAULT_SUBCLASS_CAP);
         int taskCap = intProperty(project, TASK_CAP_PROPERTY, TestTaskSelector.DEFAULT_TASK_CAP);
 
-        // CC-safe, lazy file reads via a file-contents provider (Gradle's ValueSource-backed API). Evaluated
+        // CC-safe, lazy file read via a file-contents provider (Gradle's ValueSource-backed API). Evaluated
         // when the task property is queried at execution time, never at plain config time.
         Provider<String> refsJson = project.getProviders()
             .fileContents(project.getLayout().getProjectDirectory().file(refsPath))
             .getAsText();
-        Provider<String> baseTargetsJson = project.getProviders()
-            .fileContents(project.getLayout().getProjectDirectory().file(baseTargetsPath))
-            .getAsText();
 
         Integer iters = iterOverride(project);
 
-        project.getTasks().register("flakinessResolve", FlakinessResolveTask.class, t -> {
-            t.setGroup("flakiness");
-            t.setDescription("Resolve flakiness-refs.json to base targets + compile task paths using the project model");
-            t.getRefsJson().set(refsJson);
-            t.getRefsPath().set(refsPath);
-            t.getRepoRoot().set(project.getLayout().getProjectDirectory());
-            t.getBaseTargetsFile().set(project.getLayout().getProjectDirectory().file(baseTargetsPath));
-            t.getCompileTasksFile().set(project.getLayout().getProjectDirectory().file(compileTasksPath));
-            t.getTaskCap().set(taskCap);
-            // Bind the service so it is instantiated and its usesService dependency is recorded (also implied
-            // by the @ServiceReference on the task property).
-            t.getModelService().set(model);
-            t.usesService(model);
-        });
-
         project.getTasks().register("flakinessScan", FlakinessScanTask.class, t -> {
             t.setGroup("flakiness");
-            t.setDescription("Scan the compiled classes named in flakiness-base-targets.json to write flakiness-plan.json");
-            t.getBaseTargetsJson().set(baseTargetsJson);
+            t.setDescription("Scan the compiled classes of the per-project flakiness targets to write flakiness-plan.json");
+            // The per-project resolve outputs live in ONE shared directory precisely so this collection is a
+            // cheap, flat glob rather than a walk of every project's build directory.
+            t.getProjectTargetsFiles()
+                .from(project.fileTree(project.getLayout().getProjectDirectory().dir(FlakinessProjectResolve.TARGETS_DIR), tree -> {
+                    tree.include("*.json");
+                }));
+            t.getRefsJson().set(refsJson);
+            t.getRefsPath().set(refsPath);
             t.getSubclassCap().set(cap);
             t.getTaskCap().set(taskCap);
             if (iters != null) {

@@ -314,8 +314,7 @@ describe("toResolvePipeline (orchestration + separate generate step)", () => {
     expect(cmd).not.toContain("node .buildkite/scripts/flakiness-detection/entrypoints/generate.ts");
     // Uploads the plan (+ precompile marker) the separate generate agent downloads, plus intermediates.
     expect(orchestration.artifact_paths).toEqual([
-      "flakiness-base-targets.json",
-      "flakiness-compile-tasks.txt",
+      "build/flakiness/project-targets/*.json",
       "flakiness-plan.json",
       "flakiness-precompile.json",
     ]);
@@ -336,16 +335,19 @@ describe("toResolvePipeline (orchestration + separate generate step)", () => {
     ]);
   });
 
-  test("resolve phase downloads refs and runs flakinessResolve with --no-configuration-cache", () => {
+  test("resolve phase downloads refs and runs the UNQUALIFIED per-project task, with the config cache ON", () => {
     expect(cmd).toContain('buildkite-agent artifact download "flakiness-refs.json" . || true');
-    // --no-configuration-cache is required so every project configures and populates the shared build
-    // service (see JAVA_RESOLVER_NOTES.md); without it the model would be empty.
-    expect(cmd).toContain(".ci/scripts/run-gradle.sh -Pflakiness.resolve --no-configuration-cache flakinessResolve");
+    // Unqualified: it runs in EVERY project, each of which self-selects on whether it owns a ref. No caller
+    // side project guessing, and no --no-configuration-cache (the model travels through task inputs).
+    expect(cmd).toContain(".ci/scripts/run-gradle.sh -Pflakiness.resolve flakinessResolveProject");
+    expect(cmd).not.toContain("--no-configuration-cache");
+    // A reused workspace must not leak a previous run's per-project answers into this one.
+    expect(cmd).toContain("rm -rf build/flakiness/project-targets");
     expect(cmd).toContain("timeout --foreground --signal=TERM --kill-after=30s 28m .ci/scripts/run-gradle.sh");
   });
 
-  test("compile phase plainly runs the task list; empty list is a clean skip", () => {
-    expect(cmd).toContain("TASKS=$(cat flakiness-compile-tasks.txt 2>/dev/null)");
+  test("compile phase concatenates the per-project task lists; empty list is a clean skip", () => {
+    expect(cmd).toContain("TASKS=$(cat build/flakiness/project-targets/*.compile-tasks.txt 2>/dev/null | sort -u)");
     // Non-empty list -> plain gradle invocation of just the compile tasks (no -Pflakiness / task name).
     expect(cmd).toMatch(/if \[ -n "\$\$TASKS" \]; then/);
     expect(cmd).toContain("timeout --foreground --signal=TERM --kill-after=30s 28m .ci/scripts/run-gradle.sh $$TASKS");

@@ -24,8 +24,8 @@ import java.util.regex.Pattern;
 
 /**
  * Pure resolution of heterogeneous {@link FlakinessRef}s to {@link BaseTarget}s using the authoritative
- * project model ({@link ProjectInfo} snapshots taken from each project's own configuration and carried by
- * {@link FlakinessModelService}). This is the authoritative replacement for the TypeScript
+ * project model ({@link ProjectInfo} snapshots taken from each project's own configuration). This is the
+ * authoritative replacement for the TypeScript
  * {@code detectors/changed-files.ts} (classify half), {@code detectors/locator.ts}, and
  * {@code detectors/bwc.ts}.
  *
@@ -37,8 +37,8 @@ import java.util.regex.Pattern;
  * {@code Test} tasks that really run the target's source-set output (so a project that disables the bare
  * conventional task - bwc, packaging - resolves to its real tasks or to a precise skip reason, instead of
  * silently emitting a task Gradle reports {@code SKIPPED}). The {@code Test}-task facts are supplied by a
- * per-project lookup, which the resolve task backs with {@link FlakinessModelService#testTasks} so they are
- * read after configuration has finished.
+ * per-project lookup. {@link FlakinessProjectResolve} deliberately passes an <em>empty</em> lookup when it
+ * only needs to know whether this project owns a ref, so the ownership probe realizes no {@code Test} task.
  *
  * <p>Two resolution paths:
  * <ul>
@@ -247,7 +247,11 @@ public final class RefResolver {
         return s.endsWith(suffix) ? s.substring(0, s.length() - suffix.length()) : s;
     }
 
-    private static List<BaseTarget> dedupe(List<BaseTarget> targets) {
+    /**
+     * Collapse targets that address the same (project, kind, identity). Package-private rather than private
+     * so the fold of the per-project answers ({@link FlakinessTargets#merge}) applies exactly the same rule.
+     */
+    static List<BaseTarget> dedupe(List<BaseTarget> targets) {
         Map<String, BaseTarget> seen = new LinkedHashMap<>();
         for (BaseTarget t : targets) {
             String identity = t.yamlTest() != null ? t.yamlTest()

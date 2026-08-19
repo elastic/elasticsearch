@@ -121,7 +121,7 @@ teardown:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all, optional_fields_load_all_flatten_to_leaves ]
+          capabilities: [ optional_fields_load_all ]
       reason: "Flattening a partially-mapped object under LOAD_ALL must drop the leaf that duplicates a mapped column, not fail"
   # network.eth0.rx is mapped; network.bytes_in and network.eth0.tx are not. Under LOAD_ALL the whole network object reaches
   # _unmapped_fields (the data node filters by top-level key), so flattening re-derives network.eth0.rx. That leaf must yield to the

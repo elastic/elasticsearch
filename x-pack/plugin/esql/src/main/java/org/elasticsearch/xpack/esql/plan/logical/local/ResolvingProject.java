@@ -117,7 +117,7 @@ public class ResolvingProject extends Project {
      * {@link Command#unmappedFieldsPattern()} does, so it must run while the {@link ResolvingProject} is intact (before
      * {@code ResolvedProjects}).
      */
-    public List<String> keepOrderTerms() {
+    public List<UnmappedFieldsPattern.KeepTerm> keepOrderTerms() {
         assert isKeep() : "keepOrderTerms is only defined for a KEEP, not " + command.kind();
         return UnmappedFieldsPattern.orderTerms(command.projections());
     }

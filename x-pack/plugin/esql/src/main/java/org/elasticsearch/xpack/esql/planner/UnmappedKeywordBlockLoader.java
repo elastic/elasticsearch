@@ -77,6 +77,7 @@ final class UnmappedKeywordBlockLoader implements BlockLoader {
 
     private static final class Reader extends BlockStoredFieldsReader {
         private final String fieldName;
+        private final List<BytesRef> values = new ArrayList<>();
 
         Reader(CircuitBreaker breaker, String fieldName) {
             super(breaker);
@@ -86,7 +87,7 @@ final class UnmappedKeywordBlockLoader implements BlockLoader {
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
             Source source = storedFields.source();
-            List<BytesRef> values = new ArrayList<>();
+            values.clear();
             UnmappedKeywordValues.collect(source.extractValue(fieldName, null), values);
             if (values.isEmpty()) {
                 builder.appendNull();

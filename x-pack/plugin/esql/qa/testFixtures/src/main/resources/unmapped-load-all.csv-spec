@@ -529,6 +529,7 @@ required_capability: optional_fields_load_all
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_array_data
 | EVAL n = MV_COUNT(tags)
+| KEEP id, tags, n
 | SORT id
 ;
 
@@ -536,6 +537,70 @@ id:keyword | tags:keyword | n:integer
 1          | [web, api]   | 2
 2          | web          | 1
 3          | web          | 1
+;
+
+arrayOfObjectsFlattensToDottedLeafMultivalue
+required_capability: optional_fields_load_all
+required_capability: optional_fields_fix_load_object_from_synthetic_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_array_data
+| KEEP id, samples*
+| SORT id
+;
+
+id:keyword | samples.nested:keyword
+1          | [x, y]
+2          | z
+3          | null
+;
+
+leafOnlyWildcardShipsArrayOfObjects
+required_capability: optional_fields_load_all
+required_capability: optional_fields_fix_load_object_from_synthetic_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_array_data
+| KEEP id, samples.*
+| SORT id
+;
+
+id:keyword | samples.nested:keyword
+1          | [x, y]
+2          | z
+3          | null
+;
+
+escapedWildcardKeepNameIsExplicitNotPattern
+required_capability: optional_fields_load_all
+required_capability: optional_fields_fix_load_object_from_synthetic_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_array_data
+| KEEP id, `samples*`, tags*
+| SORT id
+;
+
+id:keyword | samples*:keyword | tags:keyword
+1          | null             | [web, api]
+2          | null             | web
+3          | null             | web
+;
+
+unescapedWildcardKeepNameMatchesLeaves
+required_capability: optional_fields_load_all
+required_capability: optional_fields_fix_load_object_from_synthetic_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_array_data
+| KEEP id, samples*, tags*
+| SORT id
+;
+
+id:keyword | samples.nested:keyword | tags:keyword
+1          | [x, y]                 | [web, api]
+2          | z                      | web
+3          | null                   | web
 ;
 
 // An object-valued unmapped source field has no keyword representation of its own, so it contributes no "extra" value; its leaves

@@ -285,8 +285,14 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
      * ordering over the expanded leaves. The bare {@code *}, wildcards and explicit names are all preserved verbatim.
      */
     public void testKeepOrderCapturedForTopKeep() {
-        assertThat(keepOrderFor("FROM test | KEEP *, unmapped.*, unmapped"), equalTo(List.of("*", "unmapped.*", "unmapped")));
-        assertThat(keepOrderFor("FROM test | KEEP unmapped.*, unmapped, *"), equalTo(List.of("unmapped.*", "unmapped", "*")));
+        assertThat(
+            keepOrderFor("FROM test | KEEP *, unmapped.*, unmapped"),
+            equalTo(List.of(pat("*"), pat("unmapped.*"), lit("unmapped")))
+        );
+        assertThat(
+            keepOrderFor("FROM test | KEEP unmapped.*, unmapped, *"),
+            equalTo(List.of(pat("unmapped.*"), lit("unmapped"), pat("*")))
+        );
     }
 
     /**
@@ -307,14 +313,22 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     public void testKeepOrderSeenThroughTransparentCommandsAboveKeep() {
         assertThat(
             keepOrderFor("FROM test | KEEP emp_no, unmapped.* | WHERE emp_no > 0 | LIMIT 5"),
-            equalTo(List.of("emp_no", "unmapped.*"))
+            equalTo(List.of(lit("emp_no"), pat("unmapped.*")))
         );
     }
 
-    private static List<String> keepOrderFor(String query) {
+    private static List<UnmappedFieldsPattern.KeepTerm> keepOrderFor(String query) {
         LogicalPlan plan = test().statement(setUnmappedLoadAll(query));
         EsRelation relation = EsqlTestUtils.singleValue(plan.collect(EsRelation.class));
         return EsqlTestUtils.singleValue(CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)).keepOrder();
+    }
+
+    private static UnmappedFieldsPattern.KeepTerm pat(String name) {
+        return new UnmappedFieldsPattern.KeepTerm(name, true);
+    }
+
+    private static UnmappedFieldsPattern.KeepTerm lit(String name) {
+        return new UnmappedFieldsPattern.KeepTerm(name, false);
     }
 
     private static void assertKept(UnmappedFieldsPattern pattern, String... names) {

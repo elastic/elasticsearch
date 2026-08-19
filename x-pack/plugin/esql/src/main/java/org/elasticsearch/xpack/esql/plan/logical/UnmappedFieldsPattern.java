@@ -10,10 +10,12 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 
@@ -82,12 +84,18 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
     public static UnmappedFieldsPattern forKeep(List<? extends NamedExpression> projections) {
         List<String> includes = new ArrayList<>();
         for (NamedExpression proj : projections) {
+            // mirrors Analyzer.keepResolver: only a wildcard contributes an include group; an explicit name (resolved or not) is
+            // demand-loaded instead, so it contributes nothing to the expansion
             switch (proj) {
                 case UnresolvedStar ignored -> {
                     return ALL;
                 }
                 case UnresolvedNamePattern unp -> includes.add(unp.pattern());
+                case UnsupportedAttribute ignored -> {
+                }
                 case UnresolvedAttribute ignored -> {
+                }
+                case NamedExpression ne when ne.resolved() -> {
                 }
                 default -> throw new IllegalStateException("Unsupported KEEP projection [" + proj + "]");
             }
@@ -96,17 +104,35 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
     }
 
     /**
-     * The ordered projection terms of a {@code KEEP} command. Unlike {@link #forKeep}, which folds them into an unordered membership
-     * predicate, this keeps the order the coordinator needs to replay {@code KEEP}'s column ordering over the expanded leaves via
-     * {@link #keepOrdered}.
+     * One {@code KEEP} projection term in written order, tagged {@code pattern} when it is a wildcard (matched with
+     * {@link Regex#simpleMatch}) rather than an explicit name (matched exactly)
      */
-    public static List<String> orderTerms(List<? extends NamedExpression> projections) {
-        List<String> terms = new ArrayList<>(projections.size());
+    public record KeepTerm(String name, boolean pattern) implements Writeable {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+            out.writeBoolean(pattern);
+        }
+
+        public static KeepTerm readFrom(StreamInput in) throws IOException {
+            return new KeepTerm(in.readString(), in.readBoolean());
+        }
+    }
+
+    /**
+     * The ordered projection terms of a {@code KEEP} command, tagged wildcard-vs-explicit by kind (see {@link KeepTerm}). Unlike
+     * {@link #forKeep}'s unordered membership predicate, this preserves written order so {@link #keepOrdered} can replay {@code KEEP}'s
+     * column ordering over the expanded leaves.
+     */
+    public static List<KeepTerm> orderTerms(List<? extends NamedExpression> projections) {
+        List<KeepTerm> terms = new ArrayList<>(projections.size());
         for (NamedExpression proj : projections) {
             switch (proj) {
-                case UnresolvedStar ignored -> terms.add("*");
-                case UnresolvedNamePattern unp -> terms.add(unp.pattern());
-                case UnresolvedAttribute ua -> terms.add(ua.name());
+                case UnresolvedStar ignored -> terms.add(new KeepTerm("*", true));
+                case UnresolvedNamePattern unp -> terms.add(new KeepTerm(unp.pattern(), true));
+                case UnsupportedAttribute ua -> terms.add(new KeepTerm(ua.name(), false));
+                case UnresolvedAttribute ua -> terms.add(new KeepTerm(ua.name(), false));
+                case NamedExpression ne when ne.resolved() -> terms.add(new KeepTerm(ne.name(), false));
                 default -> throw new IllegalStateException("Unsupported KEEP projection [" + proj + "]");
             }
         }
@@ -115,16 +141,16 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
 
     /**
      * Replays {@code KEEP}'s column-ordering contract over {@code childOutput} — the real columns followed by the discovered unmapped
-     * leaves (alphabetical) — using {@code keepTerms} from {@link #orderTerms}. This mirrors {@code Analyzer.keepResolver}.
+     * leaves (alphabetical) — using {@code keepTerms} from {@link #orderTerms}.
      */
-    public static List<String> keepOrdered(List<String> childOutput, List<String> keepTerms) {
+    public static List<String> keepOrdered(List<String> childOutput, List<KeepTerm> keepTerms) {
         LinkedHashMap<String, Integer> priorities = new LinkedHashMap<>();
-        for (String term : keepTerms) {
-            boolean explicit = Regex.isSimpleMatchPattern(term) == false;
+        for (KeepTerm term : keepTerms) {
+            boolean explicit = term.pattern() == false;
             // Priorities match keepResolver's: an explicit name (1) outranks any wildcard, and a non-bare wildcard (3) outranks bare * (4).
-            int priority = explicit ? 1 : (term.equals("*") ? 4 : 3);
+            int priority = explicit ? 1 : (term.name().equals("*") ? 4 : 3);
             for (String name : childOutput) {
-                boolean matched = explicit ? name.equals(term) : Regex.simpleMatch(term, name);
+                boolean matched = explicit ? name.equals(term.name()) : Regex.simpleMatch(term.name(), name);
                 if (matched) {
                     Integer previous = priorities.get(name);
                     if (previous == null || previous >= priority) {
@@ -202,11 +228,37 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
     }
 
     /**
-     * Whether a top-level {@code _source} key whose value is an <em>object</em> should be shipped from the data node so the coordinator
-     * can flatten it into dotted leaf columns and decide, per leaf, which survive.
+     * Whether a top-level {@code _source} object or array key should ship from the data node so the coordinator can flatten it into dotted
+     * leaf columns and keep the surviving ones. It owns no column, so it ships if every include group could reach the key or a descendant
+     * ({@link #groupCouldMatchDescendant}); the per-group over-approximation only ever over-ships, never dropping a leaf that survives.
      */
     public boolean matchesObjectPush(String name) {
-        return isNone() == false && anySubtreeCoveringExcludeMatches(name) == false;
+        if (isNone() || anySubtreeCoveringExcludeMatches(name)) {
+            return false;
+        }
+        for (List<String> group : includeGroups) {
+            if (groupCouldMatchDescendant(group, name) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Whether some pattern in {@code group} could match object {@code name} or a {@code name.*} descendant
+     */
+    private static boolean groupCouldMatchDescendant(List<String> group, String name) {
+        String dotted = name + ".";
+        for (String pattern : group) {
+            if (Regex.simpleMatch(pattern, name) || pattern.startsWith(dotted)) {
+                return true;
+            }
+            int wildcard = pattern.indexOf('*');
+            if (wildcard >= 0 && dotted.startsWith(pattern.substring(0, wildcard))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

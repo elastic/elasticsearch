@@ -25,8 +25,14 @@ public class UnmappedFieldsAttributeTests extends AbstractNamedExpressionSeriali
             .withAdditionalExcludes(List.of("secret*", "emp_no"));
     }
 
-    private static List<String> randomKeepOrder() {
-        return randomBoolean() ? List.of() : List.of("*", randomAlphaOfLength(4) + "*", randomAlphaOfLength(4));
+    private static List<UnmappedFieldsPattern.KeepTerm> randomKeepOrder() {
+        return randomBoolean()
+            ? List.of()
+            : List.of(
+                new UnmappedFieldsPattern.KeepTerm("*", true),
+                new UnmappedFieldsPattern.KeepTerm(randomAlphaOfLength(4) + "*", true),
+                new UnmappedFieldsPattern.KeepTerm(randomAlphaOfLength(4), false)
+            );
     }
 
     @Override
@@ -50,7 +56,7 @@ public class UnmappedFieldsAttributeTests extends AbstractNamedExpressionSeriali
         NameId id = instance.id();
         boolean synthetic = instance.synthetic();
         UnmappedFieldsPattern pattern = instance.pattern();
-        List<String> keepOrder = instance.keepOrder();
+        List<UnmappedFieldsPattern.KeepTerm> keepOrder = instance.keepOrder();
         switch (between(0, 5)) {
             case 0 -> type = randomValueOtherThan(type, () -> randomFrom(DataType.types()));
             case 1 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));

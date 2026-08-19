@@ -48,7 +48,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (pattern.isNone()) {
             return plan;
         }
-        List<String> keepOrder = outermostKeepOrder(plan);
+        List<UnmappedFieldsPattern.KeepTerm> keepOrder = outermostKeepOrder(plan);
         return plan.transformUp(EsRelation.class, esr -> {
             if (esr.indexMode() == IndexMode.LOOKUP) {
                 return esr;
@@ -70,7 +70,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * {@code KEEP} ran — see {@link UnmappedFieldsPattern#keepOrdered} and the post-processor's layout). The plan is a linear unary
      * chain here — {@code LOAD_ALL} currently rejects non-unary plans in the {@code Verifier}.
      */
-    private static List<String> outermostKeepOrder(LogicalPlan plan) {
+    private static List<UnmappedFieldsPattern.KeepTerm> outermostKeepOrder(LogicalPlan plan) {
         for (LogicalPlan p = plan; p instanceof UnaryPlan unary; p = unary.child()) {
             if (p instanceof ResolvingProject project) {
                 return project.isKeep() ? project.keepOrderTerms() : List.of();

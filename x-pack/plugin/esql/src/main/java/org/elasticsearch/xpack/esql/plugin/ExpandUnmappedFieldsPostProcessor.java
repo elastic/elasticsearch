@@ -84,6 +84,8 @@ class ExpandUnmappedFieldsPostProcessor {
             var fieldNames = collectFieldNames(result, unmappedIdx, pattern, blockFactory.breaker(), reservationFactor);
             Set<String> existingNames = existingColumnNames(schema, unmappedIdx);
             List<String> leafNames = new ArrayList<>(fieldNames.size());
+            // A leaf that collides with an existing column is dropped, not an error: with flattening a leaf mapped in one index can also
+            // appear in another's _source, and the per-shard UnmappedKeywordBlockLoader already filled that column, so the value is kept.
             for (String name : fieldNames) {
                 if (existingNames.contains(name) == false) {
                     leafNames.add(name);
@@ -138,16 +140,13 @@ class ExpandUnmappedFieldsPostProcessor {
                 BytesRef json = getBytesRef(unmappedBlock, row, scratch);
                 long reservation = reserveForParse(json, breaker, reservationFactor);
                 try {
-                    collectLeaves("", parseJson(json), (name, value) -> {
-                        if (pattern.matches(name)) {
-                            fieldNames.add(name);
-                        }
-                    });
+                    collectLeaves("", parseJson(json), (name, value) -> fieldNames.add(name));
                 } finally {
                     breaker.addWithoutBreaking(-reservation);
                 }
             }
         }
+        fieldNames.removeIf(name -> pattern.matches(name) == false);
         return fieldNames;
     }
 
@@ -183,11 +182,18 @@ class ExpandUnmappedFieldsPostProcessor {
     /**
      * Builds the expanded output layout: the final column order plus, per column, which block feeds it.
      */
-    private static ExpandedLayout computeLayout(List<Attribute> schema, int unmappedIdx, List<String> leafNames, List<String> keepOrder) {
+    private static ExpandedLayout computeLayout(
+        List<Attribute> schema,
+        int unmappedIdx,
+        List<String> leafNames,
+        List<UnmappedFieldsPattern.KeepTerm> keepOrder
+    ) {
         int originalColumnCount = schema.size();
         List<String> keptRealNames = new ArrayList<>();
         List<String> appendedRealNames = new ArrayList<>();
         Map<String, Integer> nameToSchemaIdx = new HashMap<>();
+        // DetermineUnmappedFieldsToKeep pins the synthetic attribute right after the governing KEEP's projections, so a real column
+        // before unmappedIdx was KEEP-selected (its order is replayable) and one after it was appended by a later EVAL (must trail).
         for (int i = 0; i < originalColumnCount; i++) {
             if (i != unmappedIdx) {
                 String name = schema.get(i).name();
@@ -208,8 +214,6 @@ class ExpandUnmappedFieldsPostProcessor {
             orderedNames.addAll(appendedRealNames);
             orderedNames.addAll(leafNames);
         } else {
-            // Replay KEEP's order over exactly what it selected (its real columns + the leaves it expands into), then trail the
-            // columns a later EVAL appended - the KEEP's terms must not re-select a column that did not exist when it was resolved.
             List<String> keepScope = new ArrayList<>(keptRealNames.size() + leafNames.size());
             keepScope.addAll(keptRealNames);
             keepScope.addAll(leafNames);
@@ -226,8 +230,10 @@ class ExpandUnmappedFieldsPostProcessor {
                 newSchema.add(schema.get(schemaIdx));
                 blockOrder[pos] = schemaIdx;
             } else {
-                Integer leafIdx = leafNameToIdx.get(name);
-                assert leafIdx != null : "ordered name [" + name + "] is neither a retained column nor an expanded leaf";
+                int leafIdx = leafNameToIdx.getOrDefault(name, -1);
+                if (leafIdx < 0) {
+                    throw new IllegalStateException("ordered name [" + name + "] is neither a retained column nor an expanded leaf");
+                }
                 newSchema.add(new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD));
                 blockOrder[pos] = originalColumnCount + leafIdx;
             }
@@ -373,19 +379,28 @@ class ExpandUnmappedFieldsPostProcessor {
         }
     }
 
-    /**
-     * Walks a parsed {@code _source} object, invoking {@code sink} once per leaf with its dotted path and value: a nested object
-     * recurses (so {@code {"a":{"b":1}}} yields the leaf {@code a.b}), while everything else — a scalar, an array, or a literal dotted
-     * key — is a leaf as-is.
-     */
+    /** Walks a parsed source object, invoking {@code sink} once per leaf with its dotted path and value (see {@link #collectValue}). */
     private static void collectLeaves(String prefix, Map<?, ?> map, BiConsumer<String, Object> sink) {
         for (Map.Entry<?, ?> entry : map.entrySet()) {
             String name = prefix.isEmpty() ? String.valueOf(entry.getKey()) : prefix + "." + entry.getKey();
-            if (entry.getValue() instanceof Map<?, ?> child) {
-                collectLeaves(name, child, sink);
-            } else {
-                sink.accept(name, entry.getValue());
+            collectValue(name, entry.getValue(), sink);
+        }
+    }
+
+    /**
+     * Emits the leaves of one {@code _source} value at {@code name}: an object recurses to dotted leaves, an array recurses element-wise
+     * (so objects inside it flatten to the same leaves a sibling index mapping those subfields would surface, and scalar elements stay at
+     * {@code name}), and any other value is a leaf as-is.
+     */
+    private static void collectValue(String name, Object value, BiConsumer<String, Object> sink) {
+        if (value instanceof Map<?, ?> child) {
+            collectLeaves(name, child, sink);
+        } else if (value instanceof List<?> list) {
+            for (Object element : list) {
+                collectValue(name, element, sink);
             }
+        } else {
+            sink.accept(name, value);
         }
     }
 

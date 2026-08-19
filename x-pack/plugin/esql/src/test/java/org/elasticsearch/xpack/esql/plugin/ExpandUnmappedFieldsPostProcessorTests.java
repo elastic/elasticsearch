@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -268,10 +269,8 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         }
     }
 
-    public void testArrayOfObjectsExpandsToNullColumnWithoutSynthesizingLeaves() {
+    public void testArrayOfObjectsFlattensElementWiseToDottedLeafMultivalue() {
         BlockFactory bf = blockFactory();
-        // An array of objects is treated as a leaf (collectLeaves does not descend arrays), so it produces one column that has no
-        // keyword representation and is all-null - no per-element samples.nested column is synthesized. Contrast tags (array of scalars).
         Result result = result(
             List.of(intAttr(), unmappedAttr()),
             List.of(page(bf, List.of(row(1, jsonObject("{'tags':['a','b'],'samples':[{'nested':'x'},{'nested':'y'}]}")))))
@@ -279,11 +278,40 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
         Result expanded = expand(result, bf);
         try {
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "samples", "tags")));
-            int samplesCol = names(expanded).indexOf("samples");
-            for (Page page : expanded.pages()) {
-                assertThat("array-of-objects must expand to an all-null column", page.getBlock(samplesCol).isNull(0), equalTo(true));
-            }
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "samples.nested", "tags")));
+            assertThat(
+                nonNullRows(expanded),
+                contains(
+                    matchesMap().entry(INT_ATTR, 1)
+                        .entry("samples.nested", List.of(new BytesRef("x"), new BytesRef("y")))
+                        .entry("tags", List.of(new BytesRef("a"), new BytesRef("b")))
+                )
+            );
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testArrayRecursionFlattensNestedArraysAndMixedScalarObjectElements() {
+        BlockFactory bf = blockFactory();
+        // "a" holds a scalar and an object element at the same path (a stays scalar, a.b appears); "nums" is an array of arrays.
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(page(bf, List.of(row(1, jsonObject("{'a':['s',{'b':'o'}],'nums':[[1,2],[3]]}")))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "a", "a.b", "nums")));
+            assertThat(
+                nonNullRows(expanded),
+                contains(
+                    matchesMap().entry(INT_ATTR, 1)
+                        .entry("a", "s")
+                        .entry("a.b", "o")
+                        .entry("nums", List.of(new BytesRef("1"), new BytesRef("2"), new BytesRef("3")))
+                )
+            );
         } finally {
             Releasables.close(expanded.pages());
         }
@@ -521,7 +549,12 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
     }
 
     private static UnmappedFieldsAttribute unmappedAttr(UnmappedFieldsPattern pattern, List<String> keepOrder) {
-        return new UnmappedFieldsAttribute(Source.EMPTY, pattern, keepOrder);
+        // These ordering tests predate the KeepTerm wildcard tag and use no quoted name containing '*', so deriving each term's tag from
+        // the string via Regex.isSimpleMatchPattern reproduces the analyzer's tag for every term used here.
+        List<UnmappedFieldsPattern.KeepTerm> terms = keepOrder.stream()
+            .map(name -> new UnmappedFieldsPattern.KeepTerm(name, Regex.isSimpleMatchPattern(name)))
+            .toList();
+        return new UnmappedFieldsAttribute(Source.EMPTY, pattern, terms);
     }
 
     /** Builds a single page whose blocks are inferred from {@code rows} (one {@link #row} per position). */

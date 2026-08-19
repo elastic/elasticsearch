@@ -9,6 +9,13 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 
 import java.util.List;
 
@@ -74,14 +81,41 @@ public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<U
         assertTrue(UnmappedFieldsPattern.ALL.matchesObjectPush("unmapped"));
     }
 
-    public void testObjectPushIgnoresIncludes() {
+    public void testObjectPushShipsOnlyObjectsAnIncludeGroupCanReach() {
+        // KEEP network keeps the object "network" (the reference reads null, but a descendant leaf could survive under a wildcard leg);
+        // an unrelated object no include group can reach is pruned at the data node instead of shipped for the coordinator to discard.
         UnmappedFieldsPattern keepExact = UnmappedFieldsPattern.includes(List.of("network")).withAdditionalExcludes(List.of("network"));
         assertTrue(keepExact.matchesObjectPush("network"));
-        assertTrue(keepExact.matchesObjectPush("unrelated"));
+        assertFalse(keepExact.matchesObjectPush("unrelated"));
 
         UnmappedFieldsPattern keepWildcard = UnmappedFieldsPattern.includes(List.of("keep*"));
         assertTrue(keepWildcard.matchesObjectPush("keep_me"));
-        assertTrue(keepWildcard.matchesObjectPush("other"));
+        assertFalse(keepWildcard.matchesObjectPush("other"));
+
+        // A dotted include reaches the object whose subtree it targets, and nothing else.
+        UnmappedFieldsPattern dotted = UnmappedFieldsPattern.includes(List.of("network.eth0.*"));
+        assertTrue(dotted.matchesObjectPush("network"));
+        assertFalse(dotted.matchesObjectPush("system"));
+
+        // Every include group must independently be able to reach the object (chained KEEPs intersect); one that cannot prunes it.
+        UnmappedFieldsPattern intersect = UnmappedFieldsPattern.includes(List.of("network.*"))
+            .intersect(UnmappedFieldsPattern.includes(List.of("system.*")));
+        assertFalse(intersect.matchesObjectPush("network"));
+        assertFalse(intersect.matchesObjectPush("system"));
+    }
+
+    /**
+     * {@link UnmappedFieldsPattern#matchesObjectPush} must never under-ship: whenever a pattern can match some descendant leaf of the
+     * object, the object is shipped so the coordinator sees that leaf - even for a mid-pattern wildcard over a literal dotted object key.
+     */
+    public void testObjectPushNeverUnderShipsAReachableDescendant() {
+        assertTrue(UnmappedFieldsPattern.includes(List.of("a.*.leaf")).matchesObjectPush("a.b"));
+        assertTrue(UnmappedFieldsPattern.includes(List.of("*.leaf")).matchesObjectPush("a"));
+        assertTrue(UnmappedFieldsPattern.includes(List.of("a*")).matchesObjectPush("abc"));
+        assertTrue(UnmappedFieldsPattern.includes(List.of("unmapped.deep.leaf")).matchesObjectPush("unmapped"));
+        // A literal that is neither the object nor a descendant of it cannot produce a surviving leaf, so the object is pruned.
+        assertFalse(UnmappedFieldsPattern.includes(List.of("ab")).matchesObjectPush("a"));
+        assertFalse(UnmappedFieldsPattern.includes(List.of("nx.y")).matchesObjectPush("n"));
     }
 
     public void testMatchesGovernsDottedLeavesForSourceParity() {
@@ -116,10 +150,11 @@ public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<U
      * examples from that method's javadoc.
      */
     public void testKeepOrderedMirrorsKeepResolverPriorities() {
-        assertEquals(List.of("bar", "foo"), UnmappedFieldsPattern.keepOrdered(List.of("foo", "bar"), List.of("*", "foo")));
-        assertEquals(List.of("foo", "bar"), UnmappedFieldsPattern.keepOrdered(List.of("foo", "bar"), List.of("foo", "*")));
-        assertEquals(List.of("bar", "foo"), UnmappedFieldsPattern.keepOrdered(List.of("foo", "bar"), List.of("bar*", "foo", "*")));
-        assertEquals(List.of("bar", "foo"), UnmappedFieldsPattern.keepOrdered(List.of("foo", "bar"), List.of("foo*", "bar", "fo*")));
+        List<String> cols = List.of("foo", "bar");
+        assertEquals(List.of("bar", "foo"), UnmappedFieldsPattern.keepOrdered(cols, List.of(pat("*"), lit("foo"))));
+        assertEquals(List.of("foo", "bar"), UnmappedFieldsPattern.keepOrdered(cols, List.of(lit("foo"), pat("*"))));
+        assertEquals(List.of("bar", "foo"), UnmappedFieldsPattern.keepOrdered(cols, List.of(pat("bar*"), lit("foo"), pat("*"))));
+        assertEquals(List.of("bar", "foo"), UnmappedFieldsPattern.keepOrdered(cols, List.of(pat("foo*"), lit("bar"), pat("fo*"))));
     }
 
     /**
@@ -130,16 +165,16 @@ public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<U
         List<String> childOutput = List.of("id", "unmapped", "unmapped.bar", "unmapped.deep.leaf", "unmapped.foo");
         assertEquals(
             List.of("id", "unmapped.bar", "unmapped.deep.leaf", "unmapped.foo", "unmapped"),
-            UnmappedFieldsPattern.keepOrdered(childOutput, List.of("*", "unmapped.*", "unmapped"))
+            UnmappedFieldsPattern.keepOrdered(childOutput, List.of(pat("*"), pat("unmapped.*"), lit("unmapped")))
         );
         assertEquals(
             List.of("unmapped.bar", "unmapped.deep.leaf", "unmapped.foo", "unmapped", "id"),
-            UnmappedFieldsPattern.keepOrdered(childOutput, List.of("unmapped.*", "unmapped", "*"))
+            UnmappedFieldsPattern.keepOrdered(childOutput, List.of(pat("unmapped.*"), lit("unmapped"), pat("*")))
         );
         // An explicit real column pinned between two leaf-producing terms: id lands after unmapped.* leaves but before the scalar unmapped.
         assertEquals(
             List.of("unmapped.bar", "unmapped.deep.leaf", "unmapped.foo", "id", "unmapped"),
-            UnmappedFieldsPattern.keepOrdered(childOutput, List.of("unmapped.*", "id", "unmapped"))
+            UnmappedFieldsPattern.keepOrdered(childOutput, List.of(pat("unmapped.*"), lit("id"), lit("unmapped")))
         );
     }
 
@@ -148,6 +183,43 @@ public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<U
      * natural trailing position, so reordering never drops a column.
      */
     public void testKeepOrderedAppendsUnmatchedColumnsLast() {
-        assertEquals(List.of("unmapped.foo", "x"), UnmappedFieldsPattern.keepOrdered(List.of("x", "unmapped.foo"), List.of("unmapped.*")));
+        assertEquals(
+            List.of("unmapped.foo", "x"),
+            UnmappedFieldsPattern.keepOrdered(List.of("x", "unmapped.foo"), List.of(pat("unmapped.*")))
+        );
+    }
+
+    /**
+     * A quoted name that contains {@code *} is an explicit projection (its {@link UnmappedFieldsPattern.KeepTerm} is not a pattern), so
+     * it matches only the column named exactly {@code foo*}; the pattern {@code foo*} instead globs over every {@code foo}-prefixed
+     * column. Re-deriving the tag from the string would conflate the two - the misclassification the type-carried tag prevents.
+     */
+    public void testKeepOrderedTreatsQuotedNameContainingStarAsExplicit() {
+        List<String> childOutput = List.of("foobar", "foo*", "foo.leaf");
+        assertEquals(List.of("foo*", "foobar", "foo.leaf"), UnmappedFieldsPattern.keepOrdered(childOutput, List.of(lit("foo*"), pat("*"))));
+        assertEquals(List.of("foobar", "foo*", "foo.leaf"), UnmappedFieldsPattern.keepOrdered(childOutput, List.of(pat("foo*"), pat("*"))));
+    }
+
+    /**
+     * {@link UnmappedFieldsPattern#orderTerms} and {@link UnmappedFieldsPattern#forKeep} accept every projection kind
+     * {@code Analyzer.keepResolver} does - including an {@link UnsupportedAttribute} and an already-resolved attribute - so computing
+     * cosmetic ordering never throws. All three are explicit references, tagged non-pattern and contributing no include group.
+     */
+    public void testOrderTermsAndForKeepAcceptEveryKeepResolverKind() {
+        List<NamedExpression> projections = List.of(
+            new UnresolvedAttribute(Source.EMPTY, "foo*"),
+            new UnsupportedAttribute(Source.EMPTY, "unsup", new UnsupportedEsField("unsup", List.of("keyword", "long"))),
+            new ReferenceAttribute(Source.EMPTY, "resolved", DataType.KEYWORD)
+        );
+        assertEquals(List.of(lit("foo*"), lit("unsup"), lit("resolved")), UnmappedFieldsPattern.orderTerms(projections));
+        assertTrue(UnmappedFieldsPattern.forKeep(projections).isNone());
+    }
+
+    private static UnmappedFieldsPattern.KeepTerm pat(String name) {
+        return new UnmappedFieldsPattern.KeepTerm(name, true);
+    }
+
+    private static UnmappedFieldsPattern.KeepTerm lit(String name) {
+        return new UnmappedFieldsPattern.KeepTerm(name, false);
     }
 }

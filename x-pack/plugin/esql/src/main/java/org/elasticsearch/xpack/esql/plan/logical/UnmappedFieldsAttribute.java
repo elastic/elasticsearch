@@ -66,13 +66,13 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
     );
 
     private final UnmappedFieldsPattern pattern;
-    private final List<String> keepOrder;
+    private final List<UnmappedFieldsPattern.KeepTerm> keepOrder;
 
     public UnmappedFieldsAttribute(Source source, UnmappedFieldsPattern pattern) {
         this(source, pattern, List.of());
     }
 
-    public UnmappedFieldsAttribute(Source source, UnmappedFieldsPattern pattern, List<String> keepOrder) {
+    public UnmappedFieldsAttribute(Source source, UnmappedFieldsPattern pattern, List<UnmappedFieldsPattern.KeepTerm> keepOrder) {
         super(source, ATTRIBUTE_NAME, DataType.KEYWORD, Nullability.TRUE, null, false);
         this.pattern = pattern;
         this.keepOrder = List.copyOf(keepOrder);
@@ -85,7 +85,7 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
         NameId id,
         boolean synthetic,
         UnmappedFieldsPattern pattern,
-        List<String> keepOrder
+        List<UnmappedFieldsPattern.KeepTerm> keepOrder
     ) {
         super(source, ATTRIBUTE_NAME, type, nullability, id, synthetic);
         this.pattern = pattern;
@@ -100,7 +100,7 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
      * The governing {@code KEEP}'s projection terms in written order (bare {@code *}, wildcard patterns and explicit names), or empty
      * when no top {@code KEEP} governs the output order. Read by the coordinator to replay {@code KEEP} ordering over the expanded leaves.
      */
-    public List<String> keepOrder() {
+    public List<UnmappedFieldsPattern.KeepTerm> keepOrder() {
         return keepOrder;
     }
 
@@ -115,7 +115,7 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
             id().writeTo(out);
             out.writeBoolean(synthetic());
             out.writeNamedWriteable(pattern);
-            out.writeStringCollection(keepOrder);
+            out.writeCollection(keepOrder);
         }
     }
 
@@ -129,7 +129,7 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
             NameId id = NameId.readFrom((PlanStreamInput) stream);
             boolean synthetic = stream.readBoolean();
             UnmappedFieldsPattern pattern = stream.readNamedWriteable(UnmappedFieldsPattern.class);
-            List<String> keepOrder = stream.readStringCollectionAsList();
+            List<UnmappedFieldsPattern.KeepTerm> keepOrder = stream.readCollectionAsList(UnmappedFieldsPattern.KeepTerm::readFrom);
             return new UnmappedFieldsAttribute(source, dataType, nullability, id, synthetic, pattern, keepOrder);
         });
     }

@@ -37,7 +37,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.FixForMultiProject;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -333,18 +332,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                         return;
                     }
                     listener.onResponse(null);
-                }
-
-                @Override
-                public void indexShardStateChanged(
-                    IndexShard indexShard,
-                    @Nullable IndexShardState previousState,
-                    IndexShardState currentState,
-                    @Nullable String reason
-                ) {
-                    for (IndexEventListener indexEventListener : indexEventListeners) {
-                        indexEventListener.indexShardStateChanged(indexShard, previousState, currentState, reason);
-                    }
                 }
             });
         }
@@ -1164,11 +1151,15 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             final IndexShard shard = getIndicesService().indexServiceSafe(resolveIndex(indexName)).getShard(0);
             assertThat(shard.state(), equalTo(IndexShardState.RECOVERING));
 
+            // Delete cannot finish while recovery holds the store ref, so do not wait on the delete
+            // until after we unblock recovery.
             final var deleteFuture = indicesAdmin().prepareDelete(indexName).execute();
+            assertBusy(() -> {
+                assertTrue(shard.store().isClosing());
+                assertTrue("recovery must retain a store ref until the recovery listener completes", shard.store().hasReferences());
+            });
+            proceedRecovering.countDown();
             assertAcked(deleteFuture.actionGet());
-            assertTrue(shard.store().isClosing());
-            assertTrue("recovery must retain a store ref until the recovery listener completes", shard.store().hasReferences());
-
         } finally {
             proceedRecovering.countDown();
             TestPlugin.removeIndexEventListener(indexListener);
@@ -1198,18 +1189,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                 }
                 listener.onResponse(null);
             }
-
-            @Override
-            public void indexShardStateChanged(
-                IndexShard indexShard,
-                @Nullable IndexShardState previousState,
-                IndexShardState currentState,
-                @Nullable String reason
-            ) {
-                if (currentState == IndexShardState.RECOVERING && closedIndex.equals(indexShard.shardId().getIndexName())) {
-                    fail("closed index recovery should never reach RECOVERING");
-                }
-            }
         };
         TestPlugin.addIndexEventListener(blockingListener);
         try {
@@ -1233,16 +1212,15 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             assertThat(closedShard.state(), equalTo(IndexShardState.CLOSED));
             assertFalse(store.hasReferences());
 
-            // Free a slot so the queued task runs against the closed store.
-            updateClusterSettings(
-                Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 2).build()
-            );
+            // Free the blocked recovery's slot so the queued task runs against the closed store.
+            proceedBlocked.countDown();
 
             // releaseStoreRefIfHeld must not decRef (would assert invalid decRef).
             awaitRecoveryStats(closedShard, RecoveryStats::noCurrentRecoveries);
         } finally {
             proceedBlocked.countDown();
             TestPlugin.removeIndexEventListener(blockingListener);
+            assertAcked(indicesAdmin().prepareDelete(blockingIndex, closedIndex));
             updateClusterSettings(
                 Settings.builder().putNull(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey()).build()
             );

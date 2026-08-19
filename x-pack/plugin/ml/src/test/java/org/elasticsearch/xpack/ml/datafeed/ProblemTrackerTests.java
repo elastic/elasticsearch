@@ -231,6 +231,32 @@ public class ProblemTrackerTests extends ESTestCase {
         assertThat(requestCircuitBreaker.getMessage(), not(containsString("usually transient")));
     }
 
+    public void testCyclicCauseChainShouldTerminateWithoutParentCircuitBreaker() {
+        RuntimeException cycleRoot = new RuntimeException("cycle-root");
+        RuntimeException cycleTail = new CyclicCauseException("cycle-tail", cycleRoot);
+        cycleRoot.initCause(cycleTail);
+
+        assertNull(ProblemTracker.findParentCircuitBreaker(cycleRoot));
+    }
+
+    public void testCyclicCauseChainWithParentBreakerShouldStillFindParentCircuitBreaker() {
+        CircuitBreakingException parentCircuitBreaker = createParentCircuitBreaker("[100/100b]", 100L);
+        RuntimeException cycleTail = new CyclicCauseException("cycle-tail", parentCircuitBreaker);
+        parentCircuitBreaker.initCause(cycleTail);
+
+        assertSame(parentCircuitBreaker, ProblemTracker.findParentCircuitBreaker(parentCircuitBreaker));
+    }
+
+    public void testCyclicCauseChainWithParentBreakerShouldAuditActionableGuidance() {
+        CircuitBreakingException parentCircuitBreaker = createParentCircuitBreaker("[100/100b]", 100L);
+        RuntimeException cycleTail = new CyclicCauseException("cycle-tail", parentCircuitBreaker);
+        parentCircuitBreaker.initCause(cycleTail);
+
+        problemTracker.reportExtractionProblem(new DatafeedJob.ExtractionProblemException(0L, parentCircuitBreaker));
+
+        assertParentCircuitBreakerAudit();
+    }
+
     public void testParentCircuitBreakerWithDifferentByteCountsShouldAuditOncePerEpisode() {
         CircuitBreakingException firstTrip = createParentCircuitBreaker("[100/100b]", 100L);
         CircuitBreakingException secondTrip = createParentCircuitBreaker("[200/200b]", 200L);
@@ -259,6 +285,7 @@ public class ProblemTrackerTests extends ESTestCase {
                     containsString("needs no action"),
                     containsString("not advanced"),
                     containsString("retries it automatically"),
+                    containsString("datafeed's"),
                     containsString("Data too large"),
                     containsString("search_shards")
                 )
@@ -294,6 +321,21 @@ public class ProblemTrackerTests extends ESTestCase {
 
         TestWrappedException(String message, Throwable cause) {
             super(message, cause);
+        }
+    }
+
+    private static class CyclicCauseException extends RuntimeException {
+
+        private final Throwable cycleCause;
+
+        CyclicCauseException(String message, Throwable cycleCause) {
+            super(message);
+            this.cycleCause = cycleCause;
+        }
+
+        @Override
+        public Throwable getCause() {
+            return cycleCause;
         }
     }
 }

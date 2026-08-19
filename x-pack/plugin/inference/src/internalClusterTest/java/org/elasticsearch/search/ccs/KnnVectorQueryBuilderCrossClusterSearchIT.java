@@ -13,8 +13,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceStringGroup;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
@@ -419,7 +419,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
         };
     }
 
-    private MinimalServiceSettings generateServiceSettings(int dimensions) {
+    private EndpointClusterState generateServiceSettings(int dimensions) {
         return switch (semanticFieldType) {
             case "semantic_text" -> textEmbeddingServiceSettings(
                 dimensions,

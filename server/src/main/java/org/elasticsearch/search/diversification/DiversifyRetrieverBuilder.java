@@ -26,8 +26,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.EmbeddingsField;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.diversification.mmr.MMRResultDiversificationContext;
-import org.elasticsearch.search.fetch.StoredFieldsContext;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
@@ -62,7 +60,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
     public static final NodeFeature RETRIEVER_RESULT_DIVERSIFICATION_MMR_FEATURE = new NodeFeature("retriever.result_diversification_mmr");
     public static final NodeFeature MMR_NULL_DENSE_VECTOR_FIX = new NodeFeature("retriever.mmr_null_dense_vector_fix");
-    public static final NodeFeature MMR_FETCH_EMBEDDINGS = new NodeFeature("retriever.mmr_fetch_embeddings");
+    public static final NodeFeature MMR_FETCH_EMBEDDINGS = new NodeFeature("retriever.mmr_fetch_embeddings");  // TODO: Remove?
     private static final VectorSimilarityFunction QUERY_VECTOR_SIMILARITY_FUNCTION = VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
     public static final String NAME = "diversify";
@@ -325,16 +323,11 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
     @Override
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
-        StoredFieldsContext sfCtx = StoredFieldsContext.fromList(List.of(diversificationField));
-        FetchSourceContext fsCtx = FetchSourceContext.of(false, false, new String[] { diversificationField }, null);
-
-        SearchSourceBuilder builder = sourceBuilder.from(0)
-            .excludeVectors(false)
-            .trackScores(true)
-            .storedFields(sfCtx)
-            .fetchSource(fsCtx)
-            .fetchEmbeddingsField(new EmbeddingsField(diversificationField, VectorType.DENSE_VECTOR));
-        return super.finalizeSourceBuilder(builder);
+        // Diversification only needs each hit's score and the embeddings from the diversification field. The source builder created by
+        // the base class already suppresses _source and stored fields, so nothing else has to be turned off here.
+        return super.finalizeSourceBuilder(
+            sourceBuilder.trackScores(true).fetchEmbeddingsField(new EmbeddingsField(diversificationField, VectorType.DENSE_VECTOR))
+        );
     }
 
     @Override
@@ -444,8 +437,6 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
     /**
      * Returns the single best dense embedding from the diversification field for this hit, or {@code null} if the field is
      * absent, has no values, or has values that cannot be interpreted as dense vectors.
-     *
-     * @throws IllegalArgumentException if the field contains sparse vectors, which diversification does not support
      */
     private VectorData getFieldVectorForSearchHit(RankDocWithSearchHit doc, ResultDiversificationContext diversificationContext) {
         DocumentField field = doc.hit.getFields().get(diversificationField);

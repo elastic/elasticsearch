@@ -98,8 +98,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         DataType.COUNTER_INTEGER,
         DataType.COUNTER_LONG,
         DataType.DENSE_VECTOR,
-        // TODO: DOUBLE_RANGE: fix for double range
-        DataType.DOUBLE_RANGE,
         DataType.EXPONENTIAL_HISTOGRAM,
         DataType.FLATTENED,
         DataType.HISTOGRAM,

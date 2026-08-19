@@ -62,7 +62,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -1111,7 +1110,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         var settings = MetadataIndexTemplateService.resolveSettings(indexTemplate, componentTemplates());
         // Not using IndexSettings.MODE.get() to avoid validation that may fail at this point.
         var rawIndexMode = settings.get(IndexSettings.MODE.getKey());
-        return rawIndexMode != null ? Enum.valueOf(IndexMode.class, rawIndexMode.toUpperCase(Locale.ROOT)) : null;
+        return rawIndexMode != null ? IndexMode.fromString(rawIndexMode) : null;
     }
 
     /**

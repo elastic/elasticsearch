@@ -109,6 +109,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final FailureStoreMetrics failureStoreMetrics;
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
     private final boolean clusterHasFailureStoreFeature;
+    @Nullable
     private final BulkBatchEncoders batchEncoders;
     @Nullable
     private final SourceBatchSharder sourceBatchSharder;
@@ -310,15 +311,18 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             clusterState,
             Iterators.enumerate(bulkRequest.requests.iterator(), BulkItemRequest::new),
             BulkOperation::validateWriteIndex,
-            batchEncoders
+            batchEncoders,
+            sourceBatchSharder
         );
     }
 
     private Map<ShardId, List<BulkItemRequest>> drainAndGroupRedirectsByShards(ClusterState clusterState) {
+        // Redirects are freshly built requests carrying inline source, so neither batching helper applies.
         return groupRequestsByShards(
             clusterState,
             Iterators.fromSupplier(failureStoreRedirects::poll),
             (ia, ignore) -> validateRedirectIndex(ia),
+            null,
             null
         );
     }
@@ -327,7 +331,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         ClusterState clusterState,
         Iterator<BulkItemRequest> it,
         BiConsumer<IndexAbstraction, DocWriteRequest<?>> indexOperationValidator,
-        @Nullable BulkBatchEncoders encoders
+        @Nullable BulkBatchEncoders encoders,
+        @Nullable SourceBatchSharder sharder
     ) {
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
         final ConcreteIndices concreteIndices = new ConcreteIndices(project, indexNameExpressionResolver);
@@ -367,11 +372,13 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 }
                 IndexRouting indexRouting = concreteIndices.routing(concreteIndex);
                 docWriteRequest.preRoutingProcess(indexRouting);
-                // For pre-built-batch items, verify routing can be decided without the source before
-                // we attempt to call route() (which would parse empty bytes and fail).
-                if (sourceBatchSharder != null && docWriteRequest instanceof IndexRequest ir) {
-                    sourceBatchSharder.checkRoutable(ir, concreteIndex.getName(), indexRouting);
-                }
+                // For pre-built-batch items, bind the item to its batch and to the concrete index it
+                // resolved to. The first item of an index also verifies there that routing can be decided
+                // without the source, before we attempt to call route() (which would parse empty bytes).
+                final IndexRequest batchItem = sharder != null && docWriteRequest instanceof IndexRequest ir ? ir : null;
+                final SourceBatchSharder.ShardTarget batchTarget = batchItem == null
+                    ? null
+                    : sharder.prepareRouting(batchItem, concreteIndex, indexRouting, project);
                 int shardId;
                 if (encoders != null && encoders.disabled() == false) {
                     // The pre-scan in doRun() guarantees every item is an IndexRequest with inline
@@ -387,8 +394,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 docWriteRequest.postRoutingProcess(indexRouting);
                 // Record routing for pre-built-batch items after postRoutingProcess so the tsid/hash
                 // side effects (if any) are visible before we store the request.
-                if (sourceBatchSharder != null && docWriteRequest instanceof IndexRequest ir) {
-                    sourceBatchSharder.recordRouting(ir, concreteIndex, shardId, project.getIndexSafe(concreteIndex).getNumberOfShards());
+                if (batchTarget != null) {
+                    batchTarget.recordRouting(batchItem, shardId);
                 }
                 List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(
                     new ShardId(concreteIndex, shardId),
@@ -461,24 +468,12 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             shardBatches = batchEncoders.finalizeBatches();
         } else if (sourceBatchSharder != null) {
             shardBatches = sourceBatchSharder.shardBatches();
-            // Validate that the scatter result aligns 1:1 with the items for each shard.
-            for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
-                SourceBatch shardBatch = shardBatches.get(entry.getKey());
-                if (shardBatch != null && BulkShardBatch.rowsAlignWithItems(shardBatch, entry.getValue()) == false) {
-                    throw new IllegalStateException(
-                        "scattered batch for shard ["
-                            + entry.getKey()
-                            + "] does not align with its items (batch rows: "
-                            + shardBatch.docCount()
-                            + ", items: "
-                            + entry.getValue().size()
-                            + "); this indicates a bug in the scatter logic"
-                    );
-                }
-            }
         } else {
             shardBatches = Collections.emptyMap();
         }
+        // Unconditional: an item that kept a row reference without a batch behind it is the failure mode
+        // both batching paths share, and it is invisible from here otherwise.
+        SourceBatchSharder.validateBatchAlignment(requestsByShard, shardBatches);
 
         String nodeId = clusterService.localNode().getId();
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
@@ -779,7 +774,10 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         IndexRequest failureStoreRequest;
         try {
             // If the original request carries only a row reference (no inline bytes), materialize
-            // the source now so that transformFailedRequest can read the document content.
+            // the source now so that transformFailedRequest can read the document content. This reads
+            // whatever batch the item currently points at: the whole-request batch before scatter, the
+            // per-shard batch at its shard-local row after. Both are correct only because this always
+            // runs after shardBatches() has re-pointed the items.
             IndexRequest writeRequest = TransportBulkAction.getIndexWriteRequest(request.request());
             if (writeRequest != null && writeRequest.indexSource().hasSourceRow()) {
                 writeRequest.indexSource().ensureInlineSource();

@@ -14,22 +14,30 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
@@ -42,6 +50,7 @@ import org.junit.runners.model.Statement;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -69,6 +78,12 @@ public class BatchBulkIT extends ESIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(ShardBatchIndexer.BATCH_INDEXING.getKey(), true)
             .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        // Needed by the pre-built-batch tests that target a data stream rather than a concrete index.
+        return CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), DataStreamsPlugin.class);
     }
 
     private void createBatchIndex(String index, int shards, int replicas) throws IOException {
@@ -1924,7 +1939,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                 doc.field("host", "host-" + (i % 3));
                 doc.field("value", (long) i);
                 doc.endObject();
-                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON, LeafSink.NO_OP);
+                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON);
                 encoder.commitScratchTo(0);
             }
             batch = encoder.buildPartition(0);
@@ -2016,7 +2031,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                 doc.field("host", "host-" + (i % 5));
                 doc.field("value", (long) i);
                 doc.endObject();
-                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON, LeafSink.NO_OP);
+                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON);
                 encoder.commitScratchTo(0); // single whole-index partition
             }
             batch = encoder.buildPartition(0);
@@ -2102,7 +2117,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                 doc.field("service_name", "svc-" + i);
                 doc.field("value", (long) i);
                 doc.endObject();
-                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON, LeafSink.NO_OP);
+                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON);
                 encoder.commitScratchTo(0);
             }
             batch = encoder.buildPartition(0);
@@ -2116,7 +2131,7 @@ public class BatchBulkIT extends ESIntegTestCase {
         }
         bulkRequest.setPreBuiltBatches(Map.of(index, batch));
 
-        // The IllegalArgumentException from checkRoutable is caught and turned into per-item failures;
+        // The IllegalArgumentException from SourceBatchSharder#resolve is caught and turned into per-item failures;
         // the bulk request itself does not throw.
         BulkResponse response = client(coordinatingNode).bulk(bulkRequest).actionGet();
         assertTrue("expected bulk failures for source-extracted routing", response.hasFailures());
@@ -2168,7 +2183,7 @@ public class BatchBulkIT extends ESIntegTestCase {
             doc.field("host", "host-0");
             doc.field("value", 0L);
             doc.endObject();
-            encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON, LeafSink.NO_OP);
+            encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON);
             encoder.commitScratchTo(0);
             batch = encoder.buildPartition(0);
         }
@@ -2190,5 +2205,141 @@ public class BatchBulkIT extends ESIntegTestCase {
         BulkItemResponse item = response.getItems()[0];
         assertTrue(item.isFailed());
         assertThat(item.getFailureMessage(), containsString("must carry a source-row reference"));
+    }
+
+    /**
+     * A producer keys its batches by the name it writes to, which for a data stream is the data stream name
+     * — it has no way to know the backing index. The coordinator resolves the concrete write index and
+     * scatters the batch onto that index's shards.
+     */
+    public void testPreBuiltBatchTargetsDataStreamName() throws Exception {
+        String dataStream = "logs-prebuilt-ds";
+        putBatchDataStreamTemplate(dataStream, 3);
+        assertAcked(
+            client().execute(
+                CreateDataStreamAction.INSTANCE,
+                new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStream)
+            )
+        );
+        ensureGreen(dataStream);
+
+        String coordinatingNode = findCoordinatingNode();
+        int numDocs = randomIntBetween(10, 30);
+        Instant baseTime = Instant.parse("2025-01-15T10:00:00.000Z");
+
+        SourceBatch batch;
+        try (EscfEncoder encoder = new EscfEncoder()) {
+            for (int i = 0; i < numDocs; i++) {
+                XContentBuilder doc = JsonXContent.contentBuilder();
+                doc.startObject();
+                doc.field("@timestamp", baseTime.plusSeconds(i).toString());
+                doc.field("host", "host-" + (i % 4));
+                doc.field("value", (long) i);
+                doc.endObject();
+                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON);
+                encoder.commitScratchTo(0);
+            }
+            batch = encoder.buildPartition(0);
+        }
+
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            IndexRequest ir = new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE);
+            ir.indexSource().setSourceRow(batch, i, XContentType.JSON);
+            bulkRequest.add(ir);
+        }
+        // Keyed by the data stream name, not by .ds-logs-prebuilt-ds-000001.
+        bulkRequest.setPreBuiltBatches(Map.of(dataStream, batch));
+
+        BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+        assertNoFailures(bulkResponse);
+
+        refresh(dataStream);
+        assertResponse(prepareSearch(dataStream).setTrackTotalHits(true).setSize(numDocs).addSort("value", SortOrder.ASC), response -> {
+            assertNoFailures(response);
+            assertThat(response.getHits().getTotalHits().value(), equalTo((long) numDocs));
+            SearchHit[] hits = response.getHits().getHits();
+            for (int i = 0; i < numDocs; i++) {
+                Map<String, Object> source = hits[i].getSourceAsMap();
+                assertThat("host mismatch at doc " + i, source.get("host"), equalTo("host-" + (i % 4)));
+                assertThat("value mismatch at doc " + i, source.get("value"), equalTo(i));
+            }
+        });
+    }
+
+    /** The same resolution, via a write alias: the batch is keyed by the alias the requests target. */
+    public void testPreBuiltBatchTargetsAliasName() throws IOException {
+        String index = "test-prebuilt-alias-backed";
+        String alias = "test-prebuilt-alias";
+        createBatchIndex(index, 3, 0);
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(index).alias(alias).writeIndex(true))
+        );
+
+        String coordinatingNode = findCoordinatingNode();
+        int numDocs = randomIntBetween(10, 30);
+
+        SourceBatch batch;
+        try (EscfEncoder encoder = new EscfEncoder()) {
+            for (int i = 0; i < numDocs; i++) {
+                XContentBuilder doc = JsonXContent.contentBuilder();
+                doc.startObject();
+                doc.field("name", "name-" + i);
+                doc.field("value", (long) i);
+                doc.endObject();
+                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON);
+                encoder.commitScratchTo(0);
+            }
+            batch = encoder.buildPartition(0);
+        }
+
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            IndexRequest ir = new IndexRequest(alias).id("doc-" + i).opType(DocWriteRequest.OpType.INDEX);
+            ir.indexSource().setSourceRow(batch, i, XContentType.JSON);
+            bulkRequest.add(ir);
+        }
+        bulkRequest.setPreBuiltBatches(Map.of(alias, batch));
+
+        BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+        assertNoFailures(bulkResponse);
+
+        refresh(index);
+        assertResponse(prepareSearch(index).setTrackTotalHits(true).setSize(numDocs).addSort("value", SortOrder.ASC), response -> {
+            assertNoFailures(response);
+            assertThat(response.getHits().getTotalHits().value(), equalTo((long) numDocs));
+            SearchHit[] hits = response.getHits().getHits();
+            for (int i = 0; i < numDocs; i++) {
+                assertThat("name mismatch at doc " + i, hits[i].getSourceAsMap().get("name"), equalTo("name-" + i));
+            }
+        });
+    }
+
+    private void putBatchDataStreamTemplate(String dataStream, int shards) throws IOException {
+        String mapping = """
+            {
+                "properties": {
+                    "@timestamp": { "type": "date" },
+                    "host": { "type": "keyword" },
+                    "value": { "type": "long" }
+                }
+            }
+            """;
+        var request = new TransportPutComposableIndexTemplateAction.Request(dataStream + "-template");
+        request.indexTemplate(
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(dataStream + "*"))
+                .template(
+                    new Template(
+                        Settings.builder().put("index.number_of_shards", shards).put("index.number_of_replicas", 0).build(),
+                        CompressedXContent.fromJSON(mapping),
+                        null
+                    )
+                )
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
+        );
+        assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request));
     }
 }

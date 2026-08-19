@@ -35,6 +35,7 @@ import javax.lang.model.element.TypeElement;
 
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Addressable;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Arena;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Charset;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayoutPathElement;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemorySegment;
@@ -53,6 +54,7 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_groupEleme
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_sequenceElement;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_varHandleSequenceWithoutOffset;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_varHandleWithoutOffset;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.emitPushUtf16LEConstant;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.fieldClassDesc;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.primitiveClassDesc;
 
@@ -415,7 +417,11 @@ final class StructImplWriter {
         });
     }
 
-    /** Emits a getter for an inline string field: {@code return MemorySegmentAdapter.getString(segment, fieldOffset);}. */
+    /**
+     * Emits a getter for an inline string field: {@code return MemorySegmentAdapter.getString(segment, fieldOffset);}
+     * for a narrow (UTF-8) field, or the charset-aware overload with {@code StandardCharsets.UTF_16LE} when
+     * {@link InlineStringFieldModel#wide()}.
+     */
     private static void emitInlineStringFieldGetter(
         ClassBuilder cb,
         ClassDesc structImplDesc,
@@ -428,18 +434,29 @@ final class StructImplWriter {
             code.aload(0);
             code.getfield(structImplDesc, "segment", CD_MemorySegment);
             emitInlineStringOffset(code, structImplDesc, field, perPlatform, singleLayout);
-            code.invokestatic(
-                CD_MemorySegmentAdapter,
-                "getString",
-                MethodTypeDesc.of(CD_String, CD_MemorySegment, ClassDesc.ofDescriptor("J"))
-            );
+            if (field.wide()) {
+                emitPushUtf16LEConstant(code);
+                code.invokestatic(
+                    CD_MemorySegmentAdapter,
+                    "getString",
+                    MethodTypeDesc.of(CD_String, CD_MemorySegment, ClassDesc.ofDescriptor("J"), CD_Charset)
+                );
+            } else {
+                code.invokestatic(
+                    CD_MemorySegmentAdapter,
+                    "getString",
+                    MethodTypeDesc.of(CD_String, CD_MemorySegment, ClassDesc.ofDescriptor("J"))
+                );
+            }
             code.areturn();
         });
     }
 
     /**
      * Emits a setter for an inline string field:
-     * {@code void name(String v) { MemorySegmentAdapter.setString(segment, fieldOffset, v); }}.
+     * {@code void name(String v) { MemorySegmentAdapter.setString(segment, fieldOffset, v); }} for a narrow
+     * (UTF-8) field, or the charset-aware overload with {@code StandardCharsets.UTF_16LE} when
+     * {@link InlineStringFieldModel#wide()}.
      */
     private static void emitInlineStringFieldSetter(
         ClassBuilder cb,
@@ -454,11 +471,20 @@ final class StructImplWriter {
             code.getfield(structImplDesc, "segment", CD_MemorySegment);
             emitInlineStringOffset(code, structImplDesc, field, perPlatform, singleLayout);
             code.aload(1);
-            code.invokestatic(
-                CD_MemorySegmentAdapter,
-                "setString",
-                MethodTypeDesc.of(CD_void, CD_MemorySegment, ClassDesc.ofDescriptor("J"), CD_String)
-            );
+            if (field.wide()) {
+                emitPushUtf16LEConstant(code);
+                code.invokestatic(
+                    CD_MemorySegmentAdapter,
+                    "setString",
+                    MethodTypeDesc.of(CD_void, CD_MemorySegment, ClassDesc.ofDescriptor("J"), CD_String, CD_Charset)
+                );
+            } else {
+                code.invokestatic(
+                    CD_MemorySegmentAdapter,
+                    "setString",
+                    MethodTypeDesc.of(CD_void, CD_MemorySegment, ClassDesc.ofDescriptor("J"), CD_String)
+                );
+            }
             code.return_();
         });
     }

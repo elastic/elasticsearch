@@ -315,6 +315,33 @@ public class FileDataSourceValidator implements DataSourceValidator {
             }
         }
 
+        // Value-validate format-specific keys: resolve the format (explicit setting > resource extension)
+        // and call its registered validator. Errors accumulate into the shared ValidationException so
+        // multiple bad values report together rather than surfacing one at a time.
+        if (formatConfigKeyResolver != null) {
+            String resolvedFormat = explicitFormat(settings);
+            if (resolvedFormat == null && resource != null) {
+                resolvedFormat = formatFromExtension(resource);
+            }
+            if (resolvedFormat != null) {
+                FormatSpec.FormatConfigValidator fmtValidator = formatConfigKeyResolver.validatorForFormat(resolvedFormat);
+                if (fmtValidator != null) {
+                    Set<String> formatKeys = formatConfigKeyResolver.configKeysForFormat(resolvedFormat);
+                    if (formatKeys != null) {
+                        Map<String, Object> fmtSettings = new HashMap<>();
+                        for (String key : formatKeys) {
+                            if (settings.containsKey(key)) {
+                                fmtSettings.put(key, settings.get(key));
+                            }
+                        }
+                        if (fmtSettings.isEmpty() == false) {
+                            validate(() -> fmtValidator.validate(fmtSettings), errors);
+                        }
+                    }
+                }
+            }
+        }
+
         errors.throwIfValidationErrorsExist();
         return result;
     }
@@ -559,16 +586,22 @@ public class FileDataSourceValidator implements DataSourceValidator {
     public interface FormatConfigKeyResolver {
 
         /**
-         * Builds a resolver from a format-name → config-keys map and an extension → format-name map.
+         * Builds a resolver from a format-name → config-keys map, an extension → format-name map, and
+         * an optional format-name → value-validator map.
          * Captures immutable copies so the result is safe for concurrent reads, and lowercases the
          * lookup arguments so callers need not normalize first. {@link #knownFormats()} is the
          * config-keys map's key set, so it stays consistent with {@link #configKeysForFormat} by
          * construction. This is the implementation used in production (see {@code EsqlPlugin}); tests
          * use it too rather than hand-rolling a stand-in.
          */
-        static FormatConfigKeyResolver of(Map<String, Set<String>> formatConfigKeys, Map<String, String> formatByExtension) {
+        static FormatConfigKeyResolver of(
+            Map<String, Set<String>> formatConfigKeys,
+            Map<String, String> formatByExtension,
+            Map<String, FormatSpec.FormatConfigValidator> formatValidators
+        ) {
             Map<String, Set<String>> keysByFormat = Map.copyOf(formatConfigKeys);
             Map<String, String> formatByExt = Map.copyOf(formatByExtension);
+            Map<String, FormatSpec.FormatConfigValidator> validators = formatValidators.isEmpty() ? Map.of() : Map.copyOf(formatValidators);
             Set<String> formats = keysByFormat.keySet();
             return new FormatConfigKeyResolver() {
                 @Override
@@ -585,7 +618,20 @@ public class FileDataSourceValidator implements DataSourceValidator {
                 public Set<String> knownFormats() {
                     return formats;
                 }
+
+                @Override
+                public FormatSpec.FormatConfigValidator validatorForFormat(String formatName) {
+                    return validators.get(formatName.toLowerCase(Locale.ROOT));
+                }
             };
+        }
+
+        /**
+         * Builds a resolver from a format-name → config-keys map and an extension → format-name map,
+         * with no per-format value validators. Backward-compatible delegate.
+         */
+        static FormatConfigKeyResolver of(Map<String, Set<String>> formatConfigKeys, Map<String, String> formatByExtension) {
+            return of(formatConfigKeys, formatByExtension, Map.of());
         }
 
         /**
@@ -605,5 +651,15 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
         /** Returns all registered format names (lowercased); used only for the unknown-format error message. */
         Set<String> knownFormats();
+
+        /**
+         * Returns the value validator for the named format, or {@code null} if the format has no value
+         * validator (values are accepted as-is, validated at query time). Default implementation returns
+         * {@code null}; overridden by the production resolver when validators are registered.
+         */
+        @Nullable
+        default FormatSpec.FormatConfigValidator validatorForFormat(String formatName) {
+            return null;
+        }
     }
 }

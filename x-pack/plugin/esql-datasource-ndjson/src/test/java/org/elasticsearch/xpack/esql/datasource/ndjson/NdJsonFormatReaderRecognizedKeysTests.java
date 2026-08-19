@@ -19,7 +19,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -131,6 +133,52 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
                 spec.configKeys()
             );
         }
+    }
+
+    /**
+     * Differential test: the FormatSpec's configValidator and the reader's withConfigTrackingConsumedKeys
+     * must accept and reject identically for the same corpus, with identical error messages.
+     */
+    public void testValidatorAndReaderAgreeNdJsonFormat() {
+        NdJsonDataSourcePlugin plugin = new NdJsonDataSourcePlugin();
+        FormatSpec spec = plugin.formatSpecs().iterator().next();
+        FormatSpec.FormatConfigValidator validator = spec.configValidator();
+        assertNotNull("ndjson FormatSpec must have a configValidator", validator);
+
+        // Good values — both must accept without throwing.
+        for (Map.Entry<String, Object> good : List.of(
+            Map.entry("segment_size", (Object) "2mb"),
+            Map.entry("datetime_format", (Object) "yyyy-MM-dd")
+        )) {
+            Map<String, Object> config = Map.of(good.getKey(), good.getValue());
+            validator.validate(config);
+            newReader().withConfigTrackingConsumedKeys(config);
+        }
+
+        // Bad values — both must throw with identical messages.
+        for (Map.Entry<String, Object> bad : badNdJsonValues()) {
+            Map<String, Object> config = Map.of(bad.getKey(), bad.getValue());
+            IllegalArgumentException fromValidator = expectThrows(IllegalArgumentException.class, () -> validator.validate(config));
+            IllegalArgumentException fromReader = expectThrows(
+                IllegalArgumentException.class,
+                () -> newReader().withConfigTrackingConsumedKeys(config)
+            );
+            assertEquals(
+                "validator and reader must produce identical message for bad " + bad.getKey() + "=[" + bad.getValue() + "]",
+                fromReader.getMessage(),
+                fromValidator.getMessage()
+            );
+        }
+    }
+
+    /** Bad NdJson config values that both validator and reader must reject with the same message. */
+    private static List<Map.Entry<String, Object>> badNdJsonValues() {
+        List<Map.Entry<String, Object>> list = new ArrayList<>();
+        list.add(Map.entry("segment_size", (Object) "1kb"));              // below MIN_SEGMENT_SIZE (64kb)
+        list.add(Map.entry("datetime_format", (Object) "not-a-format"));  // unrecognized pattern
+        list.add(Map.entry("schema_sample_size", (Object) 0));            // must be positive
+        list.add(Map.entry("schema_sample_size", (Object) (-1)));         // must be positive
+        return list;
     }
 
     private NdJsonFormatReader newReader() {

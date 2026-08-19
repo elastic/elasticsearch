@@ -493,10 +493,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // config keys for one format name cannot arise and need no separate check here.
         Map<String, Set<String>> formatToConfigKeys = new HashMap<>();
         Map<String, String> extToFormat = new HashMap<>();
+        Map<String, FormatSpec.FormatConfigValidator> formatToValidator = new HashMap<>();
         for (DataSourcePlugin p : allDataSourcePlugins) {
             for (FormatSpec spec : p.formatSpecs()) {
                 String format = spec.format().toLowerCase(Locale.ROOT);
                 formatToConfigKeys.put(format, spec.configKeys());
+                if (spec.configValidator() != null) {
+                    formatToValidator.put(format, spec.configValidator());
+                }
                 for (String ext : spec.extensions()) {
                     String normalized = ext.toLowerCase(Locale.ROOT);
                     if (normalized.startsWith(".") == false) {
@@ -516,7 +520,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // map's key set, so the two sources cannot diverge.
         FileDataSourceValidator.FormatConfigKeyResolver formatKeyResolver = formatToConfigKeys.isEmpty()
             ? null
-            : FileDataSourceValidator.FormatConfigKeyResolver.of(formatToConfigKeys, extToFormat);
+            : FileDataSourceValidator.FormatConfigKeyResolver.of(formatToConfigKeys, extToFormat, formatToValidator);
 
         // Collect known compression extensions so the CRUD validator only falls back to
         // inner extensions for compound paths (e.g. data.csv.gz) when the outer extension

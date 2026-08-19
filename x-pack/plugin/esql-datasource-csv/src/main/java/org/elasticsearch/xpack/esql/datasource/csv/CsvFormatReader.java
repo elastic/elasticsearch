@@ -630,6 +630,22 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
+     * Validates format-specific settings by running the same parsers used at query time.
+     * Throws {@link IllegalArgumentException} on any invalid value, giving message parity with the query path.
+     * Called at dataset registration time via {@link CsvDataSourcePlugin}'s
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.FormatSpec.FormatConfigValidator}.
+     *
+     * @param baseline the format's default options ({@link CsvFormatOptions#DEFAULT} for csv,
+     *                 {@link CsvFormatOptions#TSV} for tsv)
+     */
+    static void validateConfig(Map<String, Object> config, CsvFormatOptions baseline) {
+        if (config == null || config.isEmpty()) {
+            return;
+        }
+        parseOptionsFromConfig(config, baseline);
+    }
+
+    /**
      * Merge {@code WITH} options into {@code baseline} (the reader's current {@link CsvFormatOptions}).
      * Absent keys keep baseline values so e.g. TSV's tab delimiter is preserved when only {@code header_row}
      * is overridden.
@@ -707,7 +723,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             );
         }
 
-        char delimiter = parseChar(config.get(CONFIG_DELIMITER), baseline.delimiter());
+        Object delimiterValue = config.get(CONFIG_DELIMITER);
+        char delimiter = isExplicitlySet(delimiterValue) ? parseChar(delimiterValue, baseline.delimiter()) : baseline.delimiter();
         String commentPrefix = parseString(config.get(CONFIG_COMMENT), baseline.commentPrefix());
         String nullValue = parseString(config.get(CONFIG_NULL_VALUE), baseline.nullValue());
         Charset encoding = parseEncoding(config.get(CONFIG_ENCODING), baseline.encoding());
@@ -783,7 +800,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if ("\\\\".equals(s)) {
             return '\\';
         }
-        return s.charAt(0);
+        throw new IllegalArgumentException(
+            "Invalid character value [" + value + "]: expected a single character or one of \\t, \\n, \\r, \\\\"
+        );
     }
 
     private static String parseString(Object value, String defaultValue) {

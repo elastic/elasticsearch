@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 
+import java.net.URI;
 import java.util.Map;
 import java.util.Set;
 
@@ -75,6 +76,26 @@ public class S3Configuration extends FileDataSourceConfiguration {
         if (hasFederatedAuth()) {
             if (roleArn() == null) {
                 errors.addValidationError("role_arn is required when federated authentication settings are configured");
+            }
+        }
+        // Validate the endpoint at registration time: a syntactically invalid or non-http(s) URL
+        // would only fail at first query, far from where the user made the mistake.
+        // Reachability is a runtime property and is not checked here.
+        String ep = endpoint();
+        if (ep != null && ep.isBlank() == false) {
+            try {
+                URI uri = URI.create(ep);
+                String scheme = uri.getScheme();
+                if (uri.isAbsolute() == false
+                    || (scheme.equals("http") == false && scheme.equals("https") == false)
+                    || uri.getHost() == null
+                    || uri.getHost().isBlank()) {
+                    errors.addValidationError(
+                        "endpoint [" + ep + "] must be an absolute http or https URL (e.g. https://my-endpoint.example.com)"
+                    );
+                }
+            } catch (IllegalArgumentException e) {
+                errors.addValidationError("endpoint [" + ep + "] is not a valid URL: " + e.getMessage());
             }
         }
     }

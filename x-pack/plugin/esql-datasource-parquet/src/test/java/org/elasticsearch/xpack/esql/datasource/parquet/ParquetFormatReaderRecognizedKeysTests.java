@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -130,5 +131,46 @@ public class ParquetFormatReaderRecognizedKeysTests extends ESTestCase {
                 spec.configKeys()
             );
         }
+    }
+
+    /**
+     * Differential test: the FormatSpec's configValidator and the reader's withConfigTrackingConsumedKeys
+     * must accept and reject identically for the same corpus, with identical error messages.
+     */
+    public void testValidatorAndReaderAgreeParquetFormat() {
+        ParquetDataSourcePlugin plugin = new ParquetDataSourcePlugin();
+        FormatSpec spec = plugin.formatSpecs().iterator().next();
+        FormatSpec.FormatConfigValidator validator = spec.configValidator();
+        assertNotNull("parquet FormatSpec must have a configValidator", validator);
+
+        // Good values — both must accept without throwing.
+        for (boolean v : new boolean[] { true, false }) {
+            Map<String, Object> config = Map.of("optimized_reader", v);
+            validator.validate(config);
+            new ParquetFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(config);
+        }
+
+        // Bad values — both must throw with identical messages.
+        for (Map.Entry<String, Object> bad : badParquetValues().entrySet()) {
+            Map<String, Object> config = Map.of(bad.getKey(), bad.getValue());
+            IllegalArgumentException fromValidator = expectThrows(IllegalArgumentException.class, () -> validator.validate(config));
+            IllegalArgumentException fromReader = expectThrows(
+                IllegalArgumentException.class,
+                () -> new ParquetFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(config)
+            );
+            assertEquals(
+                "validator and reader must produce identical message for bad " + bad.getKey() + "=[" + bad.getValue() + "]",
+                fromReader.getMessage(),
+                fromValidator.getMessage()
+            );
+        }
+    }
+
+    /** Bad Parquet config values that both validator and reader must reject with the same message. */
+    private static LinkedHashMap<String, Object> badParquetValues() {
+        LinkedHashMap<String, Object> m = new LinkedHashMap<>();
+        m.put("optimized_reader", "yes");          // not a valid boolean string
+        m.put("late_materialization", "maybe");    // not a valid boolean string
+        return m;
     }
 }

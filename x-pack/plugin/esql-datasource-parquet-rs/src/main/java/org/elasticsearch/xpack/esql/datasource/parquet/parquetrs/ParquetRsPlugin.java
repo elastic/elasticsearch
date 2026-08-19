@@ -33,7 +33,7 @@ public class ParquetRsPlugin extends Plugin implements DataSourcePlugin {
         if (FormatNameResolver.parquetRsEnabled() == false) {
             return Set.of();
         }
-        return Set.of(new FormatSpec(FormatNameResolver.FORMAT_PARQUET_RS, Set.of(), Set.of()));
+        return Set.of(new FormatSpec(FormatNameResolver.FORMAT_PARQUET_RS, Set.of(), Set.of(), null));
     }
 
     @Override

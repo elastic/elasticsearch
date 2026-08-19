@@ -132,7 +132,19 @@ public class FormatReaderRegistry {
         }
         Supplier<FormatReader> supplier = byName.get(formatName.toLowerCase(Locale.ROOT));
         Check.notNull(supplier, "Cannot register extension [{}] -- format [{}] not registered", extension, formatName);
-        byExtension.put(normalizedExt, supplier);
+        Supplier<FormatReader> existing = byExtension.putIfAbsent(normalizedExt, supplier);
+        if (existing != null && existing != supplier) {
+            // Find the name of the format that already owns this extension for a clear error message.
+            String existingFormat = byName.entrySet()
+                .stream()
+                .filter(e -> e.getValue() == existing)
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElse("unknown");
+            throw new IllegalStateException(
+                "conflicting formats for extension [" + normalizedExt + "]: [" + existingFormat + "] vs [" + formatName + "]"
+            );
+        }
     }
 
     public FormatReader byExtension(String objectName) {

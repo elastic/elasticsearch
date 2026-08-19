@@ -373,7 +373,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         }
     }
 
-    private static long parseSegmentSize(Object value, long defaultValueBytes) {
+    static long parseSegmentSize(Object value, long defaultValueBytes) {
         if (value == null) {
             return defaultValueBytes;
         }
@@ -383,7 +383,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         return bytes;
     }
 
-    private static DateFormatter parseDatetimeFormat(Object value, DateFormatter baseline) {
+    static DateFormatter parseDatetimeFormat(Object value, DateFormatter baseline) {
         if (value == null || value.toString().isEmpty()) {
             return baseline;
         }
@@ -391,6 +391,31 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             return DateFormatter.forPattern(value.toString());
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid datetime_format [" + value + "]", e);
+        }
+    }
+
+    /**
+     * Validates format-specific settings by running the same parsers used at query time.
+     * Throws {@link IllegalArgumentException} on any invalid value, giving message parity with the
+     * query path. Called at dataset registration time via {@link NdJsonDataSourcePlugin}'s
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.FormatSpec.FormatConfigValidator}.
+     */
+    static void validateConfig(Map<String, Object> config) {
+        if (config == null || config.isEmpty()) {
+            return;
+        }
+        Object segmentSize = config.get(CONFIG_SEGMENT_SIZE);
+        if (segmentSize != null) {
+            parseSegmentSize(segmentSize, DEFAULT_SEGMENT_SIZE.getBytes());
+        }
+        Object datetimeFormat = config.get(CONFIG_DATETIME_FORMAT);
+        if (datetimeFormat != null && datetimeFormat.toString().isEmpty() == false) {
+            parseDatetimeFormat(datetimeFormat, null);
+        }
+        Object sampleSize = config.get(CONFIG_SCHEMA_SAMPLE_SIZE);
+        if (sampleSize != null) {
+            int parsed = parseInt(sampleSize, 0);
+            Check.clientError(parsed > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", parsed);
         }
     }
 

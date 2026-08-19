@@ -432,7 +432,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
 
-    private static boolean parseBooleanConfig(Map<String, Object> config, String key, boolean defaultValue) {
+    static boolean parseBooleanConfig(Map<String, Object> config, String key, boolean defaultValue) {
         Object value = config.get(key);
         if (value == null) {
             return defaultValue;
@@ -441,6 +441,20 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             return b;
         }
         return org.elasticsearch.core.Booleans.parseBoolean(value.toString());
+    }
+
+    /**
+     * Validates format-specific settings by running the same parsers used at query time.
+     * Throws {@link IllegalArgumentException} on any invalid value, giving message parity with the
+     * query path. Called at dataset registration time via {@link ParquetDataSourcePlugin}'s
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.FormatSpec.FormatConfigValidator}.
+     */
+    static void validateConfig(Map<String, Object> config) {
+        if (config == null || config.isEmpty()) {
+            return;
+        }
+        parseBooleanConfig(config, CONFIG_OPTIMIZED_READER, false);
+        parseBooleanConfig(config, CONFIG_LATE_MATERIALIZATION, false);
     }
 
     @Override

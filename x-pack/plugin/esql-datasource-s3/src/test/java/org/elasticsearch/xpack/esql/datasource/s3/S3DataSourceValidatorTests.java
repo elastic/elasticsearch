@@ -677,4 +677,117 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("format", "auto", "delimiter", "|"))
         );
     }
+
+    // --- Endpoint URL validation ---
+
+    public void testValidateDatasourceRejectsBareWordEndpoint() {
+        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(Map.of("endpoint", "notaurl")));
+        assertThat(e.getMessage(), containsString("endpoint [notaurl]"));
+        assertThat(e.getMessage(), containsString("http"));
+    }
+
+    public void testValidateDatasourceRejectsEndpointWithEmbeddedSpace() {
+        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(Map.of("endpoint", "not a url")));
+        assertThat(e.getMessage(), containsString("endpoint [not a url]"));
+    }
+
+    public void testValidateDatasourceRejectsMissingSchemeEndpoint() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("endpoint", "//bucket.s3.amazonaws.com"))
+        );
+        assertThat(e.getMessage(), containsString("endpoint [//bucket.s3.amazonaws.com]"));
+        assertThat(e.getMessage(), containsString("http"));
+    }
+
+    public void testValidateDatasourceRejectsNonHttpEndpoint() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("endpoint", "ftp://s3-proxy.example.com"))
+        );
+        assertThat(e.getMessage(), containsString("endpoint [ftp://s3-proxy.example.com]"));
+        assertThat(e.getMessage(), containsString("http"));
+    }
+
+    public void testValidateDatasourceAcceptsHttpEndpoint() {
+        var result = validator.validateDatasource(Map.of("endpoint", "http://s3-proxy.example.com"));
+        assertEquals("http://s3-proxy.example.com", result.get("endpoint").nonSecretValue());
+    }
+
+    public void testValidateDatasourceAcceptsHttpsEndpoint() {
+        var result = validator.validateDatasource(Map.of("endpoint", "https://s3-proxy.example.com:9000"));
+        assertEquals("https://s3-proxy.example.com:9000", result.get("endpoint").nonSecretValue());
+    }
+
+    public void testValidateDatasourceAbsentEndpointAccepted() {
+        // No endpoint: accepted — the SDK uses the default regional endpoint.
+        var result = validator.validateDatasource(Map.of("access_key", "AKIA123", "secret_key", "sk", "region", "us-east-1"));
+        assertNull(result.get("endpoint"));
+    }
+
+    public void testValidateDatasourceRejectsSchemeOnlyEndpoint() {
+        // "http:" is a syntactically valid URI but has no host — must be rejected.
+        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(Map.of("endpoint", "http:")));
+        assertThat(e.getMessage(), containsString("endpoint [http:]"));
+        assertThat(e.getMessage(), containsString("http"));
+    }
+
+    // --- Format value validation at PUT time (via format-aware validator with validator wired) ---
+
+    /** A resolver identical to CSV_RESOLVER but wiring a test-local strict-char validator for delimiter. */
+    private static final FileDataSourceValidator.FormatConfigKeyResolver CSV_RESOLVER_WITH_VALIDATOR =
+        FileDataSourceValidator.FormatConfigKeyResolver.of(Map.of("csv", CSV_CONFIG_KEYS), Map.of(".csv", "csv"), Map.of("csv", config -> {
+            // Mirror parseChar: reject multi-char values not in the four known escapes.
+            Object delimiter = config.get("delimiter");
+            if (delimiter != null) {
+                String s = delimiter.toString();
+                if (s.isEmpty() == false
+                    && s.length() > 1
+                    && "\\t".equals(s) == false
+                    && "\\n".equals(s) == false
+                    && "\\r".equals(s) == false
+                    && "\\\\".equals(s) == false) {
+                    throw new IllegalArgumentException(
+                        "Invalid character value [" + delimiter + "]: expected a single character or one of \\t, \\n, \\r, \\\\"
+                    );
+                }
+            }
+        }));
+
+    private final DataSourceValidator formatAwareValidatorWithValueValidation = new FileDataSourceValidator(
+        "s3",
+        S3Configuration::fromMap,
+        Set.of("s3", "s3a", "s3n")
+    ).withFormatConfigKeyResolver(CSV_RESOLVER_WITH_VALIDATOR, Set.of(".gz"));
+
+    public void testFormatValueValidationRejectsMultiCharDelimiter() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> formatAwareValidatorWithValueValidation.validateDataset(Map.of(), "s3://bucket/data.csv", Map.of("delimiter", "||"))
+        );
+        assertThat(e.getMessage(), containsString("||"));
+    }
+
+    public void testFormatValueValidationAcceptsSingleCharDelimiter() {
+        var result = formatAwareValidatorWithValueValidation.validateDataset(Map.of(), "s3://bucket/data.csv", Map.of("delimiter", "|"));
+        assertEquals("|", result.get("delimiter"));
+    }
+
+    public void testFormatValueValidationAcceptsTabEscapeAsDelimiter() {
+        var result = formatAwareValidatorWithValueValidation.validateDataset(Map.of(), "s3://bucket/data.csv", Map.of("delimiter", "\\t"));
+        assertEquals("\\t", result.get("delimiter"));
+    }
+
+    public void testFormatValueValidationErrorsAccumulateWithKeyErrors() {
+        // A bad format-specific value and a bad base-level value both appear in the ValidationException.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> formatAwareValidatorWithValueValidation.validateDataset(
+                Map.of(),
+                "s3://bucket/data.csv",
+                Map.of("delimiter", "||", "error_mode", "bogus")
+            )
+        );
+        assertThat(e.validationErrors(), hasSize(2));
+    }
 }

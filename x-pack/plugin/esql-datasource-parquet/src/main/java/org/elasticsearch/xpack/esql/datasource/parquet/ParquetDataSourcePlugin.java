@@ -57,7 +57,12 @@ public class ParquetDataSourcePlugin extends Plugin implements DataSourcePlugin 
     @Override
     public Set<FormatSpec> formatSpecs() {
         return Set.of(
-            new FormatSpec(FormatNameResolver.FORMAT_PARQUET, Set.copyOf(ParquetFormatReader.FILE_EXTENSIONS), FORMAT_CONFIG_KEYS)
+            new FormatSpec(
+                FormatNameResolver.FORMAT_PARQUET,
+                Set.copyOf(ParquetFormatReader.FILE_EXTENSIONS),
+                FORMAT_CONFIG_KEYS,
+                ParquetFormatReader::validateConfig
+            )
         );
     }
 

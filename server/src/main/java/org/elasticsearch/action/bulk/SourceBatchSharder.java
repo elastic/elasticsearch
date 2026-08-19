@@ -239,7 +239,13 @@ final class SourceBatchSharder implements Releasable {
     }
 
     /** Validates the index's routing strategy and reserves its block of the partition space. */
-    private ConcreteIndexTarget bind(BatchGroup group, String batchName, Index concreteIndex, IndexRouting routing, ProjectMetadata project) {
+    private ConcreteIndexTarget bind(
+        BatchGroup group,
+        String batchName,
+        Index concreteIndex,
+        IndexRouting routing,
+        ProjectMetadata project
+    ) {
         String owner = indexOwners.get(concreteIndex);
         if (owner != null && owner.equals(batchName) == false) {
             // A shard batch is scattered from exactly one source batch.
@@ -268,7 +274,13 @@ final class SourceBatchSharder implements Releasable {
             requiresPrecomputedTsid = true;
         }
         int shardCount = project.getIndexSafe(concreteIndex).getNumberOfShards();
-        ConcreteIndexTarget target = new ConcreteIndexTarget(group, concreteIndex, shardCount, group.nextPartition, requiresPrecomputedTsid);
+        ConcreteIndexTarget target = new ConcreteIndexTarget(
+            group,
+            concreteIndex,
+            shardCount,
+            group.nextPartition,
+            requiresPrecomputedTsid
+        );
         group.nextPartition += shardCount;
         group.targets.add(target);
         indexOwners.put(concreteIndex, batchName);

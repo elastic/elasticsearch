@@ -673,7 +673,12 @@ public class SourceBatchSharderTests extends ESTestCase {
 
         SourceBatchSharder sharder = SourceBatchSharder.create(bulkRequest);
         IndexRequest request = (IndexRequest) bulkRequest.requests.get(0);
-        SourceBatchSharder.ConcreteIndexTarget target = sharder.prepareRouting(request, md.getIndex(), IndexRouting.fromIndexMetadata(md), project);
+        SourceBatchSharder.ConcreteIndexTarget target = sharder.prepareRouting(
+            request,
+            md.getIndex(),
+            IndexRouting.fromIndexMetadata(md),
+            project
+        );
         var e = expectThrows(IllegalStateException.class, () -> target.recordRoutedShard(request, 2));
         assertThat(e.getMessage(), containsString("outside the shard count"));
         sharder.close();

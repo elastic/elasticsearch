@@ -11,3 +11,6 @@
 `options`
 :   (Optional) kNN additional options as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params). See [knn query](/reference/query-languages/query-dsl/query-dsl-knn-query.md) for more information.
 
+`arg4`
+:   
+

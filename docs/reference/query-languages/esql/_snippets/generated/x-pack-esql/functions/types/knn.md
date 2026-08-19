@@ -2,8 +2,8 @@
 
 ## Supported types
 
-| field | query | options | result |
-| --- | --- | --- | --- |
-| dense_vector | dense_vector | named parameters | boolean |
-| text | dense_vector | named parameters | boolean |
+| field | query | options | arg4 | result |
+| --- | --- | --- | --- | --- |
+| dense_vector | dense_vector | named parameters | | boolean |
+| text | dense_vector | named parameters | | boolean |
 

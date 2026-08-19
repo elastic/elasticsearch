@@ -7,13 +7,23 @@
 
 package org.elasticsearch.xpack.esql.expression.function.vector;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.FloatBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.VectorData;
@@ -48,6 +58,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.KnnQuery;
+import org.elasticsearch.xpack.esql.score.ExpressionScoreMapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -68,6 +79,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
@@ -330,11 +342,38 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         if (false == isRuntimeSearch()) {
             return super.toEvaluator(toEvaluator);
         }
-        if (dataType() != DENSE_VECTOR) {
-            throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
+        ExpressionEvaluator.Factory fieldFactory = toEvaluator.apply(field());
+        float[] queryVector = queryAsFloats();
+        Float similarityThreshold = getSimilarityThreshold();
+        return new RuntimeKnnFilterEvaluatorFactory(fieldFactory, queryVector, CosineSimilarity.SIMILARITY_FUNCTION, similarityThreshold);
+    }
+
+    @Override
+    public ExpressionEvaluator.Factory toScorer(ExpressionScoreMapper.ToScorer toScorer) {
+        if (false == isRuntimeSearch()) {
+            return super.toScorer(toScorer);
         }
-        // TODO: implement a runtime evaluator for knn function
-        throw new UnsupportedOperationException("Runtime KNN evaluator is not yet implemented");
+        ExpressionEvaluator.Factory fieldFactory = toScorer.toEvaluator().apply(field());
+        float[] queryVector = queryAsFloats();
+        float boost = getBoost();
+        return new RuntimeKnnScoreEvaluatorFactory(fieldFactory, queryVector, CosineSimilarity.SIMILARITY_FUNCTION, boost);
+    }
+
+    private Float getSimilarityThreshold() {
+        if (options() == null) {
+            return null;
+        }
+        Map<String, Object> opts = queryOptions();
+        return (Float) opts.get(VECTOR_SIMILARITY_FIELD.getPreferredName());
+    }
+
+    private float getBoost() {
+        if (options() == null) {
+            return 1.0f;
+        }
+        Map<String, Object> opts = queryOptions();
+        Float boost = (Float) opts.get(BOOST_FIELD.getPreferredName());
+        return boost != null ? boost : 1.0f;
     }
 
     @Override
@@ -496,6 +535,206 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
     @Override
     public int hashCode() {
         return Objects.hash(field(), query(), queryBuilder(), implicitK(), filterExpressions(), options());
+    }
+
+    /**
+     * Evaluator factory for runtime KNN filter (boolean result): returns true for rows whose
+     * field vector has cosine similarity >= threshold (or always true when no threshold is set),
+     * false for rows below the threshold, and null for rows with a null field vector.
+     */
+    private record RuntimeKnnFilterEvaluatorFactory(
+        ExpressionEvaluator.Factory fieldFactory,
+        float[] queryVector,
+        DenseVectorFieldMapper.SimilarityFunction similarityFunction,
+        @Nullable Float similarityThreshold
+    ) implements ExpressionEvaluator.Factory {
+
+        @Override
+        public ExpressionEvaluator get(DriverContext context) {
+            return new RuntimeKnnFilterEvaluator(
+                fieldFactory.get(context),
+                queryVector,
+                similarityFunction,
+                similarityThreshold,
+                context.blockFactory()
+            );
+        }
+
+        @Override
+        public String toString() {
+            return "RuntimeKnnFilterEvaluator[field=" + fieldFactory + ", threshold=" + similarityThreshold + "]";
+        }
+    }
+
+    private static class RuntimeKnnFilterEvaluator implements ExpressionEvaluator {
+
+        private static final long BASE_RAM = RamUsageEstimator.shallowSizeOfInstance(RuntimeKnnFilterEvaluator.class);
+
+        private final ExpressionEvaluator fieldEvaluator;
+        private final float[] queryVector;
+        private final DenseVectorFieldMapper.SimilarityFunction similarityFunction;
+        @Nullable
+        private final Float similarityThreshold;
+        private final BlockFactory blockFactory;
+        private float[] scratch;
+
+        RuntimeKnnFilterEvaluator(
+            ExpressionEvaluator fieldEvaluator,
+            float[] queryVector,
+            DenseVectorFieldMapper.SimilarityFunction similarityFunction,
+            @Nullable Float similarityThreshold,
+            BlockFactory blockFactory
+        ) {
+            this.fieldEvaluator = fieldEvaluator;
+            this.queryVector = queryVector;
+            this.similarityFunction = similarityFunction;
+            this.similarityThreshold = similarityThreshold;
+            this.blockFactory = blockFactory;
+        }
+
+        @Override
+        public Block eval(Page page) {
+            try (FloatBlock fieldBlock = (FloatBlock) fieldEvaluator.eval(page)) {
+                int positionCount = page.getPositionCount();
+                try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(positionCount)) {
+                    for (int p = 0; p < positionCount; p++) {
+                        if (fieldBlock.isNull(p)) {
+                            builder.appendNull();
+                            continue;
+                        }
+                        float[] fieldVector = readVector(fieldBlock, p);
+                        float similarity = similarityFunction.calculateSimilarity(fieldVector, queryVector);
+                        builder.appendBoolean(similarityThreshold == null || similarity >= similarityThreshold);
+                    }
+                    return builder.build();
+                }
+            }
+        }
+
+        private float[] readVector(FloatBlock block, int position) {
+            int dims = block.getValueCount(position);
+            if (scratch == null || scratch.length != dims) {
+                scratch = new float[dims];
+            }
+            int firstValueIndex = block.getFirstValueIndex(position);
+            for (int i = 0; i < dims; i++) {
+                scratch[i] = block.getFloat(firstValueIndex + i);
+            }
+            return scratch;
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM + fieldEvaluator.baseRamBytesUsed() + RamUsageEstimator.shallowSizeOf(queryVector) + (scratch == null
+                ? 0
+                : RamUsageEstimator.shallowSizeOf(scratch));
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(fieldEvaluator);
+        }
+
+        @Override
+        public String toString() {
+            return "RuntimeKnnFilterEvaluator[field=" + fieldEvaluator + ", threshold=" + similarityThreshold + "]";
+        }
+    }
+
+    /**
+     * Evaluator factory for runtime KNN scoring (double result): returns the cosine similarity
+     * multiplied by boost for each row, or null for rows with a null field vector.
+     */
+    private record RuntimeKnnScoreEvaluatorFactory(
+        ExpressionEvaluator.Factory fieldFactory,
+        float[] queryVector,
+        DenseVectorFieldMapper.SimilarityFunction similarityFunction,
+        float boost
+    ) implements ExpressionEvaluator.Factory {
+
+        @Override
+        public ExpressionEvaluator get(DriverContext context) {
+            return new RuntimeKnnScoreEvaluator(fieldFactory.get(context), queryVector, similarityFunction, boost, context.blockFactory());
+        }
+
+        @Override
+        public String toString() {
+            return "RuntimeKnnScoreEvaluator[field=" + fieldFactory + ", boost=" + boost + "]";
+        }
+    }
+
+    private static class RuntimeKnnScoreEvaluator implements ExpressionEvaluator {
+
+        private static final long BASE_RAM = RamUsageEstimator.shallowSizeOfInstance(RuntimeKnnScoreEvaluator.class);
+
+        private final ExpressionEvaluator fieldEvaluator;
+        private final float[] queryVector;
+        private final DenseVectorFieldMapper.SimilarityFunction similarityFunction;
+        private final float boost;
+        private final BlockFactory blockFactory;
+        private float[] scratch;
+
+        RuntimeKnnScoreEvaluator(
+            ExpressionEvaluator fieldEvaluator,
+            float[] queryVector,
+            DenseVectorFieldMapper.SimilarityFunction similarityFunction,
+            float boost,
+            BlockFactory blockFactory
+        ) {
+            this.fieldEvaluator = fieldEvaluator;
+            this.queryVector = queryVector;
+            this.similarityFunction = similarityFunction;
+            this.boost = boost;
+            this.blockFactory = blockFactory;
+        }
+
+        @Override
+        public Block eval(Page page) {
+            try (FloatBlock fieldBlock = (FloatBlock) fieldEvaluator.eval(page)) {
+                int positionCount = page.getPositionCount();
+                try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(positionCount)) {
+                    for (int p = 0; p < positionCount; p++) {
+                        if (fieldBlock.isNull(p)) {
+                            builder.appendNull();
+                            continue;
+                        }
+                        float[] fieldVector = readVector(fieldBlock, p);
+                        double score = (double) similarityFunction.calculateSimilarity(fieldVector, queryVector) * boost;
+                        builder.appendDouble(score);
+                    }
+                    return builder.build();
+                }
+            }
+        }
+
+        private float[] readVector(FloatBlock block, int position) {
+            int dims = block.getValueCount(position);
+            if (scratch == null || scratch.length != dims) {
+                scratch = new float[dims];
+            }
+            int firstValueIndex = block.getFirstValueIndex(position);
+            for (int i = 0; i < dims; i++) {
+                scratch[i] = block.getFloat(firstValueIndex + i);
+            }
+            return scratch;
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM + fieldEvaluator.baseRamBytesUsed() + RamUsageEstimator.shallowSizeOf(queryVector) + (scratch == null
+                ? 0
+                : RamUsageEstimator.shallowSizeOf(scratch));
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(fieldEvaluator);
+        }
+
+        @Override
+        public String toString() {
+            return "RuntimeKnnScoreEvaluator[field=" + fieldEvaluator + ", boost=" + boost + "]";
+        }
     }
 
 }

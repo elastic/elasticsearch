@@ -154,6 +154,8 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
     public void testWrapReaderWhenFeatureDisabledButDlsFlsIsImplicit() {
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(false);
         var searchExecutionContext = mock(SearchExecutionContext.class);
+        MappingLookup mappingLookup = MappingLookup.fromMapping(Mapping.EMPTY, IndexMode.STANDARD);
+        when(searchExecutionContext.getMappingLookup()).thenReturn(mappingLookup);
         when(searchExecutionContext.indexVersionCreated()).thenReturn(IndexVersion.current());
         when(searchExecutionContext.getIndexSettings()).thenReturn(ESTestCase.defaultIndexSettings());
 

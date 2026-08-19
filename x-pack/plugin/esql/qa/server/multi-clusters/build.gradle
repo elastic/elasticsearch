@@ -38,13 +38,19 @@ esqlCsvSpecTests {
 
 def currentVersion = buildParams.bwcVersions.currentVersion
 
-def currentToCurrent = tasks.register("csvSpecTestsCurrentToCurrent", StandaloneRestIntegTestTask) {
+def currentToCurrent = tasks.register("v${currentVersion}#csvSpecTests", StandaloneRestIntegTestTask) {
   systemProperty("tests.version.remote_cluster", currentVersion)
   systemProperty("tests.version.local_cluster", currentVersion)
   maxParallelForks = 1
   testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
   classpath = sourceSets.csvSpecTest.runtimeClasspath
   dependsOn generateEsqlSpecTests
+}
+
+tasks.named("bwcTest").configure {
+  if (project.bwc_tests_enabled) {
+    dependsOn currentToCurrent
+  }
 }
 
 // The federation remote-dataset gates drive the federation setting on one of the two clusters: one registers a dataset
@@ -54,7 +60,7 @@ def currentToCurrent = tasks.register("csvSpecTestsCurrentToCurrent", Standalone
 // javaRestTest task is disabled by the bwc-test plugin, so they get their own current-to-current runner wired into
 // `check` for the configuration that always applies.
 def federationGateTestPattern = "org.elasticsearch.xpack.esql.ccq.Federation*GateRestIT"
-def federationRemoteDatasetGateTest = tasks.register("federationRemoteDatasetGateTest", StandaloneRestIntegTestTask) {
+def federationRemoteDatasetGateTest = tasks.register("v${currentVersion}#federationRemoteDatasetGateTest", StandaloneRestIntegTestTask) {
   systemProperty("tests.version.remote_cluster", currentVersion)
   systemProperty("tests.version.local_cluster", currentVersion)
   maxParallelForks = 1
@@ -66,7 +72,6 @@ def federationRemoteDatasetGateTest = tasks.register("federationRemoteDatasetGat
 }
 tasks.named("check").configure {
   dependsOn federationRemoteDatasetGateTest
-  dependsOn currentToCurrent
 }
 
 def supportedVersion = bwcVersion -> {

@@ -3831,25 +3831,6 @@ public class AnalyzerTests extends ESTestCase {
             """, containsString("first argument of [shared_field > 50] is [keyword]"));
     }
 
-    public void testForkInsideNestedInSubqueriesIsAccepted() {
-        assumeTrue("Requires WHERE IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-        assumeTrue("Requires FORK inside IN subquery fix", EsqlCapabilities.Cap.FORK_INSIDE_IN_SUBQUERY_FIX.isEnabled());
-        // Each IN subquery is its own query scope; a FORK inside one must not be counted against a FORK in another.
-        basic().query("""
-            FROM test
-            | WHERE emp_no IN (
-                FROM test
-                | WHERE salary IN (
-                    FROM test
-                    | FORK (WHERE emp_no > 1) (WHERE emp_no > 2)
-                    | KEEP salary
-                )
-                | FORK (WHERE emp_no > 1) (WHERE emp_no > 2)
-                | KEEP emp_no
-            )
-            """);
-    }
-
     public void testForkWithAmbiguousFieldType() {
         IndexResolution resolution = IndexResolver.mergedMappings(
             "k8s-downsampled,k8s",

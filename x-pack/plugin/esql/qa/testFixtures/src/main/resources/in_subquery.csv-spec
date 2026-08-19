@@ -4007,7 +4007,9 @@ c:long
 ;
 
 nestedInSubqueriesEachContainingFork
+required_capability: where_in_subquery_without_view
 required_capability: fork_inside_in_subquery_fix
+required_capability: fork_v9
 
 // Each IN subquery is its own query scope; FORKs in separate subquery scopes must not conflict.
 // Inner subquery: FORKs to produce salaries > 74000 from both branches (duplicates are harmless for IN).
@@ -4036,7 +4038,9 @@ emp_no:integer
 ;
 
 forkOutsideWithNestedInSubqueriesEachContainingFork
+required_capability: where_in_subquery_without_view
 required_capability: fork_inside_in_subquery_fix
+required_capability: fork_v9
 
 // Combines an outer FORK (outside the IN subquery) with nested IN subqueries where each has its own FORK.
 // Innermost subquery: FORK produces salaries > 74000 -> IN set = {74572, 74999, 74970}.
@@ -4065,7 +4069,9 @@ emp_no:integer | _fork:keyword
 ;
 
 forkWithForkInsideInSubqueryInBranch
+required_capability: where_in_subquery_without_view
 required_capability: fork_inside_in_subquery_fix
+required_capability: fork_v9
 
 // Outer FORK whose first branch uses an IN subquery that itself contains a FORK.
 // Branch 1: employees whose emp_no is in the set produced by the inner FORK (salary > 74000 from both branches).
@@ -4087,7 +4093,9 @@ emp_no:integer | salary:integer | _fork:keyword
 ;
 
 notInSubqueryContainingFork
+required_capability: where_in_subquery_without_view
 required_capability: fork_inside_in_subquery_fix
+required_capability: fork_v9
 
 // The NOT IN subquery itself contains a FORK; the FORK is in a separate subquery scope and must not conflict.
 // The FORK produces the set of emp_nos with salary > 74000 = {10007, 10029, 10045}; NOT IN gives 97 employees.
@@ -4105,7 +4113,9 @@ c:long
 ;
 
 conjunctiveInSubqueriesContainingFork
+required_capability: where_in_subquery_without_view
 required_capability: fork_inside_in_subquery_fix
+required_capability: fork_v9
 
 // Both IN/NOT IN subqueries contain a FORK. Results match the plain (no-FORK) version since each FORK
 // uses identical branches that produce the same set.
@@ -4131,7 +4141,9 @@ emp_no:integer | languages:integer | salary:integer
 ;
 
 disjunctiveInSubqueriesContainingFork
+required_capability: where_in_subquery_without_view
 required_capability: fork_inside_in_subquery_fix
+required_capability: fork_v9
 
 // Both OR-joined IN subqueries contain a FORK; the union of the two sets gives the final result.
 // Set 1 (salary > 74000): {10007, 10029, 10045}. Set 2 (first 3 by emp_no): {10001, 10002, 10003}.

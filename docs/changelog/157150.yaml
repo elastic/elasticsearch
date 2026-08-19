@@ -1,5 +1,6 @@
 area: Mapping
-issues: []
+issues:
+ - 151416
 pr: 157150
 summary: Emit warnings when duplicate dynamic template names are detected
 type: bug

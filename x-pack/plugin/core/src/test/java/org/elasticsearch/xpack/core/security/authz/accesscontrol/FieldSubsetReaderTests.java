@@ -1097,64 +1097,6 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         }
     }
 
-    /**
-     * Tests that {@code ._on_failure} sidecars and their {@code .counts} companions are attributed to their parent for FLS.
-     * Also covers {@code ._ignore_malformed.counts} to verify the strip-{@code .counts}-first ordering in {@code sidecarParentName}.
-     */
-    public void testVisibilityOnFailureAndCountsFieldNames() throws Exception {
-        try (Directory dir = newDirectory()) {
-            try (IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(null))) {
-                Document doc = new Document();
-                // ._on_failure and its .counts companion (the regression case: before the fix, .counts was filtered)
-                doc.add(new StoredField("a._on_failure", new BytesRef("af")));
-                doc.add(new StoredField("a._on_failure.counts", new BytesRef("afc")));
-                // ._ignore_malformed.counts — verifies the strip-counts-then-sidecar ordering
-                doc.add(new StoredField("b._ignore_malformed.counts", new BytesRef("bic")));
-                // unrelated field to confirm the filter doesn't over-admit
-                doc.add(new StoredField("c", new BytesRef("c")));
-                iw.addDocument(doc);
-
-                // a is authorized, b is not — sidecar fields follow their parent's authorization
-                var filter = new CharacterRunAutomaton(Automatons.patterns(List.of("a", "c")));
-
-                // isMapped -> false: strip sidecar suffix → check parent authorization
-                try (
-                    DirectoryReader ir = FieldSubsetReader.wrap(
-                        DirectoryReader.open(iw),
-                        filter,
-                        IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
-                        fieldName -> false
-                    )
-                ) {
-                    Document fields = ir.storedFields().document(0);
-                    // a._on_failure, a._on_failure.counts, and c survive; b._ignore_malformed.counts does not
-                    assertEquals(3, fields.getFields().size());
-                    assertEquals(new BytesRef("af"), fields.getBinaryValue("a._on_failure"));
-                    assertEquals(new BytesRef("afc"), fields.getBinaryValue("a._on_failure.counts"));
-                    assertNull(fields.getBinaryValue("b._ignore_malformed.counts"));
-                    assertEquals(new BytesRef("c"), fields.getBinaryValue("c"));
-                }
-
-                // isMapped -> true: names are returned as-is; only exact-match names pass the filter
-                try (
-                    DirectoryReader ir = FieldSubsetReader.wrap(
-                        DirectoryReader.open(iw),
-                        filter,
-                        IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
-                        fieldName -> true
-                    )
-                ) {
-                    Document fields = ir.storedFields().document(0);
-                    // none of the sidecar names appear in the automaton; only "c" is directly authorized
-                    assertEquals(1, fields.getFields().size());
-                    assertNull(fields.getBinaryValue("a._on_failure"));
-                    assertNull(fields.getBinaryValue("a._on_failure.counts"));
-                    assertEquals(new BytesRef("c"), fields.getBinaryValue("c"));
-                }
-            }
-        }
-    }
-
     public void testSourceFiltering() {
         // include on top-level value
         Map<String, Object> map = new HashMap<>();

@@ -7,14 +7,9 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.eirf;
+package org.elasticsearch.sourcebatch;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.sourcebatch.ArrayReader;
-import org.elasticsearch.sourcebatch.KeyValueReader;
-import org.elasticsearch.sourcebatch.SourceRow;
-import org.elasticsearch.sourcebatch.SourceSchema;
-import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentString;
 
@@ -23,9 +18,9 @@ import java.io.IOException;
 /**
  * Converts a {@link SourceRow} to XContent output via {@link XContentBuilder}.
  */
-public final class EirfRowToXContent {
+public final class SourceRowToXContent {
 
-    private EirfRowToXContent() {}
+    private SourceRowToXContent() {}
 
     /**
      * Writes a single row as a nested JSON object to the given builder.
@@ -34,19 +29,19 @@ public final class EirfRowToXContent {
     public static void writeRow(SourceRow row, SourceSchema schema, XContentBuilder builder) throws IOException {
         // Walk the schema tree depth-first so children of the same non-leaf are emitted contiguously, even when
         // heterogeneous documents caused their leaves to be interleaved in schema leaf order.
-        EirfRowXContentParser.SchemaNode root = EirfRowXContentParser.buildSchemaTree(schema);
+        SourceRowXContentParser.SchemaNode root = SourceRowXContentParser.buildSchemaTree(schema);
         writeRowFromSchema(row, root, builder);
     }
 
-    public static void writeRowFromSchema(SourceRow row, EirfRowXContentParser.SchemaNode schemaTree, XContentBuilder builder)
+    public static void writeRowFromSchema(SourceRow row, SourceRowXContentParser.SchemaNode schemaTree, XContentBuilder builder)
         throws IOException {
         builder.startObject();
         writeChildren(schemaTree, row, builder);
         builder.endObject();
     }
 
-    private static void writeChildren(EirfRowXContentParser.SchemaNode node, SourceRow row, XContentBuilder builder) throws IOException {
-        for (EirfRowXContentParser.SchemaNode child : node.children()) {
+    private static void writeChildren(SourceRowXContentParser.SchemaNode node, SourceRow row, XContentBuilder builder) throws IOException {
+        for (SourceRowXContentParser.SchemaNode child : node.children()) {
             if (child.isLeaf()) {
                 int leafIdx = child.leafColumnIndex();
                 if (row.isAbsent(leafIdx)) {
@@ -62,8 +57,8 @@ public final class EirfRowToXContent {
         }
     }
 
-    private static boolean isNotEmpty(EirfRowXContentParser.SchemaNode node, SourceRow row) {
-        for (EirfRowXContentParser.SchemaNode child : node.children()) {
+    private static boolean isNotEmpty(SourceRowXContentParser.SchemaNode node, SourceRow row) {
+        for (SourceRowXContentParser.SchemaNode child : node.children()) {
             if (child.isLeaf()) {
                 int leafIdx = child.leafColumnIndex();
                 if (row.isAbsent(leafIdx) == false) {

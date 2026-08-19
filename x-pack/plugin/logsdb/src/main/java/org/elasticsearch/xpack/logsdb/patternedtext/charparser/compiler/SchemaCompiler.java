@@ -335,7 +335,9 @@ public class SchemaCompiler {
                 for (IntConstraints.Range range : intConstraint.trueRanges()) {
                     int lowerBound = floorAtZero ? Math.max(0, range.lowerBound()) : range.lowerBound();
                     if (lowerBound <= range.upperBound()) {
-                        intRangeBitmasks.add(new IntRangeBitmask(new IntConstraints.Range(lowerBound, range.upperBound()), subTokenBitmask));
+                        intRangeBitmasks.add(
+                            new IntRangeBitmask(new IntConstraints.Range(lowerBound, range.upperBound()), subTokenBitmask)
+                        );
                     }
                 }
             }
@@ -528,7 +530,8 @@ public class SchemaCompiler {
 
         // Content-character special_sub_token_delimiters (e.g. ISO-8601 'T'): a token type may declare, via special_sub_token_delimiters,
         // a character that is NOT part of any global delimiter/boundary set to act as a subToken delimiter at a specific position. That
-        // character was recorded in delimiterCharToTokenBitmaskPerSubTokenIndex while compiling the token's format, but the loops above only
+        // character was recorded in delimiterCharToTokenBitmaskPerSubTokenIndex while compiling the token's format, but the loops above
+        // only
         // wire up characters belonging to a global set - so a pure content-character delimiter is left orphaned (its per-position entry is
         // built but never consumed). We consume those leftovers here: any recorded delimiter that has not already received a
         // CharSpecificParsingInfo above is such a content character. Crucially we do NOT touch charToCharType or charToSubTokenBitmask for
@@ -540,7 +543,9 @@ public class SchemaCompiler {
             if (specialDelimiter < ASCII_RANGE && charSpecificParsingInfos[specialDelimiter] == null) {
                 ArrayList<Integer> tokenBitmaskPerSubTokenIndexArray = specialDelimiterEntry.getValue();
                 fillListUpToIndex(tokenBitmaskPerSubTokenIndexArray, maxSubTokensPerToken - 1, () -> 0);
-                int[] specialTokenBitmaskPerSubTokenIndex = tokenBitmaskPerSubTokenIndexArray.stream().mapToInt(Integer::intValue).toArray();
+                int[] specialTokenBitmaskPerSubTokenIndex = tokenBitmaskPerSubTokenIndexArray.stream()
+                    .mapToInt(Integer::intValue)
+                    .toArray();
                 ToIntFunction<SubstringView>[] specialSubTokenBitmaskGeneratorPerSubTokenIndices = turnChainBuilderListToFunctionArray(
                     delimiterCharToBitmaskGeneratorPerSubTokenIndex.get(specialDelimiter),
                     maxSubTokensPerToken

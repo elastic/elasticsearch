@@ -97,7 +97,8 @@ public class IntConstraintsTests extends ESTestCase {
 
     public void testLengthConstraint() {
         // A {n} constraint is value-NEUTRAL: it imposes only a character length (enforced separately by the parser's char-length gate),
-        // NOT a value range. So isApplicable is always true and trueRanges is the full range; the length is exposed via getRequiredCharLength.
+        // NOT a value range. So isApplicable is always true and trueRanges is the full range; the length is exposed via
+        // getRequiredCharLength.
         IntConstraint predicate = IntConstraints.parseIntConstraint("{3}");
         assertEquals(3, predicate.getRequiredCharLength());
         assertTrue(predicate.isApplicable(123));

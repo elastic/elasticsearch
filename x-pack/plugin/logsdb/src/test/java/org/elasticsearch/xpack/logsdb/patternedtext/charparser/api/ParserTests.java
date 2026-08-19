@@ -189,7 +189,7 @@ public class ParserTests extends ESTestCase {
     }
 
     public void testSparkTimestamp() throws ParseException {
-        // Spark log format: yy/MM/dd HH:mm:ss  (2-digit year interpreted as 20yy)
+        // Spark log format: yy/MM/dd HH:mm:ss (2-digit year interpreted as 20yy)
         String message = "17/06/09 20:10:40 INFO Executor task 42 finished";
         List<Argument<?>> parsedArguments = parser.parse(message);
         Parser.constructPattern(message, parsedArguments, patternedMessage, true);
@@ -200,7 +200,7 @@ public class ParserTests extends ESTestCase {
     }
 
     public void testZookeeperTimestamp() throws ParseException {
-        // Zookeeper log format: YYYY-MM-DD HH:mm:ss,SSS  (comma before millis)
+        // Zookeeper log format: YYYY-MM-DD HH:mm:ss,SSS (comma before millis)
         String message = "2015-07-29 17:41:41,313 INFO server started";
         List<Argument<?>> parsedArguments = parser.parse(message);
         Parser.constructPattern(message, parsedArguments, patternedMessage, true);
@@ -322,7 +322,7 @@ public class ParserTests extends ESTestCase {
 
     public void testSyslogBsdPaddedDayTimestamp() throws ParseException {
         // BSD/RFC-3164 space-pads single-digit days to width 2, so a single-digit day has TWO spaces before it
-        // ("Jul  1"). The extra space produces an empty token that must be absorbed so it still collapses to %T,
+        // ("Jul 1"). The extra space produces an empty token that must be absorbed so it still collapses to %T,
         // exactly like the two-digit-day form "Jun 14". The %T must span the actual padded text (both spaces).
         String message = "Jul  1 00:21:28 combo x";
         List<Argument<?>> parsedArguments = parser.parse(message);
@@ -800,8 +800,7 @@ public class ParserTests extends ESTestCase {
     public void testBglTimestampsInContext() throws ParseException {
         // real BGL line prefix: leading '-' is a lone sign char and stays literal (NOT an argument), then epoch+date
         // -> %T, then the full datetime -> %T
-        assertPattern("- 1117838570 2005.06.03 node 2005-06-03-15.42.50.363779 node RAS",
-            "- %T node %T node RAS");
+        assertPattern("- 1117838570 2005.06.03 node 2005-06-03-15.42.50.363779 node RAS", "- %T node %T node RAS");
     }
 
     public void testLoneSignIsNotAnArgument() throws ParseException {

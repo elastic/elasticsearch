@@ -295,8 +295,15 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                     return SeekStatus.END;
                 }
                 skipper.advance(firstDocID);
-                skipper.advance(timestamp, Long.MAX_VALUE);
-
+                // Within the _tsid, documents are sorted by descending timestamp, so blocks whose minimum timestamp is greater than the
+                // one we're looking for only contain documents that precede the ceiling and can be skipped. Blocks that may contain
+                // documents of the next _tsid must not be skipped: the ceiling might be their first document, whatever its timestamp.
+                final int nextTsIdStartDocID = docValues.findStartDocIDForTsIdOrd(tsIdOrd + 1);
+                while (skipper.minDocID(0) != DocIdSetIterator.NO_MORE_DOCS
+                    && skipper.maxDocID(0) < nextTsIdStartDocID
+                    && skipper.minValue(0) > timestamp) {
+                    skipper.advance(skipper.maxDocID(0) + 1);
+                }
                 if (skipper.minDocID(0) != DocIdSetIterator.NO_MORE_DOCS) {
                     nextDocID = Math.max(firstDocID, skipper.minDocID(0));
                 } else {

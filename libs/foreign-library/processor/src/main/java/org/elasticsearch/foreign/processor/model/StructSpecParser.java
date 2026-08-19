@@ -9,6 +9,8 @@
 
 package org.elasticsearch.foreign.processor.model;
 
+import org.elasticsearch.foreign.Platform;
+
 import java.lang.foreign.MemoryLayout;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -119,11 +121,16 @@ class StructSpecParser {
      * methods once, merging a getter/setter pair (which must be declared adjacently) into a single
      * field, validating {@code @ArrayField} length references, and placing every field at its resolved
      * absolute offset for each supported platform. Returns {@code null} on any error.
+     *
+     * @param unavailableOn the enclosing {@code @LibrarySpecification}'s {@code unavailableOn} platform names,
+     *        used to reject {@code @InlineStringField(wide = true)} fields on libraries that are unavailable
+     *        on Windows
      */
     static StructModel fromInterface(
         TypeElement typeElement,
         List<String> priorStructNames,
         Set<String> supportedPlatforms,
+        List<String> unavailableOn,
         ProcessingEnvironment env,
         Messager messager
     ) {
@@ -204,7 +211,7 @@ class StructSpecParser {
             }
 
             // Parse the whole field (both accessors) before placing it.
-            StructFieldModel field = parseField(first, second, typeSimpleName, priorStructNames, env, messager);
+            StructFieldModel field = parseField(first, second, typeSimpleName, priorStructNames, unavailableOn, env, messager);
             if (field == null) {
                 error = true;
                 continue;
@@ -644,11 +651,12 @@ class StructSpecParser {
         ExecutableElement second,
         String structName,
         List<String> priorStructNames,
+        List<String> unavailableOn,
         ProcessingEnvironment env,
         Messager messager
     ) {
-        StructFieldModel a = parseAccessor(first, structName, priorStructNames, env, messager);
-        StructFieldModel b = second == null ? null : parseAccessor(second, structName, priorStructNames, env, messager);
+        StructFieldModel a = parseAccessor(first, structName, priorStructNames, unavailableOn, env, messager);
+        StructFieldModel b = second == null ? null : parseAccessor(second, structName, priorStructNames, unavailableOn, env, messager);
         if (a == null || (second != null && b == null)) {
             return null;
         }
@@ -782,9 +790,18 @@ class StructSpecParser {
                     );
                     yield null;
                 }
+                if (is.wide() != isb.wide()) {
+                    messager.printMessage(
+                        Kind.ERROR,
+                        "@InlineStringField getter and setter for '" + is.name() + "' disagree on wide=; both must be the same",
+                        reportElement
+                    );
+                    yield null;
+                }
                 yield new InlineStringFieldModel(
                     is.name(),
                     is.length(),
+                    is.wide(),
                     is.hasGetter() || isb.hasGetter(),
                     is.hasSetter() || isb.hasSetter()
                 );
@@ -808,6 +825,7 @@ class StructSpecParser {
         ExecutableElement method,
         String enclosingStructSimpleName,
         List<String> priorStructNames,
+        List<String> unavailableOn,
         ProcessingEnvironment env,
         Messager messager
     ) {
@@ -874,7 +892,7 @@ class StructSpecParser {
         }
 
         if (inlineStringMirror != null) {
-            return buildInlineStringField(method, methodName, enclosingStructSimpleName, inlineStringMirror, messager);
+            return buildInlineStringField(method, methodName, enclosingStructSimpleName, inlineStringMirror, unavailableOn, messager);
         }
 
         NativeType returnType = ModelUtil.classifyType(method.getReturnType());
@@ -1030,6 +1048,7 @@ class StructSpecParser {
         String methodName,
         String enclosingStructSimpleName,
         AnnotationMirror inlineStringMirror,
+        List<String> unavailableOn,
         Messager messager
     ) {
         Integer length = ModelUtil.annotationIntValue(inlineStringMirror, "length");
@@ -1037,6 +1056,28 @@ class StructSpecParser {
             messager.printMessage(
                 Kind.ERROR,
                 "@InlineStringField on '" + methodName + "' in '" + enclosingStructSimpleName + "' requires a positive length",
+                method,
+                inlineStringMirror
+            );
+            return null;
+        }
+
+        boolean wide = ModelUtil.annotationBooleanValue(inlineStringMirror, "wide", false);
+        if (wide && length % 2 != 0) {
+            messager.printMessage(
+                Kind.ERROR,
+                "@InlineStringField(wide = true) requires an even length in bytes; got " + length + " on '" + methodName + "'",
+                method,
+                inlineStringMirror
+            );
+            return null;
+        }
+        if (wide && unavailableOn.contains(Platform.WINDOWS_X64.name())) {
+            messager.printMessage(
+                Kind.ERROR,
+                "@InlineStringField(wide = true) on '"
+                    + methodName
+                    + "' is invalid: enclosing @LibrarySpecification lists WINDOWS_X64 in unavailableOn",
                 method,
                 inlineStringMirror
             );
@@ -1071,7 +1112,7 @@ class StructSpecParser {
                 );
                 return null;
             }
-            return new InlineStringFieldModel(methodName, length, false, true);
+            return new InlineStringFieldModel(methodName, length, wide, false, true);
         } else {
             NativeType returnType = ModelUtil.classifyType(returnMirror);
             if (returnType != NativeType.STRING) {
@@ -1096,7 +1137,7 @@ class StructSpecParser {
                 );
                 return null;
             }
-            return new InlineStringFieldModel(methodName, length, true, false);
+            return new InlineStringFieldModel(methodName, length, wide, true, false);
         }
     }
 }

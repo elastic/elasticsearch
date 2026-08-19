@@ -83,7 +83,7 @@ public interface ESVectorUtilSupport {
 
     int ipByteBit(byte[] q, byte[] d);
 
-    float ipFloatBit(float[] q, byte[] d);
+    float ipFloatBit(float[] q, int qOffset, byte[] d, int dOffset, int qLength);
 
     float ipFloatByte(float[] q, byte[] d);
 
@@ -184,9 +184,9 @@ public interface ESVectorUtilSupport {
 
     void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches);
 
-    void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest);
+    void linearCombination(float scaleOther, float[] other, int otherOffset, float scaleDest, float[] dest, int destOffset, int length);
 
-    void linearCombination(float scaleOther, float[] other, float[] dest);
+    void linearCombination(float scaleOther, float[] other, int otherOffset, float[] dest, int destOffset, int length);
 
     void linearCombination(float scaleOther, byte[] other, float scaleDest, float[] dest);
 

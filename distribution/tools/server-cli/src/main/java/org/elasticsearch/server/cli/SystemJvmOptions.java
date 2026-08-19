@@ -161,12 +161,12 @@ final class SystemJvmOptions {
 
     /*
      * On JDK 27, where compact object headers became the default, C2 can miscompile array copying
-     * under specific circumstances. Disabling Compact Object Headers should prevent this from happening.
+     * under specific circumstances.
      * see https://bugs.openjdk.org/browse/JDK-8390546
      */
     private static Stream<String> maybeWorkaroundC2Bug() {
         if (Runtime.version().feature() == 27) {
-            return Stream.of("-XX:-SpecialEncodeISOArray");
+            return Stream.of("-XX:+UnlockDiagnosticVMOptions", "-XX:-SpecialEncodeISOArray");
         }
         return Stream.of();
     }

@@ -19,8 +19,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.eirf.EirfRowToXContent;
 import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.sourcebatch.SourceRowToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -137,7 +137,7 @@ public class IndexSource implements Writeable, Releasable {
         }
         assert sourceBatch != null : "batch row set but no batch attached";
         try (XContentBuilder xcb = XContentFactory.contentBuilder(contentType)) {
-            EirfRowToXContent.writeRow(sourceBatch.row(rowIndex), sourceBatch.schema(), xcb);
+            SourceRowToXContent.writeRow(sourceBatch.row(rowIndex), sourceBatch.schema(), xcb);
             this.source = BytesReference.bytes(xcb);
         }
         this.rowIndex = -1;

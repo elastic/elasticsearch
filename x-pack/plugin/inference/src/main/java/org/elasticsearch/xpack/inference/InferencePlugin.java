@@ -316,6 +316,7 @@ public class InferencePlugin extends Plugin
     private final SetOnce<ShardBulkInferenceActionFilter> shardBulkInferenceActionFilter = new SetOnce<>();
     private final SetOnce<ModelRegistry> modelRegistry = new SetOnce<>();
     private final SetOnce<CCMFeature> ccmFeature = new SetOnce<>();
+    private final SetOnce<InferenceIndexMappingManager> inferenceIndexManager = new SetOnce<>();
     private List<InferenceServiceExtension> inferenceServiceExtensions;
     private final SetOnce<AuthorizationTaskExecutor> authorizationTaskExecutorRef = new SetOnce<>();
     /**
@@ -423,7 +424,9 @@ public class InferencePlugin extends Plugin
         var amazonBedrockRequestSenderFactory = new AmazonBedrockRequestSender.Factory(serviceComponents.get(), services.clusterService());
         amazonBedrockFactory.set(amazonBedrockRequestSenderFactory);
 
-        modelRegistry.set(new ModelRegistry(services.clusterService(), services.client(), services.featureService()));
+        inferenceIndexManager.set(new InferenceIndexMappingManager(services.client(), createInferenceIndexDescriptor(getIndexSettings())));
+
+        modelRegistry.set(new ModelRegistry(services.clusterService(), services.client(), inferenceIndexManager.get()));
         services.clusterService().addListener(modelRegistry.get());
 
         if (inferenceServiceExtensions == null) {
@@ -541,6 +544,7 @@ public class InferencePlugin extends Plugin
 
         components.add(serviceRegistry);
         components.add(modelRegistry.get());
+        components.add(inferenceIndexManager.get());
         components.add(
             new TransportGetInferenceDiagnosticsAction.ClientManagers(httpClientManager, elasticInferenceServiceHttpClientManager)
         );
@@ -793,22 +797,30 @@ public class InferencePlugin extends Plugin
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return List.of(createInferenceIndexDescriptor(), createInferenceSecretsIndexDescriptor(), createCCMIndexDescriptor());
+        return List.of(
+            createInferenceIndexDescriptor(getIndexSettings()),
+            createInferenceSecretsIndexDescriptor(),
+            createCCMIndexDescriptor()
+        );
     }
 
-    private SystemIndexDescriptor createInferenceIndexDescriptor() {
+    /**
+     * Creates the descriptor for the inference system index
+     * @param indexSettings the index settings
+     * @return the descriptor
+     */
+    public static SystemIndexDescriptor createInferenceIndexDescriptor(Settings indexSettings) {
         SystemIndexDescriptor.Builder builder = SystemIndexDescriptor.builder()
             .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
             .setIndexPattern(InferenceIndex.INDEX_PATTERN)
             .setAliasName(InferenceIndex.INDEX_ALIAS)
             .setPrimaryIndex(InferenceIndex.INDEX_NAME)
             .setDescription(INFERENCE_INDEX_DESCRIPTION)
-            .setSettings(getIndexSettings())
+            .setSettings(indexSettings)
             .setOrigin(ClientHelper.INFERENCE_ORIGIN);
 
         SystemIndexDescriptor v1 = builder.setMappings(InferenceIndex.mappingsV1()).build();
         SystemIndexDescriptor v2 = builder.setMappings(InferenceIndex.mappingsV2()).build();
-
         SystemIndexDescriptor v3 = builder.setMappings(InferenceIndex.mappingsV3()).build();
         return builder.setMappings(InferenceIndex.mappingsV4()).setPriorSystemIndexDescriptors(List.of(v1, v2, v3)).build();
     }

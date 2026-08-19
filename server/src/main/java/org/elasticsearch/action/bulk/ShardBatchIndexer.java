@@ -76,7 +76,7 @@ public final class ShardBatchIndexer {
 
     /**
      * Checks whether the batch indexing path can be used for this request.
-     * Returns true if batch indexing is enabled, an EIRF batch is present, synthetic source is active,
+     * Returns true if batch indexing is enabled, a source batch is present, synthetic source is active,
      * and all operations are index/create (no deletes, no updates).
      */
     public boolean canUseBatchIndexing(BulkShardRequest request) {

@@ -57,19 +57,8 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
 
     /**
      * Computes the {@link UnmappedFieldsPattern} describing which additional (unreferenced and currently unmapped)
-     * {@code _source} fields would survive to the output of {@code plan}.
-     * <p>
-     * {@code KEEP}/{@code DROP}/{@code RENAME} (as {@link ResolvingProject}) contribute the include/exclude patterns they were written
-     * with: each one adds a single OR group, while {@link UnmappedFieldsPattern#intersect} applies AND across chained commands.
-     * And every name that any node in the plan outputs is excluded: a mapped field, a name the query introduced (EVAL's aliases,
-     * RENAME's targets) and the synthetic {@code _unmapped_fields} column are all already columns of their
-     * own, so expanding a {@code _source} field of that name would collide with them.
-     * <p>
-     * {@link Aggregate STATS} drops every column that is not an aggregate or grouping key, so no additional
-     * {@code _source} field can survive past it.
-     * <p>
-     * Non-unary plans fall back to {@link UnmappedFieldsPattern#ALL} so no field is ever accidentally
-     * suppressed; those queries are currently (and temporarily) rejected by the {@code Verifier}'s {@code LOAD_ALL} command allow-list.
+     * {@code _source} fields would survive to the output of {@code plan} if it was in the output of an {@code EsRelation} that is the
+     * plan's only leaf. (Does not cover n-ary plans.)
      */
     private static UnmappedFieldsPattern computeUnmappedFieldsToKeep(LogicalPlan plan) {
         if (plan instanceof Aggregate) {

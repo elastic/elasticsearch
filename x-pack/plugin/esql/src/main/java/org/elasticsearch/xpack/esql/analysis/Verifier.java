@@ -527,9 +527,8 @@ public class Verifier {
     }
 
     /**
-     * Temporary MVP guardrail for {@code unmapped_fields="LOAD_ALL"}: only FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT
-     * and STATS are supported. Any other command (JOIN, FORK, ENRICH, views, ...) is rejected until its interaction with the
-     * expanded {@code _unmapped_fields} column is designed and implemented.
+     * Temporary MVP guardrail for {@code unmapped_fields="LOAD_ALL"} until the interaction of all commands with
+     * {@code _unmapped_fields} is designed and implemented.
      */
     private static void checkLoadAllModeSupportedCommands(LogicalPlan plan, Failures failures) {
         plan.forEachDown(p -> {

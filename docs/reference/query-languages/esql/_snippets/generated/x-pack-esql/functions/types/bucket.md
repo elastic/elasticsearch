@@ -4,45 +4,137 @@
 
 | field | buckets | from | to | options | result |
 | --- | --- | --- | --- | --- | --- |
+| date | date_period | date | date | | date |
+| date | date_period | date | date_nanos | | date |
+| date | date_period | date | keyword | | date |
+| date | date_period | date | text | | date |
+| date | date_period | date_nanos | date | | date |
+| date | date_period | date_nanos | date_nanos | | date |
+| date | date_period | date_nanos | keyword | | date |
+| date | date_period | date_nanos | text | | date |
+| date | date_period | keyword | date | | date |
+| date | date_period | keyword | date_nanos | | date |
+| date | date_period | keyword | keyword | | date |
+| date | date_period | keyword | text | | date |
+| date | date_period | text | date | | date |
+| date | date_period | text | date_nanos | | date |
+| date | date_period | text | keyword | | date |
+| date | date_period | text | text | | date |
 | date | date_period | | | | date |
 | date | integer | date | date | | date |
+| date | integer | date | date_nanos | | date |
 | date | integer | date | keyword | | date |
 | date | integer | date | text | | date |
+| date | integer | date_nanos | date | | date |
+| date | integer | date_nanos | date_nanos | | date |
+| date | integer | date_nanos | keyword | | date |
+| date | integer | date_nanos | text | | date |
 | date | integer | keyword | date | | date |
+| date | integer | keyword | date_nanos | | date |
 | date | integer | keyword | keyword | | date |
 | date | integer | keyword | text | | date |
 | date | integer | text | date | | date |
+| date | integer | text | date_nanos | | date |
 | date | integer | text | keyword | | date |
 | date | integer | text | text | | date |
 | date | long | date | date | | date |
+| date | long | date | date_nanos | | date |
 | date | long | date | keyword | | date |
 | date | long | date | text | | date |
+| date | long | date_nanos | date | | date |
+| date | long | date_nanos | date_nanos | | date |
+| date | long | date_nanos | keyword | | date |
+| date | long | date_nanos | text | | date |
 | date | long | keyword | date | | date |
+| date | long | keyword | date_nanos | | date |
 | date | long | keyword | keyword | | date |
 | date | long | keyword | text | | date |
 | date | long | text | date | | date |
+| date | long | text | date_nanos | | date |
 | date | long | text | keyword | | date |
 | date | long | text | text | | date |
+| date | time_duration | date | date | | date |
+| date | time_duration | date | date_nanos | | date |
+| date | time_duration | date | keyword | | date |
+| date | time_duration | date | text | | date |
+| date | time_duration | date_nanos | date | | date |
+| date | time_duration | date_nanos | date_nanos | | date |
+| date | time_duration | date_nanos | keyword | | date |
+| date | time_duration | date_nanos | text | | date |
+| date | time_duration | keyword | date | | date |
+| date | time_duration | keyword | date_nanos | | date |
+| date | time_duration | keyword | keyword | | date |
+| date | time_duration | keyword | text | | date |
+| date | time_duration | text | date | | date |
+| date | time_duration | text | date_nanos | | date |
+| date | time_duration | text | keyword | | date |
+| date | time_duration | text | text | | date |
 | date | time_duration | | | | date |
+| date_nanos | date_period | date | date | | date_nanos |
+| date_nanos | date_period | date | date_nanos | | date_nanos |
+| date_nanos | date_period | date | keyword | | date_nanos |
+| date_nanos | date_period | date | text | | date_nanos |
+| date_nanos | date_period | date_nanos | date | | date_nanos |
+| date_nanos | date_period | date_nanos | date_nanos | | date_nanos |
+| date_nanos | date_period | date_nanos | keyword | | date_nanos |
+| date_nanos | date_period | date_nanos | text | | date_nanos |
+| date_nanos | date_period | keyword | date | | date_nanos |
+| date_nanos | date_period | keyword | date_nanos | | date_nanos |
+| date_nanos | date_period | keyword | keyword | | date_nanos |
+| date_nanos | date_period | keyword | text | | date_nanos |
+| date_nanos | date_period | text | date | | date_nanos |
+| date_nanos | date_period | text | date_nanos | | date_nanos |
+| date_nanos | date_period | text | keyword | | date_nanos |
+| date_nanos | date_period | text | text | | date_nanos |
 | date_nanos | date_period | | | | date_nanos |
 | date_nanos | integer | date | date | | date_nanos |
+| date_nanos | integer | date | date_nanos | | date_nanos |
 | date_nanos | integer | date | keyword | | date_nanos |
 | date_nanos | integer | date | text | | date_nanos |
+| date_nanos | integer | date_nanos | date | | date_nanos |
+| date_nanos | integer | date_nanos | date_nanos | | date_nanos |
+| date_nanos | integer | date_nanos | keyword | | date_nanos |
+| date_nanos | integer | date_nanos | text | | date_nanos |
 | date_nanos | integer | keyword | date | | date_nanos |
+| date_nanos | integer | keyword | date_nanos | | date_nanos |
 | date_nanos | integer | keyword | keyword | | date_nanos |
 | date_nanos | integer | keyword | text | | date_nanos |
 | date_nanos | integer | text | date | | date_nanos |
+| date_nanos | integer | text | date_nanos | | date_nanos |
 | date_nanos | integer | text | keyword | | date_nanos |
 | date_nanos | integer | text | text | | date_nanos |
 | date_nanos | long | date | date | | date_nanos |
+| date_nanos | long | date | date_nanos | | date_nanos |
 | date_nanos | long | date | keyword | | date_nanos |
 | date_nanos | long | date | text | | date_nanos |
+| date_nanos | long | date_nanos | date | | date_nanos |
+| date_nanos | long | date_nanos | date_nanos | | date_nanos |
+| date_nanos | long | date_nanos | keyword | | date_nanos |
+| date_nanos | long | date_nanos | text | | date_nanos |
 | date_nanos | long | keyword | date | | date_nanos |
+| date_nanos | long | keyword | date_nanos | | date_nanos |
 | date_nanos | long | keyword | keyword | | date_nanos |
 | date_nanos | long | keyword | text | | date_nanos |
 | date_nanos | long | text | date | | date_nanos |
+| date_nanos | long | text | date_nanos | | date_nanos |
 | date_nanos | long | text | keyword | | date_nanos |
 | date_nanos | long | text | text | | date_nanos |
+| date_nanos | time_duration | date | date | | date_nanos |
+| date_nanos | time_duration | date | date_nanos | | date_nanos |
+| date_nanos | time_duration | date | keyword | | date_nanos |
+| date_nanos | time_duration | date | text | | date_nanos |
+| date_nanos | time_duration | date_nanos | date | | date_nanos |
+| date_nanos | time_duration | date_nanos | date_nanos | | date_nanos |
+| date_nanos | time_duration | date_nanos | keyword | | date_nanos |
+| date_nanos | time_duration | date_nanos | text | | date_nanos |
+| date_nanos | time_duration | keyword | date | | date_nanos |
+| date_nanos | time_duration | keyword | date_nanos | | date_nanos |
+| date_nanos | time_duration | keyword | keyword | | date_nanos |
+| date_nanos | time_duration | keyword | text | | date_nanos |
+| date_nanos | time_duration | text | date | | date_nanos |
+| date_nanos | time_duration | text | date_nanos | | date_nanos |
+| date_nanos | time_duration | text | keyword | | date_nanos |
+| date_nanos | time_duration | text | text | | date_nanos |
 | date_nanos | time_duration | | | | date_nanos |
 | double | double | | | | double |
 | double | integer | double | double | | double |
@@ -55,6 +147,15 @@
 | double | integer | long | integer | | double |
 | double | integer | long | long | | double |
 | double | integer | | | | double |
+| double | long | double | double | | double |
+| double | long | double | integer | | double |
+| double | long | double | long | | double |
+| double | long | integer | double | | double |
+| double | long | integer | integer | | double |
+| double | long | integer | long | | double |
+| double | long | long | double | | double |
+| double | long | long | integer | | double |
+| double | long | long | long | | double |
 | double | long | | | | double |
 | integer | double | | | | double |
 | integer | integer | double | double | | double |
@@ -67,6 +168,15 @@
 | integer | integer | long | integer | | double |
 | integer | integer | long | long | | double |
 | integer | integer | | | | double |
+| integer | long | double | double | | double |
+| integer | long | double | integer | | double |
+| integer | long | double | long | | double |
+| integer | long | integer | double | | double |
+| integer | long | integer | integer | | double |
+| integer | long | integer | long | | double |
+| integer | long | long | double | | double |
+| integer | long | long | integer | | double |
+| integer | long | long | long | | double |
 | integer | long | | | | double |
 | long | double | | | | double |
 | long | integer | double | double | | double |
@@ -79,5 +189,35 @@
 | long | integer | long | integer | | double |
 | long | integer | long | long | | double |
 | long | integer | | | | double |
+| long | long | double | double | | double |
+| long | long | double | integer | | double |
+| long | long | double | long | | double |
+| long | long | integer | double | | double |
+| long | long | integer | integer | | double |
+| long | long | integer | long | | double |
+| long | long | long | double | | double |
+| long | long | long | integer | | double |
+| long | long | long | long | | double |
 | long | long | | | | double |
+| unsigned_long | double | | | | double |
+| unsigned_long | integer | double | double | | double |
+| unsigned_long | integer | double | integer | | double |
+| unsigned_long | integer | double | long | | double |
+| unsigned_long | integer | integer | double | | double |
+| unsigned_long | integer | integer | integer | | double |
+| unsigned_long | integer | integer | long | | double |
+| unsigned_long | integer | long | double | | double |
+| unsigned_long | integer | long | integer | | double |
+| unsigned_long | integer | long | long | | double |
+| unsigned_long | integer | | | | double |
+| unsigned_long | long | double | double | | double |
+| unsigned_long | long | double | integer | | double |
+| unsigned_long | long | double | long | | double |
+| unsigned_long | long | integer | double | | double |
+| unsigned_long | long | integer | integer | | double |
+| unsigned_long | long | integer | long | | double |
+| unsigned_long | long | long | double | | double |
+| unsigned_long | long | long | integer | | double |
+| unsigned_long | long | long | long | | double |
+| unsigned_long | long | | | | double |
 

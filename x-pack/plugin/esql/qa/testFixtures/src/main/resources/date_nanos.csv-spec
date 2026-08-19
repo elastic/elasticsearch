@@ -1878,3 +1878,17 @@ nanos:date_nanos
 2023-10-23T13:33:34.937193000Z
 2023-10-23T12:27:28.948000000Z
 ;
+
+Bucket Date nanos with date_nanos bounds
+required_capability: date_trunc_date_nanos
+required_capability: date_nanos_bucket
+
+FROM date_nanos
+| WHERE millis > "2020-01-01"
+| STATS ct = count(*) BY mo = BUCKET(nanos, 20, TO_DATE_NANOS("2023-01-01"), TO_DATE_NANOS("2023-12-31"))
+| SORT mo DESC
+;
+
+ct:long | mo:date_nanos
+8       | 2023-10-01T00:00:00.000000000Z
+;

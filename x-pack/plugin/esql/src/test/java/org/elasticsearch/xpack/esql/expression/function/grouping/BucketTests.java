@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
+import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
@@ -223,6 +224,8 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
         numberCasesWithSpan(suppliers, "fixed int with span", DataType.INTEGER, () -> 100);
         numberCases(suppliers, "fixed double", DataType.DOUBLE, () -> 100.0);
         numberCasesWithSpan(suppliers, "fixed double with span", DataType.DOUBLE, () -> 100.);
+        numberCases(suppliers, "fixed unsigned long", DataType.UNSIGNED_LONG, () -> BigInteger.valueOf(100));
+        numberCasesWithSpan(suppliers, "fixed unsigned long with span", DataType.UNSIGNED_LONG, () -> BigInteger.valueOf(100));
         suppliers = anyNullIsNull(
             suppliers,
             (nullPosition, nullValueDataType, original) -> nullPosition == 0 && nullValueDataType == DataType.NULL
@@ -230,12 +233,33 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                 : original.expectedType(),
             (nullPosition, nullData, original) -> nullPosition == 0 ? original : equalTo("LiteralsEvaluator[lit=null]")
         );
+        nullFieldMixedBoundsCases(suppliers);
+        dateAndNanosSpanRangeCases(
+            suppliers,
+            "with month period and range",
+            "1970-01-01T00:00:00.00Z",
+            DataType.DATE_PERIOD,
+            Period.ofMonths(1),
+            "[MONTH_OF_YEAR in Z][fixed to midnight]"
+        );
+        dateAndNanosSpanRangeCases(
+            suppliers,
+            "with hour duration and range",
+            "1970-01-01T00:00:00.00Z",
+            DataType.TIME_DURATION,
+            Duration.ofHours(3L),
+            "[10800000 in Z][fixed]"
+        );
         dateTruncCases(suppliers);
         return parameterSuppliersFromTypedData(suppliers);
     }
 
     // TODO once we cast above the functions we can drop these
-    private static final DataType[] DATE_BOUNDS_TYPE = new DataType[] { DataType.DATETIME, DataType.KEYWORD, DataType.TEXT };
+    private static final DataType[] DATE_BOUNDS_TYPE = new DataType[] {
+        DataType.DATETIME,
+        DataType.DATE_NANOS,
+        DataType.KEYWORD,
+        DataType.TEXT };
     private static final DataType[] BUCKETS_TYPE = new DataType[] { DataType.INTEGER, DataType.LONG };
 
     private static void dateCases(List<TestCaseSupplier> suppliers, String name, LongSupplier date) {
@@ -461,10 +485,64 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
         throw new IllegalArgumentException("Unsupported span: " + span);
     }
 
+    /**
+     * With a NULL field, BUCKET cannot tell whether the date or the numeric overload applies, so
+     * {@code resolveType} accepts any date-ish/numeric mix of from/to and the result is simply null.
+     * {@code anyNullIsNull} cannot produce these signatures — it only nullifies one argument of
+     * existing cases, whose bounds are always family-consistent — so they are declared explicitly.
+     */
+    private static void nullFieldMixedBoundsCases(List<TestCaseSupplier> suppliers) {
+        for (DataType bucketsType : BUCKETS_TYPE) {
+            for (DataType dateBoundType : DATE_BOUNDS_TYPE) {
+                for (DataType numericBoundType : NUMBER_BOUNDS_TYPES) {
+                    nullFieldMixedBoundsCase(
+                        suppliers,
+                        bucketsType,
+                        dateBound("from", dateBoundType, "2023-02-01T00:00:00.00Z"),
+                        numericBound("to", numericBoundType, 1000.0)
+                    );
+                    nullFieldMixedBoundsCase(
+                        suppliers,
+                        bucketsType,
+                        numericBound("from", numericBoundType, 0.0),
+                        dateBound("to", dateBoundType, "2023-03-01T09:00:00.00Z")
+                    );
+                }
+            }
+        }
+    }
+
+    private static void nullFieldMixedBoundsCase(
+        List<TestCaseSupplier> suppliers,
+        DataType bucketsType,
+        TestCaseSupplier.TypedData from,
+        TestCaseSupplier.TypedData to
+    ) {
+        suppliers.add(
+            new TestCaseSupplier(
+                "null field with mixed bounds",
+                List.of(DataType.NULL, bucketsType, from.type(), to.type()),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        TestCaseSupplier.TypedData.NULL,
+                        new TestCaseSupplier.TypedData(50, bucketsType, "buckets").forceLiteral(),
+                        from,
+                        to
+                    ),
+                    equalTo("LiteralsEvaluator[lit=null]"),
+                    DataType.NULL,
+                    nullValue()
+                )
+            )
+        );
+    }
+
     private static TestCaseSupplier.TypedData dateBound(String name, DataType type, String date) {
         Object value;
         if (type == DataType.DATETIME) {
             value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(date);
+        } else if (type == DataType.DATE_NANOS) {
+            value = DateUtils.toLong(Instant.parse(date));
         } else {
             value = new BytesRef(date);
         }
@@ -544,6 +622,58 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
         }));
     }
 
+    private static void dateAndNanosSpanRangeCases(
+        List<TestCaseSupplier> suppliers,
+        String description,
+        String dateString,
+        DataType spanType,
+        Object span,
+        String spanStr
+    ) {
+        for (DataType fromType : DATE_BOUNDS_TYPE) {
+            for (DataType toType : DATE_BOUNDS_TYPE) {
+                suppliers.add(
+                    new TestCaseSupplier("fixed date " + description, List.of(DataType.DATETIME, spanType, fromType, toType), () -> {
+                        long millis = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(dateString);
+                        List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                        args.add(new TestCaseSupplier.TypedData(millis, DataType.DATETIME, "field"));
+                        args.add(new TestCaseSupplier.TypedData(span, spanType, "buckets").forceLiteral());
+                        args.add(dateBound("from", fromType, "1970-01-01T00:00:00.00Z"));
+                        args.add(dateBound("to", toType, "1971-01-01T00:00:00.00Z"));
+                        return new TestCaseSupplier.TestCase(
+                            args,
+                            "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding" + spanStr + "]",
+                            DataType.DATETIME,
+                            resultsMatcher(args)
+                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
+                            .withExtra(expectedDateMetadataForSpan(span));
+                    })
+                );
+                suppliers.add(
+                    new TestCaseSupplier(
+                        "fixed date nanos " + description,
+                        List.of(DataType.DATE_NANOS, spanType, fromType, toType),
+                        () -> {
+                            long nanos = DateUtils.toLong(Instant.parse(dateString));
+                            List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                            args.add(new TestCaseSupplier.TypedData(nanos, DataType.DATE_NANOS, "field"));
+                            args.add(new TestCaseSupplier.TypedData(span, spanType, "buckets").forceLiteral());
+                            args.add(dateBound("from", fromType, "1970-01-01T00:00:00.00Z"));
+                            args.add(dateBound("to", toType, "1971-01-01T00:00:00.00Z"));
+                            return new TestCaseSupplier.TestCase(
+                                args,
+                                "DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding" + spanStr + "]",
+                                DataType.DATE_NANOS,
+                                resultsMatcher(args)
+                            ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
+                                .withExtra(expectedDateMetadataForSpan(span));
+                        }
+                    )
+                );
+            }
+        }
+    }
+
     private static void dateNanosCases(List<TestCaseSupplier> suppliers, String name, LongSupplier date) {
         for (DataType fromType : DATE_BOUNDS_TYPE) {
             for (DataType toType : DATE_BOUNDS_TYPE) {
@@ -587,23 +717,26 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
     private static void numberCases(List<TestCaseSupplier> suppliers, String name, DataType numberType, Supplier<Number> number) {
         for (DataType fromType : NUMBER_BOUNDS_TYPES) {
             for (DataType toType : NUMBER_BOUNDS_TYPES) {
-                suppliers.add(new TestCaseSupplier(name, List.of(numberType, DataType.INTEGER, fromType, toType), () -> {
-                    List<TestCaseSupplier.TypedData> args = new ArrayList<>();
-                    args.add(new TestCaseSupplier.TypedData(number.get(), "field"));
-                    // TODO more "from" and "to" and "buckets"
-                    args.add(new TestCaseSupplier.TypedData(50, DataType.INTEGER, "buckets").forceLiteral());
-                    args.add(numericBound("from", fromType, 0.0));
-                    args.add(numericBound("to", toType, 1000.0));
-                    // TODO more number types for "from" and "to"
-                    String attr = "Attribute[channel=0]";
-                    if (numberType == DataType.INTEGER) {
-                        attr = "CastIntToDoubleEvaluator[v=" + attr + "]";
-                    } else if (numberType == DataType.LONG) {
-                        attr = "CastLongToDoubleEvaluator[v=" + attr + "]";
-                    }
-                    return new TestCaseSupplier.TestCase(args, bucketDivToStringMatcher(attr), DataType.DOUBLE, resultsMatcher(args))
-                        .withExtra(META_NUMERIC_50);
-                }));
+                for (DataType bucketsType : BUCKETS_TYPE) {
+                    suppliers.add(new TestCaseSupplier(name, List.of(numberType, bucketsType, fromType, toType), () -> {
+                        List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                        args.add(new TestCaseSupplier.TypedData(number.get(), numberType, "field"));
+                        // TODO more "from" and "to" and "buckets"
+                        args.add(new TestCaseSupplier.TypedData(50, bucketsType, "buckets").forceLiteral());
+                        args.add(numericBound("from", fromType, 0.0));
+                        args.add(numericBound("to", toType, 1000.0));
+                        String attr = "Attribute[channel=0]";
+                        if (numberType == DataType.INTEGER) {
+                            attr = "CastIntToDoubleEvaluator[v=" + attr + "]";
+                        } else if (numberType == DataType.LONG) {
+                            attr = "CastLongToDoubleEvaluator[v=" + attr + "]";
+                        } else if (numberType == DataType.UNSIGNED_LONG) {
+                            attr = "CastUnsignedLongToDoubleEvaluator[v=" + attr + "]";
+                        }
+                        return new TestCaseSupplier.TestCase(args, bucketDivToStringMatcher(attr), DataType.DOUBLE, resultsMatcher(args))
+                            .withExtra(META_NUMERIC_50);
+                    }));
+                }
             }
         }
     }
@@ -643,13 +776,15 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
             DataType spanType = DataType.fromJava(span);
             suppliers.add(new TestCaseSupplier(name, List.of(numberType, spanType), () -> {
                 List<TestCaseSupplier.TypedData> args = new ArrayList<>();
-                args.add(new TestCaseSupplier.TypedData(number.get(), "field"));
+                args.add(new TestCaseSupplier.TypedData(number.get(), numberType, "field"));
                 args.add(new TestCaseSupplier.TypedData(span, spanType, "span").forceLiteral());
                 String attr = "Attribute[channel=0]";
                 if (numberType == DataType.INTEGER) {
                     attr = "CastIntToDoubleEvaluator[v=" + attr + "]";
                 } else if (numberType == DataType.LONG) {
                     attr = "CastLongToDoubleEvaluator[v=" + attr + "]";
+                } else if (numberType == DataType.UNSIGNED_LONG) {
+                    attr = "CastUnsignedLongToDoubleEvaluator[v=" + attr + "]";
                 }
                 return new TestCaseSupplier.TestCase(args, bucketDivToStringMatcher(attr), DataType.DOUBLE, resultsMatcher(args)).withExtra(
                     META_NUMERIC_50
@@ -679,6 +814,9 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
             LogManager.getLogger(getTestClass()).info("Expected: " + DateUtils.toInstant(expected));
             LogManager.getLogger(getTestClass()).info("Input: " + DateUtils.toInstant(nanos));
             return equalTo(expected);
+        }
+        if (typedData.get(0).type() == DataType.UNSIGNED_LONG) {
+            return equalTo(((Number) typedData.get(0).originalData()).doubleValue());
         }
         return equalTo(((Number) typedData.get(0).data()).doubleValue());
     }

@@ -1112,3 +1112,49 @@ ROW ts = 123::datetime
 c:long | b:datetime
 1      | 1970-01-01T00:00:00.120Z
 ;
+
+bucketNumericLongCount
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| STATS c = COUNT(*) BY b = BUCKET(salary, 20::long, 25324, 74999)
+| SORT b
+;
+
+ c:long        | b:double
+1              |25000.0
+1              |30000.0
+1              |40000.0
+2              |45000.0
+2              |50000.0
+1              |55000.0
+1              |60000.0
+1              |65000.0
+1              |70000.0
+;
+
+bucketDateNanosBounds
+ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
+| STATS date=VALUES(date) BY bucket=BUCKET(date, 20, TO_DATE_NANOS("1985-01-01T00:00:00Z"), TO_DATE_NANOS("1986-01-01T00:00:00Z"))
+;
+
+           date:datetime | bucket:datetime
+1985-07-09T00:00:00.000Z | 1985-07-01T00:00:00.000Z
+;
+
+bucketDatePeriodWithRange
+ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
+| STATS date=VALUES(date) BY bucket=BUCKET(date, 1 month, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+;
+
+           date:datetime | bucket:datetime
+1985-07-09T00:00:00.000Z | 1985-07-01T00:00:00.000Z
+;
+
+bucketUnsignedLongFieldSpan
+ROW x = 100::unsigned_long
+| STATS c = COUNT(*) BY b = BUCKET(x, 50.)
+;
+
+c:long | b:double
+1      | 100.0
+;

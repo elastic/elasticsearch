@@ -31,8 +31,17 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 public class EsqlSecurityLogsdbColumnarIT extends EsqlSecurityIT {
 
     @Override
-    protected Settings flsIndexSettings() {
+    protected Settings indexSettings() {
         return Settings.builder().put("index.mode", "logsdb_columnar").build();
+    }
+
+    /**
+     * Disables the data-stream {@code @timestamp} metadata field that logsdb_columnar enables by default, so the shared
+     * timestamp-less test documents index unchanged.
+     */
+    @Override
+    protected String mappingPrefix() {
+        return "\"_data_stream_timestamp\":{\"enabled\":false},";
     }
 
     /**

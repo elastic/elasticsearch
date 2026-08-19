@@ -23,7 +23,7 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
  * rather than one {@code @ParametersFactory} because behavior differs between the two index modes - notably, {@code logsdb_columnar}
  * drops {@code dynamic:false} unmapped fields at index time.
  *
- * <p>Two tracked FLS x synthetic-source bugs are muted for this class in {@code muted-tests.yml}:
+ * <p>Two tracked FLS x synthetic-source bugs are disabled for this class via {@code @AwaitsFix} overrides at the bottom of the file:
  * <ol>
  *   <li>FLS drops the keyword synthetic-source delegate so a granted text field reconstructs to null (elastic/security#6714).</li>
  *   <li>{@code except:_source} fails to strip values reconstructed from {@code _ignored_source} (elastic/security#13332).</li>
@@ -32,8 +32,17 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 public class EsqlSecurityLogsdbIT extends EsqlSecurityIT {
 
     @Override
-    protected Settings flsIndexSettings() {
+    protected Settings indexSettings() {
         return Settings.builder().put("index.mode", "logsdb").build();
+    }
+
+    /**
+     * Disables the data-stream {@code @timestamp} metadata field that logsdb enables by default, so the shared timestamp-less test
+     * documents index unchanged.
+     */
+    @Override
+    protected String mappingPrefix() {
+        return "\"_data_stream_timestamp\":{\"enabled\":false},";
     }
 
     /**
@@ -85,4 +94,40 @@ public class EsqlSecurityLogsdbIT extends EsqlSecurityIT {
                 .entry("values", List.of(List.of("100000", "2024-01-01", "10.0.0.1"), List.of("200000", "2023-06-15", "10.0.0.2")))
         );
     }
+
+    // FLS drops the keyword synthetic-source delegate so a granted text field reconstructs to null (elastic/security#6714).
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/6714")
+    public void testFieldLevelSecurityAllow() throws Exception {}
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/6714")
+    public void testFieldLevelSecurityAllowPartial() throws Exception {}
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/6714")
+    public void testFieldLevelSecurityPartiallyUnmappedLoad() throws Exception {}
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/6714")
+    public void testFieldLevelSecurityPartiallyUnmappedNullify() throws Exception {}
+
+    // except:_source fails to strip values reconstructed from _ignored_source (elastic/security#13332).
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/13332")
+    public void testFieldLevelSecuritySourceDisabledMultiIndex() throws Exception {}
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/13332")
+    public void testFieldLevelSecuritySourceDisabledMultiIndexPartialMappingNonKeyword() throws Exception {}
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/13332")
+    public void testFieldLevelSecuritySourceDisabledWithUnmappedFieldsLoad() throws Exception {}
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/13332")
+    public void testFieldLevelSecuritySourceDisabledWithUnmappedFieldsLoadAndCast() throws Exception {}
 }

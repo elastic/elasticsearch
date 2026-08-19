@@ -162,9 +162,13 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         shutdownPrepareService.prepareForShutdown();
         // Therefore, we rethrottle the reindexing task to run unlimited requests per second, immediately triggering relocation
         rethrottleRunningRootReindex(numDocs);
-        internalCluster().stopNode(coordNodeName);
 
+        // Wait for the client listener before stopping the node: the relocation is initiated but the listener may be not completed.
+        // Stopping the node concurrently can strand their response handlers in already-terminated thread pools, hanging the listener and
+        // leaking the stranded messages' network buffers
         assertTrue("reindex listener should complete", listenerDone.await(30, TimeUnit.SECONDS));
+
+        internalCluster().stopNode(coordNodeName);
 
         // Assert that the reindexing task on the first node failed
         final Throwable error = failure.get();
@@ -423,7 +427,11 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         final Throwable error = failure.get();
         final BulkByPaginatedSearchResponse response = success.get();
         assertTrue(
-            "reindex should surface coordinator shutdown as a transport failure or as bulk failures on the response",
+            "reindex should surface coordinator shutdown as a transport failure or as bulk failures on the response, but got error=["
+                + error
+                + "], response=["
+                + response
+                + "]",
             reindexClientIndicatesCoordinatingNodeClosed(error, response)
         );
 

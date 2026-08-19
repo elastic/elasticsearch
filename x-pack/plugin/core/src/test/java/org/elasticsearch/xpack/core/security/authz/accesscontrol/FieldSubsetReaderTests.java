@@ -1038,7 +1038,8 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
                     filter,
                     format,
-                    (fieldName) -> true
+                    (fieldName) -> true,
+                    (field) -> null
                 )
             ) {
                 assertEquals(expected.toString(), syntheticSource(mapper, indexReader, doc.docs().size() - 1));
@@ -1084,7 +1085,8 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
                     filter,
                     format,
-                    (fieldName) -> mapper.mappers().getFieldType(fieldName) != null
+                    (fieldName) -> mapper.mappers().getFieldType(fieldName) != null,
+                    (field) -> null
                 )
             ) {
                 assertEquals("{\"keep\":[3,1,2]}", syntheticSource(mapper, indexReader, doc.docs().size() - 1));

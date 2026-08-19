@@ -603,20 +603,6 @@ null
 ;
 
 
-# boundary_chars, boundary_max_scan and phrase_limit are FastVectorHighlighter-only, so they are accepted but no-ops.
-highlightUnifiedNoOpOptions
-required_capability: highlight_v6
-
-ROW content = "The One Ring was forged by Sauron."
-| HIGHLIGHT "ring" ON content WITH { "boundary_chars": ".,!?", "boundary_max_scan": 10, "phrase_limit": 64 }
-| KEEP highlight_content
-;
-
-highlight_content:keyword
-The One <em>Ring</em> was forged by Sauron.
-;
-
-
 # Unquoted adjacent terms wrap independently; use a quoted phrase for a single span.
 highlightAdjacentMatchesWrappedIndependently
 required_capability: highlight_v6

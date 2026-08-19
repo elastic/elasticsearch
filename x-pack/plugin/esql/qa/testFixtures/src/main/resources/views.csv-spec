@@ -2463,3 +2463,79 @@ language_code:integer | language_name:keyword | has_prefix:boolean
 4                     | German                | true
 ;
 
+viewMetadataVersionPassesThroughFromIndex
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_metadata_behavior_changes
+
+FROM view_languages METADATA _version
+| SORT language_code
+| KEEP language_code, _version
+;
+
+language_code:integer | _version:long
+1                     | null
+2                     | null
+3                     | null
+4                     | null
+;
+
+viewMetadataIgnoredPassesThroughFromIndex
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_metadata_behavior_changes
+required_capability: metadata_ignored_field
+
+FROM view_languages METADATA _ignored
+| STATS non_null_count = COUNT_IF(_ignored IS NOT NULL)
+;
+
+non_null_count:long
+0
+;
+
+viewMetadataScorePassesThroughFromIndex
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_metadata_behavior_changes
+required_capability: metadata_score
+
+FROM view_languages METADATA _score
+| STATS non_null_count = COUNT_IF(_score IS NOT NULL)
+;
+
+non_null_count:long
+0
+;
+
+viewMetadataIndexModePassesThroughFromIndex
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_metadata_behavior_changes
+
+FROM view_languages METADATA _index_mode
+| SORT language_code
+| KEEP language_code, _index_mode
+;
+
+language_code:integer | _index_mode:keyword
+1                     | null
+2                     | null
+3                     | null
+4                     | null
+;
+
+viewMetadataTierPassesThroughFromIndex
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_metadata_behavior_changes
+required_capability: metadata_tier_field
+
+FROM view_languages METADATA _tier
+| STATS max_tier = MAX(_tier)
+;
+
+max_tier:keyword
+null
+;
+

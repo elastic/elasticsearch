@@ -32,12 +32,12 @@ public final class ViewMetadataFieldRewriter {
     private ViewMetadataFieldRewriter() {}
 
     /**
-     * Returns the view body wrapped with the rewrites required by the calling query's metadata
-     * request, or the body unchanged when no requested metadata field needs special handling.
+     * Changes the output of queries that use METADATA paired with views
      *
      * @param viewName the name the view
      * @param viewBody the parsed view body
      * @param outerMetadataFields the metadata fields requested by the referencing {@code FROM}
+     * @return the rewritten plan, or {@code viewBody} unchanged if no metadata fields are requested
      */
     public static LogicalPlan rewrite(String viewName, LogicalPlan viewBody, List<NamedExpression> outerMetadataFields) {
         Source source = viewBody.source();
@@ -63,6 +63,9 @@ public final class ViewMetadataFieldRewriter {
                         )
                     );
                 }
+                default -> aliases.add(
+                    new Alias(source, metadataField.name(), new Literal(source, null, metadataField.dataType()))
+                );
             }
         }
 

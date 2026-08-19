@@ -84,9 +84,29 @@ public class ViewMetadataFieldRewriterTests extends ESTestCase {
         assertEquals(IdFieldMapper.NAME, ((UnresolvedAttribute) concat.children().get(1)).name());
     }
 
-    public void testUnrecognizedOuterMetadataReturnsSameInstance() {
-        MetadataAttribute scoreField = new MetadataAttribute(Source.EMPTY, "_score", DataType.DOUBLE, false);
-        LogicalPlan result = ViewMetadataFieldRewriter.rewrite(VIEW_NAME, BODY, List.of(scoreField));
-        assertThat(result, sameInstance(BODY));
+    public void testDefaultMetadataFields_produceTypedNullAlias() {
+        List<String> nullableFieldNames = MetadataAttribute.ATTRIBUTES_MAP.keySet()
+            .stream()
+            .filter(name -> MetadataAttribute.INDEX.equals(name) == false)
+            .filter(name -> IdFieldMapper.NAME.equals(name) == false)
+            .sorted()
+            .toList();
+
+        assertFalse("ATTRIBUTES_MAP must contain at least one nullable field", nullableFieldNames.isEmpty());
+
+        for (String fieldName : nullableFieldNames) {
+            MetadataAttribute field = (MetadataAttribute) MetadataAttribute.create(Source.EMPTY, fieldName);
+            LogicalPlan result = ViewMetadataFieldRewriter.rewrite(VIEW_NAME, BODY, List.of(field));
+
+            assertThat(fieldName + ": expected Eval node", result, instanceOf(Eval.class));
+            Eval eval = (Eval) result;
+            assertThat(fieldName + ": expected exactly one alias", eval.fields(), hasSize(1));
+            Alias alias = eval.fields().getFirst();
+            assertEquals(fieldName + ": alias name mismatch", fieldName, alias.name());
+            assertThat(fieldName + ": expected null Literal", alias.child(), instanceOf(Literal.class));
+            Literal lit = (Literal) alias.child();
+            assertNull(fieldName + ": literal value must be null", lit.value());
+            assertEquals(fieldName + ": literal type must match the field type", field.dataType(), lit.dataType());
+        }
     }
 }

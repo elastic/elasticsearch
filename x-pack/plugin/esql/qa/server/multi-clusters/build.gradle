@@ -72,6 +72,7 @@ def federationRemoteDatasetGateTest = tasks.register("v${currentVersion}#federat
 }
 tasks.named("check").configure {
   dependsOn federationRemoteDatasetGateTest
+  dependsOn currentToCurrent
 }
 
 def supportedVersion = bwcVersion -> {

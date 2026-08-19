@@ -80,11 +80,6 @@ public class PressuredCacheBlobReader implements CacheBlobReader {
         return delegate.executorName();
     }
 
-    @Override
-    public void onCopyCompleted(int totalBytesRead, long timeNanos) {
-        delegate.onCopyCompleted(totalBytesRead, timeNanos);
-    }
-
     /**
      * Pool a deferred grant resumes on: the invoking thread's pool. Production reads always issue from registered pool threads (fill
      * handlers assert this), so an unresolvable pool fails loudly rather than resuming on the wrong pool.

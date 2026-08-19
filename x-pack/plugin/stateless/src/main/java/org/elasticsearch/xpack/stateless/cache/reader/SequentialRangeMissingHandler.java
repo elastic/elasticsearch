@@ -58,10 +58,7 @@ public class SequentialRangeMissingHandler implements SharedBlobCacheService.Ran
      * @param writeBufferSupplier     returns byte buffer which is used for copying data from blob reader to cache.
      *                                Be aware of threaded usage of writeBufferSupplier. Underlying buffer is used exclusively in
      *                                a gap filling thread, so it should not be shared with other modifying threads.
-     * @param bytesCopiedConsumer     called with the per-chunk byte delta before the
-     *                                {@link org.elasticsearch.blobcache.common.SparseFileTracker} advances; use for
-     *                                supplementary tracking (e.g. warming-service byte counters). Reader-level metering
-     *                                is handled by the reader itself. Pass {@code ignored -> {}} if unneeded.
+     * @param bytesCopiedConsumer     a consumer to be called everytime some bytes are copied to the cache
      * @param expectedThreadPoolNames lists threads which can be used to fill the range
      */
     public SequentialRangeMissingHandler(
@@ -201,16 +198,8 @@ public class SequentialRangeMissingHandler implements SharedBlobCacheService.Ran
         createInputStream(streamFactory, relativePos, len, completionListener.map(in -> {
             try (in) {
                 assert ThreadPool.assertCurrentThreadPool(expectedThreadPoolNames);
-                final long copyStartNanos = System.nanoTime();
-                SharedBytes.copyToCacheFileAligned(
-                    channel,
-                    in,
-                    channelPos,
-                    progressUpdater,
-                    bytesCopiedConsumer,
-                    totalBytes -> cacheBlobReader.onCopyCompleted(totalBytes, System.nanoTime() - copyStartNanos),
-                    writeBufferSupplier.get()
-                );
+                int bytesCopied = SharedBytes.copyToCacheFileAligned(channel, in, channelPos, progressUpdater, writeBufferSupplier.get());
+                bytesCopiedConsumer.accept(bytesCopied);
                 return null;
             }
         }));

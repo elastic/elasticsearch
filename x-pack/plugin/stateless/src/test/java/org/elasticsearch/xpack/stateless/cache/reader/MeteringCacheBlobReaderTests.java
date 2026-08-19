@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.stateless.cache.reader;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -20,10 +23,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 public class MeteringCacheBlobReaderTests extends ESTestCase {
 
@@ -51,26 +56,48 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
         assertThat(capturedBytes, equalTo(readBytes));
     }
 
-    public void testOnCopyCompletedCallback() {
-        final var capturedTotal = new AtomicInteger();
-        final var capturedTime = new AtomicLong(0);
-        final var meteringCacheBlobReader = new MeteringCacheBlobReader(
-            createFakeCacheBlobReader(),
-            new MeteringCacheBlobReader.ReadCompleteCallback() {
-                @Override
-                public void onReadCompleted(int totalBytesRead, long timeNanos) {
-                    capturedTotal.set(totalBytesRead);
-                    capturedTime.set(timeNanos);
-                }
+    public void testOnReadCompletedCallbackViaClose() throws IOException {
+        var size = randomIntBetween(16, 1024);
+        var cacheBlobReader = createFakeCacheBlobReader();
+
+        var bytesReadHolder = new SetOnce<Integer>();
+        var readTimeNanosHolder = new SetOnce<Long>();
+        var meteringCacheBlobReader = new MeteringCacheBlobReader(cacheBlobReader, new MeteringCacheBlobReader.ReadCompleteCallback() {
+            @Override
+            public void onReadCompleted(int bytesRead, long timeToReadNanos) {
+                bytesReadHolder.set(bytesRead);
+                readTimeNanosHolder.set(timeToReadNanos);
             }
-        );
+        });
+        PlainActionFuture<InputStream> future = new PlainActionFuture<>();
 
-        final var total = randomIntBetween(1, 4096);
-        final var time = randomLongBetween(1, 1_000_000);
-        meteringCacheBlobReader.onCopyCompleted(total, time);
+        final long timeBeforeMethodCallNanos = System.nanoTime();
 
-        assertThat(capturedTotal.get(), equalTo(total));
-        assertThat(capturedTime.get(), equalTo(time));
+        meteringCacheBlobReader.getRangeInputStream(randomInt(), size, future);
+        var meteredInputStream = safeGet(future);
+
+        if (randomBoolean()) {
+            Streams.consumeFully(meteredInputStream);
+            assertEquals(size, bytesReadHolder.get().longValue());
+            assertReadTimeIsReasonable(timeBeforeMethodCallNanos, readTimeNanosHolder.get());
+        } else {
+            int limit = randomIntBetween(1, size);
+            try (var is = Streams.limitStream(meteredInputStream, limit)) {
+                Streams.consumeFully(is);
+            }
+            assertEquals(limit, bytesReadHolder.get().longValue());
+            assertReadTimeIsReasonable(timeBeforeMethodCallNanos, readTimeNanosHolder.get());
+        }
+    }
+
+    public void testOnReadCompletedCallbackNotCalledWhenNoBytesRead() throws IOException {
+        MeteringCacheBlobReader.ReadCompleteCallback readCompleteCallback = mock(MeteringCacheBlobReader.ReadCompleteCallback.class);
+        var meteringCacheBlobReader = new MeteringCacheBlobReader(createFakeCacheBlobReader(), readCompleteCallback);
+        PlainActionFuture<InputStream> future = new PlainActionFuture<>();
+        meteringCacheBlobReader.getRangeInputStream(randomInt(), randomIntBetween(16, 1024), future);
+        InputStream meteredInputStream = safeGet(future);
+        meteredInputStream.close();
+        verifyNoInteractions(readCompleteCallback);
     }
 
     @TestLogging(value = "org.elasticsearch.xpack.stateless.cache.reader.MeteringCacheBlobReader:DEBUG", reason = "test debug log message")
@@ -104,27 +131,31 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
     }
 
     @TestLogging(value = "org.elasticsearch.xpack.stateless.cache.reader.MeteringCacheBlobReader:DEBUG", reason = "test debug log message")
-    public void testExceptionIsLoggedAtDebugWhenTimingCallbackThrows() {
-        final var callbackException = new RuntimeException("Timing callback exception");
-        final var throwingCallback = new MeteringCacheBlobReader.ReadCompleteCallback() {
+    public void testExceptionIsLoggedAtDebugWhenReadCompletedCallbackThrows() throws IOException {
+        RuntimeException callbackException = new RuntimeException("Callback exception");
+        MeteringCacheBlobReader.ReadCompleteCallback throwingReadCompleteCallback = new MeteringCacheBlobReader.ReadCompleteCallback() {
             @Override
-            public void onReadCompleted(int totalBytesRead, long timeNanos) {
+            public void onReadCompleted(int bytesRead, long timeToReadNanos) {
                 throw callbackException;
             }
         };
-        final var meteringCacheBlobReader = new MeteringCacheBlobReader(createFakeCacheBlobReader(), throwingCallback);
+        var meteringCacheBlobReader = new MeteringCacheBlobReader(createFakeCacheBlobReader(), throwingReadCompleteCallback);
+        PlainActionFuture<InputStream> future = new PlainActionFuture<>();
+        meteringCacheBlobReader.getRangeInputStream(randomInt(), randomIntBetween(16, 1024), future);
+        InputStream meteredInputStream = safeGet(future);
+        meteredInputStream.read();
         try (MockLog mockLog = MockLog.capture(MeteringCacheBlobReader.class)) {
             mockLog.addExpectation(
                 new MockLog.ExceptionSeenEventExpectation(
-                    "timing callback threw message",
+                    "callback threw message",
                     MeteringCacheBlobReader.class.getName(),
                     Level.DEBUG,
-                    "Error calling timing call-back",
+                    "Error calling call-back",
                     callbackException.getClass(),
                     callbackException.getMessage()
                 )
             );
-            meteringCacheBlobReader.onCopyCompleted(randomIntBetween(1, 1024), randomLongBetween(1, 1_000_000));
+            meteredInputStream.close();
             mockLog.assertAllExpectationsMatched();
         }
     }
@@ -146,5 +177,10 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
                 listener.onResponse(new ByteArrayInputStream(randomByteArrayOfLength(length)));
             }
         };
+    }
+
+    private static void assertReadTimeIsReasonable(long timeBeforeMethodCallNanos, long reportedReadTimeNanos) {
+        assertThat(reportedReadTimeNanos, greaterThan(0L));
+        assertThat(reportedReadTimeNanos, lessThanOrEqualTo(System.nanoTime() - timeBeforeMethodCallNanos));
     }
 }

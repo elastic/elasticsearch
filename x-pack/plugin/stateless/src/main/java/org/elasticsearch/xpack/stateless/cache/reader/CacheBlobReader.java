@@ -64,15 +64,4 @@ public interface CacheBlobReader {
         return StatelessPlugin.SHARD_READ_THREAD_POOL;
     }
 
-    /**
-     * Called once after a full range copy completes, with the total byte count and elapsed wall-clock time
-     * of the {@code copyToCacheFileAligned} call. Intended for throughput-metric recording.
-     * <p>
-     * Called after the {@link org.elasticsearch.blobcache.common.SparseFileTracker} has advanced — so it
-     * must not be used for byte-counter updates that need to be visible before a waiting reader thread unblocks.
-     * The default implementation is a no-op.
-     * <p>
-     * May be called with {@code totalBytesRead == 0} when no bytes were copied; implementations should handle this gracefully
-     */
-    default void onCopyCompleted(int totalBytesRead, long timeNanos) {}
 }

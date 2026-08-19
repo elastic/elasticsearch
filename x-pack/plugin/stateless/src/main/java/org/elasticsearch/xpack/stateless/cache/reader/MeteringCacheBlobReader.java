@@ -47,24 +47,6 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
     }
 
     /**
-     * Records the elapsed time of the full range copy. Called once per range, after all chunks have landed
-     * and after the {@link org.elasticsearch.blobcache.common.SparseFileTracker} has advanced. Safe to call
-     * after the reader has been unblocked because this only affects throughput telemetry, not byte counters.
-     * <p>
-     * Not called when no bytes were copied (totalBytesRead == 0).
-     */
-    @Override
-    public void onCopyCompleted(int totalBytesRead, long timeNanos) {
-        try {
-            if (totalBytesRead > 0) {
-                readCompleteCallback.onReadCompleted(totalBytesRead, timeNanos);
-            }
-        } catch (Exception e) {
-            logger.debug("Error calling timing call-back", e);
-        }
-    }
-
-    /**
      * Notified as bytes are read from the source stream (per-chunk) and once when the read is completed.
      */
     public interface ReadCompleteCallback {
@@ -89,14 +71,19 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
     }
 
     /**
-     * Counts bytes per-read and notifies {@link ReadCompleteCallback#onBytesRead} immediately on each chunk,
-     * before the data is written to the cache. This ensures byte-counter updates are visible to any reader
-     * thread that the SparseFileTracker may unblock after the chunk lands.
+     * Counts bytes per-read, notifies {@link ReadCompleteCallback#onBytesRead} immediately on each chunk
+     * (before the SparseFileTracker advances), and fires {@link ReadCompleteCallback#onReadCompleted} with
+     * elapsed timing on close.
      */
     private class MeteringInputStream extends FilterInputStream {
 
+        private final long streamCreatedTimeNs;
+        private int totalBytesRead;
+        private boolean closed;
+
         private MeteringInputStream(InputStream delegateInputStream) {
             super(delegateInputStream);
+            streamCreatedTimeNs = System.nanoTime();
         }
 
         @Override
@@ -118,11 +105,29 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
         }
 
         private void notifyBytesRead(int bytesRead) {
+            totalBytesRead += bytesRead;
             try {
                 readCompleteCallback.onBytesRead(bytesRead);
             } catch (Exception e) {
                 logger.debug("Error calling call-back", e);
             }
+        }
+
+        @Override
+        public void close() throws IOException {
+            if (closed == false) {
+                try {
+                    if (totalBytesRead > 0) {
+                        long readTimeNanos = System.nanoTime() - streamCreatedTimeNs;
+                        readCompleteCallback.onReadCompleted(totalBytesRead, readTimeNanos);
+                    }
+                } catch (Exception e) {
+                    logger.debug("Error calling call-back", e);
+                } finally {
+                    closed = true;
+                }
+            }
+            super.close();
         }
     }
 }

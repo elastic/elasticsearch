@@ -98,14 +98,4 @@ public class SwitchingCacheBlobReader implements CacheBlobReader {
         }
     }
 
-    // onCopyCompleted routes on current isUploaded(); if state flipped mid-copy,
-    // timing goes to the wrong reader — acceptable for throughput telemetry only.
-    @Override
-    public void onCopyCompleted(int totalBytesRead, long timeNanos) {
-        if (latestUploadInfo.isUploaded()) {
-            cacheBlobReaderForUploaded.onCopyCompleted(totalBytesRead, timeNanos);
-        } else {
-            cacheBlobReaderForNonUploaded.onCopyCompleted(totalBytesRead, timeNanos);
-        }
-    }
 }

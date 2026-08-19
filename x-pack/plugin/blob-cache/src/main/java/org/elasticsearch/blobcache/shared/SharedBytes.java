@@ -242,48 +242,19 @@ public class SharedBytes extends AbstractRefCounted {
      */
     public static int copyToCacheFileAligned(IO fc, InputStream input, int fileChannelPos, IntConsumer progressUpdater, ByteBuffer buffer)
         throws IOException {
-        return copyToCacheFileAligned(fc, input, fileChannelPos, progressUpdater, ignored -> {}, ignored -> {}, buffer);
-    }
-
-    /**
-     * Copy all bytes from {@code input} to {@code fc}, only doing writes aligned along {@link #PAGE_SIZE}.
-     *
-     * @param fc output cache file reference
-     * @param input stream to read from
-     * @param fileChannelPos position in {@code fc} to write to
-     * @param progressUpdater callback to invoke with the number of copied bytes as they are copied
-     * @param bytesReadConsumer callback to invoke with the number of bytes copied in each read
-     * @param totalBytesReadConsumer callback to invoke with the total bytes copied when all reading completes
-     * @param buffer bytebuffer to use for writing
-     * @return the number of bytes copied
-     * @throws IOException on failure
-     */
-    public static int copyToCacheFileAligned(
-        IO fc,
-        InputStream input,
-        int fileChannelPos,
-        IntConsumer progressUpdater,
-        IntConsumer bytesReadConsumer,
-        IntConsumer totalBytesReadConsumer,
-        ByteBuffer buffer
-    ) throws IOException {
         assert buffer.position() == 0 : "expecting empty temp buffer";
         assert buffer.limit() >= PAGE_SIZE : "expecting temp buffer with capacity at least the PAGE_SIZE";
         assert buffer.limit() % PAGE_SIZE == 0 : "expecting temp buffer with capacity multiple of PAGE_SIZE";
-        int totalBytesConsumed = 0;
+        int bytesCopied = 0;
         while (true) {
             final int bytesRead = Streams.read(input, buffer, buffer.remaining());
             if (bytesRead <= 0) {
-                totalBytesReadConsumer.accept(totalBytesConsumed);
                 break;
             }
-            final int bytesCopied = copyBufferToCacheFileAligned(fc, fileChannelPos + totalBytesConsumed, buffer);
-            // before progressUpdater: used for metrics that need to be collected before readers' thread advance to avoid a race
-            bytesReadConsumer.accept(bytesCopied);
-            totalBytesConsumed += bytesCopied;
-            progressUpdater.accept(totalBytesConsumed);
+            bytesCopied += copyBufferToCacheFileAligned(fc, fileChannelPos + bytesCopied, buffer);
+            progressUpdater.accept(bytesCopied);
         }
-        return totalBytesConsumed;
+        return bytesCopied;
     }
 
     /**

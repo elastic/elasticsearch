@@ -67,7 +67,6 @@ public final class CharParser implements Parser {
     // valid exponent sign (e.g. "1e-5"), whereas any other interior sign means the token is not a double (e.g. "0-23").
     private final CompiledSchema compiledSchema;
 
-
     private final BitmaskRegistry<SubTokenType> subTokenBitmaskRegistry;
     private final BitmaskRegistry<TokenType> tokenBitmaskRegistry;
     private final BitmaskRegistry<MultiTokenType> multiTokenBitmaskRegistry;
@@ -109,7 +108,6 @@ public final class CharParser implements Parser {
     private boolean isPotentialDecimalNumber;
     private boolean previousCharWasExponent;
     private boolean currentTokenValidDouble;
-
 
     // current multi-token state
     private int currentMultiTokenStartIndex;
@@ -329,27 +327,28 @@ public final class CharParser implements Parser {
             // and position that declares it, it must instead END the current sub-token WITHOUT being folded into its bitmask - this matters
             // for content-character delimiters such as ISO-8601 'T', whose (alphabetic) sub-token bitmask would otherwise clear the numeric
             // bits of the preceding sub-token before we even recognize it as a delimiter.
-            // When splitting on an interior boundary the current char belongs to the NEXT sub-token, not the one being finalized, so we must
+            // When splitting on an interior boundary the current char belongs to the NEXT sub-token, not the one being finalized, so we
+            // must
             // not fold it into the current (preceding) sub-token's bitmask here - it is applied to the fresh sub-token after finalization.
-            //noinspection StatementWithEmptyBody
+            // noinspection StatementWithEmptyBody
             if (interiorBoundarySplit) {
                 // no-op: preserve the preceding sub-token's bitmask untouched
             } else if (isSpecialSubTokenDelimiter[currentChar] == false
                 || currentTokenBitmask == 0
                 || currentSubTokenStartIndex == indexWithinRawMessage) {
-                currentSubTokenBitmask &= charToSubTokenBitmask[currentChar];
-            } else {
-                int[] specialTokenBitmaskPerDelimiterPosition = charSpecificParsingInfos[currentChar].tokenBitmaskPerDelimiterPosition;
-                int candidateSubTokenIndex = currentTokenSubTokenIndex + 1;
-                if (candidateSubTokenIndex < specialTokenBitmaskPerDelimiterPosition.length
-                    && (currentTokenBitmask & specialTokenBitmaskPerDelimiterPosition[candidateSubTokenIndex]) != 0) {
-                    // the character acts as a sub-token delimiter here: end the current sub-token WITHOUT folding it into the bitmask
-                    charType = SUBTOKEN_DELIMITER_CHAR_CODE;
-                } else {
-                    // a special-delimiter character that is not acting as a delimiter at this position is an ordinary content character
                     currentSubTokenBitmask &= charToSubTokenBitmask[currentChar];
+                } else {
+                    int[] specialTokenBitmaskPerDelimiterPosition = charSpecificParsingInfos[currentChar].tokenBitmaskPerDelimiterPosition;
+                    int candidateSubTokenIndex = currentTokenSubTokenIndex + 1;
+                    if (candidateSubTokenIndex < specialTokenBitmaskPerDelimiterPosition.length
+                        && (currentTokenBitmask & specialTokenBitmaskPerDelimiterPosition[candidateSubTokenIndex]) != 0) {
+                        // the character acts as a sub-token delimiter here: end the current sub-token WITHOUT folding it into the bitmask
+                        charType = SUBTOKEN_DELIMITER_CHAR_CODE;
+                    } else {
+                        // a special-delimiter character that is not acting as a delimiter at this position is an ordinary content character
+                        currentSubTokenBitmask &= charToSubTokenBitmask[currentChar];
+                    }
                 }
-            }
 
             switch (charType) {
                 case DIGIT_CHAR_CODE:
@@ -437,7 +436,8 @@ public final class CharParser implements Parser {
                         // We evaluate the position's string/hex subToken generator once and consult it in BOTH cases: a numeric subToken
                         // is also a valid hexadecimal subToken (digits are a subset of hex characters), so a length-constrained hex group
                         // (e.g. a UUID group like "426614174000") must still be recognized here, otherwise higher-level (token) matching
-                        // would be prematurely eliminated. Where no token type expects a string/hex subToken for this (delimiter, position),
+                        // would be prematurely eliminated. Where no token type expects a string/hex subToken for this (delimiter,
+                        // position),
                         // the generator is null and behavior is unchanged.
                         ToIntFunction<SubstringView> subTokenBitmaskGenerator = delimiterParsingInfo.bitmaskGeneratorPerPosition == null
                             ? null
@@ -449,7 +449,8 @@ public final class CharParser implements Parser {
                         }
 
                         if ((currentSubTokenBitmask & intSubTokenBitmask) != 0) {
-                            // integer subToken: value-based subToken types, unioned with any hex/string subToken types the digits also match
+                            // integer subToken: value-based subToken types, unioned with any hex/string subToken types the digits also
+                            // match
                             int intSubTokenBitmaskValue;
                             if (currentSubTokenIntValue >= 0 && currentSubTokenIntValue < smallIntegerSubTokenUpperBound) {
                                 // faster bitmask lookup for small integers
@@ -483,7 +484,10 @@ public final class CharParser implements Parser {
                         // enforce exact character-length constraints ({n} on numeric subTokens): a length-constrained subToken type keeps
                         // its bit only when the actual character count matches (so leading zeros count, e.g. "080609" is a valid 6-digit
                         // compact date but "1109" is not).
-                        currentSubTokenBitmask &= charLengthToAllowedSubTokenBitmask[Math.min(currentSubTokenLength, charLengthGateMaxIndex)];
+                        currentSubTokenBitmask &= charLengthToAllowedSubTokenBitmask[Math.min(
+                            currentSubTokenLength,
+                            charLengthGateMaxIndex
+                        )];
 
                         // update the current token bitmask based on all "on" bits in the current sub-token bitmask
                         currentTokenBitmask &= subTokenBitmaskRegistry.getHigherLevelBitmaskByPosition(
@@ -750,7 +754,8 @@ public final class CharParser implements Parser {
                                     } else if (isBufferedTokenDecimalNumber[i] || bufferedTokenValidDouble[i]) {
                                         // General double: a valid non-simple double (e.g. an exponent form), OR a simple decimal too long
                                         // for the fast path. Parse directly (correct value, consistent %F). The try/catch is a fallback for
-                                        // rarer malformed shapes the interior-sign state does not cover (e.g. "1.2.3", "1e") - yield null so
+                                        // rarer malformed shapes the interior-sign state does not cover (e.g. "1.2.3", "1e") - yield null
+                                        // so
                                         // the token's sub-tokens are emitted individually.
                                         try {
                                             yield new DoubleArgument(rawMessage, bufferedTokenStartIndexes[i], bufferedTokenLengths[i]);

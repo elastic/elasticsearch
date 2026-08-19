@@ -485,7 +485,10 @@ public class SchemaCompilerTests extends ESTestCase {
         // and it is not a special subToken delimiter.
         CharSpecificParsingInfo boundaryInfo = charSpecificParsingInfos[';'];
         assertNotNull("CharSpecificParsingInfo should be defined for token boundary char: ';'", boundaryInfo);
-        assertNotNull("pure boundary char should have an (all-zero) tokenBitmaskPerDelimiterPosition", boundaryInfo.tokenBitmaskPerDelimiterPosition);
+        assertNotNull(
+            "pure boundary char should have an (all-zero) tokenBitmaskPerDelimiterPosition",
+            boundaryInfo.tokenBitmaskPerDelimiterPosition
+        );
         for (int bitmask : boundaryInfo.tokenBitmaskPerDelimiterPosition) {
             assertEquals("pure boundary char's per-position token bitmask must be all-zero", 0, bitmask);
         }

@@ -1,6 +1,0 @@
-area: ES|QL
-issues: []
-pr: 156326
-summary: Fix ES|QL query failures when a multi-field sub-field has conflicting types across
-  indices
-type: bug

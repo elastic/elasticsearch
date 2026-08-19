@@ -145,6 +145,7 @@ public class ColumnIteratorTests extends ESTestCase {
                 ColumnIteratorReader reader = new ColumnIteratorReader(read, data);
                 assertIteration(reader, expected, cardinality);
                 assertAdvanceExact(reader, expected, maxDoc);
+                assertAdvanceExactSkipping(reader, expected, maxDoc);
                 assertRanks(reader, expected, maxDoc);
                 assertIntoBitSet(reader, expected, maxDoc);
                 assertIntoBitSetResumes(reader, expected, maxDoc);
@@ -212,6 +213,22 @@ public class ColumnIteratorTests extends ESTestCase {
             reader.iterator().ranks(docs, offset, length, ranks);
             for (int i = 0; i < length; i++) {
                 assertEquals("ordinal of doc " + docs[offset + i], expectedRank[docs[offset + i]], ranks[i]);
+            }
+        }
+    }
+
+    /**
+     * {@code advanceExact} called only on the documents that have a value, so each call jumps over the
+     * documents in between rather than stepping to the next one.
+     */
+    private void assertAdvanceExactSkipping(ColumnIteratorReader reader, FixedBitSet expected, int maxDoc) throws IOException {
+        final ColumnIterator iterator = reader.iterator();
+        int rank = 0;
+        for (int doc = 0; doc < maxDoc; doc++) {
+            if (expected.get(doc)) {
+                assertTrue("doc " + doc + " has a value but advanceExact says otherwise", iterator.advanceExact(doc));
+                assertEquals("ordinal at doc " + doc, rank, iterator.index());
+                rank++;
             }
         }
     }

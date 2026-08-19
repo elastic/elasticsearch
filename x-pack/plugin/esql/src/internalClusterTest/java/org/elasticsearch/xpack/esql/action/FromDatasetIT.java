@@ -283,7 +283,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "epoch_ovf_csv_fail",
         "epoch_ovf_nj_null",
         "epoch_ovf_nj_skip",
-        "epoch_ovf_nj_fail"
+        "epoch_ovf_nj_fail",
+        "employees_parquet_absent_warn",
+        "employees_ndjson_absent_warn"
     );
 
     /**
@@ -2808,19 +2810,19 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     // calls r.decRef() after onResponse returns; closing manually causes a
                     // double-release AssertionError.
                     try {
-                        // `department` is absent from every record in the file, so schema
-                        // inference never includes it → ColumnMapping assigns it a -1 slot →
-                        // SchemaAdaptingIterator fires absentDeclaredColumnMessage ("is not
-                        // present"), not absentInRecordMessage ("is absent in some records").
-                        // The latter is used only for columns present in the file schema but
-                        // missing from individual JSON objects (per-record sparseness).
+                        // For NdJson with Dynamic.FALSE the reader receives the full declared
+                        // schema (all 3 columns). `department` is absent from every record, so
+                        // NdJsonPageDecoder null-fills it and fires absentInRecordMessage
+                        // ("is absent in some records") on the first occurrence, NOT
+                        // absentDeclaredColumnMessage ("is not present") — the latter is for
+                        // formats where the column is absent from the file schema itself.
                         internalCluster().getInstance(TransportService.class)
                             .getThreadPool()
                             .getThreadContext()
                             .getResponseHeaders()
                             .getOrDefault("Warning", List.of())
                             .stream()
-                            .filter(w -> w.contains("declared column [department] is not present"))
+                            .filter(w -> w.contains("declared column [department] is absent in some records"))
                             .forEach(warnings::add);
                     } finally {
                         latch.countDown();
@@ -2838,7 +2840,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         if (queryFailure.get() != null) {
             throw queryFailure.get();
         }
-        assertThat("the absent declared column must emit a response Warning header on NDJSON", warnings, not(empty()));
+        assertThat("the absent declared column must emit an absentInRecordMessage Warning header on NDJSON", warnings, not(empty()));
     }
 
     public void testDeclaredTypeConflictingWithPhysicalParquetTypeRejected() throws Exception {

@@ -11,8 +11,13 @@ package org.elasticsearch.repositories.blobstore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
+import java.lang.management.ThreadMXBean;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -49,14 +54,14 @@ class MockHttpServerStallWatchdog {
      * closes the request out from under us.
      */
     private static final long STALL_WARN_THRESHOLD_MILLIS = TimeUnit.SECONDS.toMillis(10);
-    private static final long SAMPLE_INTERVAL_MILLIS = TimeUnit.SECONDS.toMillis(1);
+    private static final long SAMPLE_INTERVAL_MILLIS = TimeUnit.SECONDS.toMillis(2);
 
     private static final String JDK_HTTP_SERVER_PACKAGE = "sun.net.httpserver";
 
-    /** Requests currently being handled, per worker thread. */
-    private final Map<Thread, String> inFlightRequests = new ConcurrentHashMap<>();
+    /** Requests currently being handled, keyed by worker thread id. */
+    private final Map<Long, String> inFlightRequests = new ConcurrentHashMap<>();
     /** The last request each worker completed, which is the best clue to what preceded a stall on that connection. */
-    private final Map<Thread, String> lastCompletedRequests = new ConcurrentHashMap<>();
+    private final Map<Long, String> lastCompletedRequests = new ConcurrentHashMap<>();
 
     private final String workerThreadNameMarker;
     private volatile Thread watchdogThread;
@@ -66,13 +71,13 @@ class MockHttpServerStallWatchdog {
     }
 
     void requestStarted(String request) {
-        inFlightRequests.put(Thread.currentThread(), request);
+        inFlightRequests.put(Thread.currentThread().threadId(), request);
     }
 
     void requestFinished(String request) {
-        final Thread thread = Thread.currentThread();
-        inFlightRequests.remove(thread);
-        lastCompletedRequests.put(thread, request);
+        final long threadId = Thread.currentThread().threadId();
+        inFlightRequests.remove(threadId);
+        lastCompletedRequests.put(threadId, request);
     }
 
     synchronized void start() {
@@ -97,8 +102,8 @@ class MockHttpServerStallWatchdog {
 
     private void run() {
         // Per-thread time at which the current stall was first seen, so a worker that is merely busy is not reported.
-        final Map<Thread, Long> stalledSince = new HashMap<>();
-        final Set<Thread> alreadyReported = new HashSet<>();
+        final Map<Long, Long> stalledSince = new HashMap<>();
+        final Set<Long> alreadyReported = new HashSet<>();
         while (watchdogThread == Thread.currentThread()) {
             try {
                 TimeUnit.MILLISECONDS.sleep(SAMPLE_INTERVAL_MILLIS);
@@ -113,37 +118,52 @@ class MockHttpServerStallWatchdog {
         }
     }
 
-    private void sample(Map<Thread, Long> stalledSince, Set<Thread> alreadyReported) {
+    private void sample(Map<Long, Long> stalledSince, Set<Long> alreadyReported) {
+        final ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
+
+        // Names first, with no stack traces, so the common case costs almost nothing: capturing stacks for every thread
+        // in an integration test JVM on every tick would be far too expensive for a diagnostic that rarely has anything
+        // to say. Thread#getAllStackTraces is a forbidden API here in any case.
+        final List<Long> workerIds = new ArrayList<>();
+        for (ThreadInfo info : threadBean.getThreadInfo(threadBean.getAllThreadIds(), 0)) {
+            if (info != null && info.getThreadName().contains(workerThreadNameMarker)) {
+                workerIds.add(info.getThreadId());
+            }
+        }
+
+        stalledSince.keySet().retainAll(workerIds);
+        alreadyReported.retainAll(workerIds);
+
+        // A worker handling a request is busy, not stuck, so it needs no stack.
+        workerIds.removeIf(inFlightRequests::containsKey);
+        if (workerIds.isEmpty()) {
+            return;
+        }
+
         final long now = System.currentTimeMillis();
-        final Map<Thread, StackTraceElement[]> stacks = Thread.getAllStackTraces();
-
-        stalledSince.keySet().retainAll(stacks.keySet());
-        alreadyReported.retainAll(stacks.keySet());
-
-        for (Map.Entry<Thread, StackTraceElement[]> entry : stacks.entrySet()) {
-            final Thread thread = entry.getKey();
-            if (thread.getName().contains(workerThreadNameMarker) == false) {
+        final long[] idsNeedingStacks = workerIds.stream().mapToLong(Long::longValue).toArray();
+        for (ThreadInfo info : threadBean.getThreadInfo(idsNeedingStacks, Integer.MAX_VALUE)) {
+            if (info == null) {
                 continue;
             }
-            if (isStuckReadingRequest(thread, entry.getValue()) == false) {
-                stalledSince.remove(thread);
-                alreadyReported.remove(thread);
+            final long threadId = info.getThreadId();
+            if (isInsideJdkHttpServer(info) == false) {
+                // Idle in the executor's queue rather than parsing a request.
+                stalledSince.remove(threadId);
+                alreadyReported.remove(threadId);
                 continue;
             }
-            final long since = stalledSince.computeIfAbsent(thread, t -> now);
+            final long since = stalledSince.computeIfAbsent(threadId, id -> now);
             final long stalledForMillis = now - since;
-            if (stalledForMillis >= STALL_WARN_THRESHOLD_MILLIS && alreadyReported.add(thread)) {
-                warn(thread, entry.getValue(), stalledForMillis);
+            if (stalledForMillis >= STALL_WARN_THRESHOLD_MILLIS && alreadyReported.add(threadId)) {
+                warn(info, stalledForMillis);
             }
         }
     }
 
     /** A worker inside the JDK http server but not inside a handler is parsing a request that has not fully arrived. */
-    private boolean isStuckReadingRequest(Thread thread, StackTraceElement[] stack) {
-        if (inFlightRequests.containsKey(thread)) {
-            return false;
-        }
-        for (StackTraceElement frame : stack) {
+    private static boolean isInsideJdkHttpServer(ThreadInfo info) {
+        for (StackTraceElement frame : info.getStackTrace()) {
             if (frame.getClassName().startsWith(JDK_HTTP_SERVER_PACKAGE)) {
                 return true;
             }
@@ -151,19 +171,19 @@ class MockHttpServerStallWatchdog {
         return false;
     }
 
-    private void warn(Thread thread, StackTraceElement[] stack, long stalledForMillis) {
+    private void warn(ThreadInfo info, long stalledForMillis) {
         final StringBuilder message = new StringBuilder();
         message.append("mock http server worker [")
-            .append(thread.getName())
+            .append(info.getThreadName())
             .append("] has been reading an incomplete request for [")
             .append(stalledForMillis)
             .append("ms]; this connection cannot serve anything until sun.net.httpserver.maxReqTime closes it. ")
             .append("Last request completed by this worker was [")
-            .append(lastCompletedRequests.getOrDefault(thread, "none"))
+            .append(lastCompletedRequests.getOrDefault(info.getThreadId(), "none"))
             .append("]. Other workers are handling ")
             .append(inFlightRequests.values())
             .append(". See https://github.com/elastic/elasticsearch/issues/156468\n");
-        for (StackTraceElement frame : stack) {
+        for (StackTraceElement frame : info.getStackTrace()) {
             message.append("\tat ").append(frame).append('\n');
         }
         logger.warn(message.toString());

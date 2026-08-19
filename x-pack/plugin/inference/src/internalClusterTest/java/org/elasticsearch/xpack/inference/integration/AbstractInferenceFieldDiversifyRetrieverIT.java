@@ -142,8 +142,14 @@ abstract class AbstractInferenceFieldDiversifyRetrieverIT extends ESIntegTestCas
         ensureGreen(indexName);
 
         for (InferenceFieldConfig inferenceField : inferenceFields) {
+            int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(inferenceField.elementType(), VECTOR_DIMENSIONS);
             for (DenseVectorFieldMapper.ElementType elementType : DenseVectorFieldMapper.ElementType.values()) {
-                // Query vectors using any element type should work
+                // Query vectors using any element type should work, provided that they have the same embedding length as the field's
+                // embeddings. Bit vectors pack 8 dimensions into each byte, so they can only be compared against other bit vectors.
+                if (DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, VECTOR_DIMENSIONS) != embeddingLength) {
+                    continue;
+                }
+
                 VectorData queryVector = generateRandomQueryVector(elementType);
                 assertDiversify(inferenceField, queryVector, docCount);
             }
@@ -160,7 +166,7 @@ abstract class AbstractInferenceFieldDiversifyRetrieverIT extends ESIntegTestCas
             diversifyCount,
             queryVector,
             null,
-            null
+            randomFloatBetween(0.0f, 1.0f, true)
         );
 
         SearchSourceBuilder source = new SearchSourceBuilder().retriever(retriever).size(docCount);

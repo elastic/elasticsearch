@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 157178
+summary: Fix external-read failures returning HTTP 500
+type: enhancement

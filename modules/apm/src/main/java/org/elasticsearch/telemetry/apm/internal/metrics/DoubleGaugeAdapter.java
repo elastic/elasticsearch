@@ -12,8 +12,6 @@ package org.elasticsearch.telemetry.apm.internal.metrics;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.ObservableDoubleGauge;
 
-import org.elasticsearch.telemetry.apm.AbstractAsyncInstrument;
-import org.elasticsearch.telemetry.apm.AbstractInstrument;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 
 import java.util.Collection;
@@ -24,11 +22,9 @@ import java.util.function.Supplier;
 /**
  * DoubleGaugeAdapter wraps an otel ObservableLongGauge
  */
-public class DoubleGaugeAdapter extends AbstractAsyncInstrument<ObservableDoubleGauge>
-    implements
-        org.elasticsearch.telemetry.metric.DoubleGauge {
+class DoubleGaugeAdapter extends AbstractAsyncInstrument<ObservableDoubleGauge> implements org.elasticsearch.telemetry.metric.DoubleGauge {
 
-    public DoubleGaugeAdapter(
+    DoubleGaugeAdapter(
         Meter meter,
         String name,
         String description,

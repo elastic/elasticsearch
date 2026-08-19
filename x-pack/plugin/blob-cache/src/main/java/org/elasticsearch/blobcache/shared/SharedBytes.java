@@ -242,7 +242,7 @@ public class SharedBytes extends AbstractRefCounted {
      */
     public static int copyToCacheFileAligned(IO fc, InputStream input, int fileChannelPos, IntConsumer progressUpdater, ByteBuffer buffer)
         throws IOException {
-        return copyToCacheFileAligned(fc, input, fileChannelPos, progressUpdater, ignored -> {}, bytes -> bytesCopied[0] = bytes, buffer);
+        return copyToCacheFileAligned(fc, input, fileChannelPos, progressUpdater, ignored -> {}, ignored -> {}, buffer);
     }
 
     /**

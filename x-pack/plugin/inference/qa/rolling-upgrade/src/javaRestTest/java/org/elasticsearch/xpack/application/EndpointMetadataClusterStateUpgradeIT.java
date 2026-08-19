@@ -74,7 +74,6 @@ public class EndpointMetadataClusterStateUpgradeIT extends ParameterizedRollingU
         // so the mock server queue is not exhausted by repeated requests.
         .setting(PERIODIC_AUTHORIZATION_ENABLED.getKey(), "false")
         .build();
-
     // Mock server must start before the cluster so its bound address is available for the setting.
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(mockEISServer).around(cluster);
@@ -104,7 +103,7 @@ public class EndpointMetadataClusterStateUpgradeIT extends ParameterizedRollingU
             mockEISServer.enqueueAuthorizeAllModelsResponse();
             putCCMConfiguration(ENABLE_CCM_REQUEST);
             assertBusy(() -> {
-                var models = getMinimalConfigs();
+                var models = getMinimalConfigsFromClusterState();
                 assertNotNull("Expected EIS endpoints to appear in cluster state after CCM enable", models);
                 assertFalse("Expected at least one EIS endpoint in cluster state after CCM enable", models.isEmpty());
             });
@@ -120,7 +119,7 @@ public class EndpointMetadataClusterStateUpgradeIT extends ParameterizedRollingU
                 oldClusterWritesFullMetadata
             );
             if (oldClusterWritesFullMetadata) {
-                var oldModels = getMinimalConfigs();
+                var oldModels = getMinimalConfigsFromClusterState();
                 assertTrue(
                     "At least one EIS endpoint must have display in cluster state on the old cluster",
                     oldModels.values().stream().anyMatch(endpoint -> {
@@ -133,7 +132,7 @@ public class EndpointMetadataClusterStateUpgradeIT extends ParameterizedRollingU
 
         if (isMixedCluster() || isUpgradedCluster()) {
             // Endpoints must persist in cluster state across the upgrade.
-            var models = getMinimalConfigs();
+            var models = getMinimalConfigsFromClusterState();
             assertNotNull("EIS endpoints must remain in cluster state during and after upgrade", models);
             assertFalse("EIS endpoints must remain in cluster state during and after upgrade", models.isEmpty());
 
@@ -181,7 +180,7 @@ public class EndpointMetadataClusterStateUpgradeIT extends ParameterizedRollingU
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Map<String, Object>> getMinimalConfigs() throws IOException {
+    private Map<String, Map<String, Object>> getMinimalConfigsFromClusterState() throws IOException {
         var request = new Request("GET", "_cluster/state?filter_path=metadata.model_registry");
         var response = client().performRequest(request);
         assertOK(response);

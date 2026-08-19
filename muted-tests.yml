@@ -687,9 +687,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/CASE}
   issue: https://github.com/elastic/elasticsearch/issues/156729
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/131_knn_query_nested_inner_hits_score/nested kNN inner_hits are scored like the query phase on a quantized field}
-  issue: https://github.com/elastic/elasticsearch/issues/156753
 - class: org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettingsTests
   method: testSerialization
   issue: https://github.com/elastic/elasticsearch/issues/156776
@@ -809,3 +806,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.IndexEngineTests
   method: testHollowEngineWithConcurrentNonHollowFlush
   issue: https://github.com/elastic/elasticsearch/issues/157095
+- class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitTests
+  method: testGetVirtualBatchedCompoundCommitBytesByRangeWithConcurrentAppends
+  issue: https://github.com/elastic/elasticsearch/issues/157162

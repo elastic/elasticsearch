@@ -23,11 +23,6 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEAD
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_RESET_COOKIES;
 
-/**
- * @param clusterNameHeaderValue the {@code cluster.name} to emit in the {@code Elastic-Cluster-Name} response header,
- *                               or {@code null} when {@link HttpTransportSettings#SETTING_HTTP_CLUSTER_NAME_HEADER_ENABLED}
- *                               is disabled (the default).
- */
 public record HttpHandlingSettings(
     int maxContentLength,
     int maxChunkSize,

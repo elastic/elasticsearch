@@ -57,9 +57,7 @@ public final class HttpTransportSettings {
     );
     /**
      * When enabled, every REST response includes the {@code Elastic-Cluster-Name} header carrying this node's
-     * {@code cluster.name}. It is opt-in and disabled by default: the header exposes the (potentially sensitive,
-     * operator-chosen) cluster name unconditionally, including on pre-authentication and error responses, so operators
-     * must explicitly turn it on. It mirrors the {@code X-Found-Handling-Cluster} header that the Elastic Cloud proxy
+     * {@code cluster.name}. It is opt-in and disabled by default. It mirrors the {@code X-Found-Handling-Cluster} header that the Elastic Cloud proxy
      * adds for hosted deployments, allowing self-managed clusters to surface the cluster name for client telemetry.
      */
     public static final Setting<Boolean> SETTING_HTTP_CLUSTER_NAME_HEADER_ENABLED = Setting.boolSetting(

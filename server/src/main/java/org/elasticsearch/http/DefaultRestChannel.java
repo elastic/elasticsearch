@@ -50,11 +50,7 @@ public class DefaultRestChannel extends AbstractRestChannel {
     static final String SET_COOKIE = "set-cookie";
     /**
      * Response header carrying this node's {@code cluster.name}, emitted only when
-     * {@link HttpTransportSettings#SETTING_HTTP_CLUSTER_NAME_HEADER_ENABLED} is enabled. This is the self-managed
-     * equivalent of the {@code X-Found-Handling-Cluster} header added by the Elastic Cloud proxy, and deliberately
-     * avoids the discouraged {@code X-} prefix (RFC 6648). It is withheld from unauthenticated responses (matching how
-     * {@link org.elasticsearch.rest.RestResponse#filterHeaders} treats the {@code X-elastic-product} header) so the
-     * cluster name is not exposed to callers that failed authentication.
+     * {@link HttpTransportSettings#SETTING_HTTP_CLUSTER_NAME_HEADER_ENABLED} is enabled
      */
     static final String CLUSTER_NAME_HEADER = "Elastic-Cluster-Name";
 

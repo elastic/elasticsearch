@@ -50,7 +50,7 @@ public class DefaultRestChannel extends AbstractRestChannel {
     static final String SET_COOKIE = "set-cookie";
     /**
      * Response header carrying this node's {@code cluster.name}, emitted only when
-     * {@link HttpTransportSettings#SETTING_HTTP_CLUSTER_NAME_HEADER_ENABLED} is enabled
+     * {@link HttpTransportSettings#SETTING_HTTP_CLUSTER_NAME_HEADER_ENABLED} is enabled.
      */
     static final String CLUSTER_NAME_HEADER = "Elastic-Cluster-Name";
 

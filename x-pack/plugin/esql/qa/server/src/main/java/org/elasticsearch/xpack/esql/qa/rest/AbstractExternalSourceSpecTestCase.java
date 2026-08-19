@@ -394,7 +394,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         // directive so the suite's reader override still applies. A spec with no directive is returned as-is.
         String query = rebuildExternalFromDatasets(testCase.query);
 
-        if (query.contains(MULTIFILE_SUFFIX) || query.contains(HIVE_SUFFIX + "}}")) {
+        // The dataset path below matches on the bare suffix; this one matches on suffix + "}}" because it reads the
+        // rebuilt query text. HIVE_SHADOW_SUFFIX therefore needs naming explicitly: it contains HIVE_SUFFIX but does
+        // not end with it, so "_hive}}" does not match "{{employees_hive_shadow}}".
+        if (query.contains(MULTIFILE_SUFFIX) || query.contains(HIVE_SUFFIX + "}}") || query.contains(HIVE_SHADOW_SUFFIX + "}}")) {
             // HTTP does not support directory listing, so skip multi-file/Hive-partitioned glob tests
             assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
         }

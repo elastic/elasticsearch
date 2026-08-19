@@ -1001,6 +1001,44 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * Two datasets on the same glob with the same strategy but different templates produce different partition
+     * columns from an identical effective pattern. The cached {@code FileList} carries its {@code PartitionMetadata},
+     * so if the identity bound only the strategy they would share one entry and one would be served the other's
+     * columns. Covers the non-null-template arm of {@code ListingIdentity.encode}.
+     */
+    public void testListingIdentitySeparatesTemplatesWithinOneStrategy() {
+        String glob = "s3://bucket/logs/*" + "/*.parquet";
+        Map<String, Object> byYear = Map.of(
+            PartitionConfig.CONFIG_PARTITIONING_DETECTION,
+            "template",
+            PartitionConfig.CONFIG_PARTITIONING_PATH,
+            "{year}"
+        );
+        Map<String, Object> byRegion = Map.of(
+            PartitionConfig.CONFIG_PARTITIONING_DETECTION,
+            "template",
+            PartitionConfig.CONFIG_PARTITIONING_PATH,
+            "{region}"
+        );
+
+        assertNotEquals(
+            "two templates under one strategy must not share a listing-cache entry",
+            GlobExpander.listingCacheDiscriminator(glob, null, byYear),
+            GlobExpander.listingCacheDiscriminator(glob, null, byRegion)
+        );
+        // A null template and an empty one stay distinct, which is what the null marker in encode() buys.
+        assertNotEquals(
+            "an absent template and an empty one must encode differently",
+            GlobExpander.listingCacheDiscriminator(glob, null, Map.of(PartitionConfig.CONFIG_PARTITIONING_DETECTION, "hive")),
+            GlobExpander.listingCacheDiscriminator(
+                glob,
+                null,
+                Map.of(PartitionConfig.CONFIG_PARTITIONING_DETECTION, "hive", PartitionConfig.CONFIG_PARTITIONING_PATH, "")
+            )
+        );
+    }
+
+    /**
      * Lists only the entries under the requested prefix, as a real provider does. {@link StubProvider} returns its
      * whole listing whatever the prefix, which makes a glob narrowed onto a missing folder indistinguishable from an
      * un-narrowed one — the reason the listing layer's pruning bugs never surfaced in these tests.

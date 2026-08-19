@@ -126,6 +126,11 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         sharedRamBytesUsed = 0;
     }
 
+    // Visible for testing:
+    LRUQueryCache getCache() {
+        return cache;
+    }
+
     private static QueryCacheStats toQueryCacheStatsSafe(@Nullable Stats stats) {
         return stats == null ? new QueryCacheStats() : stats.toQueryCacheStats();
     }

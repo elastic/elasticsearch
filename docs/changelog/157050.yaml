@@ -1,4 +1,4 @@
-area: Infra/Stats
+area: Search
 issues: []
 pr: 157050
 summary: Fix/indices query cache null shard stats

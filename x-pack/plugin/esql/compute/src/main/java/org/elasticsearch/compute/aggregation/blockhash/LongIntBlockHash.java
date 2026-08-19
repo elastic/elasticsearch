@@ -20,11 +20,16 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeLong;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.List;
 
+/**
+ * Maps a {@link LongBlock} and an {@link IntBlock} to group ids, handling nulls and multivalued fields.
+ */
 public final class LongIntBlockHash extends BlockHash {
     private final int longChannel;
     private final int intChannel;
@@ -42,16 +47,17 @@ public final class LongIntBlockHash extends BlockHash {
         super(blockFactory);
         this.longChannel = reverseOutput ? specs.get(1).channel() : specs.get(0).channel();
         this.intChannel = reverseOutput ? specs.get(0).channel() : specs.get(1).channel();
-        // At least 256 so that prefetch taking effect.
-        this.emitBatchSize = Math.max(emitBatchSize, 256);
+        // The emit size should be at least 256 so that prefetch taking effect.
+        var emitVectorSize = Math.max(emitBatchSize, 256);
         this.reverseOutput = reverseOutput;
-        final long bytes = (Integer.BYTES + Long.BYTES * 2) * (long) emitBatchSize;
+        final long bytes = (Integer.BYTES + Long.BYTES * 2) * (long) emitVectorSize;
         blockFactory.adjustBreaker(bytes);
         this.batchUsedBytes = bytes;
         boolean success = false;
-        batchKeys1 = new long[emitBatchSize];
-        batchKeys2 = new long[emitBatchSize];
-        batchIds = new int[emitBatchSize];
+        batchKeys1 = new long[emitVectorSize];
+        batchKeys2 = new long[emitVectorSize];
+        batchIds = new int[emitVectorSize];
+        this.emitBatchSize = emitVectorSize;
         try {
             this.hash = HashImplFactory.newLongLongHash(blockFactory);
             success = true;
@@ -72,7 +78,11 @@ public final class LongIntBlockHash extends BlockHash {
             addVector(longVector, intVector, addInput);
         } else {
             seenBlocks = true;
-            try (AddBlockWork work = new AddBlockWork(longBlock, intBlock, addInput, emitBatchSize)) {
+            try (
+                LongBlock dedupedLongs = new MultivalueDedupeLong(longBlock).dedupeToBlockAdaptive(blockFactory);
+                IntBlock dedupedInts = new MultivalueDedupeInt(intBlock).dedupeToBlockAdaptive(blockFactory);
+                AddBlockWork work = new AddBlockWork(dedupedLongs, dedupedInts, addInput, emitBatchSize)
+            ) {
                 work.add();
             }
         }
@@ -156,17 +166,17 @@ public final class LongIntBlockHash extends BlockHash {
 
         void addEmptyLong(int p, int intCount) {
             switch (intCount) {
-                case 0 -> appendOrdSv(p, (int) hashOrdToGroup(hash.add(0, LONG_NULL_MASK | INT_NULL_MASK)));
+                case 0 -> appendOrdSv(p, Math.toIntExact(hashOrdToGroup(hash.add(0, LONG_NULL_MASK | INT_NULL_MASK))));
                 case 1 -> {
                     final long intValue = intBlock.getInt(intBlock.getFirstValueIndex(p)) & WIDEN;
-                    appendOrdSv(p, (int) hashOrdToGroup(hash.add(0, intValue | LONG_NULL_MASK)));
+                    appendOrdSv(p, Math.toIntExact(hashOrdToGroup(hash.add(0, intValue | LONG_NULL_MASK))));
                 }
                 default -> {
                     int start = intBlock.getFirstValueIndex(p);
                     int end = start + intCount;
                     for (int v = start; v < end; v++) {
                         final long intValue = intBlock.getInt(v) & WIDEN;
-                        appendOrdInMv(p, (int) hashOrdToGroup(hash.add(0, intValue | LONG_NULL_MASK)));
+                        appendOrdInMv(p, Math.toIntExact(hashOrdToGroup(hash.add(0, intValue | LONG_NULL_MASK))));
                     }
                     finishMv();
                 }
@@ -175,17 +185,17 @@ public final class LongIntBlockHash extends BlockHash {
 
         void addEmptyInt(int p, int longCount) {
             switch (longCount) {
-                case 0 -> appendOrdSv(p, (int) hashOrdToGroup(hash.add(0, LONG_NULL_MASK | INT_NULL_MASK)));
+                case 0 -> appendOrdSv(p, Math.toIntExact(hashOrdToGroup(hash.add(0, LONG_NULL_MASK | INT_NULL_MASK))));
                 case 1 -> {
                     final long longValue = longBlock.getLong(longBlock.getFirstValueIndex(p));
-                    appendOrdSv(p, (int) hashOrdToGroup(hash.add(longValue, INT_NULL_MASK)));
+                    appendOrdSv(p, Math.toIntExact(hashOrdToGroup(hash.add(longValue, INT_NULL_MASK))));
                 }
                 default -> {
                     int start = longBlock.getFirstValueIndex(p);
                     int end = start + longCount;
                     for (int v = start; v < end; v++) {
                         final long longValue = longBlock.getLong(v);
-                        appendOrdInMv(p, (int) hashOrdToGroup(hash.add(longValue, INT_NULL_MASK)));
+                        appendOrdInMv(p, Math.toIntExact(hashOrdToGroup(hash.add(longValue, INT_NULL_MASK))));
                     }
                     finishMv();
                 }
@@ -198,7 +208,7 @@ public final class LongIntBlockHash extends BlockHash {
             if (longCount == 1 && intCount == 1) {
                 final long longValue = longBlock.getLong(longStart);
                 final long intValue = intBlock.getInt(intStart) & WIDEN;
-                appendOrdSv(p, (int) hashOrdToGroup(hash.add(longValue, intValue)));
+                appendOrdSv(p, Math.toIntExact(hashOrdToGroup(hash.add(longValue, intValue))));
                 return;
             }
             final int longEnd = longStart + longCount;
@@ -207,12 +217,11 @@ public final class LongIntBlockHash extends BlockHash {
                 final long longValue = longBlock.getLong(l);
                 for (int i = intStart; i < intEnd; i++) {
                     final long intValue = intBlock.getInt(i) & WIDEN;
-                    appendOrdInMv(p, (int) hashOrdToGroup(hash.add(longValue, intValue)));
+                    appendOrdInMv(p, Math.toIntExact(hashOrdToGroup(hash.add(longValue, intValue))));
                 }
             }
             finishMv();
         }
-
     }
 
     @Override
@@ -274,12 +283,16 @@ public final class LongIntBlockHash extends BlockHash {
         private int position;
 
         LookupWork(LongBlock longBlock, IntBlock intBlock, long targetByteSize) {
-            this.longBlock = longBlock;
-            this.intBlock = intBlock;
+            var dedupedLongs = new MultivalueDedupeLong(longBlock).dedupeToBlockAdaptive(blockFactory);
+            try {
+                this.longBlock = dedupedLongs;
+                this.intBlock = new MultivalueDedupeInt(intBlock).dedupeToBlockAdaptive(blockFactory);
+                dedupedLongs = null;
+            } finally {
+                Releasables.close(dedupedLongs);
+            }
             this.positionCount = longBlock.getPositionCount();
             this.targetByteSize = targetByteSize;
-            longBlock.incRef();
-            intBlock.incRef();
         }
 
         @Override

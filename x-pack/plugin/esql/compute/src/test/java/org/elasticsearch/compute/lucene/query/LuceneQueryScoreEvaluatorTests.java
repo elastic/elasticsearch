@@ -8,8 +8,10 @@
 package org.elasticsearch.compute.lucene.query;
 
 import org.apache.lucene.search.Scorable;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -52,6 +54,23 @@ public class LuceneQueryScoreEvaluatorTests extends LuceneQueryEvaluatorTests<Do
     @Override
     protected Operator createOperator(DriverContext ctx, IndexedByShardId<LuceneQueryEvaluator.ShardConfig> shards) {
         return new ScoreOperator(ctx.blockFactory(), new LuceneQueryScoreEvaluator(ctx.blockFactory(), shards), 1);
+    }
+
+    @Override
+    protected ExpressionEvaluator createExpressionEvaluator(
+        BlockFactory blockFactory,
+        IndexedByShardId<LuceneQueryEvaluator.ShardConfig> shards
+    ) {
+        return new LuceneQueryScoreEvaluator(blockFactory, shards);
+    }
+
+    @Override
+    protected void assertEvalResultMatch(DoubleBlock resultVector, int position, boolean isMatch) {
+        if (isMatch) {
+            assertThat(resultVector.getDouble(position), greaterThan(NO_MATCH_SCORE));
+        } else {
+            assertThat(resultVector.getDouble(position), equalTo(NO_MATCH_SCORE));
+        }
     }
 
     @Override

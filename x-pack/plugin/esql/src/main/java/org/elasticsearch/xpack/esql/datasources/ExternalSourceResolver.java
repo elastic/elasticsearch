@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -38,6 +37,8 @@ import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
@@ -52,6 +53,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -507,13 +509,12 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Reproduces the previous loop's error contract: a cancelled query surfaces {@link TaskCancelledException}
-     * unwrapped (so the client sees a clean 4xx rather than a generic 500), a client-caused
-     * {@link IllegalArgumentException} is recovered from the cause chain (it can arrive wrapped -- see below) and
-     * surfaced unchanged, {@link UnsupportedOperationException} propagates unwrapped, and any other failure is
-     * wrapped in an {@link ElasticsearchException} carrying the path and detail. A footer read can fail <em>because</em> the
-     * query was cancelled mid-read and arrive wrapped (e.g. the schema cache wraps loader failures), so the
-     * cancellation state is consulted directly rather than matched on the exception type.
+     * Maps a resolution failure to the exception the caller should propagate. Applies the same policy as
+     * {@link ExternalFailures#classify} — I/O faults are client-class (400), invariant breaks are server-class (500) —
+     * but additionally recovers buried exceptions from transparent wrappers (e.g. the schema cache's
+     * {@code ExecutionException}) so the status is the same on the cacheable and non-cacheable paths.
+     * A footer read can fail <em>because</em> the query was cancelled mid-read and arrive wrapped (e.g. the schema
+     * cache wraps loader failures), so the cancellation state is consulted directly rather than matched on the exception type.
      * <p>
      * A retryable back-pressure failure (permit exhaustion / remote-store unavailability) reaches here as an
      * {@link ExternalUnavailableException} (503), but the factory loop always re-wraps a factory failure in an
@@ -589,20 +590,27 @@ public class ExternalSourceResolver {
             LOGGER.error("Failed to resolve external source [{}]: {}", path, clientError.getMessage(), e);
             return clientError;
         }
-        if (e instanceof UnsupportedOperationException) {
+        // Recover a client IO error from behind a transparent wrapper for the same reason the IAE arm above
+        // does. The file-metadata rail raises IOException (missing object, access denied) and it arrives wrapped
+        // in the schema cache's ExecutionException on the cacheable rail — so without this a missing bucket is a
+        // 500 on the cacheable path and a 400 on the non-cacheable path. The storage layer separates retryable
+        // faults as ExternalUnavailableException (503) before they reach here, so any IOException that remains
+        // is non-retryable and is the caller's fault. rootDetail rather than getMessage so the ExecutionException
+        // wrapper's toString-derived message is skipped in favour of the IOException's own message.
+        IOException ioError = (IOException) ExceptionsHelper.unwrap(e, IOException.class);
+        if (ioError != null) {
             recordDiscoveryFailure();
-            LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-            return (RuntimeException) e;
+            String detail = ExternalFailures.rootDetail(e);
+            LOGGER.error("Failed to resolve external source [{}]: {}", path, detail, e);
+            return new ExternalClientException(e, "Failed to resolve external source [{}]: {}", path, detail);
         }
         recordDiscoveryFailure();
-        LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-        // rootDetail, not getMessage: the arm above recovers a buried IllegalArgumentException by type, but the
-        // file-metadata rail raises a plain IOException that no type-specific arm claims, and it arrives inside the
+        // rootDetail, not getMessage: the file-metadata rail raises a plain IOException that arrives inside the
         // cache's ExecutionException whose message is the cause's toString(). Reading the top message there would
-        // print "java.io.IOException: Object not found: ..." at the user. Status is unchanged -- this is the same
-        // catch-all, only better worded.
+        // print "java.io.IOException: Object not found: ..." at the user.
         String detail = ExternalFailures.rootDetail(e);
-        return new ElasticsearchException(String.format(Locale.ROOT, "Failed to resolve external source [%s]: %s", path, detail), e);
+        LOGGER.error("Failed to resolve external source [{}]: {}", path, detail, e);
+        return new ExternalServerException(e, "Failed to resolve external source [{}]: {}", path, detail);
     }
 
     private void resolveSource(

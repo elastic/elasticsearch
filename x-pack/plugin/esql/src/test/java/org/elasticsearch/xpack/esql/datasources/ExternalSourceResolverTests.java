@@ -2474,6 +2474,29 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * An IOException buried in the cache's {@code ExecutionException} must be a 400: a missing object or
+     * access-denied is the caller's fault regardless of which rail (cacheable vs non-cacheable) the resolution
+     * ran on.
+     */
+    public void testAnIoErrorKeepsIts400ThroughAWrapper() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        IOException original = new IOException("Object not found: s3://b/x.parquet");
+        // Cache#computeIfAbsent wraps loader failures with new ExecutionException(cause), which uses
+        // cause.toString() as its message — so rootDetail() can see through it to the IOException message.
+        ExecutionException wrapper = new ExecutionException(original);
+
+        RuntimeException mapped = resolver.mapResolveFailure("s3://b/x.parquet", wrapper);
+
+        assertEquals(
+            "a missing object is a client error on the cacheable path too",
+            RestStatus.BAD_REQUEST,
+            ExceptionsHelper.status(mapped)
+        );
+        assertThat(mapped.getMessage(), containsString("s3://b/x.parquet"));
+        assertThat(mapped.getMessage(), containsString("Object not found"));
+    }
+
+    /**
      * A breaker trip keeps its 429 through a wrapper. It carries its own status like the outage and rejection
      * cases, so recovering only the client error would have left this one masked as a 500 the moment a cache
      * loader wrapped it.
@@ -4732,12 +4755,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * {@code mapResolveFailure} is where a resolution failure's status is decided, and it decides by TYPE: an
-     * {@link IllegalArgumentException} (or {@link UnsupportedOperationException}) is returned untouched, and
-     * everything else is re-wrapped in a bare {@link org.elasticsearch.ElasticsearchException} -- a 500. So a glob
-     * that trips the discovery cap, which is the user having asked for too much, came back as a server fault for as
-     * long as the cap threw a {@code QlIllegalArgumentException}: not an {@code IllegalArgumentException}, therefore
-     * the default arm, therefore 500.
+     * {@code mapResolveFailure} is where a resolution failure's status is decided: a buried
+     * {@link IllegalArgumentException} is recovered and returned untouched (400); everything else is delegated to
+     * {@link ExternalFailures#classify} (IOExceptions become 400, invariant breaks stay 500). So a glob that trips the
+     * discovery cap, which is the user having asked for too much, came back as a server fault for as long as the cap
+     * threw a {@code QlIllegalArgumentException}: not an {@code IllegalArgumentException}, therefore the default arm,
+     * therefore 500.
      *
      * <p>The assertion is at {@code resolve}, not at {@code GlobExpander}: the throw site was already covered by
      * {@code GlobExpanderTests} while this frame -- the one that actually picks the status -- was not, and a test

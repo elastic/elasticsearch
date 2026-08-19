@@ -1614,3 +1614,19 @@ x:long | y:long | pod:keyword
 170    | 170    | three
 656    | 656    | two
 ;
+
+tsStatsWithLiteralAggregate
+required_capability: ts_command_v0
+required_capability: ts_stats_literal_agg_fix
+
+// Regression test: constant literal aggregates (e.g. metric_type = "network.cost") must survive
+// the optimizer without triggering "Plan [...] optimized incorrectly due to missing references".
+TS k8s
+| STATS metric_type = "network.cost", cnt = COUNT(COUNT_OVER_TIME(network.cost)) BY cluster
+| SORT cluster;
+
+cnt:long | cluster:keyword | metric_type:keyword
+3        | prod            | network.cost
+3        | qa              | network.cost
+3        | staging         | network.cost
+;

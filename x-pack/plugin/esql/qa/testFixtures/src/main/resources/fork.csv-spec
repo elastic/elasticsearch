@@ -1469,3 +1469,27 @@ FROM employees
 max_max:integer
 5
 ;
+
+forkWithTsStatsAndLiteralAggregate
+required_capability: fork_v9
+required_capability: ts_command_v0
+required_capability: ts_stats_literal_agg_fix
+
+// Regression test: FORK branches whose TS STATS include a constant literal aggregate (e.g.
+// metric_type = "cost") must survive the optimizer without triggering
+// "Plan [...] optimized incorrectly due to missing references".
+TS k8s
+| FORK
+    (STATS metric_type = "cost", cnt = COUNT(COUNT_OVER_TIME(network.cost)) BY cluster)
+    (STATS metric_type = "cost_max", cnt = COUNT(MAX_OVER_TIME(network.cost)) BY cluster)
+| KEEP _fork, cluster, metric_type, cnt
+| SORT _fork, cluster;
+
+_fork:keyword | cluster:keyword | metric_type:keyword | cnt:long
+fork1         | prod            | cost                | 3
+fork1         | qa              | cost                | 3
+fork1         | staging         | cost                | 3
+fork2         | prod            | cost_max            | 3
+fork2         | qa              | cost_max            | 3
+fork2         | staging         | cost_max            | 3
+;

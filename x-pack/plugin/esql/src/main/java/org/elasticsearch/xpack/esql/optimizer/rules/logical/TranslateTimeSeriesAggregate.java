@@ -231,7 +231,7 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                 });
                 secondPassAggs.add(new Alias(alias.source(), alias.name(), outerAgg, agg.id()));
             } else if (agg instanceof Alias alias && alias.child() instanceof Literal) {
-                firstPassAggs.add(agg);
+                secondPassAggs.add(agg);
             }
         }
         // time-series aggregates must be grouped by _tsid (and time-bucket) first and re-group by users key

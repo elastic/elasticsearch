@@ -10,8 +10,13 @@ package org.elasticsearch.xpack.inference.integration;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.license.LicenseSettings;
@@ -26,6 +31,7 @@ import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,6 +39,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
@@ -44,20 +52,24 @@ import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 1, supportsDedicatedMasters = false)
 abstract class AbstractEmbeddingsFieldIT extends ESIntegTestCase {
-    private static final Map<String, Object> DENSE_SERVICE_SETTINGS = Map.of(
-        "model",
-        "my_model",
-        "dimensions",
-        4,
-        "similarity",
-        "cosine",
-        "api_key",
-        "my_api_key"
-    );
+    static final int VECTOR_DIMENSIONS = 128;  // Use a dimension count that is compatible with BIT element type
+
     private static final Map<String, Object> SPARSE_SERVICE_SETTINGS = Map.of("model", "my_model", "api_key", "my_api_key");
 
     String indexName = null;
     final Map<String, TaskType> inferenceIds = new HashMap<>();
+    final List<InferenceFieldConfig> inferenceFields = new ArrayList<>();
+
+    /**
+     * An inference field to fetch embeddings from, and metadata about the inference endpoint that generates its embeddings. The element
+     * type is null when the endpoint produces sparse embeddings.
+     */
+    record InferenceFieldConfig(
+        String fieldName,
+        String inferenceId,
+        TaskType taskType,
+        @Nullable DenseVectorFieldMapper.ElementType elementType
+    ) {}
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -84,6 +96,21 @@ abstract class AbstractEmbeddingsFieldIT extends ESIntegTestCase {
         return 0;
     }
 
+    @Before
+    private void createInferenceEndpoints() throws IOException {
+        for (TaskType taskType : supportedTaskTypes()) {
+            switch (taskType) {
+                case SPARSE_EMBEDDING -> addInferenceField(taskType, null, SPARSE_SERVICE_SETTINGS);
+                case TEXT_EMBEDDING, EMBEDDING -> {
+                    for (DenseVectorFieldMapper.ElementType elementType : DenseVectorFieldMapper.ElementType.values()) {
+                        addInferenceField(taskType, elementType, generateDenseServiceSettings(elementType));
+                    }
+                }
+                default -> throw new AssertionError("Unhandled task type [" + taskType + "]");
+            }
+        }
+    }
+
     @After
     private void cleanUp() {
         if (indexName != null) {
@@ -94,116 +121,123 @@ abstract class AbstractEmbeddingsFieldIT extends ESIntegTestCase {
             IntegrationTestUtils.deleteInferenceEndpoint(client(), entry.getValue(), entry.getKey());
         }
         inferenceIds.clear();
+        inferenceFields.clear();
     }
 
-    abstract Map<String, String> getFields();
+    abstract Set<TaskType> supportedTaskTypes();
 
     abstract XContentBuilder generateMapping(Map<String, String> fieldNameToInferenceIdMap) throws IOException;
 
     public void testFetchEmbeddingsFields() throws Exception {
-        indexName = randomIndexName();
-        final Map<String, String> fields = getFields();
-
-        assertAcked(prepareCreate(indexName).setMapping(generateMapping(fields)));
+        createIndex();
 
         BulkRequestBuilder bulk = client().prepareBulk(indexName);
         Map<String, Object> source = new HashMap<>();
-        for (String fieldName : fields.keySet()) {
-            source.put(fieldName, randomAlphaOfLengthBetween(5, 10));
+        for (InferenceFieldConfig inferenceField : inferenceFields) {
+            source.put(inferenceField.fieldName(), randomAlphaOfLengthBetween(5, 10));
         }
         bulk.add(client().prepareIndex(indexName).setSource(source));
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         bulk.get(TEST_REQUEST_TIMEOUT);
         ensureGreen(indexName);
 
-        for (var entry : fields.entrySet()) {
-            String fieldName = entry.getKey();
-            String inferenceId = entry.getValue();
-            VectorType expectedVectorType = getExpectedVectorType(inferenceId);
+        for (InferenceFieldConfig inferenceField : inferenceFields) {
+            String fieldName = inferenceField.fieldName();
+            VectorType expectedVectorType = getExpectedVectorType(inferenceField);
+            String message = describe(inferenceField);
 
             assertEmbeddingsFields(
+                message,
                 indexName,
                 List.of(new EmbeddingsField(fieldName, null)),
                 List.of(Map.of(fieldName, expectedVectorType))
             );
             assertEmbeddingsFields(
+                message,
                 indexName,
                 List.of(new EmbeddingsField(fieldName, expectedVectorType)),
                 List.of(Map.of(fieldName, expectedVectorType))
             );
             assertEmbeddingsFields(
+                message,
                 indexName,
                 List.of(new EmbeddingsField(fieldName, randomValueOtherThan(expectedVectorType, () -> randomFrom(VectorType.values())))),
                 List.of(Map.of())
             );
         }
 
-        if (fields.size() > 1) {
+        if (inferenceFields.size() > 1) {
             List<EmbeddingsField> embeddingsFields = new ArrayList<>();
             Map<String, VectorType> expectedFields = new HashMap<>();
-            for (var entry : fields.entrySet()) {
-                String fieldName = entry.getKey();
-                VectorType expectedVectorType = getExpectedVectorType(entry.getValue());
-
-                embeddingsFields.add(new EmbeddingsField(fieldName, null));
-                expectedFields.put(fieldName, expectedVectorType);
+            for (InferenceFieldConfig inferenceField : inferenceFields) {
+                embeddingsFields.add(new EmbeddingsField(inferenceField.fieldName(), null));
+                expectedFields.put(inferenceField.fieldName(), getExpectedVectorType(inferenceField));
             }
 
-            assertEmbeddingsFields(indexName, embeddingsFields, List.of(expectedFields));
+            assertEmbeddingsFields("Fetching all inference fields", indexName, embeddingsFields, List.of(expectedFields));
         }
     }
 
     public void testFetchEmbeddingsFieldsNoDocuments() throws Exception {
-        indexName = randomIndexName();
-        final Map<String, String> fields = getFields();
-
-        assertAcked(prepareCreate(indexName).setMapping(generateMapping(fields)));
+        createIndex();
         ensureGreen(indexName);
 
-        for (var entry : fields.entrySet()) {
-            String fieldName = entry.getKey();
-            String inferenceId = entry.getValue();
-            VectorType expectedVectorType = getExpectedVectorType(inferenceId);
+        for (InferenceFieldConfig inferenceField : inferenceFields) {
+            String fieldName = inferenceField.fieldName();
+            VectorType expectedVectorType = getExpectedVectorType(inferenceField);
+            String message = describe(inferenceField);
 
-            assertEmbeddingsFields(indexName, List.of(new EmbeddingsField(fieldName, null)), List.of());
-            assertEmbeddingsFields(indexName, List.of(new EmbeddingsField(fieldName, expectedVectorType)), List.of());
+            assertEmbeddingsFields(message, indexName, List.of(new EmbeddingsField(fieldName, null)), List.of());
+            assertEmbeddingsFields(message, indexName, List.of(new EmbeddingsField(fieldName, expectedVectorType)), List.of());
             assertEmbeddingsFields(
+                message,
                 indexName,
                 List.of(new EmbeddingsField(fieldName, randomValueOtherThan(expectedVectorType, () -> randomFrom(VectorType.values())))),
                 List.of()
             );
         }
 
-        if (fields.size() > 1) {
+        if (inferenceFields.size() > 1) {
             List<EmbeddingsField> embeddingsFields = new ArrayList<>();
-            fields.keySet().forEach(fieldName -> embeddingsFields.add(new EmbeddingsField(fieldName, null)));
+            inferenceFields.forEach(f -> embeddingsFields.add(new EmbeddingsField(f.fieldName(), null)));
 
-            assertEmbeddingsFields(indexName, embeddingsFields, List.of());
+            assertEmbeddingsFields("Fetching all inference fields", indexName, embeddingsFields, List.of());
         }
     }
 
-    void createInferenceEndpoint(TaskType taskType, String inferenceId) throws IOException {
-        Map<String, Object> serviceSettings = switch (taskType) {
-            case TEXT_EMBEDDING, EMBEDDING -> DENSE_SERVICE_SETTINGS;
-            case SPARSE_EMBEDDING -> SPARSE_SERVICE_SETTINGS;
-            default -> throw new AssertionError("Unhandled task type [" + taskType + "]");
-        };
+    private void createIndex() throws IOException {
+        indexName = randomIndexName();
+        final Map<String, String> fieldNameToInferenceIdMap = inferenceFields.stream()
+            .collect(Collectors.toMap(InferenceFieldConfig::fieldName, InferenceFieldConfig::inferenceId));
+        assertAcked(prepareCreate(indexName).setMapping(generateMapping(fieldNameToInferenceIdMap)));
+    }
+
+    private void addInferenceField(
+        TaskType taskType,
+        @Nullable DenseVectorFieldMapper.ElementType elementType,
+        Map<String, Object> serviceSettings
+    ) throws IOException {
+        String fieldName = generateFieldName(taskType, elementType);
+        String inferenceId = fieldName + "-test-endpoint";
 
         IntegrationTestUtils.createInferenceEndpoint(client(), taskType, inferenceId, serviceSettings);
         inferenceIds.put(inferenceId, taskType);
+        inferenceFields.add(new InferenceFieldConfig(fieldName, inferenceId, taskType, elementType));
     }
 
-    VectorType getExpectedVectorType(String inferenceId) {
-        TaskType taskType = inferenceIds.get(inferenceId);
-        assertNotNull("Inference ID [" + inferenceId + "] not registered", taskType);
-        VectorType expectedVectorType = VectorType.fromTaskType(taskType);
-        assertNotNull("Cannot determine expected vector type for task type [" + taskType + "]", expectedVectorType);
+    VectorType getExpectedVectorType(InferenceFieldConfig inferenceField) {
+        VectorType expectedVectorType = VectorType.fromTaskType(inferenceField.taskType());
+        assertNotNull("Cannot determine expected vector type for task type [" + inferenceField.taskType() + "]", expectedVectorType);
 
         return expectedVectorType;
     }
 
-    void assertEmbeddingsFields(String index, List<EmbeddingsField> requestedFields, List<Map<String, VectorType>> expectedFieldsPerHit)
-        throws Exception {
+    void assertEmbeddingsFields(
+        String message,
+        String index,
+        List<EmbeddingsField> requestedFields,
+        List<Map<String, VectorType>> expectedFieldsPerHit
+    ) throws Exception {
         SearchSourceBuilder source = new SearchSourceBuilder();
         for (EmbeddingsField field : requestedFields) {
             source.fetchEmbeddingsField(field);
@@ -214,17 +248,17 @@ abstract class AbstractEmbeddingsFieldIT extends ESIntegTestCase {
         assertNoFailuresAndResponse(
             internalCluster().coordOnlyNodeClient().search(new SearchRequest(new String[] { index }, source)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value(), equalTo((long) expectedFieldsPerHit.size()));
+                assertThat(message, response.getHits().getTotalHits().value(), equalTo((long) expectedFieldsPerHit.size()));
                 for (int i = 0; i < expectedFieldsPerHit.size(); i++) {
                     SearchHit hit = response.getHits().getAt(i);
                     Map<String, VectorType> expected = expectedFieldsPerHit.get(i);
-                    assertThat(hit.getFields().size(), equalTo(expected.size()));
+                    assertThat(message, hit.getFields().size(), equalTo(expected.size()));
                     for (var entry : expected.entrySet()) {
                         String fieldName = entry.getKey();
                         VectorType vectorType = entry.getValue();
                         DocumentField documentField = hit.field(fieldName);
-                        assertNotNull(documentField);
-                        assertEmbeddingsFieldVectorType(documentField, vectorType);
+                        assertNotNull(message, documentField);
+                        assertEmbeddingsFieldVectorType(message, documentField, vectorType);
                     }
                 }
             }
@@ -235,19 +269,57 @@ abstract class AbstractEmbeddingsFieldIT extends ESIntegTestCase {
      * Validates that each value in {@code field} matches the expected {@link VectorType}:
      * {@link VectorType#DENSE_VECTOR} → {@code float[]} per chunk;
      * {@link VectorType#SPARSE_VECTOR} → {@code Map<String, Float>} per chunk.
+     * <p>
+     * Dense embeddings are always fetched as {@code float[]}, whatever element type the inference endpoint produces, because byte and bit
+     * embeddings can be represented exactly as float vectors.
+     * </p>
      */
-    static void assertEmbeddingsFieldVectorType(DocumentField field, VectorType expectedType) {
-        assertThat(field.getValues(), not(empty()));
+    static void assertEmbeddingsFieldVectorType(String message, DocumentField field, VectorType expectedType) {
+        assertThat(message, field.getValues(), not(empty()));
         for (Object value : field.getValues()) {
             switch (expectedType) {
-                case DENSE_VECTOR -> assertThat(value, instanceOf(float[].class));
+                case DENSE_VECTOR -> assertThat(message, value, instanceOf(float[].class));
                 case SPARSE_VECTOR -> {
-                    assertThat(value, instanceOf(Map.class));
+                    assertThat(message, value, instanceOf(Map.class));
                     Map<?, ?> weights = (Map<?, ?>) value;
-                    assertThat(weights.keySet(), everyItem(instanceOf(String.class)));
-                    assertThat(weights.values(), everyItem(instanceOf(Float.class)));
+                    assertThat(message, weights.keySet(), everyItem(instanceOf(String.class)));
+                    assertThat(message, weights.values(), everyItem(instanceOf(Float.class)));
                 }
             }
         }
+    }
+
+    private static Map<String, Object> generateDenseServiceSettings(DenseVectorFieldMapper.ElementType elementType) {
+        List<SimilarityMeasure> supportedSimilarities = new ArrayList<>(
+            DenseVectorFieldMapperTestUtils.getSupportedSimilarities(elementType)
+        );
+        // Dot product requires unit vectors, which the mock inference services do not produce
+        supportedSimilarities.remove(SimilarityMeasure.DOT_PRODUCT);
+
+        return Map.of(
+            "model",
+            "my_model",
+            "dimensions",
+            VECTOR_DIMENSIONS,
+            "similarity",
+            randomFrom(supportedSimilarities),
+            "element_type",
+            elementType,
+            "api_key",
+            "my_api_key"
+        );
+    }
+
+    private static String generateFieldName(TaskType taskType, @Nullable DenseVectorFieldMapper.ElementType elementType) {
+        return elementType == null ? Strings.format("%s_field", taskType) : Strings.format("%s_%s_field", taskType, elementType);
+    }
+
+    private static String describe(InferenceFieldConfig inferenceField) {
+        return Strings.format(
+            "Fetching embeddings from field [%s] with task type [%s] and element type [%s]",
+            inferenceField.fieldName(),
+            inferenceField.taskType(),
+            inferenceField.elementType()
+        );
     }
 }

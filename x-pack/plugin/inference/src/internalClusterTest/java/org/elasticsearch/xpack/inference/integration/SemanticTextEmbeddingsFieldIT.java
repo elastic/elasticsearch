@@ -14,19 +14,21 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT;
 import static org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion;
 
 public class SemanticTextEmbeddingsFieldIT extends AbstractEmbeddingsFieldIT {
-    private static final String SPARSE_EMBEDDING_INFERENCE_ID = "sparse-embedding-test-endpoint";
-    private static final String TEXT_EMBEDDING_INFERENCE_ID = "text-embedding-test-endpoint";
-    private static final String EMBEDDING_INFERENCE_ID = "embedding-test-endpoint";
+    private static final Set<TaskType> SUPPORTED_TASK_TYPES = Set.of(
+        TaskType.SPARSE_EMBEDDING,
+        TaskType.TEXT_EMBEDDING,
+        TaskType.EMBEDDING
+    );
 
     private final boolean useLegacyFormat;
 
@@ -39,23 +41,9 @@ public class SemanticTextEmbeddingsFieldIT extends AbstractEmbeddingsFieldIT {
         this.useLegacyFormat = useLegacyFormat;
     }
 
-    @Before
-    public void setUpInferenceEndpoint() throws IOException {
-        createInferenceEndpoint(TaskType.SPARSE_EMBEDDING, SPARSE_EMBEDDING_INFERENCE_ID);
-        createInferenceEndpoint(TaskType.TEXT_EMBEDDING, TEXT_EMBEDDING_INFERENCE_ID);
-        createInferenceEndpoint(TaskType.EMBEDDING, EMBEDDING_INFERENCE_ID);
-    }
-
     @Override
-    Map<String, String> getFields() {
-        return Map.of(
-            "sparse_embedding_field",
-            SPARSE_EMBEDDING_INFERENCE_ID,
-            "text_embedding_field",
-            TEXT_EMBEDDING_INFERENCE_ID,
-            "embedding_field",
-            EMBEDDING_INFERENCE_ID
-        );
+    Set<TaskType> supportedTaskTypes() {
+        return SUPPORTED_TASK_TYPES;
     }
 
     @Override

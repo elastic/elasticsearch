@@ -9,22 +9,17 @@ package org.elasticsearch.xpack.inference.integration;
 
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 public class SemanticEmbeddingsFieldIT extends AbstractEmbeddingsFieldIT {
-    private static final String INFERENCE_ID = "embedding-test-endpoint";
-
-    @Before
-    public void setUpInferenceEndpoint() throws IOException {
-        createInferenceEndpoint(TaskType.EMBEDDING, INFERENCE_ID);
-    }
+    private static final Set<TaskType> SUPPORTED_TASK_TYPES = Set.of(TaskType.EMBEDDING);
 
     @Override
-    Map<String, String> getFields() {
-        return Map.of("embedding_field", INFERENCE_ID);
+    Set<TaskType> supportedTaskTypes() {
+        return SUPPORTED_TASK_TYPES;
     }
 
     @Override

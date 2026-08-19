@@ -173,7 +173,6 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                // append() can trip the breaker, so write the key before claiming the slot
                 append(id, key, code);
                 setId(index, id);
                 ++size;
@@ -231,11 +230,6 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
         return add(key, key.hashCode());
     }
 
-    /**
-     * As {@link #add(BytesRef, int)}, except that a circuit breaker trip is not retryable with the same
-     * {@code key}. The hash is left unchanged, but reading the cursor consumes it and a cursor cannot be
-     * rewound, so a caller wanting to re-offer a refused key has to re-point the cursor at those bytes.
-     */
     public long add(PagedBytesCursor key, int code) {
         if (size >= maxSize) {
             assert size == maxSize;
@@ -245,9 +239,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
     }
 
     /**
-     * Makes room for one more entry. The hash cache is resized first so that a circuit breaker trip leaves the
-     * table at its current capacity: growing the table first and then failing to resize the cache would let the
-     * next {@link #add} allocate an id that {@link #hashes} cannot hold.
+     * Makes room for one more entry, sizing {@link #hashes} before the table grows.
      */
     private void growHashesThenTable() {
         hashes = bigArrays.resize(hashes, maxSizeAfterGrow());
@@ -261,7 +253,6 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                // See set(): the append has to be committed before the slot claims the id.
                 appendCursor(id, key, code);
                 setId(index, id);
                 ++size;

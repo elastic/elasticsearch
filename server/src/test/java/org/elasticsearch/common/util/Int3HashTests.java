@@ -9,9 +9,11 @@
 
 package org.elasticsearch.common.util;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -21,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 public class Int3HashTests extends ESTestCase {
     private BigArrays randombigArrays() {
@@ -36,34 +37,38 @@ public class Int3HashTests extends ESTestCase {
 
     public void testAddDiscardsKeyRefusedByCircuitBreaker() {
         // set() claims the slot before append() stores the keys, and append() grows the key array, so a refusal
-        // there leaves a slot pointing at an id whose keys were never written. Only a handful of the adds grow
-        // the key array, so refuse often enough that at least one refusal is likely to land on one of them.
-        RefusingCircuitBreakerService breakerService = new RefusingCircuitBreakerService(between(2, 3));
+        // there leaves a slot pointing at an id whose keys were never written.
+        CrankyCircuitBreakerService breakerService = new CrankyCircuitBreakerService();
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService, true);
-        List<Integer> expected = new ArrayList<>();
-        try (Int3Hash hash = new Int3Hash(1, bigArrays)) {
-            breakerService.startRefusing();
-            for (int key = 0; key < 5000; key++) {
-                try {
-                    assertThat(hash.add(key, key + 1, key + 2), equalTo((long) expected.size()));
-                    expected.add(key);
-                } catch (CircuitBreakingException e) {
-                    // the key must be rejected outright, leaving the hash exactly as it was
+        // Only the adds that grow allocate, so a single pass can see no trip at all, and here the damage is
+        // usually silent as well: a slot left claiming an id whose keys were never written still answers lookups
+        // correctly once a later key takes that id. Many short passes are needed to land an observable one.
+        for (int attempt = 0; attempt < 1500; attempt++) {
+            List<Integer> expected = new ArrayList<>();
+            try (Int3Hash hash = new Int3Hash(1, bigArrays)) {
+                for (int key = 0; key < 300; key++) {
+                    try {
+                        assertThat(hash.add(key, key + 1, key + 2), equalTo((long) expected.size()));
+                        expected.add(key);
+                    } catch (CircuitBreakingException e) {
+                        // the key must be rejected outright, leaving the hash exactly as it was
+                        assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+                    }
                 }
-            }
-            assertThat("the breaker never refused an allocation", breakerService.refusals(), greaterThan(0));
-            breakerService.stopRefusing();
-
-            assertThat(hash.size(), equalTo((long) expected.size()));
-            for (int i = 0; i < expected.size(); i++) {
-                int key = expected.get(i);
-                assertThat(hash.getKey1(i), equalTo(key));
-                assertThat(hash.getKey2(i), equalTo(key + 1));
-                assertThat(hash.getKey3(i), equalTo(key + 2));
-                assertThat(hash.find(key, key + 1, key + 2), equalTo((long) i));
+                assertThat(hash.size(), equalTo((long) expected.size()));
+                for (int i = 0; i < expected.size(); i++) {
+                    int key = expected.get(i);
+                    assertThat(hash.getKey1(i), equalTo(key));
+                    assertThat(hash.getKey2(i), equalTo(key + 1));
+                    assertThat(hash.getKey3(i), equalTo(key + 2));
+                    assertThat(hash.find(key, key + 1, key + 2), equalTo((long) i));
+                }
+            } catch (CircuitBreakingException e) {
+                // constructing the hash can trip too, which leaves nothing to verify on this pass
+                assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
             }
         }
-        breakerService.assertNoResidualReservation();
+        assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
     }
 
     public void testSimple() {

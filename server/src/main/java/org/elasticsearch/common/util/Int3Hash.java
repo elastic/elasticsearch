@@ -78,7 +78,6 @@ public final class Int3Hash extends AbstractHash {
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                // append() grows the key array and can trip the breaker, so write the keys before claiming the slot
                 append(id, key1, key2, key3);
                 setId(index, id);
                 ++size;

@@ -56,9 +56,7 @@ abstract class AbstractPagedHashMap implements Releasable {
     }
 
     /**
-     * The {@link #maxSize} this map will have once {@link #grow()} has run. Subclasses that keep side arrays
-     * indexed by id can size those arrays up front, before growing: a circuit breaker trip then leaves the map
-     * untouched, whereas growing first would leave it accepting ids that the side arrays cannot address.
+     * The {@link #maxSize} this map will have once {@link #grow()} has run.
      */
     protected final long maxSizeAfterGrow() {
         return maxSizeFor(capacity() << 1);

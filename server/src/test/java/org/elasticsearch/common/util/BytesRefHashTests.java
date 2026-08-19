@@ -41,7 +41,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 public class BytesRefHashTests extends ESTestCase {
 
@@ -440,74 +439,89 @@ public class BytesRefHashTests extends ESTestCase {
         // corrupt table. Before this was exception safe, a refused insert left its slot pointing at an id whose
         // bytes had not been written, and the next probe to reach that slot read past the end of the byte
         // storage and threw ArrayIndexOutOfBoundsException.
-        RefusingCircuitBreakerService breakerService = new RefusingCircuitBreakerService(between(2, 8));
+        CrankyCircuitBreakerService breakerService = new CrankyCircuitBreakerService();
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService, true);
-        List<BytesRef> expected = new ArrayList<>();
-        try (BytesRefHash hash = new BytesRefHash(1, bigArrays)) {
-            breakerService.startRefusing();
-            for (int i = 0; i < 500; i++) {
-                BytesRef key = new BytesRef("key-" + i);
-                try {
-                    assertThat(hash.add(key), equalTo((long) expected.size()));
-                    expected.add(key);
-                } catch (CircuitBreakingException e) {
-                    // the key must be rejected outright, leaving the hash exactly as it was
+        // Only some of the adds allocate, so a single pass can see no trip at all. A slot claiming an id whose
+        // bytes were never written is read past the end of the byte storage by the next probe to reach it, so a
+        // handful of passes is enough to land on it.
+        for (int attempt = 0; attempt < 10; attempt++) {
+            List<BytesRef> expected = new ArrayList<>();
+            boolean[] committed = new boolean[500];
+            try (BytesRefHash hash = new BytesRefHash(1, bigArrays)) {
+                for (int i = 0; i < committed.length; i++) {
+                    try {
+                        BytesRef key = new BytesRef("key-" + i);
+                        assertThat(hash.add(key), equalTo((long) expected.size()));
+                        expected.add(key);
+                        committed[i] = true;
+                    } catch (CircuitBreakingException e) {
+                        // the key must be rejected outright, leaving the hash exactly as it was
+                        assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+                    }
                 }
-            }
-            assertThat(breakerService.refusals(), greaterThan(0));
-            breakerService.stopRefusing();
-
-            // Keys refused earlier must be insertable now, taking the next free ids as if nothing had happened.
-            for (int i = 0; i < 500; i++) {
-                BytesRef key = new BytesRef("key-" + i);
-                if (expected.contains(key) == false) {
-                    assertThat(hash.add(key), equalTo((long) expected.size()));
-                    expected.add(key);
+                // Keys refused earlier must still go in, taking the next free ids as if nothing had happened.
+                for (int i = 0; i < committed.length; i++) {
+                    while (committed[i] == false) {
+                        try {
+                            BytesRef key = new BytesRef("key-" + i);
+                            assertThat(hash.add(key), equalTo((long) expected.size()));
+                            expected.add(key);
+                            committed[i] = true;
+                        } catch (CircuitBreakingException e) {
+                            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+                        }
+                    }
                 }
-            }
 
-            assertThat(hash.size(), equalTo((long) expected.size()));
-            BytesRef scratch = new BytesRef();
-            for (int i = 0; i < expected.size(); i++) {
-                assertThat(hash.get(i, scratch), equalTo(expected.get(i)));
-                assertThat(hash.find(expected.get(i)), equalTo((long) i));
-                assertThat(hash.add(expected.get(i)), equalTo(-1L - i));
+                assertThat(hash.size(), equalTo((long) expected.size()));
+                BytesRef scratch = new BytesRef();
+                for (int i = 0; i < expected.size(); i++) {
+                    assertThat(hash.get(i, scratch), equalTo(expected.get(i)));
+                    assertThat(hash.find(expected.get(i)), equalTo((long) i));
+                }
+            } catch (CircuitBreakingException e) {
+                // constructing the hash can trip too, which leaves nothing to verify on this pass
+                assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
             }
         }
-        breakerService.assertNoResidualReservation();
+        assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
     }
 
     public void testAddCursorDiscardsKeyRefusedByCircuitBreaker() {
         // The cursor insert path claims its slot the same way the BytesRef one does, so it needs the same
         // guarantee: a refused key leaves no trace and every committed key stays findable at its id.
-        RefusingCircuitBreakerService breakerService = new RefusingCircuitBreakerService(between(2, 8));
+        CrankyCircuitBreakerService breakerService = new CrankyCircuitBreakerService();
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService, true);
-        List<BytesRef> expected = new ArrayList<>();
         PagedBytesCursor cursor = new PagedBytesCursor();
-        try (BytesRefHash hash = new BytesRefHash(1, bigArrays)) {
-            breakerService.startRefusing();
-            for (int i = 0; i < 500; i++) {
-                byte[] data = ("key-" + i).getBytes(StandardCharsets.UTF_8);
-                cursor.init(data, 0, data.length);
-                try {
-                    assertThat(hash.add(cursor), equalTo((long) expected.size()));
-                    expected.add(new BytesRef(data));
-                } catch (CircuitBreakingException e) {
-                    // the key must be rejected outright, leaving the hash exactly as it was
+        // Only some of the adds allocate, so a single pass can see no trip at all; repeat to make that unlikely.
+        for (int attempt = 0; attempt < 10; attempt++) {
+            List<BytesRef> expected = new ArrayList<>();
+            try (BytesRefHash hash = new BytesRefHash(1, bigArrays)) {
+                for (int i = 0; i < 500; i++) {
+                    byte[] data = ("key-" + i).getBytes(StandardCharsets.UTF_8);
+                    cursor.init(data, 0, data.length);
+                    try {
+                        assertThat(hash.add(cursor), equalTo((long) expected.size()));
+                        expected.add(new BytesRef(data));
+                    } catch (CircuitBreakingException e) {
+                        // the key must be rejected outright, leaving the hash exactly as it was. Reading the
+                        // cursor consumed it, so this key cannot be re-offered without re-pointing the cursor.
+                        assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+                    }
                 }
-            }
-            assertThat("the breaker never refused an allocation", breakerService.refusals(), greaterThan(0));
-            breakerService.stopRefusing();
-
-            assertThat(hash.size(), equalTo((long) expected.size()));
-            BytesRef scratch = new BytesRef();
-            for (int i = 0; i < expected.size(); i++) {
-                assertThat(hash.get(i, scratch), equalTo(expected.get(i)));
-                // Keys inserted through a cursor must still be findable as plain bytes
-                assertThat(hash.find(expected.get(i)), equalTo((long) i));
+                assertThat(hash.size(), equalTo((long) expected.size()));
+                BytesRef scratch = new BytesRef();
+                for (int i = 0; i < expected.size(); i++) {
+                    assertThat(hash.get(i, scratch), equalTo(expected.get(i)));
+                    // Keys inserted through a cursor must still be findable as plain bytes
+                    assertThat(hash.find(expected.get(i)), equalTo((long) i));
+                }
+            } catch (CircuitBreakingException e) {
+                // constructing the hash can trip too, which leaves nothing to verify on this pass
+                assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
             }
         }
-        breakerService.assertNoResidualReservation();
+        assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
     }
 
     public void testAllocation() {

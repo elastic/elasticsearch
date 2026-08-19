@@ -173,40 +173,29 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
     public void append(BytesRef value) {
         final long committedOffset = lastOffset;
         final int committedFixedLength = fixedLength;
-        boolean success = false;
         try {
             lastOffset += value.length;
             appendOffset(lastOffset, value.length);
             bytes.append(value.bytes, value.offset, value.length);
             ++size;
-            success = true;
-        } finally {
-            if (success == false) {
-                rollbackFailedAppend(committedOffset, committedFixedLength);
-            }
+        } catch (Throwable t) {
+            rollbackFailedAppend(committedOffset, committedFixedLength);
+            throw t;
         }
     }
 
-    /**
-     * Appends the cursor's remaining bytes as one entry. A circuit breaker trip discards the entry whole, but is
-     * not retryable with the same {@code cursor}: reading it consumes it and a cursor cannot be rewound, so a
-     * caller wanting to re-offer a refused entry has to re-point the cursor at those bytes.
-     */
     public void append(PagedBytesCursor cursor) {
         final int length = cursor.remaining();
         final long committedOffset = lastOffset;
         final int committedFixedLength = fixedLength;
-        boolean success = false;
         try {
             lastOffset += length;
             appendOffset(lastOffset, length);
             bytes.append(cursor);
             ++size;
-            success = true;
-        } finally {
-            if (success == false) {
-                rollbackFailedAppend(committedOffset, committedFixedLength);
-            }
+        } catch (Throwable t) {
+            rollbackFailedAppend(committedOffset, committedFixedLength);
+            throw t;
         }
     }
 

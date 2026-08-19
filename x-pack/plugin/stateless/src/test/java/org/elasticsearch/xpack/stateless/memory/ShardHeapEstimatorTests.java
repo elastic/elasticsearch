@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.MetricQuality;
 
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -273,6 +274,26 @@ public class ShardHeapEstimatorTests extends ESTestCase {
     }
 
     // --- getEffectiveShardPostingsInBytes ---
+
+    public void testAggregateShardMetricsMissingBeatsMinimumRegardlessOfOrder() {
+        ShardHeapEstimator estimator = fixedEstimator(ByteSizeValue.ofBytes(500));
+        var minimum = metrics(0, 0, 0, 0, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.MINIMUM);
+        var missing = metrics(0, 0, 0, 0, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.MISSING);
+        ShardId id1 = new ShardId(new Index("idx1", "uuid1"), 0);
+        ShardId id2 = new ShardId(new Index("idx2", "uuid2"), 0);
+
+        // MISSING then MINIMUM
+        var missingFirst = new LinkedHashMap<ShardId, StatelessMemoryMetricsService.ShardMemoryMetrics>();
+        missingFirst.put(id1, missing);
+        missingFirst.put(id2, minimum);
+        assertThat(estimator.aggregateShardMetrics(missingFirst, (id, m) -> {}).metricQuality(), equalTo(MetricQuality.MISSING));
+
+        // MINIMUM then MISSING
+        var minimumFirst = new LinkedHashMap<ShardId, StatelessMemoryMetricsService.ShardMemoryMetrics>();
+        minimumFirst.put(id1, minimum);
+        minimumFirst.put(id2, missing);
+        assertThat(estimator.aggregateShardMetrics(minimumFirst, (id, m) -> {}).metricQuality(), equalTo(MetricQuality.MISSING));
+    }
 
     public void testEffectivePostingsZeroWhenPostingsIncludedInEstimate() {
         // includePostingsInEstimate=true: postings are already folded into computeShardHeapUsage, so effective postings must be 0

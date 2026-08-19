@@ -102,7 +102,7 @@ public class VectorScorerInt4BulkOperationBenchmark {
         private final byte[] queryUnpacked;
 
         VectorData(int dims, int numVectors, int numVectorsToScore, Random random) {
-            super(numVectors, numVectorsToScore, random);
+            super(numVectors, numVectorsToScore, random, VectorScorerBulkBenchmark.AccessMode.RANDOM);
             packedVectors = new byte[numVectors][];
             for (int v = 0; v < numVectors; v++) {
                 byte[] unpacked = new byte[dims];

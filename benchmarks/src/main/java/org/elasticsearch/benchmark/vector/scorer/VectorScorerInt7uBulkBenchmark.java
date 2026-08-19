@@ -113,8 +113,8 @@ public class VectorScorerInt7uBulkBenchmark extends VectorScorerBulkBenchmark {
         private final float[] offsets;
         private final float[] queryVector;
 
-        VectorData(int dims, int numVectors, int numVectorsToScore, Random random) {
-            super(numVectors, numVectorsToScore, random);
+        VectorData(int dims, int numVectors, int numVectorsToScore, Random random, VectorScorerBulkBenchmark.AccessMode accessMode) {
+            super(numVectors, numVectorsToScore, random, accessMode);
 
             vectorData = new byte[numVectors][];
             offsets = new float[numVectors];
@@ -135,7 +135,7 @@ public class VectorScorerInt7uBulkBenchmark extends VectorScorerBulkBenchmark {
 
     @Setup
     public void setup() throws IOException {
-        setup(new VectorData(dims, numVectors, Math.min(numVectors, 20_000), ThreadLocalRandom.current()));
+        setup(new VectorData(dims, numVectors, Math.min(numVectors, 20_000), ThreadLocalRandom.current(), accessMode));
     }
 
     void setup(VectorData vectorData) throws IOException {

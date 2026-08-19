@@ -42,23 +42,30 @@ public class VectorScorerInt4BulkBenchmarkTests extends BenchmarkTest {
     }
 
     public void testSequential() throws Exception {
-        testSequential(this::createData, this::createBenchmark, delta);
+        test(this::createData, this::createBenchmark, VectorScorerBulkBenchmark.AccessMode.SEQUENTIAL, delta);
     }
 
     public void testRandom() throws Exception {
-        testRandom(this::createData, this::createBenchmark, delta);
+        test(this::createData, this::createBenchmark, VectorScorerBulkBenchmark.AccessMode.RANDOM, delta);
+    }
+
+    public void testQuerySequential() throws Exception {
+        testQuery(this::createData, this::createBenchmark, VectorScorerBulkBenchmark.AccessMode.SEQUENTIAL, delta);
     }
 
     public void testQueryRandom() throws Exception {
-        testQueryRandom(this::createData, this::createBenchmark, delta);
+        testQuery(this::createData, this::createBenchmark, VectorScorerBulkBenchmark.AccessMode.RANDOM, delta);
     }
 
-    private VectorScorerInt4BulkBenchmark.VectorData createData() {
-        return new VectorScorerInt4BulkBenchmark.VectorData(dims, 1000, 200, random());
+    private VectorScorerInt4BulkBenchmark.VectorData createData(VectorScorerBulkBenchmark.AccessMode accessMode) {
+        return new VectorScorerInt4BulkBenchmark.VectorData(dims, 1000, 200, random(), accessMode);
     }
 
-    private VectorScorerInt4BulkBenchmark createBenchmark(VectorScorerInt4BulkBenchmark.VectorData d, VectorImplementation impl)
-        throws java.io.IOException {
+    private VectorScorerInt4BulkBenchmark createBenchmark(
+        VectorScorerInt4BulkBenchmark.VectorData d,
+        VectorImplementation impl,
+        VectorScorerBulkBenchmark.AccessMode accessMode
+    ) throws java.io.IOException {
         var bench = new VectorScorerInt4BulkBenchmark();
         bench.function = function;
         bench.implementation = impl;
@@ -67,6 +74,7 @@ public class VectorScorerInt4BulkBenchmarkTests extends BenchmarkTest {
         bench.numVectors = 1000;
         bench.numVectorsToScore = 200;
         bench.bulkSize = 200;
+        bench.accessMode = accessMode;
         bench.setup(d);
         return bench;
     }

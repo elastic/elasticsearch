@@ -27,23 +27,30 @@ public class VectorScorerBFloat16BulkBenchmarkTests extends BenchmarkTest {
     }
 
     public void testSequential() throws Exception {
-        testSequential(this::createData, this::createBenchmark, delta);
+        test(this::createData, this::createBenchmark, VectorScorerBulkBenchmark.AccessMode.SEQUENTIAL, delta);
     }
 
     public void testRandom() throws Exception {
-        testRandom(this::createData, this::createBenchmark, delta);
+        test(this::createData, this::createBenchmark, VectorScorerBulkBenchmark.AccessMode.RANDOM, delta);
+    }
+
+    public void testQuerySequential() throws Exception {
+        testQuery(this::createData, this::createBenchmark, VectorScorerBulkBenchmark.AccessMode.SEQUENTIAL, delta);
     }
 
     public void testQueryRandom() throws Exception {
-        testQueryRandom(this::createData, this::createBenchmark, delta);
+        testQuery(this::createData, this::createBenchmark, VectorScorerBulkBenchmark.AccessMode.RANDOM, delta);
     }
 
-    private VectorScorerBFloat16BulkBenchmark.VectorData createData() {
-        return new VectorScorerBFloat16BulkBenchmark.VectorData(dims, 1000, 200, random());
+    private VectorScorerBFloat16BulkBenchmark.VectorData createData(VectorScorerBulkBenchmark.AccessMode accessMode) {
+        return new VectorScorerBFloat16BulkBenchmark.VectorData(dims, 1000, 200, random(), accessMode);
     }
 
-    private VectorScorerBFloat16BulkBenchmark createBenchmark(VectorScorerBFloat16BulkBenchmark.VectorData d, VectorImplementation impl)
-        throws java.io.IOException {
+    private VectorScorerBFloat16BulkBenchmark createBenchmark(
+        VectorScorerBFloat16BulkBenchmark.VectorData d,
+        VectorImplementation impl,
+        VectorScorerBulkBenchmark.AccessMode accessMode
+    ) throws java.io.IOException {
         var bench = new VectorScorerBFloat16BulkBenchmark();
         bench.function = function;
         bench.implementation = impl;
@@ -52,6 +59,7 @@ public class VectorScorerBFloat16BulkBenchmarkTests extends BenchmarkTest {
         bench.numVectors = 1000;
         bench.numVectorsToScore = 200;
         bench.bulkSize = 200;
+        bench.accessMode = accessMode;
         bench.setup(d);
         return bench;
     }

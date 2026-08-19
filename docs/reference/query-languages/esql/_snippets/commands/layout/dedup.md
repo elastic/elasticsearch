@@ -24,7 +24,9 @@ scope. Use [`LIMIT ... BY`](/reference/query-languages/esql/commands/limit.md)
 directly for the following two cases:
 
 - **Keeping more than one copy of each duplicate.** To retain up to `N` rows per
-  unique combination instead of just one, use `LIMIT N BY <all columns>`:
+  unique combination instead of just one, use `LIMIT N BY <all columns>`. Note
+  that `LIMIT ... BY` does not support wildcards, so you must list every column
+  explicitly:
 
   :::{include} ../../generated/x-pack-esql/commands/examples/dedup.csv-spec/dedupKeepSeveralCopiesForDocs.md
   :::

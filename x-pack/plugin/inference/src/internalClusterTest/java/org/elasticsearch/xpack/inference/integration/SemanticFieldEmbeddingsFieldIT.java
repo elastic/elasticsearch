@@ -14,7 +14,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
-public class SemanticEmbeddingsFieldIT extends AbstractEmbeddingsFieldIT {
+public class SemanticFieldEmbeddingsFieldIT extends AbstractInferenceFieldEmbeddingsFieldIT {
     private static final Set<TaskType> SUPPORTED_TASK_TYPES = Set.of(TaskType.EMBEDDING);
 
     @Override

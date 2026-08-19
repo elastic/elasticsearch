@@ -23,7 +23,7 @@ import java.util.Set;
 import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT;
 import static org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion;
 
-public class SemanticTextEmbeddingsFieldIT extends AbstractEmbeddingsFieldIT {
+public class SemanticTextFieldEmbeddingsFieldIT extends AbstractInferenceFieldEmbeddingsFieldIT {
     private static final Set<TaskType> SUPPORTED_TASK_TYPES = Set.of(
         TaskType.SPARSE_EMBEDDING,
         TaskType.TEXT_EMBEDDING,
@@ -37,7 +37,7 @@ public class SemanticTextEmbeddingsFieldIT extends AbstractEmbeddingsFieldIT {
         return List.of(new Object[] { false }, new Object[] { true });
     }
 
-    public SemanticTextEmbeddingsFieldIT(boolean useLegacyFormat) {
+    public SemanticTextFieldEmbeddingsFieldIT(boolean useLegacyFormat) {
         this.useLegacyFormat = useLegacyFormat;
     }
 

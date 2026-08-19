@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 1, supportsDedicatedMasters = false)
-abstract class AbstractEmbeddingsFieldIT extends ESIntegTestCase {
+abstract class AbstractInferenceFieldEmbeddingsFieldIT extends ESIntegTestCase {
     static final int VECTOR_DIMENSIONS = 128;  // Use a dimension count that is compatible with BIT element type
 
     private static final Map<String, Object> SPARSE_SERVICE_SETTINGS = Map.of("model", "my_model", "api_key", "my_api_key");

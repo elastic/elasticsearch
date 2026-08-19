@@ -10,7 +10,6 @@
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
 import org.elasticsearch.telemetry.Measurement;
-import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 import org.elasticsearch.telemetry.apm.RecordingOtelMeter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;

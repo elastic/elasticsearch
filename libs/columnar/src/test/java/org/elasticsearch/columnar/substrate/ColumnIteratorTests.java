@@ -70,6 +70,28 @@ public class ColumnIteratorTests extends ESTestCase {
         assertRoundTrip(10000, randomBits(10000, 0.9));
     }
 
+    /**
+     * Spans several {@link org.apache.lucene.codecs.lucene90.IndexedDISI} blocks, which hold 65536
+     * documents each, so that positions resolved across a block boundary are covered.
+     */
+    public void testAcrossIndexedDisiBlocks() throws IOException {
+        final int maxDoc = 65536 * 3 + between(1, 1000);
+        assertRoundTrip(maxDoc, randomBits(maxDoc, 0.9));
+    }
+
+    /** A wholly present block next to a partial one, so both block encodings appear in the same column. */
+    public void testFullIndexedDisiBlock() throws IOException {
+        final int maxDoc = 65536 * 2 + between(1000, 5000);
+        final FixedBitSet bits = new FixedBitSet(maxDoc);
+        bits.set(0, 65536);
+        for (int doc = 65536; doc < maxDoc; doc++) {
+            if (random().nextBoolean()) {
+                bits.set(doc);
+            }
+        }
+        assertRoundTrip(maxDoc, bits);
+    }
+
     public void testRandom() throws IOException {
         for (int iter = 0; iter < 20; iter++) {
             int maxDoc = between(1, 8000);

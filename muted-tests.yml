@@ -44,8 +44,6 @@ tests:
 - class: org.elasticsearch.search.SearchWithRejectionsIT
   method: testOpenContextsAfterRejections
   issue: https://github.com/elastic/elasticsearch/issues/156244
-- class: org.elasticsearch.entitlement.runtime.policy.PolicyCheckerImplTests
-  issue: https://github.com/elastic/elasticsearch/issues/156628
 - class: org.elasticsearch.gradle.reaper.ReaperPluginFuncTest
   method: can launch reaper
   issue: https://github.com/elastic/elasticsearch/issues/156707

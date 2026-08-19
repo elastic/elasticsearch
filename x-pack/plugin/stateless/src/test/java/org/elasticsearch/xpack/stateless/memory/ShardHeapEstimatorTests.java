@@ -33,8 +33,8 @@ public class ShardHeapEstimatorTests extends ESTestCase {
     /// [ShardHeapEstimator#computeIndexHeapUsage(StatelessMemoryMetricsService.ShardMemoryMetrics)] plus
     /// [ShardHeapEstimator#getEffectiveShardPostingsInBytes(StatelessMemoryMetricsService.ShardMemoryMetrics)]
     ///
-    /// Should sum to the adaptive estimate plus the postings, unless the shard self-reports an overhead, in which
-    /// case it should sum to the reported overhead
+    /// Should sum to the adaptive estimate plus the postings, unless self-reported overheads are enabled and the shard
+    /// includes a self-reported overhead, in which case they should sum to the reported overhead
     public void testComputeShardHeapUsagePlusEffectivePostingsSumsToTotalExceptWhenSelfReportedOverheadEffective() {
         final long mappingSize = randomLongBetween(0, 10_000_000);
         final int numSegments = randomIntBetween(1, 100);

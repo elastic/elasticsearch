@@ -809,3 +809,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.IndexEngineTests
   method: testHollowEngineWithConcurrentNonHollowFlush
   issue: https://github.com/elastic/elasticsearch/issues/157095
+- class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitTests
+  method: testGetVirtualBatchedCompoundCommitBytesByRangeWithConcurrentAppends
+  issue: https://github.com/elastic/elasticsearch/issues/157162

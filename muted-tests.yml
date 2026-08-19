@@ -149,9 +149,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
   method: testGroupingAggregate {TestCase=<positive ints>}
   issue: https://github.com/elastic/elasticsearch/issues/156841
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/131_knn_query_nested_inner_hits_score/nested kNN inner_hits are scored like the query phase on a quantized field}
-  issue: https://github.com/elastic/elasticsearch/issues/156759
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValuesByteRefGroupingAggregatorFunctionTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/155069

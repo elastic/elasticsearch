@@ -430,12 +430,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/156415
-- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
-  method: testReindexTaskFinishesBeforeNodeShutsDown
-  issue: https://github.com/elastic/elasticsearch/issues/156630
-- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
-  method: testReindexTaskFailsWhenDataNodeIsShuttingDownAndTaskDoesNotFinishInTime
-  issue: https://github.com/elastic/elasticsearch/issues/156631
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:BASELINE}
   issue: https://github.com/elastic/elasticsearch/issues/154058

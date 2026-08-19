@@ -87,6 +87,43 @@ setup:
   - length: { views: 0 }
 
 ---
+"optional-description":
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_query/view/{name}
+          capabilities: [view_description]
+      test_runner_features: capabilities
+      reason: "View description field introduced"
+
+  - do:
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+          description: "All dogs"
+
+  - do:
+      esql.get_view:
+        name: dogs
+
+  - match: { views.0.name: "dogs" }
+  - match: { views.0.description: "All dogs" }
+
+  - do:
+      esql.put_view:
+        name: cats
+        body:
+          query: 'FROM test | WHERE animal == "cat"'
+
+  - do:
+      esql.get_view:
+        name: cats
+
+  - match: { views.0.name: "cats" }
+  - not_exists: views.0.description
+
+---
 "delete-multiple-views":
   - do:
       esql.put_view:
@@ -373,7 +410,7 @@ setup:
         index: myindex
 
   - do:
-      catch: /Invalid alias name \[myview\]. an index, data stream, or ESQL view exists with the same name as the alias|is not available when running in serverless mode/
+      catch: /Invalid alias name \[myview\]. an index, data stream, (ESQL view, or ESQL dataset|or ESQL view) exists with the same name as the alias|is not available when running in serverless mode/
       indices.put_alias:
         index: myindex
         name: myview
@@ -403,7 +440,7 @@ setup:
         name: myviewds
 
   - do:
-      catch: /Invalid alias name \[myview\]. an index, data stream, or ESQL view exists with the same name as the alias|is not available when running in serverless mode/
+      catch: /Invalid alias name \[myview\]. an index, data stream, (ESQL view, or ESQL dataset|or ESQL view) exists with the same name as the alias|is not available when running in serverless mode/
       indices.put_alias:
         index: myviewds
         name: myview

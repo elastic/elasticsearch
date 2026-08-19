@@ -7,17 +7,22 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -27,12 +32,19 @@ import org.elasticsearch.xpack.esql.datasources.spi.FrameIndex;
 import org.elasticsearch.xpack.esql.datasources.spi.IndexedDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -43,14 +55,21 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 
 /**
  * Default {@link SplitProvider} for file-based sources.
@@ -59,6 +78,26 @@ import java.util.function.BiFunction;
  *
  * <p>When filter hints contain resolved {@link Expression} objects, evaluates them against
  * each file's partition values to prune files that cannot match the filter.
+ *
+ * <p><b>Splitting modes.</b>
+ * This provider supports two distinct splitting strategies. The downstream reader's behaviour
+ * (partial-line skip vs. no skip) differs between them, gated by
+ * {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext#recordAligned()}.
+ *
+ * <ul>
+ *   <li><b>Record-aligned macro splits</b> — for uncompressed line-oriented formats
+ *       (NDJSON/JSONL/JSON, CSV/TSV). {@link RecordSplitter#findNextRecordBoundary}
+ *       probes near {@code target_split_size} strides so each {@link FileSplit} starts on a
+ *       record boundary. Splits are tagged with {@link #RECORD_ALIGNED_MACRO_SPLIT_KEY} and
+ *       readers receive {@code recordAligned=true}, so they must <em>not</em> drop any leading
+ *       bytes.
+ *       See {@link #tryNewlineAlignedMacroSplits}.</li>
+ *   <li><b>Block-aligned splits</b> — for splittable compressed formats (e.g. bzip2) via
+ *       {@link SplittableDecompressionCodec#findBlockBoundaries}. Splits land on compression
+ *       block boundaries, not record boundaries. Readers receive {@code recordAligned=false}
+ *       and must skip a leading partial record on every non-first split.
+ *       See {@link #tryBlockAlignedSplits}.</li>
+ * </ul>
  */
 public class FileSplitProvider implements SplitProvider {
 
@@ -72,22 +111,73 @@ public class FileSplitProvider implements SplitProvider {
     static final String FIRST_SPLIT_KEY = "_first_split";
     static final String LAST_SPLIT_KEY = "_last_split";
 
+    /**
+     * Config for a split that covers an entire file, so it is both the first and the last split of that file.
+     * <p>
+     * Readers run a split-boundary protocol off these flags: a non-first split drops its leading partial
+     * record and a non-last split drops its trailing one, because the neighbouring split owns those bytes.
+     * A whole-file split has no neighbours, so leaving the flags unstamped makes a reader discard a final
+     * record that is not newline-terminated — no other split will read it. Multi-split paths stamp the same
+     * keys on their edge splits, so after this every line-oriented split states its own position rather than
+     * leaving a whole-file read to be inferred from an absent key. Range splits are the exception: they share
+     * one config across all ranges and carry no position keys, because byte ranges are not a record-boundary
+     * protocol and their readers never consult these flags.
+     */
+    private static Map<String, Object> wholeFileSplitConfig(Map<String, Object> config) {
+        Map<String, Object> splitConfig = new HashMap<>(config);
+        splitConfig.put(FIRST_SPLIT_KEY, "true");
+        splitConfig.put(LAST_SPLIT_KEY, "true");
+        return splitConfig;
+    }
+
     static final String RANGE_SPLIT_KEY = "_range_split";
     static final String FILE_LENGTH_KEY = "_file_length";
-    static final String CONFIG_TARGET_SPLIT_SIZE = "target_split_size";
+    public static final String CONFIG_TARGET_SPLIT_SIZE = "target_split_size";
+
+    /**
+     * Configuration keys this splitter consumes from a query-time configuration map. Aggregated by
+     * {@link FileSourceFactory#COORDINATOR_KEYS}. New keys read by this class via {@code config.get(...)}
+     * must be added here so the {@link org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator}
+     * recognises them — pinned by {@code FileSourceFactoryValidationTests}.
+     */
+    public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_TARGET_SPLIT_SIZE);
+
+    /**
+     * Macro-split starts on a newline-aligned record boundary (see {@link #tryNewlineAlignedMacroSplits}).
+     * Downstream readers set {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext#recordAligned()}
+     * and pass this flag into {@link ParallelParsingCoordinator#parallelRead}
+     * so single-threaded fallback paths do not skip or trim aligned ranges.
+     */
+    static final String RECORD_ALIGNED_MACRO_SPLIT_KEY = "_record_aligned_macro_split";
+    /**
+     * Marks splits whose {@code offset()} is a COMPRESSED byte position (bzip2 block-aligned /
+     * zstd-indexed frame groups). Text readers anchor {@code _rowPosition} as
+     * {@code splitStartByte + decompressed-bytes-consumed}; a compressed anchor plus a
+     * decompressed delta is a value on no axis — not split-invariant and collision-prone across
+     * splits — so the dispatcher must not compose {@code _id} from these splits (it null-splices
+     * the {@code _rowPosition} slot instead).
+     */
+    static final String COMPRESSED_OFFSET_SPLIT_KEY = "_compressed_offset_split";
+
+    /** Maximum parallel per-file I/O tasks during split discovery (Parquet footer reads, etc.). */
+    static final int MAX_PARALLEL_SPLIT_DISCOVERY = 16;
+
+    private static final String DISCOVERY_CANCELLED_MESSAGE = "ES|QL external split discovery cancelled";
 
     private final long targetSplitSizeBytes;
     private final DecompressionCodecRegistry codecRegistry;
     private final StorageProviderRegistry storageRegistry;
     private final FormatReaderRegistry formatRegistry;
     private final Settings settings;
+    @Nullable
+    private final Executor executor;
 
     public FileSplitProvider() {
-        this(DEFAULT_TARGET_SPLIT_SIZE, null, null, null, Settings.EMPTY);
+        this(DEFAULT_TARGET_SPLIT_SIZE, null, null, null, Settings.EMPTY, null);
     }
 
     public FileSplitProvider(long targetSplitSizeBytes) {
-        this(targetSplitSizeBytes, null, null, null, Settings.EMPTY);
+        this(targetSplitSizeBytes, null, null, null, Settings.EMPTY, null);
     }
 
     public FileSplitProvider(
@@ -96,7 +186,7 @@ public class FileSplitProvider implements SplitProvider {
         StorageProviderRegistry storageRegistry,
         Settings settings
     ) {
-        this(targetSplitSizeBytes, codecRegistry, storageRegistry, null, settings);
+        this(targetSplitSizeBytes, codecRegistry, storageRegistry, null, settings, null);
     }
 
     public FileSplitProvider(
@@ -106,62 +196,108 @@ public class FileSplitProvider implements SplitProvider {
         FormatReaderRegistry formatRegistry,
         Settings settings
     ) {
+        this(targetSplitSizeBytes, codecRegistry, storageRegistry, formatRegistry, settings, null);
+    }
+
+    public FileSplitProvider(
+        long targetSplitSizeBytes,
+        DecompressionCodecRegistry codecRegistry,
+        StorageProviderRegistry storageRegistry,
+        FormatReaderRegistry formatRegistry,
+        Settings settings,
+        @Nullable Executor executor
+    ) {
         this.targetSplitSizeBytes = targetSplitSizeBytes;
         this.codecRegistry = codecRegistry;
         this.storageRegistry = storageRegistry;
         this.formatRegistry = formatRegistry;
         this.settings = settings != null ? settings : Settings.EMPTY;
+        this.executor = executor;
     }
 
     @Override
-    public List<ExternalSplit> discoverSplits(SplitDiscoveryContext context) {
+    public SplitDiscoveryResult discoverSplits(SplitDiscoveryContext context) {
         FileList fileList = context.fileList();
         if (fileList == null || fileList.isResolved() == false) {
-            return List.of();
+            return SplitDiscoveryResult.EMPTY;
         }
 
         PartitionMetadata partitionInfo = context.partitionInfo();
         Map<String, Object> config = context.config();
         List<Expression> filterHints = context.filterHints();
-        Set<String> projectedDataColumns = fileBackedProjectedColumns(context.projectedDataColumns(), partitionInfo);
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = fileList.fileSchemaInfo();
-        List<ExternalSplit> splits = new ArrayList<>();
-        // Dedup cache: files with content-equal mappings share the same ColumnMapping
-        // instance on the coordinator, avoiding redundant allocations.
-        Map<SchemaReconciliation.ColumnMapping, SchemaReconciliation.ColumnMapping> mappingCache = new HashMap<>();
+        // Strip partition columns from the Query schema before per-file work: their values come
+        // from the storage path, not from file bytes, so they don't participate in the file-read
+        // narrowing or in the no-overlap skip check.
+        ExternalSchema fileBackedQuerySchema = stripPartitionColumns(context.querySchema(), partitionInfo);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = context.schemaMap();
 
-        long effectiveSplitSize = resolveTargetSplitSize(config);
+        // Side effect: validates optional {@link #CONFIG_TARGET_SPLIT_SIZE} when users pass WITH options.
+        @SuppressWarnings("unused")
+        long validatedTargetSplitConfig = resolveTargetSplitSize(config);
 
+        // Hoist provider creation outside the per-file loop when config is non-empty.
+        // This avoids constructing a new S3/GCS/Azure client per file.
+        // For empty config, storageRegistry.provider() returns a cached singleton per scheme.
+        StorageProvider sharedProvider = null;
+        if (config != null && config.isEmpty() == false && storageRegistry != null) {
+            // Derive scheme from the first file (all files in a FileList share the same scheme).
+            if (fileList.fileCount() > 0) {
+                String scheme = fileList.path(0).scheme();
+                sharedProvider = storageRegistry.createProvider(scheme, settings, config);
+            }
+        }
+
+        // Dedup cache for ColumnMapping: concurrent-safe when split discovery is parallel.
+        Map<ColumnMapping, ColumnMapping> mappingCache = new ConcurrentHashMap<>();
+
+        // Unified schema for the prune-to-per-file-query transformation. When null (legacy
+        // callers, data-node paths) the per-file mapping stays at Unified width — the data node
+        // still works, the on-wire cost is just slightly higher.
+        ExternalSchema unifiedSchema = context.unifiedSchema();
+
+        // Bail before doing any per-file work if the originating query is already cancelled.
+        throwIfCancelled(context);
+
+        // Phase 1: sequential filtering — cheap, in-memory predicates applied per file to
+        // build the list of FileTask items that need I/O (footer reads, boundary scans).
+        // Tracks whether any file was dropped by the row-count-unsafe no-column-overlap heuristic:
+        // such a file still contributes rows to COUNT(*), so an all-dropped result driven by it is
+        // NOT an exhaustive prune and must fall back to a full read (see SplitDiscoveryResult).
+        boolean droppedByColumnOverlap = false;
+        List<FileTask> tasks = new ArrayList<>(fileList.fileCount());
         for (int i = 0; i < fileList.fileCount(); i++) {
             StoragePath filePath = fileList.path(i);
 
-            Map<String, Object> partitionValues = Map.of();
+            Map<String, Object> partitionValues = new HashMap<>();
             if (partitionInfo != null && partitionInfo.isEmpty() == false) {
                 Map<String, Object> filePartitions = partitionInfo.filePartitionValues().get(filePath);
                 if (filePartitions != null) {
-                    partitionValues = filePartitions;
+                    partitionValues.putAll(filePartitions);
                 }
             }
+            partitionValues.putAll(FileMetadataColumns.extractValues(fileList, i));
 
             if (partitionValues.isEmpty() == false && filterHints.isEmpty() == false) {
                 if (matchesPartitionFilters(partitionValues, filterHints) == false) {
+                    // Partition pruning: the path values alone disprove the filter, so the file is skipped unread.
                     continue;
                 }
             }
 
             SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo != null ? schemaInfo.get(filePath) : null;
 
-            if (projectedDataColumns.isEmpty() == false && fileSchemaInfo != null) {
-                if (skipIfNoColumnOverlap(fileSchemaInfo.fileSchema(), projectedDataColumns)) {
+            if (fileBackedQuerySchema.isEmpty() == false && fileSchemaInfo != null) {
+                if (skipIfNoColumnOverlap(fileSchemaInfo.fileSchema(), fileBackedQuerySchema)) {
+                    // Row-count-unsafe: the file's rows still exist (they would be all-NULL for the query's
+                    // columns), so COUNT(*) and other row-count-sensitive queries need them. Skipping is a
+                    // best-effort optimization that relies on a full-read fallback when it empties the plan.
+                    droppedByColumnOverlap = true;
                     continue;
                 }
             }
 
             if (filterHints.isEmpty() == false && fileSchemaInfo != null) {
-                Set<String> fileColumnNames = new LinkedHashSet<>();
-                for (Attribute attr : fileSchemaInfo.fileSchema()) {
-                    fileColumnNames.add(attr.name());
-                }
+                Set<String> fileColumnNames = new LinkedHashSet<>(fileSchemaInfo.fileSchema().names());
                 // Partition columns are always available (values come from paths, not file data)
                 fileColumnNames.addAll(partitionValues.keySet());
                 if (skipIfFilterOnMissingColumns(filterHints, fileColumnNames)) {
@@ -180,48 +316,337 @@ public class FileSplitProvider implements SplitProvider {
 
             long fileLength = fileList.size(i);
 
-            SchemaReconciliation.ColumnMapping columnMapping = null;
+            ColumnMapping columnMapping = null;
+            List<Attribute> readSchema = null;
+            Map<String, DataType> inferredFileTypes = null;
             if (schemaInfo != null) {
                 SchemaReconciliation.FileSchemaInfo info = schemaInfo.get(filePath);
-                if (info != null && info.mapping() != null && info.mapping().isIdentity() == false) {
-                    columnMapping = mappingCache.computeIfAbsent(info.mapping(), k -> k);
+                if (info != null) {
+                    inferredFileTypes = info.inferredTypes();
+                    ColumnMapping mapping = info.mapping();
+                    if (mapping != null && unifiedSchema != null && fileBackedQuerySchema.isEmpty() == false) {
+                        // Fused narrowing: output dimension goes from Unified to Query, read
+                        // dimension goes from File to per-file Query projection. See the
+                        // four-schema doc on SchemaReconciliation. For Hive-partitioned sources
+                        // context.unifiedSchema() is the post-shadow data-only schema (partition
+                        // columns are appended only to the coordinator-facing schema, never here), so
+                        // its width matches each per-file mapping built by shadowPartitionCollisions and
+                        // satisfies pruneToPerFileQuery's unifiedSchema.size() == index.length assertion.
+                        mapping = mapping.pruneToPerFileQuery(unifiedSchema, info.fileSchema(), fileBackedQuerySchema);
+                    }
+                    if (mapping != null && mapping.isIdentity() == false) {
+                        columnMapping = mappingCache.computeIfAbsent(mapping, k -> k);
+                    }
+                    // Pin the reader to the coordinator's reconciled per-file read schema so it
+                    // doesn't re-infer at runtime and disagree with the planner's view of this file.
+                    // For text formats this schema already carries each widened column's reconciled
+                    // type (see SchemaReconciliation), so the reader reads at that type directly.
+                    readSchema = info.fileSchema().attributes();
                 }
             }
 
-            // Try block-aligned splitting for splittable compressed files (e.g. .ndjson.bz2).
-            // This is independent of targetSplitSizeBytes — compressed files with splittable
-            // codecs are always split at block boundaries when possible.
-            if (tryBlockAlignedSplits(filePath, fileLength, format, config, partitionValues, columnMapping, splits)) {
-                continue;
-            }
-
-            if (tryRangeAwareSplits(filePath, fileLength, format, config, partitionValues, columnMapping, splits)) {
-                continue;
-            }
-
-            if (effectiveSplitSize > 0 && fileLength > effectiveSplitSize && isSplittableFormat(format)) {
-                long offset = 0;
-                boolean isFirst = true;
-                while (offset < fileLength) {
-                    long chunkLength = Math.min(effectiveSplitSize, fileLength - offset);
-                    boolean isLast = (offset + chunkLength >= fileLength);
-                    Map<String, Object> splitConfig = new HashMap<>(config);
-                    if (isFirst) {
-                        splitConfig.put(FIRST_SPLIT_KEY, "true");
-                    }
-                    if (isLast) {
-                        splitConfig.put(LAST_SPLIT_KEY, "true");
-                    }
-                    splits.add(new FileSplit("file", filePath, offset, chunkLength, format, splitConfig, partitionValues, columnMapping));
-                    offset += chunkLength;
-                    isFirst = false;
-                }
-            } else {
-                splits.add(new FileSplit("file", filePath, 0, fileLength, format, config, partitionValues, columnMapping));
-            }
+            tasks.add(
+                new FileTask(
+                    filePath,
+                    fileLength,
+                    format,
+                    config,
+                    partitionValues,
+                    columnMapping,
+                    readSchema,
+                    // Reconciled query types (by unified name). Under UNION_BY_NAME (the only path that can widen
+                    // a mixed-temporal column) file column names equal unified names, so footer split stats key
+                    // by the same names and normalize by-name. Strict reconciliation rejects differing types, so
+                    // there is no mixed-unit column to normalize on that path.
+                    unifiedSchema != null ? attributesToTypeMap(unifiedSchema.attributes()) : null,
+                    context.maxRecordBytes(),
+                    context.declaredReadSpec(),
+                    inferredFileTypes
+                )
+            );
         }
 
-        return List.copyOf(splits);
+        if (tasks.isEmpty()) {
+            // Every file was dropped. Only a resolved, non-empty file list whose files were all removed by
+            // row-count-preserving filter contradictions (no no-overlap heuristic among them) is a true
+            // exhaustive prune the phase may trust to read nothing; otherwise fall back to a full read.
+            boolean exhaustivelyPruned = fileList.fileCount() > 0 && droppedByColumnOverlap == false;
+            return new SplitDiscoveryResult(List.of(), 0, exhaustivelyPruned);
+        }
+
+        // Phase 2: I/O-bound split discovery — parallelize when executor is available.
+        final StorageProvider hoistedProvider = sharedProvider;
+        final BooleanSupplier isCancelled = context.isCancelled();
+        List<List<ExternalSplit>> perFileSplits;
+        try {
+            if (executor != null && tasks.size() > 1) {
+                perFileSplits = BoundedParallelGather.gather(
+                    tasks,
+                    task -> processFileForSplits(task, hoistedProvider, isCancelled),
+                    MAX_PARALLEL_SPLIT_DISCOVERY,
+                    executor
+                );
+            } else {
+                perFileSplits = new ArrayList<>(tasks.size());
+                for (FileTask task : tasks) {
+                    perFileSplits.add(processFileForSplits(task, hoistedProvider, isCancelled));
+                }
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to discover splits", e);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to discover splits", e);
+        }
+
+        // Flatten per-file split lists into a single ordered list.
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (List<ExternalSplit> fileSplits : perFileSplits) {
+            splits.addAll(fileSplits);
+        }
+        // Each surviving task produces at least one split, so the task count is the number of
+        // distinct files that are actually scanned after coordinator-side pruning.
+        return new SplitDiscoveryResult(splits, tasks.size());
+    }
+
+    /**
+     * Throws {@link TaskCancelledException} when the originating query has been cancelled, so that a
+     * long-running split discovery (e.g. thousands of Parquet footer reads) aborts promptly. Mirrors
+     * {@code ExternalSourceResolver.throwIfCancelled}. Thrown from {@code processFileForSplits} it is
+     * the {@code fn} passed to {@link BoundedParallelGather#gather}, whose documented fast-fail
+     * short-circuits not-yet-started files and rethrows the exception, so cancel latency is bounded to
+     * the in-flight slots.
+     */
+    private static void throwIfCancelled(SplitDiscoveryContext context) {
+        if (context.isCancelled().getAsBoolean()) {
+            throw new TaskCancelledException(DISCOVERY_CANCELLED_MESSAGE);
+        }
+    }
+
+    /**
+     * Input tuple for per-file split discovery, holding all data needed to compute splits
+     * for a single file without accessing shared mutable state.
+     */
+    private record FileTask(
+        StoragePath filePath,
+        long fileLength,
+        @Nullable String format,
+        Map<String, Object> config,
+        Map<String, Object> partitionValues,
+        @Nullable ColumnMapping columnMapping,
+        @Nullable List<Attribute> readSchema,
+        @Nullable Map<String, DataType> reconciledTypes,
+        int maxRecordBytes,
+        DeclaredReadSpec declaredReadSpec,
+        // PRE-overlay inferred file types (physical-keyed), or null when no declared overlay ran. The stats-type
+        // authority for normalizing footer range stats — NOT the overlaid readSchema types.
+        @Nullable Map<String, DataType> inferredFileTypes
+    ) {}
+
+    private static Map<String, DataType> attributesToTypeMap(List<Attribute> attributes) {
+        Map<String, DataType> types = new HashMap<>(attributes.size());
+        for (Attribute a : attributes) {
+            types.put(a.name(), a.dataType());
+        }
+        return types;
+    }
+
+    /**
+     * Computes the splits for a single file. Uses the hoisted provider when provided (non-null),
+     * otherwise falls back to the registry for per-call provider resolution.
+     * This method is safe to call concurrently from multiple threads.
+     */
+    private List<ExternalSplit> processFileForSplits(FileTask task, @Nullable StorageProvider hoistedProvider, BooleanSupplier isCancelled)
+        throws IOException {
+        if (isCancelled.getAsBoolean()) {
+            throw new TaskCancelledException(DISCOVERY_CANCELLED_MESSAGE);
+        }
+        // Carry the cancellation signal as ambient thread-local state so the synchronous retry/throttle
+        // backoff inside the footer reads below can abort a parked sleep on cancel.
+        return StorageRetryCancellation.callWithCancellation(isCancelled, () -> computeFileSplits(task, hoistedProvider, isCancelled));
+    }
+
+    private List<ExternalSplit> computeFileSplits(FileTask task, @Nullable StorageProvider hoistedProvider, BooleanSupplier isCancelled)
+        throws IOException {
+        List<ExternalSplit> fileSplits = new ArrayList<>();
+
+        // Resolve the config-aware reader once and reuse it for both the sequential-whole-file gate and the
+        // newline-aligned macro-split attempt below, which would otherwise each resolve it independently. The
+        // declared-name binding bit rides the typed DeclaredReadSpec (NOT the config map), so it must be applied
+        // here too, or the split-side reader's declaredNameBindingNeedsFileStart() is silently false and the gate
+        // below never fires — the read-side reader would then hit a chunk with no header line to bind against.
+        FormatReader configuredReader = resolveConfiguredReader(task.filePath(), task.config());
+        if (configuredReader != null && task.declaredReadSpec().provenance() == SchemaProvenance.DECLARED) {
+            configuredReader = configuredReader.withDeclaredPathBinding(true);
+        }
+
+        // Quoted or escaped CSV/TSV cannot be probed at arbitrary offsets (an in-quote newline, or a
+        // backslash-escaped raw newline, would be misread as a record terminator), so no start-anywhere
+        // splitting is safe: not newline-aligned macro-splits, nor compressed block/frame-aligned splits.
+        // Emit a single whole-file split (identical to the fallback below); the reader consumes it as one
+        // sequential stream and finds boundaries quote/escape-aware.
+        if (requiresSequentialWholeFileRead(configuredReader)) {
+            fileSplits.add(
+                FileSplit.withReadSchema(
+                    "file",
+                    task.filePath(),
+                    0,
+                    task.fileLength(),
+                    task.format(),
+                    wholeFileSplitConfig(task.config()),
+                    task.partitionValues(),
+                    task.columnMapping(),
+                    task.readSchema()
+                )
+            );
+            return fileSplits;
+        }
+
+        // Try block-aligned splitting for splittable compressed files (e.g. .ndjson.bz2).
+        // This is independent of targetSplitSizeBytes — compressed files with splittable
+        // codecs are always split at block boundaries when possible.
+        if (tryBlockAlignedSplits(
+            task.filePath(),
+            task.fileLength(),
+            task.format(),
+            task.config(),
+            task.partitionValues(),
+            task.columnMapping(),
+            task.readSchema(),
+            fileSplits,
+            hoistedProvider
+        )) {
+            return fileSplits;
+        }
+
+        if (tryRangeAwareSplits(
+            task.filePath(),
+            task.fileLength(),
+            task.format(),
+            task.config(),
+            task.partitionValues(),
+            task.columnMapping(),
+            task.readSchema(),
+            task.reconciledTypes(),
+            task.declaredReadSpec(),
+            task.inferredFileTypes(),
+            fileSplits,
+            hoistedProvider
+        )) {
+            return fileSplits;
+        }
+
+        Map<String, Object> config = task.config();
+        StoragePath filePath = task.filePath();
+        long fileLength = task.fileLength();
+        String format = task.format();
+        Map<String, Object> partitionValues = task.partitionValues();
+        ColumnMapping columnMapping = task.columnMapping();
+        List<Attribute> readSchema = task.readSchema();
+        long effectiveTargetSplitBytes = resolveTargetSplitSize(config);
+
+        if (tryNewlineAlignedMacroSplits(
+            filePath,
+            fileLength,
+            format,
+            config,
+            partitionValues,
+            columnMapping,
+            readSchema,
+            effectiveTargetSplitBytes,
+            task.maxRecordBytes(),
+            fileSplits,
+            hoistedProvider,
+            configuredReader,
+            isCancelled
+        )) {
+            return fileSplits;
+        }
+
+        // Whole-file split when macro splitting does not apply (small files, unsupported formats, or single aligned span).
+        fileSplits.add(
+            FileSplit.withReadSchema(
+                "file",
+                filePath,
+                0,
+                fileLength,
+                format,
+                wholeFileSplitConfig(config),
+                partitionValues,
+                columnMapping,
+                readSchema
+            )
+        );
+        return fileSplits;
+    }
+
+    /**
+     * Resolves the config-aware {@link FormatReader} for a file, or {@code null} when it cannot be resolved
+     * (no {@code formatRegistry}, no object name, or an unknown extension). Config-aware so a {@code WITH}
+     * override (e.g. {@code mode=plain}, {@code quote=none}) selects the same reader/splitter the read path
+     * will actually use: {@code byExtension} alone yields the extension default (quoted for {@code .csv}),
+     * whose non-strided splitter would trip {@link #computeRecordAlignedMacroSplitStarts}' guard for a
+     * plain-mode file. {@code withConfig} returns {@code null} only for test mocks; the base reader is used
+     * in that case. The compression suffix is stripped by {@link FormatNameResolver}, so this resolves the
+     * inner text reader for compressed files (e.g. {@code .csv.bz2}) too.
+     */
+    @Nullable
+    private FormatReader resolveConfiguredReader(StoragePath filePath, Map<String, Object> config) {
+        if (formatRegistry == null) {
+            return null;
+        }
+        String objectName = filePath.objectName();
+        if (objectName == null) {
+            return null;
+        }
+        try {
+            FormatReader base = FormatNameResolver.resolveReader(config, objectName, formatRegistry);
+            FormatReader configured = base.withConfig(config);
+            return configured != null ? configured : base;
+        } catch (RuntimeException e) {
+            LOGGER.debug(() -> Strings.format("Cannot resolve reader for [%s]; treating it as non-segmentable", objectName), e);
+            return null;
+        }
+    }
+
+    /**
+     * Whether the file's config-resolved record splitter forces one sequential whole-file stream instead of any
+     * start-anywhere split. A strided splitter (plain CSV/TSV, NDJSON) is always splittable. A non-strided
+     * splitter (quoted or escaped CSV/TSV, whose records may span a raw newline) is splittable only when it can
+     * <em>prove</em> a record start at an arbitrary offset ({@link RecordSplitter#supportsProvenProbing()}) and it
+     * is not a compression-delegating reader (a quoted {@code .csv.bz2} stays whole-file: the probe would run
+     * against compressed bytes). Returns {@code false} (splitting allowed) when the reader could not be resolved,
+     * so an unresolvable reader is treated as splittable.
+     */
+    private boolean requiresSequentialWholeFileRead(@Nullable FormatReader reader) {
+        if (reader == null) {
+            return false;
+        }
+        if (reader.declaredNameBindingNeedsFileStart()) {
+            // Binding is resolved against the header, which only a split starting at byte 0 can read.
+            return true;
+        }
+        SegmentableFormatReader seg = AsyncExternalSourceOperatorFactory.resolveSegmentableReader(reader);
+        if (seg == null) {
+            return false;
+        }
+        RecordSplitter splitter = seg.recordSplitter();
+        // A null splitter (only reachable from mocks) keeps the strided default: splitting stays enabled.
+        if (splitter == null || splitter.supportsStridedProbing()) {
+            return false;
+        }
+        boolean provenMacroSplittable = splitter.supportsProvenProbing() && reader instanceof CompressionDelegatingFormatReader == false;
+        return provenMacroSplittable == false;
+    }
+
+    /**
+     * Builds a {@link StorageObject} that exposes only the bytes for the given {@link FileSplit}.
+     * Always wraps the provider's base object in {@link RangeStorageObject} so format readers and
+     * splittable decompressors only see the split's compressed byte span (including offset {@code 0}).
+     */
+    public static StorageObject storageObjectForSplit(StorageProvider storageProvider, FileSplit fileSplit) {
+        return new RangeStorageObject(storageProvider.newObject(fileSplit.path()), fileSplit.offset(), fileSplit.length());
     }
 
     /**
@@ -229,12 +654,22 @@ public class FileSplitProvider implements SplitProvider {
      * Returns true if block-aligned splits were created, false if the file should
      * fall through to normal splitting logic.
      *
-     * <p>Records straddling a block boundary are handled by the line-alignment protocol:
-     * the first split reads to end-of-stream, subsequent splits skip the first partial
-     * line. A record whose bytes span two blocks will be dropped without failing the
-     * query (a malformed-line warning is logged). This matches Hadoop/Spark behavior
-     * and is acceptable for line-oriented formats with small records relative to block
-     * size (100k–900k).
+     * <p>Macro-splits are disjoint: split {@code m} ends exactly where split {@code m+1}
+     * begins. Records that straddle a macro-split boundary are handled by the codec's
+     * decompression wrapper, which switches to "finish-current-line" mode once the split
+     * boundary is reached at a block end and emits bytes from the next block up to (and
+     * including) the first {@code '\n'}. The subsequent split drops that same tail via
+     * {@code skipFirstLine}. This yields exact record counts without duplicates or loss.
+     *
+     * <p>Protocol cross-references (kept as prose since the datasource plugins are not compile-
+     * time dependencies of this module):
+     * <ul>
+     *   <li>Codec side — {@code Bzip2DecompressionCodec.BlockBoundedDecompressStream}
+     *       implements finish-current-line on the split boundary.</li>
+     *   <li>Reader side — {@code NdJsonPageIterator.skipToNextLine}, wired through
+     *       {@code NdJsonFormatReader.read}'s {@code skipFirstLine} flag, drops the leading
+     *       partial record on every non-first split.</li>
+     * </ul>
      */
     private boolean tryBlockAlignedSplits(
         StoragePath filePath,
@@ -242,8 +677,10 @@ public class FileSplitProvider implements SplitProvider {
         String format,
         Map<String, Object> config,
         Map<String, Object> partitionValues,
-        @Nullable SchemaReconciliation.ColumnMapping columnMapping,
-        List<ExternalSplit> splits
+        @Nullable ColumnMapping columnMapping,
+        @Nullable List<Attribute> readSchema,
+        List<ExternalSplit> splits,
+        @Nullable StorageProvider hoistedProvider
     ) {
         if (codecRegistry == null || storageRegistry == null || format == null) {
             return false;
@@ -254,7 +691,18 @@ public class FileSplitProvider implements SplitProvider {
         // Prefer IndexedDecompressionCodec (e.g. zstd seekable) over SplittableDecompressionCodec
         // (e.g. bzip2) when an index is available, since index-based splitting avoids scanning.
         if (codec instanceof IndexedDecompressionCodec indexedCodec) {
-            if (tryIndexedSplits(indexedCodec, filePath, fileLength, format, config, partitionValues, columnMapping, splits)) {
+            if (tryIndexedSplits(
+                indexedCodec,
+                filePath,
+                fileLength,
+                format,
+                config,
+                partitionValues,
+                columnMapping,
+                readSchema,
+                splits,
+                hoistedProvider
+            )) {
                 return true;
             }
         }
@@ -265,22 +713,26 @@ public class FileSplitProvider implements SplitProvider {
         SplittableDecompressionCodec splittableCodec = (SplittableDecompressionCodec) codec;
 
         try {
-            // When config is empty, provider() returns a cached instance (no leak).
-            // When config is non-empty, createProvider() returns a fresh instance that
-            // is not tracked by the registry. This is acceptable because the same provider
-            // will be created for actual reads, and the boundary-scan provider only holds
-            // lightweight state (no persistent connections).
-            StorageProvider provider;
-            if (config != null && config.isEmpty() == false) {
-                provider = storageRegistry.createProvider(filePath.scheme(), settings, config);
-            } else {
-                provider = storageRegistry.provider(filePath);
-            }
+            // Use the hoisted provider when available to avoid constructing a new cloud client
+            // per file. Fall back to the registry for zero-config or legacy callers.
+            StorageProvider provider = resolveProvider(filePath, config, hoistedProvider);
             StorageObject object = provider.newObject(filePath, fileLength);
             long[] boundaries = splittableCodec.findBlockBoundaries(object, 0, fileLength);
 
             if (boundaries.length == 0) {
-                splits.add(new FileSplit("file", filePath, 0, fileLength, format, config, partitionValues, columnMapping));
+                splits.add(
+                    FileSplit.withReadSchema(
+                        "file",
+                        filePath,
+                        0,
+                        fileLength,
+                        format,
+                        wholeFileSplitConfig(config),
+                        partitionValues,
+                        columnMapping,
+                        readSchema
+                    )
+                );
                 return true;
             }
 
@@ -288,6 +740,13 @@ public class FileSplitProvider implements SplitProvider {
             // compressed bytes. This reduces hundreds of tiny per-block splits into 10-40
             // macro-splits while preserving parallelism.
             int[][] macroSplitRanges = groupBoundaries(boundaries, fileLength, DEFAULT_MACRO_SPLIT_TARGET);
+            LOGGER.debug(
+                "block-aligned splits for [{}]: boundaries={}, macro-splits={}, fileLength={}",
+                filePath,
+                boundaries.length,
+                macroSplitRanges.length,
+                fileLength
+            );
 
             for (int m = 0; m < macroSplitRanges.length; m++) {
                 int firstBlockIdx = macroSplitRanges[m][0];
@@ -299,20 +758,35 @@ public class FileSplitProvider implements SplitProvider {
                 if (isLastMacroSplit) {
                     end = fileLength;
                 } else {
-                    // Overlap by one block beyond the nominal end for record correctness
+                    // Disjoint macro-splits: split m ends exactly where split m+1 begins.
+                    // Records straddling the boundary are completed by the codec's
+                    // decompression wrapper (finish-current-line mode), and the
+                    // subsequent split drops the same tail via skipFirstLine.
                     int nextMacroFirstBlock = macroSplitRanges[m + 1][0];
-                    int overlapBlockIdx = nextMacroFirstBlock;
-                    end = (overlapBlockIdx + 1 < boundaries.length) ? boundaries[overlapBlockIdx + 1] : fileLength;
+                    end = boundaries[nextMacroFirstBlock];
                 }
 
                 Map<String, Object> splitConfig = new HashMap<>(config);
+                splitConfig.put(COMPRESSED_OFFSET_SPLIT_KEY, "true");
                 if (m == 0) {
                     splitConfig.put(FIRST_SPLIT_KEY, "true");
                 }
                 if (isLastMacroSplit) {
                     splitConfig.put(LAST_SPLIT_KEY, "true");
                 }
-                splits.add(new FileSplit("file", filePath, start, end - start, format, splitConfig, partitionValues, columnMapping));
+                splits.add(
+                    FileSplit.withReadSchema(
+                        "file",
+                        filePath,
+                        start,
+                        end - start,
+                        format,
+                        splitConfig,
+                        partitionValues,
+                        columnMapping,
+                        readSchema
+                    )
+                );
             }
             return true;
         } catch (IOException e) {
@@ -332,8 +806,13 @@ public class FileSplitProvider implements SplitProvider {
         String format,
         Map<String, Object> config,
         Map<String, Object> partitionValues,
-        @Nullable SchemaReconciliation.ColumnMapping columnMapping,
-        List<ExternalSplit> splits
+        @Nullable ColumnMapping columnMapping,
+        @Nullable List<Attribute> readSchema,
+        @Nullable Map<String, DataType> reconciledTypes,
+        DeclaredReadSpec declaredReadSpec,
+        @Nullable Map<String, DataType> inferredFileTypes,
+        List<ExternalSplit> splits,
+        @Nullable StorageProvider hoistedProvider
     ) {
         if (formatRegistry == null || storageRegistry == null || format == null) {
             return false;
@@ -341,7 +820,7 @@ public class FileSplitProvider implements SplitProvider {
 
         FormatReader reader;
         try {
-            reader = formatRegistry.byExtension(filePath.objectName());
+            reader = FormatNameResolver.resolveReader(config, filePath.objectName(), formatRegistry).withConfig(config);
         } catch (Exception e) {
             return false;
         }
@@ -352,12 +831,7 @@ public class FileSplitProvider implements SplitProvider {
         RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) reader;
 
         try {
-            StorageProvider provider;
-            if (config != null && config.isEmpty() == false) {
-                provider = storageRegistry.createProvider(filePath.scheme(), settings, config);
-            } else {
-                provider = storageRegistry.provider(filePath);
-            }
+            StorageProvider provider = resolveProvider(filePath, config, hoistedProvider);
             StorageObject object = provider.newObject(filePath, fileLength);
 
             List<SplitRange> ranges = rangeReader.discoverSplitRanges(object);
@@ -371,8 +845,52 @@ public class FileSplitProvider implements SplitProvider {
 
             for (SplitRange range : ranges) {
                 Map<String, Object> rangeStats = range.statistics().isEmpty() ? null : range.statistics();
+                if (rangeStats != null && readSchema != null && reconciledTypes != null) {
+                    // The type authority for normalizing footer range stats. Without a declaration the footer values ARE
+                    // in the readSchema (inferred) types — today's behavior. With a declaration, readSchema is the OVERLAID
+                    // (declared) schema, so it lies about the raw footer values; use the file's PRE-overlay inferred types.
+                    Map<String, DataType> statsFileTypes;
+                    if (declaredReadSpec.isEmpty()) {
+                        statsFileTypes = attributesToTypeMap(readSchema);
+                    } else {
+                        // S1 boundary, split edition. Rekey the `path` renames (a pure move changes no value, so rekeyed
+                        // stats stay exact) and poison declared-retyped / date-format columns (the scan's per-value
+                        // coercion makes pre-coercion stats untrustworthy), BEFORE unit-normalizing.
+                        Map<String, String> physicalToLogical = PhysicalNames.inverse(declaredReadSpec.renames());
+                        Set<String> poison = new HashSet<>(declaredReadSpec.dateFormats().keySet());
+                        if (inferredFileTypes != null) {
+                            Map<String, DataType> overlaidTypes = attributesToTypeMap(readSchema); // logical, declared types
+                            for (String logical : declaredReadSpec.declaredTypeColumns()) {
+                                String physical = declaredReadSpec.renames().getOrDefault(logical, logical);
+                                DataType inferredType = inferredFileTypes.get(physical);
+                                // Absent from THIS file (lenient union-by-name overlay skipped it): no footer stat exists
+                                // for it here either, so nothing to poison.
+                                if (inferredType != null && inferredType != overlaidTypes.get(logical)) {
+                                    poison.add(logical);
+                                }
+                            }
+                            rangeStats = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(rangeStats, physicalToLogical, poison);
+                            // Inferred file types, rekeyed to logical so they align with the rekeyed stats + reconciledTypes.
+                            statsFileTypes = new HashMap<>(inferredFileTypes.size());
+                            for (Map.Entry<String, DataType> e : inferredFileTypes.entrySet()) {
+                                statsFileTypes.put(physicalToLogical.getOrDefault(e.getKey(), e.getKey()), e.getValue());
+                            }
+                        } else {
+                            // Declared read but no captured inference (strict paths skip inference): the declared-vs-inferred
+                            // comparison is impossible, so conservatively poison EVERY declared column. row_count survives.
+                            poison.addAll(declaredReadSpec.declaredTypeColumns());
+                            rangeStats = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(rangeStats, physicalToLogical, poison);
+                            statsFileTypes = attributesToTypeMap(readSchema);
+                        }
+                    }
+                    // Footer stats are in each file's LOCAL unit/representation; normalize to the reconciled query type so
+                    // the split-filter classifier (which compares a reconciled-unit literal) and the filtered merge
+                    // compare/serve in ONE unit across mixed DATETIME(millis)/DATE_NANOS(nanos) files, not unit-blind. A
+                    // non-normalizable representation safe-misses via the marker.
+                    rangeStats = SourceStatisticsSerializer.normalizeStatsToReconciled(rangeStats, statsFileTypes, reconciledTypes);
+                }
                 splits.add(
-                    new FileSplit(
+                    FileSplit.withStatisticsAndReadSchema(
                         "file",
                         filePath,
                         range.offset(),
@@ -381,7 +899,8 @@ public class FileSplitProvider implements SplitProvider {
                         splitConfig,
                         partitionValues,
                         columnMapping,
-                        rangeStats
+                        rangeStats,
+                        readSchema
                     )
                 );
             }
@@ -392,6 +911,228 @@ public class FileSplitProvider implements SplitProvider {
         }
     }
 
+    /**
+     * Macro-splits supported line-oriented formats at record boundaries near {@code targetStrideBytes},
+     * enabling multiple workers per file without mid-record cuts.
+     */
+    private boolean tryNewlineAlignedMacroSplits(
+        StoragePath filePath,
+        long fileLength,
+        @Nullable String format,
+        Map<String, Object> config,
+        Map<String, Object> partitionValues,
+        @Nullable ColumnMapping columnMapping,
+        @Nullable List<Attribute> readSchema,
+        long targetStrideBytes,
+        int maxRecordBytes,
+        List<ExternalSplit> splits,
+        @Nullable StorageProvider hoistedProvider,
+        @Nullable FormatReader reader,
+        BooleanSupplier isCancelled
+    ) throws IOException {
+        if (formatRegistry == null || storageRegistry == null || targetStrideBytes <= 0 || fileLength <= targetStrideBytes) {
+            return false;
+        }
+        if (isNewlineMacroSplitCandidateExtension(format) == false) {
+            return false;
+        }
+        // Reuses the reader resolved once in processFileForSplits (config-aware; see resolveConfiguredReader).
+        if (reader == null) {
+            return false;
+        }
+        if (reader instanceof CompressionDelegatingFormatReader) {
+            return false;
+        }
+        if (reader instanceof SegmentableFormatReader == false) {
+            return false;
+        }
+        SegmentableFormatReader segmentableReader = (SegmentableFormatReader) reader;
+        StorageProvider provider = resolveProvider(filePath, config, hoistedProvider);
+        StorageObject object = provider.newObject(filePath, fileLength);
+        List<Long> starts = computeRecordAlignedMacroSplitStarts(
+            segmentableReader,
+            object,
+            fileLength,
+            targetStrideBytes,
+            maxRecordBytes,
+            isCancelled
+        );
+        if (starts.size() <= 1) {
+            return false;
+        }
+        for (int i = 0; i < starts.size(); i++) {
+            long start = starts.get(i);
+            long end = (i + 1 < starts.size()) ? starts.get(i + 1) : fileLength;
+            long length = Math.subtractExact(end, start);
+            Map<String, Object> splitConfig = new HashMap<>(config);
+            splitConfig.put(RECORD_ALIGNED_MACRO_SPLIT_KEY, "true");
+            if (i == 0) {
+                splitConfig.put(FIRST_SPLIT_KEY, "true");
+            }
+            if (i == starts.size() - 1) {
+                splitConfig.put(LAST_SPLIT_KEY, "true");
+            }
+            splits.add(
+                FileSplit.withReadSchema("file", filePath, start, length, format, splitConfig, partitionValues, columnMapping, readSchema)
+            );
+        }
+        return true;
+    }
+
+    static boolean isNewlineMacroSplitCandidateExtension(@Nullable String format) {
+        if (format == null) {
+            return false;
+        }
+        String f = format.toLowerCase(Locale.ROOT);
+        return ".ndjson".equals(f) || ".jsonl".equals(f) || ".json".equals(f) || ".csv".equals(f) || ".tsv".equals(f);
+    }
+
+    /** Whether this leaf split came from {@link #tryNewlineAlignedMacroSplits}. */
+    public static boolean isRecordAlignedMacroSplit(FileSplit split) {
+        return split != null && "true".equals(split.config().get(RECORD_ALIGNED_MACRO_SPLIT_KEY));
+    }
+
+    /**
+     * Whether this split covers the start of its file, and so owns the file's leading bytes (a header line,
+     * a leading partial record that belongs to no predecessor).
+     * <p>
+     * Position — where a split sits in its file — is stamped by this class on every split it produces and read
+     * back through this method and {@link #isLastInFile}. Deriving it anywhere else risks the two answers
+     * drifting apart, which is precisely how a whole-file read came to be treated as "not the last split" and
+     * discarded its final record.
+     */
+    public static boolean isFirstInFile(FileSplit split) {
+        return split != null && ("true".equals(split.config().get(FIRST_SPLIT_KEY)) || split.offset() == 0);
+    }
+
+    /**
+     * Whether this split covers the end of its file, and so owns the file's trailing bytes. Readers key their
+     * record-boundary protocol off this: a split that is not last drops its trailing partial record because the
+     * next split re-reads those bytes, while a last split must keep it — nothing else will read it.
+     * <p>
+     * See {@link #isFirstInFile} on why position is derived here and nowhere else.
+     */
+    public static boolean isLastInFile(FileSplit split) {
+        return split != null && ("true".equals(split.config().get(LAST_SPLIT_KEY)) || legacyUnstampedWholeFile(split));
+    }
+
+    /**
+     * Recognises a whole-file split produced before this class stamped position keys, so a data node still reads
+     * such a split correctly during a rolling upgrade. Splits are built on the coordinator and sent to data nodes,
+     * so an older coordinator emits no position keys at all.
+     * <p>
+     * This is the only place an absent LAST-position key is interpreted, and it is BWC-only: delete it once no
+     * supported coordinator predates the stamping. (An absent FIRST key is read from {@code offset() == 0}
+     * permanently and by design — range splits carry no position keys at all and rely on it.) It recognises
+     * legacy shapes by ruling out every protocol that
+     * implies a split covers part of a file, which is sound only because that list is closed over the producers
+     * in this class as of the stamping change — <b>a new split shape must stamp its position keys</b> rather than
+     * rely on being absent from this list.
+     */
+    private static boolean legacyUnstampedWholeFile(FileSplit split) {
+        Map<String, Object> config = split.config();
+        return split.offset() == 0
+            && "true".equals(config.get(RECORD_ALIGNED_MACRO_SPLIT_KEY)) == false
+            && "true".equals(config.get(COMPRESSED_OFFSET_SPLIT_KEY)) == false
+            && "true".equals(config.get(RANGE_SPLIT_KEY)) == false;
+    }
+
+    /**
+     * Absolute byte offsets where each macro-split starts (always begins with {@code 0}), mirroring
+     * {@link ParallelParsingCoordinator#computeSegments} stride semantics with {@code targetStrideBytes}.
+     */
+    static List<Long> computeRecordAlignedMacroSplitStarts(
+        SegmentableFormatReader reader,
+        StorageObject storageObject,
+        long fileLength,
+        long targetStrideBytes,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled
+    ) throws IOException {
+        List<Long> boundaries = new ArrayList<>();
+        boundaries.add(0L);
+        long minSegment = reader.minimumSegmentSize();
+        RecordSplitter splitter = reader.recordSplitter(maxRecordBytes);
+        boolean strided = splitter.supportsStridedProbing();
+        boolean proven = splitter.supportsProvenProbing();
+        // A strided splitter (plain CSV/TSV, NDJSON) probes any stride offset directly. A non-strided splitter
+        // (quoted/escaped CSV/TSV) can still be macro-split when it supports proven probing: the file start is a
+        // known record start, so exactCursor seeds at 0 and every emitted boundary is a proven record start.
+        // A splitter that is neither must have been routed to a whole-file split upstream; if one arrives here
+        // that gate failed, so fail loud rather than emit mis-aligned macro-splits that silently mis-count.
+        if (strided == false && proven == false) {
+            throw new IllegalStateException(
+                "record splitter ["
+                    + splitter.getClass().getName()
+                    + "] supports neither strided nor proven probing and cannot be macro-split"
+            );
+        }
+        // The last proven record start, i.e. the base offset the exact walk streams from when the probe is
+        // AMBIGUOUS. The file start is always a record start, so it seeds at 0.
+        long exactCursor = 0L;
+        long pos = targetStrideBytes;
+        while (pos < fileLength) {
+            long remaining = fileLength - pos;
+            if (remaining < minSegment) {
+                break;
+            }
+            long boundary;
+            if (strided) {
+                InputStream stream = storageObject.newStream(pos, remaining);
+                // Abort rather than close: findNextRecordBoundary reads only a prefix of the range
+                // (fileLength - pos bytes), but close() on providers like S3 drains the remainder.
+                try (Closeable abortOnExit = () -> storageObject.abortStream(stream)) {
+                    long skipped = splitter.findNextRecordBoundary(stream);
+                    if (skipped == RecordSplitter.RECORD_TOO_LARGE || skipped < 0) {
+                        break;
+                    }
+                    boundary = pos + skipped;
+                }
+            } else {
+                long probed;
+                InputStream probeStream = storageObject.newStream(pos, remaining);
+                try (Closeable abortOnExit = () -> storageObject.abortStream(probeStream)) {
+                    probed = splitter.findProvenRecordBoundary(probeStream);
+                }
+                if (probed >= 0) {
+                    boundary = pos + probed;
+                } else if (probed == RecordSplitter.AMBIGUOUS) {
+                    // Bounded probe could not prove a boundary near pos; fall back to an exact walk from the last
+                    // proven record start. minSkip is stream-relative (pos - exactCursor) and always > 0.
+                    long walkRemaining = fileLength - exactCursor;
+                    InputStream walkStream = storageObject.newStream(exactCursor, walkRemaining);
+                    long start;
+                    try (Closeable abortOnExit = () -> storageObject.abortStream(walkStream)) {
+                        start = splitter.findRecordStartAtOrAfter(walkStream, pos - exactCursor, isCancelled);
+                    }
+                    if (start == RecordSplitter.RECORD_TOO_LARGE || start < 0) {
+                        break;
+                    }
+                    boundary = exactCursor + start;
+                } else {
+                    // findProvenRecordBoundary only ever returns a boundary (>= 0) or AMBIGUOUS.
+                    assert false : "findProvenRecordBoundary returned an unexpected sentinel: " + probed;
+                    break;
+                }
+            }
+            if (boundary >= fileLength) {
+                break;
+            }
+            if (fileLength - boundary < minSegment) {
+                break;
+            }
+            assert boundary > boundaries.get(boundaries.size() - 1) : "macro-split boundary must be strictly increasing";
+            boundaries.add(boundary);
+            // Every emitted boundary is a proven record start, so it becomes the next exact-walk base.
+            exactCursor = boundary;
+            pos = boundary + targetStrideBytes;
+            if (isCancelled.getAsBoolean()) {
+                throw new TaskCancelledException("split discovery cancelled");
+            }
+        }
+        return boundaries;
+    }
+
     private boolean tryIndexedSplits(
         IndexedDecompressionCodec indexedCodec,
         StoragePath filePath,
@@ -399,16 +1140,13 @@ public class FileSplitProvider implements SplitProvider {
         String format,
         Map<String, Object> config,
         Map<String, Object> partitionValues,
-        @Nullable SchemaReconciliation.ColumnMapping columnMapping,
-        List<ExternalSplit> splits
+        @Nullable ColumnMapping columnMapping,
+        @Nullable List<Attribute> readSchema,
+        List<ExternalSplit> splits,
+        @Nullable StorageProvider hoistedProvider
     ) {
         try {
-            StorageProvider provider;
-            if (config != null && config.isEmpty() == false) {
-                provider = storageRegistry.createProvider(filePath.scheme(), settings, config);
-            } else {
-                provider = storageRegistry.provider(filePath);
-            }
+            StorageProvider provider = resolveProvider(filePath, config, hoistedProvider);
             StorageObject object = provider.newObject(filePath, fileLength);
 
             if (indexedCodec.hasIndex(object) == false) {
@@ -418,7 +1156,19 @@ public class FileSplitProvider implements SplitProvider {
             FrameIndex index = indexedCodec.readIndex(object);
             List<FrameIndex.FrameEntry> frames = index.frames();
             if (frames.isEmpty()) {
-                splits.add(new FileSplit("file", filePath, 0, fileLength, format, config, partitionValues, columnMapping));
+                splits.add(
+                    FileSplit.withReadSchema(
+                        "file",
+                        filePath,
+                        0,
+                        fileLength,
+                        format,
+                        wholeFileSplitConfig(config),
+                        partitionValues,
+                        columnMapping,
+                        readSchema
+                    )
+                );
                 return true;
             }
 
@@ -435,6 +1185,7 @@ public class FileSplitProvider implements SplitProvider {
                 if (accumulated >= DEFAULT_MACRO_SPLIT_TARGET || isLast) {
                     long groupEnd = frame.compressedOffset() + frame.compressedSize();
                     Map<String, Object> splitConfig = new HashMap<>(config);
+                    splitConfig.put(COMPRESSED_OFFSET_SPLIT_KEY, "true");
                     if (splitCount == 0) {
                         splitConfig.put(FIRST_SPLIT_KEY, "true");
                     }
@@ -442,7 +1193,7 @@ public class FileSplitProvider implements SplitProvider {
                         splitConfig.put(LAST_SPLIT_KEY, "true");
                     }
                     splits.add(
-                        new FileSplit(
+                        FileSplit.withReadSchema(
                             "file",
                             filePath,
                             groupStart,
@@ -450,7 +1201,8 @@ public class FileSplitProvider implements SplitProvider {
                             format,
                             splitConfig,
                             partitionValues,
-                            columnMapping
+                            columnMapping,
+                            readSchema
                         )
                     );
                     splitCount++;
@@ -465,6 +1217,21 @@ public class FileSplitProvider implements SplitProvider {
             LOGGER.warn("Failed to read frame index for [{}], falling back", filePath, e);
             return false;
         }
+    }
+
+    /**
+     * Resolves the {@link StorageProvider} to use for a single-file operation.
+     * Returns the hoisted provider if available (non-null), otherwise falls back to the
+     * registry: per-config provider for non-empty config, or cached default for empty config.
+     */
+    private StorageProvider resolveProvider(StoragePath filePath, Map<String, Object> config, @Nullable StorageProvider hoistedProvider) {
+        if (hoistedProvider != null) {
+            return hoistedProvider;
+        }
+        if (config != null && config.isEmpty() == false) {
+            return storageRegistry.createProvider(filePath.scheme(), settings, config);
+        }
+        return storageRegistry.provider(filePath);
     }
 
     /**
@@ -496,16 +1263,6 @@ public class FileSplitProvider implements SplitProvider {
         return groups.toArray(new int[0][]);
     }
 
-    static boolean isSplittableFormat(String format) {
-        if (format == null) {
-            return false;
-        }
-        return switch (format) {
-            case ".csv", ".tsv", ".ndjson", ".jsonl", ".json", ".txt" -> true;
-            default -> false;
-        };
-    }
-
     /**
      * Resolves the effective target split size from the config map, falling back to the
      * constructor-provided value. Delegates to {@link ByteSizeValue#parseBytesSizeValue} for
@@ -528,31 +1285,56 @@ public class FileSplitProvider implements SplitProvider {
         if (s.isEmpty()) {
             return targetSplitSizeBytes;
         }
-        long result = ByteSizeValue.parseBytesSizeValue(s, CONFIG_TARGET_SPLIT_SIZE).getBytes();
-        Check.isTrue(result > 0, "Invalid value for [{}]: [{}]; must be positive", CONFIG_TARGET_SPLIT_SIZE, value);
-        return result;
+        return validateTargetSplitSize(s);
     }
 
     /**
-     * Returns the subset of projected data columns that must come from file bytes,
-     * excluding partition columns whose values come from paths, not file data.
+     * Parses and validates an already-trimmed {@code target_split_size} value, returning the size in
+     * bytes. Shared by the query path ({@link #resolveTargetSplitSize}) and the dataset CRUD validator
+     * so both accept exactly the same inputs. The caller owns trimming and the null/empty fallback to a
+     * default; this method always parses.
+     *
+     * @throws org.elasticsearch.ElasticsearchParseException if the unit suffix is missing or malformed
+     * @throws IllegalArgumentException                      if the resulting size is not positive
      */
-    static Set<String> fileBackedProjectedColumns(Set<String> projectedDataColumns, PartitionMetadata partitionInfo) {
-        if (projectedDataColumns.isEmpty() || partitionInfo == null || partitionInfo.isEmpty()) {
-            return projectedDataColumns;
-        }
-        Set<String> result = new LinkedHashSet<>(projectedDataColumns);
-        result.removeAll(partitionInfo.partitionColumns().keySet());
+    public static long validateTargetSplitSize(String value) {
+        long result = ByteSizeValue.parseBytesSizeValue(value, CONFIG_TARGET_SPLIT_SIZE).getBytes();
+        Check.clientError(result > 0, "Invalid value for [{}]: [{}]; must be positive", CONFIG_TARGET_SPLIT_SIZE, value);
         return result;
     }
 
     /**
-     * Returns {@code true} when the file's data columns have zero overlap with the projected set,
+     * Returns the Query schema with partition columns removed — those columns' values come from
+     * paths, not file bytes, so they don't participate in file-read narrowing.
+     */
+    static ExternalSchema stripPartitionColumns(ExternalSchema querySchema, @Nullable PartitionMetadata partitionInfo) {
+        if (querySchema.isEmpty() || partitionInfo == null || partitionInfo.isEmpty()) {
+            return querySchema;
+        }
+        Set<String> partitionColumns = partitionInfo.partitionColumns().keySet();
+        if (partitionColumns.isEmpty()) {
+            return querySchema;
+        }
+        List<Attribute> filtered = new ArrayList<>(querySchema.size());
+        for (Attribute attr : querySchema) {
+            if (partitionColumns.contains(attr.name()) == false) {
+                filtered.add(attr);
+            }
+        }
+        if (filtered.size() == querySchema.size()) {
+            return querySchema;
+        }
+        return new ExternalSchema(filtered);
+    }
+
+    /**
+     * Returns {@code true} when the file's data columns have zero overlap with the query schema,
      * meaning this file would produce only NULL rows for all needed columns.
      */
-    static boolean skipIfNoColumnOverlap(List<Attribute> fileSchema, Set<String> projectedDataColumns) {
+    static boolean skipIfNoColumnOverlap(ExternalSchema fileSchema, ExternalSchema querySchema) {
+        Set<String> queryNames = querySchema.names();
         for (Attribute attr : fileSchema) {
-            if (projectedDataColumns.contains(attr.name())) {
+            if (queryNames.contains(attr.name())) {
                 return false;
             }
         }
@@ -650,6 +1432,9 @@ public class FileSplitProvider implements SplitProvider {
                     yield null;
                 }
                 Object partitionValue = partitionValues.get(columnName);
+                if (partitionValue == null) {
+                    yield null;
+                }
                 Boolean found = false;
                 for (Expression listItem : in.list()) {
                     if (listItem instanceof Literal lit) {
@@ -663,8 +1448,49 @@ public class FileSplitProvider implements SplitProvider {
                 }
                 yield found;
             }
+            case IsNull isNull -> {
+                String columnName = extractColumnName(isNull.field());
+                if (columnName == null || partitionValues.containsKey(columnName) == false) {
+                    yield null;
+                }
+                yield partitionValues.get(columnName) == null;
+            }
+            case IsNotNull isNotNull -> {
+                String columnName = extractColumnName(isNotNull.field());
+                if (columnName == null || partitionValues.containsKey(columnName) == false) {
+                    yield null;
+                }
+                yield partitionValues.get(columnName) != null;
+            }
+            case And and -> nullableAnd(evaluateFilter(and.left(), partitionValues), evaluateFilter(and.right(), partitionValues));
+            case Or or -> nullableOr(evaluateFilter(or.left(), partitionValues), evaluateFilter(or.right(), partitionValues));
+            case Not not -> nullableNot(evaluateFilter(not.field(), partitionValues));
             default -> null;
         };
+    }
+
+    private static Boolean nullableAnd(Boolean a, Boolean b) {
+        if (Boolean.FALSE.equals(a) || Boolean.FALSE.equals(b)) {
+            return false;
+        }
+        if (a == null || b == null) {
+            return null;
+        }
+        return a && b;
+    }
+
+    private static Boolean nullableOr(Boolean a, Boolean b) {
+        if (Boolean.TRUE.equals(a) || Boolean.TRUE.equals(b)) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return null;
+        }
+        return false;
+    }
+
+    private static Boolean nullableNot(Boolean a) {
+        return a == null ? null : a == false;
     }
 
     private static Boolean evaluateComparison(
@@ -677,13 +1503,19 @@ public class FileSplitProvider implements SplitProvider {
         Object literalValue = extractLiteralValue(right);
         if (columnName != null && literalValue != null && partitionValues.containsKey(columnName)) {
             Object partitionValue = partitionValues.get(columnName);
+            // `column OP literal`
             return partitionValue != null ? comparator.apply(partitionValue, literalValue) : null;
         }
         columnName = extractColumnName(right);
         literalValue = extractLiteralValue(left);
         if (columnName != null && literalValue != null && partitionValues.containsKey(columnName)) {
             Object partitionValue = partitionValues.get(columnName);
-            return partitionValue != null ? comparator.apply(partitionValue, literalValue) : null;
+            // `literal OP column` — the operands keep their sides. Passing the column first would evaluate
+            // `column OP literal`, which for an asymmetric operator is the exact inverse: `2024 > year` would be
+            // tested as `year > 2024` and prune precisely the files that match. LiteralsOnTheRight normalizes this
+            // shape away before we ever see it, so the bug is unreachable today — but the matcher must not depend on
+            // an optimizer rule it has no way to enforce.
+            return partitionValue != null ? comparator.apply(literalValue, partitionValue) : null;
         }
         return null;
     }
@@ -703,14 +1535,25 @@ public class FileSplitProvider implements SplitProvider {
         };
     }
 
+    /**
+     * String form of a partition value or filter literal. Keyword partition values arrive as Java {@code String}
+     * (from {@code HivePartitionDetector.castValue}) while an ES|QL keyword literal is a Lucene {@code BytesRef}
+     * whose {@code toString()} is a hex dump — so a raw {@code toString()} comparison of the two never matches.
+     * {@link BytesRefs#toString(Object)} UTF8-decodes a {@code BytesRef} and falls back to {@code toString()}
+     * otherwise, so both sides normalize to the same text before any string compare or numeric parse.
+     */
+    private static String stringOf(Object value) {
+        return BytesRefs.toString(value);
+    }
+
     private static boolean compareEquals(Object a, Object b) {
         if (a == null || b == null) {
             return false;
         }
         if (a instanceof Number na && b instanceof Number nb) {
-            return na.doubleValue() == nb.doubleValue();
+            return compareNumbers(na, nb) == 0;
         }
-        return a.toString().equals(b.toString());
+        return stringOf(a).equals(stringOf(b));
     }
 
     private static int compareValues(Object a, Object b) {
@@ -718,19 +1561,59 @@ public class FileSplitProvider implements SplitProvider {
             throw new IllegalArgumentException("Cannot compare null partition values");
         }
         if (a instanceof Number na && b instanceof Number nb) {
-            return Double.compare(na.doubleValue(), nb.doubleValue());
+            return compareNumbers(na, nb);
         }
-        if (a instanceof Comparable<?> && b instanceof Comparable<?>) {
+        // Coerce mixed Number/text cases: a partition value may be stored as "2024" (String) while the literal from
+        // the filter is Integer 2024, or vice versa. Only when exactly one side is already a Number — two text values
+        // are compared as text, so a KEYWORD partition never has "0123" and "123" collapse into the same value.
+        if (a instanceof Number na) {
+            Number nb = parseNumber(stringOf(b));
+            return nb != null ? compareNumbers(na, nb) : keywordCompare(a, b);
+        }
+        if (b instanceof Number nb) {
+            Number na = parseNumber(stringOf(a));
+            return na != null ? compareNumbers(na, nb) : keywordCompare(a, b);
+        }
+        return keywordCompare(a, b);
+    }
+
+    /**
+     * Orders two numeric values. Integral types are compared as {@code long}, never as {@code double}: above
+     * 2^53 a {@code double} cannot separate adjacent longs, so an epoch-micros or snowflake-id partition value
+     * would compare <em>equal</em> to its neighbour. That is not a rounding nit — it makes the matcher return a
+     * confident {@code false} for {@code ts != <adjacent>} and prune a file whose every row matches the filter.
+     */
+    private static int compareNumbers(Number a, Number b) {
+        if (isIntegral(a) && isIntegral(b)) {
+            return Long.compare(a.longValue(), b.longValue());
+        }
+        return Double.compare(a.doubleValue(), b.doubleValue());
+    }
+
+    private static boolean isIntegral(Number n) {
+        return n instanceof Long || n instanceof Integer || n instanceof Short || n instanceof Byte;
+    }
+
+    /** The text parsed as a number, or {@code null} if it is not numeric. */
+    private static Number parseNumber(String text) {
+        try {
+            return Long.valueOf(text);
+        } catch (NumberFormatException notALong) {
             try {
-                @SuppressWarnings("rawtypes")
-                Comparable ca = (Comparable) a;
-                @SuppressWarnings("unchecked")
-                int result = ca.compareTo(b);
-                return result;
-            } catch (ClassCastException e) {
-                return a.toString().compareTo(b.toString());
+                return Double.valueOf(text);
+            } catch (NumberFormatException notANumber) {
+                return null;
             }
         }
-        return a.toString().compareTo(b.toString());
+    }
+
+    /**
+     * Orders two non-numeric values the way ES|QL orders keywords: by UTF-8 bytes, which is code-point order.
+     * {@link String#compareTo} would order by UTF-16 code units instead, and the two disagree whenever one side is a
+     * supplementary-plane character (a folder named {@code region=<emoji>}) and the other sits in {@code U+E000..U+FFFF}
+     * — the surrogate compares low, the engine compares it high, and a range predicate would prune a matching file.
+     */
+    private static int keywordCompare(Object a, Object b) {
+        return new BytesRef(stringOf(a)).compareTo(new BytesRef(stringOf(b)));
     }
 }

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParserVisitor;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests;
@@ -147,7 +148,9 @@ public class CommandLicenseTests extends ESTestCase {
             "TsInfo",
             "TS_INFO",
             "UserAgent",
-            "USER_AGENT"
+            "USER_AGENT",
+            "IpLocation",
+            "IP_LOCATION"
         );
         Map<String, String> commandPackageMapper = Map.of("Rerank", planPackage + ".inference", "LookupJoin", planPackage + ".join");
         Set<String> ignoredClasses = Set.of("Processing", "TimeSeries", "Completion", "Source", "From", "Row");
@@ -200,7 +203,7 @@ public class CommandLicenseTests extends ESTestCase {
                 return new Sample(source, null, child);
             }
             case "LookupJoin" -> {
-                return new LookupJoin(source, child, child, List.of(), null);
+                return new LookupJoin(source, child, child, List.of(), null, ExecuteLocation.ANY);
             }
             case "Limit" -> {
                 return new Limit(source, null, child);

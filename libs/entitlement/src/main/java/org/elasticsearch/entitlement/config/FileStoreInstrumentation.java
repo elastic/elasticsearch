@@ -16,21 +16,14 @@ import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationReg
 
 import java.io.IOException;
 import java.nio.file.FileStore;
-import java.nio.file.FileSystems;
 import java.nio.file.attribute.FileStoreAttributeView;
-import java.util.stream.StreamSupport;
 
 public class FileStoreInstrumentation implements InstrumentationConfig {
     @Override
     public void init(InternalInstrumentationRegistry registry) {
         EntitlementRulesBuilder builder = new EntitlementRulesBuilder(registry);
 
-        var fileStoreClasses = StreamSupport.stream(FileSystems.getDefault().getFileStores().spliterator(), false)
-            .map(FileStore::getClass)
-            .distinct()
-            .toList();
-
-        builder.on(fileStoreClasses, rule -> {
+        builder.on(FileStore.class, rule -> {
             rule.calling(FileStore::getFileStoreAttributeView, new TypeToken<Class<? extends FileStoreAttributeView>>() {})
                 .enforce(Policies::getFileAttributeView)
                 .elseReturn(null);

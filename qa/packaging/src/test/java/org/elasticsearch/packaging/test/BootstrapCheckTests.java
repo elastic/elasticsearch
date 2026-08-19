@@ -26,6 +26,13 @@ public class BootstrapCheckTests extends PackagingTestCase {
     }
 
     public void test20RunWithBootstrapChecks() throws Exception {
+        if (installation == null) {
+            fail(
+                "Installation failed to set up. This may indicate a Docker startup failure. "
+                    + "Check Docker daemon logs and the retry logic in Docker.executeDockerRun()."
+            );
+        }
+
         configureBootstrapChecksAndRun(
             Map.of(
                 "xpack.security.enabled",

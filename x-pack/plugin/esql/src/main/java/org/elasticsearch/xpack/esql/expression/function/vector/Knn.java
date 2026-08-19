@@ -68,8 +68,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Knn.class).ternary(Knn::new).name("knn");
 
-    // Implicit k is not serialized as it's already included in the query builder on the rewrite step before being sent to data nodes
-    private final transient Integer implicitK;
+    private final Integer implicitK;
     // Expressions to be used as prefilters in knn query
     private final List<Expression> filterExpressions;
 
@@ -86,6 +85,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
 
     @FunctionInfo(
         returnType = "boolean",
+        briefSummary = "Finds the k nearest vectors to a query vector using a similarity metric.",
         description = "Finds the k nearest vectors to a query vector, as measured by a similarity metric. "
             + "knn function finds nearest vectors through approximate search on indexed dense_vectors or semantic_text fields.",
         examples = { @Example(file = "knn-function", tag = "knn-function") },
@@ -104,6 +104,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         @Param(
             name = "query",
             type = { "dense_vector" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Vector value to find top nearest neighbours for."
         ) Expression query,
         @MapParam(
@@ -329,7 +330,11 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         List<Expression> filterExpressions = in.readNamedWriteableCollectionAsList(Expression.class);
-        return new Knn(source, field, query, null, null, queryBuilder, filterExpressions);
+        Expression options = in.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)
+            ? in.readOptionalNamedWriteable(Expression.class)
+            : null;
+        Integer implicitK = in.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS) ? in.readOptionalInt() : null;
+        return new Knn(source, field, query, options, implicitK, queryBuilder, filterExpressions);
     }
 
     @Override
@@ -339,6 +344,11 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         out.writeNamedWriteable(query());
         out.writeOptionalNamedWriteable(queryBuilder());
         out.writeNamedWriteableCollection(filterExpressions());
+
+        if (out.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)) {
+            out.writeOptionalNamedWriteable(options());
+            out.writeOptionalInt(implicitK());
+        }
     }
 
     @Override
@@ -359,8 +369,6 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
 
     @Override
     public boolean equals(Object o) {
-        // Knn does not serialize options, as they get included in the query builder. We need to override equals and hashcode to
-        // ignore options when comparing two Knn functions
         if (o == null || getClass() != o.getClass()) return false;
         Knn knn = (Knn) o;
         return super.equals(knn)
@@ -370,7 +378,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), query(), queryBuilder(), implicitK(), filterExpressions());
+        return Objects.hash(field(), query(), queryBuilder(), implicitK(), filterExpressions(), options());
     }
 
 }

@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TO_DATEPERIOD` function [esql-to_dateperiod]
 
-:::{include} ../../_snippets/functions/layout/to_dateperiod.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/to_dateperiod.md
 :::

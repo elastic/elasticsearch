@@ -12,6 +12,7 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.XContentType;
@@ -19,7 +20,7 @@ import org.elasticsearch.xcontent.XContentType;
 /**
  * Implementation of {@link PaginatedHitSource.Hit} that wraps a {@link SearchHit} from a local
  * {@link org.elasticsearch.client.internal.Client} search. Shared by scroll-based and PIT-based
- * paginated hit sources.
+ * paginated hit sources. Callers must invoke {@link #release()} when the hit is no longer needed.
  */
 
 class ClientHit implements PaginatedHitSource.Hit {
@@ -27,8 +28,9 @@ class ClientHit implements PaginatedHitSource.Hit {
     private final BytesReference source;
 
     ClientHit(SearchHit delegate) {
-        this.delegate = delegate.asUnpooled(); // TODO: use pooled version here
-        source = this.delegate.hasSource() ? this.delegate.getSourceRef() : null;
+        delegate.mustIncRef();
+        this.delegate = delegate;
+        source = delegate.hasSource() ? delegate.getSourceRef() : null;
     }
 
     @Override
@@ -68,7 +70,9 @@ class ClientHit implements PaginatedHitSource.Hit {
 
     @Override
     public String getRouting() {
-        return fieldValue(RoutingFieldMapper.NAME);
+        // A slice-enabled index never exposes _routing; it surfaces the routing value as _slice instead.
+        String routing = fieldValue(RoutingFieldMapper.NAME);
+        return routing != null ? routing : fieldValue(SliceIndexing.FIELD_NAME);
     }
 
     @Override
@@ -79,5 +83,10 @@ class ClientHit implements PaginatedHitSource.Hit {
     private <T> T fieldValue(String fieldName) {
         DocumentField field = delegate.field(fieldName);
         return field == null ? null : field.getValue();
+    }
+
+    @Override
+    public void release() {
+        delegate.decRef();
     }
 }

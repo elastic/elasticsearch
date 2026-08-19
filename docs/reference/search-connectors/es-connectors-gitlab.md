@@ -250,7 +250,7 @@ Only the following file extensions are ingested for README files:
 * `.txt`
 
 ::::{note}
-* Content of files bigger than 10 MB won't be extracted.
+* Content of files bigger than 8 MiB won't be extracted.
 * Epics are only available for Premium/Ultimate GitLab tiers and are synced at the group level.
 * **Epic syncing behavior**: Epics are fetched only for groups that contain synced projects.
 * Permissions are not synced. **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elasticsearch Index.

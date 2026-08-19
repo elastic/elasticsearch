@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.job.retention;
 
+import org.elasticsearch.core.ReleasableRef;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 
@@ -18,14 +20,23 @@ public class MlDataRemoverTests extends ESTestCase {
         MlDataRemover remover = (requestsPerSecond, listener, isTimedOutSupplier) -> {};
 
         SearchHitBuilder hitBuilder = new SearchHitBuilder(0);
-        assertNull(remover.stringFieldValueOrNull(hitBuilder.build(), "missing"));
+        SearchHit h0 = hitBuilder.build();
+        try (var h0Ref = ReleasableRef.of(h0)) {
+            assertNull(remover.stringFieldValueOrNull(h0Ref.get(), "missing"));
+        }
 
         hitBuilder = new SearchHitBuilder(0);
         hitBuilder.addField("not_a_string", Collections.singletonList(new Date()));
-        assertNull(remover.stringFieldValueOrNull(hitBuilder.build(), "not_a_string"));
+        SearchHit h1 = hitBuilder.build();
+        try (var h1Ref = ReleasableRef.of(h1)) {
+            assertNull(remover.stringFieldValueOrNull(h1Ref.get(), "not_a_string"));
+        }
 
         hitBuilder = new SearchHitBuilder(0);
         hitBuilder.addField("string_field", Collections.singletonList("actual_string_value"));
-        assertEquals("actual_string_value", remover.stringFieldValueOrNull(hitBuilder.build(), "string_field"));
+        SearchHit h2 = hitBuilder.build();
+        try (var h2Ref = ReleasableRef.of(h2)) {
+            assertEquals("actual_string_value", remover.stringFieldValueOrNull(h2Ref.get(), "string_field"));
+        }
     }
 }

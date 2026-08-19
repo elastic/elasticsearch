@@ -52,6 +52,14 @@ public class SqlParser {
     private final boolean DEBUG = false;
 
     /**
+     * Maximum depth for nested expressions.
+     */
+    public static final int MAX_EXPRESSION_DEPTH = 250;
+
+    static final String DEPTH_EXCEEDED_FRAGMENT = "exceeded the maximum expression depth";
+    private static final String DEPTH_EXCEEDED_MSG = "SQL statement " + DEPTH_EXCEEDED_FRAGMENT + " allowed ({})";
+
+    /**
      * Used only in tests
      */
     public LogicalPlan createStatement(String sql) {
@@ -96,6 +104,23 @@ public class SqlParser {
         return invokeParser(expression, params, UTC, SqlBaseParser::singleExpression, AstBuilder::expression);
     }
 
+    private record ParserPipeline(CommonTokenStream tokenStream, SqlBaseParser parser, Map<Token, SqlTypedParamValue> paramTokens) {}
+
+    private ParserPipeline createParserPipeline(String sql, List<SqlTypedParamValue> params) {
+        SqlBaseLexer lexer = new SqlBaseLexer(new CaseChangingCharStream(CharStreams.fromString(sql), true));
+        lexer.removeErrorListeners();
+        lexer.addErrorListener(ERROR_LISTENER);
+        Map<Token, SqlTypedParamValue> paramTokens = new HashMap<>();
+        TokenSource tokenSource = new ParametrizedTokenSource(lexer, paramTokens, params);
+        CommonTokenStream tokenStream = new CommonTokenStream(tokenSource);
+        SqlBaseParser parser = new SqlBaseParser(tokenStream);
+        parser.addParseListener(new PostProcessor(Arrays.asList(parser.getRuleNames())));
+        parser.removeErrorListeners();
+        parser.addErrorListener(ERROR_LISTENER);
+        parser.getInterpreter().setPredictionMode(PredictionMode.SLL);
+        return new ParserPipeline(tokenStream, parser, paramTokens);
+    }
+
     private <T> T invokeParser(
         String sql,
         List<SqlTypedParamValue> params,
@@ -104,42 +129,49 @@ public class SqlParser {
         BiFunction<AstBuilder, ParserRuleContext, T> visitor
     ) {
         try {
-            SqlBaseLexer lexer = new SqlBaseLexer(new CaseChangingCharStream(CharStreams.fromString(sql), true));
+            ParserPipeline pipeline = createParserPipeline(sql, params);
 
-            lexer.removeErrorListeners();
-            lexer.addErrorListener(ERROR_LISTENER);
-
-            Map<Token, SqlTypedParamValue> paramTokens = new HashMap<>();
-            TokenSource tokenSource = new ParametrizedTokenSource(lexer, paramTokens, params);
-
-            CommonTokenStream tokenStream = new CommonTokenStream(tokenSource);
-            SqlBaseParser parser = new SqlBaseParser(tokenStream);
-
-            parser.addParseListener(new PostProcessor(Arrays.asList(parser.getRuleNames())));
-
-            parser.removeErrorListeners();
-            parser.addErrorListener(ERROR_LISTENER);
-
-            parser.getInterpreter().setPredictionMode(PredictionMode.SLL);
+            try {
+                pipeline.tokenStream().fill();
+                int depth = 0;
+                int prefixChain = 0;
+                for (Token token : pipeline.tokenStream().getTokens()) {
+                    switch (token.getType()) {
+                        case SqlBaseLexer.LP -> depth++;
+                        case SqlBaseLexer.RP -> depth--;
+                        case SqlBaseLexer.NOT, SqlBaseLexer.MINUS, SqlBaseLexer.PLUS -> prefixChain++;
+                        default -> {
+                            if (token.getChannel() == Token.DEFAULT_CHANNEL) prefixChain = 0;
+                        }
+                    }
+                    if (depth + prefixChain > MAX_EXPRESSION_DEPTH) {
+                        throw new ParsingException(DEPTH_EXCEEDED_MSG, MAX_EXPRESSION_DEPTH);
+                    }
+                }
+            } catch (ParsingException pe) {
+                if (pe.getMessage() != null && pe.getMessage().contains(DEPTH_EXCEEDED_FRAGMENT)) {
+                    throw pe;
+                }
+                pipeline = createParserPipeline(sql, params);
+            }
 
             if (DEBUG) {
-                debug(parser);
-                tokenStream.fill();
-
-                for (Token t : tokenStream.getTokens()) {
+                debug(pipeline.parser());
+                pipeline.tokenStream().fill();
+                for (Token t : pipeline.tokenStream().getTokens()) {
                     String symbolicName = SqlBaseLexer.VOCABULARY.getSymbolicName(t.getType());
                     String literalName = SqlBaseLexer.VOCABULARY.getLiteralName(t.getType());
                     log.info(format(Locale.ROOT, "  %-15s '%s'", symbolicName == null ? literalName : symbolicName, t.getText()));
                 }
             }
 
-            ParserRuleContext tree = parseFunction.apply(parser);
+            ParserRuleContext tree = parseFunction.apply(pipeline.parser());
 
             if (DEBUG) {
                 log.info("Parse tree {} " + tree.toStringTree());
             }
 
-            return visitor.apply(new AstBuilder(paramTokens, zoneId), tree);
+            return visitor.apply(new AstBuilder(pipeline.paramTokens(), zoneId), tree);
         } catch (StackOverflowError e) {
             throw new ParsingException(
                 "SQL statement is too large, " + "causing stack overflow when generating the parsing tree: [{}]",

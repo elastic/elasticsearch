@@ -1,3 +1,8 @@
+setup:
+  - requires:
+      cluster_features: [ "data_stream.mappings_api" ]
+      reason: feature under test must be present
+
 ---
 "Test time_series data stream":
   - do:

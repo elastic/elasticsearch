@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringRenderable;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -31,7 +33,7 @@ public class Dissect extends RegexExtract implements TelemetryAware, SortPreserv
 
     private final Parser parser;
 
-    public record Parser(String pattern, String appendSeparator, DissectParser parser) implements Writeable {
+    public record Parser(String pattern, String appendSeparator, DissectParser parser) implements Writeable, NodeStringRenderable {
         public static Parser readFrom(StreamInput in) throws IOException {
             String pattern = in.readString();
             String appendSeparator = in.readString();
@@ -70,16 +72,31 @@ public class Dissect extends RegexExtract implements TelemetryAware, SortPreserv
             return Objects.hash(pattern, appendSeparator);
         }
 
-        // Needed for consistent output since parser's toString isn't overriden.
+        // Needed for consistent output since parser's toString isn't overriden. Delegates to the
+        // mapper-aware render with IDENTITY so the two can never diverge.
         @Override
         public String toString() {
-            return "Parser[pattern="
-                + pattern
-                + ", appendSeparator="
-                + appendSeparator
-                + ", parser="
-                + parser.getClass().getSimpleName()
-                + "]";
+            StringBuilder sb = new StringBuilder();
+            nodeString(sb, NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY);
+            return sb.toString();
+        }
+
+        /**
+         * Single render path for the parser. Under {@link NodeStringMapper#IDENTITY} this is
+         * byte-identical to the legacy {@code toString()} (the appendSeparator is non-null at every
+         * construction site); under an anonymizing mapper the pattern capture names and the append
+         * separator route through the mapper, the {@code %{...}} braces and the {@code DissectParser}
+         * class name stay verbatim.
+         */
+        @Override
+        public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+            sb.append("Parser[pattern=");
+            rewriteDissectPattern(sb, pattern, mapper);
+            sb.append(", appendSeparator=");
+            if (appendSeparator != null && appendSeparator.isEmpty() == false) {
+                sb.append(mapper.column(appendSeparator));
+            }
+            sb.append(", parser=").append(parser.getClass().getSimpleName()).append("]");
         }
 
     }
@@ -144,5 +161,40 @@ public class Dissect extends RegexExtract implements TelemetryAware, SortPreserv
 
     public Parser parser() {
         return parser;
+    }
+
+    /**
+     * Renders a Dissect pattern of shape {@code "%{cap1} sep %{cap2}"} routing each capture
+     * identifier through {@code mapper.column}. Captures may carry a {@code ?} (skip) or
+     * {@code +} (append) modifier right after the open brace — that's structural, preserved
+     * verbatim. Separator characters between captures pass through.
+     */
+    public static void rewriteDissectPattern(StringBuilder sb, String pattern, NodeStringMapper mapper) {
+        if (pattern == null || pattern.isEmpty()) {
+            return;
+        }
+        int i = 0;
+        while (i < pattern.length()) {
+            int start = pattern.indexOf("%{", i);
+            if (start < 0) {
+                sb.append(pattern, i, pattern.length());
+                return;
+            }
+            sb.append(pattern, i, start);
+            int end = pattern.indexOf('}', start + 2);
+            if (end < 0) {
+                sb.append(pattern, start, pattern.length());
+                return;
+            }
+            String body = pattern.substring(start + 2, end);
+            String modifier = "";
+            String captureName = body;
+            if (body.startsWith("?") || body.startsWith("+")) {
+                modifier = body.substring(0, 1);
+                captureName = body.substring(1);
+            }
+            sb.append("%{").append(modifier).append(captureName.isEmpty() ? "" : mapper.column(captureName)).append('}');
+            i = end + 1;
+        }
     }
 }

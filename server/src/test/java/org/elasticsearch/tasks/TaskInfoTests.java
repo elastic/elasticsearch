@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
 public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo> {
@@ -61,9 +62,10 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
 
     @Override
     protected TaskInfo mutateInstance(TaskInfo info) {
-        switch (between(0, 10)) {
+        boolean isTaskRelocated = !info.originalTaskId().equals(info.taskId());
+        switch (between(0, 11)) {
             case 0:
-                TaskId taskId = new TaskId(info.taskId().getNodeId() + randomAlphaOfLength(5), info.taskId().getId());
+                TaskId taskId = new TaskId(info.taskId().getNodeId() + randomAlphaOfLength(5), info.taskId().getId() + between(1, 10));
                 return new TaskInfo(
                     taskId,
                     info.type(),
@@ -76,7 +78,10 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
                     info.cancellable(),
                     info.cancelled(),
                     info.parentTaskId(),
-                    info.headers()
+                    info.headers(),
+                    // if this was a relocated task, preserve the original task ID; otherwise, update it:
+                    isTaskRelocated ? info.originalTaskId() : taskId,
+                    info.startTime()
                 );
             case 1:
                 return new TaskInfo(
@@ -91,7 +96,9 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
                     info.cancellable(),
                     info.cancelled(),
                     info.parentTaskId(),
-                    info.headers()
+                    info.headers(),
+                    info.taskId(),
+                    info.startTime()
                 );
             case 2:
                 return new TaskInfo(
@@ -106,7 +113,9 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
                     info.cancellable(),
                     info.cancelled(),
                     info.parentTaskId(),
-                    info.headers()
+                    info.headers(),
+                    info.taskId(),
+                    info.startTime()
                 );
             case 3:
                 return new TaskInfo(
@@ -121,7 +130,9 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
                     info.cancellable(),
                     info.cancelled(),
                     info.parentTaskId(),
-                    info.headers()
+                    info.headers(),
+                    info.taskId(),
+                    info.startTime()
                 );
             case 4:
                 Task.Status newStatus = randomValueOtherThan(info.status(), TaskInfoTests::randomRawTaskStatus);
@@ -137,9 +148,12 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
                     info.cancellable(),
                     info.cancelled(),
                     info.parentTaskId(),
-                    info.headers()
+                    info.headers(),
+                    info.taskId(),
+                    info.startTime()
                 );
             case 5:
+                long startTime = info.startTime() + between(1, 100);
                 return new TaskInfo(
                     info.taskId(),
                     info.type(),
@@ -147,12 +161,15 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
                     info.action(),
                     info.description(),
                     info.status(),
-                    info.startTime() + between(1, 100),
+                    startTime,
                     info.runningTimeNanos(),
                     info.cancellable(),
                     info.cancelled(),
                     info.parentTaskId(),
-                    info.headers()
+                    info.headers(),
+                    info.taskId(),
+                    // if this was a relocated task, preserve the original start time; otherwise, update it
+                    isTaskRelocated ? info.originalStartTimeMillis() : startTime
                 );
             case 6:
                 return new TaskInfo(
@@ -167,7 +184,9 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
                     info.cancellable(),
                     info.cancelled(),
                     info.parentTaskId(),
-                    info.headers()
+                    info.headers(),
+                    info.taskId(),
+                    info.startTime()
                 );
             case 7:
                 // if not cancellable then mutate cancellable flag but leave cancelled flag unset
@@ -193,7 +212,9 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
                     isNowCancellable,
                     isNowCancelled,
                     info.parentTaskId(),
-                    info.headers()
+                    info.headers(),
+                    info.taskId(),
+                    info.startTime()
                 );
             case 8:
                 TaskId parentId = new TaskId(info.parentTaskId().getNodeId() + randomAlphaOfLength(5), info.parentTaskId().getId());
@@ -209,7 +230,9 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
                     info.cancellable(),
                     info.cancelled(),
                     parentId,
-                    info.headers()
+                    info.headers(),
+                    info.taskId(),
+                    info.startTime()
                 );
             case 9:
                 Map<String, String> headers = info.headers();
@@ -231,7 +254,9 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
                     info.cancellable(),
                     info.cancelled(),
                     info.parentTaskId(),
-                    headers
+                    headers,
+                    info.taskId(),
+                    info.startTime()
                 );
             case 10:
                 return new TaskInfo(
@@ -246,14 +271,99 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
                     info.cancellable(),
                     info.cancelled(),
                     info.parentTaskId(),
-                    info.headers()
+                    info.headers(),
+                    info.taskId(),
+                    info.startTime()
                 );
+            case 11:
+                // if this is a relocated task (originalTaskId != taskId), make it a regular task
+                // if it is a regular task, make it relocated
+                return new TaskInfo(
+                    info.taskId(),
+                    info.type(),
+                    randomAlphaOfLength(10),
+                    info.action(),
+                    info.description(),
+                    info.status(),
+                    info.startTime(),
+                    info.runningTimeNanos(),
+                    info.cancellable(),
+                    info.cancelled(),
+                    info.parentTaskId(),
+                    info.headers(),
+                    isTaskRelocated
+                        ? info.taskId()
+                        : new TaskId(info.taskId().getNodeId() + randomAlphaOfLength(5), info.taskId().getId() + between(1, 10)),
+                    isTaskRelocated ? info.startTime() : info.startTime() + between(1, 100)
+                );
+
             default:
                 throw new IllegalStateException();
         }
     }
 
-    static TaskInfo randomTaskInfo() {
+    public void testWithOriginalRelocationIdentity_relocated() {
+        String nodeB = randomAlphaOfLength(8);
+        String nodeA = randomValueOtherThan(nodeB, () -> randomAlphaOfLength(8));
+        TaskId originalId = new TaskId(nodeA, randomNonNegativeLong());
+        TaskId currentId = new TaskId(nodeB, randomNonNegativeLong());
+        long originalStart = between(0, 1_000);
+        long currentStart = originalStart + between(1, 1_000);
+        long runningNanos = randomLongBetween(0, TimeUnit.SECONDS.toNanos(between(1, 5)));
+        final boolean cancellable = randomBoolean();
+        TaskInfo relocated = new TaskInfo(
+            currentId,
+            randomAlphaOfLength(5),
+            nodeB,
+            randomAlphaOfLength(5),
+            randomAlphaOfLength(5),
+            null,
+            currentStart,
+            runningNanos,
+            cancellable,
+            cancellable && randomBoolean(),
+            TaskId.EMPTY_TASK_ID,
+            Map.of(),
+            originalId,
+            originalStart
+        );
+        TaskInfo adjusted = relocated.withOriginalRelocationIdentity();
+        assertSame(originalId, adjusted.taskId());
+        assertEquals(originalId.getNodeId(), adjusted.node());
+        assertEquals(originalStart, adjusted.startTime());
+        assertEquals(runningNanos + TimeUnit.MILLISECONDS.toNanos(currentStart - originalStart), adjusted.runningTimeNanos());
+        assertSame(originalId, adjusted.originalTaskId());
+        assertEquals(originalStart, adjusted.originalStartTimeMillis());
+    }
+
+    public void testWithOriginalRelocationIdentity_notRelocated() {
+        TaskInfo info = randomTaskInfo();
+        if (info.originalTaskId().equals(info.taskId()) == false) {
+            info = new TaskInfo(
+                info.taskId(),
+                info.type(),
+                info.node(),
+                info.action(),
+                info.description(),
+                info.status(),
+                info.startTime(),
+                info.runningTimeNanos(),
+                info.cancellable(),
+                info.cancelled(),
+                info.parentTaskId(),
+                info.headers()
+            );
+        }
+        TaskInfo same = info.withOriginalRelocationIdentity();
+        assertEquals(info.taskId(), same.taskId());
+        assertEquals(info.node(), same.node());
+        assertEquals(info.startTime(), same.startTime());
+        assertEquals(info.runningTimeNanos(), same.runningTimeNanos());
+        assertEquals(info.originalTaskId(), same.originalTaskId());
+        assertEquals(info.originalStartTimeMillis(), same.originalStartTimeMillis());
+    }
+
+    public static TaskInfo randomTaskInfo() {
         String nodeId = randomAlphaOfLength(5);
         TaskId taskId = randomTaskId(nodeId);
         String type = randomAlphaOfLength(5);
@@ -268,6 +378,9 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
         Map<String, String> headers = randomBoolean()
             ? Collections.emptyMap()
             : Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
+        boolean isTaskRelocated = randomBoolean();
+        TaskId originalTaskId = isTaskRelocated ? randomValueOtherThan(taskId, () -> randomTaskId(nodeId)) : taskId;
+        long originalStartTimeMillis = isTaskRelocated ? randomLong() : startTime;
         return new TaskInfo(
             taskId,
             type,
@@ -280,7 +393,9 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
             cancellable,
             cancelled,
             parentTaskId,
-            headers
+            headers,
+            originalTaskId,
+            originalStartTimeMillis
         );
     }
 

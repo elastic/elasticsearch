@@ -18,10 +18,10 @@ import javax.lang.model.SourceVersion;
 import javax.lang.model.element.TypeElement;
 
 /**
- * Annotation processor that claims {@link ExtraParam} annotations so that
+ * Annotation processor that claims {@code ExtraParam} annotations so that
  * javac's {@code -Xlint:processing} check does not flag them as unprocessed.
  * The processor does nothing with the annotations — they are only consumed
- * at runtime by {@link Utils#possibleValues}.
+ * at runtime by {@code Utils#possibleValues}.
  */
 @SupportedAnnotationTypes("org.elasticsearch.benchmark.ExtraParam")
 public class ExtraParamProcessor extends AbstractProcessor {

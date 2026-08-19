@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -69,9 +70,8 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     public FetchSearchResult(StreamInput in) throws IOException {
         contextId = new ShardSearchContextId(in);
-        hits = SearchHits.readFrom(in, true);
+        hits = SearchHits.readFrom(in);
         profileResult = in.readOptionalWriteable(ProfileResult::new);
-
         if (in.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
             lastChunkSequenceStart = in.readLong();
             lastChunkHitCount = in.readInt();
@@ -79,6 +79,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
                 lastChunkBytes = in.readReleasableBytesReference();
             }
         }
+        readDirectoryMetrics(in);
     }
 
     @Override
@@ -87,7 +88,6 @@ public final class FetchSearchResult extends SearchPhaseResult {
         contextId.writeTo(out);
         hits.writeTo(out);
         out.writeOptionalWriteable(profileResult);
-
         if (out.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
             out.writeLong(lastChunkSequenceStart);
             out.writeInt(lastChunkHitCount);
@@ -95,6 +95,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
                 out.writeBytesReference(lastChunkBytes);
             }
         }
+        writeDirectoryMetrics(out);
     }
 
     @Override
@@ -136,7 +137,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     public void releaseCircuitBreakerBytes(CircuitBreaker circuitBreaker) {
         if (searchHitsSizeBytes > 0L) {
-            circuitBreaker.addWithoutBreaking(-searchHitsSizeBytes);
+            circuitBreaker.addWithoutBreaking(-searchHitsSizeBytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH);
             searchHitsSizeBytes = 0L;
         }
     }

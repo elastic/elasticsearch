@@ -44,6 +44,8 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -82,9 +84,8 @@ public class SniffConnectionStrategyTests extends ESTestCase {
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
     private boolean hasClusterCredentials;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initClientSettings() throws Exception {
         hasClusterCredentials = randomBoolean();
         final Settings.Builder builder = Settings.builder().put(modeKey, "sniff").put(seedNodesKey, "localhost:8080");
         if (hasClusterCredentials) {
@@ -102,9 +103,8 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         );
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 

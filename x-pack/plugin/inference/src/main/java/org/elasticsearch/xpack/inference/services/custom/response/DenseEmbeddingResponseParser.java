@@ -117,6 +117,11 @@ public class DenseEmbeddingResponseParser extends BaseCustomResponseParser {
     }
 
     @Override
+    public DenseEmbeddingResponseParser updateFromMap(Map<String, Object> map, String scope, ValidationException validationException) {
+        return fromMap(map, scope, validationException);
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;

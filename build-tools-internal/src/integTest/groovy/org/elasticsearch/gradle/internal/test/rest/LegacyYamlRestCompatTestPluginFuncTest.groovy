@@ -30,9 +30,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
 
     def setup() {
         // not cc compatible due to:
-        // 1. TestClustersPlugin not cc compatible due to listener registration
-        // 2. RestIntegTestTask not cc compatible due to
-        configurationCacheCompatible = false
+        disableConfigurationCache("TestClustersPlugin not cc compatible due to listener registration; RestIntegTestTask not cc compatible")
         buildApiRestrictionsDisabled = true
     }
 

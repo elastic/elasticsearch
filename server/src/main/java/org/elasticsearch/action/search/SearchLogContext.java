@@ -14,9 +14,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.activity.QueryLoggerContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xcontent.ToXContent;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
@@ -29,10 +27,6 @@ public class SearchLogContext extends QueryLoggerContext {
     private final NamedWriteableRegistry namedWriteableRegistry;
     // Cached index names
     private String[] indexNames = null;
-    // Cached "isSystem" flag
-    private Boolean isSystemSearch = null;
-
-    public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
     private SearchLogContext(
         Task task,

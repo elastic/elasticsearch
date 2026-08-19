@@ -12,17 +12,19 @@ package org.elasticsearch.telemetry.apm.internal.metrics;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.ObservableDoubleGauge;
 
+import org.elasticsearch.telemetry.apm.AbstractAsyncInstrument;
 import org.elasticsearch.telemetry.apm.AbstractInstrument;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 
 import java.util.Collection;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
  * DoubleGaugeAdapter wraps an otel ObservableLongGauge
  */
-public class DoubleGaugeAdapter extends AbstractInstrument<ObservableDoubleGauge>
+public class DoubleGaugeAdapter extends AbstractAsyncInstrument<ObservableDoubleGauge>
     implements
         org.elasticsearch.telemetry.metric.DoubleGauge {
 
@@ -31,14 +33,10 @@ public class DoubleGaugeAdapter extends AbstractInstrument<ObservableDoubleGauge
         String name,
         String description,
         String unit,
-        Supplier<Collection<DoubleWithAttributes>> observer
+        Supplier<Collection<DoubleWithAttributes>> observer,
+        Consumer<AbstractInstrument<?>> deregisterFunc
     ) {
-        super(meter, new Builder(name, description, unit, observer));
-    }
-
-    @Override
-    public void close() throws Exception {
-        getInstrument().close();
+        super(meter, new Builder(name, description, unit, observer), deregisterFunc);
     }
 
     private static class Builder extends AbstractInstrument.Builder<ObservableDoubleGauge> {

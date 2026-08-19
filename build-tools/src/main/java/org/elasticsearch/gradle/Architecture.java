@@ -9,9 +9,11 @@
 
 package org.elasticsearch.gradle;
 
+import org.gradle.api.Named;
+
 import java.util.Optional;
 
-public enum Architecture {
+public enum Architecture implements Named {
 
     X64("x86_64", "linux/amd64", "amd64", "x64"),
     AARCH64("aarch64", "linux/arm64", "arm64", "aarch64");
@@ -26,6 +28,11 @@ public enum Architecture {
         this.dockerPlatform = dockerPlatform;
         this.dockerClassifier = dockerClassifier;
         this.javaClassifier = javaClassifier;
+    }
+
+    @Override
+    public String getName() {
+        return classifier;
     }
 
     public static Architecture current() {

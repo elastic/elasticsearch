@@ -10,6 +10,11 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
+import org.elasticsearch.simdvec.MultiByteVectorsSource;
+import org.elasticsearch.simdvec.MultiFloatVectorsSource;
+
+import java.nio.ByteOrder;
 
 public interface ESVectorUtilSupport {
 
@@ -18,8 +23,23 @@ public interface ESVectorUtilSupport {
      */
     short B_QUERY = 4;
 
+    /** Converts bfloat16s to floats */
+    void bFloat16ToFloat(byte[] bfBytes, int bfOffset, float[] floats, int floatOffset, int floatCount, ByteOrder byteOrder);
+
+    /** Converts floats to bfloat16s */
+    void floatToBFloat16(float[] floats, int floatOffset, byte[] bfBytes, int bfOffset, int floatCount, ByteOrder byteOrder);
+
     /** Calculates the dot product of the given float arrays. */
     float dotProduct(float[] a, float[] b);
+
+    /** Calculates the dot product over {@code [[ab]Offset, [ab]Offset + length)}. */
+    float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length);
+
+    /**
+     * L2-normalizes {@code v[offset:offset + length)} in place. A zero prefix is a no-op.
+     * @return the squared normalization factor
+     */
+    float l2Normalize(float[] v, int offset, int length);
 
     /** Returns the sum of squared differences of the two vectors. */
     float squareDistance(float[] a, float[] b);
@@ -33,19 +53,37 @@ public interface ESVectorUtilSupport {
     /** Calculates the dot product of the given byte arrays. */
     float dotProduct(byte[] a, byte[] b);
 
+    /** Calculates the dot product over {@code [offset, offset + length)}. */
+    float dotProduct(byte[] a, byte[] b, int offset, int length);
+
+    /** L2-normalizes {@code v[offset:offset + length)} in place using signed byte values as real components. */
+    void l2Normalize(byte[] v, int offset, int length);
+
     /** Returns the sum of squared differences of the two vectors. */
     float squareDistance(byte[] a, byte[] b);
 
+    /** Returns the sum of squared differences of the two byte vectors over a sub-range. */
+    float squareDistance(byte[] a, byte[] b, int offset, int length);
+
+    /** Returns the sum of squared differences between a byte vector and a float vector. */
+    float squareDistance(byte[] a, float[] b);
+
+    float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch);
+
+    float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch);
+
+    float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch);
+
     /**
      * Compute dot product between {@code q} and {@code d}
-     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code ESVectorUtil.transposeHalfByte})
+     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code ESVectorUtil.stride4BitValues})
      * @param d data vector, 1-bit quantized
      */
     long ipByteBinByte(byte[] q, byte[] d);
 
     int ipByteBit(byte[] q, byte[] d);
 
-    float ipFloatBit(float[] q, byte[] d);
+    float ipFloatBit(float[] q, int qOffset, byte[] d, int dOffset, int qLength);
 
     float ipFloatByte(float[] q, byte[] d);
 
@@ -66,13 +104,45 @@ public interface ESVectorUtilSupport {
 
     void centerAndCalculateOSQStatsDp(float[] target, float[] centroid, float[] centered, float[] stats);
 
+    void centerAndCalculateOSQStatsEuclidean(byte[] target, byte[] centroid, float[] centered, float[] stats);
+
+    void centerAndCalculateOSQStatsDp(byte[] target, byte[] centroid, float[] centered, float[] stats);
+
     float soarDistance(float[] v1, float[] centroid, float[] originalResidual, float soarLambda, float rnorm);
+
+    float soarDistance(byte[] v1, byte[] centroid, float[] originalResidual, float soarLambda, float rnorm);
 
     int quantizeVectorWithIntervals(float[] vector, int[] quantize, float lowInterval, float upperInterval, byte bit);
 
-    void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances);
+    void dotProductBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances);
 
-    void squareDistanceBulk(float[] query, int queryOffset, int length, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances);
+    void squareDistanceBulk(
+        float[] query,
+        int vectorOffset,
+        float[] v0,
+        float[] v1,
+        float[] v2,
+        float[] v3,
+        int distancesOffset,
+        float[] distances,
+        int length
+    );
+
+    void dotProductBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances);
+
+    void cosineBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances);
+
+    void squareDistanceBulk(
+        byte[] query,
+        int vectorOffset,
+        byte[] v0,
+        byte[] v1,
+        byte[] v2,
+        byte[] v3,
+        int distancesOffset,
+        float[] distances,
+        int length
+    );
 
     void soarDistanceBulk(
         float[] v1,
@@ -86,15 +156,45 @@ public interface ESVectorUtilSupport {
         float[] distances
     );
 
-    void packAsBinary(int[] vector, byte[] packed);
+    void soarDistanceBulk(
+        byte[] v1,
+        byte[] c0,
+        byte[] c1,
+        byte[] c2,
+        byte[] c3,
+        float[] originalResidual,
+        float soarLambda,
+        float rnorm,
+        float[] distances
+    );
 
-    void packDibit(int[] vector, byte[] packed);
+    void pack1BitValues(int[] vector, byte[] packed);
 
-    void transposeHalfByte(int[] q, byte[] quantQueryByte);
+    void stride2BitValues(int[] vector, byte[] packed);
+
+    void pack2BitValues(int[] vector, byte[] packed);
+
+    void stride4BitValues(int[] vector, byte[] packed);
 
     int indexOf(byte[] bytes, int offset, int length, byte marker);
 
     int codePointCount(BytesRef bytesRef);
 
     boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength);
+
+    void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches);
+
+    void linearCombination(float scaleOther, float[] other, int otherOffset, float scaleDest, float[] dest, int destOffset, int length);
+
+    void linearCombination(float scaleOther, float[] other, int otherOffset, float[] dest, int destOffset, int length);
+
+    void linearCombination(float scaleOther, byte[] other, float scaleDest, float[] dest);
+
+    void linearCombination(float scaleOther, byte[] other, float[] dest);
+
+    float logSumExpNQT(float[] vector);
+
+    float logSumExpNQTDiff(float[] v1, float[] v2, float eps);
+
+    void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result);
 }

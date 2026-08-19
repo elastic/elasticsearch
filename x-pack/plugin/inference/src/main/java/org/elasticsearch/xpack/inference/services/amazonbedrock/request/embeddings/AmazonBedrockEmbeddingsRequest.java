@@ -17,7 +17,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.inference.common.Truncator;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModel;
@@ -29,7 +30,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
+public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest implements OutboundDenseEmbeddingRequest {
     private final AmazonBedrockEmbeddingsModel embeddingsModel;
     private final ToXContent requestEntity;
     private final Truncator truncator;
@@ -74,7 +75,7 @@ public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         if (provider == AmazonBedrockProvider.COHERE) {
             return this; // Cohere has its own truncation logic
         }
@@ -88,8 +89,8 @@ public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
     }
 
     @Override
-    public TaskType taskType() {
-        return TaskType.TEXT_EMBEDDING;
+    public TaskType getTaskType() {
+        return embeddingsModel.getTaskType();
     }
 
     public void executeEmbeddingsRequest(

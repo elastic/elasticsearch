@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -54,13 +54,13 @@ public class IbmWatsonxRerankRequestManager extends IbmWatsonxRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var rerankInput = QueryAndDocsInputs.of(inferenceInputs);
+        var rerankInput = inferenceInputs.castTo(QueryAndDocsInputs.class);
 
         execute(
             new ExecutableInferenceRequest(
                 requestSender,
                 logger,
-                getRerankRequest(rerankInput.getQuery(), rerankInput.getChunks(), model),
+                getRerankRequest(rerankInput.getQueryAsString(), rerankInput.getDocsAsStrings(), model),
                 HANDLER,
                 hasRequestCompletedFunction,
                 listener

@@ -8,24 +8,39 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
-import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
-public record LocalPhysicalOptimizerContext(
-    PlannerSettings plannerSettings,
-    EsqlFlags flags,
-    Configuration configuration,
-    FoldContext foldCtx,
-    SearchStats searchStats,
-    FilterPushdownRegistry filterPushdownRegistry,
-    FormatReaderRegistry formatReaderRegistry
-) {
+public class LocalPhysicalOptimizerContext {
+    private final PlannerSettings plannerSettings;
+    private final EsqlFlags flags;
+    private final Configuration configuration;
+    private final FoldContext foldCtx;
+    private final SearchStats searchStats;
+    private final ExternalOptimizerContext external;
+
+    public LocalPhysicalOptimizerContext(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        SearchStats searchStats,
+        ExternalOptimizerContext external
+    ) {
+        this.plannerSettings = plannerSettings;
+        this.flags = flags;
+        this.configuration = configuration;
+        this.foldCtx = foldCtx;
+        this.searchStats = searchStats;
+        this.external = external;
+    }
+
     /**
-     * Convenience constructor without registries (for backward compatibility and tests).
+     * Convenience constructor without external-source state (for backward compatibility and tests
+     * that don't exercise external-source rules). External-source-aware rules must treat the
+     * resulting context as "no external information" and bail out cleanly.
      */
     public LocalPhysicalOptimizerContext(
         PlannerSettings plannerSettings,
@@ -34,20 +49,30 @@ public record LocalPhysicalOptimizerContext(
         FoldContext foldCtx,
         SearchStats searchStats
     ) {
-        this(plannerSettings, flags, configuration, foldCtx, searchStats, FilterPushdownRegistry.empty(), null);
+        this(plannerSettings, flags, configuration, foldCtx, searchStats, ExternalOptimizerContext.NONE);
     }
 
-    /**
-     * Convenience constructor without format reader registry (for backward compatibility).
-     */
-    public LocalPhysicalOptimizerContext(
-        PlannerSettings plannerSettings,
-        EsqlFlags flags,
-        Configuration configuration,
-        FoldContext foldCtx,
-        SearchStats searchStats,
-        FilterPushdownRegistry filterPushdownRegistry
-    ) {
-        this(plannerSettings, flags, configuration, foldCtx, searchStats, filterPushdownRegistry, null);
+    public PlannerSettings plannerSettings() {
+        return plannerSettings;
+    }
+
+    public EsqlFlags flags() {
+        return flags;
+    }
+
+    public Configuration configuration() {
+        return configuration;
+    }
+
+    public FoldContext foldCtx() {
+        return foldCtx;
+    }
+
+    public SearchStats searchStats() {
+        return searchStats;
+    }
+
+    public ExternalOptimizerContext external() {
+        return external;
     }
 }

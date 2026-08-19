@@ -15,6 +15,82 @@ static inline void prefetch(const void* ptr, int lines) {
     }
 }
 
+// Head prefetch: at the batch boundary, fetch the first `lines` cache lines
+// of every next-batch vector so the very first inner-loop iter never waits
+// on a demand miss. Counterpart to `spread_prefetch` below.
+template <int batches, int lines, typename T>
+static inline void head_prefetch(const T* const (&next_vecs)[batches]) {
+    apply_indexed<batches>([&](auto I) {
+        const uintptr_t base = align_downwards<CACHE_LINE_SIZE>(next_vecs[I]);
+        apply_indexed<lines>([&](auto K) {
+            _mm_prefetch((const void*)(base + K * CACHE_LINE_SIZE), _MM_HINT_T0);
+        });
+    });
+}
+
+// Spread prefetch: at outer-iter byte cursor `i` (relative to the document
+// start), fetch `lines_per_iter` cache lines starting `lines_per_iter` lines
+// ahead. Used together with `head_prefetch` to keep the per-core L1d
+// fill-buffer occupancy bounded (callers issue `batches * lines_per_iter`
+// prefetches per iter instead of `batches * lines_to_fetch` at the boundary).
+//
+// Low-level primitive: callers whose outer step is < CACHE_LINE_SIZE must gate
+// externally so the spread fires only on the iter that crosses a cache-line
+// boundary. Prefer `spread_prefetch_step` below, which absorbs the gating.
+template <int batches, int lines_per_iter, typename T>
+static inline void spread_prefetch(
+    const T* const (&next_vecs)[batches], int i, int lines_to_fetch
+) {
+    const int next_line_start = i / CACHE_LINE_SIZE + lines_per_iter;
+    apply_indexed<lines_per_iter>([&](auto U) {
+        const int line = next_line_start + U;
+        if (line < lines_to_fetch) {
+            apply_indexed<batches>([&](auto I) {
+                const uintptr_t base = align_downwards<CACHE_LINE_SIZE>(next_vecs[I]);
+                _mm_prefetch((const void*)(base + line * CACHE_LINE_SIZE), _MM_HINT_T0);
+            });
+        }
+    });
+}
+
+// Head prefetch with single-batch burst fallback. At `batches == 1` the
+// LFB-saturation pathology that `spread_prefetch` is meant to dodge does not
+// exist, and the extra in-loop prefetch instructions would add μop pressure
+// that hurts the L1/L2-resident sequential path. So at `batches == 1` we burst
+// the whole vector at the head and skip the in-loop spread; the HW prefetcher
+// handles the sequential stream from there. At `batches > 1` we issue only
+// `lines_per_iter` lines per stream at the head and let `spread_prefetch_step`
+// trickle the rest in lockstep with the inner loop.
+template <int batches, int lines_per_iter, typename T>
+static inline void head_prefetch_or_burst(
+    const T* const (&next_vecs)[batches], int lines_to_fetch
+) {
+    if constexpr (batches > 1) {
+        head_prefetch<batches, lines_per_iter>(next_vecs);
+    } else {
+        prefetch(next_vecs[0], lines_to_fetch);
+    }
+}
+
+// Spread prefetch step: compile-time selects the gating from `stride_bytes`,
+// the per-iter byte stride of the calling loop.
+//   - batches == 1:                    no-op (the head burst already covered the run).
+//   - stride_bytes >= CACHE_LINE_SIZE: fires every iter.
+//   - stride_bytes <  CACHE_LINE_SIZE: fires only when `byte_offset` crosses a
+//     cache-line boundary, avoiding re-prefetching the same line.
+// `byte_offset` is always in bytes regardless of the caller's element type.
+template <int batches, int lines_per_iter, int stride_bytes, typename T>
+static inline void spread_prefetch_step(
+    const T* const (&next_vecs)[batches], int byte_offset, int lines_to_fetch
+) {
+    if constexpr (batches > 1) {
+        if constexpr (stride_bytes < CACHE_LINE_SIZE) {
+            if ((byte_offset & (CACHE_LINE_SIZE - 1)) != 0) return;
+        }
+        spread_prefetch<batches, lines_per_iter>(next_vecs, byte_offset, lines_to_fetch);
+    }
+}
+
 /* Utility functions to perform reduce operations (horizontal ops) over a vector
  * It works by narrowing in half until you're down to 1 element.
  * Schematically, this works as depicted: from a starting vector whose elements

@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TO_TDIGEST` function [esql-to_tdigest]
 
-:::{include} ../../_snippets/functions/layout/to_tdigest.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/to_tdigest.md
 :::

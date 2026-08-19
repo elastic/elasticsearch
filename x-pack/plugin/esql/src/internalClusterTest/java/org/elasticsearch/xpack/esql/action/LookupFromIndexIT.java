@@ -35,6 +35,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.core.TimeValue;
@@ -335,7 +336,10 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 1,
                 10000,
                 LuceneOperator.NO_LIMIT,
-                false // no scoring
+                false, // no scoring
+                () -> 0L,
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+                QueryWarnings.EMIT
             );
             List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = new ArrayList<>();
             for (int i = 0; i < keyTypes.size(); i++) {
@@ -361,7 +365,8 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 ),
                 true,
                 0,
-                PlannerSettings.SOURCE_RESERVATION_FACTOR.getDefault(Settings.EMPTY)
+                PlannerSettings.SOURCE_RESERVATION_FACTOR.getDefault(Settings.EMPTY),
+                () -> 0L
             );
             CancellableTask parentTask = new CancellableTask(1, "test", "test", "test", null, Map.of());
             final String finalNodeWithShard = nodeWithShard;

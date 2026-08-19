@@ -12,8 +12,16 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.esql.datasources.BackendFixture;
+import org.elasticsearch.xpack.esql.datasources.S3BackendFixture;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
+import org.elasticsearch.xpack.esql.generator.GenerativeFeature;
 import org.elasticsearch.xpack.esql.qa.rest.generative.GenerativeRestTest;
+import org.elasticsearch.xpack.esql.qa.rest.generative.PerFeatureGenerativeRestTest;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
+
+import java.util.List;
 
 /**
  * This test generates random queries, runs them against the CSV test dataset and checks that they don't throw unexpected exceptions.
@@ -28,9 +36,28 @@ import org.junit.ClassRule;
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 @TestLogging(value = "org.elasticsearch.xpack.esql.plugin.ComputeService", reason = "see plans on failure")
-public class GenerativeIT extends GenerativeRestTest {
+public class GenerativeIT extends PerFeatureGenerativeRestTest {
+
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.plugin("inference-service-test"));
+    public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> {
+        spec.plugin("inference-service-test");
+        // PUT /_query/data_source stores access_key/secret_key as secure cluster-state settings;
+        // encryption must be enabled or the registration returns 503.
+        spec.keystore("cluster.state.encryption.password.test", "esql-generative-encryption-password");
+        spec.keystore("cluster.state.encryption.active_password_id", "test");
+    });
+
+    @BeforeClass
+    public static void loadS3Fixtures() {
+        s3Fixture.loadFixturesFromResources();
+    }
+
+    public GenerativeIT(GenerativeFeature feature) {
+        super(feature);
+    }
 
     @Override
     protected String getTestRestCluster() {
@@ -40,5 +67,15 @@ public class GenerativeIT extends GenerativeRestTest {
     @Override
     protected boolean supportsSourceFieldMapping() {
         return false;
+    }
+
+    @Override
+    protected BackendFixture externalDatasetStorageBackend() {
+        return new S3BackendFixture(s3Fixture);
+    }
+
+    @Override
+    protected List<String> externalParquetDatasets() {
+        return List.of("employees", "books", "web_logs");
     }
 }

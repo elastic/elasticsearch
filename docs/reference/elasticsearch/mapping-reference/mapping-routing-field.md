@@ -100,6 +100,28 @@ PUT my-index-000002/_doc/1 <2>
 
 
 
+## Storing routing as doc values [_storing_routing_as_doc_values]
+```{applies_to}
+stack: ga 9.5.0
+serverless: ga
+```
+
+By default, the `_routing` value is stored as an indexed field with a stored field.
+Setting `doc_values` to `true` stores routing as only a doc value field.
+
+```console
+PUT my-index-000003
+{
+  "mappings": {
+    "_routing": {
+      "required": true,
+      "doc_values": true
+    }
+  }
+}
+```
+% TEST
+
 ## Unique IDs with custom routing [_unique_ids_with_custom_routing]
 
 When indexing documents specifying a custom `_routing`, the uniqueness of the `_id` is not guaranteed across all of the shards in the index. In fact, documents with the same `_id` might end up on different shards if indexed with different `_routing` values.

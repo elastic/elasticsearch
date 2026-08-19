@@ -16,26 +16,86 @@ To give you insight into what deprecated features you’re using, {{es}}:
 
 % ## Next version [elasticsearch-nextversion-deprecations]
 
+## 9.5.1 [elasticsearch-9.5.1-deprecations]
 
-## 9.3.3 [elasticsearch-9.3.3-deprecations]
-```{applies_to}
-stack: ga 9.3.3
-```
+There are no deprecations associated with this release.
+
+## 9.4.5 [elasticsearch-9.4.5-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.5.0 [elasticsearch-9.5.0-deprecations]
+
+Infra/Logging:
+* Implicit configuration of child loggers on logger setting updates is deprecated, this behavior will be removed in 10.0. [#151637](https://github.com/elastic/elasticsearch/pull/151637)
+
+Monitoring:
+* Using the Elasticsearch Monitoring plugin to collect and ship monitoring data is deprecated and will be removed in 10.0. [#151617](https://github.com/elastic/elasticsearch/pull/151617)
+
+
+
+## 9.4.4 [elasticsearch-9.4.4-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.3.8 [elasticsearch-9.3.8-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.3.7 [elasticsearch-9.3.7-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.4.3 [elasticsearch-9.4.3-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.3.6 [elasticsearch-9.3.6-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.4.2 [elasticsearch-9.4.2-deprecations]
+
+ES|QL:
+* Add deprecation message for ES|QL query log [#149013](https://github.com/elastic/elasticsearch/pull/149013)
+
+
+
+## 9.3.5 [elasticsearch-9.3.5-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.4.1 [elasticsearch-9.4.1-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.4.0 [elasticsearch-9.4.0-deprecations]
+
+Data streams:
+* Deprecate the 'logs' stream type [#142148](https://github.com/elastic/elasticsearch/pull/142148)
+
+Mapping:
+* Deprecate the `default_metric` parameter in the `aggregate_metric_double` mapping configuration. [#141877](https://github.com/elastic/elasticsearch/pull/141877) (issue: [#128356](https://github.com/elastic/elasticsearch/issues/128356))
+
+
+
+## 9.3.4 [elasticsearch-9.3.4-deprecations]
 
 There are no deprecations associated with this release.
 
 ## 9.2.8 [elasticsearch-9.2.8-deprecations]
-```{applies_to}
-stack: ga 9.2.8
-```
 
 There are no deprecations associated with this release.
 
-## 9.3.2 [elasticsearch-9.3.2-deprecations]
+## 9.3.3 [elasticsearch-9.3.3-deprecations]
 
 There are no deprecations associated with this release.
 
 ## 9.2.7 [elasticsearch-9.2.7-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.3.2 [elasticsearch-9.3.2-deprecations]
 
 There are no deprecations associated with this release.
 

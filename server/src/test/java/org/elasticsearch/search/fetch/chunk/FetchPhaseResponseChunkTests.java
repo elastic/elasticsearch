@@ -75,6 +75,41 @@ public class FetchPhaseResponseChunkTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies that when a chunk is decoded from a pooled (releasable) stream, {@code serializedHits}
+     * is stored as a retained slice of the underlying buffer. The buffer must remain live until
+     * {@link FetchPhaseResponseChunk#close()} is called, even if the outer wire reference is released first.
+     */
+    public void testCoordinatorPathReleasesPooledSerializedHits() throws IOException {
+        SearchHit hit = createHit(1);
+        try {
+            AtomicBoolean released = new AtomicBoolean(false);
+            ReleasableBytesReference serializedHits = new ReleasableBytesReference(serializeHits(hit), () -> released.set(true));
+
+            FetchPhaseResponseChunk chunk = new FetchPhaseResponseChunk(TEST_SHARD_ID, serializedHits, 1, 10, 0L);
+            ReleasableBytesReference wireBytes = chunk.toReleasableBytesReference(42L);
+
+            FetchPhaseResponseChunk decoded;
+            try (StreamInput in = wireBytes.streamInput()) {
+                in.readVLong(); // coordinatingTaskId written by toReleasableBytesReference
+                decoded = new FetchPhaseResponseChunk(in);
+            }
+
+            // decoded holds a retained slice of wireBytes' buffer; releasing wireBytes alone must not free it
+            wireBytes.decRef();
+            assertFalse("pooled buffer must still be live while decoded chunk holds its retained ref", released.get());
+
+            // the retained bytes are still fully readable
+            assertThat(getIdFromSource(decoded.getHits()[0]), equalTo(1));
+
+            // closing the decoded chunk releases the retained slice → ref count reaches zero → buffer freed
+            decoded.close();
+            assertTrue("pooled buffer must be released once the decoded chunk is closed", released.get());
+        } finally {
+            hit.decRef();
+        }
+    }
+
     public void testGetHitsCachesDeserializedHits() throws IOException {
         SearchHit first = createHit(1);
         SearchHit second = createHit(2);
@@ -150,6 +185,40 @@ public class FetchPhaseResponseChunkTests extends ESTestCase {
         }
     }
 
+    public void testGetHitPositionsReturnsScoreOrderPositions() throws IOException {
+        SearchHit hit0 = createHit(10);
+        SearchHit hit1 = createHit(20);
+        SearchHit hit2 = createHit(30);
+        try {
+            int[] positions = new int[] { 2, 0, 1 };
+            FetchPhaseResponseChunk chunk = new FetchPhaseResponseChunk(
+                TEST_SHARD_ID,
+                serializeHitsWithPositions(new SearchHit[] { hit0, hit1, hit2 }, positions),
+                3,
+                10,
+                0L
+            );
+            try {
+                SearchHit[] hits = chunk.getHits();
+                int[] readPositions = chunk.getHitPositions();
+                assertThat(hits.length, equalTo(3));
+                assertThat(readPositions.length, equalTo(3));
+                assertThat(readPositions[0], equalTo(2));
+                assertThat(readPositions[1], equalTo(0));
+                assertThat(readPositions[2], equalTo(1));
+                assertThat(getIdFromSource(hits[0]), equalTo(10));
+                assertThat(getIdFromSource(hits[1]), equalTo(20));
+                assertThat(getIdFromSource(hits[2]), equalTo(30));
+            } finally {
+                chunk.close();
+            }
+        } finally {
+            hit0.decRef();
+            hit1.decRef();
+            hit2.decRef();
+        }
+    }
+
     private SearchHit createHit(int id) {
         SearchHit hit = new SearchHit(id);
         hit.sourceRef(new BytesArray("{\"id\":" + id + "}"));
@@ -157,9 +226,14 @@ public class FetchPhaseResponseChunkTests extends ESTestCase {
     }
 
     private BytesReference serializeHits(SearchHit... hits) throws IOException {
+        return serializeHitsWithPositions(hits, null);
+    }
+
+    private BytesReference serializeHitsWithPositions(SearchHit[] hits, int[] positions) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            for (SearchHit hit : hits) {
-                hit.writeTo(out);
+            for (int i = 0; i < hits.length; i++) {
+                out.writeVInt(positions != null ? positions[i] : i);
+                hits[i].writeTo(out);
             }
             return out.bytes();
         }

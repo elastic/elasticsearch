@@ -1,5 +1,0 @@
-area: Ingest Node
-issues: []
-pr: 145126
-summary: "[INGEST] `GrokProcessor:` add `validate_only` option to skip field extraction"
-type: enhancement

@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 $endif$
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -24,7 +25,7 @@ import java.util.Arrays;
  * Vector implementation that stores a constant $type$ value.
  * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
-final class Constant$Type$Vector extends AbstractVector implements $Type$Vector {
+public final class Constant$Type$Vector extends AbstractVector implements $Type$Vector {
 
 $if(BytesRef)$
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBytesRefVector.class) + RamUsageEstimator
@@ -54,6 +55,12 @@ $endif$
     }
 
 $if(BytesRef)$
+    @Override
+    public PagedBytesCursor get(int position, PagedBytesCursor scratch) {
+        scratch.init(value.bytes, value.offset, value.length);
+        return scratch;
+    }
+
 $else$
     @Override
     public void copyTo(int srcPosition, $type$[] dst, int dstPosition, int length) {
@@ -74,8 +81,17 @@ $if(BytesRef)$
 $endif$
 
     @Override
-    public $Type$Vector filter(boolean mayContainDuplicates, int... positions) {
-        return blockFactory().newConstant$Type$Vector(value, positions.length);
+    public int valueMaxByteSize() {
+$if(BytesRef)$
+        return getPositionCount() == 0 ? 0 : value.length;
+$else$
+        return $BYTES$;
+$endif$
+    }
+
+    @Override
+    public $Type$Vector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return blockFactory().newConstant$Type$Vector(value, length);
     }
 
     @Override

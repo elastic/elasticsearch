@@ -12,13 +12,17 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.ESSloppyMath;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
 import java.io.IOException;
 import java.util.List;
@@ -26,12 +30,24 @@ import java.util.List;
 /**
  * Inverse hyperbolic tangent function.
  */
-public class Atanh extends AbstractTrigonometricFunction {
+public class Atanh extends AbstractTrigonometricFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Atanh", Atanh::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Atanh.class).unary(Atanh::new).name("atanh");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .unaryValueTransformation(Atanh::new)
+        .description("Calculates the inverse hyperbolic tangent of all elements in the input vector.")
+        .example("atanh(some_metric)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(
+            "For an input whose absolute value is 1 or greater, {{es}} returns `null` and emits a warning, rather than "
+                + "the `±Inf` or `NaN` that Prometheus returns."
+        )
+        .name("atanh");
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "double",
+        briefSummary = "Returns the inverse hyperbolic tangent of a number.",
         description = "Returns the {wikipedia}/Inverse_trigonometric_functions[inverse hyperbolic tangent] of a number.",
         examples = @Example(file = "floats", tag = "atanh")
     )

@@ -141,7 +141,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
 
             // delete #1
             orgReplica.advanceMaxSeqNoOfUpdatesOrDeletes(1); // manually advance msu for this delete
-            orgReplica.applyDeleteOperationOnReplica(1, primaryTerm, 2, "id");
+            orgReplica.applyDeleteOperationOnReplica(1, primaryTerm, 2, "id", null);
             orgReplica.flush(new FlushRequest().force(true)); // isolate delete#1 in its own translog generation and lucene segment
             // index #0
             orgReplica.applyIndexOperationOnReplica(
@@ -436,7 +436,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                             assertThat(col, hasSize(1));
                             return addDocument(col.iterator().next());
                         }
-                    }, null, null, config);
+                    }, config);
                 }
             }
         }) {
@@ -445,7 +445,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             allowShardFailures();
             IndexShard replica = group.addReplica();
             expectThrows(Exception.class, () -> group.recoverReplica(replica, (shard, sourceNode) -> {
-                return new RecoveryTarget(shard, sourceNode, 0L, null, null, new PeerRecoveryTargetService.RecoveryListener() {
+                return new RecoveryTarget(shard, sourceNode, 0L, null, null, new RecoveryListener() {
                     @Override
                     public void onRecoveryDone(
                         RecoveryState state,
@@ -458,6 +458,11 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                     @Override
                     public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
                         assertThat(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), equalTo("simulated"));
+                    }
+
+                    @Override
+                    public void onRecoveryAborted() {
+                        throw new AssertionError("recovery must fail");
                     }
                 });
             }));

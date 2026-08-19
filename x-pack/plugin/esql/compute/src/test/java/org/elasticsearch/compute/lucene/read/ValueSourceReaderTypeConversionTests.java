@@ -52,6 +52,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.TestDriverFactory;
@@ -251,7 +252,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             randomBoolean(),
             0,
             randomDoubleBetween(0.1, 10.0, true),
-            docSequenceThreshold
+            docSequenceThreshold,
+            () -> 0L
         );
     }
 
@@ -282,7 +284,10 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             1,// randomIntBetween(1, 10),
             pageSize,
             LuceneOperator.NO_LIMIT,
-            false // no scoring
+            false, // no scoring
+            () -> 0L,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            QueryWarnings.EMIT
         );
         return luceneFactory.get(context);
     }
@@ -502,7 +507,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 randomBoolean(),
                 0,
                 randomDoubleBetween(0.1, 10.0, true),
-                docSequenceBytesRefFieldThreshold()
+                docSequenceBytesRefFieldThreshold(),
+                () -> 0L
             ).get(driverContext)
         );
         List<Page> results = drive(operators, input.iterator(), driverContext);
@@ -580,7 +586,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 randomBoolean(),
                 0,
                 randomDoubleBetween(0.1, 10.0, true),
-                docSequenceBytesRefFieldThreshold()
+                docSequenceBytesRefFieldThreshold(),
+                () -> 0L
             ).get(driverContext)
         );
         List<FieldCase> tests = new ArrayList<>();
@@ -596,7 +603,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     randomBoolean(),
                     0,
                     randomDoubleBetween(0.1, 10.0, true),
-                    docSequenceBytesRefFieldThreshold()
+                    docSequenceBytesRefFieldThreshold(),
+                    () -> 0L
                 ).get(driverContext)
             );
         }
@@ -683,7 +691,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     randomBoolean(),
                     0,
                     randomDoubleBetween(0.1, 10.0, true),
-                    docSequenceBytesRefFieldThreshold()
+                    docSequenceBytesRefFieldThreshold(),
+                    () -> 0L
                 ).get(driverContext)
             )
             .toList();
@@ -863,7 +872,10 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             randomIntBetween(1, 10),
             randomPageSize(),
             LuceneOperator.NO_LIMIT,
-            false // no scoring
+            false, // no scoring
+            () -> 0L,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            QueryWarnings.EMIT
         );
         var vsShardContext = new ValuesSourceReaderOperator.ShardContext(
             reader(indexKey),
@@ -963,7 +975,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                         randomBoolean(),
                         0,
                         randomDoubleBetween(0.1, 10.0, true),
-                        docSequenceBytesRefFieldThreshold()
+                        docSequenceBytesRefFieldThreshold(),
+                        () -> 0L
                     ).get(driverContext)
                 ),
                 new PageConsumerOperator(page -> {
@@ -1000,7 +1013,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             randomBoolean(),
             0,
             randomDoubleBetween(0.1, 10.0, true),
-            docSequenceBytesRefFieldThreshold()
+            docSequenceBytesRefFieldThreshold(),
+            () -> 0L
         );
         assertThat(factory.describe(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
         try (Operator op = factory.get(driverContext())) {
@@ -1040,7 +1054,10 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 randomIntBetween(1, 10),
                 1000,
                 LuceneOperator.NO_LIMIT,
-                false // no scoring
+                false, // no scoring
+                () -> 0L,
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+                QueryWarnings.EMIT
             );
             // TODO add index2
             MappedFieldType ft = mapperService(indexKey).fieldType("key");
@@ -1054,7 +1071,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 randomBoolean(),
                 0,
                 randomDoubleBetween(0.1, 10.0, true),
-                docSequenceBytesRefFieldThreshold()
+                docSequenceBytesRefFieldThreshold(),
+                () -> 0L
             );
             DriverContext driverContext = driverContext();
             List<Page> results = drive(

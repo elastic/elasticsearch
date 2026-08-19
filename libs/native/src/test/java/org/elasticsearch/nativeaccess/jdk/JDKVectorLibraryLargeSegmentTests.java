@@ -12,10 +12,7 @@ package org.elasticsearch.nativeaccess.jdk;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.DataType;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.Function;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.Operation;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
@@ -25,6 +22,8 @@ import java.lang.foreign.ValueLayout;
 
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
+import static org.elasticsearch.nativeaccess.SimdVecLibraryTests.randomFloatArray;
+import static org.elasticsearch.nativeaccess.SimdVecLibraryTests.supported;
 
 /**
  * Tests that bulk-with-offsets scoring works correctly when the vectors
@@ -40,26 +39,16 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
 
     static {
         NodeNamePatternConverter.setGlobalNodeName("test");
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
     }
 
-    static boolean supported() {
-        var jdkVersion = Runtime.version().feature();
-        var arch = System.getProperty("os.arch");
-        var osName = System.getProperty("os.name");
-        return jdkVersion >= 21
-            && ((arch.equals("aarch64") && (osName.startsWith("Mac") || osName.equals("Linux")))
-                || (arch.equals("amd64") && osName.equals("Linux")));
-    }
-
-    static VectorSimilarityFunctions functions;
+    static SimdVecLibrary functions;
 
     @BeforeClass
     public static void setup() {
         assumeTrue("Native vector functions not supported on this platform", supported());
         functions = NativeAccess.instance().getVectorSimilarityFunctions().orElse(null);
-        assumeTrue("Vector similarity functions not available", functions != null);
+        assertNotNull("SimdVecLibrary was not able to load on a supported platform", functions);
     }
 
     private static MemorySegment tryAllocate(Arena arena, long size) {
@@ -70,7 +59,7 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
         }
     }
 
-    public void testInt8DotProductBulkWithOffsetsLargeSegment() throws Throwable {
+    public void testInt8DotProductBulkWithOffsetsLargeSegment() {
         final int dims = 128;
         final int numVecs = 2;
         long segmentSize = Integer.MAX_VALUE + (long) dims * numVecs;
@@ -89,8 +78,7 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
             var querySegment = vectorsSegment.asSlice(0, dims);
             var scoresSegment = arena.allocate(Float.BYTES);
 
-            functions.getHandle(Function.DOT_PRODUCT, DataType.INT8, Operation.BULK_OFFSETS)
-                .invokeExact(vectorsSegment, querySegment, dims, dims, offsetsSegment, 1, scoresSegment);
+            functions.dotProductI8BulkWithOffsets(vectorsSegment, querySegment, dims, dims, offsetsSegment, 1, scoresSegment);
 
             float actual = scoresSegment.get(JAVA_FLOAT_UNALIGNED, 0);
             float expected = ScalarOperations.dotProduct(vectors[0], vectors[1]);
@@ -98,7 +86,7 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
         }
     }
 
-    public void testInt8SquareDistanceBulkWithOffsetsLargeSegment() throws Throwable {
+    public void testInt8SquareDistanceBulkWithOffsetsLargeSegment() {
         final int dims = 128;
         final int numVecs = 2;
         long segmentSize = Integer.MAX_VALUE + (long) dims * numVecs;
@@ -117,8 +105,7 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
             var querySegment = vectorsSegment.asSlice(0, dims);
             var scoresSegment = arena.allocate(Float.BYTES);
 
-            functions.getHandle(Function.SQUARE_DISTANCE, DataType.INT8, Operation.BULK_OFFSETS)
-                .invokeExact(vectorsSegment, querySegment, dims, dims, offsetsSegment, 1, scoresSegment);
+            functions.squareDistanceI8BulkWithOffsets(vectorsSegment, querySegment, dims, dims, offsetsSegment, 1, scoresSegment);
 
             float actual = scoresSegment.get(JAVA_FLOAT_UNALIGNED, 0);
             float expected = ScalarOperations.squareDistance(vectors[0], vectors[1]);
@@ -126,7 +113,7 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
         }
     }
 
-    public void testInt8CosineBulkWithOffsetsLargeSegment() throws Throwable {
+    public void testInt8CosineBulkWithOffsetsLargeSegment() {
         final int dims = 128;
         final int numVecs = 2;
         long segmentSize = Integer.MAX_VALUE + (long) dims * numVecs;
@@ -145,8 +132,7 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
             var querySegment = vectorsSegment.asSlice(0, dims);
             var scoresSegment = arena.allocate(Float.BYTES);
 
-            functions.getHandle(Function.COSINE, DataType.INT8, Operation.BULK_OFFSETS)
-                .invokeExact(vectorsSegment, querySegment, dims, dims, offsetsSegment, 1, scoresSegment);
+            functions.cosineI8BulkWithOffsets(vectorsSegment, querySegment, dims, dims, offsetsSegment, 1, scoresSegment);
 
             float actual = scoresSegment.get(JAVA_FLOAT_UNALIGNED, 0);
             float expected = ScalarOperations.cosine(vectors[0], vectors[1]);
@@ -154,7 +140,7 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
         }
     }
 
-    public void testFloat32DotProductBulkWithOffsetsLargeSegment() throws Throwable {
+    public void testFloat32DotProductBulkWithOffsetsLargeSegment() {
         final int dims = 128;
         final int numVecs = 2;
         long segmentSize = Integer.MAX_VALUE + (long) dims * numVecs * Float.BYTES;
@@ -175,20 +161,11 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
             var querySegment = vectorsSegment.asSlice(0, (long) dims * Float.BYTES);
             var scoresSegment = arena.allocate(Float.BYTES);
 
-            functions.getHandle(Function.DOT_PRODUCT, DataType.FLOAT32, Operation.BULK_OFFSETS)
-                .invokeExact(vectorsSegment, querySegment, dims, pitch, offsetsSegment, 1, scoresSegment);
+            functions.dotProductF32BulkWithOffsets(vectorsSegment, querySegment, dims, pitch, offsetsSegment, 1, scoresSegment);
 
             float actual = scoresSegment.get(JAVA_FLOAT_UNALIGNED, 0);
             float expected = ScalarOperations.dotProduct(vectors[0], vectors[1]);
             assertEquals(expected, actual, 1e-5f * dims);
         }
-    }
-
-    static float[] randomFloatArray(int length) {
-        float[] fa = new float[length];
-        for (int i = 0; i < length; i++) {
-            fa[i] = randomFloat();
-        }
-        return fa;
     }
 }

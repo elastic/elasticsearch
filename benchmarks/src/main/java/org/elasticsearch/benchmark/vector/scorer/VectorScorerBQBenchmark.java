@@ -13,15 +13,14 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.MMapDirectory;
-import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.store.DirectoryType;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.simdvec.ES93BinaryQuantizedVectorScorer;
+import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.internal.vectorization.DefaultES93BinaryQuantizedVectorScorer;
-import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 import org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -38,6 +37,7 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Random;
@@ -64,11 +64,6 @@ public class VectorScorerBQBenchmark {
         Utils.configureBenchmarkLogging();
     }
 
-    public enum DirectoryType {
-        NIO,
-        MMAP
-    }
-
     public enum VectorImplementation {
         SCALAR,
         VECTORIZED
@@ -80,7 +75,9 @@ public class VectorScorerBQBenchmark {
     @Param
     public VectorImplementation implementation;
 
-    @Param
+    // Listed explicitly to avoid pulling STATELESS_INDEX_LOCAL: this directory type is expensive (it brings up a
+    // node environment and blob cache per instance). Run it explicitly with -p directoryType=STATELESS_INDEX_LOCAL.
+    @Param({ "NIO", "MMAP" })
     public DirectoryType directoryType;
 
     @Param
@@ -95,6 +92,7 @@ public class VectorScorerBQBenchmark {
 
     ES93BinaryQuantizedVectorScorer scorer;
 
+    Path path;
     Directory directory;
     IndexInput input;
 
@@ -146,10 +144,8 @@ public class VectorScorerBQBenchmark {
     void setup(VectorData data) throws IOException {
         int indexVectorLengthInBytes = BQVectorUtils.discretize(dims, 64) / 8;
 
-        directory = switch (directoryType) {
-            case MMAP -> new MMapDirectory(Files.createTempDirectory("vectorDataMmap"));
-            case NIO -> new NIOFSDirectory(Files.createTempDirectory("vectorDataNFIOS"));
-        };
+        path = Files.createTempDirectory("VectorScorerBQBenchmark");
+        directory = directoryType.newDirectory(path);
 
         try (IndexOutput out = directory.createOutput("vectors", IOContext.DEFAULT)) {
             for (var indexData : data.indexVectors) {
@@ -166,6 +162,7 @@ public class VectorScorerBQBenchmark {
         scorer = switch (implementation) {
             case SCALAR -> new DefaultES93BinaryQuantizedVectorScorer(input, dims, indexVectorLengthInBytes);
             case VECTORIZED -> ESVectorizationProvider.getInstance()
+                .getVectorScorerFactory()
                 .newES93BinaryQuantizedVectorScorer(input, dims, indexVectorLengthInBytes);
         };
         scratchScores = new float[NUM_VECTORS];
@@ -174,7 +171,9 @@ public class VectorScorerBQBenchmark {
 
     @TearDown
     public void teardown() throws IOException {
-        IOUtils.close(directory, input);
+        // the input has to go first: closing a stateless directory tears down the blob cache the input reads through
+        IOUtils.close(input, directory);
+        IOUtils.rm(path);
     }
 
     @Benchmark

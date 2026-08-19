@@ -132,6 +132,10 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
             containsString("no such remote cluster: [fake]"),
             () -> run(syncEsqlQueryRequest("FROM fake:index-1 METADATA _index"))
         );
+        try (var response = run(syncEsqlQueryRequest("FROM fake*:index-1 METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response); // empty
+        }
     }
 
     public void testResolutionWithFilter() {

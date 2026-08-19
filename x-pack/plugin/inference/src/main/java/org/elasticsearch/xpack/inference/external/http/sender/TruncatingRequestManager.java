@@ -7,16 +7,16 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 
 import java.util.Objects;
@@ -29,14 +29,14 @@ public class TruncatingRequestManager extends BaseRequestManager {
     private static final Logger logger = LogManager.getLogger(TruncatingRequestManager.class);
 
     private final ResponseHandler responseHandler;
-    private final Function<Truncator.TruncationResult, Request> requestCreator;
+    private final Function<Truncator.TruncationResult, OutboundRequest> requestCreator;
     private final Integer maxInputTokens;
 
     public TruncatingRequestManager(
         ThreadPool threadPool,
         RateLimitGroupingModel rateLimitGroupingModel,
         ResponseHandler responseHandler,
-        Function<Truncator.TruncationResult, Request> requestCreator,
+        Function<Truncator.TruncationResult, OutboundRequest> requestCreator,
         @Nullable Integer maxInputTokens
     ) {
         super(threadPool, rateLimitGroupingModel);

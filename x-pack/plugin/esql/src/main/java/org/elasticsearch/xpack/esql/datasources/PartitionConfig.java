@@ -11,24 +11,40 @@ import org.elasticsearch.core.Nullable;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Configuration for partition detection strategy, parsed from WITH clause parameters.
  * Controls which {@link PartitionDetector} is used and provides an optional path template
  * for template-based detection.
  */
-public record PartitionConfig(String strategy, @Nullable String pathTemplate) {
+public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) {
 
-    public static final String AUTO = "auto";
-    public static final String HIVE = "hive";
-    public static final String TEMPLATE = "template";
-    public static final String NONE = "none";
+    public enum Strategy {
+        AUTO,
+        HIVE,
+        TEMPLATE,
+        NONE;
+
+        /**
+         * Case-insensitive parse. Returns {@code null} for null/empty input.
+         */
+        public static Strategy parse(String value) {
+            if (value == null || value.isEmpty()) {
+                return null;
+            }
+            return Strategy.valueOf(value.toUpperCase(Locale.ROOT));
+        }
+    }
 
     public static final String CONFIG_PARTITIONING_DETECTION = "partition_detection";
     public static final String CONFIG_PARTITIONING_PATH = "partition_path";
     public static final String CONFIG_PARTITIONING_HIVE = "hive_partitioning";
 
-    public static final PartitionConfig DEFAULT = new PartitionConfig(AUTO, null);
+    /** Keys recognised by {@link #fromConfig}. */
+    public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_PARTITIONING_DETECTION, CONFIG_PARTITIONING_PATH, CONFIG_PARTITIONING_HIVE);
+
+    public static final PartitionConfig DEFAULT = new PartitionConfig(Strategy.AUTO, null);
 
     public PartitionConfig {
         if (strategy == null) {
@@ -42,13 +58,16 @@ public record PartitionConfig(String strategy, @Nullable String pathTemplate) {
         }
 
         Object detectionValue = config.get(CONFIG_PARTITIONING_DETECTION);
-        String strategy = detectionValue != null ? detectionValue.toString().toLowerCase(Locale.ROOT) : AUTO;
+        Strategy strategy = detectionValue != null ? Strategy.parse(detectionValue.toString()) : Strategy.AUTO;
+        if (strategy == null) {
+            strategy = Strategy.AUTO;
+        }
 
         Object templateValue = config.get(CONFIG_PARTITIONING_PATH);
         String template = templateValue != null ? templateValue.toString() : null;
 
-        if (template != null && AUTO.equals(strategy)) {
-            strategy = TEMPLATE;
+        if (template != null && Strategy.AUTO == strategy) {
+            strategy = Strategy.TEMPLATE;
         }
 
         return new PartitionConfig(strategy, template);

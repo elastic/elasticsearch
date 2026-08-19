@@ -55,7 +55,6 @@ public final class RestCloneApiKeyAction extends ApiKeyBaseRestHandler implement
         PARSER.declareString(CloneApiKeyRequest::setName, new ParseField("name"));
         PARSER.declareField(CloneApiKeyRequest::setExpiration, p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
-                p.nextToken();
                 return TimeValue.MINUS_ONE;
             }
             return TimeValue.parseTimeValue(p.text(), null, "expiration");

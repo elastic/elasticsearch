@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -229,7 +231,13 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
         }),
         new PushDownLimitTestCase<>(
             Join.class,
-            (plan, attr) -> new Join(EMPTY, plan, plan, new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), attr)),
+            (plan, attr) -> new Join(
+                Source.EMPTY,
+                plan,
+                plan,
+                new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), attr),
+                ExecuteLocation.ANY
+            ),
             (basePlan, optimizedPlan) -> {
                 assertEquals(basePlan.source(), optimizedPlan.source());
                 var limit = as(optimizedPlan.left(), Limit.class);
@@ -289,7 +297,7 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
                     (where emp_no < 10 | SORT emp_no)
              | LIMIT 10
             """;
-        var plan = planWithoutForkImplicitLimit(query);
+        var plan = plan(query);
         var limit = as(plan, Limit.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(10));
 
@@ -333,7 +341,7 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
                    (SORT b)
             | LIMIT 10
             """;
-        var plan = planWithoutForkImplicitLimit(query);
+        var plan = plan(query);
 
         var limit = as(plan, Limit.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(10));

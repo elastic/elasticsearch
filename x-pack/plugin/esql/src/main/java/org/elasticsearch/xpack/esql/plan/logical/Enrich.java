@@ -33,12 +33,10 @@ import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
@@ -278,12 +276,18 @@ public class Enrich extends UnaryPlan
      * retaining the originating cluster and restructuring pages for routing, which might be complicated.
      */
     private void checkForPlansForbiddenBeforeRemoteEnrich(Failures failures) {
-        Set<Source> fails = new HashSet<>();
-
         this.forEachDown(LogicalPlan.class, u -> {
             if (u instanceof ExecutesOn ex && ex.executesOn() == ExecuteLocation.COORDINATOR) {
+                // Name the actual limitation for federated sources (which always execute on the coordinator) rather than
+                // leaving it as a bare positional statement - the generic message otherwise reads like an ordering quirk.
+                String reason = u instanceof ExternalRelation
+                    ? "; federated data sources execute entirely on the coordinating node and are incompatible with remote ENRICH"
+                    : "";
                 failures.add(
-                    fail(this, "ENRICH with remote policy can't be executed after [" + u.source().text() + "]" + u.source().source())
+                    fail(
+                        this,
+                        "ENRICH with remote policy can't be executed after [" + u.source().text() + "]" + u.source().source() + reason
+                    )
                 );
             }
         });
@@ -294,7 +298,6 @@ public class Enrich extends UnaryPlan
         if (this.mode == Mode.REMOTE) {
             checkMvExpandAfterLimit(failures);
         }
-
     }
 
     /**

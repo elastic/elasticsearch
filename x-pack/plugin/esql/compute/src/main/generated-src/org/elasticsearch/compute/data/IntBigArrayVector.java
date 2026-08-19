@@ -118,6 +118,11 @@ public final class IntBigArrayVector extends AbstractVector implements IntVector
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Integer.BYTES;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.INT;
     }
@@ -133,13 +138,13 @@ public final class IntBigArrayVector extends AbstractVector implements IntVector
     }
 
     @Override
-    public IntVector filter(boolean mayContainDuplicates, int... positions) {
+    public IntVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         var blockFactory = blockFactory();
-        final IntArray filtered = blockFactory.bigArrays().newIntArray(positions.length);
-        for (int i = 0; i < positions.length; i++) {
-            filtered.set(i, values.get(positions[i]));
+        final IntArray filtered = blockFactory.bigArrays().newIntArray(length);
+        for (int i = 0; i < length; i++) {
+            filtered.set(i, values.get(positions[offset + i]));
         }
-        return new IntBigArrayVector(filtered, positions.length, blockFactory);
+        return new IntBigArrayVector(filtered, length, blockFactory);
     }
 
     @Override

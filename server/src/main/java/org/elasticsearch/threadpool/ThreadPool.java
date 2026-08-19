@@ -61,6 +61,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.index.shard.IndexingStatsSettings.RECENT_WRITE_LOAD_HALF_LIFE_SETTING;
 
 /**
  * Manages all the Java thread pools we create. {@link Names} contains a list of the thread pools, but plugins can dynamically add more
@@ -152,6 +153,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     public static final String THREAD_POOL_METRIC_NAME_QUEUE = ".threads.queue.size";
     public static final String THREAD_POOL_METRIC_NAME_ACTIVE = ".threads.active.current";
     public static final String THREAD_POOL_METRIC_NAME_UTILIZATION = ".threads.utilization.current";
+    public static final String THREAD_POOL_METRIC_NAME_UTILIZATION_EWMR = ".threads.utilization_ewmr.current";
     public static final String THREAD_POOL_METRIC_NAME_LARGEST = ".threads.largest.current";
     public static final String THREAD_POOL_METRIC_NAME_REJECTED = ".threads.rejected.total";
     public static final String THREAD_POOL_METRIC_NAME_QUEUE_TIME = ".queue.latency.histogram";
@@ -269,6 +271,15 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         DEFAULT_INDEX_AUTOSCALING_EWMA_ALPHA,
         0.0,
         1.0,
+        Setting.Property.NodeScope
+    );
+
+    // A setting to allow configuration of the half-life of the EWMR used to track utilization
+    // of the write thread pool. A zero value will disable it.
+    public static final Setting<TimeValue> WRITE_THREAD_POOL_UTILIZATION_EWMR_HALF_LIFE = Setting.timeSetting(
+        "thread_pool.write.utilization_ewmr.half_life",
+        RECENT_WRITE_LOAD_HALF_LIFE_SETTING,
+        TimeValue.ZERO,
         Setting.Property.NodeScope
     );
 

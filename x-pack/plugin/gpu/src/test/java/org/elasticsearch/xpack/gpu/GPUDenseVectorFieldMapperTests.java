@@ -16,8 +16,10 @@ import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -25,6 +27,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 
 public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests {
 
@@ -59,9 +62,22 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
     public void testKnnQuantizedHNSWVectorsFormat() throws IOException {
         // TOD improve the test with custom parameters
         KnnVectorsFormat knnVectorsFormat = getKnnVectorsFormat("int8_hnsw");
-        String expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
+        String expectedStr = "ES814HnswScalarQuantizedVectorsFormat(name=ES814HnswScalarQuantizedVectorsFormat, "
             + "maxConn=12, beamWidth=22, flatVectorFormat=ES814ScalarQuantizedVectorsFormat";
-        assertTrue(knnVectorsFormat.toString().startsWith(expectedStr));
+        assertThat(knnVectorsFormat.toString(), startsWith(expectedStr));
+    }
+
+    @Override
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        b.field("type", "dense_vector").field("dims", randomIntBetween(2, 4096)).field("element_type", "float");
+        if (randomBoolean()) {
+            // GPU int8_hnsw does not support max_inner_product
+            VectorSimilarity similarity = randomValueOtherThan(
+                VectorSimilarity.MAX_INNER_PRODUCT,
+                () -> randomFrom(VectorSimilarity.values())
+            );
+            b.field("index", true).field("similarity", similarity.toString());
+        }
     }
 
     private KnnVectorsFormat getKnnVectorsFormat(String indexOptionsType) throws IOException {

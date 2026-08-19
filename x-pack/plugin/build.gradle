@@ -42,12 +42,19 @@ artifacts {
 def restTestBlacklist = []
 // TODO: fix this rest test to not depend on a hardcoded port!
 restTestBlacklist.addAll(['getting_started/10_monitor_cluster_health/*'])
+// ES|QL YAML rest tests are run by :x-pack:plugin:esql:qa:server:single-node:yamlRestTest
+// via restResources.restTests.includeXpack 'esql'. Skip them here to avoid running the same
+// suite twice in CI.
+restTestBlacklist.add('esql/*')
+// ML YAML rest tests are run by :x-pack:plugin:ml:qa:single-node-tests:yamlRestTest
+// via restResources.restTests.includeXpack 'ml'. Skip them here to avoid running the
+// same suite twice in CI.
+restTestBlacklist.add('ml/*')
 if (buildParams.snapshotBuild == false) {
   // these tests attempt to install basic/internal licenses signed against the dev/public.key
   // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
   // private key, these tests are blacklisted in non-snapshot test runs
   restTestBlacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
-
   // TODO: Remove the following when the following features are released. These tests include new privileges only available under feature flags
   //  which require snapshot builds:
   // * Data Stream Lifecycle. manage_data_stream_lifecycle privilege is only available with dlm_feature_flag_enabled set
@@ -101,6 +108,7 @@ tasks.named("yamlRestCompatTestTransform").configure(
     )
     task.replaceValueTextByKeyValue("index", ".ml-anomalies-custom-all-test-1", ".ml-anomalies-custom-all-test-1-000001")
     task.replaceValueTextByKeyValue("index", ".ml-anomalies-custom-all-test-2", ".ml-anomalies-custom-all-test-2-000001")
+    task.skipTest("counted_keyword/20_no_index/Counted keyword with index false is not searchable", "counted_keyword with index:false now reports searchable:true via doc values")
     task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry)", "The telemetry output changed. We dropped a column. That's safe.")
     task.skipTest("inference/inference_crud/Test get all", "Assertions on number of inference models break due to default configs")
     task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry) snapshot version", "The number of functions is constantly increasing")
@@ -174,6 +182,7 @@ tasks.named("yamlRestCompatTestTransform").configure(
     task.skipTest("esql/192_lookup_join_on_aliases/alias-pattern-single", "New SORT warning not in original test")
     task.skipTest("ml/data_frame_analytics_crud/Test put config with remote source index", "Error message changed")
     task.skipTest("esql/40_tsdb/PromQL irate on counter field", "We filter out null values now")
+    task.skipTest("esql/40_tsdb/to_aggregate_metric_double with multi_values", "We convert correctly the unsigned long")
     // Expected deprecation warning to compat yaml tests:
     task.addAllowedWarningRegex("Parameter \\[default_metric\\] is deprecated and will be removed in a future version")
     task.skipTest("aggregate-metrics/10_basic/Sort", "Average is used now instead of the default metric")
@@ -196,6 +205,8 @@ tasks.named("yamlRestCompatTestTransform").configure(
       "aggregate-metrics/100_synthetic_source/aggregate_metric_double with ignore_malformed",
       "Malformed values are now stored in binary doc values which sort differently than stored fields"
     )
+    task.skipTest("esql/180_match_operator/match on eval column", "Match works now with non-mapped columns")
+    task.skipTest("esql/180_match_operator/match on overwritten column", "Match works now with non-mapped columns")
   }
 )
 

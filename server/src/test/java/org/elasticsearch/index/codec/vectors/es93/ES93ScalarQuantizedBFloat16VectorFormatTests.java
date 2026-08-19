@@ -24,7 +24,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.BFloat16;
-import org.elasticsearch.index.codec.vectors.BaseBFloat16KnnVectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.BaseQuantizedBFloat16KnnVectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
 
@@ -36,23 +36,19 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 
-public class ES93ScalarQuantizedBFloat16VectorFormatTests extends BaseBFloat16KnnVectorsFormatTestCase {
+public class ES93ScalarQuantizedBFloat16VectorFormatTests extends BaseQuantizedBFloat16KnnVectorsFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
     private KnnVectorsFormat format;
 
     @Override
-    public void setUp() throws Exception {
-        format = new ES93ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16);
-        super.setUp();
-    }
-
-    @Override
     protected Codec getCodec() {
+        if (format == null) {
+            format = new ES93ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16);
+        }
         return TestUtil.alwaysKnnVectorsFormat(format);
     }
 

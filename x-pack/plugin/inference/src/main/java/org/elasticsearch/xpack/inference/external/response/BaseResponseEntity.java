@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.external.response;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.io.IOException;
 
@@ -19,9 +19,9 @@ import java.io.IOException;
  * to be able to override the `fromReponse` method to avoid using a static reference to the method.
  */
 public abstract class BaseResponseEntity implements ResponseParser {
-    protected abstract InferenceServiceResults fromResponse(Request request, HttpResult response) throws IOException;
+    protected abstract InferenceServiceResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException;
 
-    public InferenceServiceResults apply(Request request, HttpResult response) throws IOException {
-        return fromResponse(request, response);
+    public InferenceServiceResults apply(OutboundRequest outboundRequest, HttpResult response) throws IOException {
+        return fromResponse(outboundRequest, response);
     }
 }

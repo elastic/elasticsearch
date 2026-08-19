@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.inference.services.elastic.request;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.CacheControl;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
@@ -62,6 +64,59 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestEntityTests exte
                 "stream_options": {
                     "include_usage": true
                 }
+            }
+            """;
+        assertJsonEquals(jsonString, expectedJson);
+    }
+
+    public void testSerializesCacheControlAndSessionId_Streaming() throws IOException {
+        Message message = new Message(new ContentString("Hello, world!"), ROLE, null, null);
+        var messageList = new ArrayList<Message>();
+        messageList.add(message);
+
+        var unifiedRequest = new UnifiedCompletionRequest(
+            messageList,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new CacheControl("ephemeral", TimeValue.ONE_HOUR),
+            "123"
+        );
+
+        UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
+        ElasticInferenceServiceUnifiedChatCompletionRequestEntity entity = new ElasticInferenceServiceUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            "model"
+        );
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        String jsonString = Strings.toString(builder);
+        String expectedJson = """
+            {
+                "messages": [
+                    {
+                        "content": "Hello, world!",
+                        "role": "user"
+                    }
+                ],
+                "model": "model",
+                "n": 1,
+                "stream": true,
+                "stream_options": {
+                    "include_usage": true
+                },
+                "cache_control": {
+                    "type": "ephemeral",
+                    "ttl": "1h"
+                },
+                "session_id": "123"
             }
             """;
         assertJsonEquals(jsonString, expectedJson);

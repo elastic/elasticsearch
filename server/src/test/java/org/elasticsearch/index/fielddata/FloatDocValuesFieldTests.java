@@ -122,7 +122,7 @@ public class FloatDocValuesFieldTests extends ESTestCase {
     }
 
     protected SortedNumericDoubleValues wrap(double[][] values) {
-        return new SortedNumericDoubleValues() {
+        return new SortedNumericDoubleValues(null) {
             double[] current;
             int i;
 

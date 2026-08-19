@@ -17,6 +17,18 @@ u3bu           | u3bu
 // end::to_geohash-result[]
 ;
 
+toGeohashFromKeywordField
+required_capability: spatial_grid_types
+
+FROM conv_from_keyword
+| EVAL geohash = TO_GEOHASH(geohash_str)
+| KEEP geohash_str, geohash
+;
+
+geohash_str:keyword | geohash:geohash
+u3bu                | u3bu
+;
+
 toGeohashToLong
 required_capability: spatial_grid_types
 
@@ -290,6 +302,53 @@ count:long | centroid:geo_point                            | geohashString:keywo
 2          | POINT (16.706149326637387 32.37822346854955)  | sm                    | POLYGON((11.25 28.125, 22.5 28.125, 22.5 33.75, 11.25 33.75, 11.25 28.125))
 ;
 
+gridGeohashInvalidBoundsLiteral
+required_capability: spatial_grid_types
+required_capability: spatial_bbox_validation_fix
+
+// An inverted BBOX (maxY < minY) is an invalid envelope. The literal fails to parse into a geo_shape,
+// so it folds to null (with a warning), and ST_GEOHASH returns null for every row rather than failing the query.
+FROM airports
+| EVAL geohash = ST_GEOHASH(location, 2, TO_GEOSHAPE("BBOX(0.0, 12.0, 30.0, 60.0)"))
+| STATS total = COUNT(*), nonNull = COUNT(geohash)
+;
+warningRegex:evaluation of \[TO_GEOSHAPE.*\] failed, treating result as null. Only first 20 failures recorded
+warningRegex:.*max y cannot be less than min y.*
+
+total:long | nonNull:long
+891        | 0
+;
+
+gridGeotileInvalidBoundsLiteral
+required_capability: spatial_grid_types
+required_capability: spatial_bbox_validation_fix
+
+FROM airports
+| EVAL geotile = ST_GEOTILE(location, 3, TO_GEOSHAPE("BBOX(0.0, 12.0, 30.0, 60.0)"))
+| STATS total = COUNT(*), nonNull = COUNT(geotile)
+;
+warningRegex:evaluation of \[TO_GEOSHAPE.*\] failed, treating result as null. Only first 20 failures recorded
+warningRegex:.*max y cannot be less than min y.*
+
+total:long | nonNull:long
+891        | 0
+;
+
+gridGeohexInvalidBoundsLiteral
+required_capability: spatial_grid_types
+required_capability: spatial_bbox_validation_fix
+
+FROM airports
+| EVAL geohex = ST_GEOHEX(location, 1, TO_GEOSHAPE("BBOX(0.0, 12.0, 30.0, 60.0)"))
+| STATS total = COUNT(*), nonNull = COUNT(geohex)
+;
+warningRegex:evaluation of \[TO_GEOSHAPE.*\] failed, treating result as null. Only first 20 failures recorded
+warningRegex:.*max y cannot be less than min y.*
+
+total:long | nonNull:long
+891        | 0
+;
+
 gridGeohashStatsByBoundsEnvelope
 required_capability: spatial_grid_types
 
@@ -483,6 +542,18 @@ ROW string = "4/8/5"
 string:keyword | geotile:geotile
 4/8/5          | 4/8/5
 // end::to_geotile-result[]
+;
+
+toGeotileFromKeywordField
+required_capability: spatial_grid_types
+
+FROM conv_from_keyword
+| EVAL geotile = TO_GEOTILE(geotile_str)
+| KEEP geotile_str, geotile
+;
+
+geotile_str:keyword | geotile:geotile
+4/8/5               | 4/8/5
 ;
 
 toGeotileToLong
@@ -899,6 +970,18 @@ ROW string = "841f059ffffffff"
 string:keyword  | geohex:geohex
 841f059ffffffff | 841f059ffffffff
 // end::to_geohex-result[]
+;
+
+toGeohexFromKeywordField
+required_capability: spatial_grid_types
+
+FROM conv_from_keyword
+| EVAL geohex = TO_GEOHEX(geohex_str)
+| KEEP geohex_str, geohex
+;
+
+geohex_str:keyword | geohex:geohex
+841f059ffffffff    | 841f059ffffffff
 ;
 
 toGeohexToLong

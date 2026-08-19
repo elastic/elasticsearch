@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `HYPOT` function [esql-hypot]
 
-:::{include} ../../_snippets/functions/layout/hypot.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/hypot.md
 :::

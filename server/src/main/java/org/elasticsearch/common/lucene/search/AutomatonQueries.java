@@ -12,29 +12,34 @@ package org.elasticsearch.common.lucene.search;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.WildcardQuery;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
+import org.elasticsearch.lucene.search.cost.RegexpNfaRamEstimator;
 import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Helper functions for creating various forms of {@link AutomatonQuery}
  */
 public class AutomatonQueries {
 
-    /** Build an automaton query accepting all terms with the specified prefix, ASCII case insensitive. */
+    /** Build an automaton query accepting all terms with the specified prefix, case insensitive. */
     public static Automaton caseInsensitivePrefix(String s) {
         List<Automaton> list = new ArrayList<>();
         Iterator<Integer> iter = s.codePoints().iterator();
         while (iter.hasNext()) {
-            list.add(toCaseInsensitiveChar(iter.next()));
+            list.add(Automata.makeCaseInsensitiveChar(iter.next()));
         }
         list.add(Automata.makeAnyString());
 
@@ -44,17 +49,17 @@ public class AutomatonQueries {
         return a;
     }
 
-    /** Build an automaton query accepting all terms with the specified prefix, ASCII case insensitive. */
+    /** Build an automaton query accepting all terms with the specified prefix, case insensitive. */
     public static AutomatonQuery caseInsensitivePrefixQuery(Term prefix) {
         return new CaseInsensitivePrefixQuery(prefix);
     }
 
-    /** Build an automaton accepting all terms ASCII case insensitive. */
+    /** Build an automaton accepting all terms case insensitive. */
     public static AutomatonQuery caseInsensitiveTermQuery(Term term) {
         return new CaseInsensitiveTermQuery(term);
     }
 
-    /** Build an automaton matching a wildcard pattern, ASCII case insensitive. */
+    /** Build an automaton matching a wildcard pattern, case insensitive. */
     public static AutomatonQuery caseInsensitiveWildcardQuery(Term wildcardquery) {
         return new CaseInsensitiveWildcardQuery(wildcardquery);
     }
@@ -86,7 +91,7 @@ public class AutomatonQueries {
             nfa,
             Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
             circuitBreaker,
-            "wildcard-ci:" + wildcardquery.field()
+            ChildMemoryCircuitBreaker.CATEGORY_WILDCARD + "[ci]:" + wildcardquery.field()
         );
     }
 
@@ -100,13 +105,16 @@ public class AutomatonQueries {
             nfa,
             Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
             circuitBreaker,
-            "wildcard:" + wildcardquery.field()
+            ChildMemoryCircuitBreaker.CATEGORY_WILDCARD + ":" + wildcardquery.field()
         );
     }
 
     /**
-     * Build a deterministic automaton from a regular expression, checking a circuit breaker
-     * during determinization to prevent OOM from huge automatons.
+     * Build a deterministic automaton from a regular expression, using the circuit breaker to avoid running
+     * out of memory on huge patterns. Two steps can use a lot of heap and are each guarded:
+     * - Building the NFA ({@link #buildRegexpNfa}), which can blow up while expanding bounded repetitions
+     * - Determinizing it into a DFA ({@link CircuitBreakingOperations#determinize}), which accounts for the DFA as it grows.
+     * If either step would exceed the breaker's budget the query is rejected with a {@code CircuitBreakingException}.
      */
     public static Automaton toRegexpAutomaton(
         Term term,
@@ -115,8 +123,67 @@ public class AutomatonQueries {
         int maxDeterminizedStates,
         CircuitBreaker circuitBreaker
     ) {
-        Automaton nfa = new RegExp(term.text(), syntaxFlags, matchFlags).toAutomaton();
+        Automaton nfa = buildRegexpNfa(term.text(), syntaxFlags, matchFlags, circuitBreaker, term.field());
         return CircuitBreakingOperations.determinize(nfa, maxDeterminizedStates, circuitBreaker, "regexp:" + term.field());
+    }
+
+    /**
+     * Build a {@link ByteRunAutomaton} from a regular expression for the doc-values / script paths. This is the
+     * same idea as {@link #toRegexpAutomaton(Term, int, int, int, CircuitBreaker)} but with one extra step, so
+     * when a breaker is supplied three steps are guarded: building the NFA, determinizing it, and converting the
+     * DFA into a {@code ByteRunAutomaton} (which expands it to UTF-8 and determinizes again).
+     */
+    public static ByteRunAutomaton toRegexpByteRunAutomaton(
+        String field,
+        String pattern,
+        int syntaxFlags,
+        int matchFlags,
+        int maxDeterminizedStates,
+        @Nullable CircuitBreaker circuitBreaker
+    ) {
+        Automaton nfa = buildRegexpNfa(pattern, syntaxFlags, matchFlags, circuitBreaker, field);
+        if (circuitBreaker == null) {
+            return new ByteRunAutomaton(Operations.determinize(nfa, maxDeterminizedStates));
+        }
+
+        Automaton dfa = CircuitBreakingOperations.determinize(
+            nfa,
+            maxDeterminizedStates,
+            circuitBreaker,
+            ChildMemoryCircuitBreaker.CATEGORY_REGEXP
+        );
+        long reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
+        circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+        try {
+            return new ByteRunAutomaton(dfa);
+        } finally {
+            circuitBreaker.addWithoutBreaking(-reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+        }
+    }
+
+    /**
+     * Parse {@code pattern} into an NFA via {@link RegExp#toAutomaton()}, reserving a slight over-estimate of
+     * the build's peak heap on {@code circuitBreaker} beforehand and releasing it once the NFA is built. When
+     * {@code circuitBreaker} is {@code null} the NFA is built without accounting.
+     */
+    private static Automaton buildRegexpNfa(
+        String pattern,
+        int syntaxFlags,
+        int matchFlags,
+        @Nullable CircuitBreaker circuitBreaker,
+        String field
+    ) {
+        RegExp re = new RegExp(pattern, syntaxFlags, matchFlags);
+        if (circuitBreaker == null) {
+            return re.toAutomaton();
+        }
+        final long reservation = RegexpNfaRamEstimator.estimateRamBytes(re);
+        circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+        try {
+            return re.toAutomaton();
+        } finally {
+            circuitBreaker.addWithoutBreaking(-reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+        }
     }
 
     /**
@@ -147,7 +214,7 @@ public class AutomatonQueries {
                         break;
                     } // else fallthru, lenient parsing with a trailing \
                 default:
-                    automata.add(toCaseInsensitiveChar(c));
+                    automata.add(Automata.makeCaseInsensitiveChar(c));
             }
             i += length;
         }
@@ -159,6 +226,7 @@ public class AutomatonQueries {
      * Build the NFA for a case-sensitive wildcard pattern without determinizing.
      * This mirrors {@link WildcardQuery#toAutomaton(Term, int)} but stops before the determinize step.
      */
+    @SuppressWarnings("fallthrough")
     public static Automaton toWildcardNFA(Term wildcardquery) {
         List<Automaton> automata = new ArrayList<>();
 
@@ -191,38 +259,81 @@ public class AutomatonQueries {
         return Operations.concatenate(automata);
     }
 
-    protected static Automaton toCaseInsensitiveString(BytesRef br) {
-        return toCaseInsensitiveString(br.utf8ToString());
+    /**
+     * Collapses consecutive repetition operators ({@code +}, {@code *}, {@code ?}) in a Lucene regex
+     * pattern down to a single, language-equivalent operator. Stacking quantifiers is always
+     * semantically redundant (e.g. {@code x+++} = {@code x+}, {@code x+?} = {@code x*}) and causes
+     * exponential NFA state growth in {@link org.apache.lucene.util.automaton.RegExp#toAutomaton()},
+     * leading to OOM.
+     * <p>
+     * The scan respects escape sequences ({@code \+}), character classes ({@code [+*?]}), and
+     * Lucene quoted strings ({@code "+++"}) where these characters are literals.
+     *
+     * @param pattern the raw regex pattern string
+     * @return the pattern with redundant consecutive quantifiers collapsed
+     * @throws NullPointerException if {@code pattern} is {@code null}
+     */
+    public static String collapseConsecutiveQuantifiers(String pattern) {
+        Objects.requireNonNull(pattern, "pattern must not be null");
+        final int length = pattern.length();
+        StringBuilder sb = new StringBuilder(length);
+        boolean inCharClass = false;
+        boolean inQuotedString = false;
+        boolean prevWasQuantifier = false;
+        for (int i = 0; i < length; i++) {
+            char c = pattern.charAt(i);
+            if (c == '\\' && i + 1 < length) {
+                sb.append(c);
+                sb.append(pattern.charAt(i + 1));
+                i++;
+                prevWasQuantifier = false;
+            } else if (inQuotedString) {
+                sb.append(c);
+                if (c == '"') {
+                    inQuotedString = false;
+                }
+                prevWasQuantifier = false;
+            } else if (inCharClass) {
+                sb.append(c);
+                if (c == ']') {
+                    inCharClass = false;
+                }
+                prevWasQuantifier = false;
+            } else if (c == '"') {
+                sb.append(c);
+                inQuotedString = true;
+                prevWasQuantifier = false;
+            } else if (c == '[') {
+                sb.append(c);
+                inCharClass = true;
+                prevWasQuantifier = false;
+            } else if (c == '+' || c == '*' || c == '?') {
+                if (prevWasQuantifier == false) {
+                    sb.append(c);
+                    prevWasQuantifier = true;
+                } else {
+                    int previousQuantifierIndex = sb.length() - 1;
+                    sb.setCharAt(previousQuantifierIndex, collapseConsecutiveQuantifierPair(sb.charAt(previousQuantifierIndex), c));
+                }
+            } else {
+                sb.append(c);
+                prevWasQuantifier = false;
+            }
+        }
+        return sb.toString();
     }
 
-    public static Automaton toCaseInsensitiveString(String s) {
-        List<Automaton> list = new ArrayList<>();
-        Iterator<Integer> iter = s.codePoints().iterator();
-        while (iter.hasNext()) {
-            list.add(toCaseInsensitiveChar(iter.next()));
+    private static char collapseConsecutiveQuantifierPair(char existing, char incoming) {
+        assert isRepetitionOperator(existing) && isRepetitionOperator(incoming)
+            : "expected repetition operators but got [" + existing + "] and [" + incoming + "]";
+        if (existing == incoming) {
+            return existing;
         }
-
-        Automaton a = Operations.concatenate(list);
-        // concatenating deterministic automata should result in a deterministic automaton. No need to determinize here.
-        assert a.isDeterministic();
-        return a;
+        return '*';
     }
 
-    public static Automaton toCaseInsensitiveChar(int codepoint) {
-        Automaton case1 = Automata.makeChar(codepoint);
-        // For now we only work with ASCII characters
-        if (codepoint > 128) {
-            return case1;
-        }
-        int altCase = Character.isLowerCase(codepoint) ? Character.toUpperCase(codepoint) : Character.toLowerCase(codepoint);
-        Automaton result;
-        if (altCase != codepoint) {
-            result = Operations.union(case1, Automata.makeChar(altCase));
-            // this automaton should always be deterministic, no need to determinize
-            assert result.isDeterministic();
-        } else {
-            result = case1;
-        }
-        return result;
+    private static boolean isRepetitionOperator(char c) {
+        return c == '+' || c == '*' || c == '?';
     }
+
 }

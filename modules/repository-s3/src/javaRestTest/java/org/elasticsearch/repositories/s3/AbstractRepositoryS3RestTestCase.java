@@ -46,32 +46,30 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
         }
 
         private Request getRegisterRequest(UnaryOperator<Settings> settingsUnaryOperator) throws IOException {
-            return newXContentRequest(
+            final var settings = settingsUnaryOperator.apply(
+                Settings.builder()
+                    .put("bucket", bucketName())
+                    .put("base_path", basePath())
+                    .put("client", clientName())
+                    .put("canned_acl", "private")
+                    .put("storage_class", "standard")
+                    .put(randomFrom(Settings.EMPTY, Settings.builder().put("disable_chunked_encoding", randomBoolean()).build()))
+                    .put(randomFrom(Settings.EMPTY, Settings.builder().put("always_sign_requests", randomBoolean()).build()))
+                    .put(randomFrom(Settings.EMPTY, Settings.builder().put("add_purpose_custom_query_parameter", randomBoolean()).build()))
+                    .put(extraRepositorySettings)
+                    .build()
+            );
+            final var request = newXContentRequest(
                 HttpMethod.PUT,
                 "/_snapshot/" + repositoryName(),
-                (b, p) -> b.field("type", S3Repository.TYPE)
-                    .startObject("settings")
-                    .value(
-                        settingsUnaryOperator.apply(
-                            Settings.builder()
-                                .put("bucket", bucketName())
-                                .put("base_path", basePath())
-                                .put("client", clientName())
-                                .put("canned_acl", "private")
-                                .put("storage_class", "standard")
-                                .put("disable_chunked_encoding", randomBoolean())
-                                .put(
-                                    randomFrom(
-                                        Settings.EMPTY,
-                                        Settings.builder().put("add_purpose_custom_query_parameter", randomBoolean()).build()
-                                    )
-                                )
-                                .put(extraRepositorySettings)
-                                .build()
-                        )
-                    )
-                    .endObject()
+                (b, p) -> b.field("type", S3Repository.TYPE).startObject("settings").value(settings).endObject()
             );
+            if (S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.exists(settings)) {
+                request.setOptions(expectWarnings("""
+                    [unsafely_incompatible_with_s3_conditional_writes] setting was deprecated in Elasticsearch and will be removed \
+                    in a future release. See the breaking changes documentation for the next major version."""));
+            }
+            return request;
         }
     }
 

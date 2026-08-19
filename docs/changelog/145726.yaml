@@ -1,5 +1,0 @@
-area: Search
-issues: []
-pr: 145726
-summary: Fix bug parsing "request" parameter in clear cache API, it should clear the request cache only
-type: bug

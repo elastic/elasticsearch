@@ -10,7 +10,10 @@ package org.elasticsearch.compute.operator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.hamcrest.Matcher;
@@ -22,11 +25,15 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Tests the {@code BYTES_REF} member of the {@link DistinctByOperator} family
+ * driven through {@link DistinctByOperator.BytesRefKeyFactory}.
+ */
 public class DistinctByOperatorTests extends OperatorTestCase {
 
     @Override
-    protected DistinctByOperator.Factory simple(SimpleOptions options) {
-        return new DistinctByOperator.Factory(0);
+    protected DistinctByOperator.BytesRefKeyFactory simple(SimpleOptions options) {
+        return new DistinctByOperator.BytesRefKeyFactory(0);
     }
 
     @Override
@@ -68,14 +75,22 @@ public class DistinctByOperatorTests extends OperatorTestCase {
         };
     }
 
+    private DistinctByOperator bytesRef(int keyChannel) {
+        return (DistinctByOperator) new DistinctByOperator.BytesRefKeyFactory(keyChannel).get(driverContext());
+    }
+
+    private DistinctByOperator bytesRef(int keyChannel, boolean failOnDuplicate) {
+        return (DistinctByOperator) new DistinctByOperator.BytesRefKeyFactory(keyChannel, failOnDuplicate).get(driverContext());
+    }
+
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo("DistinctByOperator[keyChannel=0]");
+        return equalTo("DistinctByOperator[keyChannel=0, failOnDuplicate=false, factory=BytesRefKeyFactory]");
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return org.hamcrest.Matchers.startsWith("DistinctByOperator[keyChannel=0, seenKeys=");
+        return org.hamcrest.Matchers.startsWith("DistinctByOperator[keyChannel=0, processor=BytesRefProcessor[seenKeys=");
     }
 
     @Override
@@ -107,7 +122,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
 
     public void testAllUniqueValues() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
+        try (DistinctByOperator op = bytesRef(0)) {
             try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(3)) {
                 builder.appendBytesRef(new BytesRef("a"));
                 builder.appendBytesRef(new BytesRef("b"));
@@ -115,6 +130,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
                 Page input = new Page(builder.build());
                 op.addInput(input);
                 Page output = op.getOutput();
+                assertSame(input, output);
                 assertThat(Objects.requireNonNull(output).getPositionCount(), equalTo(3));
                 output.releaseBlocks();
             }
@@ -123,7 +139,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
 
     public void testAllSameValues() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
+        try (DistinctByOperator op = bytesRef(0)) {
             try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(3)) {
                 builder.appendBytesRef(new BytesRef("same"));
                 builder.appendBytesRef(new BytesRef("same"));
@@ -139,7 +155,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
 
     public void testNullsAreSkipped() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
+        try (DistinctByOperator op = bytesRef(0)) {
             try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(4)) {
                 builder.appendBytesRef(new BytesRef("a"));
                 builder.appendNull();
@@ -156,7 +172,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
 
     public void testDeduplicationAcrossPages() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
+        try (DistinctByOperator op = bytesRef(0)) {
             // First page: a, b, c
             try (BytesRefBlock.Builder builder1 = blockFactory.newBytesRefBlockBuilder(3)) {
                 builder1.appendBytesRef(new BytesRef("a"));
@@ -188,7 +204,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
 
     public void testAllDuplicatesReturnsNull() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
+        try (DistinctByOperator op = bytesRef(0)) {
             // First page introduces "a"
             try (BytesRefBlock.Builder builder1 = blockFactory.newBytesRefBlockBuilder(1)) {
                 builder1.appendBytesRef(new BytesRef("a"));
@@ -214,7 +230,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
 
     public void testPreservesOtherColumns() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
+        try (DistinctByOperator op = bytesRef(0)) {
             // Page with key column (0) and value column (1)
             try (
                 BytesRefBlock.Builder keyBuilder = blockFactory.newBytesRefBlockBuilder(4);
@@ -252,7 +268,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
 
     public void testEmptyPage() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
+        try (DistinctByOperator op = bytesRef(0)) {
             try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(0)) {
                 Page input = new Page(builder.build());
                 op.addInput(input);
@@ -264,21 +280,171 @@ public class DistinctByOperatorTests extends OperatorTestCase {
         }
     }
 
-    public void testFactoryDescribe() {
-        DistinctByOperator.Factory factory = new DistinctByOperator.Factory(5);
-        assertThat(factory.describe(), equalTo("DistinctByOperator[keyChannel=5]"));
+    public void testDuplicateThrowsWhenFailOnDuplicate() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (DistinctByOperator op = bytesRef(0, true)) {
+            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(3)) {
+                builder.appendBytesRef(new BytesRef("a"));
+                builder.appendBytesRef(new BytesRef("b"));
+                builder.appendBytesRef(new BytesRef("a")); // duplicate
+                op.addInput(new Page(builder.build()));
+                expectThrows(IllegalArgumentException.class, op::getOutput);
+            }
+        }
+    }
+
+    public void testGuardPassesUniqueValuesAndNulls() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (DistinctByOperator op = bytesRef(0, true)) {
+            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(4)) {
+                builder.appendBytesRef(new BytesRef("a"));
+                builder.appendNull();
+                builder.appendBytesRef(new BytesRef("b"));
+                builder.appendNull();
+                op.addInput(new Page(builder.build()));
+                Page output = op.getOutput();
+                assertThat(Objects.requireNonNull(output).getPositionCount(), equalTo(4));
+                output.releaseBlocks();
+            }
+        }
+    }
+
+    public void testConstantVectorThrowsWhenFailOnDuplicate() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (DistinctByOperator op = bytesRef(0, true)) {
+            BytesRefBlock constantBlock = blockFactory.newConstantBytesRefBlockWith(new BytesRef("constant_key"), 2);
+            op.addInput(new Page(constantBlock));
+            expectThrows(IllegalArgumentException.class, op::getOutput);
+        }
+    }
+
+    public void testGuardThrowsOnDuplicateMultivaluedOrdinalBlock() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (
+            DistinctByOperator op = bytesRef(0, true);
+            IntBlock.Builder ords = blockFactory.newIntBlockBuilder(2);
+            BytesRefVector.Builder dictionary = blockFactory.newBytesRefVectorBuilder(2)
+        ) {
+            ords.beginPositionEntry();
+            ords.appendInt(0);
+            ords.appendInt(1);
+            ords.endPositionEntry();
+            ords.appendInt(1);
+            dictionary.appendBytesRef(new BytesRef("a"));
+            dictionary.appendBytesRef(new BytesRef("b"));
+            op.addInput(new Page(new OrdinalBytesRefBlock(ords.build(), dictionary.build())));
+            expectThrows(IllegalArgumentException.class, op::getOutput);
+        }
+    }
+
+    public void testGuardThrowsOnDuplicateMultivaluedBlock() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (DistinctByOperator op = bytesRef(0, true); BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(2)) {
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef("a"));
+            builder.appendBytesRef(new BytesRef("b"));
+            builder.endPositionEntry();
+            builder.appendBytesRef(new BytesRef("b"));
+            op.addInput(new Page(builder.build()));
+            expectThrows(IllegalArgumentException.class, op::getOutput);
+        }
+    }
+
+    public void testDedupMultivaluedOrdinalBlockUsesFirstValue() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (
+            DistinctByOperator op = bytesRef(0);
+            IntBlock.Builder ords = blockFactory.newIntBlockBuilder(2);
+            BytesRefVector.Builder dictionary = blockFactory.newBytesRefVectorBuilder(2)
+        ) {
+            ords.beginPositionEntry();
+            ords.appendInt(0);
+            ords.appendInt(1);
+            ords.endPositionEntry();
+            ords.appendInt(1);
+            dictionary.appendBytesRef(new BytesRef("a"));
+            dictionary.appendBytesRef(new BytesRef("b"));
+            op.addInput(new Page(new OrdinalBytesRefBlock(ords.build(), dictionary.build())));
+            Page output = op.getOutput();
+            assertThat(Objects.requireNonNull(output).getPositionCount(), equalTo(2));
+            output.releaseBlocks();
+        }
+    }
+
+    public void testDedupMultivaluedBlockUsesFirstValue() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (DistinctByOperator op = bytesRef(0); BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(2)) {
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef("a"));
+            builder.appendBytesRef(new BytesRef("b"));
+            builder.endPositionEntry();
+            builder.appendBytesRef(new BytesRef("b"));
+            op.addInput(new Page(builder.build()));
+            Page output = op.getOutput();
+            assertThat(Objects.requireNonNull(output).getPositionCount(), equalTo(2));
+            output.releaseBlocks();
+        }
+    }
+
+    public void testDedupOrdinalVectorDoesNotHashUnreferencedDictionaryEntries() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (DistinctByOperator op = bytesRef(0)) {
+            try (
+                IntBlock.Builder firstPageOrds = blockFactory.newIntBlockBuilder(1);
+                BytesRefVector.Builder firstPageDictionary = blockFactory.newBytesRefVectorBuilder(2)
+            ) {
+                firstPageOrds.appendInt(0);
+                firstPageDictionary.appendBytesRef(new BytesRef("a"));
+                firstPageDictionary.appendBytesRef(new BytesRef("b"));
+                op.addInput(new Page(new OrdinalBytesRefBlock(firstPageOrds.build(), firstPageDictionary.build())));
+                Page output = op.getOutput();
+                assertThat(Objects.requireNonNull(output).getPositionCount(), equalTo(1));
+                output.releaseBlocks();
+            }
+
+            try (
+                IntBlock.Builder secondPageOrds = blockFactory.newIntBlockBuilder(1);
+                BytesRefVector.Builder secondPageDictionary = blockFactory.newBytesRefVectorBuilder(1)
+            ) {
+                secondPageOrds.appendInt(0);
+                secondPageDictionary.appendBytesRef(new BytesRef("b"));
+                op.addInput(new Page(new OrdinalBytesRefBlock(secondPageOrds.build(), secondPageDictionary.build())));
+                Page output = op.getOutput();
+                assertThat(Objects.requireNonNull(output).getPositionCount(), equalTo(1));
+                output.releaseBlocks();
+            }
+        }
+    }
+
+    public void testOrdinalGenerationWrap() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (DistinctByOperator op = bytesRef(0)) {
+            for (int i = 0; i < 300; i++) {
+                try (
+                    IntBlock.Builder ordinals = blockFactory.newIntBlockBuilder(1);
+                    BytesRefVector.Builder dictionary = blockFactory.newBytesRefVectorBuilder(1)
+                ) {
+                    ordinals.appendInt(0);
+                    dictionary.appendBytesRef(new BytesRef(Integer.toString(i)));
+                    op.addInput(new Page(new OrdinalBytesRefBlock(ordinals.build(), dictionary.build())));
+                    Page output = op.getOutput();
+                    assertThat(Objects.requireNonNull(output).getPositionCount(), equalTo(1));
+                    output.releaseBlocks();
+                }
+            }
+        }
     }
 
     public void testToString() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(3, blockFactory)) {
-            assertThat(op.toString(), equalTo("DistinctByOperator[keyChannel=3, seenKeys=0]"));
+        try (DistinctByOperator op = bytesRef(3)) {
+            assertThat(op.toString(), equalTo("DistinctByOperator[keyChannel=3, processor=BytesRefProcessor[seenKeys=0]]"));
         }
     }
 
     public void testToStringAfterProcessing() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
+        try (DistinctByOperator op = bytesRef(0)) {
             try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(3)) {
                 builder.appendBytesRef(new BytesRef("a"));
                 builder.appendBytesRef(new BytesRef("b"));
@@ -288,13 +454,13 @@ public class DistinctByOperatorTests extends OperatorTestCase {
                 Page output = op.getOutput();
                 Objects.requireNonNull(output).releaseBlocks();
             }
-            assertThat(op.toString(), equalTo("DistinctByOperator[keyChannel=0, seenKeys=2]"));
+            assertThat(op.toString(), equalTo("DistinctByOperator[keyChannel=0, processor=BytesRefProcessor[seenKeys=2]]"));
         }
     }
 
     public void testConstantVectorNewKey() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
+        try (DistinctByOperator op = bytesRef(0)) {
             // A constant block with 100 positions all having the same value
             BytesRefBlock constantBlock = blockFactory.newConstantBytesRefBlockWith(new BytesRef("constant_key"), 100);
             assertTrue("Block should be constant", constantBlock.asVector() != null && constantBlock.asVector().isConstant());
@@ -315,7 +481,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
 
     public void testConstantVectorSeenKey() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
+        try (DistinctByOperator op = bytesRef(0)) {
             try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(1)) {
                 builder.appendBytesRef(new BytesRef("seen_key"));
                 Page input1 = new Page(builder.build());
@@ -338,7 +504,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
 
     public void testConstantVectorWithOtherColumns() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
+        try (DistinctByOperator op = bytesRef(0)) {
             BytesRefBlock constantKey = blockFactory.newConstantBytesRefBlockWith(new BytesRef("key"), 5);
             try (LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(5)) {
                 for (int i = 0; i < 5; i++) {
@@ -360,7 +526,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
 
     public void testConstantVectorAcrossPages() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
+        try (DistinctByOperator op = bytesRef(0)) {
             // First constant page with "a"
             BytesRefBlock constantA = blockFactory.newConstantBytesRefBlockWith(new BytesRef("a"), 10);
             op.addInput(new Page(constantA));
@@ -382,7 +548,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
             assertNull(output3);
 
             // Verify we have 2 seen keys
-            assertThat(op.toString(), equalTo("DistinctByOperator[keyChannel=0, seenKeys=2]"));
+            assertThat(op.toString(), equalTo("DistinctByOperator[keyChannel=0, processor=BytesRefProcessor[seenKeys=2]]"));
         }
     }
 }

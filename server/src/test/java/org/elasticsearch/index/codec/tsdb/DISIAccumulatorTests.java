@@ -14,13 +14,14 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Random;
@@ -28,7 +29,7 @@ import java.util.Random;
 // Copied from org.apache.lucene.codecs.lucene90.TestIndexedDISI and kept tests that we can run.
 // The test suite has been modified to write jump table using writeJumpTable(...) in this class.
 // (some original tests require access to package protected constructor of IndexedDISI and was removed)
-public class DISIAccumulatorTests extends LuceneTestCase {
+public class DISIAccumulatorTests extends ESTestCase {
 
     public void testEmpty() throws IOException {
         int maxDoc = TestUtil.nextInt(random(), 1, 100000);
@@ -208,7 +209,7 @@ public class DISIAccumulatorTests extends LuceneTestCase {
     public void testAllDocs() throws IOException {
         int maxDoc = TestUtil.nextInt(random(), 1, 100000);
         FixedBitSet set = new FixedBitSet(maxDoc);
-        set.set(1, maxDoc);
+        set.set(0, maxDoc);
         try (Directory dir = newDirectory()) {
             doTest(set, dir);
         }
@@ -255,9 +256,7 @@ public class DISIAccumulatorTests extends LuceneTestCase {
             try (IndexInput in = dir.openInput("sparse", IOContext.DEFAULT)) {
                 IndexedDISI disi = new IndexedDISI(in, 0L, length, jumpTableEntryCount, denseRankPower, DISIAccumulator.MAX_ARRAY_LENGTH);
                 assertEquals(start, disi.nextDoc());
-                if (System.getSecurityManager() == null) {
-                    assertEquals("SPARSE", getMethodFromDISI(disi));
-                }
+                assertEquals("SPARSE", getMethodFromDISI(disi));
             }
             doTest(set, dir);
 
@@ -277,9 +276,7 @@ public class DISIAccumulatorTests extends LuceneTestCase {
                     DISIAccumulator.MAX_ARRAY_LENGTH + 1
                 );
                 assertEquals(start, disi.nextDoc());
-                if (System.getSecurityManager() == null) {
-                    assertEquals("DENSE", getMethodFromDISI(disi));
-                }
+                assertEquals("DENSE", getMethodFromDISI(disi));
             }
             doTest(set, dir);
         }
@@ -402,7 +399,18 @@ public class DISIAccumulatorTests extends LuceneTestCase {
     private void doTestRandom(Directory dir) throws IOException {
         Random random = random();
         final int maxStep = TestUtil.nextInt(random, 1, 1 << TestUtil.nextInt(random, 2, 20));
-        final int numDocs = TestUtil.nextInt(random, 1, Math.min(100000, (Integer.MAX_VALUE - 1) / maxStep));
+        // SparseFixedBitSet.blockCount() has an assertion that overflows for lengths >= 2_147_479_553
+        // in Lucene 10.5 (fixed in https://github.com/apache/lucene/pull/14922, not backported to 10.5.1).
+        // Cap numDocs so that numDocs * maxStep + 99 (the max possible maxDoc) stays below that threshold.
+        // TODO: remove this cap after upgrading Lucene past 10.5.1 (expected in 10.6).
+        assert Version.LUCENE_10_5_1.onOrAfter(Version.LATEST)
+            : "Lucene has been upgraded past 10.5.1; remove the SparseFixedBitSet range cap in doTestRandom";
+        final int sparseFixedBitSetSafeCap = (int) (2_147_479_453L / maxStep);
+        final int numDocs = TestUtil.nextInt(
+            random,
+            1,
+            Math.min(Math.min(100000, (Integer.MAX_VALUE - 1) / maxStep), sparseFixedBitSetSafeCap)
+        );
         BitSet docs = new SparseFixedBitSet(numDocs * maxStep + 1);
         int lastDoc = -1;
         for (int doc = -1, i = 0; i < numDocs; ++i) {

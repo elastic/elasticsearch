@@ -12,10 +12,6 @@ package org.elasticsearch.gradle.internal.doc;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
-import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
-import org.elasticsearch.gradle.testclusters.TestDistribution;
-import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.Directory;
@@ -41,18 +37,9 @@ public class DocsTestPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getPluginManager().apply("elasticsearch.legacy-yaml-rest-test");
+        project.getPluginManager().apply("elasticsearch.internal-yaml-rest-test");
 
         String distribution = System.getProperty("tests.distribution", "default");
-        // The distribution can be configured with -Dtests.distribution on the command line
-        NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
-            .getExtensions()
-            .getByName(TestClustersPlugin.EXTENSION_NAME);
-
-        testClusters.matching((c) -> c.getName().equals("yamlRestTest")).configureEach(c -> {
-            c.setTestDistribution(TestDistribution.valueOf(distribution.toUpperCase()));
-            c.setNameCustomization((name) -> name.replace("yamlRestTest", "node"));
-        });
 
         project.getTasks().named("assemble").configure(task -> { task.setEnabled(false); });
 

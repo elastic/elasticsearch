@@ -1,0 +1,11 @@
+LimitExec[1000[INTEGER],null]
+\_AggregateExec[[],[COUNT(sv{f}#0,true[BOOLEAN],PT0S[TIME_DURATION]) AS COUNT(sv)#1, PERCENTILE(sv{f}#0,true[BOOLEAN],PT0S[TIME_DURATION],50[INTEGER]) AS MEDIAN(sv)#2],FINAL,[$$COUNT(sv)$count{r}#3, $$COUNT(sv)$seen{r}#4, $$MEDIAN(sv)$quart{r}#5],null]
+  \_ExchangeExec[[$$COUNT(sv)$count{r}#3, $$COUNT(sv)$seen{r}#4, $$MEDIAN(sv)$quart{r}#5],true]
+    \_AggregateExec[[],[COUNT(sv{f}#0,true[BOOLEAN],PT0S[TIME_DURATION]) AS COUNT(sv)#1, PERCENTILE(sv{f}#0,true[BOOLEAN],PT0S[TIME_DURATION],50[INTEGER]) AS MEDIAN(sv)#2],INITIAL,[$$COUNT(sv)$count{r}#6, $$COUNT(sv)$seen{r}#7, $$MEDIAN(sv)$quart{r}#8],16]
+      \_FieldExtractExec[sv{f}#0]<[],[],[]>
+        \_EsQueryExec[many_numbers], indexMode[standard], [_doc{f}#9], limit[], sort[] estimatedRowSize[8] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "exists" : {
+    "field" : "sv",
+    "boost" : 0.0
+  }
+}, tags=[]]]]

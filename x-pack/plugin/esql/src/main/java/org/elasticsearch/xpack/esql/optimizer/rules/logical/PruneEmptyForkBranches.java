@@ -12,9 +12,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  * Removes FORK branches or subqueries from UnionAll that only contain an empty LocalRelation.
  * The simplest case where this can happen is when a FORK branch contains {@code WHERE false}.
@@ -30,20 +27,19 @@ import java.util.List;
 public class PruneEmptyForkBranches extends OptimizerRules.OptimizerRule<Fork> {
     @Override
     protected LogicalPlan rule(Fork fork) {
-        List<LogicalPlan> newChildren = new ArrayList<>();
-        for (LogicalPlan forkChild : fork.children()) {
-            if (forkChild instanceof LocalRelation localRelation && localRelation.hasEmptySupplier()) {
-                continue;
-            }
-
-            newChildren.add(forkChild);
-        }
-
-        // we removed all children - just return an empty relation
-        if (newChildren.isEmpty()) {
+        // Special case first: every branch is empty → collapse to an empty LocalRelation.
+        // pruneEmptyBranches's all-empty defensive no-op leaves the Fork untouched, which is
+        // why we have to detect this case ourselves before delegating.
+        if (fork.children().stream().allMatch(PruneEmptyForkBranches::isEmptyLocalRelation)) {
             return new LocalRelation(fork.source(), fork.output(), EmptyLocalSupplier.EMPTY);
         }
+        // For Fork itself the base implementation calls replaceChildren and returns a new Fork.
+        // For UnionAll/ViewUnionAll the polymorphic overrides take care of the single-survivor
+        // collapse and (for ViewUnionAll) the named-subqueries map.
+        return fork.pruneEmptyBranches(PruneEmptyForkBranches::isEmptyLocalRelation);
+    }
 
-        return newChildren.size() != fork.children().size() ? fork.replaceChildren(newChildren) : fork;
+    private static boolean isEmptyLocalRelation(LogicalPlan plan) {
+        return plan instanceof LocalRelation lr && lr.hasEmptySupplier();
     }
 }

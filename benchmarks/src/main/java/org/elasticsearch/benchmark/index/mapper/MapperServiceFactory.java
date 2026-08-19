@@ -26,7 +26,6 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -49,11 +48,21 @@ public class MapperServiceFactory {
     }
 
     public static MapperService create(String mappings, List<MapperPlugin> mapperPlugins) {
+        return create(mappings, mapperPlugins, Settings.EMPTY);
+    }
+
+    /**
+     * Creates a {@link MapperService} for the given mappings, plugins, and extra index settings.
+     * The {@code extraSettings} are merged last, so they override any defaults set by this factory
+     * (e.g. {@code index.mode}, {@code index.mapping.source.mode}).
+     */
+    public static MapperService create(String mappings, List<MapperPlugin> mapperPlugins, Settings extraSettings) {
         Settings settings = Settings.builder()
             .put("index.number_of_replicas", 0)
             .put("index.number_of_shards", 1)
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.mapping.total_fields.limit", 100000)
+            .put(extraSettings)
             .build();
         IndexMetadata meta = IndexMetadata.builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(meta, settings);
@@ -75,7 +84,7 @@ public class MapperServiceFactory {
             () -> {
                 throw new UnsupportedOperationException();
             },
-            new ProvidedIdFieldMapper(() -> true),
+            () -> true,
             new ScriptCompiler() {
                 @Override
                 public <T> T compile(Script script, ScriptContext<T> scriptContext) {

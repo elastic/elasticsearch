@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
@@ -42,6 +43,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CART
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -164,6 +166,7 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
             List.of()
         );
         TestCaseSupplier.forUnaryStrings(suppliers, read, DataType.KEYWORD, bytesRef -> bytesRef, List.of());
+        TestCaseSupplier.forUnaryFlattened(suppliers, read, DataType.KEYWORD, bytesRef -> bytesRef, List.of());
         TestCaseSupplier.forUnaryVersion(
             suppliers,
             "ToStringFromVersionEvaluator[version=" + read + "]",
@@ -242,6 +245,16 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
             )
         );
 
+        suppliers.add(new TestCaseSupplier("double_range", List.of(DataType.DOUBLE_RANGE), () -> {
+            var range = new DoubleRangeBlockBuilder.DoubleRange(-12.5, 42.25);
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(range, DataType.DOUBLE_RANGE, "range")),
+                "ToStringFromDoubleRangeEvaluator[range=" + read + "]",
+                DataType.KEYWORD,
+                matchesBytesRef("-12.5..42.25")
+            );
+        }));
+
         List<TestCaseSupplier> fixedTimezoneSuppliers = new ArrayList<>();
         TestCaseSupplier.forUnaryDateTime(
             fixedTimezoneSuppliers,
@@ -259,7 +272,7 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
         );
         TestCaseSupplier.forUnaryDateRange(
             fixedTimezoneSuppliers,
-            "ToStringFromDateRangeEvaluator[field=" + read + ", formatter=format[strict_date_optional_time] locale[]]",
+            "ToStringFromDateRangeEvaluator[range=" + read + ", formatter=format[strict_date_optional_time] locale[]]",
             DataType.KEYWORD,
             dr -> matchesBytesRef(EsqlDataTypeConverter.dateRangeToString(dr)),
             List.of()
@@ -328,15 +341,22 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
                             new TestCaseSupplier.TypedData(
-                                new LongRangeBlockBuilder.LongRange(dateAsLong, dateAsLong),
+                                // Half-open [from, to): one millisecond window so both bounds format distinctly
+                                new LongRangeBlockBuilder.LongRange(dateAsLong, dateAsLong + 1),
                                 DataType.DATE_RANGE,
                                 "date"
                             )
                         ),
-                        "ToStringFromDateRangeEvaluator[field=Attribute[channel=0], "
+                        "ToStringFromDateRangeEvaluator[range=Attribute[channel=0], "
                             + "formatter=format[strict_date_optional_time] locale[]]",
                         DataType.KEYWORD,
-                        matchesBytesRef(expectedString + ".." + expectedString)
+                        matchesBytesRef(
+                            EsqlDataTypeConverter.dateRangeToString(
+                                dateAsLong,
+                                dateAsLong + 1,
+                                DEFAULT_DATE_TIME_FORMATTER.withZone(zoneId)
+                            )
+                        )
                     ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
                 )
             );

@@ -1,5 +1,0 @@
-area: Distributed
-issues: []
-pr: 143306
-summary: Opt-in persistent task reassignment on node shutdown
-type: feature

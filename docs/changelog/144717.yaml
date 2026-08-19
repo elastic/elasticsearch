@@ -1,5 +1,0 @@
-area: Snapshot/Restore
-issues: []
-pr: 144717
-summary: Report shard snapshot pauses in shutdown status
-type: enhancement

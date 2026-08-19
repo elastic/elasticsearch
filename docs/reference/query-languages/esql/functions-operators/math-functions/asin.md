@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ASIN` function [esql-asin]
 
-:::{include} ../../_snippets/functions/layout/asin.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/asin.md
 :::

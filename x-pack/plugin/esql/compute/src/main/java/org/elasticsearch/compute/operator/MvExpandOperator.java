@@ -25,15 +25,19 @@ import java.util.Objects;
 
 /**
  * "Expands" multivalued blocks by duplicating all the other columns for each value.
- * <pre>
- *     [0, 1, 2] | 2 | "foo"
- * </pre>
+ * {@snippet lang="txt" :
+ * ┌───────────┬───┬───────┐
+ * │ [0, 1, 2] │ 2 │ "foo" │
+ * └───────────┴───┴───────┘
+ * }
  * becomes
- * <pre>
- *     0 | 2 | "foo"
- *     1 | 2 | "foo"
- *     2 | 2 | "foo"
- * </pre>
+ * {@snippet lang="txt" :
+ * ┌───┬───┬───────┐
+ * │ 0 │ 2 │ "foo" │
+ * │ 1 │ 2 │ "foo" │
+ * │ 2 │ 2 │ "foo" │
+ * └───┴───┴───────┘
+ * }
  */
 public class MvExpandOperator implements Operator {
     private static final Logger logger = LogManager.getLogger(MvExpandOperator.class);

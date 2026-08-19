@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -28,7 +29,13 @@ import java.util.Set;
  */
 public final class ApmIntakeMessageParser {
 
-    static final Set<String> IGNORED_EVENT_NAMES = Set.of("metadata");
+    static final Set<String> IGNORED_EVENT_NAMES = Set.of("error");
+
+    private static final Set<String> TRANSACTION_DECODED_KEYS = Set.of("name", "trace_id", "id", "parent_id");
+    private static final Set<String> SPAN_DECODED_KEYS = Set.of("name", "trace_id", "id", "parent_id", "transaction_id");
+
+    /** Top-level {@code labels} map on metadata is flattened with a {@code labels.} prefix. */
+    private static final String LABELS_TOP_KEY = "labels";
 
     private ApmIntakeMessageParser() {}
 
@@ -50,8 +57,10 @@ public final class ApmIntakeMessageParser {
                 return Optional.of(parseTransaction(map));
             } else if (map.containsKey("span")) {
                 return Optional.of(parseSpan(map));
+            } else if (map.containsKey("metadata")) {
+                return Optional.of(parseMetadata(map));
             } else if (IGNORED_EVENT_NAMES.containsAll(map.keySet())) {
-                // We don't care about these
+                // All keys in the event are known-but-unneeded types (e.g. "error") — skip silently.
                 return Optional.empty();
             } else {
                 throw new IOException("Unexpected event type: " + map.keySet());
@@ -71,9 +80,11 @@ public final class ApmIntakeMessageParser {
             ? tags.get("otel_instrumentation_scope_name").toString()
             : "";
 
+        long timeUnixNano = (long) metricset.getOrDefault("time_unix_nano", 0L);
+
         Object samplesObj = metricset.get("samples");
         if (samplesObj == null) {
-            return new ReceivedTelemetry.ReceivedMetricSet(scopeName, Map.of());
+            return new ReceivedTelemetry.ReceivedMetricSet(scopeName, Map.of(), timeUnixNano);
         }
         if (samplesObj instanceof Map<?, ?> == false) {
             throw new IOException("metricset.samples is not an object");
@@ -88,7 +99,7 @@ public final class ApmIntakeMessageParser {
                 throw new IOException("metricset.samples entry [" + entry.getKey() + "] is not an object");
             }
         }
-        return new ReceivedTelemetry.ReceivedMetricSet(scopeName, Map.copyOf(samples));
+        return new ReceivedTelemetry.ReceivedMetricSet(scopeName, Map.copyOf(samples), timeUnixNano);
     }
 
     private static ReceivedTelemetry.ReceivedMetricValue parseSample(Map<String, Object> sample) throws IOException {
@@ -101,6 +112,30 @@ public final class ApmIntakeMessageParser {
         }
         if (sample.containsKey("counts")) {
             Object c = sample.get("counts");
+            // APM agent message (with midpoints for non-zero counts only)
+            Object v = sample.get("values");
+            List<Double> midpoints = new ArrayList<>();
+            if (v instanceof List<?> vList) {
+                for (Object o : vList) {
+                    if (o instanceof Number n) {
+                        midpoints.add(n.doubleValue());
+                    } else {
+                        throw new IOException("metric sample values element is not a number");
+                    }
+                }
+            }
+            // OTel message (explicit bounds for all counts)
+            Object b = sample.get("bounds");
+            List<Double> bounds = new ArrayList<>();
+            if (b instanceof List<?> bList) {
+                for (Object o : bList) {
+                    if (o instanceof Number n) {
+                        bounds.add(n.doubleValue());
+                    } else {
+                        throw new IOException("metric sample bounds element is not a number");
+                    }
+                }
+            }
             if (c instanceof List<?> list) {
                 List<Integer> counts = new ArrayList<>();
                 for (Object o : list) {
@@ -110,11 +145,40 @@ public final class ApmIntakeMessageParser {
                         throw new IOException("metric sample counts element is not a number");
                     }
                 }
-                return new ReceivedTelemetry.HistogramSample(List.copyOf(counts));
+                return new ReceivedTelemetry.HistogramSample(List.copyOf(midpoints), List.copyOf(bounds), List.copyOf(counts));
             }
             throw new IOException("metric sample counts is not a list");
         }
         throw new IOException("metric sample has no value or counts");
+    }
+
+    /**
+     * Parse an APM intake {@code metadata} event into a {@link ReceivedTelemetry.ReceivedResource}.
+     * <p>
+     * Produces a flat map keyed by the APM intake's own dot-notation paths
+     * (e.g. {@code service.agent.name}, {@code system.platform}). Keys are passed through
+     * verbatim — no translation to OTel Semantic Convention names — so the cross-path contract
+     * locks the keys downstream consumers actually observe today, and any future exporter that
+     * drops one of those keys will fail the assertion. The {@code labels} sub-map is flattened
+     * with a {@code labels.} prefix (e.g. {@code labels.env=staging}).
+     */
+    @SuppressWarnings("unchecked")
+    private static ReceivedTelemetry parseMetadata(Map<String, Object> root) throws IOException {
+        Object metadataObj = root.get("metadata");
+        if ((metadataObj instanceof Map<?, ?>) == false) {
+            throw new IOException("metadata missing or not an object");
+        }
+        Map<String, Object> metadata = (Map<String, Object>) metadataObj;
+        // labels is conceptually a separate flat map; flatten with a labels. prefix.
+        // Mutating `metadata` is safe — the map was just deserialized and is local to this call.
+        Object labelsObj = metadata.remove(LABELS_TOP_KEY);
+        Map<String, Object> flat = new LinkedHashMap<>(flattenAttributes(metadata, Set.of()));
+        if (labelsObj instanceof Map<?, ?> labelsMap) {
+            for (Map.Entry<?, ?> entry : labelsMap.entrySet()) {
+                flattenInto(LABELS_TOP_KEY + "." + entry.getKey(), entry.getValue(), flat);
+            }
+        }
+        return new ReceivedTelemetry.ReceivedResource(flat);
     }
 
     @SuppressWarnings("unchecked")
@@ -131,7 +195,10 @@ public final class ApmIntakeMessageParser {
             throw new IOException("transaction missing name or trace_id");
         }
         String spanId = id != null ? id : "";
-        return new ReceivedTelemetry.ReceivedSpan(name, traceId, spanId, Optional.empty());
+        String parentId = getString(transaction, "parent_id");
+        Optional<String> parent = (parentId == null || parentId.isEmpty()) ? Optional.empty() : Optional.of(parentId);
+        Map<String, Object> attributes = withRepresentativeCount(flattenAttributes(transaction, TRANSACTION_DECODED_KEYS));
+        return new ReceivedTelemetry.ReceivedSpan(name, traceId, spanId, parent, attributes);
     }
 
     @SuppressWarnings("unchecked")
@@ -151,7 +218,45 @@ public final class ApmIntakeMessageParser {
         if (parentId == null) {
             parentId = getString(span, "transaction_id");
         }
-        return new ReceivedTelemetry.ReceivedSpan(name, traceId, id, Optional.ofNullable(parentId));
+        Map<String, Object> attributes = withRepresentativeCount(flattenAttributes(span, SPAN_DECODED_KEYS));
+        return new ReceivedTelemetry.ReceivedSpan(name, traceId, id, Optional.ofNullable(parentId), attributes);
+    }
+
+    private static Map<String, Object> withRepresentativeCount(Map<String, Object> attributes) {
+        if (attributes.get("sample_rate") instanceof Number sampleRate) {
+            Map<String, Object> result = new LinkedHashMap<>(attributes);
+            result.put("representative_count", 1 / sampleRate.doubleValue());
+            return Collections.unmodifiableMap(result);
+        }
+        return attributes;
+    }
+
+    /**
+     * Produces a flat dot-notation map from a nested APM intake object,
+     * skipping the top-level keys that are already decoded into typed fields.
+     * For example, {@code {"context":{"request":{"method":"GET"}}}} becomes
+     * {@code {"context.request.method": "GET"}}.
+     */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> flattenAttributes(Map<String, Object> source, Set<String> exclude) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : source.entrySet()) {
+            if (exclude.contains(entry.getKey()) == false) {
+                flattenInto(entry.getKey(), entry.getValue(), result);
+            }
+        }
+        return Collections.unmodifiableMap(result);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void flattenInto(String key, Object value, Map<String, Object> out) {
+        if (value instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                flattenInto(key + "." + entry.getKey(), entry.getValue(), out);
+            }
+        } else if (value != null) {
+            out.put(key, value);
+        }
     }
 
     private static String getString(Map<String, Object> map, String key) {

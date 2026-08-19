@@ -355,7 +355,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             assertNotNull(reducedTopHits);
             assertThat(reducedTopHits.getHits().getHits().length, equalTo(1));
 
-            SearchResponseSections sections = reduce.buildResponse(SearchHits.EMPTY_WITH_TOTAL_HITS, Collections.emptyList());
+            SearchResponseSections sections = reduce.buildResponse(SearchHits.EMPTY_WITH_TOTAL_HITS, Collections.emptyList(), null);
             SearchResponse response = new SearchResponse(
                 sections,
                 null,
@@ -365,6 +365,8 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 0,
                 null,
                 SearchResponse.Clusters.EMPTY,
+                null,
+                null,
                 null
             );
             try {
@@ -410,7 +412,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         }
 
         @Override
-        public long getSerializedSize() {
+        public long getUncompressedSerializedSize() {
             return 0;
         }
 

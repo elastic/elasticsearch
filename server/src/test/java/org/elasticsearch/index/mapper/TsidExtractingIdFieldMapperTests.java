@@ -19,6 +19,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -862,8 +863,16 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         this.testCase = testCase;
         this.useSyntheticId = useSyntheticId;
         this.blockLoaderTestRunner = new BlockLoaderTestRunner(
-            new BlockLoaderTestCase.Params(false, randomFrom(MappedFieldType.FieldExtractPreference.values()))
+            new BlockLoaderTestCase.Params(
+                IndexMode.STANDARD,
+                SourceFieldMapper.Mode.STORED,
+                randomFrom(MappedFieldType.FieldExtractPreference.values())
+            )
         ).breaker(newLimitedBreaker(ByteSizeValue.ofMb(1)));
+    }
+
+    protected String notConfigurableErrorMessage() {
+        return "Failed to parse mapping: " + fieldName() + " is not configurable if index mode is time_series";
     }
 
     public void testExpectedIdWithRoutingPath() throws IOException {
@@ -1178,6 +1187,28 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
                     + "]"
             )
         );
+    }
+
+    public void testSyntheticId() {
+        for (int prefix = 0; prefix <= 0xff; prefix++) {
+            final byte[] tsidBytes = randomByteArrayOfLength(between(16, 20));
+            tsidBytes[0] = (byte) prefix;
+            final BytesRef tsid = new BytesRef(tsidBytes);
+            final long timestamp = randomNonNegativeLong();
+            final int routingHash = randomInt();
+
+            final String syntheticId = TsidExtractingIdFieldMapper.createSyntheticId(tsid, timestamp, routingHash);
+            final BytesRef uid = Uid.encodeId(syntheticId);
+
+            assertThat(TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(uid), equalTo(tsid));
+            assertThat(TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(uid), equalTo(timestamp));
+            assertThat(TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(uid), equalTo(routingHash));
+        }
+    }
+
+    @Override
+    protected Settings getIndexSettings() {
+        return indexSettings(IndexVersion.current(), true, false);
     }
 
     private void verifyIdFromBlockLoader(String expectedId) throws IOException {

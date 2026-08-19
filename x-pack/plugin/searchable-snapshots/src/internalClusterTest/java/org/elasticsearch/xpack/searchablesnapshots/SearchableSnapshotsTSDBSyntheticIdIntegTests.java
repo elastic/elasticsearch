@@ -66,9 +66,7 @@ public class SearchableSnapshotsTSDBSyntheticIdIntegTests extends BaseFrozenSear
     private Collection<String> deletedDocIds;
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createTestSnapshot() throws Exception {
         createRepository(REPOSITORY, FsRepository.TYPE);
         assertAcked(syntheticIdIndex(INDEX));
         int initialNumberOfDocuments = scaledRandomIntBetween(20, 2_000);
@@ -150,12 +148,10 @@ public class SearchableSnapshotsTSDBSyntheticIdIntegTests extends BaseFrozenSear
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
+    public void cleanupTestSnapshot() throws Exception {
         assertAcked(indicesAdmin().prepareDelete("mounted-*"));
         assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, REPOSITORY, SNAPSHOT).get());
         assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, REPOSITORY));
-        super.tearDown();
     }
 
     /**

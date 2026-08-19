@@ -21,6 +21,7 @@ import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestEsExecutors;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -56,9 +57,8 @@ public class ESIndexInputTestCase extends ESTestCase {
         executor.shutdown();
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeIdGenerator() throws Exception {
         uniqueIdGenerator = new AtomicLong();
     }
 

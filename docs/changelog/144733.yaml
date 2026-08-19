@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 144733
-summary: GCS native async I/O via `ReadChannel`
-type: enhancement

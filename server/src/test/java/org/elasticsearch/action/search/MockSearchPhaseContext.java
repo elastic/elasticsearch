@@ -15,18 +15,22 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.transport.CloseableConnection;
@@ -68,14 +72,14 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
             mock(SearchTransportService.class),
             new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
             (clusterAlias, nodeId) -> createMockConnection(nodeId),
-            null,
-            null,
+            Map.of("uuid", AliasFilter.EMPTY),
+            Map.of(),
             Runnable::run,
-            new SearchRequest(),
+            new SearchRequest().allowPartialSearchResults(true),
             ActionListener.noop(),
-            List.of(),
+            createShardIterators(numShards),
             Collections.emptyMap(),
-            null,
+            new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
             ClusterState.EMPTY_STATE,
             new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap()),
             new ArraySearchPhaseResults<>(numShards),
@@ -87,6 +91,16 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
         );
         this.numShards = numShards;
         numSuccess = new AtomicInteger(numShards);
+    }
+
+    private static List<SearchShardIterator> createShardIterators(int numShards) {
+        List<SearchShardIterator> shardIterators = new ArrayList<>();
+        for (int i = 0; i < numShards; i++) {
+            shardIterators.add(
+                new SearchShardIterator(null, new ShardId("index", "uuid", i), Collections.emptyList(), null, SplitShardCountSummary.UNSET)
+            );
+        }
+        return shardIterators;
     }
 
     private static Transport.Connection createMockConnection(String nodeId) {
@@ -146,7 +160,9 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
                 0,
                 failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
                 SearchResponse.Clusters.EMPTY,
-                searchContextId
+                searchContextId,
+                null,
+                null
             )
         );
         doneFuture.onResponse(null);
@@ -193,7 +209,12 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
         Transport.Connection shard,
         SearchActionListener<SearchPhaseResult> listener
     ) {
-        onShardResult(new SearchPhaseResult() {});
+        onShardResult(new SearchPhaseResult() {
+            @Override
+            public void writeTo(StreamOutput out) {
+
+            }
+        });
     }
 
     @Override

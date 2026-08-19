@@ -16,7 +16,9 @@ import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.OriginalIndicesTests;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.Settings;
@@ -37,6 +39,7 @@ import org.elasticsearch.search.rank.TestRankBuilder;
 import org.elasticsearch.search.rank.TestRankShardResult;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,6 +50,7 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 
 public class QuerySearchResultTests extends ESTestCase {
@@ -103,6 +107,14 @@ public class QuerySearchResultTests extends ESTestCase {
         return result;
     }
 
+    /**
+     * Test-only: {@link QuerySearchResult#decRef()} does not release refcounted completion option hits; release them
+     * explicitly when discarding instances built with {@link SuggestTests#createTestItem()} (or wire copies thereof).
+     */
+    private static void releaseCompletionSuggestOptionHits(QuerySearchResult result) {
+        SuggestTests.decRefCompletionOptionTestFactoryRefs(result.suggest());
+    }
+
     public void testSerialization() throws Exception {
         QuerySearchResult querySearchResult = createTestInstance();
         try {
@@ -132,9 +144,11 @@ public class QuerySearchResultTests extends ESTestCase {
                 }
                 assertEquals(querySearchResult.terminatedEarly(), deserialized.terminatedEarly());
             } finally {
+                releaseCompletionSuggestOptionHits(deserialized);
                 deserialized.decRef();
             }
         } finally {
+            releaseCompletionSuggestOptionHits(querySearchResult);
             querySearchResult.decRef();
         }
     }
@@ -163,9 +177,11 @@ public class QuerySearchResultTests extends ESTestCase {
                 TransportVersion.current()
             );
             assertTrue("wire-read result should have references", deserialized.hasReferences());
+            releaseCompletionSuggestOptionHits(deserialized);
             assertTrue("single decRef should release", deserialized.decRef());
             assertFalse("after release should have no references", deserialized.hasReferences());
         } finally {
+            releaseCompletionSuggestOptionHits(original);
             original.decRef();
         }
     }
@@ -206,6 +222,7 @@ public class QuerySearchResultTests extends ESTestCase {
             }
 
             assertEquals(n, result.topHitsToReleaseCollector().size());
+            releaseCompletionSuggestOptionHits(result);
             assertTrue(result.decRef());
             for (SearchHits sh : searchHitsList) {
                 assertTrue(sh.hasReferences());
@@ -214,8 +231,86 @@ public class QuerySearchResultTests extends ESTestCase {
             }
         } finally {
             if (result.hasReferences()) {
+                releaseCompletionSuggestOptionHits(result);
                 result.decRef();
             }
         }
+    }
+
+    public void testShardSearchRequestOmittedFromResultWhenSkipFlagEnabled() throws Exception {
+        ShardId shardId = new ShardId("index", "uuid", 0);
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        TopDocs topDocs = new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]);
+
+        // enableShardResultsSkipRequest=true: the request must NOT be stored in the result and therefore not serialized
+        ShardSearchRequest skipRequest = new ShardSearchRequest(
+            OriginalIndicesTests.randomOriginalIndices(),
+            searchRequest,
+            shardId,
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            randomNonNegativeLong(),
+            null,
+            null,
+            null,
+            SplitShardCountSummary.UNSET,
+            true
+        );
+        QuerySearchResult resultWithSkip = minimalResult(shardId, skipRequest, topDocs);
+
+        // enableShardResultsSkipRequest=false (old data node or old coordinator): SSR must be stored and serialized
+        ShardSearchRequest noSkipRequest = new ShardSearchRequest(
+            OriginalIndicesTests.randomOriginalIndices(),
+            searchRequest,
+            shardId,
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            randomNonNegativeLong(),
+            null,
+            null,
+            null,
+            SplitShardCountSummary.UNSET,
+            false
+        );
+        QuerySearchResult resultWithoutSkip = minimalResult(shardId, noSkipRequest, topDocs);
+
+        try {
+            BytesStreamOutput outWithSkip = new BytesStreamOutput();
+            resultWithSkip.writeTo(outWithSkip);
+
+            BytesStreamOutput outWithoutSkip = new BytesStreamOutput();
+            resultWithoutSkip.writeTo(outWithoutSkip);
+
+            // Without the SSR the result is smaller at the current transport version.
+            assertThat(outWithSkip.size(), lessThan(outWithoutSkip.size()));
+
+            // The SSR is also absent at a pre-feature transport version: the flag gates whether the SSR
+            // is stored in the result at all, not how the result itself is serialized.
+            BytesStreamOutput outWithSkipOldVersion = new BytesStreamOutput();
+            outWithSkipOldVersion.setTransportVersion(
+                TransportVersionUtils.randomVersionNotSupporting(ShardSearchRequest.SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST)
+            );
+            resultWithSkip.writeTo(outWithSkipOldVersion);
+            assertThat(outWithSkipOldVersion.size(), lessThan(outWithoutSkip.size()));
+        } finally {
+            resultWithSkip.decRef();
+            resultWithoutSkip.decRef();
+        }
+    }
+
+    private static QuerySearchResult minimalResult(ShardId shardId, ShardSearchRequest shardSearchRequest, TopDocs topDocs) {
+        QuerySearchResult result = new QuerySearchResult(
+            new ShardSearchContextId(UUIDs.base64UUID(), randomLong()),
+            new SearchShardTarget("node", shardId, null),
+            shardSearchRequest
+        );
+        result.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), new DocValueFormat[0]);
+        result.size(0);
+        result.from(0);
+        return result;
     }
 }

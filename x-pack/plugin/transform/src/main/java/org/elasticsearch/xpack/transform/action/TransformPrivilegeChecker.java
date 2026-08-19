@@ -50,6 +50,7 @@ final class TransformPrivilegeChecker {
         Client client,
         TransformConfig config,
         boolean checkDestIndexPrivileges,
+        boolean hasLinkedProjects,
         ActionListener<Void> listener
     ) {
         assert XPackSettings.SECURITY_ENABLED.get(settings);
@@ -67,7 +68,8 @@ final class TransformPrivilegeChecker {
                 indexNameExpressionResolver,
                 clusterState,
                 username,
-                checkDestIndexPrivileges
+                checkDestIndexPrivileges,
+                hasLinkedProjects
             );
             if (hasPrivilegesRequest.indexPrivileges().length == 0) {
                 listener.onResponse(null);
@@ -82,14 +84,15 @@ final class TransformPrivilegeChecker {
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterState clusterState,
         String username,
-        boolean checkDestIndexPrivileges
+        boolean checkDestIndexPrivileges,
+        boolean hasLinkedProjects
     ) {
         List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>(2);
 
         // TODO: Remove this filter once https://github.com/elastic/elasticsearch/issues/67798 is fixed.
-        String[] sourceIndex = Arrays.stream(config.getSource().getIndex())
-            .filter(not(RemoteClusterLicenseChecker::isRemoteIndex))
-            .toArray(String[]::new);
+        String[] sourceIndex = hasLinkedProjects
+            ? Strings.EMPTY_ARRAY
+            : Arrays.stream(config.getSource().getIndex()).filter(not(RemoteClusterLicenseChecker::isRemoteIndex)).toArray(String[]::new);
 
         if (sourceIndex.length > 0) {
             RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()

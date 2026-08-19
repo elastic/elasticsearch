@@ -2,6 +2,8 @@ apply plugin: 'elasticsearch.java'
 
 description = 'Integration tests for SQL'
 
+def sqlVersions = project(':x-pack:plugin:sql').extensions.extraProperties.get('sqlVersions')
+
 dependencies {
   api project(":test:framework")
 
@@ -10,23 +12,23 @@ dependencies {
   // Common utilities from QL
   api project(xpackModule('ql:test-fixtures'))
 
-  api "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
+  api "net.sourceforge.csvjdbc:csvjdbc:${sqlVersions.csvjdbc}"
 
   // CLI testing dependencies
   api project(path: xpackModule('sql:sql-cli'))
 
   // H2GIS testing dependencies
-  api("org.orbisgis:h2gis:${h2gisVersion}") {
+  api("org.orbisgis:h2gis:${sqlVersions.h2gis}") {
     exclude group: "org.locationtech.jts"
   }
 
   // select just the parts of JLine that are needed
-  api("org.jline:jline-terminal-jna:${jlineVersion}") {
+  api("org.jline:jline-terminal-jna:${sqlVersions.jline}") {
     exclude group: "net.java.dev.jna"
   }
-  api "org.jline:jline-terminal:${jlineVersion}"
-  api "org.jline:jline-reader:${jlineVersion}"
-  api "org.jline:jline-style:${jlineVersion}"
+  api "org.jline:jline-terminal:${sqlVersions.jline}"
+  api "org.jline:jline-reader:${sqlVersions.jline}"
+  api "org.jline:jline-style:${sqlVersions.jline}"
 
   testRuntimeOnly "net.java.dev.jna:jna:${versions.jna}"
 }
@@ -68,13 +70,13 @@ subprojects {
       javaRestTestImplementation project(xpackModule('ql:test-fixtures'))
 
       // JDBC testing dependencies
-      javaRestTestRuntimeOnly "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
-      javaRestTestRuntimeOnly "com.h2database:h2:${h2Version}"
+      javaRestTestRuntimeOnly "net.sourceforge.csvjdbc:csvjdbc:${sqlVersions.csvjdbc}"
+      javaRestTestRuntimeOnly "com.h2database:h2:${sqlVersions.h2}"
 
       // H2GIS testing dependencies
-      javaRestTestRuntimeOnly("org.orbisgis:h2gis:${h2gisVersion}")
-      javaRestTestRuntimeOnly("org.orbisgis:h2gis-api:${h2gisVersion}")
-      javaRestTestRuntimeOnly("org.orbisgis:h2gis-utilities:${h2gisVersion}")
+      javaRestTestRuntimeOnly("org.orbisgis:h2gis:${sqlVersions.h2gis}")
+      javaRestTestRuntimeOnly("org.orbisgis:h2gis-api:${sqlVersions.h2gis}")
+      javaRestTestRuntimeOnly("org.orbisgis:h2gis-utilities:${sqlVersions.h2gis}")
       javaRestTestRuntimeOnly("org.orbisgis:cts:1.5.2")
 
 
@@ -87,12 +89,12 @@ subprojects {
         transitive = false
       }
 
-      javaRestTestRuntimeOnly("org.jline:jline-terminal-jna:${jlineVersion}") {
+      javaRestTestRuntimeOnly("org.jline:jline-terminal-jna:${sqlVersions.jline}") {
         exclude group: "net.java.dev.jna"
       }
-      javaRestTestRuntimeOnly "org.jline:jline-terminal:${jlineVersion}"
-      javaRestTestRuntimeOnly "org.jline:jline-reader:${jlineVersion}"
-      javaRestTestRuntimeOnly "org.jline:jline-style:${jlineVersion}"
+      javaRestTestRuntimeOnly "org.jline:jline-terminal:${sqlVersions.jline}"
+      javaRestTestRuntimeOnly "org.jline:jline-reader:${sqlVersions.jline}"
+      javaRestTestRuntimeOnly "org.jline:jline-style:${sqlVersions.jline}"
 
       javaRestTestRuntimeOnly "net.java.dev.jna:jna:${versions.jna}"
 

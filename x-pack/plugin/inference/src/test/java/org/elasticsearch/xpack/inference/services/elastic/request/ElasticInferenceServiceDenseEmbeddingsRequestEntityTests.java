@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.Elasti
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.inference.InferenceStringTests.TEST_IMAGE_DATA_URI;
+import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
 import static org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelTests.createEmbeddingModel;
 import static org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelTests.createTextEmbeddingModel;
@@ -79,7 +79,7 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestEntityTests extends ES
         var entity = new ElasticInferenceServiceDenseEmbeddingsRequestEntity(
             List.of(
                 new InferenceStringGroup("abc"),
-                new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_IMAGE_DATA_URI))
+                new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_DATA_URI))
             ),
             createEmbeddingModel("", "my-model-id"),
             ElasticInferenceServiceUsageContext.UNSPECIFIED
@@ -93,7 +93,7 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestEntityTests extends ES
                 ],
                 "model": "my-model-id"
             }
-            """, TEST_IMAGE_DATA_URI)));
+            """, TEST_DATA_URI)));
     }
 
     public void testToXContent_SingleInput_UsageContextSpecified() throws IOException {

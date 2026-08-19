@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.FilteredGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
@@ -40,10 +41,133 @@ import java.util.function.Supplier;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
+/**
+ * Aggregates input {@link Page}s into many output rows, grouping by some values.
+ * <p>
+ *     Receives input pages until we call {@link #finish()}, telling it
+ *     there are no more pages. Each aggregation is an instance
+ *     of {@link GroupingAggregatorFunction}.
+ * </p>
+ * <p>
+ *     For
+ *     {@snippet lang="esql" :
+ *     | STATS MIN(discovered), MAX(discovered) BY class
+ *     }
+ *     this'd look like:
+ * </p>
+ * {@snippet lang="txt" :
+ * Before first page:
+ *                                     ┌─────────────────┬─────────────────┬──────────┐
+ *                                     │ MIN(discovered) │ MAX(discovered) │ class    │
+ *                                     ├─────────────────┼─────────────────┼──────────┤
+ *                                     └─────────────────┴─────────────────┴──────────┘
+ *
+ * First page:
+ * ┌──────┬──────────┬────────────┐    ┌─────────────────┬─────────────────┬──────────┐
+ * │  ref │ class    │ discovered │    │ MIN(discovered) │ MAX(discovered) │ class    │
+ * ├──────┼──────────┼────────────┤    ├─────────────────┼─────────────────┼──────────┤
+ * │  079 │ Euclid   │ 1988-01-01 │ -> │ 1988-01-01      │ 1993-01-01      │ Euclid   │
+ * │  173 │ Euclid   │ 1993-01-01 │    │ 1967-01-01      │ 1967-01-01      │ Keter    │
+ * │ 1313 │ Keter    │ 1967-01-01 │    │ 1991-01-01      │ 1991-01-01      │ Safe     │
+ * │ 1981 │ Safe     │ 1991-01-01 │    └─────────────────┴─────────────────┴──────────┘
+ * └──────┴──────────┴────────────┘
+ *
+ * Second page:
+ * ┌──────┬──────────┬────────────┐    ┌─────────────────┬─────────────────┬──────────┐
+ * │  ref │ class    │ discovered │    │ MIN(discovered) │ MAX(discovered) │ class    │
+ * ├──────┼──────────┼────────────┤    ├─────────────────┼─────────────────┼──────────┤
+ * │ 2317 │ Keter    │ 1922-01-01 │ -> │ 1988-01-01      │ 2010-01-01      │ Euclid   │
+ * │ 2639 │ Euclid   │ 2010-01-01 │    │ 1922-01-01      │ 2016-04-28      │ Keter    │
+ * │ 2935 │ Keter    │ 2016-04-28 │    │ 1991-01-01      │ 1991-01-01      │ Safe     │
+ * │ 3000 │ Thaumiel │ 1971-01-01 │    │ 1971-01-01      │ 1971-01-01      │ Thaumiel │
+ * └──────┴──────────┴────────────┘    └─────────────────┴─────────────────┴──────────┘
+ *
+ * Third page:
+ * ┌──────┬──────────┬────────────┐    ┌─────────────────┬─────────────────┬──────────┐
+ * │  ref │ class    │ discovered │    │ MIN(discovered) │ MAX(discovered) │ class    │
+ * ├──────┼──────────┼────────────┤    ├─────────────────┼─────────────────┼──────────┤
+ * │ 3001 │ Euclid   │ 2000-01-02 │ -> │ 1988-01-01      │ 2010-01-01      │ Euclid   │
+ * │ 4999 │ Keter    │ 1998-11-27 │    │ 1922-01-01      │ 2016-04-28      │ Keter    │
+ * │ 5000 │ Safe     │ 2020-12-04 │    │ 1991-01-01      │ 2020-12-04      │ Safe     │
+ * └──────┴──────────┴────────────┘    │ 1971-01-01      │ 1971-01-01      │ Thaumiel │
+ *                                     └─────────────────┴─────────────────┴──────────┘
+ *
+ * finish():
+ *                                     ┌─────────────────┬─────────────────┬──────────┐
+ *                                     │ MIN(discovered) │ MAX(discovered) │ class    │
+ *                                     ├─────────────────┼─────────────────┼──────────┤
+ *                                     │ 1988-01-01      │ 2010-01-01      │ Euclid   │
+ *                                     │ 1922-01-01      │ 2016-04-28      │ Keter    │
+ *                                     │ 1991-01-01      │ 2020-12-04      │ Safe     │
+ *                                     │ 1971-01-01      │ 1971-01-01      │ Thaumiel │
+ *                                     └─────────────────┴─────────────────┴──────────┘
+ * }
+ * <p>
+ *     Aggregations can also filter which rows they receive using
+ *     {@link FilteredGroupingAggregatorFunction}. In ESQL that looks like:
+ *     {@snippet lang="esql" :
+ *     | STATS min3 = MIN(discovered) WHERE LENGTH(ref) == 3,
+ *             max3 = MAX(discovered) WHERE LENGTH(ref) == 3,
+ *             min4 = MIN(discovered) WHERE LENGTH(ref) == 4
+ *          BY class
+ *     }
+ *     this'd look like:
+ * </p>
+ * {@snippet lang="txt" :
+ * Before first page:
+ *                                     ┌────────────┬────────────┬────────────┬──────────┐
+ *                                     │ min3       │ max3       │ min4       │ class    │
+ *                                     ├────────────┼────────────┼────────────┼──────────┤
+ *                                     └────────────┴────────────┴────────────┴──────────┘
+ *
+ * First page:
+ * ┌──────┬──────────┬────────────┐    ┌────────────┬────────────┬────────────┬──────────┐
+ * │  ref │ class    │ discovered │    │ min3       │ max3       │ min4       │ class    │
+ * ├──────┼──────────┼────────────┤    ├────────────┼────────────┼────────────┼──────────┤
+ * │  079 │ Euclid   │ 1988-01-01 │ -> │ 1988-01-01 │ 1993-01-01 │ null       │ Euclid   │
+ * │  173 │ Euclid   │ 1993-01-01 │    │ null       │ null       │ 1967-01-01 │ Keter    │
+ * │ 1313 │ Keter    │ 1967-01-01 │    │ null       │ null       │ 1991-01-01 │ Safe     │
+ * │ 1981 │ Safe     │ 1991-01-01 │    └────────────┴────────────┴────────────┴──────────┘
+ * └──────┴──────────┴────────────┘
+ *
+ * Second page:
+ * ┌──────┬──────────┬────────────┐    ┌────────────┬────────────┬────────────┬──────────┐
+ * │  ref │ class    │ discovered │    │ min3       │ max3       │ min4       │ class    │
+ * ├──────┼──────────┼────────────┤    ├────────────┼────────────┼────────────┼──────────┤
+ * │ 2317 │ Keter    │ 1922-01-01 │ -> │ 1988-01-01 │ 1993-01-01 │ 2010-01-01 │ Euclid   │
+ * │ 2639 │ Euclid   │ 2010-01-01 │    │ null       │ null       │ 1922-01-01 │ Keter    │
+ * │ 2935 │ Keter    │ 2016-04-28 │    │ null       │ null       │ 1991-01-01 │ Safe     │
+ * │ 3000 │ Thaumiel │ 1971-01-01 │    │ null       │ null       │ 1971-01-01 │ Thaumiel │
+ * └──────┴──────────┴────────────┘    └────────────┴────────────┴────────────┴──────────┘
+ *
+ * Third page:
+ * ┌──────┬──────────┬────────────┐    ┌────────────┬────────────┬────────────┬──────────┐
+ * │  ref │ class    │ discovered │    │ min3       │ max3       │ min4       │ class    │
+ * ├──────┼──────────┼────────────┤    ├────────────┼────────────┼────────────┼──────────┤
+ * │ 3001 │ Euclid   │ 2000-01-02 │ -> │ 1988-01-01 │ 1993-01-01 │ 2000-01-02 │ Euclid   │
+ * │ 4999 │ Keter    │ 1998-11-27 │    │ null       │ null       │ 1922-01-01 │ Keter    │
+ * │ 5000 │ Safe     │ 2020-12-04 │    │ null       │ null       │ 1991-01-01 │ Safe     │
+ * └──────┴──────────┴────────────┘    │ null       │ null       │ 1971-01-01 │ Thaumiel │
+ *                                     └────────────┴────────────┴────────────┴──────────┘
+ *
+ * finish():
+ *                                     ┌────────────┬────────────┬────────────┬──────────┐
+ *                                     │ min3       │ max3       │ min4       │ class    │
+ *                                     ├────────────┼────────────┼────────────┼──────────┤
+ *                                     │ 1988-01-01 │ 1993-01-01 │ 2000-01-02 │ Euclid   │
+ *                                     │ null       │ null       │ 1922-01-01 │ Keter    │
+ *                                     │ null       │ null       │ 1991-01-01 │ Safe     │
+ *                                     │ null       │ null       │ 1971-01-01 │ Thaumiel │
+ *                                     └────────────┴────────────┴────────────┴──────────┘
+ * }
+ */
 public class HashAggregationOperator implements Operator {
 
     public static final int DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD = 100_000;
     public static final double DEFAULT_PARTIAL_EMIT_UNIQUENESS_THRESHOLD = 0.1;
+
+    // TODO: Push down LIMIT only
+    public record TopAggregation(int aggregatorIndex, boolean asc, int limit) {}
 
     /**
      * Builder for {@link HashAggregationOperator}. {@link #groups(List)}, {@link #mode(AggregatorMode)},
@@ -59,6 +183,7 @@ public class HashAggregationOperator implements Operator {
         private int maxPageSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
         private int aggregationBatchSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
         private AnalysisRegistry analysisRegistry;
+        private TopAggregation topAggregation;
 
         public Builder groups(List<BlockHash.GroupSpec> groups) {
             this.groups = groups;
@@ -96,6 +221,11 @@ public class HashAggregationOperator implements Operator {
             return this;
         }
 
+        public Builder topAggregation(TopAggregation topAggregation) {
+            this.topAggregation = topAggregation;
+            return this;
+        }
+
         public Factory build() {
             return new Factory(this);
         }
@@ -110,6 +240,7 @@ public class HashAggregationOperator implements Operator {
         private final int maxPageSize;
         private final int aggregationBatchSize;
         private final AnalysisRegistry analysisRegistry;
+        private final TopAggregation topAggregation;
 
         protected Factory(Builder builder) {
             this.groups = requireNonNull(builder.groups, "groups");
@@ -120,6 +251,7 @@ public class HashAggregationOperator implements Operator {
             this.maxPageSize = builder.maxPageSize;
             this.aggregationBatchSize = builder.aggregationBatchSize;
             this.analysisRegistry = builder.analysisRegistry;
+            this.topAggregation = builder.topAggregation;
         }
 
         @Override
@@ -141,6 +273,7 @@ public class HashAggregationOperator implements Operator {
                     Integer.MAX_VALUE, // disable partial emit for CATEGORIZE. it doesn't support it.
                     1.0,
                     Integer.MAX_VALUE, // disable splitting aggs pages for CATEGORIZE. it doesn't support it.
+                    topAggregation,
                     driverContext
                 );
             }
@@ -151,6 +284,7 @@ public class HashAggregationOperator implements Operator {
                 partialEmitKeysThreshold,
                 partialEmitUniquenessThreshold,
                 maxPageSize,
+                topAggregation,
                 driverContext
             );
         }
@@ -216,6 +350,8 @@ public class HashAggregationOperator implements Operator {
 
     protected long emitCount;
 
+    private final TopAggregation topAggregation;
+
     protected long rowsAddedInCurrentBatch;
 
     /**
@@ -230,6 +366,7 @@ public class HashAggregationOperator implements Operator {
         int partialEmitKeysThreshold,
         double partialEmitUniquenessThreshold,
         int maxPageSize,
+        TopAggregation topAggregation,
         DriverContext driverContext
     ) {
         if (partialEmitKeysThreshold <= 0) {
@@ -243,6 +380,7 @@ public class HashAggregationOperator implements Operator {
         this.aggregatorFactories = aggregatorFactories;
         this.blockHashSupplier = blockHashSupplier;
         this.aggregators = new ArrayList<>();
+        this.topAggregation = topAggregation;
         boolean success = false;
         try {
             this.blockHash = blockHashSupplier.get();
@@ -407,6 +545,20 @@ public class HashAggregationOperator implements Operator {
     protected IntVector customizeSelected(GroupingAggregator aggregator, IntVector selected) {
         selected.incRef();
         return selected;
+    }
+
+    /**
+     * Selects which group ids ("keys") to emit, given the full set of non-empty groups. The default emits every group.
+     * Subclasses can override to emit a subset: the time-series operator emits only the groups aligned to the output
+     * time bucket, while still exposing the full group set to window aggregators through the evaluation context.
+     * <p>
+     * The returned vector is owned by the caller. {@code allKeys} remains owned by the caller and is released right after
+     * this method returns, so an implementation that needs to retain it (e.g. by stashing it in {@code ctx}) must
+     * increment its reference count.
+     */
+    protected IntVector selectedKeysForEmit(GroupingAggregatorEvaluationContext ctx, IntVector allKeys) {
+        allKeys.incRef();
+        return allKeys;
     }
 
     protected boolean shouldEmitPartialResultsPeriodically() {
@@ -731,7 +883,20 @@ public class HashAggregationOperator implements Operator {
             List<GroupingAggregatorFunction.PreparedForEvaluation> preparedAggregators = new ArrayList<>(count);
             boolean success = false;
             try {
-                selected = new Selected(blockHash.nonEmpty(), new IntVector[count]);
+                final IntVector keys;
+                if (aggregatorMode.isOutputPartial() == false && topAggregation != null) {
+                    // push down TopN by selecting a subset of keys
+                    try (var allKeys = blockHash.nonEmpty()) {
+                        keys = aggregators.get(topAggregation.aggregatorIndex())
+                            .aggregatorFunction()
+                            .selectTopN(allKeys, topAggregation.limit(), topAggregation.asc());
+                    }
+                } else {
+                    try (var allKeys = blockHash.nonEmpty()) {
+                        keys = selectedKeysForEmit(ctx, allKeys);
+                    }
+                }
+                selected = new Selected(keys, new IntVector[count]);
                 for (int a = 0; a < count; a++) {
                     selected.aggs[a] = customizeSelected(aggregators.get(a), selected.keys);
                     preparedAggregators.add(aggregators.get(a).prepareForEvaluate(selected.aggs[a], ctx));

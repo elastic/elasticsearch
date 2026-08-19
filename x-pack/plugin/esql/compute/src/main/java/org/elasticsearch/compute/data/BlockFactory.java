@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.memory.rounding.RoundingPolicy;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block.MvOrdering;
 import org.elasticsearch.compute.data.arrow.CircuitBreakerAllocationListener;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.logging.LogManager;
@@ -39,6 +41,15 @@ public class BlockFactory {
     public static final ByteSizeValue DEFAULT_BYTES_REF_RAM_OVERESTIMATE_THRESHOLD = ByteSizeValue.ofMb(1);
     // The same as PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_FACTOR
     public static final double DEFAULT_BYTES_REF_RAM_OVERESTIMATE_FACTOR = 2.5;
+
+    /**
+     * Exact-fit rounding policy for the Arrow root allocator. We use {@code arrow-memory-unsafe},
+     * whose {@code UnsafeAllocationManager} is a straight malloc/free with no free list or size
+     * classes. The default power-of-two rounding exists to feed a pooled allocator
+     * ({@code arrow-memory-netty}); without that pool, it only wastes memory (up to 2x for
+     * sub-16 MiB allocations). Pass this policy to let the OS allocator handle alignment.
+     */
+    private static final RoundingPolicy EXACT_FIT_ROUNDING_POLICY = requestSize -> requestSize;
 
     private static final Logger log = LogManager.getLogger(BlockFactory.class);
 
@@ -91,8 +102,7 @@ public class BlockFactory {
                     if (this.parent == null) {
                         // Root block factory
                         var listener = new CircuitBreakerAllocationListener(breaker);
-                        // TODO: see if the default rounding policy (power of 2) is appropriate
-                        var allocator = new RootAllocator(listener, Long.MAX_VALUE);
+                        var allocator = new RootAllocator(listener, Long.MAX_VALUE, EXACT_FIT_ROUNDING_POLICY);
                         cleaner.register(this, () -> {
                             try {
                                 allocator.close();
@@ -121,7 +131,18 @@ public class BlockFactory {
         return bigArrays;
     }
 
-    protected BlockFactory parent() {
+    /**
+     * Returns the root (request-level) {@link BlockFactory} for this factory chain, or {@code this}
+     * if this is already a root factory.
+     * <p>
+     * The root factory's circuit breaker is the global request breaker (thread-safe atomic counters);
+     * child factories wrap a {@link LocalCircuitBreaker} bound to a single driver thread for hot-path
+     * allocations. Code that allocates blocks from outside the driver run loop (e.g. on a producer
+     * thread that hands pages to the driver via a buffer) must use the root factory so accounting is
+     * not racy against the driver thread. See {@link Block#allowPassingToDifferentDriver()} for the
+     * complementary release-side mechanism.
+     */
+    public BlockFactory parent() {
         return parent != null ? parent : this;
     }
 
@@ -467,6 +488,15 @@ public class BlockFactory {
         return new BytesRefBlockBuilder(estimatedSize, bigArrays, this);
     }
 
+    /**
+     * Creates a {@link BytesRefBlock.Builder} with a byte-level storage hint. The hint
+     * pre-sizes the internal byte buffer so that columns with known payload size (e.g.
+     * from Parquet column-chunk metadata) avoid repeated grow-on-demand resizes.
+     */
+    public BytesRefBlock.Builder newBytesRefBlockBuilder(int estimatedSize, long byteHint) {
+        return new BytesRefBlockBuilder(estimatedSize, bigArrays, this, byteHint);
+    }
+
     public BytesRefBlock newBytesRefArrayBlock(BytesRefArray values, int pc, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
         var b = new BytesRefArrayBlock(values, pc, firstValueIndexes, nulls, mvOrdering, this);
         adjustBreaker(b.ramBytesUsed() - values.bigArraysRamBytesUsed());
@@ -481,6 +511,12 @@ public class BlockFactory {
         var b = new BytesRefArrayVector(values, positionCount, this);
         adjustBreaker(b.ramBytesUsed() - values.bigArraysRamBytesUsed());
         return b;
+    }
+
+    public BytesRefVector newDirectBytesRefVector(byte[] bytes, int[] startOffsets, int positionCount) {
+        var v = new DirectBytesRefVector(bytes, startOffsets, positionCount, this);
+        adjustBreaker(v.ramBytesUsed());
+        return v;
     }
 
     public BytesRefBlock newConstantBytesRefBlockWith(BytesRef value, int positions) {
@@ -597,7 +633,16 @@ public class BlockFactory {
         DoubleBlock zeroThresholds,
         BytesRefBlock encodedHistograms
     ) {
-        return new ExponentialHistogramArrayBlock(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
+        return new ExponentialHistogramArrayBlock(
+            encodedHistograms,
+            minima,
+            maxima,
+            sums,
+            valueCounts,
+            zeroThresholds,
+            encodedHistograms.getPositionCount(),
+            null
+        );
     }
 
     public BlockLoader.Block newTDigestBlockFromDocValues(
@@ -607,7 +652,7 @@ public class BlockFactory {
         DoubleBlock sums,
         LongBlock counts
     ) {
-        return new TDigestArrayBlock(encodedDigests, minima, maxima, sums, counts);
+        return new TDigestArrayBlock(encodedDigests, minima, maxima, sums, counts, encodedDigests.getPositionCount(), null);
     }
 
     public final AggregateMetricDoubleBlock newAggregateMetricDoubleBlock(
@@ -628,21 +673,41 @@ public class BlockFactory {
         return new LongRangeBlockBuilder(estimatedSize, this);
     }
 
-    public LongRangeBlock newConstantLongRangeBlock(LongRangeBlockBuilder.LongRange value, int positions) {
-        try (var builder = newLongRangeBlockBuilder(positions)) {
-            for (int i = 0; i < positions; i++) {
-                if (value.from() == null) {
-                    builder.from().appendNull();
-                } else {
-                    builder.from().appendLong(value.from());
-                }
-                if (value.to() == null) {
-                    builder.to().appendNull();
-                } else {
-                    builder.to().appendLong(value.to());
-                }
+    public LongRangeBlock newConstantLongRangeBlockWith(LongRangeBlockBuilder.LongRange value, int positions) {
+        LongBlock fromBlock = null;
+        LongBlock toBlock = null;
+        boolean success = false;
+        try {
+            fromBlock = newConstantLongBlockWith(value.from(), positions);
+            toBlock = newConstantLongBlockWith(value.to(), positions);
+            var block = new LongRangeArrayBlock(fromBlock, toBlock);
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(fromBlock, toBlock);
             }
-            return builder.build();
+        }
+    }
+
+    public DoubleRangeBlockBuilder newDoubleRangeBlockBuilder(int estimatedSize) {
+        return new DoubleRangeBlockBuilder(estimatedSize, this);
+    }
+
+    public DoubleRangeBlock newConstantDoubleRangeBlockWith(DoubleRangeBlockBuilder.DoubleRange value, int positions) {
+        DoubleBlock fromBlock = null;
+        DoubleBlock toBlock = null;
+        boolean success = false;
+        try {
+            fromBlock = newConstantDoubleBlockWith(value.from(), positions);
+            toBlock = newConstantDoubleBlockWith(value.to(), positions);
+            var block = new DoubleRangeArrayBlock(fromBlock, toBlock);
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(fromBlock, toBlock);
+            }
         }
     }
 

@@ -16,12 +16,12 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.junit.runners.model.Statement;
 
-import java.io.IOException;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -37,21 +37,10 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Ensures metrics are being exported as expected.
+ * Tests in this class are applied to all subclasses, ensuring all metrics implementations satisfy our requirements.
  */
-public abstract class AbstractMetricsIT extends ESRestTestCase {
+public abstract class AbstractMetricsIT extends AbstractTelemetryIT {
     private static final Logger logger = LogManager.getLogger(AbstractMetricsIT.class);
-
-    /**
-     * The APM agent is reconfigured dynamically by the APM module after booting,
-     * and the agent only reloads its configuration every 30 seconds.
-     * The first telemetry can be blocked waiting for this, so let's give it
-     * a good long time before giving up.
-     * <p>
-     * This should be unnecessary when the APM agent is no longer used.
-     */
-    static final int TELEMETRY_TIMEOUT = 40;
-
-    protected static RecordingApmServer recordingApmServer = new RecordingApmServer();
 
     /**
      * Returns a builder with common cluster settings (distribution, modules, telemetry.metrics.enabled).
@@ -65,28 +54,8 @@ public abstract class AbstractMetricsIT extends ESRestTestCase {
             .setting("telemetry.metrics.enabled", "true");
     }
 
-    /**
-     * Builds the rule chain for a subclass: recording server first, then cluster, then closeClients in finally.
-     */
-    protected static org.junit.rules.TestRule buildRuleChain(RecordingApmServer server, ElasticsearchCluster cluster) {
-        return org.junit.rules.RuleChain.outerRule(server).around(cluster).around((base, description) -> new Statement() {
-            @Override
-            public void evaluate() throws Throwable {
-                try {
-                    base.evaluate();
-                } finally {
-                    try {
-                        closeClients();
-                    } catch (IOException e) {
-                        logger.error("failed to close REST clients after test", e);
-                    }
-                }
-            }
-        });
-    }
-
     public void testExplicitMetrics() throws Exception {
-        Map<String, Predicate<Number>> valueAssertions = new HashMap<>(
+        Map<String, Predicate<Number>> valueAssertions = new ConcurrentHashMap<>(
             Map.ofEntries(
                 entry("es.test.long_counter.total", n -> closeTo(1.0, 0.001).matches(n.doubleValue())),
                 entry("es.test.double_counter.total", n -> closeTo(1.0, 0.001).matches(n.doubleValue())),
@@ -97,7 +66,7 @@ public abstract class AbstractMetricsIT extends ESRestTestCase {
             )
         );
 
-        Map<String, Integer> histogramAssertions = new HashMap<>(
+        Map<String, Integer> histogramAssertions = new ConcurrentHashMap<>(
             Map.ofEntries(entry("es.test.double_histogram.histogram", 2), entry("es.test.long_histogram.histogram", 2))
         );
 
@@ -122,10 +91,14 @@ public abstract class AbstractMetricsIT extends ESRestTestCase {
                     }
 
                     var histogramExpected = histogramAssertions.get(key);
-                    if (histogramExpected != null && sampleValue instanceof ReceivedTelemetry.HistogramSample(var counts)) {
+                    if (histogramExpected != null
+                        && sampleValue instanceof ReceivedTelemetry.HistogramSample(var ignoredMidpoints, var ignoredBounds, var counts)) {
                         int total = counts.stream().mapToInt(Integer::intValue).sum();
                         int remaining = histogramExpected - total;
-                        if (remaining == 0) {
+                        // Pass once we have observed at least the expected number of counts. The retry loop below
+                        // re-records the histogram on each iteration, so cumulative counts can exceed the expectation
+                        // and drive remaining negative; requiring exactly 0 would then never be satisfiable again.
+                        if (remaining <= 0) {
                             logger.info("{} assertion PASSED", key);
                             histogramAssertions.remove(key);
                         } else {
@@ -140,27 +113,104 @@ public abstract class AbstractMetricsIT extends ESRestTestCase {
             }
         };
 
-        recordingApmServer.addMessageConsumer(messageConsumer);
+        apmServer().addMessageConsumer(messageConsumer);
 
-        client().performRequest(new Request("GET", "/_use_apm_metrics"));
-        client().performRequest(new Request("GET", "/_flush_telemetry"));
-        finished.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS);
+        // Retry both the metric increment and the flush: with deltaPreferred() temporality, counter values reset
+        // to zero after each export cycle, so a single failed export (e.g. send_timeout exceeded on a slow CI
+        // host) would drop the batch and leave the counters unsatisfiable on subsequent collections.
+        assertBusy(() -> {
+            client().performRequest(new Request("GET", "/_use_apm_metrics"));
+            client().performRequest(new Request("GET", "/_flush_telemetry"));
+            var remainingAssertions = Stream.concat(valueAssertions.keySet().stream(), histogramAssertions.keySet().stream())
+                .collect(Collectors.joining(","));
+            assertTrue(
+                "Timeout when waiting for assertions to complete. Remaining assertions to match: " + remainingAssertions,
+                finished.getCount() == 0
+            );
+        }, TELEMETRY_TIMEOUT, TimeUnit.SECONDS);
+    }
 
-        var remainingAssertions = Stream.concat(valueAssertions.keySet().stream(), histogramAssertions.keySet().stream())
-            .collect(Collectors.joining(","));
-        assertTrue(
-            "Timeout when waiting for assertions to complete. Remaining assertions to match: " + remainingAssertions,
-            finished.getCount() == 0
-        );
+    public void testCustomBoundaryHistogram() throws Exception {
+        long[] recordedValues = new long[randomIntBetween(3, 10)];
+        for (int i = 0; i < recordedValues.length; i++) {
+            // Let's not cover the bucket midpoint reporting logic for underflow or overflow buckets
+            recordedValues[i] = randomLongBetween(
+                TestMeterUsages.CUSTOM_BOUNDARIES.get(0) + 1,
+                TestMeterUsages.CUSTOM_BOUNDARIES.get(TestMeterUsages.CUSTOM_BOUNDARIES.size() - 1)
+            );
+        }
+        // Assign each value to its OTel explicit-bucket index
+        Map<Integer, Integer> bucketCountMap = new TreeMap<>();
+        for (long v : recordedValues) {
+            for (int i = 0; i < TestMeterUsages.CUSTOM_BOUNDARIES.size(); i++) {
+                if (v <= TestMeterUsages.CUSTOM_BOUNDARIES.get(i)) {
+                    bucketCountMap.merge(i, 1, Integer::sum);
+                    break;
+                }
+            }
+        }
+        // APM agent path: non-zero (midpoint, count) pairs in bucket order
+        List<Double> expectedMidpoints = new ArrayList<>();
+        List<Integer> expectedCounts = new ArrayList<>();
+        for (var entry : bucketCountMap.entrySet()) {
+            var bucketIndex = entry.getKey();
+            double lower = TestMeterUsages.CUSTOM_BOUNDARIES.get(bucketIndex - 1);
+            double upper = TestMeterUsages.CUSTOM_BOUNDARIES.get(bucketIndex);
+            expectedMidpoints.add(lower + (upper - lower) / 2.0);
+            expectedCounts.add(entry.getValue());
+        }
+        // OTLP path: full bounds list + all bucket counts including zeros
+        List<Double> expectedBounds = TestMeterUsages.CUSTOM_BOUNDARIES.stream().map(Long::doubleValue).toList();
+        int numBuckets = TestMeterUsages.CUSTOM_BOUNDARIES.size() + 1;
+        List<Integer> expectedAllCounts = new ArrayList<>();
+        for (int i = 0; i < numBuckets; i++) {
+            expectedAllCounts.add(bucketCountMap.getOrDefault(i, 0));
+        }
+
+        CountDownLatch finished = new CountDownLatch(2);
+        apmServer().addMessageConsumer(msg -> {
+            if (msg instanceof ReceivedTelemetry.ReceivedMetricSet m && "elasticsearch".equals(m.instrumentationScopeName())) {
+                for (String name : List.of(
+                    TestMeterUsages.CUSTOM_BOUNDARIES_LONG_HISTOGRAM_NAME,
+                    TestMeterUsages.CUSTOM_BOUNDARIES_DOUBLE_HISTOGRAM_NAME
+                )) {
+                    var sample = m.samples().get(name);
+                    if (sample instanceof ReceivedTelemetry.HistogramSample(var midpoints, var bounds, var counts)) {
+                        if ((midpoints.equals(expectedMidpoints) && counts.equals(expectedCounts))
+                            || (bounds.equals(expectedBounds) && counts.equals(expectedAllCounts))) {
+                            logger.info("{} assertion PASSED (midpoints={}, counts={})", name, midpoints, counts);
+                            finished.countDown();
+                        }
+                    }
+                }
+            }
+        });
+
+        assertBusy(() -> {
+            for (long v : recordedValues) {
+                client().performRequest(
+                    new Request("GET", "/_use_apm_metrics?metric=" + TestMeterUsages.CUSTOM_BOUNDARIES_LONG_HISTOGRAM_NAME + "&value=" + v)
+                );
+                client().performRequest(
+                    new Request(
+                        "GET",
+                        "/_use_apm_metrics?metric=" + TestMeterUsages.CUSTOM_BOUNDARIES_DOUBLE_HISTOGRAM_NAME + "&value=" + v
+                    )
+                );
+            }
+            client().performRequest(new Request("GET", "/_flush_telemetry"));
+            assertTrue("Timeout waiting for custom boundary histogram assertion", finished.getCount() == 0);
+        }, TELEMETRY_TIMEOUT, TimeUnit.SECONDS);
     }
 
     public void testJvmMetrics() throws Exception {
-        Map<String, Predicate<Number>> valueAssertions = new HashMap<>(
+        // Concurrent because the RecordingApmServer consumer thread mutates this map while the main thread reads it.
+        Map<String, Predicate<Number>> valueAssertions = new ConcurrentHashMap<>(
             Map.ofEntries(
                 entry("system.cpu.total.norm.pct", n -> closeTo(0.0, 1.0).matches(n.doubleValue())),
                 entry("system.process.cpu.total.norm.pct", n -> closeTo(0.0, 1.0).matches(n.doubleValue())),
                 entry("system.memory.total", n -> greaterThan(0L).matches(n.longValue())),
-                entry("system.memory.actual.free", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
+                entry("system.memory.actual.free", n -> greaterThan(0L).matches(n.longValue())),
                 entry("system.process.memory.size", n -> greaterThan(0L).matches(n.longValue())),
                 entry("jvm.memory.heap.used", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
                 entry("jvm.memory.heap.committed", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
@@ -169,7 +219,7 @@ public abstract class AbstractMetricsIT extends ESRestTestCase {
                 entry("jvm.memory.non_heap.committed", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
                 entry("jvm.gc.count", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
                 entry("jvm.gc.time", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
-                entry("jvm.gc.alloc", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
+                entry("jvm.gc.alloc", n -> greaterThan(0L).matches(n.longValue())),
                 entry("jvm.thread.count", n -> greaterThanOrEqualTo(1L).matches(n.longValue())),
                 entry("jvm.fd.used", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
                 entry("jvm.fd.max", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
@@ -206,7 +256,7 @@ public abstract class AbstractMetricsIT extends ESRestTestCase {
             }
         };
 
-        recordingApmServer.addMessageConsumer(messageConsumer);
+        apmServer().addMessageConsumer(messageConsumer);
 
         client().performRequest(new Request("GET", "/_flush_telemetry"));
         logger.debug("About to wait for telemetry");

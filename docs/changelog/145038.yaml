@@ -1,6 +1,0 @@
-area: Inference
-issues:
- - 144900
-pr: 145038
-summary: Validate base64 embedding inputs use data URI format
-type: bug

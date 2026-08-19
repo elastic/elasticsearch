@@ -22,14 +22,15 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.inference.EndpointClusterState;
+import org.elasticsearch.inference.EndpointClusterStateTests;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceExtension;
-import org.elasticsearch.inference.MinimalServiceSettings;
-import org.elasticsearch.inference.MinimalServiceSettingsTests;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -88,7 +89,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder.OLD_DEFAULT_SETTINGS;
 import static org.elasticsearch.xpack.inference.TaskTypeTests.randomTaskTypeOtherThanAny;
-import static org.elasticsearch.xpack.inference.registry.ModelRegistryTests.assertMinimalServiceSettings;
+import static org.elasticsearch.xpack.inference.registry.ModelRegistryTests.assertEndpointClusterState;
 import static org.elasticsearch.xpack.inference.registry.ModelRegistryTests.assertStoreModel;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -165,7 +166,8 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
                 mock(ThreadPool.class),
                 mock(ClusterService.class),
                 Settings.EMPTY,
-                InferenceStatsTests.mockInferenceStats()
+                InferenceStatsTests.mockInferenceStats(),
+                mock(FeatureService.class)
             )
         );
 
@@ -250,7 +252,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var defaultConfigs = new ArrayList<Model>();
         var defaultIds = new ArrayList<InferenceService.DefaultConfigId>();
         for (var id : new String[] { "model1", "model2", "model3" }) {
-            var modelSettings = MinimalServiceSettingsTests.randomInstance();
+            var modelSettings = EndpointClusterStateTests.randomInstance();
             defaultConfigs.add(createModel(id, modelSettings.taskType(), "name"));
             defaultIds.add(new InferenceService.DefaultConfigId(id, modelSettings, service));
         }
@@ -382,7 +384,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var defaultIds = new ArrayList<InferenceService.DefaultConfigId>();
         for (int i = 0; i < defaultModelCount; i++) {
             var id = "default-" + i;
-            var modelSettings = MinimalServiceSettingsTests.randomInstance();
+            var modelSettings = EndpointClusterStateTests.randomInstance();
             defaultConfigs.add(createModel(id, modelSettings.taskType(), serviceName));
             defaultIds.add(new InferenceService.DefaultConfigId(id, modelSettings, service));
         }
@@ -445,7 +447,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var defaultIds = new ArrayList<InferenceService.DefaultConfigId>();
         for (int i = 0; i < defaultModelCount; i++) {
             var id = "default-" + i;
-            var modelSettings = MinimalServiceSettingsTests.randomInstance();
+            var modelSettings = EndpointClusterStateTests.randomInstance();
             defaultConfigs.add(createModel(id, modelSettings.taskType(), serviceName));
             defaultIds.add(new InferenceService.DefaultConfigId(id, modelSettings, service));
         }
@@ -486,7 +488,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var defaultIds = new ArrayList<InferenceService.DefaultConfigId>();
         for (int i = 0; i < defaultModelCount; i++) {
             var id = "default-" + i;
-            var modelSettings = MinimalServiceSettingsTests.randomInstance();
+            var modelSettings = EndpointClusterStateTests.randomInstance();
             defaultConfigs.add(createModel(id, modelSettings.taskType(), serviceName));
             defaultIds.add(new InferenceService.DefaultConfigId(id, modelSettings, service));
         }
@@ -526,13 +528,11 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         defaultConfigs.add(createModel("default-sparse", TaskType.SPARSE_EMBEDDING, serviceName));
         defaultConfigs.add(createModel("default-text", TaskType.TEXT_EMBEDDING, serviceName));
-        defaultIds.add(
-            new InferenceService.DefaultConfigId("default-sparse", MinimalServiceSettings.sparseEmbedding(serviceName), service)
-        );
+        defaultIds.add(new InferenceService.DefaultConfigId("default-sparse", EndpointClusterState.sparseEmbedding(serviceName), service));
         defaultIds.add(
             new InferenceService.DefaultConfigId(
                 "default-text",
-                MinimalServiceSettings.textEmbedding(serviceName, 384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+                EndpointClusterState.textEmbedding(serviceName, 384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
                 service
             )
         );
@@ -575,17 +575,15 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         var service = mock(InferenceService.class);
         var defaultIds = new ArrayList<InferenceService.DefaultConfigId>();
-        defaultIds.add(
-            new InferenceService.DefaultConfigId("default-sparse", MinimalServiceSettings.sparseEmbedding(serviceName), service)
-        );
+        defaultIds.add(new InferenceService.DefaultConfigId("default-sparse", EndpointClusterState.sparseEmbedding(serviceName), service));
         defaultIds.add(
             new InferenceService.DefaultConfigId(
                 "default-text",
-                MinimalServiceSettings.textEmbedding(serviceName, 384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+                EndpointClusterState.textEmbedding(serviceName, 384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
                 service
             )
         );
-        defaultIds.add(new InferenceService.DefaultConfigId("default-chat", MinimalServiceSettings.completion(serviceName), service));
+        defaultIds.add(new InferenceService.DefaultConfigId("default-chat", EndpointClusterState.completion(serviceName), service));
 
         doAnswer(invocation -> {
             ActionListener<List<Model>> listener = invocation.getArgument(0);
@@ -664,7 +662,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(response.size(), Matchers.is(1));
         assertThat(response.get(0), Matchers.is(new ModelStoreResponse(inferenceId, RestStatus.CREATED, null)));
 
-        assertMinimalServiceSettings(modelRegistry, model);
+        assertEndpointClusterState(modelRegistry, model);
 
         var listener = new PlainActionFuture<UnparsedModel>();
         modelRegistry.getModelWithSecrets(inferenceId, listener);
@@ -673,7 +671,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertModel(returnedModel, model, secrets);
     }
 
-    public void testMinimalServiceSettings_MultipleIds() {
+    public void testEndpointClusterState_MultipleIds() {
         var service = randomAlphaOfLength(5);
         var createdModels = new ArrayList<Model>();
         int modelCount = randomIntBetween(20, 30);
@@ -684,19 +682,19 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             assertStoreModel(modelRegistry, model);
         }
 
-        Map<String, MinimalServiceSettings> minimalServiceSettings = modelRegistry.getMinimalServiceSettings(
+        Map<String, EndpointClusterState> endpointClusterState = modelRegistry.getEndpointClusterState(
             createdModels.stream().map(Model::getInferenceEntityId).collect(Collectors.toSet()),
             randomBoolean()
         );
 
         for (var model : createdModels) {
-            assertThat(minimalServiceSettings.containsKey(model.getInferenceEntityId()), is(true));
-            var thisModelSettings = minimalServiceSettings.get(model.getInferenceEntityId());
-            assertThat(thisModelSettings, equalTo(new MinimalServiceSettings(model)));
+            assertThat(endpointClusterState.containsKey(model.getInferenceEntityId()), is(true));
+            var thisModelSettings = endpointClusterState.get(model.getInferenceEntityId());
+            assertThat(thisModelSettings, equalTo(new EndpointClusterState(model)));
         }
     }
 
-    public void testMinimalServiceSettings_GivenOneNonMatchingId_AndShouldThrow() {
+    public void testEndpointClusterState_GivenOneNonMatchingId_AndShouldThrow() {
         var service = randomAlphaOfLength(5);
         var createdModels = new ArrayList<Model>();
         Function<Integer, String> endpointIdCreator = i -> "endpoint_id_" + i;
@@ -709,7 +707,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         ResourceNotFoundException e = expectThrows(
             ResourceNotFoundException.class,
-            () -> modelRegistry.getMinimalServiceSettings(
+            () -> modelRegistry.getEndpointClusterState(
                 Set.of(endpointIdCreator.apply(randomIntBetween(0, createdModels.size() - 1)), "non_matching_id"),
                 true
             )
@@ -718,7 +716,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), Matchers.is("non_matching_id does not exist in this cluster."));
     }
 
-    public void testMinimalServiceSettings_GivenOneNonMatchingId_AndShouldNotThrow() {
+    public void testEndpointClusterState_GivenOneNonMatchingId_AndShouldNotThrow() {
         var service = randomAlphaOfLength(5);
         var createdModels = new ArrayList<Model>();
 
@@ -729,19 +727,17 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         }
 
         String matchingId = "model_id_" + randomIntBetween(0, createdModels.size() - 1);
-        Map<String, MinimalServiceSettings> minimalServiceSettings = modelRegistry.getMinimalServiceSettings(
+        Map<String, EndpointClusterState> endpointClusterState = modelRegistry.getEndpointClusterState(
             Set.of(matchingId, "non_matching_id"),
             false
         );
 
-        assertThat(minimalServiceSettings.size(), Matchers.is(1));
-        assertThat(minimalServiceSettings.containsKey(matchingId), is(true));
+        assertThat(endpointClusterState.size(), Matchers.is(1));
+        assertThat(endpointClusterState.containsKey(matchingId), is(true));
         assertThat(
-            minimalServiceSettings.get(matchingId),
+            endpointClusterState.get(matchingId),
             equalTo(
-                new MinimalServiceSettings(
-                    createdModels.stream().filter(m -> m.getInferenceEntityId().equals(matchingId)).findFirst().get()
-                )
+                new EndpointClusterState(createdModels.stream().filter(m -> m.getInferenceEntityId().equals(matchingId)).findFirst().get())
             )
         );
     }
@@ -782,7 +778,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     }
 
     private static void assertModelAndMinimalSettingsWithoutSecrets(ModelRegistry registry, Model model) {
-        assertMinimalServiceSettings(registry, model);
+        assertEndpointClusterState(registry, model);
 
         var listener = new PlainActionFuture<UnparsedModel>();
         registry.getModel(model.getInferenceEntityId(), listener);
@@ -792,7 +788,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     }
 
     private static void assertModelAndMinimalSettingsWithSecrets(ModelRegistry registry, Model model, String secrets) {
-        assertMinimalServiceSettings(registry, model);
+        assertEndpointClusterState(registry, model);
 
         var listener = new PlainActionFuture<UnparsedModel>();
         registry.getModelWithSecrets(model.getInferenceEntityId(), listener);
@@ -1002,7 +998,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertFalse(response.get(0).failed());
 
         assertIndicesContainExpectedDocsCount(model, 2);
-        assertMinimalServiceSettings(modelRegistry, model);
+        assertEndpointClusterState(modelRegistry, model);
 
         var getModelWithSecretsListener = new PlainActionFuture<UnparsedModel>();
         modelRegistry.getModelWithSecrets(model.getInferenceEntityId(), getModelWithSecretsListener);
@@ -1089,7 +1085,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(response.get(2), Matchers.is(new ModelStoreResponse(testModelId2, RestStatus.CREATED, null)));
 
         assertIndicesContainExpectedDocsCount(eisModel, 2);
-        assertMinimalServiceSettings(modelRegistry, eisModel);
+        assertEndpointClusterState(modelRegistry, eisModel);
 
         var getModelWithSecretsListener = new PlainActionFuture<UnparsedModel>();
         modelRegistry.getModelWithSecrets(eisModel.getInferenceEntityId(), getModelWithSecretsListener);

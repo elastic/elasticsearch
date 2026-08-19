@@ -187,6 +187,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStatsNamedWriteablesProvider;
+import org.elasticsearch.xpack.core.ml.inference.IngestModelMemoryProvider;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelCacheMetadata;
@@ -201,97 +202,97 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportAuditMlNotificationAction;
-import org.elasticsearch.xpack.ml.action.TransportCancelJobModelSnapshotUpgradeAction;
-import org.elasticsearch.xpack.ml.action.TransportClearDeploymentCacheAction;
-import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
-import org.elasticsearch.xpack.ml.action.TransportCoordinatedInferenceAction;
-import org.elasticsearch.xpack.ml.action.TransportCreateTrainedModelAssignmentAction;
-import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarAction;
-import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarEventAction;
-import org.elasticsearch.xpack.ml.action.TransportDeleteDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.ml.action.TransportDeleteDatafeedAction;
-import org.elasticsearch.xpack.ml.action.TransportDeleteExpiredDataAction;
-import org.elasticsearch.xpack.ml.action.TransportDeleteFilterAction;
-import org.elasticsearch.xpack.ml.action.TransportDeleteForecastAction;
-import org.elasticsearch.xpack.ml.action.TransportDeleteJobAction;
-import org.elasticsearch.xpack.ml.action.TransportDeleteModelSnapshotAction;
-import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction;
-import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAliasAction;
-import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAssignmentAction;
-import org.elasticsearch.xpack.ml.action.TransportEstimateModelMemoryAction;
-import org.elasticsearch.xpack.ml.action.TransportEvaluateDataFrameAction;
-import org.elasticsearch.xpack.ml.action.TransportExplainDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.ml.action.TransportExternalInferModelAction;
-import org.elasticsearch.xpack.ml.action.TransportFinalizeJobExecutionAction;
-import org.elasticsearch.xpack.ml.action.TransportFlushJobAction;
-import org.elasticsearch.xpack.ml.action.TransportFlushTrainedModelCacheAction;
-import org.elasticsearch.xpack.ml.action.TransportForecastJobAction;
-import org.elasticsearch.xpack.ml.action.TransportGetBucketsAction;
-import org.elasticsearch.xpack.ml.action.TransportGetCalendarEventsAction;
-import org.elasticsearch.xpack.ml.action.TransportGetCalendarsAction;
-import org.elasticsearch.xpack.ml.action.TransportGetCategoriesAction;
-import org.elasticsearch.xpack.ml.action.TransportGetDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.ml.action.TransportGetDataFrameAnalyticsStatsAction;
-import org.elasticsearch.xpack.ml.action.TransportGetDatafeedRunningStateAction;
-import org.elasticsearch.xpack.ml.action.TransportGetDatafeedsAction;
-import org.elasticsearch.xpack.ml.action.TransportGetDatafeedsStatsAction;
-import org.elasticsearch.xpack.ml.action.TransportGetDeploymentStatsAction;
-import org.elasticsearch.xpack.ml.action.TransportGetFiltersAction;
-import org.elasticsearch.xpack.ml.action.TransportGetInfluencersAction;
-import org.elasticsearch.xpack.ml.action.TransportGetJobModelSnapshotsUpgradeStatsAction;
-import org.elasticsearch.xpack.ml.action.TransportGetJobsAction;
-import org.elasticsearch.xpack.ml.action.TransportGetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetMlAutoscalingStats;
-import org.elasticsearch.xpack.ml.action.TransportGetModelSnapshotsAction;
-import org.elasticsearch.xpack.ml.action.TransportGetOverallBucketsAction;
-import org.elasticsearch.xpack.ml.action.TransportGetRecordsAction;
-import org.elasticsearch.xpack.ml.action.TransportGetTrainedModelsAction;
-import org.elasticsearch.xpack.ml.action.TransportGetTrainedModelsStatsAction;
-import org.elasticsearch.xpack.ml.action.TransportInferTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.ml.action.TransportInternalInferModelAction;
-import org.elasticsearch.xpack.ml.action.TransportIsolateDatafeedAction;
-import org.elasticsearch.xpack.ml.action.TransportKillProcessAction;
 import org.elasticsearch.xpack.ml.action.TransportMlInfoAction;
 import org.elasticsearch.xpack.ml.action.TransportMlMemoryAction;
-import org.elasticsearch.xpack.ml.action.TransportOpenJobAction;
-import org.elasticsearch.xpack.ml.action.TransportPersistJobAction;
-import org.elasticsearch.xpack.ml.action.TransportPostCalendarEventsAction;
-import org.elasticsearch.xpack.ml.action.TransportPostDataAction;
-import org.elasticsearch.xpack.ml.action.TransportPreviewDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.ml.action.TransportPreviewDatafeedAction;
-import org.elasticsearch.xpack.ml.action.TransportPutCalendarAction;
-import org.elasticsearch.xpack.ml.action.TransportPutDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.ml.action.TransportPutDatafeedAction;
-import org.elasticsearch.xpack.ml.action.TransportPutFilterAction;
-import org.elasticsearch.xpack.ml.action.TransportPutJobAction;
-import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelAction;
-import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelAliasAction;
-import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelDefinitionPartAction;
-import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelVocabularyAction;
-import org.elasticsearch.xpack.ml.action.TransportResetJobAction;
 import org.elasticsearch.xpack.ml.action.TransportResetMlComponentsAction;
-import org.elasticsearch.xpack.ml.action.TransportRevertModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportSetResetModeAction;
 import org.elasticsearch.xpack.ml.action.TransportSetUpgradeModeAction;
-import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
-import org.elasticsearch.xpack.ml.action.TransportStartTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.ml.action.TransportStopDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.ml.action.TransportStopDatafeedAction;
-import org.elasticsearch.xpack.ml.action.TransportStopTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.ml.action.TransportTrainedModelCacheInfoAction;
-import org.elasticsearch.xpack.ml.action.TransportUpdateCalendarJobAction;
-import org.elasticsearch.xpack.ml.action.TransportUpdateDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.ml.action.TransportUpdateDatafeedAction;
-import org.elasticsearch.xpack.ml.action.TransportUpdateFilterAction;
-import org.elasticsearch.xpack.ml.action.TransportUpdateJobAction;
-import org.elasticsearch.xpack.ml.action.TransportUpdateModelSnapshotAction;
-import org.elasticsearch.xpack.ml.action.TransportUpdateProcessAction;
-import org.elasticsearch.xpack.ml.action.TransportUpdateTrainedModelAssignmentStateAction;
-import org.elasticsearch.xpack.ml.action.TransportUpdateTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.ml.action.TransportUpgradeJobModelSnapshotAction;
-import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
-import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
+import org.elasticsearch.xpack.ml.action.calendar.TransportDeleteCalendarAction;
+import org.elasticsearch.xpack.ml.action.calendar.TransportDeleteCalendarEventAction;
+import org.elasticsearch.xpack.ml.action.calendar.TransportGetCalendarEventsAction;
+import org.elasticsearch.xpack.ml.action.calendar.TransportGetCalendarsAction;
+import org.elasticsearch.xpack.ml.action.calendar.TransportPostCalendarEventsAction;
+import org.elasticsearch.xpack.ml.action.calendar.TransportPutCalendarAction;
+import org.elasticsearch.xpack.ml.action.calendar.TransportUpdateCalendarJobAction;
+import org.elasticsearch.xpack.ml.action.datafeed.TransportDeleteDatafeedAction;
+import org.elasticsearch.xpack.ml.action.datafeed.TransportGetDatafeedRunningStateAction;
+import org.elasticsearch.xpack.ml.action.datafeed.TransportGetDatafeedsAction;
+import org.elasticsearch.xpack.ml.action.datafeed.TransportGetDatafeedsStatsAction;
+import org.elasticsearch.xpack.ml.action.datafeed.TransportIsolateDatafeedAction;
+import org.elasticsearch.xpack.ml.action.datafeed.TransportPreviewDatafeedAction;
+import org.elasticsearch.xpack.ml.action.datafeed.TransportPutDatafeedAction;
+import org.elasticsearch.xpack.ml.action.datafeed.TransportStartDatafeedAction;
+import org.elasticsearch.xpack.ml.action.datafeed.TransportStopDatafeedAction;
+import org.elasticsearch.xpack.ml.action.datafeed.TransportUpdateDatafeedAction;
+import org.elasticsearch.xpack.ml.action.dataframe.TransportDeleteDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.ml.action.dataframe.TransportEvaluateDataFrameAction;
+import org.elasticsearch.xpack.ml.action.dataframe.TransportExplainDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.ml.action.dataframe.TransportGetDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.ml.action.dataframe.TransportGetDataFrameAnalyticsStatsAction;
+import org.elasticsearch.xpack.ml.action.dataframe.TransportPreviewDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.ml.action.dataframe.TransportPutDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.ml.action.dataframe.TransportStartDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.ml.action.dataframe.TransportStopDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.ml.action.dataframe.TransportUpdateDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.ml.action.filter.TransportDeleteFilterAction;
+import org.elasticsearch.xpack.ml.action.filter.TransportGetFiltersAction;
+import org.elasticsearch.xpack.ml.action.filter.TransportPutFilterAction;
+import org.elasticsearch.xpack.ml.action.filter.TransportUpdateFilterAction;
+import org.elasticsearch.xpack.ml.action.job.TransportCloseJobAction;
+import org.elasticsearch.xpack.ml.action.job.TransportDeleteExpiredDataAction;
+import org.elasticsearch.xpack.ml.action.job.TransportDeleteForecastAction;
+import org.elasticsearch.xpack.ml.action.job.TransportDeleteJobAction;
+import org.elasticsearch.xpack.ml.action.job.TransportFinalizeJobExecutionAction;
+import org.elasticsearch.xpack.ml.action.job.TransportFlushJobAction;
+import org.elasticsearch.xpack.ml.action.job.TransportForecastJobAction;
+import org.elasticsearch.xpack.ml.action.job.TransportGetBucketsAction;
+import org.elasticsearch.xpack.ml.action.job.TransportGetCategoriesAction;
+import org.elasticsearch.xpack.ml.action.job.TransportGetInfluencersAction;
+import org.elasticsearch.xpack.ml.action.job.TransportGetJobsAction;
+import org.elasticsearch.xpack.ml.action.job.TransportGetJobsStatsAction;
+import org.elasticsearch.xpack.ml.action.job.TransportGetOverallBucketsAction;
+import org.elasticsearch.xpack.ml.action.job.TransportGetRecordsAction;
+import org.elasticsearch.xpack.ml.action.job.TransportKillProcessAction;
+import org.elasticsearch.xpack.ml.action.job.TransportOpenJobAction;
+import org.elasticsearch.xpack.ml.action.job.TransportPersistJobAction;
+import org.elasticsearch.xpack.ml.action.job.TransportPostDataAction;
+import org.elasticsearch.xpack.ml.action.job.TransportPutJobAction;
+import org.elasticsearch.xpack.ml.action.job.TransportResetJobAction;
+import org.elasticsearch.xpack.ml.action.job.TransportUpdateJobAction;
+import org.elasticsearch.xpack.ml.action.job.TransportUpdateProcessAction;
+import org.elasticsearch.xpack.ml.action.job.TransportValidateDetectorAction;
+import org.elasticsearch.xpack.ml.action.job.TransportValidateJobConfigAction;
+import org.elasticsearch.xpack.ml.action.snapshot.TransportCancelJobModelSnapshotUpgradeAction;
+import org.elasticsearch.xpack.ml.action.snapshot.TransportDeleteModelSnapshotAction;
+import org.elasticsearch.xpack.ml.action.snapshot.TransportGetJobModelSnapshotsUpgradeStatsAction;
+import org.elasticsearch.xpack.ml.action.snapshot.TransportGetModelSnapshotsAction;
+import org.elasticsearch.xpack.ml.action.snapshot.TransportRevertModelSnapshotAction;
+import org.elasticsearch.xpack.ml.action.snapshot.TransportUpdateModelSnapshotAction;
+import org.elasticsearch.xpack.ml.action.snapshot.TransportUpgradeJobModelSnapshotAction;
+import org.elasticsearch.xpack.ml.action.trainedmodel.TransportClearDeploymentCacheAction;
+import org.elasticsearch.xpack.ml.action.trainedmodel.TransportCoordinatedInferenceAction;
+import org.elasticsearch.xpack.ml.action.trainedmodel.TransportCreateTrainedModelAssignmentAction;
+import org.elasticsearch.xpack.ml.action.trainedmodel.TransportDeleteTrainedModelAction;
+import org.elasticsearch.xpack.ml.action.trainedmodel.TransportDeleteTrainedModelAliasAction;
+import org.elasticsearch.xpack.ml.action.trainedmodel.TransportDeleteTrainedModelAssignmentAction;
+import org.elasticsearch.xpack.ml.action.trainedmodel.TransportEstimateModelMemoryAction;
+import org.elasticsearch.xpack.ml.action.trainedmodel.TransportExternalInferModelAction;
+import org.elasticsearch.xpack.ml.action.trainedmodel.TransportFlushTrainedModelCacheAction;
+import org.elasticsearch.xpack.ml.action.trainedmodel.TransportGetDeploymentStatsAction;
+import org.elasticsearch.xpack.ml.action.trainedmodel.TransportGetTrainedModelsAction;
+import org.elasticsearch.xpack.ml.action.trainedmodel.TransportGetTrainedModelsStatsAction;
+import org.elasticsearch.xpack.ml.action.trainedmodel.TransportInferTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.ml.action.trainedmodel.TransportInternalInferModelAction;
+import org.elasticsearch.xpack.ml.action.trainedmodel.TransportPutTrainedModelAction;
+import org.elasticsearch.xpack.ml.action.trainedmodel.TransportPutTrainedModelAliasAction;
+import org.elasticsearch.xpack.ml.action.trainedmodel.TransportPutTrainedModelDefinitionPartAction;
+import org.elasticsearch.xpack.ml.action.trainedmodel.TransportPutTrainedModelVocabularyAction;
+import org.elasticsearch.xpack.ml.action.trainedmodel.TransportStartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.ml.action.trainedmodel.TransportStopTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.ml.action.trainedmodel.TransportTrainedModelCacheInfoAction;
+import org.elasticsearch.xpack.ml.action.trainedmodel.TransportUpdateTrainedModelAssignmentStateAction;
+import org.elasticsearch.xpack.ml.action.trainedmodel.TransportUpdateTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizeTextAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.categorization.InternalCategorizationAggregation;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregationBuilder;
@@ -331,6 +332,7 @@ import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClu
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
+import org.elasticsearch.xpack.ml.inference.ingest.IngestModelMemoryService;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankRescorerBuilder;
 import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankService;
@@ -470,6 +472,8 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.REINDEXED_V7_STATE_INDEX_PREFIX;
+import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.REINDEXED_V8_STATE_INDEX_PREFIX;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX;
 import static org.elasticsearch.xpack.core.ml.utils.InferenceProcessorInfoExtractor.countInferenceProcessors;
@@ -726,6 +730,19 @@ public class MachineLearning extends Plugin
     );
 
     /**
+     * Open anomaly detection jobs whose datafeed is stopped and that have not received data for
+     * longer than this duration will be automatically closed during nightly maintenance. Set to
+     * {@code -1} to disable auto-close.
+     */
+    public static final Setting<TimeValue> IDLE_JOB_AUTO_CLOSE_TIMEOUT = Setting.timeSetting(
+        "xpack.ml.idle_job_auto_close_timeout",
+        TimeValue.timeValueHours(48),
+        TimeValue.MINUS_ONE,
+        Property.OperatorDynamic,
+        Property.NodeScope
+    );
+
+    /**
      * This is the maximum possible node size for a machine learning node. It is useful when determining if a job could ever be opened
      * on the cluster.
      *
@@ -790,6 +807,23 @@ public class MachineLearning extends Plugin
     );
 
     /**
+     * Interval between scans of {@code .ml-config} for config-derived ML gauges (CPS datafeed adoption metrics).
+     */
+    public static final Setting<TimeValue> CONFIG_METRICS_POLL_INTERVAL = MlConfigMetrics.POLL_INTERVAL;
+
+    /**
+     * Reserved operator escape hatch. When enabled (the default), user-initiated {@code project_routing} changes on a
+     * datafeed require the associated job to be closed and auto-retain the job's current model snapshot before the
+     * routing update is persisted. Disable only when snapshot retain is blocking legitimate scope updates.
+     */
+    public static final Setting<Boolean> REQUIRE_ROLLBACK_SNAPSHOT_BEFORE_SCOPE_CHANGE = Setting.boolSetting(
+        "xpack.ml.datafeed.require_rollback_snapshot_before_scope_change",
+        true,
+        Property.OperatorDynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * The time that has to pass after scaling up, before scaling down is allowed.
      * Note that the ML autoscaling has its own cooldown time to release the hardware.
      */
@@ -823,7 +857,6 @@ public class MachineLearning extends Plugin
         true,
         Property.NodeScope
     );
-    public static final Setting<Boolean> NLP_ENABLED = Setting.boolSetting("xpack.ml.nlp.enabled", true, Property.NodeScope);
 
     /**
      * Each model deployment results in one or more entries in the cluster state
@@ -871,7 +904,7 @@ public class MachineLearning extends Plugin
         this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(settings);
         anomalyDetectionEnabled = ANOMALY_DETECTION_ENABLED.get(settings);
         dataFrameAnalyticsEnabled = DATA_FRAME_ANALYTICS_ENABLED.get(settings);
-        nlpEnabled = NLP_ENABLED.get(settings);
+        nlpEnabled = XPackSettings.NLP_ENABLED.get(settings);
     }
 
     protected XPackLicenseState getLicenseState() {
@@ -892,6 +925,7 @@ public class MachineLearning extends Plugin
             CONCURRENT_JOB_ALLOCATIONS,
             MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
             MachineLearningField.MAX_LAZY_ML_NODES,
+            MachineLearningField.MODEL_PLATFORM_ARCHITECTURES,
             MAX_MACHINE_MEMORY_PERCENT,
             AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC,
             MAX_OPEN_JOBS_PER_NODE,
@@ -903,19 +937,23 @@ public class MachineLearning extends Plugin
             ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
             NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND,
             RESULTS_INDEX_ROLLOVER_MAX_SIZE,
+            IDLE_JOB_AUTO_CLOSE_TIMEOUT,
             MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
             MAX_ML_NODE_SIZE,
             DELAYED_DATA_CHECK_FREQ,
             JOB_OPEN_RETRY_TIMEOUT,
             CCS_STABILIZATION_CYCLES,
             CCS_STABILIZATION_FLOOR,
+            CONFIG_METRICS_POLL_INTERVAL,
+            REQUIRE_ROLLBACK_SNAPSHOT_BEFORE_SCOPE_CHANGE,
             DUMMY_ENTITY_MEMORY,
             DUMMY_ENTITY_PROCESSORS,
             SCALE_UP_COOLDOWN_TIME,
             SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME,
             ANOMALY_DETECTION_ENABLED,
             DATA_FRAME_ANALYTICS_ENABLED,
-            NLP_ENABLED
+            XPackSettings.NLP_ENABLED,
+            MlAnomaliesIndexUpdate.HEAL_REINDEXED_V7_ENABLED
         );
     }
 
@@ -1049,7 +1087,8 @@ public class MachineLearning extends Plugin
             threadPool,
             client,
             canUseIlm,
-            xContentRegistry
+            xContentRegistry,
+            services.featureService()
         );
         registry.initialize();
 
@@ -1112,7 +1151,10 @@ public class MachineLearning extends Plugin
             jobConfigProvider,
             xContentRegistry,
             settings,
-            client
+            clusterService,
+            client,
+            machineLearningExtension.get(),
+            anomalyDetectionAuditor
         );
 
         // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager if ML is enabled
@@ -1214,7 +1256,8 @@ public class MachineLearning extends Plugin
             System::currentTimeMillis,
             jobResultsPersister,
             settings,
-            clusterService
+            clusterService,
+            () -> machineLearningExtension.get().getCloudCredentialManager()
         );
         DatafeedContextProvider datafeedContextProvider = new DatafeedContextProvider(
             jobConfigProvider,
@@ -1229,7 +1272,8 @@ public class MachineLearning extends Plugin
             System::currentTimeMillis,
             anomalyDetectionAuditor,
             autodetectProcessManager,
-            datafeedContextProvider
+            datafeedContextProvider,
+            telemetryProvider.getMeterRegistry()
         );
         this.datafeedRunner.set(datafeedRunner);
 
@@ -1262,6 +1306,10 @@ public class MachineLearning extends Plugin
             getLicenseState()
         );
         this.modelLoadingService.set(modelLoadingService);
+
+        final IngestModelMemoryService ingestModelMemoryService = new IngestModelMemoryService(trainedModelProvider, threadPool);
+        clusterService.addListener(ingestModelMemoryService);
+        IngestModelMemoryProvider.setInstance(ingestModelMemoryService);
 
         this.learningToRankService.set(
             new LearningToRankService(modelLoadingService, trainedModelProvider, services.scriptService(), services.xContentRegistry())
@@ -1348,8 +1396,13 @@ public class MachineLearning extends Plugin
                 new DatafeedConfigAutoUpdater(datafeedConfigProvider, indexNameExpressionResolver),
                 new MlIndexRollover(
                     List.of(
+                        new MlIndexRollover.IndexPatternAndAlias(STATE_INDEX_PREFIX + "*", AnomalyDetectorsIndex.jobStateIndexWriteAlias()),
                         new MlIndexRollover.IndexPatternAndAlias(
-                            AnomalyDetectorsIndex.jobStateIndexPattern(),
+                            REINDEXED_V7_STATE_INDEX_PREFIX + "*",
+                            AnomalyDetectorsIndex.jobStateIndexWriteAlias()
+                        ),
+                        new MlIndexRollover.IndexPatternAndAlias(
+                            REINDEXED_V8_STATE_INDEX_PREFIX + "*",
                             AnomalyDetectorsIndex.jobStateIndexWriteAlias()
                         ),
                         new MlIndexRollover.IndexPatternAndAlias(MlStatsIndex.indexPattern(), MlStatsIndex.writeAlias()),
@@ -1358,7 +1411,14 @@ public class MachineLearning extends Plugin
                     indexNameExpressionResolver,
                     client
                 ),
-                new MlAnomaliesIndexUpdate(indexNameExpressionResolver, client)
+                new MlAnomaliesIndexUpdate(
+                    clusterService,
+                    indexNameExpressionResolver,
+                    client,
+                    anomalyDetectionAuditor,
+                    systemAuditor,
+                    () -> clusterService.getClusterSettings().get(MlAnomaliesIndexUpdate.HEAL_REINDEXED_V7_ENABLED)
+                )
             )
         );
         clusterService.addListener(mlAutoUpdateService);
@@ -1415,6 +1475,7 @@ public class MachineLearning extends Plugin
             settings,
             threadPool,
             clusterService,
+            anomalyDetectionAuditor,
             client,
             adaptiveAllocationsScalerService,
             mlAssignmentNotifier,
@@ -1432,7 +1493,13 @@ public class MachineLearning extends Plugin
             autodetectProcessManager,
             dataFrameAnalyticsManager
         );
-
+        MlConfigMetrics mlConfigMetrics = new MlConfigMetrics(
+            telemetryProvider.getMeterRegistry(),
+            clusterService,
+            threadPool,
+            datafeedConfigProvider,
+            settings
+        );
         return List.of(
             mlLifeCycleService,
             new MlControllerHolder(mlController),
@@ -1460,6 +1527,7 @@ public class MachineLearning extends Plugin
             dataFrameAnalyticsConfigProvider,
             nativeStorageProvider,
             modelLoadingService,
+            ingestModelMemoryService,
             trainedModelCacheMetadataService,
             trainedModelProvider,
             trainedModelAssignmentService,
@@ -1468,7 +1536,8 @@ public class MachineLearning extends Plugin
             deploymentManager.get(),
             nodeAvailabilityZoneMapper,
             new MachineLearningExtensionHolder(machineLearningExtension.get()),
-            mlMetrics
+            mlMetrics,
+            mlConfigMetrics
         );
     }
 

@@ -47,6 +47,7 @@ public class ToGeohex extends AbstractConvertFunction {
         returnType = "geohex",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        briefSummary = "Converts a value to a geohex.",
         description = """
             Converts an input value to a `geohex` value.
             A string will only be successfully converted if it respects the

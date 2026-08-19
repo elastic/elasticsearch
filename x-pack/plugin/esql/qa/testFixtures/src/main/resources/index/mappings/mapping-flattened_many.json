@@ -1,0 +1,8 @@
+{
+  "properties": {
+    "id": { "type": "integer" },
+    "flat_a": { "type": "flattened" },
+    "flat_b": { "type": "flattened" },
+    "flat_c": { "type": "flattened" }
+  }
+}

@@ -16,6 +16,9 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.escf.EscfColumnData;
+import org.elasticsearch.escf.LuceneBinaryColumn;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -26,6 +29,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlo
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.util.Collections;
 
@@ -141,5 +145,30 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // Field mappers that support columnar parsing call BatchMappingContext#addIgnoredFieldColumnar
+        // (the columnar equivalent of DocumentParserContext#addIgnoredField) when a value is dropped
+        // (e.g. ignore_above on keyword). postColumnarParse drains that accumulator and writes the
+        // resulting _ignored doc-values column.
+        return true;
+    }
+
+    @Override
+    public void postColumnarParse(BatchMappingContext context) {
+        final DeduplicatingStringColumnAccumulator acc = context.ignoredFieldsAccumulator();
+        if (acc == null || acc.isEmpty()) {
+            return;
+        }
+
+        final EscfColumnData data = acc.finish(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        if (context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
+            context.addColumn(LuceneBinaryColumn.of(data, NAME, SortedSetDocValuesField.TYPE));
+            context.addColumn(LuceneBinaryColumn.of(data, NAME, StringField.TYPE_NOT_STORED));
+        } else {
+            context.addColumn(LuceneBinaryColumn.of(data, NAME, StringField.TYPE_STORED));
+        }
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -36,6 +37,8 @@ import org.junit.After;
 
 import java.util.Base64;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.ml.integration.ClassificationIT.KEYWORD_FIELD;
 import static org.elasticsearch.xpack.ml.integration.PyTorchModelIT.BASE_64_ENCODED_MODEL;
@@ -64,13 +67,22 @@ public class MlMemoryIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         String dfaJobId = "dfa";
         startDataFrameAnalyticsJob(dfaJobId);
 
-        MlMemoryAction.Response response = client().execute(MlMemoryAction.INSTANCE, new MlMemoryAction.Request("_all")).actionGet();
+        int expectedNodes = cluster().size();
+        assertBusy(() -> {
+            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            assertThat(state.nodes().getSize(), equalTo(expectedNodes));
+        }, 30, TimeUnit.SECONDS);
 
-        assertThat(response.failures(), empty());
-
+        AtomicReference<MlMemoryAction.Response> responseRef = new AtomicReference<>();
+        assertBusy(() -> {
+            MlMemoryAction.Response memoryResponse = client().execute(MlMemoryAction.INSTANCE, new MlMemoryAction.Request("_all"))
+                .actionGet();
+            assertThat(memoryResponse.failures(), empty());
+            assertThat(memoryResponse.getNodes(), hasSize(expectedNodes));
+            responseRef.set(memoryResponse);
+        }, 30, TimeUnit.SECONDS);
+        MlMemoryAction.Response response = responseRef.get();
         List<MlMemoryStats> statsList = response.getNodes();
-        // There are 4 nodes: 3 in the external cluster plus the test harness
-        assertThat(statsList, hasSize(4));
 
         int mlNodes = 0;
         int nodesWithPytorchModel = 0;

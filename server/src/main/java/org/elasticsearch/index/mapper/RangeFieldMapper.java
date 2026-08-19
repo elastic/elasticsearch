@@ -29,7 +29,9 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DateRangeDocValuesLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.DoubleRangeDocValuesLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
@@ -64,6 +66,7 @@ public class RangeFieldMapper extends FieldMapper {
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
 
     public static final TransportVersion ESQL_LONG_RANGES = TransportVersion.fromName("esql_long_ranges");
+    public static final TransportVersion ESQL_DOUBLE_RANGES = TransportVersion.fromName("esql_double_ranges");
 
     public static class Defaults {
         public static final DateFormatter DATE_FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
@@ -354,13 +357,16 @@ public class RangeFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (rangeType != RangeType.DATE) {
-                throw new UnsupportedOperationException("loading blocks is only supported for date fields");
+            if (hasDocValues() == false) {
+                return ConstantNull.INSTANCE;
             }
-            if (hasDocValues()) {
-                return new DateRangeDocValuesLoader(name());
-            }
-            throw new IllegalStateException("Cannot load blocks without doc values");
+            return switch (rangeType) {
+                case DATE -> new DateRangeDocValuesLoader(name());
+                case DOUBLE -> new DoubleRangeDocValuesLoader(name());
+                case INTEGER, LONG, FLOAT, IP -> throw new UnsupportedOperationException(
+                    "loading blocks is not supported for [" + rangeType.typeName() + "] fields"
+                );
+            };
         }
     }
 

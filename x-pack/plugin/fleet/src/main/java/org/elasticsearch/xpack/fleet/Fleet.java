@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.fleet;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
@@ -18,10 +18,12 @@ import org.elasticsearch.action.datastreams.DeleteDataStreamAction.Request;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
@@ -67,15 +69,22 @@ import static org.elasticsearch.xpack.core.ClientHelper.FLEET_ORIGIN;
 public class Fleet extends Plugin implements SystemIndexPlugin {
 
     public static final String FLEET_SECRETS_INDEX_NAME = ".fleet-secrets";
+    static final Setting<Integer> FLEET_AGENTS_INDEX_NUMBER_OF_SHARDS_SETTING = Setting.intSetting(
+        "xpack.fleet.agents.index.number_of_shards",
+        1,
+        1,
+        1024,
+        Setting.Property.NodeScope
+    );
 
     private static final int CURRENT_INDEX_VERSION = 7;
     private static final String MAPPING_VERSION_VARIABLE = "fleet.version";
     private static final List<String> ALLOWED_PRODUCTS = List.of("kibana", "fleet");
     private static final int FLEET_ACTIONS_MAPPINGS_VERSION = 2;
-    private static final int FLEET_AGENTS_MAPPINGS_VERSION = 8;
+    private static final int FLEET_AGENTS_MAPPINGS_VERSION = 11;
     private static final int FLEET_ENROLLMENT_API_KEYS_MAPPINGS_VERSION = 3;
     private static final int FLEET_SECRETS_MAPPINGS_VERSION = 1;
-    private static final int FLEET_POLICIES_MAPPINGS_VERSION = 2;
+    private static final int FLEET_POLICIES_MAPPINGS_VERSION = 3;
     private static final int FLEET_POLICIES_LEADER_MAPPINGS_VERSION = 1;
     private static final int FLEET_SERVERS_MAPPINGS_VERSION = 1;
     private static final int FLEET_ARTIFACTS_MAPPINGS_VERSION = 1;
@@ -89,7 +98,8 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             services.clusterService(),
             services.threadPool(),
             services.client(),
-            services.xContentRegistry()
+            services.xContentRegistry(),
+            services.featureService()
         );
         registry.initialize();
         return List.of();
@@ -99,7 +109,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return List.of(
             fleetActionsSystemIndexDescriptor(),
-            fleetAgentsSystemIndexDescriptor(),
+            fleetAgentsSystemIndexDescriptor(settings),
             fleetEnrollmentApiKeysSystemIndexDescriptor(),
             fleetSecretsSystemIndexDescriptor(),
             fleetPoliciesSystemIndexDescriptor(),
@@ -108,6 +118,11 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             fleetArtifactsSystemIndexDescriptors(),
             fleetIntegrationKnowledgeSystemIndexDescriptor()
         );
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(FLEET_AGENTS_INDEX_NUMBER_OF_SHARDS_SETTING);
     }
 
     @Override
@@ -136,8 +151,13 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .build();
     }
 
-    private static SystemIndexDescriptor fleetAgentsSystemIndexDescriptor() {
-        return systemIndexDescriptorBuilderFrom("/fleet-agents.json", FLEET_AGENTS_MAPPINGS_VERSION).setType(Type.EXTERNAL_MANAGED)
+    private static SystemIndexDescriptor fleetAgentsSystemIndexDescriptor(Settings settings) {
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), FLEET_AGENTS_INDEX_NUMBER_OF_SHARDS_SETTING.get(settings))
+            .build();
+        return systemIndexDescriptorBuilderFrom("/fleet-agents.json", FLEET_AGENTS_MAPPINGS_VERSION, indexSettings).setType(
+            Type.EXTERNAL_MANAGED
+        )
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
             .setPrimaryIndex(".fleet-agents-" + CURRENT_INDEX_VERSION)
@@ -236,7 +256,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         try {
             ComposableIndexTemplate composableIndexTemplate = TemplateUtils.loadTemplate(
                 "/fleet-actions-results.json",
-                Version.CURRENT.toString(),
+                Build.current().version(),
                 MAPPING_VERSION_VARIABLE,
                 Map.of("fleet.managed.index.version", Integer.toString(FLEET_ACTIONS_RESULTS_MAPPINGS_VERSION)),
                 false,
@@ -319,16 +339,25 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     }
 
     private static SystemIndexDescriptor.Builder systemIndexDescriptorBuilderFrom(String resource, int mappingsVersion) {
+        return systemIndexDescriptorBuilderFrom(resource, mappingsVersion, Settings.EMPTY);
+    }
+
+    private static SystemIndexDescriptor.Builder systemIndexDescriptorBuilderFrom(
+        String resource,
+        int mappingsVersion,
+        Settings additionalSettings
+    ) {
         try {
             Template template = TemplateUtils.loadTemplate(
                 resource,
-                Version.CURRENT.toString(),
+                Build.current().version(),
                 MAPPING_VERSION_VARIABLE,
                 Map.of("fleet.managed.index.version", Integer.toString(mappingsVersion)),
                 false,
                 Template::parse
             );
-            return SystemIndexDescriptor.builder().setMappings(template.mappings().string()).setSettings(template.settings());
+            Settings settings = Settings.builder().put(template.settings()).put(additionalSettings).build();
+            return SystemIndexDescriptor.builder().setMappings(template.mappings().string()).setSettings(settings);
         } catch (IOException e) {
             throw new ElasticsearchParseException("invalid template [{}]", resource);
         }

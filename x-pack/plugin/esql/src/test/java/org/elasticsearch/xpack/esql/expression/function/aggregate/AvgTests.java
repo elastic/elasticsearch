@@ -132,7 +132,7 @@ public class AvgTests extends AbstractAggregationTestCase {
                     }
                     case EXPONENTIAL_HISTOGRAM -> {
                         var expHisto = (ExponentialHistogram) fieldData.get(0);
-                        if (expHisto.valueCount() == 0) {
+                        if (expHisto.isEmpty()) {
                             yield null;
                         }
                         yield expHisto.sum() / expHisto.valueCount();
@@ -155,15 +155,7 @@ public class AvgTests extends AbstractAggregationTestCase {
                         .map(v -> (Integer) v)
                         .collect(Collectors.summarizingInt(Integer::intValue))
                         .getAverage();
-                    case LONG -> {
-                        try {
-                            long sum = fieldData.stream().mapToLong(v -> (long) v).reduce(0L, Math::addExact);
-                            yield (double) sum / fieldData.size();
-                        } catch (ArithmeticException e) {
-                            expectedWarning = e.toString();
-                            yield null;
-                        }
-                    }
+                    case LONG -> fieldData.stream().mapToDouble(v -> (double) (long) v).summaryStatistics().getAverage();
                     case DOUBLE -> fieldData.stream()
                         .map(v -> (Double) v)
                         .collect(Collectors.summarizingDouble(Double::doubleValue))

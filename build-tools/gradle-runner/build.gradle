@@ -1,0 +1,54 @@
+plugins {
+  id 'java'
+  id 'groovy'
+  id 'elasticsearch.versions'
+  id 'elasticsearch.formatting'
+}
+
+group = "org.elasticsearch.gradle"
+version = versions.getProperty("elasticsearch")
+
+java {
+  targetCompatibility = versions.get("minimumRuntimeJava")
+  sourceCompatibility = versions.get("minimumRuntimeJava")
+}
+
+repositories {
+  mavenCentral()
+  maven {
+    url = "https://repo.gradle.org/gradle/libs-releases"
+  }
+}
+
+dependencies {
+  implementation "org.gradle:gradle-tooling-api:9.5.0"
+
+  testImplementation localGroovy()
+  testImplementation platform(buildLibs.spock.platform)
+  testImplementation(buildLibs.spock.core) {
+    exclude module: "groovy"
+  }
+  testImplementation platform(buildLibs.junit5.platform)
+  testImplementation buildLibs.junit5.jupiter
+  testRuntimeOnly buildLibs.junit5.vintage
+  testRuntimeOnly buildLibs.junit5.platform.launcher
+}
+
+tasks.named('test') {
+  useJUnitPlatform()
+  // The test runs the runner JAR as a subprocess against the real repo
+  dependsOn tasks.named('jar')
+  systemProperty 'runner.jar', tasks.named('jar').flatMap { it.archiveFile }.get().asFile.absolutePath
+  systemProperty 'root.project.dir', rootProject.projectDir.parentFile.absolutePath
+}
+
+tasks.named("jar").configure {
+  archiveFileName = "${project.name}.jar"
+  manifest {
+    attributes 'Main-Class': 'org.elasticsearch.gradle.runner.GradleRunner'
+  }
+  from {
+    configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+  }
+  duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}

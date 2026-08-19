@@ -28,6 +28,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
@@ -35,6 +37,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -48,6 +51,12 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 public class Max extends AggregateFunction implements ToAggregator, SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Max", Max::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Max.class).unary(Max::new).name("max");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .acrossSeries(Max::new)
+        .description("Returns the maximum value across the input vector.")
+        .example("max(http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .name("max");
 
     private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         Map.entry(DataType.BOOLEAN, MaxBooleanAggregatorFunctionSupplier::new),
@@ -64,7 +73,9 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
     );
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "unsigned_long", "version" },
+        briefSummary = "Returns the maximum value of a field.",
         description = "The maximum value of a field.",
         type = FunctionType.AGGREGATE,
         examples = {
@@ -75,6 +86,18 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
                     + "multiple values per row, and use the result with the `MAX` function",
                 file = "stats",
                 tag = "docsStatsMaxNestedExpression"
+            ),
+            @Example(
+                description = "`MAX` can also operate on `exponential_histogram` fields, "
+                    + "returning the maximum of the values which were used to construct the histograms.",
+                file = "exponential_histogram",
+                tag = "maxExpHistoForDocs"
+            ),
+            @Example(
+                description = "`MAX` can also operate on `tdigest` and casted `histogram` fields, "
+                    + "returning the maximum of the values which were used to construct the digests.",
+                file = "tdigest",
+                tag = "maxTDigestForDocs"
             ) }
     )
     public Max(

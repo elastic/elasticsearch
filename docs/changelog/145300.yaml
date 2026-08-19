@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 145300
-summary: Add coordinator-only caching for external source metadata
-type: enhancement

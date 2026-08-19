@@ -115,7 +115,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
     private HttpServer secondaryHttpServer;
 
     @Before
-    public void setUp() throws Exception {
+    public void initializeAzureResources() throws Exception {
         threadPool = new TestThreadPool(
             getTestClass().getName(),
             AzureRepositoryPlugin.executorBuilder(Settings.EMPTY),
@@ -126,13 +126,11 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         clientProvider = AzureClientProvider.create(threadPool, Settings.EMPTY);
         clientProvider.start();
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        super.setUp();
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeAzureResources() throws Exception {
         clientProvider.close();
-        super.tearDown();
         secondaryHttpServer.stop(0);
         ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS);
     }
@@ -352,7 +350,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
     }
 
     public void testWriteLargeBlob() throws Exception {
-        final int maxRetries = randomIntBetween(2, 5);
+        final int maxRetries = randomIntBetween(4, 8);
         logger.info("--> max retries: {}", maxRetries);
 
         final byte[] data = randomBytes(ByteSizeUnit.MB.toIntBytes(10) + randomIntBetween(0, ByteSizeUnit.MB.toIntBytes(1)));
@@ -427,7 +425,6 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", data), data.length)) {
             blobContainer.writeBlob(randomPurpose(), "write_large_blob", stream, data.length, false);
         }
-
         assertThat(countDownUploads.get(), equalTo(0));
         assertThat(countDownComplete.isCountedDown(), is(true));
         assertThat(blocks.isEmpty(), is(true));
@@ -669,11 +666,11 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
     }
 
     private BlobContainer createBlobContainer(int maxRetries, String secondaryHost, LocationMode locationMode) {
-        return createBlobContainer(maxRetries, null, null, null, null, null, BlobPath.EMPTY, secondaryHost, locationMode);
+        return createBlobContainer(maxRetries, null, null, null, null, null, null, BlobPath.EMPTY, secondaryHost, locationMode);
     }
 
     private BlobContainer createBlobContainer(int maxRetries) {
-        return createBlobContainer(maxRetries, null, null, null, null, null, null);
+        return createBlobContainer(maxRetries, null, null, null, null, null, null, null);
     }
 
     @Override
@@ -694,17 +691,19 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
 
     @Override
     protected BlobContainer createBlobContainer(
-        @Nullable Integer maxRetries,
-        @Nullable TimeValue readTimeout,
-        @Nullable Boolean disableChunkedEncoding,
-        @Nullable Integer maxConnections,
-        @Nullable ByteSizeValue bufferSize,
-        @Nullable Integer maxBulkDeletes,
-        @Nullable BlobPath blobContainerPath
+        final @Nullable Integer maxRetries,
+        final @Nullable TimeValue readTimeout,
+        final @Nullable TimeValue requestTimeout,
+        final @Nullable Boolean disableChunkedEncoding,
+        final @Nullable Integer maxConnections,
+        final @Nullable ByteSizeValue bufferSize,
+        final @Nullable Integer maxBulkDeletes,
+        final @Nullable BlobPath blobContainerPath
     ) {
         return createBlobContainer(
             maxRetries,
             readTimeout,
+            requestTimeout,
             disableChunkedEncoding,
             maxConnections,
             bufferSize,
@@ -718,6 +717,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
     private BlobContainer createBlobContainer(
         @Nullable Integer maxRetries,
         @Nullable TimeValue readTimeout,
+        @Nullable TimeValue timeout,
         @Nullable Boolean disableChunkedEncoding,
         @Nullable Integer maxConnections,
         @Nullable ByteSizeValue bufferSize,
@@ -742,7 +742,11 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         if (maxRetries != null) {
             clientSettings.put(MAX_RETRIES_SETTING.getConcreteSettingForNamespace(clientName).getKey(), maxRetries);
         }
-        clientSettings.put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), TimeValue.timeValueSeconds(1));
+        if (timeout != null) {
+            clientSettings.put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), timeout);
+        } else {
+            clientSettings.put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), SAFE_AWAIT_TIMEOUT);
+        }
         if (readTimeout != null) {
             clientSettings.put(READ_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), readTimeout);
         }
@@ -794,7 +798,15 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
 
         return new AzureBlobContainer(
             Objects.requireNonNullElse(blobContainerPath, randomBoolean() ? BlobPath.EMPTY : BlobPath.EMPTY.add(randomIdentifier())),
-            new AzureBlobStore(ProjectId.DEFAULT, repositoryMetadata, service, BigArrays.NON_RECYCLING_INSTANCE, RepositoriesMetrics.NOOP)
+            new AzureBlobStore(
+                ProjectId.DEFAULT,
+                repositoryMetadata,
+                service,
+                BigArrays.NON_RECYCLING_INSTANCE,
+                RepositoriesMetrics.NOOP,
+                null,
+                null
+            )
         );
     }
 

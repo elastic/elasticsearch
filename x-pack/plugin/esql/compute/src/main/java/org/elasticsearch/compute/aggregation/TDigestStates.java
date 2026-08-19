@@ -415,4 +415,153 @@ public final class TDigestStates {
             // noop
         }
     }
+
+    /**
+        * A state holding a single {@link TDigestHolder} without a sort key.
+        * The intermediate state contains two values: the tdigest, then a boolean seen flag.
+    */
+    public static final class SeenSingleState implements AggregatorState {
+
+        private final CircuitBreaker breaker;
+        private BreakingTDigestHolder value;
+
+        public SeenSingleState(CircuitBreaker breaker) {
+            this.breaker = breaker;
+        }
+
+        public boolean isSeen() {
+            return value != null;
+        }
+
+        public void set(TDigestHolder tdigest) {
+            assert tdigest != null;
+            if (value == null) {
+                value = BreakingTDigestHolder.create(breaker);
+            }
+            value.set(tdigest);
+        }
+
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+            assert blocks.length >= offset + 2;
+            BlockFactory blockFactory = driverContext.blockFactory();
+            if (value == null) {
+                blocks[offset] = blockFactory.newConstantTDigestBlock(TDigestHolder.empty(), 1);
+                blocks[offset + 1] = blockFactory.newConstantBooleanBlockWith(false, 1);
+            } else {
+                blocks[offset] = blockFactory.newConstantTDigestBlock(value.accessor(), 1);
+                blocks[offset + 1] = blockFactory.newConstantBooleanBlockWith(true, 1);
+            }
+        }
+
+        public Block evaluateFinalTDigest(DriverContext driverContext) {
+            BlockFactory blockFactory = driverContext.blockFactory();
+            if (value == null) {
+                return blockFactory.newConstantNullBlock(1);
+            } else {
+                return blockFactory.newConstantTDigestBlock(value.accessor(), 1);
+            }
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(value);
+            value = null;
+        }
+    }
+
+    /**
+     * A grouping state holding a single {@link TDigestHolder} per group, without a sort key.
+     * The intermediate state contains two values: the tdigest, then a boolean seen flag.
+     */
+    public static final class SeenGroupingState implements GroupingAggregatorState {
+
+        private ObjectArray<BreakingTDigestHolder> values;
+        private final CircuitBreaker breaker;
+        private final BigArrays bigArrays;
+
+        SeenGroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
+            ObjectArray<BreakingTDigestHolder> values = null;
+            boolean success = false;
+            try {
+                values = bigArrays.newObjectArray(1);
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(values);
+                }
+            }
+            this.values = values;
+            this.bigArrays = bigArrays;
+            this.breaker = breaker;
+        }
+
+        public void set(int groupId, TDigestHolder tdigest) {
+            assert tdigest != null;
+            ensureCapacity(groupId);
+            BreakingTDigestHolder holder = values.get(groupId);
+            if (holder == null) {
+                holder = BreakingTDigestHolder.create(breaker);
+                values.set(groupId, holder);
+            }
+            holder.set(tdigest);
+        }
+
+        private void ensureCapacity(int groupId) {
+            values = bigArrays.grow(values, groupId + 1);
+        }
+
+        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+            assert blocks.length >= offset + 2;
+            try (
+                var builder = driverContext.blockFactory().newTDigestBlockBuilder(selected.getPositionCount());
+                var seenBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount());
+            ) {
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    int groupId = selected.getInt(i);
+                    if (seen(groupId)) {
+                        seenBuilder.appendBoolean(true);
+                        builder.appendTDigest(values.get(groupId).accessor());
+                    } else {
+                        seenBuilder.appendBoolean(false);
+                        builder.appendTDigest(TDigestHolder.empty());
+                    }
+                }
+                blocks[offset] = builder.build();
+                blocks[offset + 1] = seenBuilder.build().asBlock();
+            }
+        }
+
+        public boolean seen(int groupId) {
+            return groupId < values.size() && values.get(groupId) != null;
+        }
+
+        public Block evaluateFinalTDigests(IntVector selected, DriverContext driverContext) {
+            try (var builder = driverContext.blockFactory().newTDigestBlockBuilder(selected.getPositionCount())) {
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    int groupId = selected.getInt(i);
+                    if (seen(groupId)) {
+                        builder.appendTDigest(values.get(groupId).accessor());
+                    } else {
+                        builder.appendNull();
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void close() {
+            for (int i = 0; i < values.size(); i++) {
+                Releasables.close(values.get(i));
+            }
+            Releasables.close(values);
+            values = null;
+        }
+
+        @Override
+        public void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
+            // noop
+        }
+    }
 }

@@ -599,7 +599,7 @@ public class TrainedModelProviderTests extends ESTestCase {
                             var items = new MultiSearchResponse.Item[multiSearchRequest.requests().size()];
                             for (int i = 0; i < items.length; i++) {
                                 items[i] = new MultiSearchResponse.Item(
-                                    SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY),
+                                    SearchResponse.emptyResponseBuilder().tookInMillis(1L).build(),
                                     null
                                 );
                             }
@@ -659,7 +659,7 @@ public class TrainedModelProviderTests extends ESTestCase {
                             var items = new MultiSearchResponse.Item[multiSearchRequest.requests().size()];
                             for (int i = 0; i < items.length; i++) {
                                 items[i] = new MultiSearchResponse.Item(
-                                    SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY),
+                                    SearchResponse.emptyResponseBuilder().tookInMillis(1L).build(),
                                     null
                                 );
                             }

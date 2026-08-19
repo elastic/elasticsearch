@@ -9,18 +9,18 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
 
 public class ShowExecSerializationTests extends AbstractPhysicalPlanSerializationTests<ShowExec> {
     public static ShowExec randomShowExec() {
         Source source = randomSource();
-        List<Attribute> attributes = randomList(1, 10, () -> ReferenceAttributeTests.randomReferenceAttribute(true));
+        List<Attribute> attributes = randomList(1, 10, () -> randomReferenceAttribute(true));
         List<List<Object>> values = randomValues(attributes);
         return new ShowExec(source, attributes, values);
     }
@@ -48,10 +48,7 @@ public class ShowExecSerializationTests extends AbstractPhysicalPlanSerializatio
         List<Attribute> attributes = instance.output();
         List<List<Object>> values = instance.values();
         if (randomBoolean()) {
-            attributes = randomValueOtherThan(
-                attributes,
-                () -> randomList(1, 10, () -> ReferenceAttributeTests.randomReferenceAttribute(true))
-            );
+            attributes = randomValueOtherThan(attributes, () -> randomList(1, 10, () -> randomReferenceAttribute(true)));
         }
         List<Attribute> finalAttributes = attributes;
         values = randomValueOtherThan(values, () -> randomValues(finalAttributes));

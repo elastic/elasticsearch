@@ -1,5 +1,0 @@
-pr: 143702
-summary: "JSON_EXTRACT: zero-copy byte slicing for object, array, and number extraction"
-area: ES|QL
-type: enhancement
-issues: []

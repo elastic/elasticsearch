@@ -22,6 +22,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexFeatures;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
@@ -56,7 +58,10 @@ import static org.elasticsearch.index.VersionType.INTERNAL;
  * of reasons, not least of which that scripts are allowed to change the destination request in drastic ways, including changing the index
  * to which documents are written.
  */
-public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequest> implements CompositeIndicesRequest, ToXContentObject {
+public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<ReindexRequest>
+    implements
+        CompositeIndicesRequest,
+        ToXContentObject {
     /**
      * Prototype for index requests.
      */
@@ -76,6 +81,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     public ReindexRequest(StreamInput in) throws IOException {
         super(in);
         destination = new IndexRequest(in);
+        if (in.getTransportVersion().supports(SliceIndexing.REINDEX_DEST_ROUTING_PROVENANCE_VERSION)) {
+            assert !destination.isRoutingFromSlice() || SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
+            destination.setRoutingFromSlice(in.readBoolean());
+        }
         remoteInfo = in.readOptionalWriteable(RemoteInfo::new);
     }
 
@@ -110,18 +119,25 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             return e;
         }
         if (false == routingIsValid()) {
-            e = addValidationError("routing must be unset, [keep], [discard] or [=<some new value>]", e);
+            if (destination.isRoutingFromSlice()) {
+                e = addValidationError("[" + SliceIndexing.PARAM_NAME + "] must be [keep], [discard], or [=<some value>]", e);
+            } else {
+                e = addValidationError("routing must be unset, [keep], [discard] or [=<some new value>]", e);
+            }
         }
         if (destination.versionType() == INTERNAL) {
             if (destination.version() != Versions.MATCH_ANY && destination.version() != Versions.MATCH_DELETED) {
                 e = addValidationError("unsupported version for internal versioning [" + destination.version() + ']', e);
             }
         }
+        if (destination.opType() == IndexRequest.OpType.CREATE && destination.versionType() != INTERNAL) {
+            e = addValidationError("create operations only support internal versioning. use index instead", e);
+        }
         if (getRemoteInfo() != null) {
             if (getSearchRequest().source().query() != null) {
                 e = addValidationError("reindex from remote sources should use RemoteInfo's query instead of source's query", e);
             }
-            if (getSlices() == AbstractBulkByScrollRequest.AUTO_SLICES || getSlices() > 1) {
+            if (getSlices() == AbstractBulkByPaginatedSearchRequest.AUTO_SLICES || getSlices() > 1) {
                 e = addValidationError("reindex from remote sources doesn't support slices > 1 but was [" + getSlices() + "]", e);
             }
             if (getSearchRequest().source().slice() != null) {
@@ -141,13 +157,27 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     private boolean routingIsValid() {
-        if (destination.routing() == null || destination.routing().startsWith("=")) {
+        final String routing = destination.routing();
+        if (routing == null) {
+            assert destination.isRoutingFromSlice() == false : "routing is null but isRoutingFromSlice is true";
             return true;
         }
-        return switch (destination.routing()) {
-            case "keep", "discard" -> true;
-            default -> false;
-        };
+        if ("keep".equals(routing) || "discard".equals(routing)) {
+            return true;
+        }
+        if (routing.startsWith("=") == false) {
+            return false;
+        }
+        if (destination.isRoutingFromSlice()) {
+            assert SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
+            try {
+                SliceIndexing.validateUserSliceValue(routing.substring(1));
+                return true;
+            } catch (IllegalArgumentException e) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -187,7 +217,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     /**
-     * Sets the scroll size for setting how many documents are to be processed in one batch during reindex
+     * Sets the batch size for how many documents are to be processed in one paginated search batch during reindex
      */
     public ReindexRequest setSourceBatchSize(int size) {
         this.getSearchRequest().source().size(size);
@@ -292,8 +322,8 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     @Override
-    public ReindexRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices) {
-        ReindexRequest sliced = doForSlice(new ReindexRequest(slice, destination, false), slicingTask, totalSlices);
+    public ReindexRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices, int activeSlices) {
+        ReindexRequest sliced = doForSlice(new ReindexRequest(slice, destination, false), slicingTask, totalSlices, activeSlices);
         sliced.setRemoteInfo(remoteInfo);
         sliced.setEligibleForRelocationOnShutdown(isEligibleForRelocationOnShutdown());
         return sliced;
@@ -303,6 +333,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         destination.writeTo(out);
+        if (out.getTransportVersion().supports(SliceIndexing.REINDEX_DEST_ROUTING_PROVENANCE_VERSION)) {
+            assert !destination.isRoutingFromSlice() || SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
+            out.writeBoolean(destination.isRoutingFromSlice());
+        }
         out.writeOptionalWriteable(remoteInfo);
     }
 
@@ -337,7 +371,8 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             builder.startObject("dest");
             builder.field("index", getDestination().index());
             if (getDestination().routing() != null) {
-                builder.field("routing", getDestination().routing());
+                assert !getDestination().isRoutingFromSlice() || SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
+                builder.field(getDestination().isRoutingFromSlice() ? SliceIndexing.PARAM_NAME : "routing", getDestination().routing());
             }
             builder.field("op_type", getDestination().opType().getLowercase());
             if (getDestination().getPipeline() != null) {
@@ -387,19 +422,32 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             }
         };
 
-        ObjectParser<IndexRequest, Void> destParser = new ObjectParser<>("dest");
+        ObjectParser<IndexRequest, Predicate<NodeFeature>> destParser = new ObjectParser<>("dest");
         destParser.declareString(IndexRequest::index, new ParseField("index"));
-        destParser.declareString(IndexRequest::routing, new ParseField("routing"));
+        destParser.declareString((request, routing) -> {
+            if (request.isRoutingFromSlice()) {
+                throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.PARAM_NAME + "]");
+            }
+            request.routing(routing);
+        }, new ParseField("routing"));
+        destParser.declareField((parser, request, clusterSupportsFeature) -> {
+            final String slice = parser.text();
+            if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false
+                || clusterSupportsFeature.test(IndexFeatures.SLICE_INDEXING) == false) {
+                throw new IllegalArgumentException("request does not support [" + SliceIndexing.PARAM_NAME + "]");
+            }
+            if (request.routing() != null) {
+                throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.PARAM_NAME + "]");
+            }
+            request.routing(slice);
+            request.setRoutingFromSlice(true);
+        }, new ParseField(SliceIndexing.PARAM_NAME), ObjectParser.ValueType.STRING);
         destParser.declareString(IndexRequest::opType, new ParseField("op_type"));
         destParser.declareString(IndexRequest::setPipeline, new ParseField("pipeline"));
         destParser.declareString((s, i) -> s.versionType(VersionType.fromString(i)), new ParseField("version_type"));
 
         PARSER.declareField(sourceParser, new ParseField("source"), ObjectParser.ValueType.OBJECT);
-        PARSER.declareField(
-            (p, v, c) -> destParser.parse(p, v.getDestination(), null),
-            new ParseField("dest"),
-            ObjectParser.ValueType.OBJECT
-        );
+        PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), c), new ParseField("dest"), ObjectParser.ValueType.OBJECT);
 
         PARSER.declareInt(ReindexRequest::setMaxDocsValidateIdentical, new ParseField("max_docs"));
         PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p)), new ParseField("script"), ObjectParser.ValueType.OBJECT);
@@ -537,8 +585,8 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         return string == null ? defaultValue : parseTimeValue(string, name);
     }
 
-    static void setMaxDocsValidateIdentical(AbstractBulkByScrollRequest<?> request, int maxDocs) {
-        if (request.getMaxDocs() != AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES && request.getMaxDocs() != maxDocs) {
+    static void setMaxDocsValidateIdentical(AbstractBulkByPaginatedSearchRequest<?> request, int maxDocs) {
+        if (request.getMaxDocs() != AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES && request.getMaxDocs() != maxDocs) {
             throw new IllegalArgumentException(
                 "[max_docs] set to two different values [" + request.getMaxDocs() + "]" + " and [" + maxDocs + "]"
             );

@@ -27,9 +27,9 @@ import java.util.function.Function;
  * @param <T> delegated instrument
  */
 public abstract class AbstractInstrument<T> implements Instrument {
-    private final AtomicReference<T> delegate = new AtomicReference<>();
+    protected final AtomicReference<T> delegate = new AtomicReference<>();
     private final String name;
-    private final Function<Meter, T> instrumentBuilder;
+    protected final Function<Meter, T> instrumentBuilder;
 
     public AbstractInstrument(Meter meter, Builder<T> builder) {
         this.name = builder.getName();

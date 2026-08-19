@@ -19,6 +19,8 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.OriginalIndicesTests;
+import org.elasticsearch.action.ResolvedIndexExpression;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
@@ -47,6 +49,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -58,6 +61,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -69,17 +74,24 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
+import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
+import org.elasticsearch.search.profile.SearchProfileResults;
+import org.elasticsearch.search.profile.SearchProfileShardResult;
+import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
@@ -94,6 +106,7 @@ import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterConnectionTests;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteClusterServiceTests;
@@ -105,6 +118,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -131,8 +145,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -143,9 +159,8 @@ public class TransportSearchActionTests extends ESTestCase {
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void closeThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
@@ -1065,6 +1080,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY,
                 null,
+                null,
                 null
             )
         );
@@ -1101,6 +1117,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     IndicesOptions.lenientExpandOpen(),
                     null,
                     null,
+                    null,
+                    false,
                     new MatchAllQueryBuilder(),
                     randomBoolean(),
                     null,
@@ -1135,6 +1153,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     IndicesOptions.lenientExpandOpen(),
                     "index_not_found",
                     null,
+                    null,
+                    false,
                     new MatchAllQueryBuilder(),
                     randomBoolean(),
                     null,
@@ -1192,6 +1212,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     IndicesOptions.lenientExpandOpen(),
                     null,
                     null,
+                    null,
+                    false,
                     new MatchAllQueryBuilder(),
                     randomBoolean(),
                     null,
@@ -1227,6 +1249,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     IndicesOptions.lenientExpandOpen(),
                     null,
                     null,
+                    null,
+                    false,
                     new MatchAllQueryBuilder(),
                     randomBoolean(),
                     null,
@@ -1278,6 +1302,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     IndicesOptions.lenientExpandOpen(),
                     null,
                     null,
+                    null,
+                    false,
                     new MatchAllQueryBuilder(),
                     randomBoolean(),
                     null,
@@ -1321,7 +1347,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
                     source,
                     timeProvider,
-                    emptyReduceContextBuilder()
+                    emptyReduceContextBuilder(),
+                    SearchCoordinatorContext.none()
                 )
             ) {
                 assertEquals(0, merger.from);
@@ -1337,7 +1364,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
                     null,
                     timeProvider,
-                    emptyReduceContextBuilder()
+                    emptyReduceContextBuilder(),
+                    SearchCoordinatorContext.none()
                 )
             ) {
                 assertEquals(0, merger.from);
@@ -1357,7 +1385,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
                     source,
                     timeProvider,
-                    emptyReduceContextBuilder()
+                    emptyReduceContextBuilder(),
+                    SearchCoordinatorContext.none()
                 )
             ) {
                 assertEquals(0, source.from());
@@ -1368,6 +1397,118 @@ public class TransportSearchActionTests extends ESTestCase {
                 assertEquals(trackTotalHitsUpTo, merger.trackTotalHitsUpTo);
             }
         }
+    }
+
+    public void testGetSearchProfileResultsReturnsNullWhenResponseHasNoProfile() {
+        SearchCoordinatorContext context = SearchCoordinatorContext.snapshotProfileCoordinatorMetadata(
+            new SearchRequest("idx").source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).profile(true))
+        );
+        SearchResponse response = newTestSearchResponse(null);
+        try {
+            assertNull(TransportSearchAction.getSearchProfileResults(response, context));
+        } finally {
+            response.decRef();
+        }
+    }
+
+    public void testGetSearchProfileResultsReturnsNullWhenProfileMapIsEmpty() {
+        SearchCoordinatorContext context = SearchCoordinatorContext.snapshotProfileCoordinatorMetadata(
+            new SearchRequest("idx").source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).profile(true))
+        );
+        SearchResponse response = newTestSearchResponse(new SearchProfileResults(Map.of()));
+        try {
+            assertNull(TransportSearchAction.getSearchProfileResults(response, context));
+        } finally {
+            response.decRef();
+        }
+    }
+
+    public void testGetSearchProfileResultsAppliesCoordinatorMetadataWhenProfilePresent() {
+        SearchSourceBuilder coordinatorSource = new SearchSourceBuilder().query(QueryBuilders.termQuery("f", "v")).profile(true).size(11);
+        SearchSourceBuilder expectedSnapshot = new SearchSourceBuilder().query(QueryBuilders.termQuery("f", "v")).profile(true).size(11);
+        String[] coordinatorIndices = new String[] { "wildcard-*", "alias" };
+        SearchCoordinatorContext context = SearchCoordinatorContext.snapshotProfileCoordinatorMetadata(
+            new SearchRequest(coordinatorIndices).source(coordinatorSource)
+        );
+        Map<String, SearchProfileShardResult> shardResults = newProfileShardResults();
+        SearchResponse response = newTestSearchResponse(new SearchProfileResults(shardResults));
+        try {
+            SearchProfileResults result = TransportSearchAction.getSearchProfileResults(response, context);
+            assertNotNull(result);
+            assertEquals(shardResults, result.getShardResults());
+            assertEquals(expectedSnapshot, result.getOriginalSource());
+            assertArrayEquals(coordinatorIndices, result.getRequestIndices());
+        } finally {
+            response.decRef();
+        }
+    }
+
+    public void testGetSearchProfileResultsLeavesMetadataNullForNoneContext() {
+        Map<String, SearchProfileShardResult> shardResults = newProfileShardResults();
+        SearchResponse response = newTestSearchResponse(new SearchProfileResults(shardResults));
+        try {
+            SearchProfileResults result = TransportSearchAction.getSearchProfileResults(response, SearchCoordinatorContext.none());
+            assertNotNull(result);
+            assertEquals(shardResults, result.getShardResults());
+            assertNull(result.getOriginalSource());
+            assertNull(result.getRequestIndices());
+        } finally {
+            response.decRef();
+        }
+    }
+
+    /**
+     * The helper must always return a {@link SearchProfileResults} that is independent of the input response's profile object so the
+     * coordinator metadata is only attached to the merged output (the source is mutated by snapshotting before this point).
+     */
+    public void testGetSearchProfileResultsReturnsFreshInstance() {
+        Map<String, SearchProfileShardResult> shardResults = newProfileShardResults();
+        SearchProfileResults inputProfile = new SearchProfileResults(shardResults);
+        SearchResponse response = newTestSearchResponse(inputProfile);
+        try {
+            SearchCoordinatorContext context = SearchCoordinatorContext.snapshotProfileCoordinatorMetadata(
+                new SearchRequest("idx").source(new SearchSourceBuilder().profile(true))
+            );
+            SearchProfileResults result = TransportSearchAction.getSearchProfileResults(response, context);
+            assertNotNull(result);
+            assertNotSame("helper should not mutate the input response's profile object", inputProfile, result);
+            assertNull("input profile metadata must remain unchanged", inputProfile.getOriginalSource());
+            assertNull("input profile indices must remain unchanged", inputProfile.getRequestIndices());
+        } finally {
+            response.decRef();
+        }
+    }
+
+    private static SearchResponse newTestSearchResponse(SearchProfileResults profile) {
+        return new SearchResponse(
+            SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+            null,
+            null,
+            false,
+            null,
+            profile,
+            1,
+            null,
+            1,
+            1,
+            0,
+            100L,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
+    }
+
+    private static Map<String, SearchProfileShardResult> newProfileShardResults() {
+        SearchShardTarget target = new SearchShardTarget(
+            "node-" + randomAlphaOfLength(6),
+            new ShardId("idx-" + randomAlphaOfLength(4), randomUUID(), 0),
+            null
+        );
+        SearchProfileShardResult shardResult = new SearchProfileShardResult(
+            new SearchProfileQueryPhaseResult(List.of(), new AggregationProfileShardResult(List.of())),
+            randomBoolean() ? null : new ProfileResult("fetch", "", Map.of(), Map.of(), 1, List.of())
+        );
+        return Map.of(target.toString(), shardResult);
     }
 
     public void testShouldMinimizeRoundtrips() throws Exception {
@@ -1400,9 +1541,7 @@ public class TransportSearchActionTests extends ESTestCase {
             assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
         }
         {
-            SearchRequestTests searchRequestTests = new SearchRequestTests();
-            searchRequestTests.setUp();
-            SearchRequest searchRequest = searchRequestTests.createSearchRequest();
+            SearchRequest searchRequest = AbstractSearchTestCase.randomSearchRequest();
             searchRequest.scroll(null);
             searchRequest.searchType(SearchType.QUERY_THEN_FETCH);
             SearchSourceBuilder source = searchRequest.source();
@@ -1992,6 +2131,286 @@ public class TransportSearchActionTests extends ESTestCase {
         }
     }
 
+    public void testValidateAndResolveSearchSliceRoutingDefaultsToAllWhenEnabled() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        SearchRequest request = new SearchRequest("slice-enabled-index");
+        IndexMetadata metadata = IndexMetadata.builder("slice-enabled-index")
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, "slice-enabled-uuid")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("index.slice.enabled", true)
+            )
+            .build();
+        TransportSearchAction.validateAndResolveSearchSliceRouting(
+            request,
+            Map.of(metadata.getIndex(), metadata),
+            request.indices(),
+            false
+        );
+        assertNull("omitting _slice on a slice-enabled index should default to _all (null routing)", request.routing());
+    }
+
+    public void testValidateAndResolveSearchSliceRoutingRejectsRoutingWhenSliceEnabled() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        SearchRequest request = new SearchRequest("slice-enabled-index");
+        request.routing("r1");
+        IndexMetadata metadata = IndexMetadata.builder("slice-enabled-index")
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, "slice-enabled-uuid")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("index.slice.enabled", true)
+            )
+            .build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportSearchAction.validateAndResolveSearchSliceRouting(
+                request,
+                Map.of(metadata.getIndex(), metadata),
+                request.indices(),
+                false
+            )
+        );
+        assertThat(e.getMessage(), containsString("[routing] is not allowed when [index.slice.enabled] is true"));
+        assertThat(e.getMessage(), containsString("use [slice] instead"));
+    }
+
+    public void testValidateAndResolveSearchSliceRoutingRejectsSliceWhenDisabled() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        SearchRequest request = new SearchRequest("slice-disabled-index");
+        request.routing("s1");
+        request.searchSlice("s1");
+        IndexMetadata metadata = IndexMetadata.builder("slice-disabled-index")
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, "slice-disabled-uuid")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            )
+            .build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportSearchAction.validateAndResolveSearchSliceRouting(
+                request,
+                Map.of(metadata.getIndex(), metadata),
+                request.indices(),
+                false
+            )
+        );
+        assertThat(e.getMessage(), containsString("[slice] is not allowed when [index.slice.enabled] is false"));
+    }
+
+    public void testValidateAndResolveSearchSliceRoutingAcceptsMixedTargets() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        SearchRequest request = new SearchRequest("slice-enabled-index", "slice-disabled-index");
+        request.routing("s1,s2");
+        request.searchSlice("s1,s2");
+        IndexMetadata enabled = IndexMetadata.builder("slice-enabled-index")
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, "slice-enabled-uuid")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("index.slice.enabled", true)
+            )
+            .build();
+        IndexMetadata disabled = IndexMetadata.builder("slice-disabled-index")
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, "slice-disabled-uuid")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            )
+            .build();
+        String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
+            request,
+            Map.of(enabled.getIndex(), enabled, disabled.getIndex(), disabled),
+            request.indices(),
+            false
+        );
+        assertEquals("s1,s2", requestedSlice);
+        assertEquals("s1,s2", request.routing());
+    }
+
+    public void testValidateAndResolveSearchSliceRoutingNormalizesAllToNullRouting() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        SearchRequest request = new SearchRequest("slice-enabled-index");
+        request.searchSlice(SliceIndexing.SLICE_ALL);
+        IndexMetadata enabled = IndexMetadata.builder("slice-enabled-index")
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, "slice-enabled-uuid")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("index.slice.enabled", true)
+            )
+            .build();
+        String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
+            request,
+            Map.of(enabled.getIndex(), enabled),
+            request.indices(),
+            false
+        );
+        assertEquals(SliceIndexing.SLICE_ALL, requestedSlice);
+        assertNull(request.routing());
+    }
+
+    public void testValidateAndResolveSearchSliceRoutingAllowsSliceForRemoteResolution() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        SearchRequest request = new SearchRequest("remote:idx");
+        request.routing("s1");
+        request.searchSlice("s1");
+        String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(request, Map.of(), request.indices(), true);
+        assertEquals("s1", requestedSlice);
+        assertEquals("s1", request.routing());
+    }
+
+    public void testValidateAndResolveSearchSliceRoutingRejectsPitWhenSliceEnabled() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        SearchRequest request = new SearchRequest("slice-enabled-index").source(
+            new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY))
+        );
+        IndexMetadata enabled = IndexMetadata.builder("slice-enabled-index")
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, "slice-enabled-uuid")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("index.slice.enabled", true)
+            )
+            .build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportSearchAction.validateAndResolveSearchSliceRouting(
+                request,
+                Map.of(enabled.getIndex(), enabled),
+                request.indices(),
+                false
+            )
+        );
+        assertThat(e.getMessage(), containsString("[point in time] is not supported when [index.slice.enabled] is true"));
+    }
+
+    /**
+     * Verifies that {@link TransportSearchAction#reconcileProjects} excludes a cluster whose
+     * {@link SearchShardsResponse} has no groups (i.e. the searched alias/index does not exist on
+     * that cluster). This is a precondition for the {@code numSkippedShards} pruning fix.
+     */
+    public void testReconcileProjectsExcludesClusterWithEmptyGroups() {
+        String indexExpr = "my-alias";
+        SearchShardsGroup group = new SearchShardsGroup(
+            new ShardId("my-index", "my-index-uuid", 0),
+            List.of("node1"),
+            false,
+            SplitShardCountSummary.UNSET
+        );
+        // project-a has a shard; project-b has no groups (alias not present on that cluster)
+        Map<String, SearchShardsResponse> shardResponses = Map.of(
+            "project-a",
+            new SearchShardsResponse(List.of(group), 0, List.of(), Map.of()),
+            "project-b",
+            new SearchShardsResponse(List.of(), 0, List.of(), Map.of())
+        );
+
+        Map<String, SearchResponse.Cluster> clusterMap = new HashMap<>();
+        clusterMap.put(
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+            new SearchResponse.Cluster(
+                RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                indexExpr,
+                false,
+                SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION
+            )
+        );
+        clusterMap.put("project-a", new SearchResponse.Cluster("project-a", indexExpr, false, null));
+        clusterMap.put("project-b", new SearchResponse.Cluster("project-b", indexExpr, false, null));
+        SearchResponse.Clusters projects = new SearchResponse.Clusters(clusterMap, false);
+
+        // origin resolved with SUCCESS so the origin-cluster check inside reconcileProjects triggers
+        ResolvedIndexExpressions.Builder builder = new ResolvedIndexExpressions.Builder();
+        builder.addExpressions(
+            indexExpr,
+            new HashSet<>(Set.of("my-index")),
+            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+            // Both linked projects are referenced by the original expression; project-b is later
+            // pruned because its SearchShards response has no groups.
+            Set.of("project-a:" + indexExpr, "project-b:" + indexExpr)
+        );
+        ResolvedIndexExpressions originExpressions = builder.build();
+
+        SearchResponse.Clusters result = TransportSearchAction.reconcileProjects(originExpressions, shardResponses, projects);
+
+        assertThat(result.getClusterAliases(), containsInAnyOrder(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, "project-a"));
+        assertFalse("project-b must be excluded because it returned empty groups", result.getClusterAliases().contains("project-b"));
+    }
+
+    public void testReconcileProjectsReturnsEmptyWhenOnlyOriginRemains() {
+        String indexExpr = "my-local-alias";
+        Map<String, SearchShardsResponse> shardResponses = Map.of("project-a", new SearchShardsResponse(List.of(), 0, List.of(), Map.of()));
+
+        Map<String, SearchResponse.Cluster> clusterMap = new HashMap<>();
+        clusterMap.put(
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+            new SearchResponse.Cluster(
+                RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                indexExpr,
+                false,
+                SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION
+            )
+        );
+        clusterMap.put("project-a", new SearchResponse.Cluster("project-a", indexExpr, false, null));
+        SearchResponse.Clusters projects = new SearchResponse.Clusters(clusterMap, false);
+
+        ResolvedIndexExpressions.Builder builder = new ResolvedIndexExpressions.Builder();
+        builder.addExpressions(
+            indexExpr,
+            new HashSet<>(Set.of("my-local-index")),
+            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+            Set.of()
+        );
+        ResolvedIndexExpressions originExpressions = builder.build();
+
+        SearchResponse.Clusters result = TransportSearchAction.reconcileProjects(originExpressions, shardResponses, projects);
+        assertSame(SearchResponse.Clusters.EMPTY, result);
+    }
+
+    public void testReconcileProjectsRetainsFailureOnlyProject() {
+        String indexExpr = "my-alias";
+        Map<String, SearchShardsResponse> shardResponses = Map.of("project-a", new SearchShardsResponse(List.of(), 0, List.of(), Map.of()));
+
+        SearchShardTarget shardTarget = new SearchShardTarget("node-1", new ShardId("my-index", "uuid", 0), "project-a");
+        ShardSearchFailure failure = new ShardSearchFailure(new IllegalStateException("simulated"), shardTarget);
+
+        Map<String, SearchResponse.Cluster> clusterMap = new HashMap<>();
+        clusterMap.put(
+            "project-a",
+            new SearchResponse.Cluster(
+                "project-a",
+                indexExpr,
+                false,
+                SearchResponse.Cluster.Status.RUNNING,
+                null,
+                null,
+                null,
+                null,
+                List.of(failure),
+                null,
+                false,
+                null
+            )
+        );
+        SearchResponse.Clusters projects = new SearchResponse.Clusters(clusterMap, false);
+
+        ResolvedIndexExpressions.Builder builder = new ResolvedIndexExpressions.Builder();
+        builder.addExpressions(
+            indexExpr,
+            new HashSet<>(Set.of("my-index")),
+            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+            Set.of()
+        );
+        ResolvedIndexExpressions originExpressions = builder.build();
+
+        SearchResponse.Clusters result = TransportSearchAction.reconcileProjects(originExpressions, shardResponses, projects);
+        assertThat(result.getClusterAliases(), containsInAnyOrder("project-a"));
+        assertThat(result.getCluster("project-a").getFailures(), hasSize(1));
+    }
+
     public void testIgnoreIndicesWithIndexRefreshBlock() {
         int numIndices = randomIntBetween(1, 10);
         String[] concreteIndices = new String[numIndices];
@@ -2021,5 +2440,45 @@ public class TransportSearchActionTests extends ESTestCase {
             .toArray(String[]::new);
 
         assertThat(Arrays.asList(actual), containsInAnyOrder(expected));
+    }
+
+    public void testCcsClusterInfoUpdateInternalCancel_UpdatesStatus() {
+        String indexExpr = "indexExpression";
+        Map<String, SearchResponse.Cluster> clusterMap = new HashMap<>();
+        clusterMap.put(
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+            new SearchResponse.Cluster(
+                RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                indexExpr,
+                false,
+                SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION
+            )
+        );
+        String aliasA = "project-a";
+        clusterMap.put(aliasA, new SearchResponse.Cluster(aliasA, indexExpr, false, null));
+        String aliasB = "project-b";
+        clusterMap.put(aliasB, new SearchResponse.Cluster(aliasB, indexExpr, false, null));
+        SearchResponse.Clusters projects = new SearchResponse.Clusters(clusterMap, false);
+
+        // Confirm the initial state
+        for (String alias : projects.getClusterAliases()) {
+            assertThat(projects.getCluster(alias).getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
+            assertThat(projects.getCluster(alias).getFailures(), empty());
+        }
+
+        var local = projects.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+
+        // Set one cluster to skipped
+        TransportSearchAction.ccsClusterInfoUpdateInternalCancel(projects, aliasA, true);
+        assertThat(projects.getCluster(aliasA).getStatus(), equalTo(SearchResponse.Cluster.Status.SKIPPED));
+        assertThat(projects.getCluster(aliasA).getFailures(), empty());
+
+        // Set one cluster to failed
+        TransportSearchAction.ccsClusterInfoUpdateInternalCancel(projects, aliasB, false);
+        assertThat(projects.getCluster(aliasB).getStatus(), equalTo(SearchResponse.Cluster.Status.FAILED));
+        assertThat(projects.getCluster(aliasB).getFailures(), empty());
+
+        // Confirm the other cluster is unmodified
+        assertThat(projects.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY), sameInstance(local));
     }
 }

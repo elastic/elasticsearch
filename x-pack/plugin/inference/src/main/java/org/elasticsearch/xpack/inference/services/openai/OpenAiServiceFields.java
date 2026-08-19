@@ -12,6 +12,7 @@ public class OpenAiServiceFields {
     public static final String USER = "user";
     public static final String HEADERS = "headers";
     public static final String ORGANIZATION = "organization_id";
+    public static final String TOKEN_URL = "token_url";
 
     /**
      * Taken from https://platform.openai.com/docs/api-reference/embeddings/create

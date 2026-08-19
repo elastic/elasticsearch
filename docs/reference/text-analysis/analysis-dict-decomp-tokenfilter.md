@@ -15,7 +15,7 @@ In most cases, we recommend using the faster [`hyphenation_decompounder`](/refer
 
 Uses a specified list of words and a brute force approach to find subwords in compound words. If found, these subwords are included in the token output.
 
-This filter uses Lucene’s [DictionaryCompoundWordTokenFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/compound/DictionaryCompoundWordTokenFilter.md), which was built for Germanic languages.
+This filter uses Lucene’s [DictionaryCompoundWordTokenFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/compound/DictionaryCompoundWordTokenFilter.html), which was built for Germanic languages.
 
 ## Example [analysis-dict-decomp-tokenfilter-analyze-ex]
 

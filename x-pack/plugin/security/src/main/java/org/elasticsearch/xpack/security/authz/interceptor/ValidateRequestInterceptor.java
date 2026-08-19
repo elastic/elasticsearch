@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -19,8 +18,8 @@ import java.util.Map;
 
 public class ValidateRequestInterceptor extends FieldAndDocumentLevelSecurityRequestInterceptor {
 
-    public ValidateRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState) {
-        super(threadPool.getThreadContext(), licenseState);
+    public ValidateRequestInterceptor(ThreadPool threadPool) {
+        super(threadPool.getThreadContext());
     }
 
     @Override

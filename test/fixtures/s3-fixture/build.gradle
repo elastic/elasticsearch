@@ -17,4 +17,5 @@ dependencies {
   }
   implementation project(':test:framework')
   implementation project(':test:fixtures:aws-fixture-utils')
+  implementation project(':test:fixtures:tls-utils')
 }

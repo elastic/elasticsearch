@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.elastic.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.telemetry.InferenceProductContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -23,7 +24,7 @@ import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
 import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequestTests.randomElasticInferenceServiceRequestMetadata;
@@ -112,8 +113,12 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
                 new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
                 ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(url, modelId),
                 new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-                new ElasticInferenceServiceRequestMetadata("my-product-origin", "my-product-use-case-from-metadata", "1.2.3"),
+                new ElasticInferenceServiceRequestMetadata(
+                    new InferenceProductContext("my-product-use-case-from-metadata", "my-product-origin"),
+                    "1.2.3"
+                ),
                 inputType,
+                null,
                 CCMAuthenticationApplierFactory.NOOP_APPLIER
             );
 
@@ -141,8 +146,12 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
                 new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
                 ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(url, modelId),
                 new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-                new ElasticInferenceServiceRequestMetadata("my-product-origin", "my-product-use-case-from-metadata", "1.2.3"),
+                new ElasticInferenceServiceRequestMetadata(
+                    new InferenceProductContext("my-product-use-case-from-metadata", "my-product-origin"),
+                    "1.2.3"
+                ),
                 inputType,
+                null,
                 new CCMAuthenticationApplierFactory.AuthenticationHeaderApplier(secret)
             );
 
@@ -167,6 +176,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
             new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
             randomElasticInferenceServiceRequestMetadata(),
             inputType,
+            null,
             CCMAuthenticationApplierFactory.NOOP_APPLIER
         );
     }

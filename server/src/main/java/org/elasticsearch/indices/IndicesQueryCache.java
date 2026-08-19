@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilterWeight;
+import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -32,7 +33,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.lucene.search.XLRUQueryCache;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -69,7 +69,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         Property.NodeScope
     );
 
-    private final XLRUQueryCache cache;
+    private final LRUQueryCache cache;
     private final ShardCoreKeyMap shardKeyMap = new ShardCoreKeyMap();
     private final Map<ShardId, Stats> shardStats = new ConcurrentHashMap<>();
     private volatile long sharedRamBytesUsed;
@@ -339,7 +339,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         shardStats.remove(shardId);
     }
 
-    private class ElasticsearchLRUQueryCache extends XLRUQueryCache {
+    private class ElasticsearchLRUQueryCache extends LRUQueryCache {
 
         ElasticsearchLRUQueryCache(int maxSize, long maxRamBytesUsed, Predicate<LeafReaderContext> leavesToCache, float skipFactor) {
             super(maxSize, maxRamBytesUsed, leavesToCache, skipFactor);

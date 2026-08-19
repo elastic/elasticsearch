@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
@@ -18,20 +19,32 @@ import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Negative tests for subquery batch execution in ComputeService.
- * Verifies that failures during batched subquery execution are properly propagated,
- * resources are cleaned up, and the correct error is reported.
+ * Negative tests for subqueries in the {@code FROM} command.
+ * <ul>
+ *     <li>Batch-execution failures: failures during batched subquery execution are properly propagated, resources are cleaned up,
+ *         and the correct error is reported.
+ *     <li>Analysis-time rejections: a {@code FROM} pattern that matches <b>both a view and a real index</b> (e.g. the wildcard
+ *         {@code airports*} matching the view {@code airports_view} and the index {@code airports}) resolves to a {@code ViewUnionAll}
+ *         with a view branch and a concrete-index branch. Combined with a sibling subquery this nests a {@code UnionAll} under the
+ *         subquery {@code UnionAll}, which the planner rejects with a message that names the offending pattern and its real cause (a
+ *         pattern or view that expands to multiple sources) rather than the (misleading) generic "Nested subqueries are not supported".
+ * </ul>
  */
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
@@ -321,6 +334,143 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
             // subquery 3: returns 1 doc (id==2)
             // total = 3 + 1 + 1 = 5
             assertThat(rows.size(), equalTo(5));
+        }
+    }
+
+    /**
+     * Two subqueries reference the same index pattern but with different source commands —
+     * {@code FROM} (which produces {@link org.elasticsearch.index.IndexMode#STANDARD}) and
+     * {@code TS} (which produces {@link org.elasticsearch.index.IndexMode#TIME_SERIES}).
+     * {@link org.elasticsearch.xpack.esql.analysis.PreAnalyzer} forbids the same index pattern
+     * from appearing twice with different index modes, so the query must be rejected before
+     * index resolution / execution.
+     */
+    public void testFromAndTsSubqueriesOnSameIndexPatternFails() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        var query = """
+            FROM
+               (FROM ok | KEEP id | LIMIT 10),
+               (TS ok | LIMIT 10)
+            | LIMIT 100
+            """;
+        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query)).close());
+        Throwable cause = ex;
+        while (cause != null && (cause.getMessage() == null || cause.getMessage().contains("different index mode") == false)) {
+            cause = cause.getCause();
+        }
+        assertThat(
+            "expected PreAnalyzer rejection for conflicting index modes on pattern [ok]",
+            cause,
+            org.hamcrest.Matchers.notNullValue()
+        );
+        assertThat(cause.getMessage(), containsString("index pattern 'ok'"));
+        assertThat(cause.getMessage(), containsString("time_series"));
+        assertThat(cause.getMessage(), containsString("standard"));
+    }
+
+    /**
+     * The main {@code FROM} pattern {@code airports*} matches both the {@code airports_view} view and the {@code airports} index, so it
+     * expands to a {@code ViewUnionAll}. Combined with the sibling {@code (FROM employees)} subquery it nests that {@code ViewUnionAll}
+     * under the subquery {@code UnionAll}, which is rejected.
+     */
+    public void testViewAndIndexInMainQueryWithSubquery() {
+        assumeViewBranchingSupported();
+        setupWildcardMatchingViewAndIndices();
+        try {
+            expectThrows(
+                VerificationException.class,
+                containsString(
+                    "a pattern that expands to multiple sources, [FROM airports*, (FROM employees)], cannot be combined with subqueries"
+                ),
+                () -> run("FROM airports*, (FROM employees)").close()
+            );
+        } finally {
+            deleteViews("airports_view");
+        }
+    }
+
+    /**
+     * A subquery whose body pattern {@code airports*} matches both the view and the real index expands to a {@code ViewUnionAll} inside
+     * the subquery, nesting it under the top-level {@code UnionAll}, which is rejected.
+     */
+    public void testViewAndIndexInsideSubquery() {
+        assumeViewBranchingSupported();
+        setupWildcardMatchingViewAndIndices();
+        try {
+            expectThrows(
+                VerificationException.class,
+                containsString("a pattern that expands to multiple sources, [FROM airports*], cannot be combined with subqueries"),
+                () -> run("FROM employees, (FROM airports*)").close()
+            );
+        } finally {
+            deleteViews("airports_view");
+        }
+    }
+
+    /**
+     * One of several sibling subqueries uses the pattern {@code airports*} that matches both the view and the real index; the resulting
+     * {@code ViewUnionAll} is nested inside that subquery, below the top-level {@code UnionAll}, which is rejected.
+     */
+    public void testViewAndIndexInOneOfMultipleSubqueries() {
+        assumeViewBranchingSupported();
+        setupWildcardMatchingViewAndIndices();
+        try {
+            expectThrows(
+                VerificationException.class,
+                containsString("a pattern that expands to multiple sources, [FROM airports*], cannot be combined with subqueries"),
+                () -> run("FROM (FROM airports*), (FROM employees)").close()
+            );
+        } finally {
+            deleteViews("airports_view");
+        }
+    }
+
+    private static void assumeViewBranchingSupported() {
+        assumeTrue("Requires views in cluster state", EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE.isEnabled());
+        assumeTrue("Requires views with branching", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+    }
+
+    /**
+     * Creates the {@code airports} index and an {@code airports_view} view (both matched by the wildcard {@code airports*}), plus an
+     * {@code employees} index used as the sibling relation. The view body carries a processing command ({@code LIMIT}) so it is kept as
+     * a named view branch rather than compacted into the concrete index — this is what makes {@code airports*} expand to a branching
+     * {@code ViewUnionAll} of the view and the real index. The two indices share the same mapping so the top-level {@code UnionAll} has
+     * no column-type conflicts that would fail verification before the nested-subquery check.
+     */
+    private void setupWildcardMatchingViewAndIndices() {
+        client().admin().indices().prepareCreate("airports").setMapping("id", "type=integer", "name", "type=keyword").get();
+        client().prepareBulk()
+            .add(new IndexRequest("airports").id("1").source("id", 1, "name", "a"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        client().admin().indices().prepareCreate("employees").setMapping("id", "type=integer", "name", "type=keyword").get();
+        client().prepareBulk()
+            .add(new IndexRequest("employees").id("1").source("id", 1, "name", "e"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        ensureYellow("airports", "employees");
+        installView("airports_view", "FROM airports | LIMIT 10");
+    }
+
+    private static void installView(String name, String query) {
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(name, query))
+            )
+        );
+    }
+
+    private static void deleteViews(String... names) {
+        for (String name : names) {
+            assertAcked(
+                client().execute(
+                    DeleteViewAction.INSTANCE,
+                    new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name })
+                )
+            );
         }
     }
 

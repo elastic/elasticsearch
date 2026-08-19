@@ -8,8 +8,9 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -19,14 +20,12 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.topn.DefaultUnsortableTopNEncoder;
-import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.core.Releasable;
 
 import java.util.List;
 
 /**
- * Encodes the values at a given position across multiple blocks into a single {@link BytesRef} composite key.
+ * Encodes the values at a given position across multiple blocks into a single composite key.
  * Multivalued positions are serialized with list semantics: the value count is written first, then each value
  * in block iteration order. This means {@code [1, 2]} and {@code [2, 1]} produce different keys.
  * Null positions are encoded as a value count of zero.
@@ -35,79 +34,76 @@ public class GroupKeyEncoder implements Accountable, Releasable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(GroupKeyEncoder.class);
 
-    private static final DefaultUnsortableTopNEncoder encoder = TopNEncoder.DEFAULT_UNSORTABLE;
-
     private final int[] groupChannels;
     private final ElementType[] elementTypes;
-    private final BreakingBytesRefBuilder scratch;
-    private final BytesRef scratchBytesRef = new BytesRef();
+    private final PagedBytesBuilder row;
+    private final PagedBytesCursor cursorScratch = new PagedBytesCursor();
 
-    public GroupKeyEncoder(int[] groupChannels, List<ElementType> elementTypes, BreakingBytesRefBuilder scratch) {
+    public GroupKeyEncoder(int[] groupChannels, List<ElementType> elementTypes, PagedBytesBuilder row) {
         this.groupChannels = groupChannels;
         this.elementTypes = new ElementType[groupChannels.length];
         for (int i = 0; i < groupChannels.length; i++) {
             this.elementTypes[i] = elementTypes.get(groupChannels[i]);
         }
-        this.scratch = scratch;
+        this.row = row;
     }
 
     /**
-     * Encode the group key for the given position from the page into a {@link BytesRef}.
-     * The returned reference is only valid until the next call to {@code encode}.
+     * Encode the group key for the given position from the page into a {@link PagedBytesCursor}.
+     * The returned cursor is only valid until the next call to {@code encode}.
      */
-    public BytesRef encode(Page page, int position) {
-        scratch.clear();
+    public PagedBytesCursor encode(Page page, int position) {
+        row.clear();
         for (int i = 0; i < groupChannels.length; i++) {
             Block block = page.getBlock(groupChannels[i]);
             encodeBlock(block, elementTypes[i], position);
         }
-        return scratch.bytesRefView();
+        return row.view(cursorScratch);
     }
 
     private void encodeBlock(Block block, ElementType type, int position) {
         if (block.isNull(position)) {
-            encoder.encodeVInt(0, scratch);
+            row.appendVInt(0);
             return;
         }
         int firstValueIndex = block.getFirstValueIndex(position);
         int valueCount = block.getValueCount(position);
-        encoder.encodeVInt(valueCount, scratch);
+        row.appendVInt(valueCount);
         switch (type) {
             case INT -> {
                 IntBlock b = (IntBlock) block;
                 for (int v = 0; v < valueCount; v++) {
-                    encoder.encodeInt(b.getInt(firstValueIndex + v), scratch);
+                    row.append(b.getInt(firstValueIndex + v));
                 }
             }
             case LONG -> {
                 LongBlock b = (LongBlock) block;
                 for (int v = 0; v < valueCount; v++) {
-                    encoder.encodeLong(b.getLong(firstValueIndex + v), scratch);
+                    row.append(b.getLong(firstValueIndex + v));
                 }
             }
             case DOUBLE -> {
                 DoubleBlock b = (DoubleBlock) block;
                 for (int v = 0; v < valueCount; v++) {
-                    encoder.encodeDouble(b.getDouble(firstValueIndex + v), scratch);
+                    row.append(Double.doubleToRawLongBits(b.getDouble(firstValueIndex + v)));
                 }
             }
             case FLOAT -> {
                 FloatBlock b = (FloatBlock) block;
                 for (int v = 0; v < valueCount; v++) {
-                    encoder.encodeFloat(b.getFloat(firstValueIndex + v), scratch);
+                    row.append(Float.floatToRawIntBits(b.getFloat(firstValueIndex + v)));
                 }
             }
             case BOOLEAN -> {
                 BooleanBlock b = (BooleanBlock) block;
                 for (int v = 0; v < valueCount; v++) {
-                    encoder.encodeBoolean(b.getBoolean(firstValueIndex + v), scratch);
+                    row.append(b.getBoolean(firstValueIndex + v) ? (byte) 1 : (byte) 0);
                 }
             }
             case BYTES_REF -> {
                 BytesRefBlock b = (BytesRefBlock) block;
                 for (int v = 0; v < valueCount; v++) {
-                    BytesRef ref = b.getBytesRef(firstValueIndex + v, scratchBytesRef);
-                    encoder.encodeBytesRef(ref, scratch);
+                    row.appendLengthPrefixed(b.get(firstValueIndex + v, cursorScratch));
                 }
             }
             case NULL -> {
@@ -126,13 +122,13 @@ public class GroupKeyEncoder implements Accountable, Releasable {
         long size = SHALLOW_SIZE;
         size += RamUsageEstimator.sizeOf(groupChannels);
         size += RamUsageEstimator.shallowSizeOf(elementTypes);
-        size += scratch.ramBytesUsed();
-        size += RamUsageEstimator.shallowSizeOfInstance(BytesRef.class);
+        size += row.ramBytesUsed();
+        size += PagedBytesCursor.SHALLOW_SIZE;
         return size;
     }
 
     @Override
     public void close() {
-        scratch.close();
+        row.close();
     }
 }

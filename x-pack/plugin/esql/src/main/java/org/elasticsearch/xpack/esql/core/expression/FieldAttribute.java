@@ -13,10 +13,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -31,7 +34,7 @@ import java.util.Set;
  * Treat this as final - avoid creating new subclasses. This is used extensively throughout the codebase, making new subclasses risky.
  * Consider using a new {@link EsField} subclass if needed.
  * <p>
- * Attribute for an ES field. May actually stand for a field with the same name across different indices (a union), e.g. when
+ * Attribute for an ES index field. May actually stand for a field with the same name across different indices (a union), e.g. when
  * index pattern were used in the query: {@code FROM logs-* | KEEP field}.
  * <p>
  * This class offers:
@@ -46,7 +49,7 @@ import java.util.Set;
  * and {@code field::ip}, we'll generate 2 field attributes called {@code $$field$converted_to$keyword} and {@code $$field$converted_to$ip}
  * which still refer to the same underlying index field.
  */
-public sealed class FieldAttribute extends TypedAttribute permits TemporalityAttribute, TimeSeriesMetadataAttribute, UnsupportedAttribute {
+public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMetadataAttribute, UnsupportedAttribute {
 
     /**
      * A field name, as found in the mapping. Includes the whole path from the root of the document.
@@ -62,7 +65,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TemporalityAtt
         EsField.TimeSeriesFieldType.DIMENSION
     );
 
-    static EsField timeSeriesField() {
+    public static EsField timeSeriesField() {
         return TIMESERIES_FIELD;
     }
 
@@ -183,7 +186,11 @@ public sealed class FieldAttribute extends TypedAttribute permits TemporalityAtt
             if (out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
                 dataType().writeTo(out);
             }
-            field.writeTo(out);
+            if (field instanceof PotentiallyUnmappedKeywordEsField punk) {
+                punk.writeTo(out, fieldName().string());
+            } else {
+                field.writeTo(out);
+            }
             if (out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
                 // We used to write the qualifier here, even though it was always null.
                 out.writeOptionalString(null);
@@ -197,7 +204,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TemporalityAtt
                 && MetadataAttribute.isTimeSeriesAttributeName(name())) {
                 if (this instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
                     out.writeBoolean(true);
-                    out.writeStringCollection(timeSeriesMetadataAttribute.withoutFields());
+                    out.writeStringCollection(timeSeriesMetadataAttribute.excludedFields());
                 } else {
                     out.writeBoolean(false);
                 }
@@ -242,18 +249,22 @@ public sealed class FieldAttribute extends TypedAttribute permits TemporalityAtt
         return lazyFieldName;
     }
 
+    public boolean hasTypeConflicts() {
+        return field instanceof TypeConflictedField;
+    }
+
     /**
-     * If the underlying field is an {@link InvalidMappedField} (ambiguous type across indices),
+     * If the underlying field is a {@link TypeConflictedField} (ambiguous type across indices),
      * converts this attribute into an {@link UnsupportedAttribute} with a descriptive error message
      * so the analyzer can surface a clear user-facing error.
      */
-    public Attribute checkUnresolved() {
-        if (field instanceof InvalidMappedField imf) {
+    public Attribute flagTypeConflicts() {
+        if (field instanceof TypeConflictedField tcf) {
             // Field has conflicting types across indices — build a user-facing error message.
-            String unresolvedMessage = "Cannot use field [" + name() + "] due to ambiguities being " + imf.errorMessage();
-            List<String> types = imf.getTypesToIndices().keySet().stream().toList();
+            String unresolvedMessage = "Cannot use field [" + name() + "] due to ambiguities being " + tcf.errorMessage();
+            List<String> types = tcf.getTypesToIndices().keySet().stream().toList();
             // Preserve the original NameId so downstream attribute-resolution stays consistent.
-            return new UnsupportedAttribute(source(), name(), new UnsupportedEsField(imf.getName(), types), unresolvedMessage, id());
+            return new UnsupportedAttribute(source(), name(), new UnsupportedEsField(tcf.getName(), types), unresolvedMessage, id());
         }
         return this;
     }
@@ -316,6 +327,10 @@ public sealed class FieldAttribute extends TypedAttribute permits TemporalityAtt
         return Objects.hash(super.innerHashCode(ignoreIds), parentName, field);
     }
 
+    public FieldAttribute withField(EsField field) {
+        return new FieldAttribute(source(), parentName(), qualifier(), name(), field, nullable(), id(), synthetic());
+    }
+
     @Override
     protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (FieldAttribute) o;
@@ -341,20 +356,28 @@ public sealed class FieldAttribute extends TypedAttribute permits TemporalityAtt
         return field;
     }
 
+    /**
+     * Renders the FieldAttribute as {@code [<qual>.]<name>{f[(SubclassName)][$]}#id}. Identifier
+     * mentions route through the supplied {@link NodeStringMapper}; in LIMITED mode the EsField
+     * subclass marker is suppressed to keep the rendering compact.
+     */
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        switch (format) {
-            case FULL -> {
-                sb.append(qualifiedName()).append("{").append(label());
-                if (field.getNodeStringName().isEmpty() == false) {
-                    sb.append("(").append(field.getNodeStringName()).append(")");
-                }
-                if (synthetic()) {
-                    sb.append("$");
-                }
-                sb.append("}#").append(id());
-            }
-            case LIMITED -> super.nodeString(sb, format);
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        if (qualifier() != null) {
+            sb.append(mapper.column(qualifier())).append('.');
         }
+        sb.append(mapper.column(name())).append('{').append(label());
+        if (format != NodeStringFormat.LIMITED && field.getNodeStringName().isEmpty() == false) {
+            sb.append('(').append(field.getNodeStringName()).append(')');
+        }
+        if (synthetic()) {
+            sb.append('$');
+        }
+        sb.append("}#").append(id());
+    }
+
+    public boolean isPotentiallyUnmapped() {
+        return field() instanceof PotentiallyUnmappedKeywordEsField
+            || field() instanceof UnionTypeEsField utf && utf.getUnmappedConversionExpression() != null;
     }
 }

@@ -11,21 +11,16 @@ package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
 
 import java.lang.foreign.MemorySegment;
-import java.lang.invoke.MethodHandle;
 
-class ScoreCorrections {
-    static final VectorSimilarityFunctions SIMILARITY_FUNCTIONS = NativeAccess.instance()
+public class ScoreCorrections {
+    static final SimdVecLibrary SIMILARITY_FUNCTIONS = NativeAccess.instance()
         .getVectorSimilarityFunctions()
         .orElseThrow(AssertionError::new);
 
-    static final MethodHandle APPLY_CORRECTIONS_EUCLIDEAN_BULK = SIMILARITY_FUNCTIONS.applyCorrectionsEuclideanBulk();
-    static final MethodHandle APPLY_CORRECTIONS_MAX_INNER_PRODUCT_BULK = SIMILARITY_FUNCTIONS.applyCorrectionsMaxInnerProductBulk();
-    static final MethodHandle APPLY_CORRECTIONS_DOT_PRODUCT_BULK = SIMILARITY_FUNCTIONS.applyCorrectionsDotProductBulk();
-
-    static float nativeApplyCorrectionsBulk(
+    public static float nativeApplyCorrectionsBulk(
         VectorSimilarityFunction similarityFunction,
         MemorySegment corrections,
         int bulkSize,
@@ -39,57 +34,123 @@ class ScoreCorrections {
         float centroidDp,
         MemorySegment scores
     ) {
-        try {
-            return switch (similarityFunction) {
-                case EUCLIDEAN -> (float) APPLY_CORRECTIONS_EUCLIDEAN_BULK.invokeExact(
-                    corrections,
-                    bulkSize,
-                    dimensions,
-                    queryLowerInterval,
-                    queryUpperInterval,
-                    queryComponentSum,
-                    queryAdditionalCorrection,
-                    queryBitScale,
-                    indexBitScale,
-                    centroidDp,
-                    scores
-                );
-                case DOT_PRODUCT, COSINE -> (float) APPLY_CORRECTIONS_DOT_PRODUCT_BULK.invokeExact(
-                    corrections,
-                    bulkSize,
-                    dimensions,
-                    queryLowerInterval,
-                    queryUpperInterval,
-                    queryComponentSum,
-                    queryAdditionalCorrection,
-                    queryBitScale,
-                    indexBitScale,
-                    centroidDp,
-                    scores
-                );
-                case MAXIMUM_INNER_PRODUCT -> (float) APPLY_CORRECTIONS_MAX_INNER_PRODUCT_BULK.invokeExact(
-                    corrections,
-                    bulkSize,
-                    dimensions,
-                    queryLowerInterval,
-                    queryUpperInterval,
-                    queryComponentSum,
-                    queryAdditionalCorrection,
-                    queryBitScale,
-                    indexBitScale,
-                    centroidDp,
-                    scores
-                );
-            };
-        } catch (Throwable e) {
-            throw rethrow(e);
-        }
+        return switch (similarityFunction) {
+            case EUCLIDEAN -> SIMILARITY_FUNCTIONS.applyCorrectionsEuclideanBulk(
+                corrections,
+                bulkSize,
+                dimensions,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                queryBitScale,
+                indexBitScale,
+                centroidDp,
+                scores
+            );
+            case DOT_PRODUCT, COSINE -> SIMILARITY_FUNCTIONS.applyCorrectionsDotProductBulk(
+                corrections,
+                bulkSize,
+                dimensions,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                queryBitScale,
+                indexBitScale,
+                centroidDp,
+                scores
+            );
+            case MAXIMUM_INNER_PRODUCT -> SIMILARITY_FUNCTIONS.applyCorrectionsMaxInnerProductBulk(
+                corrections,
+                bulkSize,
+                dimensions,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                queryBitScale,
+                indexBitScale,
+                centroidDp,
+                scores
+            );
+        };
     }
 
-    private static RuntimeException rethrow(Throwable t) {
-        if (t instanceof Error err) {
-            throw err;
-        }
-        return t instanceof RuntimeException re ? re : new RuntimeException(t);
+    /**
+     * Apply corrections to a bulk of scores, reading per-vector correction trailers inline at
+     * {@code addresses[i] + vectorSizeInBytes} (BBQ-style layout). The trailing target component sum
+     * is encoded either as a 4-byte int ({@code readComponentSumAsInt = true}, or as a 2-byte unsigned short
+     * zero-extended to int ({@code readComponentSumAsInt = false}), mirroring
+     * {@code writeComponentSumAsInt} in {@code DiskBBQBulkWriter})
+     */
+    public static float nativeBbqApplyCorrectionsBulk(
+        VectorSimilarityFunction similarityFunction,
+        MemorySegment data,
+        int bulkSize,
+        int vectorSizeInBytes,
+        int pitchInBytes,
+        int dimensions,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        float queryBitScale,
+        float indexBitScale,
+        float centroidDp,
+        boolean readComponentSumAsInt,
+        MemorySegment scores
+    ) {
+        byte readAsInt = readComponentSumAsInt ? (byte) 1 : (byte) 0;
+        return switch (similarityFunction) {
+            case EUCLIDEAN -> SIMILARITY_FUNCTIONS.bbqApplyCorrectionsEuclideanBulk(
+                data,
+                bulkSize,
+                vectorSizeInBytes,
+                pitchInBytes,
+                dimensions,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                queryBitScale,
+                indexBitScale,
+                centroidDp,
+                readAsInt,
+                scores
+            );
+            case DOT_PRODUCT, COSINE -> SIMILARITY_FUNCTIONS.bbqApplyCorrectionsDotProductBulk(
+                data,
+                bulkSize,
+                vectorSizeInBytes,
+                pitchInBytes,
+                dimensions,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                queryBitScale,
+                indexBitScale,
+                centroidDp,
+                readAsInt,
+                scores
+            );
+            case MAXIMUM_INNER_PRODUCT -> SIMILARITY_FUNCTIONS.bbqApplyCorrectionsMaxInnerProductBulk(
+                data,
+                bulkSize,
+                vectorSizeInBytes,
+                pitchInBytes,
+                dimensions,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                queryBitScale,
+                indexBitScale,
+                centroidDp,
+                readAsInt,
+                scores
+            );
+        };
     }
 }

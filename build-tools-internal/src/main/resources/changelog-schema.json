@@ -33,6 +33,7 @@
             "Client",
             "Cluster Coordination",
             "Codec",
+            "Columnar",
             "Data streams",
             "DLM",
             "Discovery-Plugins",
@@ -130,6 +131,10 @@
         },
         "deprecation": {
           "$ref": "#/definitions/CompatibilityChange"
+        },
+        "source_repo": {
+          "type": "string",
+          "description": "GitHub repository (owner/name) for entries from external repos, e.g. elastic/ml-cpp. Defaults to elastic/elasticsearch when absent."
         }
       },
       "required": [
@@ -304,7 +309,8 @@
         "Rollup",
         "Search",
         "System requirement",
-        "Transform"
+        "Transform",
+        "TSDB"
       ]
     },
     "additionalProperties": false

@@ -1,0 +1,4 @@
+Limit[1000[INTEGER],false,false]
+\_Project[[txt{f}#0]]
+  \_Filter[MATCH(txt{f}#0,Faulkner[KEYWORD]) OR ISNULL(txt{f}#0)]
+    \_EsRelation[text_state_mapped,text_state_unmapped,text_state_nonexistent][doc_id{f}#1, txt{f}#0]

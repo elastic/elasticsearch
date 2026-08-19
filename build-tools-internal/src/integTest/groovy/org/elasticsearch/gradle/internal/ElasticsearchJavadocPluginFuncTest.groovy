@@ -9,11 +9,13 @@
 
 package org.elasticsearch.gradle.internal
 
-import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 import spock.lang.Unroll
 
-class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
+class ElasticsearchJavadocPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
+
+    Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = org.elasticsearch.gradle.internal.ElasticsearchJavadocPlugin
 
     @Unroll
     def "#versionType created javadoc with inter project linking"() {

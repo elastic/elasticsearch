@@ -11,16 +11,19 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Delegating {@link FormatReader} that wraps the raw {@link StorageObject} in a
@@ -70,9 +73,10 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
-    public FormatReader withConfig(Map<String, Object> config) {
-        FormatReader configured = inner.withConfig(config);
-        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
+    public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+        Configured<FormatReader> configured = inner.withConfigTrackingConsumedKeys(config);
+        FormatReader wrapped = configured.value() == inner ? this : new CompressionDelegatingFormatReader(configured.value(), codec);
+        return new Configured<>(wrapped, configured.consumedKeys());
     }
 
     @Override
@@ -85,6 +89,49 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     public FormatReader withSchema(List<Attribute> schema) {
         FormatReader configured = inner.withSchema(schema);
         return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
+    }
+
+    @Override
+    public FormatReader withDeclaredDateFormats(Map<String, String> physicalNameToPattern) {
+        // Delegate to the wrapped text reader (a compressed .csv.gz / .ndjson.gz still text-parses); without this the
+        // interface default would return the wrapper and the declared per-column formats would be silently dropped.
+        FormatReader configured = inner.withDeclaredDateFormats(physicalNameToPattern);
+        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
+    }
+
+    @Override
+    public FormatReader withDeclaredTypeColumns(Set<String> physicalDeclaredColumns) {
+        // Forward for symmetry with the other declared withers; the wrapped text readers no-op on it (they gate per-field
+        // via ErrorPolicy, not on a whole-column type check), so this is inert today but keeps the wrapper transparent.
+        FormatReader configured = inner.withDeclaredTypeColumns(physicalDeclaredColumns);
+        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
+    }
+
+    @Override
+    public FormatReader withDeclaredPathBinding(boolean declaredPathBinding) {
+        // Delegate to the wrapped text reader: a compressed .csv.gz binds its declared paths exactly like the plain
+        // file. Without this the interface default would return the wrapper and every compressed read would silently
+        // fall back to positional binding — the very bug this flag exists to fix.
+        FormatReader configured = inner.withDeclaredPathBinding(declaredPathBinding);
+        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
+    }
+
+    @Override
+    public boolean declaredNameBindingNeedsFileStart() {
+        return inner.declaredNameBindingNeedsFileStart();
+    }
+
+    @Override
+    public RowPositionStrategy rowPositionStrategy() {
+        return inner.rowPositionStrategy();
+    }
+
+    FormatReader unwrap() {
+        return inner;
+    }
+
+    DecompressionCodec codec() {
+        return codec;
     }
 
     @Override

@@ -36,7 +36,8 @@ the highest value when sorting descending.
 By default, `null` values are treated as being larger than any other value. With
 an ascending sort order, `null` values are sorted last, and with a descending
 sort order, `null` values are sorted first. You can change that by providing
-`NULLS FIRST` or `NULLS LAST`.
+`NULLS FIRST` or `NULLS LAST`. To learn how `NULL` behaves in other parts of
+{{esql}}, refer to [Working with NULL values in {{esql}}](/reference/query-languages/esql/esql-null-values.md).
 
 ## Examples
 
@@ -44,22 +45,22 @@ The following examples show how to control sort order, tie-breaking, null placem
 
 ### Sort in default ascending order
 
-:::{include} ../examples/docs.csv-spec/sort.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/sort.md
 :::
 
 ### Sort in descending order with DESC
 
-:::{include} ../examples/docs.csv-spec/sortDesc.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/sortDesc.md
 :::
 
 ### Break ties with additional sort expressions
 
-:::{include} ../examples/docs.csv-spec/sortTie.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/sortTie.md
 :::
 
 ### Control null placement with NULLS FIRST or NULLS LAST
 
-:::{include} ../examples/docs.csv-spec/sortNullsFirst.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/sortNullsFirst.md
 :::
 
 ### Sort by expression

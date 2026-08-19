@@ -263,7 +263,7 @@ sub:keyword
 ""
 ;
 
-substring Emoji#[skip:-8.13.99,reason:bug fix in 8.14]
+substring Emoji
 row a = "🐱Meow!🐶Woof!" | eval sub1 = substring(a, 2) | eval sub2 = substring(a, 2, 100);
 
 a:keyword | sub1:keyword | sub2:keyword
@@ -362,6 +362,33 @@ ROW message = "   some text  ",  color = " red "
 message:s | color:s
 some text | red
 // end::trim-result[]
+;
+
+ltrimKeywordField
+FROM trim_test | EVAL t = LTRIM(col_leading) | KEEP id, t | SORT id;
+
+id:integer | t:keyword
+1          | foo
+2          | bar
+3          | baz
+;
+
+rtrimKeywordField
+FROM trim_test | EVAL t = RTRIM(col_trailing) | KEEP id, t | SORT id;
+
+id:integer | t:keyword
+1          | foo
+2          | bar
+3          | baz
+;
+
+trimKeywordField
+FROM trim_test | EVAL t = TRIM(col_both) | KEEP id, t | SORT id;
+
+id:integer | t:keyword
+1          | foo
+2          | bar
+3          | baz
 ;
 
 concat
@@ -491,6 +518,16 @@ true          | null
 null       | false
 ;
 
+containsKeywordField
+required_capability: fn_contains
+from employees | sort emp_no | limit 3 | eval c = contains(first_name, last_name) | keep emp_no, c;
+
+emp_no:integer | c:boolean
+10001          | false
+10002          | false
+10003          | false
+;
+
 // Note: no matches in MV returned
 in
 
@@ -557,6 +594,15 @@ emp_no:integer |job_positions:keyword |nil:keyword |is_in:boolean
 10026          |Reporting Analyst     |null        |null
 ;
 
+// A keyword field used as one of the candidates inside the IN list itself, rather than
+// only as the value being tested for membership.
+inKeywordFieldInList
+from employees | where "Bezalel" in (first_name, "Georgi") | keep emp_no, first_name;
+
+emp_no:integer |first_name:keyword
+10002          |Bezalel
+;
+
 split
 // tag::split[]
 ROW words="foo;bar;baz;qux;quux;corge"
@@ -596,6 +642,17 @@ ROW a=["foo", "foo", "bar", "foo"]
 // end::mv_dedupe-result[]
 ;
 
+mvDedupeKeywordField
+FROM employees
+| WHERE emp_no == 10001
+| EVAL deduped = MV_DEDUPE(job_positions)
+| KEEP emp_no, deduped
+;
+
+emp_no:integer | deduped:keyword
+10001          | [Accountant, Senior Python Developer]
+;
+
 mvJoin
 // tag::mv_concat[]
 ROW a=["foo", "zoo", "bar"]
@@ -609,7 +666,7 @@ ROW a=["foo", "zoo", "bar"]
 // end::mv_concat-result[]
 ;
 
-mvFirst#[skip:-8.12.99, reason:Added in 8.13.0]
+mvFirst
 // tag::mv_first[]
 ROW a="foo;bar;baz"
 | EVAL first_a = MV_FIRST(SPLIT(a, ";"))
@@ -622,7 +679,7 @@ foo;bar;baz | "foo"
 // end::mv_first-result[]
 ;
 
-mvLast#[skip:-8.12.99, reason:Added in 8.13.0]
+mvLast
 // tag::mv_last[]
 ROW a="foo;bar;baz"
 | EVAL last_a = MV_LAST(SPLIT(a, ";"))
@@ -633,6 +690,18 @@ ROW a="foo;bar;baz"
   a:keyword | last_a:keyword
 foo;bar;baz | "baz"
 // end::mv_last-result[]
+;
+
+mvLastKeywordField
+request_stored: skip
+FROM employees
+| WHERE emp_no == 10001
+| EVAL last_job = MV_LAST(job_positions)
+| KEEP emp_no, last_job
+;
+
+emp_no:integer | last_job:keyword
+10001          | "Senior Python Developer"
 ;
 
 mvMax
@@ -927,6 +996,48 @@ ROW a=[10, 9, 8]
 // end::mv_concat-to_string-result[]
 ;
 
+mvConcatFromEmployees
+request_stored: skip
+FROM employees
+| WHERE emp_no < 10010
+| EVAL joined = MV_CONCAT(job_positions, ", ")
+| KEEP emp_no, joined
+| SORT emp_no DESC
+;
+
+emp_no:integer | joined:keyword
+10009          | "Internship, Senior Python Developer"
+10008          | "Internship, Junior Developer, Purchase Manager, Senior Python Developer"
+10007          | null
+10006          | "Principal Support Engineer, Senior Team Lead, Tech Lead"
+10005          | null
+10004          | "Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead"
+10003          | null
+10002          | "Senior Team Lead"
+10001          | "Accountant, Senior Python Developer"
+;
+
+mvConcatFieldDelimiter
+request_stored: skip
+FROM employees
+| WHERE emp_no < 10010
+| EVAL joined = MV_CONCAT(job_positions, last_name)
+| KEEP emp_no, joined
+| SORT emp_no DESC
+;
+
+emp_no:integer | joined:keyword
+10009          | "InternshipPeacSenior Python Developer"
+10008          | "InternshipKalloufiJunior DeveloperKalloufiPurchase ManagerKalloufiSenior Python Developer"
+10007          | null
+10006          | "Principal Support EngineerPreusigSenior Team LeadPreusigTech Lead"
+10005          | null
+10004          | "Head Human ResourcesKoblickReporting AnalystKoblickSupport EngineerKoblickTech Lead"
+10003          | null
+10002          | "Senior Team Lead"
+10001          | "AccountantFacelloSenior Python Developer"
+;
+
 mvSort
 required_capability: mv_sort
 
@@ -1048,6 +1159,23 @@ emp_no:integer | full_name:keyword
 10003          | Parto words words words Bamford
 10004          | Chirstian words words words Koblick
 10005          | Kyoichi words words words Maliniak
+;
+
+mvZipFieldDelim
+required_capability: mv_sort
+
+FROM employees
+| WHERE emp_no in (10001, 10002, 10003, 10004, 10005)
+| EVAL full_name = mv_zip(first_name, last_name, gender)
+| KEEP emp_no, full_name
+| SORT emp_no;
+
+emp_no:integer | full_name:keyword
+10001          | GeorgiMFacello
+10002          | BezalelFSimmel
+10003          | PartoMBamford
+10004          | ChirstianMKoblick
+10005          | KyoichiMMaliniak
 ;
 
 
@@ -1248,6 +1376,16 @@ Arumugam          |A              |1A94           |true
 Berni             |B              |1B14           |true           
 Bezalel           |B              |1B2            |true           
 Bojan             |B              |1B23           |true
+;
+
+replaceWithFieldRegexAndNewString
+from employees | where emp_no in (10001, 10002, 10003, 10020) | eval replaced = replace(first_name, gender, last_name) | keep emp_no, first_name, gender, last_name, replaced | sort emp_no;
+
+emp_no:integer | first_name:keyword | gender:keyword | last_name:keyword | replaced:keyword
+10001          | Georgi              | M              | Facello            | Georgi
+10002          | Bezalel             | F              | Simmel             | Bezalel
+10003          | Parto               | M              | Bamford            | Parto
+10020          | Mayuko              | M              | Warwick            | Warwickayuko
 ;
 
 replaceRegex
@@ -1560,7 +1698,208 @@ GTF            | Great Falls Int'l | 8                 | airports
 LUH            | Sahnewal          | 9                 | airports
 ;
 
-toLowerRow#[skip:-8.12.99]
+startsWithOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| WHERE STARTS_WITH(_index, "k8s-")
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+startsWithOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = STARTS_WITH(_index, "k8s-")
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+endsWithOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| WHERE ENDS_WITH(_index, "-downsampled")
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+endsWithOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = ENDS_WITH(_index, "-downsampled")
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+endsWithKeywordField
+from employees | sort emp_no | limit 3 | eval e = ends_with(first_name, last_name) | keep emp_no, e;
+
+emp_no:integer | e:boolean
+10001          | false
+10002          | false
+10003          | false
+;
+
+likeOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| WHERE _index LIKE "k8s-*"
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+likeOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = _index LIKE "k8s-*"
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+// https://github.com/elastic/elasticsearch/issues/146364
+likeSingleCharOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: fix_index_like_question_mark_wildcard
+
+FROM k8s-downsampled METADATA _index
+| WHERE _index LIKE "k8s?downsampled"
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+likeSingleCharOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = _index LIKE "k8s?downsampled"
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+likeListOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: like_with_list_of_patterns
+
+FROM k8s-downsampled METADATA _index
+| WHERE _index LIKE ("k8s-*", "no_match*")
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+likeListOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: like_with_list_of_patterns
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = _index LIKE ("k8s-*", "no_match*")
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+likeSingleCharListOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: like_with_list_of_patterns
+
+FROM k8s-downsampled METADATA _index
+| WHERE _index LIKE ("k8s?downsampled", "no_match")
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+likeSingleCharListOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: like_with_list_of_patterns
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = _index LIKE ("k8s?downsampled", "no_match")
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+rlikeOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| WHERE _index RLIKE "k8s-.*"
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+rlikeOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = _index RLIKE "k8s-.*"
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+rlikeListOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: rlike_with_list_of_patterns
+
+FROM k8s-downsampled METADATA _index
+| WHERE _index RLIKE ("k8s-.*", "no_match.*")
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+rlikeListOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: rlike_with_list_of_patterns
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = _index RLIKE ("k8s-.*", "no_match.*")
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+toLowerRow
 // tag::to_lower[]
 ROW message = "Some Text"
 | EVAL message_lower = TO_LOWER(message)
@@ -1574,7 +1913,7 @@ Some Text       | some text
 ;
 
 
-toLower#[skip:-8.12.99]
+toLower
 from employees | sort emp_no | eval name_lower = TO_LOWER(first_name) | keep emp_no, first_name, name_lower | limit 1;
 
 emp_no:integer  | first_name:keyword    | name_lower:keyword
@@ -1596,7 +1935,7 @@ ROW v = TO_LOWER(["Some", "Text"])
 ;
 
 
-toUpperRow#[skip:-8.12.99]
+toUpperRow
 // tag::to_upper[]
 ROW message = "Some Text"
 | EVAL message_upper = TO_UPPER(message)
@@ -1610,7 +1949,7 @@ Some Text       | SOME TEXT
 ;
 
 
-toUpper#[skip:-8.12.99]
+toUpper
 from employees | sort emp_no | eval name_upper = TO_UPPER(first_name) | keep emp_no, first_name, name_upper | limit 1;
 
 emp_no:integer  | first_name:keyword    | name_upper:keyword
@@ -1632,14 +1971,14 @@ ROW v = TO_UPPER(["Some", "Text"])
 ;
 
 
-toUpperLowerUnicode#[skip:-8.12.99]
+toUpperLowerUnicode
 row a = "π/2 + a + B + Λ ºC" | eval lower = to_lower(a), upper = to_upper(a) | keep a, upper, lower;
 
 a:keyword           | upper:keyword         | lower:keyword
 π/2 + a + B + Λ ºC  | Π/2 + A + B + Λ ºC    | π/2 + a + b + λ ºc
 ;
 
-equalsToUpperPushedDown#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+equalsToUpperPushedDown
 from employees
 | where to_upper(first_name) == "GEORGI"
 | keep emp_no, first_name
@@ -1649,7 +1988,7 @@ emp_no:integer  | first_name:keyword
 10001           | Georgi
 ;
 
-equalsToUpperNestedPushedDown#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+equalsToUpperNestedPushedDown
 from employees
 | where to_upper(to_upper(to_lower(first_name))) == "GEORGI"
 | keep emp_no, first_name
@@ -1659,7 +1998,7 @@ emp_no:integer  | first_name:keyword
 10001           | Georgi
 ;
 
-negatedEqualsToUpperPushedDown#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+negatedEqualsToUpperPushedDown
 from employees
 | sort emp_no
 | where not(to_upper(first_name) == "GEORGI")
@@ -1671,7 +2010,7 @@ emp_no:integer  | first_name:keyword
 10002           | Bezalel
 ;
 
-notEqualsToUpperPushedDown#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+notEqualsToUpperPushedDown
 from employees
 | sort emp_no
 | where to_upper(first_name) != "GEORGI"
@@ -1683,7 +2022,7 @@ emp_no:integer  | first_name:keyword
 10002           | Bezalel
 ;
 
-negatedNotEqualsToUpperPushedDown#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+negatedNotEqualsToUpperPushedDown
 from employees
 | sort emp_no
 | where not(to_upper(first_name) != "GEORGI")
@@ -1695,7 +2034,7 @@ emp_no:integer  | first_name:keyword
 10001           | Georgi
 ;
 
-equalsToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+equalsToUpperFolded
 from employees
 | where to_upper(first_name) == "Georgi"
 | keep emp_no, first_name
@@ -1704,7 +2043,7 @@ from employees
 emp_no:integer  | first_name:keyword
 ;
 
-negatedEqualsToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+negatedEqualsToUpperFolded
 from employees
 | where not(to_upper(first_name) == "Georgi")
 | stats c = count()
@@ -1714,7 +2053,7 @@ c:long
 90
 ;
 
-equalsToUpperNullFolded#[skip:-8.16.99, reason:function's type corrected in #114334]
+equalsToUpperNullFolded
 from employees
 | where to_upper(null) == "Georgi"
 | keep emp_no, first_name
@@ -1723,7 +2062,7 @@ from employees
 emp_no:integer  | first_name:keyword
 ;
 
-equalsNullToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+equalsNullToUpperFolded
 from employees
 | where to_upper(first_name) == to_string(null)
 | keep emp_no, first_name
@@ -1732,7 +2071,7 @@ from employees
 emp_no:integer  | first_name:keyword
 ;
 
-notEqualsToUpperNullFolded#[skip:-8.16.99, reason:function's type corrected in #114334]
+notEqualsToUpperNullFolded
 from employees
 | where to_upper(null) != "Georgi"
 | keep emp_no, first_name
@@ -1741,7 +2080,7 @@ from employees
 emp_no:integer  | first_name:keyword
 ;
 
-notEqualsNullToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+notEqualsNullToUpperFolded
 from employees
 | where to_upper(first_name) != to_string(null)
 | keep emp_no, first_name
@@ -1750,7 +2089,7 @@ from employees
 emp_no:integer  | first_name:keyword
 ;
 
-notEqualsToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+notEqualsToUpperFolded
 from employees
 | where to_upper(first_name) != "Georgi"
 | stats c = count()
@@ -1760,7 +2099,7 @@ c:long
 90
 ;
 
-negatedNotEqualsToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+negatedNotEqualsToUpperFolded
 from employees
 | where not(to_upper(first_name) != "Georgi")
 | stats c = count()
@@ -1770,7 +2109,7 @@ c:long
 0
 ;
 
-equalsToLowerPushedDown#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+equalsToLowerPushedDown
 from employees
 | where to_lower(first_name) == "georgi"
 | keep emp_no, first_name
@@ -1780,7 +2119,7 @@ emp_no:integer  | first_name:keyword
 10001           | Georgi
 ;
 
-notEqualsToLowerPushedDown#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+notEqualsToLowerPushedDown
 from employees
 | sort emp_no
 | where to_lower(first_name) != "georgi"
@@ -1792,7 +2131,7 @@ emp_no:integer  | first_name:keyword
 10002           | Bezalel
 ;
 
-equalsToLowerFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+equalsToLowerFolded
 from employees
 | where to_lower(first_name) == "Georgi"
 | keep emp_no, first_name
@@ -1801,7 +2140,7 @@ from employees
 emp_no:integer  | first_name:keyword
 ;
 
-notEqualsToLowerFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+notEqualsToLowerFolded
 from employees
 | where to_lower(first_name) != "Georgi"
 | stats c = count()
@@ -1811,7 +2150,7 @@ c:long
 90
 ;
 
-equalsToLowerWithUnico(rn|d)s#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+equalsToLowerWithUnico(rn|d)s
 from employees
 | where to_lower(concat(first_name, "🦄🦄")) != "georgi🦄🦄"
 | stats c = count()
@@ -1991,7 +2330,17 @@ gender:keyword | split:keyword
 M              | [foo, bar]
 ;
 
-locate#[skip:-8.13.99,reason:new string function added in 8.14]
+splitFieldValue
+from employees | where emp_no in (10001, 10002, 10003, 10005) | eval parts = split(last_name, "a") | keep emp_no, last_name, parts | sort emp_no;
+
+emp_no:integer | last_name:keyword | parts:keyword
+10001          | Facello           | [F, cello]
+10002          | Simmel            | Simmel
+10003          | Bamford           | [B, mford]
+10005          | Maliniak          | [M, lini, k]
+;
+
+locate
 // tag::locate[]
 ROW a = "hello"
 | EVAL a_ll = LOCATE(a, "ll")
@@ -2004,49 +2353,49 @@ hello     | 3
 // end::locate-result[]
 ;
 
-locateFail#[skip:-8.13.99,reason:new string function added in 8.14]
+locateFail
 row a = "hello" | eval a_ll = locate(a, "int");
 
 a:keyword | a_ll:integer
 hello | 0
 ;
 
-locateZeroStart#[skip:-8.13.99,reason:new string function added in 8.14]
+locateZeroStart
 row a = "hello" | eval a_ll = locate(a, "ll", 0);
 
 a:keyword | a_ll:integer
 hello | 3
 ;
 
-locateExactStart#[skip:-8.13.99,reason:new string function added in 8.14]
+locateExactStart
 row a = "hello" | eval a_ll = locate(a, "ll", 3);
 
 a:keyword | a_ll:integer
 hello | 3
 ;
 
-locateLongerStart#[skip:-8.13.99,reason:new string function added in 8.14]
+locateLongerStart
 row a = "hello" | eval a_ll = locate(a, "ll", 10);
 
 a:keyword | a_ll:integer
 hello | 0
 ;
 
-locateLongerSubstr#[skip:-8.13.99,reason:new string function added in 8.14]
+locateLongerSubstr
 row a = "hello" | eval a_ll = locate(a, "farewell");
 
 a:keyword | a_ll:integer
 hello | 0
 ;
 
-locateSame#[skip:-8.13.99,reason:new string function added in 8.14]
+locateSame
 row a = "hello" | eval a_ll = locate(a, "hello");
 
 a:keyword | a_ll:integer
 hello | 1
 ;
 
-locateWithSubstring#[skip:-8.13.99,reason:new string function added in 8.14]
+locateWithSubstring
 from employees | where emp_no <= 10010 | eval f_s = substring(last_name, 2) | eval f_l = locate(last_name, f_s) | keep emp_no, last_name, f_s, f_l;
 ignoreOrder:true
 
@@ -2063,28 +2412,28 @@ emp_no:integer | last_name:keyword | f_s:keyword | f_l:integer
 10010 | Piveteau  | iveteau | 2
 ;
 
-locateUtf16Emoji#[skip:-8.13.99,reason:new string function added in 8.14]
+locateUtf16Emoji
 row a = "🐱Meow!🐶Woof!" | eval f_s = substring(a, 2) | eval f_l = locate(a, f_s);
 
 a:keyword | f_s:keyword | f_l:integer
 🐱Meow!🐶Woof! | Meow!🐶Woof! | 2
 ;
 
-locateNestedSubstring#[skip:-8.13.99,reason:new string function added in 8.14]
+locateNestedSubstring
 row a = "hello" | eval a_ll = substring(a, locate(a, "ll"));
 
 a:keyword | a_ll:keyword
 hello | llo
 ;
 
-locateNestSubstring#[skip:-8.13.99,reason:new string function added in 8.14]
+locateNestSubstring
 row a = "hello" | eval a_ll = locate(substring(a, 2), "ll");
 
 a:keyword | a_ll:integer
 hello | 2
 ;
 
-locateStats#[skip:-8.13.99,reason:new string function added in 8.14]
+locateStats
 from employees | where emp_no <= 10010 | eval f_l = locate(last_name, "ll") | stats min(f_l), max(f_l) by job_positions | sort job_positions | limit 5;
 
 min(f_l):integer | max(f_l):integer | job_positions:keyword
@@ -2095,7 +2444,7 @@ min(f_l):integer | max(f_l):integer | job_positions:keyword
 3               | 3               | Junior Developer
 ;
 
-locateWarnings#[skip:-8.13.99,reason:new string function added in 8.14]
+locateWarnings
 
 from hosts | where host=="epsilon" | eval l1 = locate(host_group, "ate"), l2 = locate(description, "ate") | keep l1, l2;
 ignoreOrder:true
@@ -2106,6 +2455,15 @@ l1:integer | l2:integer
 2          | null
 2          | null
 null       | 0
+;
+
+locateKeywordField
+from employees | sort emp_no | limit 3 | eval l = locate(first_name, last_name) | keep emp_no, l;
+
+emp_no:integer | l:integer
+10001          | 0
+10002          | 0
+10003          | 0
 ;
 
 mvContains
@@ -2122,6 +2480,157 @@ set:keyword | element:keyword | set_contains_element:boolean
 // end::mv_contains-result[]
 ;
 
+mvLike
+required_capability: fn_mv_like
+// tag::mv_like[]
+ROW names = ["Anna", "Bob", "Carl"]
+| EVAL any_starts_with_a = mv_like(names, "A*")
+// end::mv_like[]
+;
+
+// tag::mv_like-result[]
+names:keyword     | any_starts_with_a:boolean
+[Anna, Bob, Carl] | true
+// end::mv_like-result[]
+;
+
+mvLikePrefix
+required_capability: fn_mv_like
+// tag::mv_like_prefix[]
+ROW names = ["Anna", "Bob"]
+| EVAL has_bo = mv_like(names, "Bo*")
+// end::mv_like_prefix[]
+;
+
+// tag::mv_like_prefix-result[]
+names:keyword | has_bo:boolean
+[Anna, Bob]   | true
+// end::mv_like_prefix-result[]
+;
+
+// Two-valued: the result is never null, so NOT flips it cleanly instead of propagating null.
+mvLikeNot
+required_capability: fn_mv_like
+// tag::mv_like_not[]
+ROW names = ["Anna", "Bob"]
+| EVAL no_carl = NOT mv_like(names, "Carl*")
+// end::mv_like_not[]
+;
+
+// tag::mv_like_not-result[]
+names:keyword | no_carl:boolean
+[Anna, Bob]   | true
+// end::mv_like_not-result[]
+;
+
+// A null field matches nothing and yields false — not null — so NOT yields true rather than propagating null.
+// The keyword cast keeps the field typed, so this runs the real evaluator over an all-null block rather than
+// folding the predicate away. A genuinely empty (zero-value) field needs a real index and is pinned end to end.
+mvLikeNullField
+required_capability: fn_mv_like
+ROW names = null::keyword
+| EVAL matched = mv_like(names, "*"), unmatched = NOT mv_like(names, "*")
+| KEEP matched, unmatched
+;
+
+matched:boolean | unmatched:boolean
+false           | true
+;
+
+// The pattern need only be a constant after folding, not a literal: CONCAT of two literals is accepted (the
+// constant-ness is checked in postOptimizationVerification, after constant folding).
+mvLikeConstantFoldedPattern
+required_capability: fn_mv_like
+required_capability: fn_mv_rlike
+ROW names = ["Anna", "Bob"]
+| EVAL wildcard = mv_like(names, CONCAT("A", "*")), regex = mv_rlike(names, CONCAT("A", ".*"))
+| KEEP wildcard, regex
+;
+
+wildcard:boolean | regex:boolean
+true             | true
+;
+
+// mv_like/mv_rlike in a STATS ... WHERE filtered aggregation — the same per-row evaluator path, exercised as an
+// aggregation filter.
+mvLikeStatsWhere
+required_capability: fn_mv_like
+required_capability: fn_mv_rlike
+ROW names = ["Anna", "Bob"]
+| STATS a = COUNT(*) WHERE mv_like(names, "A*"), b = COUNT(*) WHERE mv_rlike(names, "A.*"), none = COUNT(*) WHERE mv_like(names, "Z*")
+;
+
+a:long | b:long | none:long
+1      | 1      | 0
+;
+
+// Real multivalued keyword field, so field_extract coverage runs (ROW literals do not exercise it).
+mvLikeField
+required_capability: fn_mv_like
+FROM employees
+| WHERE emp_no <= 10002 AND mv_like(job_positions, "Senior*")
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10001
+10002
+;
+
+mvRLikeField
+required_capability: fn_mv_rlike
+FROM employees
+| WHERE emp_no <= 10002 AND mv_rlike(job_positions, "Senior.*")
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10001
+10002
+;
+
+mvRLike
+required_capability: fn_mv_rlike
+// tag::mv_rlike[]
+ROW names = ["Anna", "Bob", "Carl"]
+| EVAL any_starts_with_a = mv_rlike(names, "A.*")
+// end::mv_rlike[]
+;
+
+// tag::mv_rlike-result[]
+names:keyword     | any_starts_with_a:boolean
+[Anna, Bob, Carl] | true
+// end::mv_rlike-result[]
+;
+
+mvRLikeClass
+required_capability: fn_mv_rlike
+// tag::mv_rlike_class[]
+ROW names = ["Anna", "Bob"]
+| EVAL has_three_letter_b_name = mv_rlike(names, "[Bb]ob")
+// end::mv_rlike_class[]
+;
+
+// tag::mv_rlike_class-result[]
+names:keyword | has_three_letter_b_name:boolean
+[Anna, Bob]   | true
+// end::mv_rlike_class-result[]
+;
+
+// RLIKE anchors the whole value, so a substring pattern does not match — and the result is false, not null.
+mvRLikeWholeValue
+required_capability: fn_mv_rlike
+ROW names = ["annabel", "bob"]
+| EVAL whole = mv_rlike(names, "anna"), anchored = mv_rlike(names, "anna.*")
+| KEEP whole, anchored
+;
+
+whole:boolean | anchored:boolean
+false         | true
+;
+
 mvContains_bothsides
 required_capability: fn_mv_contains_v1
 // tag::mv_contains_bothsides[]
@@ -2135,6 +2644,19 @@ ROW setA = ["a","c"], setB = ["a", "b", "c"]
 setA:keyword | setB:keyword | a_subset_of_b:boolean | b_subset_of_a:boolean 
 [a, c]       | [a, b, c]    | true                  | false
 // end::mv_contains_bothsides-result[]
+;
+
+mvContainsKeywordSubset
+required_capability: fn_mv_contains_v1
+
+FROM employees
+| WHERE emp_no == 10001
+| EVAL contains = MV_CONTAINS(job_positions, last_name)
+| KEEP emp_no, contains
+;
+
+emp_no:integer | contains:boolean
+10001          | false
 ;
 
 mvContainsCombinations
@@ -2270,7 +2792,7 @@ emp_no:integer | first_name:keyword | job_positions:keyword | x:keyword | y:keyw
 ;         
 
 
-base64Encode#[skip:-8.13.99,reason:new base64 function added in 8.14]
+base64Encode
 required_capability: base64_decode_encode
 
 // tag::to_base64[]
@@ -2285,7 +2807,7 @@ elastic   | ZWxhc3RpYw==
 // end::to_base64-result[]
 ;
 
-base64Decode#[skip:-8.13.99,reason:new base64 function added in 8.14]
+base64Decode
 required_capability: base64_decode_encode
 
 // tag::from_base64[]
@@ -2300,7 +2822,117 @@ ZWxhc3RpYw== | elastic
 // end::from_base64-result[]
 ;
 
-base64EncodeDecodeEmp#[skip:-8.13.99,reason:new base64 function added in 8.14]
+base64DecodeInvalidUtf8
+required_capability: fn_from_base64_validate_utf8
+// Truncated UTF-8 lead byte 0xF0 ('a' + 0xF0).
+ROW a = FROM_BASE64("YfA=")
+| KEEP a
+;
+
+warning:Line 1:9: evaluation of [FROM_BASE64(\"YfA=\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.IllegalArgumentException: decoded value is not valid UTF-8, which is not supported yet
+
+a:keyword
+null
+;
+
+base64DecodeInvalidUtf8Contains
+required_capability: fn_from_base64_validate_utf8
+required_capability: fn_contains
+// Invalid UTF-8 from FROM_BASE64 must not crash CONTAINS.
+ROW c = CONTAINS(FROM_BASE64("YfA="), "a")
+;
+
+warning:Line 1:18: evaluation of [FROM_BASE64(\"YfA=\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:18: java.lang.IllegalArgumentException: decoded value is not valid UTF-8, which is not supported yet
+
+c:boolean
+null
+;
+
+base64DecodeMixedMvExpandSort
+required_capability: fn_from_base64_validate_utf8
+ROW enc = ["YfA=", "ZWxhc3RpYw=="]
+| MV_EXPAND enc
+| EVAL d = FROM_BASE64(enc)
+| SORT d
+| KEEP d
+;
+
+warning:Line 3:12: evaluation of [FROM_BASE64(enc)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:12: java.lang.IllegalArgumentException: decoded value is not valid UTF-8, which is not supported yet
+
+d:keyword
+elastic
+null
+;
+
+base64DecodeMixedMvExpand
+required_capability: fn_from_base64_validate_utf8
+ROW enc = ["ZWxhc3RpYw==", "YfA=", "not!!base64"]
+| MV_EXPAND enc
+| EVAL d = FROM_BASE64(enc)
+| KEEP enc, d
+;
+
+warning:Line 3:12: evaluation of [FROM_BASE64(enc)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:12: java.lang.IllegalArgumentException: decoded value is not valid UTF-8, which is not supported yet
+warning:Line 3:12: java.lang.IllegalArgumentException: Illegal base64 character 21
+
+enc:keyword    | d:keyword
+ZWxhc3RpYw==   | elastic
+YfA=           | null
+not!!base64    | null
+;
+
+base64DecodeInvalidBase64
+required_capability: fn_from_base64_validate_utf8
+ROW a = FROM_BASE64("not!!base64")
+;
+
+warning:Line 1:9: evaluation of [FROM_BASE64(\"not!!base64\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.IllegalArgumentException: Illegal base64 character 21
+
+a:keyword
+null
+;
+
+base64DecodeInvalidBase64WrongEndingUnit
+required_capability: fn_from_base64_validate_utf8
+ROW a = FROM_BASE64("YfAAAAAAAAAAAAAAAAAAAAAA=")
+;
+
+warning:Line 1:9: evaluation of [FROM_BASE64(\"YfAAAAAAAAAAAAAAAAAAAAAA=\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.IllegalArgumentException: Input byte array has wrong 4-byte ending unit
+
+a:keyword
+null
+;
+
+base64DecodeInvalidBase64InsufficientBits
+required_capability: fn_from_base64_validate_utf8
+ROW a = FROM_BASE64("YfAAAAAAAAAAAAAAAAAAAAAAA=")
+;
+
+warning:Line 1:9: evaluation of [FROM_BASE64(\"YfAAAAAAAAAAAAAAAAAAAAAAA=\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.IllegalArgumentException: Last unit does not have enough valid bits
+
+a:keyword
+null
+;
+
+base64EncodeDecodeUnicode
+required_capability: base64_decode_encode
+ROW a = "cafè ☕ 日本語"
+| EVAL e = TO_BASE64(a), d = FROM_BASE64(e)
+| KEEP a, d
+;
+
+a:keyword       | d:keyword
+cafè ☕ 日本語   | cafè ☕ 日本語
+;
+
+base64EncodeDecodeEmp
 required_capability: base64_decode_encode
 
 from employees
@@ -2315,6 +2947,19 @@ emp_no:integer | first_name:keyword | e:keyword    | d:keyword
 10029          | Otmar              | T3RtYXI=     | Otmar
 10030          | null               | null         | null
 10031          | null               | null         | null
+;
+
+base64DecodeFromField
+required_capability: base64_decode_encode
+// FROM_BASE64's string argument is a genuine keyword field reference here (not a literal),
+// so the keyword→flattened coverage check in CsvFlattenedKeywordIT exercises FROM_BASE64:string.
+FROM conv_from_keyword
+| EVAL decoded = FROM_BASE64(base64_str)
+| KEEP base64_str, decoded
+;
+
+base64_str:keyword | decoded:keyword
+ZWxhc3RpYw==       | elastic
 ;
 
 repeat
@@ -2361,6 +3006,26 @@ row a = "cheese" | eval repeated = repeat(a, 0);
 
 a:keyword | repeated:keyword
 cheese | ""
+;
+
+// Large empty REPEAT used to loop needlessly
+repeatEmptyMaxInt
+required_capability: fn_repeat_fix_size_guard
+ROW repeated = REPEAT("", 2147483647);
+
+repeated:keyword
+""
+;
+
+// int length*count overflow used to bypass the size guard
+repeatLengthOverflowMaxInt
+required_capability: fn_repeat_fix_size_guard
+ROW repeated = REPEAT("ab", 2147483647);
+warning:Line 1:16: evaluation of [REPEAT(\"ab\", 2147483647)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:16: java.lang.IllegalArgumentException: Creating repeated strings with more than [1048576] bytes is not supported
+
+repeated:keyword
+null
 ;
 
 repeatNegative
@@ -2545,6 +3210,20 @@ ROW message = "foo * bar"
 message:keyword
 foo * bar
 // end::likeEscapingTripleQuotes-result[]
+;
+
+
+likeEscapingBackslashWindowsPath
+// tag::likeEscapingBackslashWindowsPath[]
+ROW path = """C:\Windows\System32\foo.txt"""
+| WHERE path LIKE """C:\\Windows*"""
+// end::likeEscapingBackslashWindowsPath[]
+;
+
+// tag::likeEscapingBackslashWindowsPath-result[]
+path:keyword
+C:\Windows\System32\foo.txt
+// end::likeEscapingBackslashWindowsPath-result[]
 ;
 
 
@@ -2746,6 +3425,22 @@ u:keyword
 ["hello+elastic%21", "a%2Bb-c%25d", "", ".-_~", "%21%23%24%26%27%28%29%2A%2B%2C%2F%3A%3B%3D%3F%40%5B%5D", "%F0%9F%94%A5%F0%9F%92%A7"]
 ;
 
+url_encode tests with text field table reads
+required_capability: url_encode
+
+FROM books
+| EVAL author_encoded = URL_ENCODE(author),
+        title_encoded = URL_ENCODE(title)
+| KEEP book_no, author_encoded, title_encoded
+| SORT book_no
+| WHERE book_no IN ("1211", "1463")
+;
+
+book_no:keyword | author_encoded:keyword | title_encoded:keyword
+1211            | Fyodor+Dostoevsky      | The+brothers+Karamazov
+1463            | J.+R.+R.+Tolkien       | Realms+of+Tolkien%3A+Images+of+Middle-earth
+;
+
 url_decode sample for docs
 required_capability: url_decode
 
@@ -2857,6 +3552,19 @@ ROW a = "+!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcd
 
 a:keyword                                                                                                                                                   | b:keyword | c:keyword
 "%2B%21%22%23%24%25%26%27%28%29%2A%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D~" | ".-_~"    |❗🐶🐱
+;
+
+url_encode_component tests with keyword field table reads
+required_capability: url_encode_component
+
+FROM sample_data
+| WHERE message == "Connected to 10.1.0.1"
+| EVAL encoded = URL_ENCODE_COMPONENT(message)
+| KEEP encoded
+;
+
+encoded:keyword
+Connected%20to%2010.1.0.1
 ;
 
 url_encode_component tests with table reads

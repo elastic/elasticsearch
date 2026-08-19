@@ -14,10 +14,23 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.tree.Node;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringRenderable;
 
-public abstract class AbstractStringPattern implements StringPattern {
+public abstract class AbstractStringPattern implements StringPattern, NodeStringRenderable {
 
     private static final Logger logger = LogManager.getLogger(AbstractStringPattern.class);
+
+    /**
+     * Default-safe rendering: quote the whole pattern and route it through the mapper as a single
+     * identifier token. Subclasses override to preserve structure (wildcard / regex metacharacters,
+     * list shape). Under {@link NodeStringMapper#IDENTITY} this is the raw quoted pattern.
+     */
+    @Override
+    public void nodeString(StringBuilder sb, Node.NodeStringFormat format, NodeStringMapper mapper) {
+        sb.append('"').append(mapper.column(pattern())).append('"');
+    }
 
     private Automaton automaton;
 
@@ -26,6 +39,8 @@ public abstract class AbstractStringPattern implements StringPattern {
             return doCreateAutomaton(ignoreCase);
         } catch (TooComplexToDeterminizeException e) {
             throw new IllegalArgumentException("Pattern was too complex to determinize", e);
+        } catch (StackOverflowError e) {
+            throw new IllegalArgumentException("Pattern nesting is too deep to evaluate", e);
         }
     }
 

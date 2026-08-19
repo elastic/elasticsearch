@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -82,12 +83,14 @@ public final class AnalyzerTestUtils {
     public static final String TEXT_EMBEDDING_INFERENCE_ID = "text-embedding-inference-id";
     public static final String CHAT_COMPLETION_INFERENCE_ID = "chat-completion-inference-id";
     public static final String SPARSE_EMBEDDING_INFERENCE_ID = "sparse-embedding-inference-id";
+    public static final String EMBEDDING_INFERENCE_ID = "embedding-inference-id";
     public static final List<String> VALID_INFERENCE_IDS = List.of(
         RERANKING_INFERENCE_ID,
         COMPLETION_INFERENCE_ID,
         TEXT_EMBEDDING_INFERENCE_ID,
         CHAT_COMPLETION_INFERENCE_ID,
-        SPARSE_EMBEDDING_INFERENCE_ID
+        SPARSE_EMBEDDING_INFERENCE_ID,
+        EMBEDDING_INFERENCE_ID
     );
 
     public static String randomInferenceId() {
@@ -114,8 +117,14 @@ public final class AnalyzerTestUtils {
         EsIndex index = new EsIndex(
             "index*",
             Map.of(dateDateNanos, dateDateNanosField, dateDateNanosLong, dateDateNanosLongField),
-            Map.of("index1", IndexMode.STANDARD, "index2", IndexMode.STANDARD, "index3", IndexMode.STANDARD),
-            Map.of(),
+            Map.of(
+                "index1",
+                new IndexProperties(IndexMode.STANDARD, 0),
+                "index2",
+                new IndexProperties(IndexMode.STANDARD, 0),
+                "index3",
+                new IndexProperties(IndexMode.STANDARD, 0)
+            ),
             Map.of(),
             Map.of()
         );
@@ -146,10 +155,20 @@ public final class AnalyzerTestUtils {
     }
 
     public static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps) {
-        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false);
+        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, true);
     }
 
     public static IndexResolution mergedResolution(String indexPattern, FieldCapabilitiesResponse caps) {
-        return IndexResolver.mergedMappings(indexPattern, false, fieldsInfoOnCurrentVersion(caps), IndexResolver.DO_NOT_GROUP);
+        return mergedResolution(indexPattern, caps, false);
+    }
+
+    public static IndexResolution mergedResolution(String indexPattern, FieldCapabilitiesResponse caps, boolean trackUnmappedFieldIndices) {
+        return IndexResolver.mergedMappings(
+            indexPattern,
+            false,
+            fieldsInfoOnCurrentVersion(caps),
+            trackUnmappedFieldIndices,
+            IndexResolver.DO_NOT_GROUP
+        );
     }
 }

@@ -13,18 +13,23 @@ import org.apache.lucene.codecs.compressing.CompressionMode;
 import org.apache.lucene.codecs.compressing.Compressor;
 import org.apache.lucene.codecs.compressing.Decompressor;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.DirectAccessInput;
-import org.elasticsearch.nativeaccess.CloseableByteBuffer;
+import org.elasticsearch.foreign.CloseableByteBuffer;
+import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.Zstd;
 
 import java.io.IOException;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
+import java.util.Objects;
 
 public class ZstdCompressionMode extends CompressionMode {
     private final int level;
@@ -81,12 +86,7 @@ public class ZstdCompressionMode extends CompressionMode {
                 CloseableByteBuffer src = nativeAccess.newConfinedBuffer(srcLen);
                 CloseableByteBuffer dest = nativeAccess.newConfinedBuffer(compressBound)
             ) {
-
-                while (buffersInput.position() < buffersInput.length()) {
-                    final int numBytes = Math.min(copyBuffer.length, (int) (buffersInput.length() - buffersInput.position()));
-                    buffersInput.readBytes(copyBuffer, 0, numBytes);
-                    src.buffer().put(copyBuffer, 0, numBytes);
-                }
+                buffersInput.readBytes(src.buffer(), srcLen);
                 src.buffer().flip();
 
                 final int compressedLen = zstd.compress(dest, src, level);
@@ -106,11 +106,10 @@ public class ZstdCompressionMode extends CompressionMode {
         public void close() throws IOException {}
     }
 
-    private static final class ZstdDecompressor extends Decompressor {
+    static final class ZstdDecompressor extends Decompressor {
 
-        // Buffer for copying between the DataInput and native memory. No hard science behind this number, it just tries to be high enough
-        // to benefit from bulk copying and low enough to keep heap usage under control.
-        final byte[] copyBuffer = new byte[4096];
+        // we can safely store and share a single Zstd instance, since we only use thread-safe decompress
+        static final Zstd ZSTD = Objects.requireNonNull(NativeAccess.instance().getZstd());
 
         private ZstdDecompressor() {}
 
@@ -121,56 +120,61 @@ public class ZstdCompressionMode extends CompressionMode {
                 bytes.length = 0;
                 return;
             }
-
-            final NativeAccess nativeAccess = NativeAccess.instance();
-            final Zstd zstd = nativeAccess.getZstd();
-
             final int compressedLength = in.readVInt();
-
-            try (CloseableByteBuffer dest = nativeAccess.newConfinedBuffer(originalLength)) {
-                final int decompressedLen;
-
-                // Fast path: if the input is backed by direct memory (e.g. mmap or blob cache), obtain a
-                // ByteBuffer slice directly and skip the intermediate heap copy into a native buffer.
-                if (in instanceof IndexInput indexIn && in instanceof DirectAccessInput directIn) {
-                    final long startOffset = indexIn.getFilePointer();
-                    final int[] resultHolder = { -1 };
-                    final boolean directSuccess = directIn.withByteBufferSlice(
-                        startOffset,
-                        compressedLength,
-                        srcBuf -> resultHolder[0] = zstd.decompress(dest, srcBuf)
-                    );
-                    if (directSuccess) {
-                        indexIn.seek(startOffset + compressedLength);
-                        decompressedLen = resultHolder[0];
-                    } else {
-                        decompressedLen = copyAndDecompress(in, compressedLength, nativeAccess, zstd, dest);
-                    }
-                } else {
-                    decompressedLen = copyAndDecompress(in, compressedLength, nativeAccess, zstd, dest);
-                }
-
-                if (decompressedLen != originalLength) {
-                    throw new CorruptIndexException("Expected " + originalLength + " decompressed bytes, got " + decompressedLen, in);
-                }
-
-                bytes.bytes = ArrayUtil.growNoCopy(bytes.bytes, length);
-                dest.buffer().get(offset, bytes.bytes, 0, length);
-                bytes.offset = 0;
-                bytes.length = length;
+            if (bytes.bytes.length >= originalLength || isFullDecompress(offset, length, originalLength)) {
+                bytes.bytes = ArrayUtil.growNoCopy(bytes.bytes, originalLength);
+                decompressDirect(in, compressedLength, originalLength, offset, length, bytes);
+            } else {
+                decompressSlice(in, compressedLength, originalLength, offset, length, bytes);
             }
         }
 
-        private int copyAndDecompress(DataInput in, int compressedLength, NativeAccess nativeAccess, Zstd zstd, CloseableByteBuffer dest)
-            throws IOException {
-            try (CloseableByteBuffer src = nativeAccess.newConfinedBuffer(compressedLength)) {
-                while (src.buffer().position() < compressedLength) {
-                    final int numBytes = Math.min(copyBuffer.length, compressedLength - src.buffer().position());
-                    in.readBytes(copyBuffer, 0, numBytes);
-                    src.buffer().put(copyBuffer, 0, numBytes);
+        private static boolean isFullDecompress(int offset, int length, int originalLength) {
+            return offset == 0 && length == originalLength;
+        }
+
+        /** Decompress directly into bytes.bytes, then set offset/length view. */
+        void decompressDirect(DataInput in, int cLen, int origLen, int off, int len, BytesRef bytes) throws IOException {
+            MemorySegment dst = MemorySegment.ofArray(bytes.bytes).asSlice(0, origLen);
+            int decompressedLen = decompressInput(in, cLen, dst);
+            checkLength(decompressedLen, origLen, in);
+            bytes.offset = off;
+            bytes.length = len;
+        }
+
+        /** Decompress into a temporary off-heap buffer, copy only the needed range into bytes.bytes. */
+        void decompressSlice(DataInput in, int cLen, int origLen, int off, int len, BytesRef bytes) throws IOException {
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment tmp = arena.allocate(origLen);
+                int decompressedLen = decompressInput(in, cLen, tmp);
+                checkLength(decompressedLen, origLen, in);
+                bytes.bytes = ArrayUtil.growNoCopy(bytes.bytes, len);
+                MemorySegment.copy(tmp, ValueLayout.JAVA_BYTE, off, bytes.bytes, 0, len);
+                bytes.offset = 0;
+                bytes.length = len;
+            }
+        }
+
+        static int decompressInput(DataInput in, int compressedLength, MemorySegment dst) throws IOException {
+            if (in instanceof IndexInput indexIn && IndexInputUtils.canUseSegmentSlices(indexIn)) {
+                try {
+                    return IndexInputUtils.withSlice(indexIn, compressedLength, byte[]::new, src -> ZSTD.decompress(dst, src));
+                } catch (@SuppressWarnings("unused") AlreadyClosedException e) {
+                    // Region evicted mid-read — fall through to copy path
                 }
-                src.buffer().flip();
-                return zstd.decompress(dest, src);
+            }
+            return copyAndDecompress(in, compressedLength, dst);
+        }
+
+        static int copyAndDecompress(DataInput in, int compressedLength, MemorySegment dst) throws IOException {
+            byte[] src = new byte[compressedLength];
+            in.readBytes(src, 0, compressedLength);
+            return ZSTD.decompress(dst, MemorySegment.ofArray(src));
+        }
+
+        static void checkLength(int decompressedLen, int originalLength, DataInput in) throws CorruptIndexException {
+            if (decompressedLen != originalLength) {
+                throw new CorruptIndexException("Expected " + originalLength + " decompressed bytes, got " + decompressedLen, in);
             }
         }
 

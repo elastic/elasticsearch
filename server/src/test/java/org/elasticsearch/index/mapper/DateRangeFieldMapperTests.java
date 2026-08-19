@@ -16,6 +16,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
@@ -134,6 +135,22 @@ public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
                 }
             }
         }
+    }
+
+    /**
+     * Test that block loader returns constant nulls when doc_values is disabled.
+     * Querying a date_range field with doc_values:false should produce null values
+     * rather than throwing an exception.
+     */
+    public void testNoDocValuesBlockLoader() throws IOException {
+        MapperService mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field");
+            b.field("type", "date_range");
+            b.field("doc_values", false);
+            b.endObject();
+        }));
+        BlockLoader loader = mapper.fieldType("field").blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapper));
+        assertSame(ConstantNull.INSTANCE, loader);
     }
 
     @Override

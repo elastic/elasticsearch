@@ -29,6 +29,8 @@ public record AzureOpenAiEmbeddingsRequestEntity(
     private static final String INPUT_TYPE_FIELD = "input_type";
     private static final String USER_FIELD = "user";
     private static final String DIMENSIONS_FIELD = "dimensions";
+    private static final String ENCODING_FORMAT_FIELD = "encoding_format";
+    private static final String ENCODING_FORMAT_BASE64 = "base64";
 
     public AzureOpenAiEmbeddingsRequestEntity {
         Objects.requireNonNull(input);
@@ -50,6 +52,9 @@ public record AzureOpenAiEmbeddingsRequestEntity(
         if (dimensionsSetByUser && dimensions != null) {
             builder.field(DIMENSIONS_FIELD, dimensions);
         }
+
+        /** See {@link OpenAiEmbeddingsRequestEntity} for the rationale on requesting base64. */
+        builder.field(ENCODING_FORMAT_FIELD, ENCODING_FORMAT_BASE64);
 
         builder.endObject();
         return builder;

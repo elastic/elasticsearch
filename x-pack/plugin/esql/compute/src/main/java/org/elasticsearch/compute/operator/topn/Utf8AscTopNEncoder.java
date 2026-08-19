@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 import java.util.Arrays;
@@ -29,20 +30,33 @@ final class Utf8AscTopNEncoder extends SortableAscTopNEncoder {
     private final Utf8DescTopNEncoder descEncoder = new Utf8DescTopNEncoder(this);
 
     @Override
+    protected int maxBytesRefValueSize(Block b) {
+        return b.valueMaxByteSize() + 1; // + 1 for NUL terminator
+    }
+
+    @Override
     public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
         /*
          * add one to every non-continuation byte so that there are no "0" bytes
          * in the encoded copy. The only "0" bytes are separators.
+         *
+         * Pre-grow the destination once and write directly into the underlying array to
+         * avoid the per-byte grow + bounds-check overhead of append(byte). This is the
+         * pattern documented on BreakingBytesRefBuilder#bytes().
          */
         int end = value.offset + value.length;
+        bytesRefBuilder.grow(bytesRefBuilder.length() + value.length + 1);
+        byte[] dest = bytesRefBuilder.bytes();
+        int pos = bytesRefBuilder.length();
         for (int i = value.offset; i < end; i++) {
             byte b = value.bytes[i];
             if ((b & CONTINUATION_BYTE) == 0) {
                 b++;
             }
-            bytesRefBuilder.append(b);
+            dest[pos++] = b;
         }
-        bytesRefBuilder.append(TERMINATOR);
+        dest[pos++] = TERMINATOR;
+        bytesRefBuilder.setLength(pos);
     }
 
     @Override

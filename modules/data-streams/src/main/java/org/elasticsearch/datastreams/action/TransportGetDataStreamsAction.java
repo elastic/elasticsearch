@@ -332,7 +332,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
             }
 
             GetDataStreamAction.Response.TimeSeries timeSeries = null;
-            if (dataStream.getIndexMode() == IndexMode.TIME_SERIES) {
+            if (IndexMode.isTsdb(dataStream.getIndexMode())) {
                 record IndexInfo(String name, Instant timeSeriesStart, Instant timeSeriesEnd) implements Comparable<IndexInfo> {
                     @Override
                     public int compareTo(IndexInfo o) {
@@ -350,7 +350,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                 var sortedRanges = dataStream.getIndices()
                     .stream()
                     .map(metadata::index)
-                    .filter(m -> m.getIndexMode() == IndexMode.TIME_SERIES)
+                    .filter(m -> IndexMode.isTsdb(m.getIndexMode()))
                     .map(m -> new IndexInfo(m.getIndex().getName(), m.getTimeSeriesStart(), m.getTimeSeriesEnd()))
                     .sorted()
                     .toList();

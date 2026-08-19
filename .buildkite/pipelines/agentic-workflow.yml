@@ -1,0 +1,58 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/buildkite/pipeline-schema/main/schema.json
+#
+# elasticsearch-agentic-workflow
+#
+# On-demand agentic CI workflows powered by the self-contained archimedes CLI
+# (https://github.com/elastic/rene-bk-experiments). archimedes runs directly on
+# the agent — no remote pipeline trigger and no agent config in this repo. The
+# pre-command hook bootstraps archimedes and injects secrets when USE_ARCHIMEDES=true.
+#
+# Supported workflows:
+#   test-analysis          — analyse a test-failure issue        (needs ISSUE_URL)
+#   pull-request-fix       — self-heal a failing pull request    (needs PR_URL)
+#   pull-request-creation  — implement a task and open a PR      (needs ISSUE_URL)
+#
+# Trigger from the UI (fill the input step) or via the Buildkite API with the
+# vars pre-set so the input step is skipped, e.g.:
+#   curl -X POST ".../pipelines/elasticsearch-agentic-workflow/builds" \
+#     -H "Authorization: Bearer $BUILDKITE_API_TOKEN" \
+#     -d '{"branch":"main","env":{
+#            "WORKFLOW":"test-analysis",
+#            "ISSUE_URL":"https://github.com/elastic/elasticsearch/issues/150989"}}'
+
+# Surface trigger vars at pipeline level so env() in step `if` conditions can
+# see them on API-triggered builds.
+env:
+  WORKFLOW:  "${WORKFLOW:-}"
+  ISSUE_URL: "${ISSUE_URL:-}"
+  PR_URL:    "${PR_URL:-}"
+
+steps:
+  # ── Run archimedes ───────────────────────────────────────────────────────────
+  - label: ":robot_face: Archimedes — :workflow:"
+    key: archimedes-run
+    timeout_in_minutes: 60
+    env:
+      USE_ARCHIMEDES: "true"
+      ARCHIMEDES_SESSION_DIR: "/tmp/archimedes-sessions"
+    agents:
+      provider:       gcp
+      image:          family/elasticsearch-ubuntu-2404
+      # The archimedes-run agent is an I/O-bound orchestrator (LLM/gh/git calls); it does
+      # NOT build Elasticsearch — reproduction runs on its own n4-standard-64 job.
+      # 4 vCPU is plenty; the full-history mirror checkout is the only heavy step.
+      machineType:    n4-standard-4
+      diskType:       hyperdisk-balanced
+      buildDirectory: /dev/shm/bk
+    retry:
+      automatic:
+        - exit_status: "*"
+          limit: 1
+    # Single entry point: `archimedes ci` owns the whole CI envelope — input
+    # validation, session download/upload (spot-preemption resume), the in-process
+    # sandbox, dispatch to the analyze/fix-pr/create workflow, and the start/finish
+    # progress annotations. It reads WORKFLOW/ISSUE_URL/PR_URL from the step env
+    # (set above), so no YAML interpolation is needed. This is all a consuming
+    # repo (e.g. elasticsearch-serverless) needs beyond bootstrapping archimedes.
+    command: archimedes ci

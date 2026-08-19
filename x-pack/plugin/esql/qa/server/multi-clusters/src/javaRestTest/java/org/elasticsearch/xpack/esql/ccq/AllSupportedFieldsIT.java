@@ -60,7 +60,7 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
         // We create both only when we're testing LOOKUP mode.
         if (indexExists(remoteClient(), LOOKUP_INDEX_NAME) == false && indexMode() == IndexMode.LOOKUP) {
             createAllTypesIndex(remoteClient(), minVersion(), LOOKUP_INDEX_NAME, null, indexMode());
-            createAllTypesDoc(remoteClient(), minVersion(), LOOKUP_INDEX_NAME);
+            createAllTypesDoc(remoteClient(), minVersion(), LOOKUP_INDEX_NAME, indexMode());
             createEnrichPolicy(remoteClient(), minVersion(), LOOKUP_INDEX_NAME, ENRICH_POLICY_NAME);
         }
     }
@@ -104,6 +104,14 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
 
     @Override
     protected String allIndexPattern() {
+        if (indexMode() == IndexMode.LOGSDB) {
+            // logsdb* would also match logsdb_columnar* indices created by the LOGSDB_COLUMNAR test setup,
+            // on both the local and the remote cluster.
+            String columnarName = IndexMode.LOGSDB_COLUMNAR.getName();
+            // Old (pre-#148497) branches only understand "remote:-index", not "-remote:index" - use the former so this
+            // works against release BWC nodes too.
+            return "*:%mode%*,%mode%*," + Clusters.REMOTE_CLUSTER_NAME + ":-" + columnarName + "*,-" + columnarName + "*";
+        }
         return "*:%mode%*,%mode%*";
     }
 
@@ -113,6 +121,18 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
             && clusterHasCapability(remoteClient(), "GET", "/_query", List.of(), List.of("DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_FNS")).orElse(
                 false
             );
+    }
+
+    @Override
+    protected boolean fetchVectordbDocumentIndexModeSupported() throws IOException {
+        return super.fetchVectordbDocumentIndexModeSupported()
+            && clusterHasCapability(remoteClient(), "PUT", "/{index}", List.of(), List.of("vectordb_document_index_mode")).orElse(false);
+    }
+
+    @Override
+    protected boolean fetchFlattenedDatatypeSortedKeysSupported() throws IOException {
+        return super.fetchFlattenedDatatypeSortedKeysSupported()
+            && clusterHasCapability(remoteClient(), "GET", "/_query", List.of(), List.of("FLATTENED_DATATYPE_SORTED_KEYS")).orElse(false);
     }
 
     @Override
@@ -127,7 +147,13 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
     }
 
     public final void testFetchAllOnlyFromRemotes() throws IOException {
-        doTestFetchAll(fromAllQuery("*:%mode%*", """
+        // logsdb* would also match logsdb_columnar* indices created by the LOGSDB_COLUMNAR test setup.
+        // Old (pre-#148497) branches only understand "remote:-index", not "-remote:index" - use the former so this
+        // works against release BWC nodes too.
+        String indexPattern = indexMode() == IndexMode.LOGSDB
+            ? "*:%mode%*," + Clusters.REMOTE_CLUSTER_NAME + ":-" + IndexMode.LOGSDB_COLUMNAR.getName() + "*"
+            : "*:%mode%*";
+        doTestFetchAll(fromAllQuery(indexPattern, """
             , _id, _ignored, _index_mode, _score, _source, _version
             | LIMIT 1000
             """), remoteNodeToInfo(), allNodeToInfo(), false);

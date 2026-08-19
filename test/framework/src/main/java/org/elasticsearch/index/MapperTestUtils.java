@@ -92,7 +92,7 @@ public class MapperTestUtils {
             similarityService,
             mapperRegistry,
             () -> null,
-            indexSettings.getMode().idFieldMapperWithoutFieldData(),
+            () -> false,
             ScriptCompiler.NONE,
             bitsetFilterCache::getBitSetProducer,
             MapperMetrics.NOOP,

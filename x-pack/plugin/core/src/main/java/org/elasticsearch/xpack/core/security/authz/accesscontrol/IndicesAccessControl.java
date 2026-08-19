@@ -79,9 +79,24 @@ public class IndicesAccessControl {
     }
 
     public DlsFlsUsage getFieldAndDocumentLevelSecurityUsage() {
+        return computeDlsFlsUsage(iac -> false);
+    }
+
+    /**
+     * Like {@link #getFieldAndDocumentLevelSecurityUsage()} but excludes indices whose DLS/FLS was implicitly granted
+     * (e.g. derived from application privileges) and therefore does not require a platinum+ license.
+     */
+    public DlsFlsUsage getExplicitlyGrantedDlsFlsUsage() {
+        return computeDlsFlsUsage(IndexAccessControl::isDlsFlsImplicit);
+    }
+
+    private DlsFlsUsage computeDlsFlsUsage(Predicate<IndexAccessControl> skip) {
         boolean hasFls = false;
         boolean hasDls = false;
         for (IndexAccessControl iac : this.getAllIndexPermissions().values()) {
+            if (skip.test(iac)) {
+                continue;
+            }
             if (iac.fieldPermissions.hasFieldLevelSecurity()) {
                 hasFls = true;
             }
@@ -169,14 +184,20 @@ public class IndicesAccessControl {
      */
     public static class IndexAccessControl implements CacheKey {
 
-        public static final IndexAccessControl ALLOW_ALL = new IndexAccessControl(null, null);
+        public static final IndexAccessControl ALLOW_ALL = new IndexAccessControl(null, null, false);
 
         private final FieldPermissions fieldPermissions;
         private final DocumentPermissions documentPermissions;
+        private final boolean dlsFlsImplicit;
 
         public IndexAccessControl(FieldPermissions fieldPermissions, DocumentPermissions documentPermissions) {
+            this(fieldPermissions, documentPermissions, false);
+        }
+
+        public IndexAccessControl(FieldPermissions fieldPermissions, DocumentPermissions documentPermissions, boolean dlsFlsImplicit) {
             this.fieldPermissions = (fieldPermissions == null) ? FieldPermissions.DEFAULT : fieldPermissions;
             this.documentPermissions = (documentPermissions == null) ? DocumentPermissions.allowAll() : documentPermissions;
+            this.dlsFlsImplicit = dlsFlsImplicit;
         }
 
         /**
@@ -195,10 +216,32 @@ public class IndicesAccessControl {
         }
 
         /**
+         * Whether the DLS/FLS on this index was contributed exclusively by implicit grants — for
+         * example, those derived from application privileges via an ImplicitPrivilegesProvider
+         * rather than by anything declared in the role definition.
+         * <p>
+         * Used to gate license enforcement and feature-usage tracking for DLS/FLS. Returns {@code true}
+         * only when {@link #getFieldPermissions()} or {@link #getDocumentPermissions()} carry actual
+         * restrictions <em>and</em> every contributor of those restrictions was implicit; an index
+         * without any DLS or FLS therefore reports {@code false}. If any explicit DLS/FLS contributed
+         * to this index — even alongside implicit grants — the flag is {@code false} and the strictest
+         * semantics apply.
+         * <p>
+         * When two {@link IndexAccessControl} instances are composed via {@link #limitIndexAccessControl}
+         * (e.g. for API-key or run-as flows), the result is implicit when every side that contributed
+         * DLS/FLS was already implicit. A side with no DLS/FLS is neutral. See that method.
+         */
+        public boolean isDlsFlsImplicit() {
+            return dlsFlsImplicit;
+        }
+
+        /**
          * Returns an instance of {@link IndexAccessControl}, where the privileges for {@code this} object are constrained by the privileges
          * contained in the provided parameter.<br>
          * Allowed fields for this index permission would be an intersection of allowed fields.<br>
          * Allowed documents for this index permission would be an intersection of allowed documents.<br>
+         * The result is marked implicit when every side that contributed DLS or FLS was already implicit;
+         * see the inline rationale.
          *
          * @param limitedByIndexAccessControl {@link IndexAccessControl}
          * @return {@link IndexAccessControl}
@@ -212,14 +255,46 @@ public class IndicesAccessControl {
             DocumentPermissions constrainedDocumentPermissions = getDocumentPermissions().limitDocumentPermissions(
                 limitedByIndexAccessControl.getDocumentPermissions()
             );
-            return new IndexAccessControl(constrainedFieldPermissions, constrainedDocumentPermissions);
+            // Match the semantic used at role-build time in IndicesPermission#buildIndicesAccessControl:
+            // the composed IAC is implicit when every side that actually contributes DLS or FLS was
+            // already implicit. A side with no DLS/FLS is neutral — it doesn't force the result to
+            // explicit just because isDlsFlsImplicit() is vacuously false. The result is reported
+            // implicit only when the composition still has DLS/FLS to gate; without any DLS/FLS, the
+            // flag is false per the class invariant.
+            final boolean resultHasDlsFls = constrainedDocumentPermissions.hasDocumentLevelPermissions()
+                || constrainedFieldPermissions.hasFieldLevelSecurity();
+            final boolean dlsFlsImplicit = resultHasDlsFls
+                && isDlsFlsImplicitOrAbsent()
+                && limitedByIndexAccessControl.isDlsFlsImplicitOrAbsent();
+            return new IndexAccessControl(constrainedFieldPermissions, constrainedDocumentPermissions, dlsFlsImplicit);
+        }
+
+        private boolean hasDlsFls() {
+            return getDocumentPermissions().hasDocumentLevelPermissions() || getFieldPermissions().hasFieldLevelSecurity();
+        }
+
+        private boolean isDlsFlsImplicitOrAbsent() {
+            return hasDlsFls() == false || isDlsFlsImplicit();
         }
 
         @Override
         public String toString() {
-            return "IndexAccessControl{" + "fieldPermissions=" + fieldPermissions + ", documentPermissions=" + documentPermissions + '}';
+            return "IndexAccessControl{"
+                + "fieldPermissions="
+                + fieldPermissions
+                + ", documentPermissions="
+                + documentPermissions
+                + ", dlsFlsImplicit="
+                + dlsFlsImplicit
+                + '}';
         }
 
+        /**
+         * Note: {@link #dlsFlsImplicit} is deliberately excluded from the cache key. Two entries with the
+         * same DLS queries and FLS restrictions produce identical query results regardless of whether
+         * the restrictions were contributed implicitly (via application-privilege-derived grants) or
+         * explicitly (via a role definition), so the request cache should be shared across them.
+         */
         @Override
         public void buildCacheKey(StreamOutput out, DlsQueryEvaluationContext context) throws IOException {
             if (documentPermissions.hasDocumentLevelPermissions()) {
@@ -241,12 +316,14 @@ public class IndicesAccessControl {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             IndexAccessControl that = (IndexAccessControl) o;
-            return Objects.equals(fieldPermissions, that.fieldPermissions) && Objects.equals(documentPermissions, that.documentPermissions);
+            return dlsFlsImplicit == that.dlsFlsImplicit
+                && Objects.equals(fieldPermissions, that.fieldPermissions)
+                && Objects.equals(documentPermissions, that.documentPermissions);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(fieldPermissions, documentPermissions);
+            return Objects.hash(fieldPermissions, documentPermissions, dlsFlsImplicit);
         }
     }
 

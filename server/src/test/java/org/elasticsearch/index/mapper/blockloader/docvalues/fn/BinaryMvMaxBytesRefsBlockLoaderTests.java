@@ -44,7 +44,10 @@ public class BinaryMvMaxBytesRefsBlockLoaderTests extends AbstractBlockLoaderTes
             int docCount = 10_000;
             int cardinality = between(16, 2048);
             for (int i = 0; i < docCount; i++) {
-                var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
+                var field = new MultiValuedBinaryDocValuesField.SeparateCount(
+                    "field",
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                );
                 int baseLength = (i % cardinality) + 1;
                 char c = 'z';
                 field.add(new BytesRef(("" + c).repeat(baseLength)));

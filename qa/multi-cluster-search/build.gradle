@@ -17,14 +17,16 @@
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testImplementation project(':modules:aggregations')
-  testImplementation project(':modules:parent-join')
+  javaRestTestImplementation project(':modules:aggregations')
+  javaRestTestImplementation project(':modules:parent-join')
+  javaRestTestRuntimeOnly sourceSets.test.output
+  clusterModules project(':modules:aggregations')
+  clusterModules project(':modules:parent-join')
 }
 
 def ccsSupportedVersion = bwcVersion -> {
@@ -36,80 +38,28 @@ def ccsSupportedVersion = bwcVersion -> {
 
 buildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, baseName ->
 
-  def currentVersion = project.version
-
-  def remoteCluster = testClusters.register("${baseName}-remote") {
-    numberOfNodes = 2
-    versions = [bwcVersion.toString()]
-    setting 'node.roles', '[data,ingest,master]'
-  }
-
-  def localCluster = testClusters.register("${baseName}-local") {
-    versions = [project.version]
-    setting 'node.roles', '[data,ingest,master,remote_cluster_client]'
-    setting 'cluster.remote.connections_per_cluster', '1'
-    setting 'cluster.remote.my_remote_cluster.seeds',
-      { "\"${remoteCluster.get().getAllTransportPortURI().get(0)}\"" }
-    setting 'cluster.remote.my_remote_cluster.skip_unavailable', 'false'
-  }
-
-  tasks.register("${baseName}#remote-cluster", RestIntegTestTask) {
-    useCluster remoteCluster
-    doFirst {
-      nonInputProperties.systemProperty('tests.rest.suite', 'remote_cluster')
-      nonInputProperties.systemProperty('tests.rest.cluster', remoteCluster.map(c -> c.allHttpSocketURI.join(",")))
-    }
-    dependsOn "processTestResources"
-  }
-
   tasks.register("${baseName}#multi-cluster", RestIntegTestTask) {
-    useCluster localCluster
-    useCluster remoteCluster
-    doFirst {
-      nonInputProperties.systemProperty('tests.rest.suite', 'multi_cluster')
-      nonInputProperties.systemProperty('tests.rest.cluster', localCluster.map(c -> c.allHttpSocketURI.join(",")))
-      nonInputProperties.systemProperty('tests.rest.remote_cluster', remoteCluster.map(c -> c.allHttpSocketURI.join(",")))
-      nonInputProperties.systemProperty('tests.rest.remote_cluster_version', bwcVersion.toString())
-    }
-    dependsOn "${baseName}#remote-cluster"
+    usesBwcDistribution(bwcVersion)
+    maxParallelForks = 1
+    testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+    classpath = sourceSets.javaRestTest.runtimeClasspath
+    include '**/*IT.class'
+    systemProperty('tests.rest.suite', 'multi_cluster')
+    systemProperty('tests.multi_cluster.bwc_version', bwcVersion.toString())
+    systemProperty('tests.multi_cluster.reverse', 'false')
   }
 
   // Reverse version: old local coordinator + new remote.
 
-  def revRemoteCluster = testClusters.register("${baseName}-rev-remote") {
-    numberOfNodes = 2
-    versions = [currentVersion] // <-- remote cluster uses the current version
-    setting 'node.roles', '[data,ingest,master]'
-  }
-
-  def revLocalCluster = testClusters.register("${baseName}-rev-local") {
-    versions = [bwcVersion.toString()] // <-- local cluster uses the old version
-    setting 'node.roles', '[data,ingest,master,remote_cluster_client]'
-    setting 'cluster.remote.connections_per_cluster', '1'
-    setting 'cluster.remote.my_remote_cluster.seeds',
-      { "\"${revRemoteCluster.get().getAllTransportPortURI().get(0)}\"" }
-    setting 'cluster.remote.my_remote_cluster.skip_unavailable', 'false'
-  }
-
-  tasks.register("${baseName}#rev-remote-setup", RestIntegTestTask) {
-    useCluster revRemoteCluster
-    doFirst {
-      nonInputProperties.systemProperty('tests.rest.suite', 'remote_cluster')
-      nonInputProperties.systemProperty('tests.rest.cluster', revRemoteCluster.map(c -> c.allHttpSocketURI.join(",")))
-    }
-    dependsOn "processTestResources"
-  }
-
   tasks.register("${baseName}#multi-cluster-reverse", RestIntegTestTask) {
-    useCluster revLocalCluster
-    useCluster revRemoteCluster
-    doFirst {
-      nonInputProperties.systemProperty('tests.rest.suite', 'multi_cluster')
-      nonInputProperties.systemProperty('tests.rest.cluster', revLocalCluster.map(c -> c.allHttpSocketURI.join(",")))
-      nonInputProperties.systemProperty('tests.rest.remote_cluster', revRemoteCluster.map(c -> c.allHttpSocketURI.join(",")))
-      nonInputProperties.systemProperty('tests.rest.remote_cluster_version', currentVersion)
-    }
-    dependsOn "${baseName}#rev-remote-setup"
+    usesBwcDistribution(bwcVersion)
+    maxParallelForks = 1
+    testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+    classpath = sourceSets.javaRestTest.runtimeClasspath
+    include '**/*IT.class'
+    systemProperty('tests.rest.suite', 'multi_cluster')
+    systemProperty('tests.multi_cluster.bwc_version', bwcVersion.toString())
+    systemProperty('tests.multi_cluster.reverse', 'true')
     mustRunAfter "${baseName}#multi-cluster"
   }
 
@@ -117,9 +67,4 @@ buildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, ba
     dependsOn "${baseName}#multi-cluster", "${baseName}#multi-cluster-reverse"
     mustRunAfter("precommit")
   }
-}
-
-testClusters.configureEach {
-  setting 'xpack.security.enabled', 'false'
-  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 }

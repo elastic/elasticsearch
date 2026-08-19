@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -96,6 +97,16 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
         public ActionRequestValidationException validate() {
             if (actions.isEmpty()) {
                 return addValidationError("must specify at least one data stream modification action", null);
+            }
+            // data stream names are not resolved through IndexNameExpressionResolver in this API,
+            // so selectors must be rejected here. Instead of selectors, the failure_store field is used instead.
+            for (DataStreamAction action : actions) {
+                if (IndexNameExpressionResolver.hasSelectorSuffix(action.getDataStream())) {
+                    return addValidationError(
+                        "selectors [::] are not supported in data stream modification actions but found [" + action.getDataStream() + "]",
+                        null
+                    );
+                }
             }
             return null;
         }

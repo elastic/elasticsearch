@@ -29,6 +29,8 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
@@ -37,6 +39,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggre
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -57,6 +60,16 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 public class Sum extends NumericAggregate implements SurrogateExpression, TransportVersionAware, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sum", Sum::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Sum.class).unary(Sum::new).name("sum");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .acrossSeries(
+            (source, field) -> field.resolved() && field.dataType().isHistogram()
+                ? new HistogramMerge(source, field)
+                : new Sum(source, field)
+        )
+        .description("Calculates the sum of the values across the input vector.")
+        .example("sum(http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .name("sum");
 
     public static final TransportVersion ESQL_SUM_LONG_OVERFLOW_FIX = TransportVersion.fromName("esql_sum_long_overflow_fix");
 
@@ -86,7 +99,9 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
     private final Expression longOverflowMode;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "long", "double", "dense_vector" },
+        briefSummary = "Returns the sum of a numeric expression.",
         description = "The sum of a numeric expression.",
         type = FunctionType.AGGREGATE,
         examples = {
@@ -97,6 +112,18 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
                     + "`MV_MAX` function to each row and then sum the results",
                 file = "stats",
                 tag = "docsStatsSumNestedExpression"
+            ),
+            @Example(
+                description = "`SUM` can also operate on `exponential_histogram` fields, "
+                    + "computing the sum of the values which were used to construct the histograms.",
+                file = "exponential_histogram",
+                tag = "sumExpHistoForDocs"
+            ),
+            @Example(
+                description = "`SUM` can also operate on `tdigest` and casted `histogram` fields, "
+                    + "computing the sum of the values which were used to construct the digests.",
+                file = "tdigest",
+                tag = "sumTDigestForDocs"
             ) }
     )
     public Sum(
@@ -167,6 +194,24 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
     @Override
     public Sum withFilter(Expression filter) {
         return new Sum(source(), field(), filter, window(), summationMode, longOverflowMode);
+    }
+
+    /** Returns a new {@code Sum} with the field replaced, preserving all other properties. */
+    public Sum withField(Expression field) {
+        return new Sum(source(), field, filter(), window(), summationMode, longOverflowMode);
+    }
+
+    /**
+     * Returns true when this {@code Sum} has no filter and uses the default (no) window.
+     * Used by optimizations that can only rewrite bare {@code SUM(expr)} aggregations.
+     *
+     * <p>The assertion below guards against {@code Sum} gaining new properties without
+     * this method being updated: if {@link #info()} ever returns more or fewer than 5
+     * properties, this method must be reviewed.
+     */
+    public boolean isSimpleSum() {
+        assert info().properties().size() == 5 : "Sum has changed; update isSimpleSum";
+        return hasFilter() == false && NO_WINDOW.equals(window());
     }
 
     @Override

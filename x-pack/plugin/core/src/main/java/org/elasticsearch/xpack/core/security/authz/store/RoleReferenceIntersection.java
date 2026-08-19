@@ -8,10 +8,9 @@
 package org.elasticsearch.xpack.core.security.authz.store;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.OrderedGroupedActionListener;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
@@ -37,19 +36,14 @@ public class RoleReferenceIntersection {
     }
 
     public void buildRole(BiConsumer<RoleReference, ActionListener<Role>> singleRoleBuilder, ActionListener<Role> roleActionListener) {
-        final GroupedActionListener<Role> roleGroupedActionListener = new GroupedActionListener<>(
-            roleReferences.size(),
-            roleActionListener.delegateFailureAndWrap((l, roles) -> {
-                assert false == roles.isEmpty();
-                final Iterator<Role> iterator = roles.stream().iterator();
-                Role finalRole = iterator.next();
-                while (iterator.hasNext()) {
-                    finalRole = finalRole.limitedBy(iterator.next());
-                }
-                l.onResponse(finalRole);
-            })
-        );
-
-        roleReferences.forEach(roleReference -> singleRoleBuilder.accept(roleReference, roleGroupedActionListener));
+        // Role#limitedBy is non-commutative, so the fold must reduce in submission order regardless of
+        // the order in which singleRoleBuilder responses arrive.
+        OrderedGroupedActionListener.forEach(roleReferences, singleRoleBuilder, roleActionListener.delegateFailureAndWrap((l, roles) -> {
+            Role finalRole = roles.getFirst();
+            for (int i = 1; i < roles.size(); i++) {
+                finalRole = finalRole.limitedBy(roles.get(i));
+            }
+            l.onResponse(finalRole);
+        }));
     }
 }

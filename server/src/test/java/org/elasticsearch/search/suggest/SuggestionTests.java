@@ -106,41 +106,52 @@ public class SuggestionTests extends ESTestCase {
         ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         for (Class<Suggestion<? extends Entry<? extends Option>>> type : SUGGESTION_TYPES) {
             Suggestion suggestion = createTestItem(type);
-            XContentType xContentType = randomFrom(XContentType.values());
-            boolean humanReadable = randomBoolean();
-            BytesReference originalBytes = toShuffledXContent(suggestion, xContentType, params, humanReadable);
-            BytesReference mutated;
-            if (addRandomFields) {
-                // - "contexts" is an object consisting of key/array pairs, we shouldn't add anything random there
-                // - there can be inner search hits fields inside this option where we cannot add random stuff
-                // - the root object should be excluded since it contains the named suggestion arrays
-                // We also exclude options that contain SearchHits, as all unknown fields
-                // on a root level of SearchHit are interpreted as meta-fields and will be kept.
-                Predicate<String> excludeFilter = path -> path.isEmpty()
-                    || path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName())
-                    || path.endsWith("highlight")
-                    || path.contains("fields")
-                    || path.contains("_source")
-                    || path.contains("inner_hits")
-                    || path.contains("options");
-                mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
-            } else {
-                mutated = originalBytes;
+            Suggestion parsed = null;
+            try {
+                XContentType xContentType = randomFrom(XContentType.values());
+                boolean humanReadable = randomBoolean();
+                BytesReference originalBytes = toShuffledXContent(suggestion, xContentType, params, humanReadable);
+                BytesReference mutated;
+                if (addRandomFields) {
+                    // - "contexts" is an object consisting of key/array pairs, we shouldn't add anything random there
+                    // - there can be inner search hits fields inside this option where we cannot add random stuff
+                    // - the root object should be excluded since it contains the named suggestion arrays
+                    // We also exclude options that contain SearchHits, as all unknown fields
+                    // on a root level of SearchHit are interpreted as meta-fields and will be kept.
+                    Predicate<String> excludeFilter = path -> path.isEmpty()
+                        || path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName())
+                        || path.endsWith("highlight")
+                        || path.contains("fields")
+                        || path.contains("_source")
+                        || path.contains("inner_hits")
+                        || path.contains("options");
+                    mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
+                } else {
+                    mutated = originalBytes;
+                }
+                try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
+                    ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                    ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+                    ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
+                    parsed = SearchResponseUtils.parseSuggestion(parser);
+                    assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+                    assertNull(parser.nextToken());
+                }
+                assertEquals(suggestion.getName(), parsed.getName());
+                assertEquals(suggestion.getEntries().size(), parsed.getEntries().size());
+                // We don't parse size via xContent, instead we set it to -1 on the client side
+                assertEquals(-1, parsed.getSize());
+                assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, params, humanReadable), xContentType);
+            } finally {
+                for (Object e : suggestion.getEntries()) {
+                    SuggestTests.decRefCompletionOptionTestFactoryRefs((Entry<?>) e);
+                }
+                if (parsed != null) {
+                    for (Object e : parsed.getEntries()) {
+                        SuggestTests.decRefCompletionOptionTestFactoryRefs((Entry<?>) e);
+                    }
+                }
             }
-            Suggestion parsed;
-            try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-                ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
-                ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
-                parsed = SearchResponseUtils.parseSuggestion(parser);
-                assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-                assertNull(parser.nextToken());
-            }
-            assertEquals(suggestion.getName(), parsed.getName());
-            assertEquals(suggestion.getEntries().size(), parsed.getEntries().size());
-            // We don't parse size via xContent, instead we set it to -1 on the client side
-            assertEquals(-1, parsed.getSize());
-            assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, params, humanReadable), xContentType);
         }
     }
 
@@ -149,14 +160,21 @@ public class SuggestionTests extends ESTestCase {
      * suggestion type information
      */
     public void testFromXContentWithoutTypeParam() throws IOException {
-        XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference originalBytes = toXContent(createTestItem(), xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
-            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
-            assertNull(SearchResponseUtils.parseSuggestion(parser));
-            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+        Suggestion<? extends Entry<? extends Option>> suggestion = createTestItem();
+        try {
+            XContentType xContentType = randomFrom(XContentType.values());
+            BytesReference originalBytes = toXContent(suggestion, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
+            try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+                ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
+                assertNull(SearchResponseUtils.parseSuggestion(parser));
+                ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+            }
+        } finally {
+            for (Object e : suggestion.getEntries()) {
+                SuggestTests.decRefCompletionOptionTestFactoryRefs((Entry<?>) e);
+            }
         }
     }
 

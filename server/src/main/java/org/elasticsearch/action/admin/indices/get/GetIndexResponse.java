@@ -226,7 +226,7 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 
     @Override

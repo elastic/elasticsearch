@@ -66,7 +66,8 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         TextEmbedding textEmbeddingFunction = new TextEmbedding(
             Source.EMPTY,
             Literal.keyword(Source.EMPTY, "test input"),
-            Literal.keyword(Source.EMPTY, "test-model")
+            Literal.keyword(Source.EMPTY, "test-model"),
+            null
         );
 
         // Create a mock operator that returns a result
@@ -120,7 +121,12 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
 
     public void testFoldTextEmbeddingFunctionWithNullInput() throws Exception {
         // Create a mock TextEmbedding function
-        TextEmbedding textEmbeddingFunction = new TextEmbedding(Source.EMPTY, Literal.NULL, Literal.keyword(Source.EMPTY, "test-model"));
+        TextEmbedding textEmbeddingFunction = new TextEmbedding(
+            Source.EMPTY,
+            Literal.NULL,
+            Literal.keyword(Source.EMPTY, "test-model"),
+            null
+        );
 
         // Create a mock operator that returns a result
         Operator operator = mock(Operator.class);
@@ -157,7 +163,8 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         TextEmbedding textEmbeddingFunction = new TextEmbedding(
             Source.EMPTY,
             mock(Attribute.class),
-            Literal.keyword(Source.EMPTY, "test model")
+            Literal.keyword(Source.EMPTY, "test model"),
+            null
         );
 
         InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator((f, driverContext) -> mock(Operator.class));
@@ -174,7 +181,8 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         TextEmbedding textEmbeddingFunction = new TextEmbedding(
             Source.EMPTY,
             Literal.keyword(Source.EMPTY, "test input"),
-            Literal.keyword(Source.EMPTY, "test-model")
+            Literal.keyword(Source.EMPTY, "test-model"),
+            null
         );
 
         // Mock an operator that will trigger an async failure
@@ -202,7 +210,8 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         TextEmbedding textEmbeddingFunction = new TextEmbedding(
             Source.EMPTY,
             Literal.keyword(Source.EMPTY, "test input"),
-            Literal.keyword(Source.EMPTY, "test-model")
+            Literal.keyword(Source.EMPTY, "test-model"),
+            null
         );
 
         Operator operator = mock(Operator.class);

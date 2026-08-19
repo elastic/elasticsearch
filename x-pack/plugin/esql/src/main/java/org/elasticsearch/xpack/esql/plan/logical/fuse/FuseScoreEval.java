@@ -27,8 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
@@ -147,15 +146,20 @@ public class FuseScoreEval extends UnaryPlan
     }
 
     private void validateInput(Failures failures) {
-        // Since we use STATS BY to merge rows together, we need to make sure that all columns can be used in STATS BY.
-        // When the input of FUSE contains unsupported columns, we don't want to fail with a STATS BY validation error,
-        // but with an error specific to FUSE.
-        Expression aggFilter = new Literal(source(), true, DataType.BOOLEAN);
+        // FUSE rewrites passthrough columns as FIRST(col,NULL).
+        // FIRST does not support all field types, aggregate_metric_double, histogram and
+        // date_range are not yet supported.
+        // Score is aggregated with SUM, and the discriminator (_fork) with VALUES.
+        // We validate the input here to generate a FUSE-specific error, rather than
+        // a generic aggregation error.
 
         for (Attribute attr : child().output()) {
-            var valuesAgg = new Values(source(), attr, aggFilter, AggregateFunction.NO_WINDOW);
+            if (attr.name().equals(scoreAttr.name()) || attr.name().equals(discriminatorAttr.name())) {
+                continue;
+            }
+            var firstAgg = new First(source(), attr, Literal.NULL);
 
-            if (valuesAgg.resolved() == false) {
+            if (firstAgg.resolved() == false) {
                 failures.add(
                     new Failure(
                         this,

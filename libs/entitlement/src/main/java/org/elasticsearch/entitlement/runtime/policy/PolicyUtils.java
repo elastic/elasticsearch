@@ -42,9 +42,14 @@ public class PolicyUtils {
 
     private static final Logger logger = LogManager.getLogger(PolicyUtils.class);
 
-    public record PluginData(Path pluginPath, boolean isModular, boolean isExternalPlugin) {
+    /**
+     * {@code pluginName} must be the descriptor {@code name=} value (not the install directory),
+     * since the runtime entitlement lookup keys off the descriptor name.
+     */
+    public record PluginData(Path pluginPath, String pluginName, boolean isModular, boolean isExternalPlugin) {
         public PluginData {
             requireNonNull(pluginPath);
+            requireNonNull(pluginName);
         }
     }
 
@@ -58,7 +63,7 @@ public class PolicyUtils {
         Map<String, Policy> pluginPolicies = new HashMap<>(pluginData.size());
         for (var entry : pluginData) {
             Path pluginRoot = entry.pluginPath();
-            String pluginName = pluginRoot.getFileName().toString();
+            String pluginName = entry.pluginName();
             final Set<String> moduleNames = getModuleNames(pluginRoot, entry.isModular());
 
             var pluginPolicyPatch = parseEncodedPolicyIfExists(

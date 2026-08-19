@@ -63,9 +63,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
     private FeatureService featureService;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
-
+    public void initNodes() throws Exception {
         node1 = DiscoveryNodeUtils.create(randomAlphaOfLength(10), randomUUID());
         node2 = DiscoveryNodeUtils.create(randomAlphaOfLength(10), randomUUID());
         healthInfo = new HealthInfo(

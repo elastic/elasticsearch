@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 142094
-pr: 143996
-summary: Add support for binary operators with AMD
-type: enhancement

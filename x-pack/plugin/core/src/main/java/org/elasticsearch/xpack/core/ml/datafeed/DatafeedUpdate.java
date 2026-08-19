@@ -93,6 +93,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             DatafeedConfig.INDICES_OPTIONS
         );
         PARSER.declareObject(Builder::setRuntimeMappings, (p, c) -> p.map(), SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD);
+        PARSER.declareString(Builder::setProjectRouting, DatafeedConfig.PROJECT_ROUTING);
     }
 
     private final String id;
@@ -109,6 +110,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
     private final Integer maxEmptySearches;
     private final IndicesOptions indicesOptions;
     private final Map<String, Object> runtimeMappings;
+    private final String projectRouting;
 
     private DatafeedUpdate(
         String id,
@@ -124,7 +126,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         DelayedDataCheckConfig delayedDataCheckConfig,
         Integer maxEmptySearches,
         IndicesOptions indicesOptions,
-        Map<String, Object> runtimeMappings
+        Map<String, Object> runtimeMappings,
+        String projectRouting
     ) {
         this.id = id;
         this.jobId = jobId;
@@ -140,6 +143,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         this.maxEmptySearches = maxEmptySearches;
         this.indicesOptions = indicesOptions;
         this.runtimeMappings = runtimeMappings;
+        this.projectRouting = projectRouting;
     }
 
     public DatafeedUpdate(StreamInput in) throws IOException {
@@ -167,6 +171,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         maxEmptySearches = in.readOptionalInt();
         indicesOptions = in.readBoolean() ? IndicesOptions.readIndicesOptions(in) : null;
         this.runtimeMappings = in.readBoolean() ? in.readGenericMap() : null;
+        projectRouting = in.getTransportVersion().supports(DatafeedConfig.DATAFEED_PROJECT_ROUTING) ? in.readOptionalString() : null;
     }
 
     /**
@@ -214,6 +219,9 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         } else {
             out.writeBoolean(false);
         }
+        if (out.getTransportVersion().supports(DatafeedConfig.DATAFEED_PROJECT_ROUTING)) {
+            out.writeOptionalString(projectRouting);
+        }
     }
 
     @Override
@@ -251,6 +259,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             builder.endObject();
         }
         addOptionalField(builder, SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD, runtimeMappings);
+        addOptionalField(builder, DatafeedConfig.PROJECT_ROUTING, projectRouting);
         builder.endObject();
         return builder;
     }
@@ -283,6 +292,10 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
 
     public Map<String, Object> getRuntimeMappings() {
         return runtimeMappings;
+    }
+
+    public String getProjectRouting() {
+        return projectRouting;
     }
 
     Map<String, Object> getQuery() {
@@ -383,6 +396,9 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         if (runtimeMappings != null) {
             builder.setRuntimeMappings(runtimeMappings);
         }
+        if (projectRouting != null) {
+            builder.setProjectRouting(projectRouting);
+        }
         if (headers.isEmpty() == false) {
             builder.setHeaders(ClientHelper.getPersistableSafeSecurityHeaders(headers, clusterState));
         }
@@ -419,7 +435,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             && Objects.equals(this.chunkingConfig, that.chunkingConfig)
             && Objects.equals(this.maxEmptySearches, that.maxEmptySearches)
             && Objects.equals(this.indicesOptions, that.indicesOptions)
-            && Objects.equals(this.runtimeMappings, that.runtimeMappings);
+            && Objects.equals(this.runtimeMappings, that.runtimeMappings)
+            && Objects.equals(this.projectRouting, that.projectRouting);
     }
 
     @Override
@@ -438,13 +455,50 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             delayedDataCheckConfig,
             maxEmptySearches,
             indicesOptions,
-            runtimeMappings
+            runtimeMappings,
+            projectRouting
         );
     }
 
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    /**
+     * Returns {@code true} when the caller explicitly changes {@code project_routing} on this update request.
+     * Evaluated against the raw update body (not migration-defaulted routing). System-applied first-re-key
+     * defaults are excluded by checking {@code defaultedProjectRoutingForMigration} at the call site.
+     *
+     * <p>Read as two clauses: (a) the update actually specifies a routing value ({@code != null}), AND (b) that
+     * value differs from what is stored. Truth table (current = stored config, rawUpdate = request body):
+     * <pre>
+     *   current      rawUpdate           result  interpretation
+     *   anything     null (omitted)      false   user didn't touch routing -&gt; not a change
+     *   null         "_alias:prod-*"     true    first-time assignment on a legacy datafeed
+     *   "_origin"    "_origin" (same)    false   user re-sent identical value -&gt; no-op
+     *   "_origin"    "_alias:prod-*"     true    genuine re-target (widen/narrow)
+     * </pre>
+     */
+    public static boolean isUserInitiatedProjectRoutingChange(DatafeedConfig current, DatafeedUpdate rawUpdate) {
+        return rawUpdate.getProjectRouting() != null && Objects.equals(rawUpdate.getProjectRouting(), current.getProjectRouting()) == false;
+    }
+
+    /**
+     * Returns {@code true} when this update changes index routing inputs that can alter whether a datafeed
+     * participates in cross-project search and therefore whether an internal cloud credential is required.
+     */
+    public boolean affectsCrossProjectSearchSurface(DatafeedConfig current) {
+        if (projectRouting != null && Objects.equals(projectRouting, current.getProjectRouting()) == false) {
+            return true;
+        }
+        if (indices != null && Objects.equals(indices, current.getIndices()) == false) {
+            return true;
+        }
+        if (indicesOptions != null && Objects.equals(indicesOptions, current.getIndicesOptions()) == false) {
+            return true;
+        }
+        return false;
     }
 
     boolean isNoop(DatafeedConfig datafeed) {
@@ -461,7 +515,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
                 || Objects.equals(maxEmptySearches, datafeed.getMaxEmptySearches())
                 || (maxEmptySearches == -1 && datafeed.getMaxEmptySearches() == null))
             && (indicesOptions == null || Objects.equals(indicesOptions, datafeed.getIndicesOptions()))
-            && (runtimeMappings == null || Objects.equals(runtimeMappings, datafeed.getRuntimeMappings()));
+            && (runtimeMappings == null || Objects.equals(runtimeMappings, datafeed.getRuntimeMappings()))
+            && (projectRouting == null || Objects.equals(projectRouting, datafeed.getProjectRouting()));
     }
 
     public static class Builder {
@@ -480,6 +535,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         private Integer maxEmptySearches;
         private IndicesOptions indicesOptions;
         private Map<String, Object> runtimeMappings;
+        private String projectRouting;
 
         public Builder() {}
 
@@ -502,6 +558,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             this.maxEmptySearches = config.maxEmptySearches;
             this.indicesOptions = config.indicesOptions;
             this.runtimeMappings = config.runtimeMappings != null ? new HashMap<>(config.runtimeMappings) : null;
+            this.projectRouting = config.projectRouting;
         }
 
         public Builder setId(String datafeedId) {
@@ -602,6 +659,11 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             return this;
         }
 
+        public Builder setProjectRouting(String projectRouting) {
+            this.projectRouting = projectRouting;
+            return this;
+        }
+
         public DatafeedUpdate build() {
             return new DatafeedUpdate(
                 id,
@@ -617,7 +679,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
                 delayedDataCheckConfig,
                 maxEmptySearches,
                 indicesOptions,
-                runtimeMappings
+                runtimeMappings,
+                projectRouting
             );
         }
     }

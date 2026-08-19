@@ -140,7 +140,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
         return wildcardQuery(value, caseInsensitive, context);
     }
 
-    public final Query wildcardQuery(String value, boolean caseInsensitive, QueryRewriteContext context) {
+    public Query wildcardQuery(String value, boolean caseInsensitive, QueryRewriteContext context) {
         if (matches(value, caseInsensitive, context)) {
             return Queries.ALL_DOCS_INSTANCE;
         } else {

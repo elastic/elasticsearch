@@ -36,6 +36,7 @@ public class RepositoryS3SessionCredentialsRestIT extends AbstractRepositoryS3Re
 
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
+        null,
         BUCKET,
         BASE_PATH,
         S3ConsistencyModel::randomConsistencyModel,

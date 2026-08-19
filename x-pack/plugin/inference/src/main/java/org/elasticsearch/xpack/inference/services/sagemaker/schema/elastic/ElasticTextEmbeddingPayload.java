@@ -22,13 +22,18 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.core.inference.InferenceUtils;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStoredServiceSchema;
@@ -44,7 +49,6 @@ import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredEnum;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 
 /**
  * TextEmbedding needs to differentiate between Bit, Byte, and Float types. Users must specify the
@@ -62,6 +66,9 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
     private static final ParseField EMBEDDING = new ParseField(EmbeddingResults.EMBEDDING);
 
     private static final TransportVersion ML_INFERENCE_SAGEMAKER_ELASTIC = TransportVersion.fromName("ml_inference_sagemaker_elastic");
+    private static final TransportVersion INFERENCE_SAGEMAKER_SIMILARITY_REQUIRED = TransportVersion.fromName(
+        "inference_sagemaker_similarity_required"
+    );
 
     @Override
     public EnumSet<TaskType> supportedTasks() {
@@ -69,8 +76,12 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
     }
 
     @Override
-    public SageMakerStoredServiceSchema apiServiceSettings(Map<String, Object> serviceSettings, ValidationException validationException) {
-        return ApiServiceSettings.fromMap(serviceSettings, validationException);
+    public SageMakerStoredServiceSchema apiServiceSettings(
+        Map<String, Object> serviceSettings,
+        ConfigurationParseContext context,
+        ValidationException validationException
+    ) {
+        return ApiServiceSettings.fromMap(serviceSettings, context, validationException);
     }
 
     @Override
@@ -227,7 +238,7 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
     record ApiServiceSettings(
         @Nullable Integer dimensions,
         Boolean dimensionsSetByUser,
-        @Nullable SimilarityMeasure similarity,
+        SimilarityMeasure similarity,
         DenseVectorFieldMapper.ElementType elementType
     ) implements SageMakerStoredServiceSchema {
 
@@ -235,13 +246,15 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
         private static final String DIMENSIONS_FIELD = "dimensions";
         private static final String DIMENSIONS_SET_BY_USER_FIELD = "dimensions_set_by_user";
         private static final String SIMILARITY_FIELD = "similarity";
-        private static final String ELEMENT_TYPE_FIELD = "element_type";
+        static final String ELEMENT_TYPE_FIELD = "element_type";
 
         ApiServiceSettings(StreamInput in) throws IOException {
             this(
                 in.readOptionalVInt(),
                 in.readBoolean(),
-                in.readOptionalEnum(SimilarityMeasure.class),
+                in.getTransportVersion().supports(INFERENCE_SAGEMAKER_SIMILARITY_REQUIRED)
+                    ? in.readEnum(SimilarityMeasure.class)
+                    : in.readOptionalEnum(SimilarityMeasure.class),
                 in.readEnum(DenseVectorFieldMapper.ElementType.class)
             );
         }
@@ -266,7 +279,11 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalVInt(dimensions);
             out.writeBoolean(dimensionsSetByUser);
-            out.writeOptionalEnum(similarity);
+            if (out.getTransportVersion().supports(INFERENCE_SAGEMAKER_SIMILARITY_REQUIRED)) {
+                out.writeEnum(similarity);
+            } else {
+                out.writeOptionalEnum(similarity);
+            }
             out.writeEnum(elementType);
         }
 
@@ -276,11 +293,30 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
                 builder.field(DIMENSIONS_FIELD, dimensions);
             }
             builder.field(DIMENSIONS_SET_BY_USER_FIELD, dimensionsSetByUser);
-            if (similarity != null) {
-                builder.field(SIMILARITY_FIELD, similarity);
-            }
+            builder.field(SIMILARITY_FIELD, similarity);
             builder.field(ELEMENT_TYPE_FIELD, elementType);
             return builder;
+        }
+
+        @Override
+        public ToXContentObject getFilteredXContentObject() {
+            // dimensions_set_by_user is internal: it is persisted by toXContent but must not be returned in the GET response.
+            return new ToXContentObject() {
+                @Override
+                public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                    if (dimensions != null) {
+                        builder.field(DIMENSIONS_FIELD, dimensions);
+                    }
+                    builder.field(SIMILARITY_FIELD, similarity);
+                    builder.field(ELEMENT_TYPE_FIELD, elementType);
+                    return builder;
+                }
+
+                @Override
+                public boolean isFragment() {
+                    return true;
+                }
+            };
         }
 
         @Override
@@ -288,15 +324,42 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
             return new ApiServiceSettings(dimensions, false, similarity, elementType);
         }
 
-        static ApiServiceSettings fromMap(Map<String, Object> serviceSettings, ValidationException validationException) {
+        static ApiServiceSettings fromMap(
+            Map<String, Object> serviceSettings,
+            ConfigurationParseContext context,
+            ValidationException validationException
+        ) {
             var dimensions = extractOptionalPositiveInteger(
                 serviceSettings,
                 DIMENSIONS_FIELD,
                 ModelConfigurations.SERVICE_SETTINGS,
                 validationException
             );
-            var dimensionsSetByUser = extractOptionalBoolean(serviceSettings, DIMENSIONS_SET_BY_USER_FIELD, validationException);
-            var similarity = extractSimilarity(serviceSettings, ModelConfigurations.SERVICE_SETTINGS, validationException);
+            // dimensions_set_by_user is internal and not user-settable. In a request we intentionally do not read it, so that a
+            // user-supplied value is rejected as an unknown setting; the flag is derived from whether dimensions were provided.
+            // Persisted configs have always contained the field for this class, so a missing value is a validation error.
+            boolean dimensionsSetByUser;
+            if (ConfigurationParseContext.isRequestContext(context)) {
+                dimensionsSetByUser = dimensions != null;
+            } else {
+                var storedDimensionsSetByUser = extractOptionalBoolean(serviceSettings, DIMENSIONS_SET_BY_USER_FIELD, validationException);
+                if (storedDimensionsSetByUser == null) {
+                    validationException.addValidationError(
+                        InferenceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER_FIELD, ModelConfigurations.SERVICE_SETTINGS)
+                    );
+                }
+                dimensionsSetByUser = storedDimensionsSetByUser != null && storedDimensionsSetByUser;
+            }
+
+            SimilarityMeasure similarity = ServiceUtils.extractRequiredEnum(
+                serviceSettings,
+                ServiceFields.SIMILARITY,
+                ModelConfigurations.SERVICE_SETTINGS,
+                SimilarityMeasure::fromString,
+                EnumSet.allOf(SimilarityMeasure.class),
+                validationException
+            );
+
             var elementType = extractRequiredEnum(
                 serviceSettings,
                 ELEMENT_TYPE_FIELD,
@@ -305,7 +368,7 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
                 EnumSet.allOf(DenseVectorFieldMapper.ElementType.class),
                 validationException
             );
-            return new ApiServiceSettings(dimensions, dimensionsSetByUser != null && dimensionsSetByUser, similarity, elementType);
+            return new ApiServiceSettings(dimensions, dimensionsSetByUser, similarity, elementType);
         }
     }
 }

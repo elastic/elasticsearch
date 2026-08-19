@@ -253,7 +253,7 @@ The connector syncs the following objects and entities:
 * **Folders**
 
 ::::{note}
-* Content from files bigger than 10 MB won’t be extracted by default. You can use the [self-managed local extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
+* Content from files bigger than 8 MiB won’t be extracted by default. You can use the [self-managed local extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
 * Permissions are not synced by default. You must first enable [DLS](#es-connectors-onedrive-client-dls). Otherwise, **all documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 
 ::::

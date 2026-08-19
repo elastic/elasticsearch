@@ -12,6 +12,7 @@ package org.elasticsearch.rest.action.document;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -71,7 +72,8 @@ public class RestTermVectorsAction extends BaseRestHandler {
         termVectorsRequest.offsets(request.paramAsBoolean("offsets", termVectorsRequest.offsets()));
         termVectorsRequest.positions(request.paramAsBoolean("positions", termVectorsRequest.positions()));
         termVectorsRequest.payloads(request.paramAsBoolean("payloads", termVectorsRequest.payloads()));
-        termVectorsRequest.routing(request.param("routing"));
+        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseRoutingOrSliceWithProvenance(request);
+        termVectorsRequest.routing(parsedRouting.routing()).setRoutingFromSlice(parsedRouting.fromSlice());
         termVectorsRequest.realtime(request.paramAsBoolean("realtime", termVectorsRequest.realtime()));
         termVectorsRequest.version(RestActions.parseVersion(request, termVectorsRequest.version()));
         termVectorsRequest.versionType(VersionType.fromString(request.param("version_type"), termVectorsRequest.versionType()));

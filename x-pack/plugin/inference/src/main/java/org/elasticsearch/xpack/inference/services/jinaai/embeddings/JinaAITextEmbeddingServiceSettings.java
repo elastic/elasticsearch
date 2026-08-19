@@ -7,15 +7,20 @@
 
 package org.elasticsearch.xpack.inference.services.jinaai.embeddings;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettings;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 
 public class JinaAITextEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceSettings {
     /**
@@ -35,26 +40,26 @@ public class JinaAITextEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServ
     }
 
     private JinaAITextEmbeddingServiceSettings(
-        JinaAIServiceSettings commonServiceSettings,
+        JinaAICommonServiceSettings commonServiceSettings,
         @Nullable SimilarityMeasure similarity,
-        @Nullable Integer dims,
+        @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
-        @Nullable JinaAIEmbeddingType embeddingTypes,
+        @Nullable JinaAIEmbeddingType embeddingType,
         boolean dimensionsSetByUser,
         boolean multimodalModel
     ) {
-        super(commonServiceSettings, similarity, dims, maxInputTokens, embeddingTypes, dimensionsSetByUser, DEFAULT_MULTIMODAL_MODEL);
+        super(commonServiceSettings, similarity, dimensions, maxInputTokens, embeddingType, dimensionsSetByUser, DEFAULT_MULTIMODAL_MODEL);
     }
 
     public JinaAITextEmbeddingServiceSettings(
-        JinaAIServiceSettings commonServiceSettings,
+        JinaAICommonServiceSettings commonServiceSettings,
         @Nullable SimilarityMeasure similarity,
-        @Nullable Integer dims,
+        @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
-        @Nullable JinaAIEmbeddingType embeddingTypes,
+        @Nullable JinaAIEmbeddingType embeddingType,
         boolean dimensionsSetByUser
     ) {
-        this(commonServiceSettings, similarity, dims, maxInputTokens, embeddingTypes, dimensionsSetByUser, DEFAULT_MULTIMODAL_MODEL);
+        this(commonServiceSettings, similarity, dimensions, maxInputTokens, embeddingType, dimensionsSetByUser, DEFAULT_MULTIMODAL_MODEL);
     }
 
     public JinaAITextEmbeddingServiceSettings(StreamInput in) throws IOException {
@@ -70,6 +75,31 @@ public class JinaAITextEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServ
             maxInputTokens(),
             getEmbeddingType(),
             dimensionsSetByUser()
+        );
+    }
+
+    @Override
+    public JinaAITextEmbeddingServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            serviceSettings,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+
+        var updatedCommonServiceSettings = getCommonSettings().updateCommonServiceSettings(serviceSettings, validationException);
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new JinaAITextEmbeddingServiceSettings(
+            updatedCommonServiceSettings,
+            this.similarity(),
+            this.dimensions(),
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens(),
+            this.getEmbeddingType(),
+            this.dimensionsSetByUser()
         );
     }
 

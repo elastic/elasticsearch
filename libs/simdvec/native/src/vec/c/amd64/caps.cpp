@@ -24,18 +24,18 @@
 // Multi-platform CPUID "intrinsic"; it takes as input a "functionNumber" (or "leaf", the eax registry). "Subleaf"
 // is always 0. Output is stored in the passed output parameter: output[0] = eax, output[1] = ebx, output[2] = ecx,
 // output[3] = edx
-static inline void cpuid(int output[4], int functionNumber) {
+static inline void cpuid(int output[4], int leaf, int subLeaf = 0) {
 #if defined(__GNUC__) || defined(__clang__)
     // use inline assembly, Gnu/AT&T syntax
     int a, b, c, d;
-    __asm("cpuid" : "=a"(a), "=b"(b), "=c"(c), "=d"(d) : "a"(functionNumber), "c"(0) : );
+    __asm("cpuid" : "=a"(a), "=b"(b), "=c"(c), "=d"(d) : "a"(leaf), "c"(subLeaf) : );
     output[0] = a;
     output[1] = b;
     output[2] = c;
     output[3] = d;
 
 #elif defined (_MSC_VER)
-    __cpuidex(output, functionNumber, 0);
+    __cpuidex(output, leaf, subLeaf);
 #else
    #error Unsupported compiler
 #endif
@@ -78,18 +78,32 @@ EXPORT int vec_caps() {
         int ebx = cpuInfo[1];
         int ecx = cpuInfo[2];
         // AVX2 flag is the 5th bit
-        // https://github.com/llvm/llvm-project/blob/50598f0ff44f3a4e75706f8c53f3380fe7faa896/clang/lib/Headers/cpuid.h#L148
+        // https://github.com/llvm/llvm-project/blob/main/clang/lib/Headers/cpuid.h#L148
         // We assume that all processors that have AVX2 also have FMA3
         int avx2 = (ebx & 0x00000020) != 0;
 
         // AVX512F
-        // https://github.com/llvm/llvm-project/blob/50598f0ff44f3a4e75706f8c53f3380fe7faa896/clang/lib/Headers/cpuid.h#L155
+        // https://github.com/llvm/llvm-project/blob/main/clang/lib/Headers/cpuid.h#L155
         int avx512 = (ebx & 0x00010000) != 0;
         // AVX512VNNI (ECX register)
         int avx512_vnni = (ecx & 0x00000800) != 0;
         // AVX512VPOPCNTDQ (ECX register)
         int avx512_vpopcntdq = (ecx & 0x00004000) != 0;
-        if (avx512 && avx512_vnni && avx512_vpopcntdq) {
+        // AVX512VBMI2 (ECX register)
+        int avx512_vbmi2 = (ecx & 0x00000040) != 0;
+        // AVX512VL (EBX register)
+        int avx512_vl = (ebx & 0x80000000) != 0;
+
+        // get sub-leaf 1
+        cpuid(cpuInfo, 7, 1);
+        int eax = cpuInfo[0];
+        // AVX512BF16 (EAX register)
+        int avx512_bf16 = (eax & 0x00000020) != 0;
+
+        if (avx512 && avx512_vnni && avx512_vpopcntdq && avx512_vbmi2 && avx512_vl && avx512_bf16) {
+            return avxEnabledInOS ? 3 : -3;
+        }
+        if (avx512 && avx512_vnni && avx512_vpopcntdq && avx512_vbmi2) {
             return avxEnabledInOS ? 2 : -2;
         }
         if (avx2) {

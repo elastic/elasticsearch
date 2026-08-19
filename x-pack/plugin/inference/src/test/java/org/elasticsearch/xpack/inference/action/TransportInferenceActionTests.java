@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.telemetry.InferenceStats;
@@ -36,7 +35,6 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
-        NodeClient nodeClient,
         ThreadPool threadPool
     ) {
         return new TransportInferenceAction(
@@ -47,7 +45,6 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
             serviceRegistry,
             inferenceStats,
             streamingTaskManager,
-            nodeClient,
             threadPool
         );
     }

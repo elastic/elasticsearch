@@ -12,8 +12,8 @@ package org.elasticsearch.nativeaccess.jdk;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
+import org.elasticsearch.nativeaccess.SimdVecLibraryTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -26,33 +26,33 @@ import java.util.function.IntFunction;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 import static org.hamcrest.Matchers.containsString;
 
-public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests {
+public class JDKVectorLibraryFloat32Tests extends SimdVecLibraryTests {
 
     static final ValueLayout.OfFloat LAYOUT_LE_FLOAT = JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
 
     final float delta;
 
-    public JDKVectorLibraryFloat32Tests(VectorSimilarityFunctions.Function function, int size) {
+    public JDKVectorLibraryFloat32Tests(SimdVecLibrary.SimilarityFunction function, int size) {
         super(function, size);
         this.delta = 1e-5f * size; // scale the delta with the size
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
-        List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(VectorSimilarityFunctionsTests.parametersFactory());
+        List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(SimdVecLibraryTests.parametersFactory());
         // cosine is not used on floats
-        baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.Function.COSINE);
+        baseParams.removeIf(os -> os[0] == SimdVecLibrary.SimilarityFunction.COSINE);
         return baseParams;
     }
 
     @BeforeClass
     public static void beforeClass() {
-        VectorSimilarityFunctionsTests.setup();
+        SimdVecLibraryTests.setup();
     }
 
     @AfterClass
     public static void afterClass() {
-        VectorSimilarityFunctionsTests.cleanup();
+        SimdVecLibraryTests.cleanup();
     }
 
     public void testAllZeroValues() {
@@ -84,13 +84,11 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
 
             float expected = ScalarOperations.similarity(function, values[first], values[second]);
             assertEquals(expected, similarity(nativeSeg1, nativeSeg2, dims), delta);
-            if (supportsHeapSegments()) {
-                var heapSeg1 = MemorySegment.ofArray(values[first]);
-                var heapSeg2 = MemorySegment.ofArray(values[second]);
-                assertEquals(expected, similarity(heapSeg1, heapSeg2, dims), delta);
-                assertEquals(expected, similarity(nativeSeg1, heapSeg2, dims), delta);
-                assertEquals(expected, similarity(heapSeg1, nativeSeg2, dims), delta);
-            }
+            var heapSeg1 = MemorySegment.ofArray(values[first]);
+            var heapSeg2 = MemorySegment.ofArray(values[second]);
+            assertEquals(expected, similarity(heapSeg1, heapSeg2, dims), delta);
+            assertEquals(expected, similarity(nativeSeg1, heapSeg2, dims), delta);
+            assertEquals(expected, similarity(heapSeg1, nativeSeg2, dims), delta);
         }
     }
 
@@ -114,11 +112,9 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
         similarityBulk(segment, nativeQuerySeg, dims, numVecs, bulkScoresSeg);
         assertScoresEquals(expectedScores, bulkScoresSeg, delta);
 
-        if (supportsHeapSegments()) {
-            float[] bulkScores = new float[numVecs];
-            similarityBulk(segment, nativeQuerySeg, dims, numVecs, MemorySegment.ofArray(bulkScores));
-            assertArrayEquals(expectedScores, bulkScores, delta);
-        }
+        float[] bulkScores = new float[numVecs];
+        similarityBulk(segment, nativeQuerySeg, dims, numVecs, MemorySegment.ofArray(bulkScores));
+        assertArrayEquals(expectedScores, bulkScores, delta);
     }
 
     public void testFloat32BulkWithOffsets() {
@@ -178,7 +174,6 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
 
     public void testFloat32BulkWithOffsetsHeapSegments() {
         assumeTrue(notSupportedMsg(), supported());
-        assumeTrue("Requires support for heap MemorySegments", supportsHeapSegments());
         final int dims = size;
         final int numVecs = randomIntBetween(2, 101);
         var offsets = new int[numVecs];
@@ -234,6 +229,113 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }
 
+    // Tests bulk sparse similarity where vector addresses are slices of a single contiguous segment,
+    // verifying correct lookup and scoring via an address array with random ordinals.
+    public void testFloat32BulkSparse() {
+        assumeTrue(notSupportedMsg(), supported());
+        final int dims = size;
+        final int numVecs = randomIntBetween(2, 101);
+        var ordinals = new int[numVecs];
+        var values = new float[numVecs][];
+        var segment = arena.allocate((long) dims * numVecs * Float.BYTES);
+        for (int i = 0; i < numVecs; i++) {
+            ordinals[i] = randomInt(numVecs - 1);
+            values[i] = randomFloatArray(dims);
+            long dstOffset = (long) i * dims * Float.BYTES;
+            MemorySegment.copy(values[i], 0, segment, LAYOUT_LE_FLOAT, dstOffset, dims);
+        }
+        int queryOrd = randomInt(numVecs - 1);
+        float[] expectedScores = new float[numVecs];
+        ScalarOperations.bulkWithOffsets(function, values[queryOrd], values, ordinals, expectedScores);
+
+        var nativeQuerySeg = segment.asSlice((long) queryOrd * dims * Float.BYTES, (long) dims * Float.BYTES);
+        var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
+        for (int i = 0; i < numVecs; i++) {
+            addressesSeg.setAtIndex(
+                ValueLayout.ADDRESS,
+                i,
+                segment.asSlice((long) ordinals[i] * dims * Float.BYTES, (long) dims * Float.BYTES)
+            );
+        }
+        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
+        similarityBulkSparse(addressesSeg, nativeQuerySeg, dims, numVecs, bulkScoresSeg);
+        assertScoresEquals(expectedScores, bulkScoresSeg, delta);
+    }
+
+    // Tests bulk sparse similarity where each vector lives in its own independently allocated segment,
+    // ensuring the sparse path handles non-contiguous (scattered) memory correctly.
+    public void testFloat32BulkSparseScattered() {
+        assumeTrue(notSupportedMsg(), supported());
+        final int dims = size;
+        final int numVecs = randomIntBetween(2, 101);
+        var ordinals = new int[numVecs];
+        var values = new float[numVecs][];
+        var segments = new MemorySegment[numVecs];
+        for (int i = 0; i < numVecs; i++) {
+            values[i] = randomFloatArray(dims);
+            segments[i] = arena.allocate((long) dims * Float.BYTES);
+            MemorySegment.copy(values[i], 0, segments[i], LAYOUT_LE_FLOAT, 0L, dims);
+        }
+        for (int i = 0; i < numVecs; i++) {
+            ordinals[i] = randomInt(numVecs - 1);
+        }
+        int queryOrd = randomInt(numVecs - 1);
+        float[] expectedScores = new float[numVecs];
+        ScalarOperations.bulkWithOffsets(function, values[queryOrd], values, ordinals, expectedScores);
+
+        var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
+        for (int i = 0; i < numVecs; i++) {
+            addressesSeg.setAtIndex(ValueLayout.ADDRESS, i, segments[ordinals[i]]);
+        }
+        var nativeQuerySeg = segments[queryOrd];
+        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
+        similarityBulkSparse(addressesSeg, nativeQuerySeg, dims, numVecs, bulkScoresSeg);
+        assertScoresEquals(expectedScores, bulkScoresSeg, delta);
+    }
+
+    // Verifies that bulk sparse similarity rejects invalid arguments (undersized segments,
+    // negative dims/count) with appropriate out-of-bounds exceptions.
+    public void testBulkSparseIllegalArgs() {
+        assumeTrue(notSupportedMsg(), supported());
+        int count = 3;
+        var query = arena.allocate((long) size * Float.BYTES);
+        var scores = arena.allocate((long) count * Float.BYTES);
+
+        var dummyVec = arena.allocate((long) size * Float.BYTES);
+        var addresses = arena.allocate(ValueLayout.ADDRESS.byteSize() * count, ValueLayout.ADDRESS.byteAlignment());
+        for (int i = 0; i < count; i++) {
+            addresses.setAtIndex(ValueLayout.ADDRESS, i, dummyVec);
+        }
+
+        // addresses segment too small for the given count
+        var tooSmallAddrs = arena.allocate(ValueLayout.ADDRESS.byteSize() * (count - 1), ValueLayout.ADDRESS.byteAlignment());
+        Exception ex = expectThrows(IOOBE, () -> similarityBulkSparse(tooSmallAddrs, query, size, count, scores));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        // query segment too small for the given dims
+        var tooSmallQuery = arena.allocate((long) size * Float.BYTES - 1);
+        ex = expectThrows(IOOBE, () -> similarityBulkSparse(addresses, tooSmallQuery, size, count, scores));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        // result segment too small for the given count
+        var tooSmallScores = arena.allocate((long) count * Float.BYTES - 1);
+        ex = expectThrows(IOOBE, () -> similarityBulkSparse(addresses, query, size, count, tooSmallScores));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        // negative count
+        ex = expectThrows(IOOBE, () -> similarityBulkSparse(addresses, query, size, -1, scores));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        // negative dims
+        ex = expectThrows(IOOBE, () -> similarityBulkSparse(addresses, query, -1, count, scores));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        // null (zero) address in the addresses segment
+        var zeroAddrs = arena.allocate(ValueLayout.ADDRESS.byteSize() * count, ValueLayout.ADDRESS.byteAlignment());
+        ex = expectThrows(IAE, () -> similarityBulkSparse(zeroAddrs, query, size, count, scores));
+        assertThat(ex.getMessage(), containsString("null"));
+    }
+
     public void testBulkIllegalDims() {
         assumeTrue(notSupportedMsg(), supported());
         var segA = arena.allocate((long) size * 3 * Float.BYTES);
@@ -258,10 +360,13 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
         assumeTrue(notSupportedMsg(), supported());
         var segment = arena.allocate((long) size * 3 * Float.BYTES);
 
-        Exception ex = expectThrows(IAE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size + 1), size));
-        assertThat(ex.getMessage(), containsString("Dimensions differ"));
+        int elemBytes = size * Float.BYTES;
+        // Segments can differ in size and be larger than length: only length bytes are read
+        var aTail = randomIntBetween(0, size) * Float.BYTES;
+        var bTail = randomIntBetween(0, size) * Float.BYTES;
+        similarity(segment.asSlice(0L, elemBytes + aTail), segment.asSlice(0L, elemBytes + bTail), size);
 
-        ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
+        Exception ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
 
         ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size), -1));
@@ -269,23 +374,18 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
     }
 
     float similarity(MemorySegment a, MemorySegment b, int length) {
-        try {
-            return (float) getVectorDistance().getHandle(
-                function,
-                VectorSimilarityFunctions.DataType.FLOAT32,
-                VectorSimilarityFunctions.Operation.SINGLE
-            ).invokeExact(a, b, length);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
+        return switch (function) {
+            case DOT_PRODUCT -> getVectorDistance().dotProductF32(a, b, length);
+            case SQUARE_DISTANCE -> getVectorDistance().squareDistanceF32(a, b, length);
+            case COSINE -> throw new UnsupportedOperationException(function.toString());
+        };
     }
 
     void similarityBulk(MemorySegment a, MemorySegment b, int dims, int count, MemorySegment result) {
-        try {
-            getVectorDistance().getHandle(function, VectorSimilarityFunctions.DataType.FLOAT32, VectorSimilarityFunctions.Operation.BULK)
-                .invokeExact(a, b, dims, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
+        switch (function) {
+            case DOT_PRODUCT -> getVectorDistance().dotProductF32Bulk(a, b, dims, count, result);
+            case SQUARE_DISTANCE -> getVectorDistance().squareDistanceF32Bulk(a, b, dims, count, result);
+            case COSINE -> throw new UnsupportedOperationException(function.toString());
         }
     }
 
@@ -298,14 +398,19 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
         int count,
         MemorySegment result
     ) {
-        try {
-            getVectorDistance().getHandle(
-                function,
-                VectorSimilarityFunctions.DataType.FLOAT32,
-                VectorSimilarityFunctions.Operation.BULK_OFFSETS
-            ).invokeExact(a, b, dims, pitch, offsets, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
+        switch (function) {
+            case DOT_PRODUCT -> getVectorDistance().dotProductF32BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
+            case SQUARE_DISTANCE -> getVectorDistance().squareDistanceF32BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
+            case COSINE -> throw new UnsupportedOperationException(function.toString());
         }
     }
+
+    void similarityBulkSparse(MemorySegment addresses, MemorySegment query, int dims, int count, MemorySegment result) {
+        switch (function) {
+            case DOT_PRODUCT -> getVectorDistance().dotProductF32BulkSparse(addresses, query, dims, count, result);
+            case SQUARE_DISTANCE -> getVectorDistance().squareDistanceF32BulkSparse(addresses, query, dims, count, result);
+            case COSINE -> throw new UnsupportedOperationException(function.toString());
+        }
+    }
+
 }

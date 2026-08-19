@@ -21,7 +21,8 @@ public class RateSerializationTests extends AbstractExpressionSerializationTests
         Expression filter = randomChild();
         Expression window = randomChild();
         Expression timestamp = randomChild();
-        return new Rate(source, field, filter, window, timestamp);
+        Expression temporality = randomChild();
+        return new Rate(source, field, filter, window, timestamp, temporality);
     }
 
     @Override
@@ -31,13 +32,16 @@ public class RateSerializationTests extends AbstractExpressionSerializationTests
         Expression timestamp = instance.timestamp();
         Expression filter = instance.filter();
         Expression window = instance.window();
-        switch (between(0, 3)) {
+        Expression temporality = instance.temporality();
+        switch (between(0, 4)) {
             case 0 -> field = randomValueOtherThan(field, AbstractExpressionSerializationTests::randomChild);
             case 1 -> timestamp = randomValueOtherThan(timestamp, AbstractExpressionSerializationTests::randomChild);
             case 2 -> filter = randomValueOtherThan(filter, AbstractExpressionSerializationTests::randomChild);
             case 3 -> window = randomValueOtherThan(window, AbstractExpressionSerializationTests::randomChild);
+            case 4 -> temporality = randomValueOtherThan(temporality, AbstractExpressionSerializationTests::randomChild);
             default -> throw new AssertionError("unexpected value");
         }
-        return new Rate(source, field, filter, window, timestamp);
+        return new Rate(source, field, filter, window, timestamp, temporality);
     }
+
 }

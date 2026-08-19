@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
@@ -26,6 +27,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -100,6 +102,36 @@ public final class Suggest implements Iterable<Suggest.Suggestion<? extends Entr
      */
     public boolean hasScoreDocs() {
         return hasScoreDocs;
+    }
+
+    /**
+     * Collects completion option SearchHits from this suggest. When shouldIncRef is true (constructor/merge path),
+     * takes 1 ref per hit. When false (stream path), hits already have 1 ref from deserialization so we do not incRef.
+     *
+     * @return null if there are no completion option hits; otherwise an immutable list of hits to release when the response is released.
+     */
+    public List<SearchHit> collectCompletionOptionHits(boolean shouldIncRef) {
+        if (suggestions == null) {
+            return null;
+        }
+        List<SearchHit> hits = new ArrayList<>();
+        for (Suggestion<?> suggestion : suggestions) {
+            if (suggestion instanceof CompletionSuggestion completionSuggestion) {
+                for (CompletionSuggestion.Entry.Option option : completionSuggestion.getOptions()) {
+                    SearchHit hit = option.getHit();
+                    if (hit != null) {
+                        hits.add(hit);
+                        if (shouldIncRef) {
+                            hit.mustIncRef();
+                        }
+                    }
+                }
+            }
+        }
+        if (hits.isEmpty()) {
+            return null;
+        }
+        return Collections.unmodifiableList(hits);
     }
 
     @Override
@@ -246,7 +278,7 @@ public final class Suggest implements Iterable<Suggest.Suggestion<? extends Entr
             for (int i = 0; i < size; i++) {
                 for (Suggestion<T> suggestion : toReduce) {
                     if (suggestion.entries.size() != size) {
-                        throw new IllegalStateException(
+                        throw new IllegalArgumentException(
                             "Can't merge suggest result, this might be caused by suggest calls "
                                 + "across multiple indices with different analysis chains. Suggest entries have different sizes actual ["
                                 + suggestion.entries.size()
@@ -390,7 +422,7 @@ public final class Suggest implements Iterable<Suggest.Suggestion<? extends Entr
                 Entry<O> leader = toReduce.get(0);
                 for (Entry<O> entry : toReduce) {
                     if (leader.text.equals(entry.text) == false) {
-                        throw new IllegalStateException(
+                        throw new IllegalArgumentException(
                             "Can't merge suggest entries, this might be caused by suggest calls "
                                 + "across multiple indices with different analysis chains. Suggest entries have different text actual ["
                                 + entry.text

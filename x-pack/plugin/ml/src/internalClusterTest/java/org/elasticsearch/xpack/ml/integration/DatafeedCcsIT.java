@@ -136,6 +136,35 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
         }
     }
 
+    public void testDatafeedWithCcsExcludedRemoteCluster() throws Exception {
+        String jobId = "ccs-excluded-remote-job";
+        String datafeedId = jobId;
+        long localDocs = randomIntBetween(32, 2048);
+        long remoteDocs = randomIntBetween(32, 2048);
+        indexRemoteDocs(remoteDocs);
+        long endTimeMs = indexLocalDocs(localDocs);
+        setupJobAndDatafeed(
+            jobId,
+            datafeedId,
+            endTimeMs,
+            List.of(DATA_INDEX, REMOTE_CLUSTER + ":" + DATA_INDEX, "-" + REMOTE_CLUSTER + ":*")
+        );
+        try {
+            assertBusy(() -> {
+                JobStats jobStats = getJobStats(jobId);
+                assertThat(jobStats.getState(), is(JobState.CLOSED));
+                assertThat(jobStats.getDataCounts().getProcessedRecordCount(), is(localDocs));
+            }, 3, TimeUnit.MINUTES);
+        } catch (AssertionError ae) {
+            try {
+                client(LOCAL_CLUSTER).execute(CloseJobAction.INSTANCE, new CloseJobAction.Request(jobId).setForce(true)).actionGet();
+            } catch (Exception e) {
+                ae.addSuppressed(e);
+            }
+            throw ae;
+        }
+    }
+
     public void testDatafeedWithCcsRemoteUnavailable() throws Exception {
         setSkipUnavailable(randomBoolean());
         String jobId = "ccs-unavailable-job";
@@ -165,11 +194,23 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
      * @return The epoch millisecond timestamp of the most recent document.
      */
     private long indexRemoteDocs(long numDocs) {
-        client(REMOTE_CLUSTER).admin().indices().prepareCreate(DATA_INDEX).setMapping("time", "type=date").get();
+        return indexDocs(REMOTE_CLUSTER, numDocs);
+    }
+
+    /**
+     * Index some datafeed data into the local cluster.
+     * @return The epoch millisecond timestamp of the most recent document.
+     */
+    private long indexLocalDocs(long numDocs) {
+        return indexDocs(LOCAL_CLUSTER, numDocs);
+    }
+
+    private long indexDocs(String clusterAlias, long numDocs) {
+        client(clusterAlias).admin().indices().prepareCreate(DATA_INDEX).setMapping("time", "type=date").get();
         long now = System.currentTimeMillis();
         long weekAgo = now - 604800000;
         long twoWeeksAgo = weekAgo - 604800000;
-        BaseMlIntegTestCase.indexDocs(client(REMOTE_CLUSTER), logger, DATA_INDEX, numDocs, twoWeeksAgo, weekAgo);
+        BaseMlIntegTestCase.indexDocs(client(clusterAlias), logger, DATA_INDEX, numDocs, twoWeeksAgo, weekAgo);
         return weekAgo;
     }
 
@@ -200,15 +241,15 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
      * Create and start a job and datafeed on the local cluster but searching for data in the remote cluster.
      */
     private void setupJobAndDatafeed(String jobId, String datafeedId, Long endTimeMs) throws Exception {
+        setupJobAndDatafeed(jobId, datafeedId, endTimeMs, List.of(REMOTE_CLUSTER + ":" + DATA_INDEX));
+    }
+
+    private void setupJobAndDatafeed(String jobId, String datafeedId, Long endTimeMs, List<String> indices) throws Exception {
         Job.Builder job = BaseMlIntegTestCase.createScheduledJob(jobId, ByteSizeValue.ofMb(20));
         client(LOCAL_CLUSTER).execute(PutJobAction.INSTANCE, new PutJobAction.Request(job)).actionGet();
 
         // Default frequency is 1 second, which avoids the test sleeping excessively
-        DatafeedConfig.Builder config = BaseMlIntegTestCase.createDatafeedBuilder(
-            datafeedId,
-            job.getId(),
-            List.of(REMOTE_CLUSTER + ":" + DATA_INDEX)
-        );
+        DatafeedConfig.Builder config = BaseMlIntegTestCase.createDatafeedBuilder(datafeedId, job.getId(), indices);
         // Setting a small chunk size increases the number of separate searches the datafeed
         // must make, which maximises the chance of a problem being exposed by the test
         config.setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueMinutes(10)));

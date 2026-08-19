@@ -73,10 +73,10 @@ public class ReplicationSplitHelper<
         final Request primaryRequest,
         final IndexMetadata indexMetadata
     ) throws Exception {
-        SplitShardCountSummary requestSplitSummary = primaryRequest.reshardSplitShardCountSummary();
-        // TODO: We currently only set the request split summary for certain Replication Requests
-        // like refresh, flush and shard bulk requests. Only evaluate this when set or else every
-        // request would say it needs a split.
+        if (primaryRequest instanceof ReshardSplitAwareReplicationRequest == false) {
+            return false;
+        }
+        SplitShardCountSummary requestSplitSummary = ((ReshardSplitAwareReplicationRequest) primaryRequest).splitShardCountSummary();
         if (requestSplitSummary.isUnset()) { // no split coordination required
             return false;
         }
@@ -96,10 +96,7 @@ public class ReplicationSplitHelper<
                         latestSplitSummary.asInt()
                     );
                 }
-                throw new StaleRequestException(
-                    "Request for index [{}] is stale due to concurrent reshard operation, retry later",
-                    primaryRequest.index()
-                );
+                throw new StaleRequestException(primaryRequest.shardId(), requestSplitSummary);
             }
             return true;
         }

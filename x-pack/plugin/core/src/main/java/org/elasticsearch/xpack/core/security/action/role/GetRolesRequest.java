@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -19,11 +19,18 @@ import static org.elasticsearch.action.support.TransportAction.localOnly;
 /**
  * Request to retrieve roles from the security index
  */
-public class GetRolesRequest extends LegacyActionRequest {
+public class GetRolesRequest extends UntypedActionRequest {
 
     private String[] names = Strings.EMPTY_ARRAY;
 
     private boolean nativeOnly = false;
+
+    /**
+     * Opt-in flag that controls whether the response includes implicitly-granted index
+     * privileges contributed by registered {@link org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider}s.
+     * Defaults to {@code false} so the API surface is backwards compatible.
+     */
+    private boolean includeImplicit = false;
 
     public GetRolesRequest() {}
 
@@ -50,6 +57,14 @@ public class GetRolesRequest extends LegacyActionRequest {
 
     public boolean nativeOnly() {
         return this.nativeOnly;
+    }
+
+    public void includeImplicit(boolean includeImplicit) {
+        this.includeImplicit = includeImplicit;
+    }
+
+    public boolean includeImplicit() {
+        return this.includeImplicit;
     }
 
     @Override

@@ -7,19 +7,45 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -31,16 +57,23 @@ import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MatchQuery;
+import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.ANALYZER_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.FUZZY_REWRITE_FIELD;
@@ -74,7 +107,10 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
 public class Match extends SingleFieldFullTextFunction implements OptionalArgument {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Match.class).ternary(Match::new).name("match");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Match.class)
+        .ternary(Match::new)
+        .capabilities("runtime_filter", "unmapped_fields_pushdown_fix", "runtime_options", "runtime_analyzer", "runtime_score")
+        .name("match");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
         NULL,
         KEYWORD,
@@ -122,8 +158,9 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
+        briefSummary = "Performs a match query on the specified field or expression.",
         description = """
-            Use `MATCH` to perform a <<query-dsl-match-query,match query>> on the specified field.
+            Use `MATCH` to perform a <<query-dsl-match-query,match query>> on the specified field or expression.
             Using `MATCH` is equivalent to using the `match` query in the Elasticsearch Query DSL.""",
         detailedDescription = """
             Match can be used on fields from the text family like <<text, text>> and <<semantic-text, semantic_text>>,
@@ -136,7 +173,36 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
             For a simplified syntax, you can use the <<esql-match-operator,match operator>> `:` operator instead of `MATCH`.
 
-            `MATCH` returns true if the provided query matches the row.""",
+            `MATCH` returns true if the provided query matches the row.
+
+            **`MATCH` on expressions**
+
+            {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
+            `MATCH` can also search expressions that are not backed by an index, such as
+            computed columns produced by `EVAL`, `STATS`, or other commands.
+            When the target is not an indexed field, the search evaluates by scanning
+            values row by row, which may be slower on large datasets.
+
+            {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+            When searching `text` expressions, <<esql-function-named-params,function named parameters>>
+            (match query options) are supported. The `analyzer` option must name a registered analyzer
+            (prebuilt or plugin-contributed). Per-index custom analyzers cannot be used because the
+            expression is not backed by an index. Unlike on an indexed field, the analyzer is applied to
+            both the query and the expression values. When no analyzer is specified, the `standard`
+            analyzer is used. On other expression types options are not supported.
+
+            {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+            When using `METADATA _score`, `MATCH` on an expression contributes to the relevance score:
+            a row scores the `boost` option (1.0 by default) for each query term occurrence it matches
+            (duplicate query terms each contribute separately).
+            Unlike indexed fields, expressions are not scored with BM25, as there are no index statistics
+            for an expression. In earlier versions, `MATCH` on an expression does not contribute to the
+            score.
+
+            :::{tip}
+            Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+            :::
+            """,
         examples = {
             @Example(file = "match-function", tag = "match-with-field"),
             @Example(file = "match-function", tag = "match-with-named-function-params") }
@@ -146,12 +212,13 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         @Param(
             name = "field",
             type = { "keyword", "text", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
-            description = "Field that the query will target."
+            description = "Field or expression that the query will target."
         ) Expression field,
         @Param(
             name = "query",
             type = { "keyword", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
-            description = "Value to find in the provided field."
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
+            description = "Value to find in the provided field or expression."
         ) Expression matchQuery,
         @MapParam(
             name = "options",
@@ -268,7 +335,12 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        return new Match(source, field, query, null, queryBuilder);
+        Configuration configuration = ((PlanStreamInput) in).configuration();
+        Expression options = in.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)
+            ? in.readOptionalNamedWriteable(Expression.class)
+            : null;
+
+        return new Match(source, field, query, options, queryBuilder);
     }
 
     // This is not meant to be overriden by MatchOperator - MatchOperator should be serialized to Match
@@ -278,6 +350,9 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
         out.writeOptionalNamedWriteable(queryBuilder());
+        if (out.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)) {
+            out.writeOptionalNamedWriteable(options());
+        }
     }
 
     @Override
@@ -358,8 +433,386 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var fieldAttribute = fieldAsFieldAttribute();
         Check.notNull(fieldAttribute, "Match must have a field attribute as the first argument");
-        String fieldName = getNameFromFieldAttribute(fieldAttribute);
+        return matchQuery(getNameFromFieldAttribute(fieldAttribute));
+    }
+
+    /**
+     * Builds the same query as {@link #translate}, but uses {@code fieldName} directly instead of the mapped field name.
+     * HIGHLIGHT needs this because its per-row MemoryIndex uses ON column names and must not invoke mapped behavior such
+     * as {@code semantic_text} inference.
+     */
+    public QueryBuilder asLexicalQueryBuilder(String fieldName) {
+        return matchQuery(fieldName).toQueryBuilder();
+    }
+
+    private MatchQuery matchQuery(String fieldName) {
         // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
         return new MatchQuery(source(), fieldName, queryAsObject(), matchQueryOptions());
+    }
+
+    @Override
+    public boolean isRuntimeSearch() {
+        FieldAttribute fieldAttribute = fieldAsFieldAttribute();
+        if (fieldAttribute == null) {
+            // This *isn't* a field in the index OR a pushed block loader
+            return true;
+        }
+
+        if (fieldAttribute.isPotentiallyUnmapped()) {
+            // A potentially unmapped field cannot be pushed down: the Lucene query would silently miss the rows of the
+            // indices where the field is unmapped, so it is matched at runtime instead.
+            return true;
+        }
+
+        if (fieldAsFieldAttribute().field() instanceof FunctionEsField functionEsField) {
+            // This is a pushed block loader.
+            // We can only support FIELD_EXTRACT(flattened, "constant"), here named EXTRACT_FLATTENED_SUBFIELD
+            return functionEsField.functionConfig().function() == BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD;
+        }
+        return false;
+    }
+
+    @Override
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        FieldAttribute fieldAttribute = fieldAsFieldAttribute();
+
+        if (fieldAttribute == null) {
+            return Translatable.NO;
+        }
+
+        if (fieldAttribute.isPotentiallyUnmapped()) {
+            return Translatable.NO;
+        }
+
+        return super.translatable(pushdownPredicates);
+    }
+
+    @Override
+    protected void fieldVerifier(
+        LogicalPlan plan,
+        FullTextFunction function,
+        Expression field,
+        @Nullable AnalysisRegistry analysisRegistry,
+        Failures failures
+    ) {
+        super.fieldVerifier(plan, function, field, analysisRegistry, failures);
+        if (isRuntimeSearch() == false) {
+            return;
+        }
+
+        // The query value can only be converted to the field's runtime type once it has been folded down to a
+        // Literal; if it hasn't yet (e.g. pre-optimization), this check is skipped here and retried once
+        // postOptimizationPlanVerification runs.
+        if (query() instanceof Literal) {
+            try {
+                verifyRuntimeQueryValue();
+            } catch (InvalidArgumentException | IllegalArgumentException e) {
+                failures.add(
+                    Failure.fail(
+                        query(),
+                        "[MATCH] query value [{}] does not match the type ([{}]) of non-index-mapped field [{}]",
+                        query().sourceText(),
+                        field.dataType().typeName(),
+                        field.sourceText()
+                    )
+                );
+            }
+        }
+
+        if (options() != null && field().dataType() == TEXT) {
+            verifyRuntimeOptions(function, field, analysisRegistry, failures);
+        } else if (options() != null) {
+            failures.add(
+                Failure.fail(
+                    field,
+                    "Options are not supported for [MATCH] function call on non-index-mapped, non-TEXT field [" + field.sourceText() + "]"
+                )
+            );
+        }
+    }
+
+    /**
+     * Validates the options for a runtime-search {@code match} on a {@code text} field. Checks that the
+     * {@code analyzer} option (if present) names a registered analyzer and that the options produce a valid
+     * {@code MatchQueryBuilder}.
+     */
+    private void verifyRuntimeOptions(
+        FullTextFunction function,
+        Expression field,
+        @Nullable AnalysisRegistry analysisRegistry,
+        Failures failures
+    ) {
+        Map<String, Object> opts = matchQueryOptions();
+        // The registry is only available in the post-analysis pass; analyzer names cannot change during
+        // optimization, so the post-optimization call with a null registry will skip this check.
+        if (analysisRegistry != null && opts.containsKey(ANALYZER_FIELD.getPreferredName())) {
+            try {
+                PlannerUtils.resolveAnalyzer(BytesRefs.toString(opts.get(ANALYZER_FIELD.getPreferredName())), analysisRegistry);
+            } catch (InvalidArgumentException e) {
+                failures.add(Failure.fail(function, "{}", e.getMessage()));
+                return;
+            }
+        }
+        if (query() instanceof Literal) {
+            // Validate that the options produce a valid MatchQueryBuilder at plan-verification time rather than at execution time.
+            try {
+                new MatchQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts).toQueryBuilder();
+            } catch (IllegalArgumentException e) {
+                failures.add(
+                    Failure.fail(
+                        function,
+                        "[MATCH] function failed to build query for non-index-mapped field [{}]: {}",
+                        field.sourceText(),
+                        e.getMessage()
+                    )
+                );
+            }
+        }
+    }
+
+    /**
+     * Verifies that the (foldable) query value can be converted to the runtime field's type, throwing if not.
+     * Only used for {@link #isRuntimeSearch()}. The converted value itself is discarded here; it's recomputed
+     * (cheaply, since the query value is a constant) by {@link #queryAsRuntimeSearchValue} when building the evaluator.
+     */
+    private void verifyRuntimeQueryValue() {
+        if (field.dataType() == TEXT || field.dataType() == NULL) {
+            return;
+        }
+        queryAsRuntimeSearchValue(field.dataType(), query().dataType(), Foldables.queryAsObject(query(), sourceText()));
+    }
+
+    @Override
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        if (false == isRuntimeSearch()) {
+            // we push down match to the shards as a Lucene query.
+            return super.toEvaluator(toEvaluator);
+        }
+
+        // Text fields keep analyzer-based matching; every other type compares the query value against the field block directly.
+        if (field.dataType() == TEXT && options() == null) {
+            return runtimeTextEvaluator(toEvaluator, terms -> new RuntimeSearch.AnyTermMatcher(Set.copyOf(terms)));
+        }
+        // When options are used, we build a Lucene query
+        if (field.dataType() == TEXT && options() != null) {
+            Map<String, Object> opts = matchQueryOptions();
+            return textEvaluatorForQueryWithOptions(
+                new MatchQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts),
+                opts,
+                toEvaluator
+            );
+        }
+
+        Object queryValue = queryAsRuntimeSearchValue(field.dataType(), query().dataType(), Foldables.queryAsObject(query(), sourceText()));
+        return switch (PlannerUtils.toElementType(field.dataType())) {
+            case BYTES_REF -> new RuntimeSearchBytesRefEvaluator.Factory(
+                source(),
+                toEvaluator.apply(field()),
+                (BytesRef) queryValue,
+                context -> new BytesRef()
+            );
+            case BOOLEAN -> new MatchBooleanEvaluator.Factory(source(), toEvaluator.apply(field()), (Boolean) queryValue);
+            case DOUBLE -> new MatchDoubleEvaluator.Factory(source(), toEvaluator.apply(field()), (Double) queryValue);
+            case LONG -> new MatchLongEvaluator.Factory(source(), toEvaluator.apply(field()), (Long) queryValue);
+            case INT -> new MatchIntegerEvaluator.Factory(source(), toEvaluator.apply(field()), (Integer) queryValue);
+            default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
+        };
+    }
+
+    @Override
+    public boolean contributesToScore() {
+        return true;
+    }
+
+    /**
+     * Scores runtime matches with {@link RuntimeSearch}'s boolean-similarity semantics — there are no corpus
+     * statistics to feed BM25 (for now ...) — so a row scores boost × (number of matched query term occurrences),
+     * where a query term repeated N times weighs N. Non-text exact matches score 1.0.
+     */
+    @Override
+    public ExpressionEvaluator.Factory toScorer(ToScorer toScorer) {
+        if (false == isRuntimeSearch()) {
+            // Pushed-down match is scored by running the Lucene query on the shard.
+            return super.toScorer(toScorer);
+        }
+
+        if (field.dataType() == TEXT && options() == null) {
+            return runtimeTextScorer(toScorer);
+        }
+        // With options, score through the same Lucene query the boolean evaluator runs.
+        if (field.dataType() == TEXT && options() != null) {
+            Map<String, Object> opts = matchQueryOptions();
+            return textScoreEvaluatorForQueryWithOptions(
+                new MatchQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts),
+                opts,
+                toScorer.toEvaluator()
+            );
+        }
+        // Exact (non-text) matches: 1.0 on match, like a pushed-down term query under boolean similarity.
+        return new RuntimeSearchScoreFromBooleanEvaluator.Factory(source(), toEvaluator(toScorer.toEvaluator()));
+    }
+
+    /**
+     * The scoring counterpart of {@link #runtimeTextEvaluator}: analyzes each row with the same standard analyzer
+     * (safe to do, since this is only used when scoring a runtime match query _without_ options)
+     * and sums the weights of the distinct query terms it contains, where a query term repeated N times weighs N —
+     * i.e. the same thing {@link RuntimeSearch#textScoreEvaluatorForQuery} would yield for the same query.
+     */
+    private ExpressionEvaluator.Factory runtimeTextScorer(ToScorer toScorer) {
+        Analyzer analyzer = new StandardAnalyzer();
+        Map<BytesRef, Integer> queryTerms;
+        try {
+            queryTerms = RuntimeSearch.analyzeTermsWithCounts(analyzer, queryAsObject().toString());
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to tokenize query string: " + e.getMessage(), e);
+        }
+        if (queryTerms.isEmpty()) {
+            return ConstantEvaluators.constantDouble(0.0);
+        }
+        int totalWeight = queryTerms.values().stream().mapToInt(Integer::intValue).sum();
+        return new MatchScoreTokenStreamEvaluator.Factory(
+            source(),
+            toScorer.toEvaluator().apply(field()),
+            analyzer,
+            queryTerms,
+            totalWeight,
+            context -> new BytesRef()
+        );
+    }
+
+    /**
+     * Converts the folded query value into the typed value used by the runtime-search evaluators, in the same
+     * representation that the field's block stores (encoded {@code ip}/{@code version}/{@code unsigned_long},
+     * epoch millis for {@code datetime}, epoch nanos for {@code date_nanos}, ...). String queries are parsed with
+     * the strict {@link EsqlDataTypeConverter} converters; numeric queries are coerced to the field's element type.
+     * <p>
+     * Not used for {@link DataType#TEXT}, which is matched through an analyzer rather than by value equality.
+     * Kept package-private and static so the conversion matrix can be exercised directly in unit tests.
+     *
+     * @param fieldType  the data type of the field being matched
+     * @param queryType  the data type of the query expression
+     * @param queryValue the folded query value, as returned by {@link Foldables#queryAsObject}
+     */
+    static Object queryAsRuntimeSearchValue(DataType fieldType, DataType queryType, Object queryValue) {
+        String queryString = queryValue instanceof BytesRef bytesRef ? bytesRef.utf8ToString() : null;
+        return switch (PlannerUtils.toElementType(fieldType)) {
+            case BYTES_REF -> {
+                assert queryValue instanceof BytesRef;
+                if (fieldType == IP && DataType.isString(queryType)) {
+                    yield EsqlDataTypeConverter.stringToIP(queryString);
+                }
+                if (fieldType == VERSION && DataType.isString(queryType)) {
+                    yield EsqlDataTypeConverter.stringToVersion(queryString);
+                }
+                yield queryValue;
+            }
+            case BOOLEAN -> queryString != null ? EsqlDataTypeConverter.stringToBoolean(queryString) : (Boolean) queryValue;
+            case DOUBLE -> queryString != null ? EsqlDataTypeConverter.stringToDouble(queryString) : ((Number) queryValue).doubleValue();
+            case LONG -> {
+                Object value;
+                if (fieldType == UNSIGNED_LONG) {
+                    if (queryString != null) {
+                        value = EsqlDataTypeConverter.stringToUnsignedLong(queryString);
+                    } else if (queryType == UNSIGNED_LONG) {
+                        value = ((Number) queryValue).longValue();
+                    } else {
+                        value = EsqlDataTypeConverter.longToUnsignedLong(((Number) queryValue).longValue(), true);
+                    }
+                } else if (fieldType == DATETIME) {
+                    value = queryString != null ? EsqlDataTypeConverter.dateTimeToLong(queryString) : ((Number) queryValue).longValue();
+                } else if (fieldType == DATE_NANOS) {
+                    value = queryString != null ? EsqlDataTypeConverter.dateNanosToLong(queryString) : ((Number) queryValue).longValue();
+                } else if (fieldType.isNumeric()) {
+                    value = queryString != null ? EsqlDataTypeConverter.stringToLong(queryString) : ((Number) queryValue).longValue();
+                } else {
+                    value = queryValue;
+                }
+                if (false == value instanceof Long) {
+                    throw EsqlIllegalArgumentException.illegalDataType(queryType);
+                }
+                yield value;
+            }
+            case INT -> queryString != null ? EsqlDataTypeConverter.stringToInt(queryString) : ((Number) queryValue).intValue();
+            default -> throw EsqlIllegalArgumentException.illegalDataType(fieldType);
+        };
+    }
+
+    @Evaluator(extraName = "Boolean", allNullsIsNull = false)
+    static boolean processBoolean(@Position int position, BooleanBlock fieldBlock, @Fixed Boolean query) {
+        if (fieldBlock == null) {
+            return false;
+        }
+        return fieldBlock.hasValue(position, query);
+    }
+
+    @Evaluator(extraName = "Double", allNullsIsNull = false)
+    static boolean processDouble(@Position int position, DoubleBlock fieldBlock, @Fixed Double query) {
+        if (fieldBlock == null) {
+            return false;
+        }
+
+        return fieldBlock.hasValue(position, query);
+    }
+
+    @Evaluator(extraName = "Long", allNullsIsNull = false)
+    static boolean processLong(@Position int position, LongBlock fieldBlock, @Fixed Long query) {
+        if (fieldBlock == null) {
+            return false;
+        }
+        return fieldBlock.hasValue(position, query);
+    }
+
+    @Evaluator(extraName = "Integer", allNullsIsNull = false)
+    static boolean processInteger(@Position int position, IntBlock fieldBlock, @Fixed Integer query) {
+        if (fieldBlock == null) {
+            return false;
+        }
+        return fieldBlock.hasValue(position, query);
+    }
+
+    @Evaluator(extraName = "ScoreTokenStream", allNullsIsNull = false)
+    static double scoreTokenStream(
+        @Position int position,
+        BytesRefBlock fieldBlock,
+        @Fixed Analyzer analyzer,
+        @Fixed Map<BytesRef, Integer> queryTerms,
+        @Fixed int totalWeight,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
+    ) {
+        if (fieldBlock == null) {
+            return 0.0;
+        }
+        final var valueCount = fieldBlock.getValueCount(position);
+        final var startIndex = fieldBlock.getFirstValueIndex(position);
+
+        // All values of the position form one document: the matched query terms are the union across values.
+        Set<BytesRef> foundTerms = new HashSet<>();
+        int score = 0;
+        for (int valueIndex = startIndex; valueIndex < startIndex + valueCount && score < totalWeight; valueIndex++) {
+            scratch = fieldBlock.getBytesRef(valueIndex, scratch);
+            try (TokenStream stream = analyzer.tokenStream(RuntimeSearch.CONTENT_FIELD, scratch.utf8ToString())) {
+                stream.reset();
+                TermToBytesRefAttribute term = stream.addAttribute(TermToBytesRefAttribute.class);
+                while (stream.incrementToken()) {
+                    BytesRef token = term.getBytesRef();
+                    Integer weight = queryTerms.get(token);
+                    // The token attribute's BytesRef is reused between tokens, so the found set needs its own copy;
+                    // check contains first to avoid allocating a copy for tokens already counted.
+                    if (weight != null && foundTerms.contains(token) == false) {
+                        foundTerms.add(BytesRef.deepCopyOf(token));
+                        score += weight;
+                        if (score >= totalWeight) {
+                            break;
+                        }
+                    }
+                }
+                stream.end();
+            } catch (IOException e) {
+                // Score blocks must be dense (ScoreOperator reads them positionally), so an exception cannot become
+                // a null position via warnExceptions. Analyzing an in-memory string does no IO and cannot throw.
+                throw new UncheckedIOException(e);
+            }
+        }
+        return score;
     }
 }

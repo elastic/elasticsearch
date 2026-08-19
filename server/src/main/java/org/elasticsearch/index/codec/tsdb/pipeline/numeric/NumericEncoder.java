@@ -14,15 +14,18 @@ import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 
 /**
- * Write-path coordinator for pipeline-based numeric encoding. This is the
- * entry point used by the doc values consumer to encode numeric fields. It
- * owns a {@link NumericEncodePipeline} and produces {@link NumericBlockEncoder}
- * instances for per-block encoding.
+ * Write-path coordinator for pipeline-based numeric encoding. Bound to a single
+ * {@link NumericEncodePipeline} for its lifetime; callers that need per-field
+ * pipeline selection should build one instance per field via
+ * {@link NumericCodecFactory#createEncoder(PipelineConfig)} after resolving the
+ * config.
+ *
+ * <p>Both {@link #newBlockEncoder()} and {@link #descriptor()} read from the
+ * same {@code pipeline} field, so a single instance covers both outputs without
+ * re-resolving anything.
  *
  * <p>Instances are immutable and thread-safe. Per-field mutable state lives in
- * {@link NumericBlockEncoder}, which callers obtain via {@link #newBlockEncoder()}.
- *
- * <p>Created via {@link #fromConfig} or via {@link NumericCodecFactory#createEncoder}.
+ * {@link NumericBlockEncoder}.
  */
 public final class NumericEncoder {
 
@@ -33,7 +36,7 @@ public final class NumericEncoder {
     }
 
     /**
-     * Builds an encoder from a pipeline configuration.
+     * Builds an encoder bound to a single pipeline configuration.
      * Use {@link NumericCodecFactory#createEncoder} as the public entry point.
      *
      * @param config the pipeline configuration

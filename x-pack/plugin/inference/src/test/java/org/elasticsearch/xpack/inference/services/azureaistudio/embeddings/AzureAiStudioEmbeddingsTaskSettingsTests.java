@@ -69,7 +69,7 @@ public class AzureAiStudioEmbeddingsTaskSettingsTests extends AbstractBWCWireSer
     }
 
     public void testFromMap_MissingUser_DoesNotThrowException() {
-        var taskSettings = AzureAiStudioEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of()));
+        var taskSettings = AzureAiStudioEmbeddingsTaskSettings.fromMap(new HashMap<>());
         assertNull(taskSettings.user());
     }
 

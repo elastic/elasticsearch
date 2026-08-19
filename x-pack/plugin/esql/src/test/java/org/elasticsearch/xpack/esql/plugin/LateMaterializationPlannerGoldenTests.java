@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
@@ -15,6 +18,16 @@ import java.util.EnumSet;
 import java.util.Objects;
 
 public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public LateMaterializationPlannerGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
+
     private static final EnumSet<Stage> STAGES = EnumSet.of(
         Stage.PHYSICAL_OPTIMIZATION,
         Stage.NODE_REDUCE,
@@ -123,6 +136,28 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
             | SORT hire_date
             | LIMIT 20
             | STATS max_salary = MAX(salary), count = COUNT(*)
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
+    public void testNullifiedFieldWithLateMaterialization() throws Exception {
+        String query = """
+            SET unmapped_fields="nullify";
+            FROM employees
+            | KEEP hire_date, salary, emp_no, does_not_exist
+            | SORT hire_date
+            | LIMIT 20
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
+    public void testNullifiedFieldAsSort() throws Exception {
+        String query = """
+            SET unmapped_fields="nullify";
+            FROM employees
+            | KEEP hire_date, salary, does_not_exist
+            | SORT does_not_exist
+            | LIMIT 20
             """;
         runGoldenTest(query, STAGES, unindexedStats());
     }

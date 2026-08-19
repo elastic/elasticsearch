@@ -1,0 +1,31 @@
+[package]
+name = "esql-parquet-rs"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+arrow = { version = "58", features = ["ffi"] }
+parquet = { version = "58", features = ["arrow", "async", "object_store"] }
+bytes = "1"
+jni = "0.22"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+object_store = { version = "0.13", features = ["aws", "azure", "gcp", "http"] }
+futures = "0.3"
+url = "2"
+serde_json = "1"
+# Logging facade. `release_max_level_debug` keeps debug! sites compiled in release
+# builds (trace! is compiled out). At runtime, level is controlled by env var
+# RUST_LOG (e.g. `RUST_LOG=esql_parquet_rs=debug`); when below threshold the
+# log macros short-circuit before formatting their args (~1 atomic relaxed load
+# per disabled call site, no allocation).
+log = { version = "0.4", features = ["release_max_level_debug"] }
+env_logger = { version = "0.11", default-features = false, features = ["humantime"] }
+lru = "0.18.0"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1

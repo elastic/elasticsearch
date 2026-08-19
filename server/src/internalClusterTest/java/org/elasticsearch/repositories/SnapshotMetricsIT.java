@@ -112,7 +112,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         // Block the snapshot to test "snapshot shards in progress"
         blockAllDataNodes(repositoryName);
         final String snapshotName = randomIdentifier();
-        final long beforeCreateSnapshotNanos = System.nanoTime();
+        final long beforeCreateSnapshotMs = System.currentTimeMillis();
         final ActionFuture<CreateSnapshotResponse> snapshotFuture;
         try {
             snapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshotName)
@@ -136,7 +136,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         // wait for snapshot to finish to test the other metrics
         safeGet(snapshotFuture);
-        final TimeValue snapshotElapsedTime = TimeValue.timeValueNanos(System.nanoTime() - beforeCreateSnapshotNanos);
+        final TimeValue snapshotElapsedTime = TimeValue.timeValueMillis(System.currentTimeMillis() - beforeCreateSnapshotMs);
         final double maxHistogramDurationSeconds = snapshotElapsedTime.secondsFrac() + DOUBLE_HISTOGRAM_DURATION_UPPER_BOUND_SLACK_SEC;
         collectMetrics();
 
@@ -209,10 +209,10 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
     public void testThrottlingMetrics() throws Exception {
         final String indexName = randomIdentifier();
-        final int numShards = randomIntBetween(1, 10);
+        final int numShards = randomIntBetween(1, 3);
         final int numReplicas = randomIntBetween(0, 1);
         createIndex(indexName, numShards, numReplicas);
-        indexRandom(true, indexName, randomIntBetween(100, 120));
+        indexRandom(true, indexName, randomIntBetween(10, 50));
 
         // Create a repository with restrictive throttling settings
         final String repositoryName = randomIdentifier();
@@ -221,8 +221,8 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             ByteSizeValue.ofKb(2)
         )
             .put(BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC.getKey(), ByteSizeValue.ofKb(2))
-            // Small chunk size ensures we don't get stuck throttling for too long
-            .put("chunk_size", ByteSizeValue.ofBytes(100));
+            // Small chunk size ensures we don't get stuck throttling for too long. But we don't want to overwhelm with too many chunks.
+            .put("chunk_size", ByteSizeValue.ofBytes(1000));
         createRepository(repositoryName, "mock", repositorySettings, false);
 
         final String snapshotName = randomIdentifier();

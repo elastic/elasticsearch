@@ -115,8 +115,16 @@ class FieldCapabilitiesFetcher {
             null
         );
         var indexMode = searchExecutionContext.getIndexSettings().getMode();
+        final int numberOfShards = searchExecutionContext.getIndexSettings().getNumberOfShards();
         if (searcher != null && canMatchShard(shardId, indexFilter, nowInMillis, searchExecutionContext) == false) {
-            return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), null, Collections.emptyMap(), false, indexMode);
+            return new FieldCapabilitiesIndexResponse(
+                shardId.getIndexName(),
+                null,
+                Collections.emptyMap(),
+                false,
+                indexMode,
+                numberOfShards
+            );
         }
 
         final MappingMetadata mapping = indexService.getMetadata().mapping();
@@ -135,7 +143,14 @@ class FieldCapabilitiesFetcher {
             indexMappingHash = fieldPredicate.modifyHash(indexMappingHash);
             final Map<String, IndexFieldCapabilities> existing = indexMappingHashToResponses.get(indexMappingHash);
             if (existing != null) {
-                return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, existing, true, indexMode);
+                return new FieldCapabilitiesIndexResponse(
+                    shardId.getIndexName(),
+                    indexMappingHash,
+                    existing,
+                    true,
+                    indexMode,
+                    numberOfShards
+                );
             }
         }
         task.ensureNotCancelled();
@@ -151,7 +166,7 @@ class FieldCapabilitiesFetcher {
         if (indexMappingHash != null) {
             indexMappingHashToResponses.put(indexMappingHash, responseMap);
         }
-        return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, responseMap, true, indexMode);
+        return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, responseMap, true, indexMode, numberOfShards);
     }
 
     static Map<String, IndexFieldCapabilities> retrieveFieldCaps(
@@ -168,6 +183,7 @@ class FieldCapabilitiesFetcher {
 
         Predicate<MappedFieldType> filter = buildFilter(filters, types, context);
         boolean isTimeSeriesIndex = context.getIndexSettings().getTimestampBounds() != null;
+        Set<String> inferenceFieldNames = context.getMappingLookup().inferenceFields().keySet();
         var fieldInfos = indexShard.getFieldInfos();
         includeEmptyFields = includeEmptyFields || enableFieldHasValue == false;
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
@@ -186,7 +202,8 @@ class FieldCapabilitiesFetcher {
                     ft.familyTypeName(),
                     context.isMetadataField(field),
                     ft.isSearchable(),
-                    ft.isAggregatable(),
+                    ft.isAggregatable(context.idFieldDataEnabled()),
+                    inferenceFieldNames.contains(field),
                     isTimeSeriesIndex ? ft.isDimension() : false,
                     isTimeSeriesIndex ? ft.getMetricType() : null,
                     ft.meta()
@@ -214,6 +231,7 @@ class FieldCapabilitiesFetcher {
                         IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                             parentField,
                             type,
+                            false,
                             false,
                             false,
                             false,

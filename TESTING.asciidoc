@@ -184,6 +184,11 @@ testClusters.register("runTask") {
 }
 -------------------------------------
 
+To quickly start a homogeneous multi-node cluster without editing any files, use `--nodes=N`:
+-------------------------------------
+./gradlew run --nodes=3
+-------------------------------------
+
 You can also place this config in custom init script (see above) to avoid accidental commits.
 If you are passing in the --debug-jvm flag with multiple nodes, you will need multiple remote debuggers running. One
 for each node listening at port 5007, 5008, 5009, and so on. Ensure that each remote debugger has auto restart enabled.
@@ -360,6 +365,19 @@ Pass build arguments.
 ------------------------------
 # Run tests against a release build. License key must be provided, but usually can be anything.
 ./gradlew test -Dbuild.snapshot=false -Dlicense.key="x-pack/license-tools/src/test/resources/public.key"
+------------------------------
+
+The same flag works for `internalClusterTest` tasks (embedded cluster, same JVM as Gradle).
+For `yamlRestTest` and `javaRestTest`, the test process is a separate JVM and does not
+inherit the Gradle property.  Without it, `LocalDistributionResolver` defaults
+`build.snapshot` to `true` and tries to locate a `*-SNAPSHOT` distribution that was never
+built, causing a `NoSuchFileException` before any test runs.  Pass the flag explicitly:
+
+------------------------------
+./gradlew :some:project:yamlRestTest \
+  -Dbuild.snapshot=false \
+  -Dtests.jvm.argline=-Dbuild.snapshot=false \
+  -Dlicense.key="x-pack/license-tools/src/test/resources/public.key"
 ------------------------------
 
 == Running verification tasks

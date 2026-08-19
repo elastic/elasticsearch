@@ -13,7 +13,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureUsage;
@@ -26,6 +28,8 @@ import java.util.Map;
 import java.util.Objects;
 
 public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
+
+    private static final TransportVersion INCLUDES_FROZEN_AFTER = TransportVersion.fromName("dlm_telemetry_frozen_after");
 
     public static final DataStreamLifecycleFeatureSetUsage DISABLED = new DataStreamLifecycleFeatureSetUsage();
     final LifecycleStats lifecycleStats;
@@ -88,20 +92,30 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
 
     public static class LifecycleStats implements Writeable, ToXContentFragment {
 
-        public static final LifecycleStats INITIAL = new LifecycleStats(0, true, RetentionStats.NO_DATA, RetentionStats.NO_DATA, Map.of());
+        public static final LifecycleStats INITIAL = new LifecycleStats(
+            0,
+            true,
+            TimeThresholdStats.NO_DATA,
+            TimeThresholdStats.NO_DATA,
+            null,
+            Map.of()
+        );
         public static final String DEFAULT_RETENTION_FIELD_NAME = "default";
         public static final String MAX_RETENTION_FIELD_NAME = "max";
         final long dataStreamsWithLifecyclesCount;
         final boolean defaultRolloverUsed;
-        final RetentionStats dataRetentionStats;
-        final RetentionStats effectiveRetentionStats;
+        final TimeThresholdStats dataRetentionStats;
+        final TimeThresholdStats effectiveRetentionStats;
+        @Nullable
+        final TimeThresholdStats frozenAfterStats;
         final Map<String, GlobalRetentionStats> globalRetentionStats;
 
         public LifecycleStats(
             long dataStreamsWithLifecyclesCount,
             boolean defaultRolloverUsed,
-            RetentionStats dataRetentionStats,
-            RetentionStats effectiveRetentionStats,
+            TimeThresholdStats dataRetentionStats,
+            TimeThresholdStats effectiveRetentionStats,
+            @Nullable TimeThresholdStats frozenAfterStats,
             Map<String, GlobalRetentionStats> globalRetentionStats
         ) {
             this.dataStreamsWithLifecyclesCount = dataStreamsWithLifecyclesCount;
@@ -109,14 +123,16 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
             this.dataRetentionStats = dataRetentionStats;
             this.effectiveRetentionStats = effectiveRetentionStats;
             this.globalRetentionStats = globalRetentionStats;
+            this.frozenAfterStats = frozenAfterStats;
         }
 
         public static LifecycleStats read(StreamInput in) throws IOException {
             return new LifecycleStats(
                 in.readVLong(),
                 in.readBoolean(),
-                RetentionStats.read(in),
-                RetentionStats.read(in),
+                TimeThresholdStats.read(in),
+                TimeThresholdStats.read(in),
+                in.getTransportVersion().supports(INCLUDES_FROZEN_AFTER) ? in.readOptionalWriteable(TimeThresholdStats::read) : null,
                 in.readMap(GlobalRetentionStats::new)
             );
         }
@@ -127,6 +143,9 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
             out.writeBoolean(defaultRolloverUsed);
             dataRetentionStats.writeTo(out);
             effectiveRetentionStats.writeTo(out);
+            if (out.getTransportVersion().supports(INCLUDES_FROZEN_AFTER)) {
+                out.writeOptionalWriteable(frozenAfterStats);
+            }
             out.writeMap(globalRetentionStats, (o, v) -> v.writeTo(o));
         }
 
@@ -137,6 +156,7 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
                 defaultRolloverUsed,
                 dataRetentionStats,
                 effectiveRetentionStats,
+                frozenAfterStats,
                 globalRetentionStats
             );
         }
@@ -151,6 +171,7 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
                 && defaultRolloverUsed == other.defaultRolloverUsed
                 && Objects.equals(dataRetentionStats, other.dataRetentionStats)
                 && Objects.equals(effectiveRetentionStats, other.effectiveRetentionStats)
+                && Objects.equals(frozenAfterStats, other.frozenAfterStats)
                 && Objects.equals(globalRetentionStats, other.globalRetentionStats);
         }
 
@@ -159,8 +180,11 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
             builder.field("count", dataStreamsWithLifecyclesCount);
             builder.field("default_rollover_used", defaultRolloverUsed);
 
-            RetentionStats.toXContentFragment(builder, dataRetentionStats, false);
-            RetentionStats.toXContentFragment(builder, effectiveRetentionStats, true);
+            TimeThresholdStats.toXContentFragment(builder, dataRetentionStats, TimeThresholdStats.DATA_RETENTION);
+            TimeThresholdStats.toXContentFragment(builder, effectiveRetentionStats, TimeThresholdStats.EFFECTIVE_RETENTION);
+            if (frozenAfterStats != null) {
+                TimeThresholdStats.toXContentFragment(builder, frozenAfterStats, TimeThresholdStats.FROZEN_AFTER);
+            }
 
             builder.startObject("global_retention");
             GlobalRetentionStats.toXContentFragment(
@@ -178,18 +202,21 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
         }
     }
 
-    public record RetentionStats(long dataStreamCount, Double avgMillis, Long minMillis, Long maxMillis) implements Writeable {
+    public record TimeThresholdStats(long dataStreamCount, Double avgMillis, Long minMillis, Long maxMillis) implements Writeable {
+        static final TimeThresholdStats NO_DATA = new TimeThresholdStats(0, null, null, null);
+        private static final String CONFIGURED_DATA_STREAMS = "configured_data_streams";
+        public static final Tuple<String, String> EFFECTIVE_RETENTION = Tuple.tuple("effective_retention", "retained_data_streams");
+        public static final Tuple<String, String> DATA_RETENTION = Tuple.tuple("data_retention", CONFIGURED_DATA_STREAMS);
+        public static final Tuple<String, String> FROZEN_AFTER = Tuple.tuple("frozen_after", CONFIGURED_DATA_STREAMS);
 
-        static final RetentionStats NO_DATA = new RetentionStats(0, null, null, null);
-
-        public static RetentionStats create(LongSummaryStatistics statistics) {
+        public static TimeThresholdStats create(LongSummaryStatistics statistics) {
             if (statistics.getCount() == 0) {
                 return NO_DATA;
             }
-            return new RetentionStats(statistics.getCount(), statistics.getAverage(), statistics.getMin(), statistics.getMax());
+            return new TimeThresholdStats(statistics.getCount(), statistics.getAverage(), statistics.getMin(), statistics.getMax());
         }
 
-        public static RetentionStats read(StreamInput in) throws IOException {
+        public static TimeThresholdStats read(StreamInput in) throws IOException {
             long dataStreamCount = in.readVLong();
             if (dataStreamCount == 0) {
                 return NO_DATA;
@@ -197,7 +224,7 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
             double avgMillis = in.readDouble();
             long minMillis = in.readVLong();
             long maxMillis = in.readVLong();
-            return new RetentionStats(dataStreamCount, avgMillis, minMillis, maxMillis);
+            return new TimeThresholdStats(dataStreamCount, avgMillis, minMillis, maxMillis);
         }
 
         @Override
@@ -210,9 +237,10 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
             }
         }
 
-        static void toXContentFragment(XContentBuilder builder, RetentionStats stats, boolean isEffectiveRetention) throws IOException {
-            builder.startObject(isEffectiveRetention ? "effective_retention" : "data_retention");
-            builder.field(isEffectiveRetention ? "retained_data_streams" : "configured_data_streams", stats.dataStreamCount());
+        static void toXContentFragment(XContentBuilder builder, TimeThresholdStats stats, Tuple<String, String> nameAndCountLabel)
+            throws IOException {
+            builder.startObject(nameAndCountLabel.v1());
+            builder.field(nameAndCountLabel.v2(), stats.dataStreamCount());
             if (stats.dataStreamCount() > 0) {
                 builder.field("minimum_millis", stats.minMillis);
                 builder.field("maximum_millis", stats.maxMillis);

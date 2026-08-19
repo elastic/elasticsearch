@@ -274,7 +274,7 @@ The connector syncs the following Confluence object types:
 * Attachments
 
 ::::{note}
-* Content of files bigger than 10 MB won’t be extracted.
+* Content of files bigger than 8 MiB won’t be extracted.
 * Permissions are not synced. **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 
 ::::

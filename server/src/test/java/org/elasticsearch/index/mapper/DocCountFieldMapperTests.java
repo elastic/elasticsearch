@@ -46,7 +46,7 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.field("foo", 500).field(CONTENT_TYPE, 100)));
 
         IndexableField field = doc.rootDoc().getField(DOC_COUNT_FIELD);
-        assertEquals(DOC_COUNT_FIELD, field.stringValue());
+        assertEquals(100, field.numericValue().intValue());
         assertEquals(1, doc.rootDoc().getFields(DOC_COUNT_FIELD).size());
     }
 

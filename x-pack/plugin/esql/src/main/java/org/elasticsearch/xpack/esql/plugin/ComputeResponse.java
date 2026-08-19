@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.TimeValue;
@@ -18,6 +19,7 @@ import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 /**
  * The compute result of {@link DataNodeRequest} or {@link ClusterComputeRequest}
@@ -61,12 +63,24 @@ final class ComputeResponse extends TransportResponse {
         this.failures = failures;
     }
 
-    ComputeResponse(StreamInput in) throws IOException {
+    ComputeResponse(StreamInput in, ThreadContext threadContext) throws IOException {
         if (supportsCompletionInfo(in.getTransportVersion())) {
-            completionInfo = DriverCompletionInfo.readFrom(in);
+            completionInfo = DriverCompletionInfo.readFrom(in, threadContext);
         } else {
             if (in.readBoolean()) {
-                completionInfo = new DriverCompletionInfo(0, 0, in.readCollectionAsImmutableList(DriverProfile::readFrom), List.of());
+                completionInfo = new DriverCompletionInfo(
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    in.readCollectionAsImmutableList(DriverProfile::readFrom),
+                    List.of(),
+                    java.util.Map.of(),
+                    false,
+                    Set.of()
+                );
             } else {
                 completionInfo = DriverCompletionInfo.EMPTY;
             }

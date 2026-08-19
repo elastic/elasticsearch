@@ -25,9 +25,9 @@ import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.esql.arrow.ArrowFormat;
-import org.elasticsearch.xpack.esql.arrow.ArrowResponse;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
+import org.elasticsearch.xpack.esql.formatter.arrow.ArrowFormat;
+import org.elasticsearch.xpack.esql.formatter.arrow.ArrowResponse;
 import org.elasticsearch.xpack.esql.plugin.EsqlMediaTypeParser;
 
 import java.io.IOException;
@@ -141,8 +141,7 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
                 );
             } else if (mediaType == ArrowFormat.INSTANCE) {
                 ArrowResponse arrowResponse = new ArrowResponse(
-                    // Map here to avoid cyclic dependencies between the arrow subproject and its parent
-                    esqlResponse.columns().stream().map(c -> new ArrowResponse.Column(c.outputType(), c.name())).toList(),
+                    esqlResponse.columns().stream().map(c -> new ArrowResponse.Column(c.type(), c.name())).toList(),
                     esqlResponse.pages()
                 );
                 restResponse = RestResponse.chunked(RestStatus.OK, arrowResponse, Releasables.wrap(arrowResponse, releasable));

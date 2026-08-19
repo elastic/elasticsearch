@@ -48,6 +48,7 @@ import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.Measurement;
@@ -303,7 +304,10 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             harness.indexName
         ).setShard(0).setPrimary(true);
         var allocationExplainResponse = safeGet(client().execute(TransportClusterAllocationExplainAction.TYPE, allocationExplainRequest));
-        logger.info("---> Allocation explain response: " + Strings.toString(allocationExplainResponse.getExplanation(), true, true));
+        logger.info(
+            "---> Allocation explain response: {}",
+            Strings.toTruncatedString(allocationExplainResponse.getExplanation(), true, true)
+        );
 
         var decision = allocationExplainResponse.getExplanation().getShardAllocationDecision().getMoveDecision();
         assertThat("Rebalancing should be disabled", decision.canRebalanceCluster(), equalTo(false));
@@ -570,7 +574,10 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             harness.indexName
         ).setShard(0).setPrimary(true);
         var allocationExplainResponse = safeGet(client().execute(TransportClusterAllocationExplainAction.TYPE, allocationExplainRequest));
-        logger.info("---> Allocation explain response: " + Strings.toString(allocationExplainResponse.getExplanation(), true, true));
+        logger.info(
+            "---> Allocation explain response: {}",
+            Strings.toTruncatedString(allocationExplainResponse.getExplanation(), true, true)
+        );
 
         var decision = allocationExplainResponse.getExplanation().getShardAllocationDecision().getMoveDecision();
         assertThat("Rebalancing should be enabled", decision.canRebalanceCluster(), equalTo(true));
@@ -614,7 +621,24 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         ).sorted(comparator).toList();
 
         // The moved shard should be at the head of the sorted list
-        assertThat(movedShardId, equalTo(bestShardsToMove.get(0).shardId().id()));
+        assertThat(movedShardId, equalTo(bestShardsToMove.getFirst().shardId().id()));
+
+        // Assert that the moved shard was recovered with priority RELOCATION_CAN_REMAIN_NOT_PREFERRED:
+        List<RecoveryState> recoveryStatesForMovedShard = admin().indices()
+            .prepareRecoveries(harness.indexName)
+            .get()
+            .shardRecoveryStates()
+            .get(harness.indexName)
+            .stream()
+            .filter(state -> state.getShardId().id() == movedShardId)
+            // We're interesting on the recovery after the move to the second or third node, not the initial creation on the first node:
+            .filter(state -> !state.getTargetNode().getId().equals(harness.firstDataNodeId))
+            .toList();
+        assertThat(recoveryStatesForMovedShard.size(), equalTo(1));
+        assertThat(
+            recoveryStatesForMovedShard.getFirst().getRecoveryPriority(),
+            equalTo(ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED)
+        );
     }
 
     public void testMaxQueueLatencyMetricIsPublished() {
@@ -661,6 +685,10 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             .put(onlyRoles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE)))
             .build();
         final var dataNodes = internalCluster().startNodes(3, settings);
+        ensureStableCluster(3);
+        // Metrics might have been computed when the cluster is still forming and hence not include
+        // all the nodes. Collect them once to enable computation again so that we get metrics for all nodes.
+        getMostRecentAverageWriteLoadMetrics();
 
         // Refresh cluster info (should trigger polling)
         refreshClusterInfo();
@@ -917,7 +945,8 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         shardRouting = shardRouting.initialize(assignedShardNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);

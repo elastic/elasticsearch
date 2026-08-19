@@ -24,7 +24,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
@@ -140,8 +139,8 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
      * <p>
      * Although the API is multi-valued, most codecs in Lucene specialize
      * for the case where documents have at most one value. In this case
-     * {@link FieldData#unwrapSingleton(SortedNumericDoubleValues)} will return
-     * the underlying single-valued NumericDoubleValues representation.
+     * {@link SortedNumericDoubleValues#unwrapSingleton(SortedNumericDoubleValues)}
+     * will return the underlying single-valued NumericDoubleValues representation.
      */
     static final class SortedNumericHalfFloatFieldData extends LeafDoubleFieldData {
         final LeafReader reader;
@@ -208,6 +207,7 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         final SortedNumericDocValues in;
 
         MultiHalfFloatValues(SortedNumericDocValues in) {
+            super(in);
             this.in = in;
         }
 
@@ -237,8 +237,8 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
      * <p>
      * Although the API is multi-valued, most codecs in Lucene specialize
      * for the case where documents have at most one value. In this case
-     * {@link FieldData#unwrapSingleton(SortedNumericDoubleValues)} will return
-     * the underlying single-valued NumericDoubleValues representation.
+     * {@link SortedNumericDoubleValues#unwrapSingleton(SortedNumericDoubleValues)}
+     * will return the underlying single-valued NumericDoubleValues representation.
      */
     static final class SortedNumericFloatFieldData extends LeafDoubleFieldData {
         final LeafReader reader;
@@ -301,6 +301,7 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         final SortedNumericDocValues in;
 
         MultiFloatValues(SortedNumericDocValues in) {
+            super(in);
             this.in = in;
         }
 
@@ -330,8 +331,8 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
      * <p>
      * Although the API is multi-valued, most codecs in Lucene specialize
      * for the case where documents have at most one value. In this case
-     * {@link FieldData#unwrapSingleton(SortedNumericDoubleValues)} will return
-     * the underlying single-valued NumericDoubleValues representation.
+     * {@link SortedNumericDoubleValues#unwrapSingleton(SortedNumericDoubleValues)}
+     * will return the underlying single-valued NumericDoubleValues representation.
      */
     static final class SortedNumericDoubleFieldData extends LeafDoubleFieldData {
         final LeafReader reader;
@@ -352,7 +353,7 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         public SortedNumericDoubleValues getDoubleValues() {
             try {
                 SortedNumericDocValues raw = DocValues.getSortedNumeric(reader, field);
-                return FieldData.sortableLongBitsToDoubles(SortedNumericLongValues.wrap(raw));
+                return SortedNumericDoubleValues.wrap(raw);
             } catch (IOException e) {
                 throw new IllegalStateException("Cannot load doc values", e);
             }

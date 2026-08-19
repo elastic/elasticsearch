@@ -26,6 +26,7 @@ import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.persistent.PersistentTaskLifecycleManager;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
@@ -38,6 +39,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.RemoteTransportClient;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -71,5 +73,7 @@ public record PluginServiceInstances(
     RemoteTransportClient remoteTransportClient,
     CrossProjectModeDecider crossProjectModeDecider,
     PersistentTaskLifecycleManager taskLifecycleManager,
-    DataStreamLifecycleErrorStore dlmErrorStore
+    DataStreamLifecycleErrorStore dlmErrorStore,
+    IpLocationService ipLocationService,
+    UsageService usageService
 ) implements Plugin.PluginServices {}

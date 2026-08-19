@@ -1,50 +1,32 @@
 ---
-navigation_title: "Combine result sets with subqueries"
+navigation_title: "Subqueries"
 applies_to:
-  serverless: preview
-  stack: preview 9.4.0
+  serverless: ga
+  stack: preview 9.4, ga 9.5+
 products:
   - id: elasticsearch
 ---
 
-# {{esql}} subquery [esql-subquery]
+# Nest {{esql}} queries using subqueries [esql-subquery]
 
-A subquery is a complete ES|QL query wrapped in parentheses that can be used
-in place of an index pattern in the [`FROM`](/reference/query-languages/esql/commands/from.md) command.
-Each subquery is executed independently. The final output combines all these
-results into a single list, including any duplicate rows.
+A subquery is a complete ES|QL query wrapped in parentheses, nested inside another query. Each subquery runs independently and cannot reference columns from the outer query.
 
-## Syntax
+You can use subqueries in two places:
 
-```esql
-FROM index_pattern [, (FROM index_pattern [METADATA fields] [| processing_commands])]* [METADATA fields] <1>
-FROM (FROM index_pattern [METADATA fields] [| processing_commands]) [, (FROM index_pattern [METADATA fields] [| processing_commands])]* [METADATA fields] <2>
-```
+* **In a [`FROM` command](/reference/query-languages/esql/esql-from-subquery.md)**: each subquery runs its own pipeline and its rows are combined into the outer result set.
+* **In a [`WHERE` command with `IN` or `NOT IN`](/reference/query-languages/esql/esql-in-subquery.md)**: the subquery returns exactly one column, and the outer query filters rows against those values.
 
-A subquery starts with a `FROM` source command followed by zero or more piped
-processing commands, all enclosed in parentheses. Multiple subqueries and regular
-index patterns can be combined in a single `FROM` clause, separated by commas.
+## Supported source commands
 
-1. When an index pattern is present, zero or more subqueries can follow.
-2. Without an index pattern, one or more subqueries are required.
+A subquery starts with one of the following source commands:
 
-## Description
+- [`FROM`](/reference/query-languages/esql/commands/from.md): read from an index pattern.
+- [`TS`](/reference/query-languages/esql/commands/ts.md): read from a time series index pattern.
+- [`ROW`](/reference/query-languages/esql/commands/row.md): synthesize rows from literal values.
 
-Subqueries enable you to combine results from multiple independently processed
-data sources within a single query. Each subquery runs its own pipeline of
-processing commands (such as `WHERE`, `EVAL`, `STATS`, or `SORT`) and the
-results are combined together with results from other index patterns or subqueries
-in the `FROM` clause.
+## Supported processing commands
 
-Fields that exist in one source but not another are filled with `null` values.
-
-The subquery pipeline can include commands such as the following:
-
-Source commands:
-
-- [`FROM`](/reference/query-languages/esql/commands/from.md)
-
-Processing commands:
+The source command can be followed by zero or more piped processing commands:
 
 - [`CHANGE_POINT`](/reference/query-languages/esql/commands/change-point.md)
 - [`COMPLETION`](/reference/query-languages/esql/commands/completion.md)
@@ -65,88 +47,7 @@ Processing commands:
 - [`STATS`](/reference/query-languages/esql/commands/stats-by.md)
 - [`WHERE`](/reference/query-languages/esql/commands/where.md)
 
-The [`METADATA` fields](/reference/query-languages/esql/esql-metadata-fields.md)
-is also supported on either the subquery or the outer `FROM`.
+## Learn more
 
-## Examples
-
-The following examples show how to use subqueries within the `FROM` command.
-
-### Combine data from multiple indices
-
-Use a subquery alongside a regular index pattern to combine results from
-different indices:
-
-:::{include} _snippets/commands/examples/subquery.csv-spec/basic_subquery.md
-:::
-
-Rows from `employees` have `null` for `client_ip`, while rows from `sample_data`
-have `null` for `emp_no` and `languages`, because each index has different fields.
-
-### Use only subqueries (no main index pattern)
-
-You can use one or more subqueries without specifying a regular index pattern:
-
-:::{include} _snippets/commands/examples/subquery.csv-spec/subquery_only.md
-:::
-
-The `FROM` clause contains only a subquery with no regular index pattern. The
-subquery wraps the `employees` index, and the outer query filters, sorts, and
-projects the results.
-
-### Filter data inside a subquery
-
-Apply a `WHERE` clause inside the subquery to pre-filter data before combining:
-
-:::{include} _snippets/commands/examples/subquery.csv-spec/subquery_with_filter.md
-:::
-
-The `WHERE` inside the subquery filters `sample_data` to only rows where
-`client_ip` is `172.21.3.15` before combining with `employees`. The `_index`
-metadata field shows which index each row originated from.
-
-### Aggregate data inside a subquery
-
-Use `STATS` inside a subquery to aggregate data before combining with other sources:
-
-:::{include} _snippets/commands/examples/subquery.csv-spec/subquery_with_aggregation.md
-:::
-
-The `STATS` inside the subquery aggregates `sample_data` by counting rows per
-`client_ip` before combining with `employees`. The `cnt` column is `null` for
-`employees` rows since that field only exists in the subquery output.
-
-### Combine multiple subqueries
-
-Multiple subqueries can be combined in a single `FROM` clause:
-
-:::{include} _snippets/commands/examples/subquery.csv-spec/multiple_subqueries.md
-:::
-
-Two subqueries aggregate `sample_data` and `sample_data_str` separately, each
-counting rows by `client_ip`. The results are combined and then filtered to only
-show rows where `client_ip` is `172.21.3.15`. The `_index` field confirms each
-row's source.
-
-### Use LOOKUP JOIN inside a subquery
-
-Enrich subquery results with a lookup join before combining:
-
-:::{include} _snippets/commands/examples/subquery.csv-spec/subquery_with_lookup_join.md
-:::
-
-The `LOOKUP JOIN` inside the subquery joins each `sample_data` row with the
-`env` field from `clientips_lookup` based on `client_ip`. The `env` column is
-`null` for `employees` rows since the lookup only applies within the subquery.
-
-### Sort and limit inside a subquery
-
-Use `SORT` and `LIMIT` inside a subquery to return only top results:
-
-:::{include} _snippets/commands/examples/subquery.csv-spec/subquery_with_sort.md
-:::
-
-The subquery aggregates `sample_data` by `client_ip`, sorts by count in
-descending order, and limits to the top result. Only the `client_ip` with the
-highest count (`172.21.3.15` with 4 occurrences) is included when combined with
-`employees`.
+* [Use subqueries in a `FROM` command](/reference/query-languages/esql/esql-from-subquery.md): combine result sets from independently processed sources.
+* [Use subqueries in a `WHERE` command](/reference/query-languages/esql/esql-in-subquery.md): filter rows with `IN` or `NOT IN`.

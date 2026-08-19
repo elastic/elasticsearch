@@ -11,12 +11,15 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantFloatVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.FloatArrayVector;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.FloatVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.FloatArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -148,6 +151,33 @@ public final class TopFloatLongAggregatorFunction implements AggregatorFunction 
   }
 
   private void addRawVector(FloatVector vVector, LongVector outputValueVector) {
+    if (vVector.getClass() == FloatArrayVector.class) {
+      FloatArrayVector specialized = (FloatArrayVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        float vValue = specialized.getFloat(valuesPosition);
+        long outputValueValue = outputValueVector.getLong(valuesPosition);
+        TopFloatLongAggregator.combine(state, vValue, outputValueValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == FloatArrowBufVector.class) {
+      FloatArrowBufVector specialized = (FloatArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        float vValue = specialized.getFloat(valuesPosition);
+        long outputValueValue = outputValueVector.getLong(valuesPosition);
+        TopFloatLongAggregator.combine(state, vValue, outputValueValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == ConstantFloatVector.class) {
+      ConstantFloatVector specialized = (ConstantFloatVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        float vValue = specialized.getFloat(valuesPosition);
+        long outputValueValue = outputValueVector.getLong(valuesPosition);
+        TopFloatLongAggregator.combine(state, vValue, outputValueValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       float vValue = vVector.getFloat(valuesPosition);
       long outputValueValue = outputValueVector.getLong(valuesPosition);
@@ -156,6 +186,42 @@ public final class TopFloatLongAggregatorFunction implements AggregatorFunction 
   }
 
   private void addRawVector(FloatVector vVector, LongVector outputValueVector, BooleanVector mask) {
+    if (vVector.getClass() == FloatArrayVector.class) {
+      FloatArrayVector specialized = (FloatArrayVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        float vValue = specialized.getFloat(valuesPosition);
+        long outputValueValue = outputValueVector.getLong(valuesPosition);
+        TopFloatLongAggregator.combine(state, vValue, outputValueValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == FloatArrowBufVector.class) {
+      FloatArrowBufVector specialized = (FloatArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        float vValue = specialized.getFloat(valuesPosition);
+        long outputValueValue = outputValueVector.getLong(valuesPosition);
+        TopFloatLongAggregator.combine(state, vValue, outputValueValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == ConstantFloatVector.class) {
+      ConstantFloatVector specialized = (ConstantFloatVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        float vValue = specialized.getFloat(valuesPosition);
+        long outputValueValue = outputValueVector.getLong(valuesPosition);
+        TopFloatLongAggregator.combine(state, vValue, outputValueValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;

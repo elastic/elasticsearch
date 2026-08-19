@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -44,6 +45,7 @@ public class CountTests extends AbstractAggregationTestCase {
         var suppliers = new ArrayList<TestCaseSupplier>();
         FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
         FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
+        FunctionAppliesTo dateRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false);
 
         Stream.of(
             MultiRowTestCaseSupplier.nullCases(1, 1000),
@@ -54,6 +56,8 @@ public class CountTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
+            MultiRowTestCaseSupplier.dateRangeCases(1, 1000).stream().map(s -> s.withAppliesTo(dateRangeAppliesTo)).toList(),
+            MultiRowTestCaseSupplier.doubleRangeCases(1, 1000),
             MultiRowTestCaseSupplier.denseVectorCases(1, 1000),
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),
@@ -66,6 +70,7 @@ public class CountTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geohexCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
+            MultiRowTestCaseSupplier.flattenedCases(1, 1000),
             MultiRowTestCaseSupplier.tdigestCases(1, 1000)
                 .stream()
                 .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
@@ -77,43 +82,47 @@ public class CountTests extends AbstractAggregationTestCase {
         ).flatMap(List::stream).map(CountTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         // No rows
-        for (var dataType : List.of(
+        List<DataType> types = List.of(
             DataType.NULL,
             DataType.INTEGER,
             DataType.LONG,
             DataType.DOUBLE,
             DataType.DATETIME,
             DataType.DATE_NANOS,
+            DataType.DATE_RANGE,
+            DataType.DOUBLE_RANGE,
             DataType.DENSE_VECTOR,
             DataType.EXPONENTIAL_HISTOGRAM,
             DataType.BOOLEAN,
             DataType.IP,
             DataType.VERSION,
             DataType.KEYWORD,
+            DataType.FLATTENED,
             DataType.TDIGEST,
             DataType.TEXT,
             DataType.GEO_POINT,
             DataType.CARTESIAN_POINT,
             DataType.UNSIGNED_LONG,
             DataType.AGGREGATE_METRIC_DOUBLE
-        )) {
+        );
+        for (var dataType : types) {
             var field = dataType == DataType.EXPONENTIAL_HISTOGRAM || dataType == DataType.TDIGEST
                 ? TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field")
                     .withAppliesTo(histogramPreviewAppliesTo)
                     .withAppliesTo(histogramGaAppliesTo)
                 : TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field");
-            suppliers.add(
-                new TestCaseSupplier(
-                    "No rows (" + dataType + ")",
-                    List.of(dataType),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(field),
-                        dataType == DataType.DENSE_VECTOR ? "DenseVectorCount" : "Count",
-                        DataType.LONG,
-                        equalTo(0L)
-                    )
-                )
-            );
+            suppliers.add(new TestCaseSupplier("No rows (" + dataType + ")", List.of(dataType), () -> {
+                if (dataType == DataType.FLATTENED) {
+                    assumeTrue("Requires FLATTENED_DATATYPE capability", EsqlCapabilities.Cap.FLATTENED_DATATYPE.isEnabled());
+                }
+                return new TestCaseSupplier.TestCase(
+                    List.of(field),
+                    // Dense vector uses a different count implementation
+                    dataType == DataType.DENSE_VECTOR ? "DenseVectorCount" : "Count",
+                    DataType.LONG,
+                    equalTo(0L)
+                );
+            }));
         }
 
         // "No rows" expects 0 here instead of null

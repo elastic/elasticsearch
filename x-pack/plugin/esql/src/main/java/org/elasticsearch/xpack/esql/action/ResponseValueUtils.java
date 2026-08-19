@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -44,6 +45,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DA
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleBlockToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateRangeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.doubleRangeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.exponentialHistogramBlockToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.geoGridToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
@@ -126,7 +128,7 @@ public final class ResponseValueUtils {
         return values;
     }
 
-    interface BlockValueExtractor {
+    public interface BlockValueExtractor {
         Object extract(Block block, int offset, BytesRef scratch);
     }
 
@@ -138,7 +140,7 @@ public final class ResponseValueUtils {
         return valueExtractors;
     }
 
-    private static BlockValueExtractor valueExtractorFor(DataType dataType, ZoneId zoneId) {
+    public static BlockValueExtractor valueExtractorFor(DataType dataType, ZoneId zoneId) {
         return switch (dataType) {
             case UNSIGNED_LONG -> (block, offset, scratch) -> unsignedLongAsNumber(((LongBlock) block).getLong(offset));
             case LONG, COUNTER_LONG -> (block, offset, scratch) -> ((LongBlock) block).getLong(offset);
@@ -182,6 +184,11 @@ public final class ResponseValueUtils {
                 var to = ((LongRangeBlock) block).getToBlock().getLong(offset);
                 return dateRangeToString(from, to);
             };
+            case DOUBLE_RANGE -> (block, offset, scratch) -> {
+                var from = ((DoubleRangeBlock) block).getDoubleFromBlock().getDouble(offset);
+                var to = ((DoubleRangeBlock) block).getDoubleToBlock().getDouble(offset);
+                return doubleRangeToString(from, to);
+            };
             case TDIGEST -> (block, offset, scratch) -> ((TDigestBlock) block).getTDigestHolder(offset, new TDigestHolder());
             case HISTOGRAM -> (block, offset, scratch) -> EsqlDataTypeConverter.histogramToString(
                 ((BytesRefBlock) block).getBytesRef(offset, scratch)
@@ -202,6 +209,7 @@ public final class ResponseValueUtils {
                 return TimeSeriesIdFieldMapper.encodeTsid(val);
             };
             case DENSE_VECTOR -> (block, offset, scratch) -> ((FloatBlock) block).getFloat(offset);
+            case FLATTENED -> (block, offset, scratch) -> ((BytesRefBlock) block).getBytesRef(offset, scratch).utf8ToString();
             case NULL, UNSUPPORTED -> (block, offset, scratch) -> null;
             case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, PARTIAL_AGG ->
                 throw EsqlIllegalArgumentException.illegalDataType(dataType);

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.response;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
@@ -17,17 +16,15 @@ import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeExce
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiStreamingProcessor;
 
 import java.util.concurrent.Flow;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 import static org.elasticsearch.xpack.inference.external.http.retry.ResponseHandlerUtils.getFirstHeaderOrUnknown;
 
 /**
@@ -63,19 +60,12 @@ public class AzureMistralOpenAiExternalResponseHandler extends BaseResponseHandl
     }
 
     @Override
-    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result)
-        throws RetryException {
-        checkForFailureStatusCode(request, result);
-        checkForEmptyBody(throttlerManager, logger, request, result);
-    }
-
-    @Override
     public boolean canHandleStreamingResponses() {
         return canHandleStreamingResponses;
     }
 
     @Override
-    public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
+    public InferenceServiceResults parseResult(OutboundRequest outboundRequest, Flow.Publisher<HttpResult> flow) {
         var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
         var openAiProcessor = new OpenAiStreamingProcessor();
 
@@ -84,54 +74,51 @@ public class AzureMistralOpenAiExternalResponseHandler extends BaseResponseHandl
         return new StreamingChatCompletionResults(openAiProcessor);
     }
 
-    public void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
-        if (result.isSuccessfulResponse()) {
-            return;
-        }
-
+    @Override
+    public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
         // handle error codes
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {
-            throw handle500Error(request, result);
+            return handle500Error(outboundRequest, result);
         } else if (statusCode == 503) {
-            throw handle503Error(request, result);
+            return handle503Error(outboundRequest, result);
         } else if (statusCode > 500) {
-            throw handleOther500Error(request, result);
+            return handleOther500Error(outboundRequest, result);
         } else if (statusCode == 429) {
-            throw handleRateLimitingError(request, result);
+            return handleRateLimitingError(outboundRequest, result);
         } else if (isContentTooLarge(result)) {
-            throw new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, request, result));
+            return new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, outboundRequest, result));
         } else if (statusCode == 401) {
-            throw handleAuthenticationError(request, result);
+            return handleAuthenticationError(outboundRequest, result);
         } else if (statusCode >= 300 && statusCode < 400) {
-            throw handleRedirectionStatusCode(request, result);
+            return handleRedirectionStatusCode(outboundRequest, result);
         } else {
-            throw new RetryException(false, buildError(UNSUCCESSFUL, request, result));
+            return new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
         }
     }
 
-    protected RetryException handle500Error(Request request, HttpResult result) {
-        return new RetryException(true, buildError(SERVER_ERROR, request, result));
+    protected RetryException handle500Error(OutboundRequest outboundRequest, HttpResult result) {
+        return new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
     }
 
-    protected RetryException handle503Error(Request request, HttpResult result) {
-        return new RetryException(true, buildError(SERVER_BUSY_ERROR, request, result));
+    protected RetryException handle503Error(OutboundRequest outboundRequest, HttpResult result) {
+        return new RetryException(true, buildError(SERVER_BUSY_ERROR, outboundRequest, result));
     }
 
-    protected RetryException handleOther500Error(Request request, HttpResult result) {
-        return new RetryException(false, buildError(SERVER_ERROR, request, result));
+    protected RetryException handleOther500Error(OutboundRequest outboundRequest, HttpResult result) {
+        return new RetryException(false, buildError(SERVER_ERROR, outboundRequest, result));
     }
 
-    protected RetryException handleAuthenticationError(Request request, HttpResult result) {
-        return new RetryException(false, buildError(AUTHENTICATION, request, result));
+    protected RetryException handleAuthenticationError(OutboundRequest outboundRequest, HttpResult result) {
+        return new RetryException(false, buildError(AUTHENTICATION, outboundRequest, result));
     }
 
-    protected RetryException handleRateLimitingError(Request request, HttpResult result) {
-        return new RetryException(true, buildError(buildRateLimitErrorMessage(result), request, result));
+    protected RetryException handleRateLimitingError(OutboundRequest outboundRequest, HttpResult result) {
+        return new RetryException(true, buildError(buildRateLimitErrorMessage(result), outboundRequest, result));
     }
 
-    protected RetryException handleRedirectionStatusCode(Request request, HttpResult result) {
-        throw new RetryException(false, buildError(REDIRECTION, request, result));
+    protected RetryException handleRedirectionStatusCode(OutboundRequest outboundRequest, HttpResult result) {
+        return new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
     }
 
     public static boolean isContentTooLarge(HttpResult result) {

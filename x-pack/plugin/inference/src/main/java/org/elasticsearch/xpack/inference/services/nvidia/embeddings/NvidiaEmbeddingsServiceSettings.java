@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.nvidia.embeddings;
 
 import org.apache.http.client.utils.URIBuilder;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -149,6 +150,35 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
     }
 
     @Override
+    public NvidiaEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            serviceSettings,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new NvidiaEmbeddingsServiceSettings(
+            this.modelId,
+            this.uri,
+            this.dimensions,
+            this.similarity,
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
+            extractedRateLimitSettings
+        );
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }
@@ -227,4 +257,8 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
         return Objects.hash(modelId, uri, dimensions, maxInputTokens, similarity, rateLimitSettings);
     }
 
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
 }

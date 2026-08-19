@@ -178,7 +178,7 @@ The connector syncs folders as separate documents in Elasticsearch. The followin
 * `id`
 
 ::::{note}
-* Content from files bigger than 10 MB won’t be extracted
+* Content from files bigger than 8 MiB won’t be extracted
 * Permissions are not synced by default. You must first enable [DLS](#es-connectors-network-drive-client-dls). Otherwise, **all documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 
 ::::

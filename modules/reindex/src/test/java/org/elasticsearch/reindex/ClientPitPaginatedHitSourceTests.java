@@ -26,7 +26,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -122,7 +122,8 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             responses::add,
             e -> fail(),
             new ParentTaskAssigningClient(client, parentTask),
-            createPitSearchRequest()
+            createPitSearchRequest(),
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
         );
 
         paginatedHitSource.resume(resumeInfo);
@@ -137,6 +138,7 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             PaginatedHitSource.AsyncResponse asyncResponse = responses.poll(10, TimeUnit.SECONDS);
             assertNotNull(asyncResponse);
             assertSameHits(asyncResponse.response().getHits(), searchResponse.getHits().getHits());
+            asyncResponse.response().getHits().forEach(PaginatedHitSource.Hit::release);
         } finally {
             searchResponse.decRef();
         }
@@ -156,7 +158,8 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             responses::add,
             e -> fail(),
             new ParentTaskAssigningClient(client, parentTask),
-            createPitSearchRequest()
+            createPitSearchRequest(),
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
         );
 
         paginatedHitSource.start();
@@ -187,7 +190,8 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             r -> fail(),
             e -> fail(),
             new ParentTaskAssigningClient(client, parentTask),
-            createPitSearchRequest()
+            createPitSearchRequest(),
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
         );
 
         // Initially: no search_after -> false
@@ -211,7 +215,8 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             r -> fail(),
             e -> fail(),
             new ParentTaskAssigningClient(new MockClient(threadPool), new TaskId("n", randomInt())),
-            createPitSearchRequest()
+            createPitSearchRequest(),
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
         );
         assertThat(paginatedHitSource.getPitId(), equalTo(PIT_ID));
     }
@@ -231,7 +236,8 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             responses::add,
             e -> fail(),
             new ParentTaskAssigningClient(client, parentTask),
-            createPitSearchRequest()
+            createPitSearchRequest(),
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
         );
 
         paginatedHitSource.start();
@@ -263,7 +269,8 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             responses::add,
             e -> fail(),
             new ParentTaskAssigningClient(client, parentTask),
-            createPitSearchRequest()
+            createPitSearchRequest(),
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
         );
 
         paginatedHitSource.setSearchAfterValues(searchAfterValues);
@@ -277,6 +284,7 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             client.respond(TransportSearchAction.TYPE, searchResponse);
             PaginatedHitSource.AsyncResponse asyncResponse = responses.poll(10, TimeUnit.SECONDS);
             assertNotNull(asyncResponse);
+            asyncResponse.response().getHits().forEach(PaginatedHitSource.Hit::release);
         } finally {
             searchResponse.decRef();
         }
@@ -301,7 +309,8 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
                     r -> {},
                     e -> {},
                     assigningClient,
-                    request
+                    request,
+                    new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
                 )
             );
         }
@@ -315,20 +324,45 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
         AtomicInteger actualSearchRetries = new AtomicInteger();
         int expectedSearchRetries = 0;
 
-        ClientPitPaginatedHitSource paginatedHitSource = new ClientPitPaginatedHitSource(
-            logger,
-            BackoffPolicy.constantBackoff(TimeValue.ZERO, retries),
-            threadPool,
-            actualSearchRetries::incrementAndGet,
-            responses::add,
-            failureHandler,
-            new ParentTaskAssigningClient(client, parentTask),
-            createPitSearchRequest()
-        );
+        final var testHeaderName = randomIdentifier("header-");
+        final var threadContext = threadPool.getThreadContext();
+
+        final ClientPitPaginatedHitSource paginatedHitSource;
+        try (var ignored = threadContext.newStoredContext()) {
+            final var testHeaderInitialValue = randomIdentifier("initial-");
+            threadContext.putHeader(testHeaderName, testHeaderInitialValue);
+            paginatedHitSource = new ClientPitPaginatedHitSource(
+                logger,
+                BackoffPolicy.constantBackoff(TimeValue.ZERO, retries),
+                threadPool,
+                actualSearchRetries::incrementAndGet,
+                responses::add,
+                failureHandler,
+                new ParentTaskAssigningClient(client, parentTask) {
+                    @Override
+                    protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                        ActionType<Response> action,
+                        Request request,
+                        ActionListener<Response> listener
+                    ) {
+                        // Verify that the action is always invoked in the initial thread context, even though this header is set to
+                        // different random values in the rest of the test. This ensures we don't accumulate a deeply-nested tree of spans
+                        // when tracing these requests for APM.
+                        assertEquals(testHeaderInitialValue, threadContext.getHeader(testHeaderName));
+                        super.doExecute(action, request, listener);
+                    }
+                },
+                createPitSearchRequest(),
+                new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
+            );
+        }
 
         paginatedHitSource.start();
         for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {
-            client.fail(TransportSearchAction.TYPE, new EsRejectedExecutionException());
+            try (var ignored = threadContext.newStoredContext()) {
+                threadContext.putHeader(testHeaderName, randomIdentifier());
+                client.fail(TransportSearchAction.TYPE, new EsRejectedExecutionException());
+            }
             if (retry >= retries) {
                 return;
             }
@@ -338,25 +372,41 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
         client.validateRequest(TransportSearchAction.TYPE, (SearchRequest r) -> assertSame(Boolean.FALSE, r.allowPartialSearchResults()));
         SearchResponse searchResponse = createPitSearchResponse();
         try {
-            client.respond(TransportSearchAction.TYPE, searchResponse);
+            try (var ignored = threadContext.newStoredContext()) {
+                threadContext.putHeader(testHeaderName, randomIdentifier());
+                client.respond(TransportSearchAction.TYPE, searchResponse);
+            }
 
             for (int i = 0; i < randomIntBetween(1, 10); ++i) {
                 PaginatedHitSource.AsyncResponse asyncResponse = responses.poll(10, TimeUnit.SECONDS);
                 assertNotNull(asyncResponse);
                 assertEquals(0, responses.size());
                 assertSameHits(asyncResponse.response().getHits(), searchResponse.getHits().getHits());
+                asyncResponse.response().getHits().forEach(PaginatedHitSource.Hit::release);
                 asyncResponse.done(TimeValue.ZERO);
 
                 for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {
-                    client.fail(TransportSearchAction.TYPE, new EsRejectedExecutionException());
+                    try (var ignored = threadContext.newStoredContext()) {
+                        threadContext.putHeader(testHeaderName, randomIdentifier());
+                        client.fail(TransportSearchAction.TYPE, new EsRejectedExecutionException());
+                    }
                     client.awaitOperation();
                     ++expectedSearchRetries;
                 }
 
                 searchResponse.decRef();
                 searchResponse = createPitSearchResponse();
-                client.respond(TransportSearchAction.TYPE, searchResponse);
+                try (var ignored = threadContext.newStoredContext()) {
+                    threadContext.putHeader(testHeaderName, randomIdentifier());
+                    client.respond(TransportSearchAction.TYPE, searchResponse);
+                }
             }
+
+            // Each loop iteration ends with client.respond(), which synchronously queues one trailing
+            // async response. Drain and release its hits before asserting and before the finally decRef.
+            PaginatedHitSource.AsyncResponse trailingResponse = responses.poll();
+            assertNotNull(trailingResponse);
+            trailingResponse.response().getHits().forEach(PaginatedHitSource.Hit::release);
 
             assertEquals(actualSearchRetries.get(), expectedSearchRetries);
         } finally {
@@ -375,14 +425,16 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
 
     private SearchResponse createPitSearchResponse(int hitCount) {
         Object[] sortValues = new Object[] { randomLong(), randomAlphaOfLengthBetween(1, 10) };
-        SearchHit hit = SearchHit.unpooled(0, "id").sourceRef(new BytesArray("{}"));
-        hit.sortValues(sortValues, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
-        SearchHits hits = SearchHits.unpooled(
-            IntStream.range(0, hitCount).mapToObj(i -> hit).toArray(SearchHit[]::new),
-            new TotalHits(0, TotalHits.Relation.EQUAL_TO),
-            0
-        );
-        return SearchResponseUtils.response(hits).pointInTimeId(PIT_ID).shards(5, 4, 0).build();
+        SearchHit[] hitArray = IntStream.range(0, hitCount).mapToObj(i -> {
+            SearchHit h = new SearchHit(i, "id");
+            h.sourceRef(new BytesArray("{}"));
+            h.sortValues(sortValues, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
+            return h;
+        }).toArray(SearchHit[]::new);
+        SearchHits hits = new SearchHits(hitArray, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0);
+        SearchResponse response = SearchResponseUtils.response(hits).pointInTimeId(PIT_ID).shards(5, 4, 0).build();
+        hits.decRef();
+        return response;
     }
 
     private void assertSameHits(List<? extends PaginatedHitSource.Hit> actual, SearchHit[] expected) {
@@ -397,21 +449,21 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
         }
     }
 
-    private static BulkByScrollTask.Status randomStatusWithoutException() {
+    private static BulkByPaginatedSearchTask.Status randomStatusWithoutException() {
         if (randomBoolean()) {
             return randomWorkingStatus(null);
         }
         boolean canHaveNullStatues = randomBoolean();
-        List<BulkByScrollTask.StatusOrException> statuses = IntStream.range(0, between(0, 10)).mapToObj(i -> {
+        List<BulkByPaginatedSearchTask.StatusOrException> statuses = IntStream.range(0, between(0, 10)).mapToObj(i -> {
             if (canHaveNullStatues && rarely()) {
                 return null;
             }
-            return new BulkByScrollTask.StatusOrException(randomWorkingStatus(i));
+            return new BulkByPaginatedSearchTask.StatusOrException(randomWorkingStatus(i));
         }).collect(toList());
-        return new BulkByScrollTask.Status(statuses, randomBoolean() ? "test" : null);
+        return new BulkByPaginatedSearchTask.Status(statuses, randomBoolean() ? "test" : null, 0f);
     }
 
-    private static BulkByScrollTask.Status randomWorkingStatus(Integer sliceId) {
+    private static BulkByPaginatedSearchTask.Status randomWorkingStatus(Integer sliceId) {
         int total = between(0, 10000000);
         int updated = between(0, total);
         int created = between(0, total - updated);
@@ -424,7 +476,7 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
         TimeUnit[] timeUnits = { TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS };
         TimeValue throttled = new TimeValue(randomIntBetween(0, 1000), randomFrom(timeUnits));
         TimeValue throttledUntil = new TimeValue(randomIntBetween(0, 1000), randomFrom(timeUnits));
-        return new BulkByScrollTask.Status(
+        return new BulkByPaginatedSearchTask.Status(
             sliceId,
             total,
             updated,

@@ -114,7 +114,7 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), valuesSketch);
+        return Objects.hash(super.hashCode(), medianAbsoluteDeviation);
     }
 
     @Override
@@ -123,7 +123,7 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         InternalMedianAbsoluteDeviation other = (InternalMedianAbsoluteDeviation) obj;
-        return Objects.equals(valuesSketch, other.valuesSketch);
+        return Double.compare(medianAbsoluteDeviation, other.medianAbsoluteDeviation) == 0;
     }
 
     @Override

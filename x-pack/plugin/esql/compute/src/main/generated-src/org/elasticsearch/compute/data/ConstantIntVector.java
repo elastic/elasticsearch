@@ -21,7 +21,7 @@ import java.util.Arrays;
  * Vector implementation that stores a constant int value.
  * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
-final class ConstantIntVector extends AbstractVector implements IntVector {
+public final class ConstantIntVector extends AbstractVector implements IntVector {
 
     static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantIntVector.class);
 
@@ -48,8 +48,13 @@ final class ConstantIntVector extends AbstractVector implements IntVector {
     }
 
     @Override
-    public IntVector filter(boolean mayContainDuplicates, int... positions) {
-        return blockFactory().newConstantIntVector(value, positions.length);
+    public int valueMaxByteSize() {
+        return Integer.BYTES;
+    }
+
+    @Override
+    public IntVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return blockFactory().newConstantIntVector(value, length);
     }
 
     @Override

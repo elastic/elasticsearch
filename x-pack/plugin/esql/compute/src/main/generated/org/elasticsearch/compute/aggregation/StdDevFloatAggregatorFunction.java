@@ -11,14 +11,17 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantFloatVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.FloatArrayVector;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.FloatVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.FloatArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -112,6 +115,30 @@ public final class StdDevFloatAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(FloatVector valueVector) {
+    if (valueVector.getClass() == FloatArrayVector.class) {
+      FloatArrayVector specialized = (FloatArrayVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        float valueValue = specialized.getFloat(valuesPosition);
+        StdDevFloatAggregator.combine(state, valueValue);
+      }
+      return;
+    }
+    if (valueVector.getClass() == FloatArrowBufVector.class) {
+      FloatArrowBufVector specialized = (FloatArrowBufVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        float valueValue = specialized.getFloat(valuesPosition);
+        StdDevFloatAggregator.combine(state, valueValue);
+      }
+      return;
+    }
+    if (valueVector.getClass() == ConstantFloatVector.class) {
+      ConstantFloatVector specialized = (ConstantFloatVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        float valueValue = specialized.getFloat(valuesPosition);
+        StdDevFloatAggregator.combine(state, valueValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
       float valueValue = valueVector.getFloat(valuesPosition);
       StdDevFloatAggregator.combine(state, valueValue);
@@ -119,6 +146,39 @@ public final class StdDevFloatAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(FloatVector valueVector, BooleanVector mask) {
+    if (valueVector.getClass() == FloatArrayVector.class) {
+      FloatArrayVector specialized = (FloatArrayVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        float valueValue = specialized.getFloat(valuesPosition);
+        StdDevFloatAggregator.combine(state, valueValue);
+      }
+      return;
+    }
+    if (valueVector.getClass() == FloatArrowBufVector.class) {
+      FloatArrowBufVector specialized = (FloatArrowBufVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        float valueValue = specialized.getFloat(valuesPosition);
+        StdDevFloatAggregator.combine(state, valueValue);
+      }
+      return;
+    }
+    if (valueVector.getClass() == ConstantFloatVector.class) {
+      ConstantFloatVector specialized = (ConstantFloatVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        float valueValue = specialized.getFloat(valuesPosition);
+        StdDevFloatAggregator.combine(state, valueValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;

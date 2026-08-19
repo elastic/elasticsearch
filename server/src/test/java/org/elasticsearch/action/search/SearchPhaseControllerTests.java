@@ -557,7 +557,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             List<SearchHit> searchHits = new ArrayList<>();
             for (ScoreDoc scoreDoc : mergedSearchDocs) {
                 if (scoreDoc.shardIndex == shardIndex) {
-                    searchHits.add(SearchHit.unpooled(scoreDoc.doc, ""));
+                    searchHits.add(new SearchHit(scoreDoc.doc, ""));
                     if (scoreDoc.score > maxScore) {
                         maxScore = scoreDoc.score;
                     }
@@ -569,7 +569,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                         for (CompletionSuggestion.Entry.Option option : ((CompletionSuggestion) suggestion).getOptions()) {
                             ScoreDoc doc = option.getDoc();
                             if (doc.shardIndex == shardIndex) {
-                                searchHits.add(SearchHit.unpooled(doc.doc, ""));
+                                searchHits.add(new SearchHit(doc.doc, ""));
                                 if (doc.score > maxScore) {
                                     maxScore = doc.score;
                                 }
@@ -582,10 +582,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             ProfileResult profileResult = profile && searchHits.size() > 0
                 ? new ProfileResult("fetch", "fetch", Map.of(), Map.of(), randomNonNegativeLong(), List.of())
                 : null;
-            fetchSearchResult.shardResult(
-                SearchHits.unpooled(hits, new TotalHits(hits.length, Relation.EQUAL_TO), maxScore),
-                profileResult
-            );
+            fetchSearchResult.shardResult(new SearchHits(hits, new TotalHits(hits.length, Relation.EQUAL_TO), maxScore), profileResult);
             fetchResults.set(shardIndex, fetchSearchResult);
         }
         return fetchResults;
@@ -1489,10 +1486,10 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 int idx = 0;
                 for (ScoreDoc sd : scoreDocs) {
                     if (sd.shardIndex == shardIndex && idx < fetchedCount) {
-                        hits[idx++] = SearchHit.unpooled(sd.doc, "");
+                        hits[idx++] = new SearchHit(sd.doc, "");
                     }
                 }
-                fsr.shardResult(SearchHits.unpooled(hits, new TotalHits(fetchedCount, Relation.EQUAL_TO), Float.NaN), null);
+                fsr.shardResult(new SearchHits(hits, new TotalHits(fetchedCount, Relation.EQUAL_TO), Float.NaN), null);
                 fetchResults.set(shardIndex, fsr);
             }
             try (SearchResponseSections mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults)) {

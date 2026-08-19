@@ -14,8 +14,8 @@ import com.google.common.annotations.VisibleForTesting;
 import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
-import org.gradle.api.Project;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
@@ -48,10 +48,10 @@ public class PruneChangelogsTask extends DefaultTask {
     private final Path rootDir;
 
     @Inject
-    public PruneChangelogsTask(Project project, ObjectFactory objectFactory, ExecOperations execOperations) {
+    public PruneChangelogsTask(ProjectLayout projectLayout, ObjectFactory objectFactory, ExecOperations execOperations) {
         changelogs = objectFactory.fileCollection();
         gitWrapper = new GitWrapper(execOperations);
-        rootDir = project.getRootDir().toPath();
+        rootDir = projectLayout.getSettingsDirectory().getAsFile().toPath();
     }
 
     @Internal

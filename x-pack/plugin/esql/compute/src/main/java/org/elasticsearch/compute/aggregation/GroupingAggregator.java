@@ -8,8 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.Describable;
-import org.elasticsearch.compute.data.IntArrayBlock;
-import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -35,25 +33,7 @@ public record GroupingAggregator(GroupingAggregatorFunction aggregatorFunction, 
      */
     public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds, Page page) {
         if (mode.isInputPartial()) {
-            return new GroupingAggregatorFunction.AddInput() {
-                @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {
-                    aggregatorFunction.addIntermediateInput(positionOffset, groupIds, page);
-                }
-
-                @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                    aggregatorFunction.addIntermediateInput(positionOffset, groupIds, page);
-                }
-
-                @Override
-                public void add(int positionOffset, IntVector groupIds) {
-                    aggregatorFunction.addIntermediateInput(positionOffset, groupIds, page);
-                }
-
-                @Override
-                public void close() {}
-            };
+            return aggregatorFunction.prepareProcessIntermediateInputPage(seenGroupIds, page);
         } else {
             return aggregatorFunction.prepareProcessRawInputPage(seenGroupIds, page);
         }

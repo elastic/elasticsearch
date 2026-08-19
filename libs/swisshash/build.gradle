@@ -26,6 +26,11 @@ dependencies {
 tasks.named('compileJava').configure {
   options.compilerArgs << '--add-modules=jdk.incubator.vector'
   options.compilerArgs << '--add-reads=org.elasticsearch.swisshash=jdk.incubator.vector'
+  // Suppress the "using incubating module(s)" mandatory warning that javac emits for
+  // jdk.incubator.vector. On JDK 21 this warning has no named lint category and cannot
+  // be individually suppressed. -nowarn is scoped to this submodule only.
+  // TODO: replace with -Xlint:-incubating when the compile toolchain moves to JDK 22+
+  options.compilerArgs << '-nowarn'
 }
 
 tasks.named('javadoc').configure {

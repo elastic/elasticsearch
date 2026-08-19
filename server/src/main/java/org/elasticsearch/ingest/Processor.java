@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
@@ -167,6 +168,8 @@ public interface Processor {
 
         public final UserAgentParserRegistry userAgentParserRegistry;
 
+        public final IpLocationService ipLocationService;
+
         public Parameters(
             Environment env,
             ScriptService scriptService,
@@ -178,7 +181,8 @@ public interface Processor {
             Client client,
             Consumer<Runnable> genericExecutor,
             MatcherWatchdog matcherWatchdog,
-            UserAgentParserRegistry userAgentParserRegistry
+            UserAgentParserRegistry userAgentParserRegistry,
+            IpLocationService ipLocationService
         ) {
             this.env = env;
             this.scriptService = scriptService;
@@ -191,6 +195,7 @@ public interface Processor {
             this.genericExecutor = genericExecutor;
             this.matcherWatchdog = matcherWatchdog;
             this.userAgentParserRegistry = userAgentParserRegistry;
+            this.ipLocationService = ipLocationService;
         }
     }
 }

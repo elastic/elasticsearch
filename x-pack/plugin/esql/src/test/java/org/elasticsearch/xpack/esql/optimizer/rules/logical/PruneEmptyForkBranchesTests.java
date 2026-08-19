@@ -10,16 +10,22 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -130,5 +136,85 @@ public class PruneEmptyForkBranchesTests extends AbstractLogicalPlanOptimizerTes
             "Requires subquery in FROM command support",
             EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
         );
+    }
+
+    /**
+     * Regression: a {@link ViewUnionAll} with an empty {@link LocalRelation} branch used to trip
+     * the {@code asSubqueryMap} assertion when this rule called {@code fork.replaceChildren} with
+     * a shorter list — {@code ViewUnionAll}'s positional 1:1 invariant doesn't tolerate
+     * count changes. The fix routes the prune through {@code Fork.pruneEmptyBranches},
+     * polymorphically dispatched to {@code ViewUnionAll}'s name-aware override which preserves
+     * the named-subqueries map for surviving children.
+     * <p>
+     * Built directly rather than via {@code plan(...)} since the failing scenario in serverless
+     * needs a CPS-emitted {@link ViewUnionAll} that the local test fixture doesn't construct.
+     */
+    public void testPrunesEmptyLocalRelationFromViewUnionAll() {
+        LocalRelation emptyBranch = new LocalRelation(Source.EMPTY, List.of(), EmptyLocalSupplier.EMPTY);
+        Row keptA = new Row(Source.EMPTY, List.of());
+        Row keptB = new Row(Source.EMPTY, List.of());
+
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put("name_a", keptA);
+        children.put("name_empty", emptyBranch);
+        children.put("name_b", keptB);
+        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, children, List.of());
+
+        LogicalPlan result = new PruneEmptyForkBranches().apply(vua);
+
+        ViewUnionAll pruned = as(result, ViewUnionAll.class);
+        assertEquals(2, pruned.children().size());
+        assertEquals(List.of("name_a", "name_b"), List.copyOf(pruned.namedSubqueries().keySet()));
+        assertSame(keptA, pruned.namedSubqueries().get("name_a"));
+        assertSame(keptB, pruned.namedSubqueries().get("name_b"));
+    }
+
+    /**
+     * All branches pruned: the prune primitive produces a zero-child wrapper. The verifier's
+     * {@code Fork.checkBranchCount} is responsible for surfacing this as a clear failure
+     * ({@code "ViewUnionAll requires at least one branch"}); rules that want to handle the
+     * all-empty case successfully (like {@link PruneEmptyForkBranches} replacing it with a
+     * {@code LocalRelation}) must short-circuit BEFORE delegating to {@code pruneEmptyBranches}.
+     */
+    public void testAllEmptyProducesZeroChildViewUnionAllForVerifierToCatch() {
+        LocalRelation a = new LocalRelation(Source.EMPTY, List.of(), EmptyLocalSupplier.EMPTY);
+        LocalRelation b = new LocalRelation(Source.EMPTY, List.of(), EmptyLocalSupplier.EMPTY);
+
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put("name_a", a);
+        children.put("name_b", b);
+        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, children, List.of());
+
+        // Bypass PruneEmptyForkBranches's all-empty pre-check by calling pruneEmptyBranches
+        // directly — this is the contract the analyzer's PruneEmptyUnionAllBranch and
+        // ViewCompaction.stripViewShadowRelations rely on.
+        LogicalPlan result = vua.pruneEmptyBranches(c -> c instanceof LocalRelation lr && lr.hasEmptySupplier());
+
+        ViewUnionAll empty = as(result, ViewUnionAll.class);
+        assertEquals(0, empty.children().size());
+        assertEquals(0, empty.namedSubqueries().size());
+    }
+
+    /**
+     * Single survivor: {@link PruneEmptyForkBranches} preserves the {@link ViewUnionAll} wrapper
+     * even when only one branch is left (the existing UnionAll-based tests in this file rely on
+     * the same no-collapse semantics — single-survivor collapse lives in
+     * {@code ViewCompaction.stripViewShadowRelations}, not in the prune primitive).
+     */
+    public void testKeepsViewUnionAllWrapperEvenWithSingleSurvivor() {
+        LocalRelation emptyBranch = new LocalRelation(Source.EMPTY, List.of(), EmptyLocalSupplier.EMPTY);
+        Row kept = new Row(Source.EMPTY, List.of());
+
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put("name_kept", kept);
+        children.put("name_empty", emptyBranch);
+        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, children, List.of());
+
+        LogicalPlan result = new PruneEmptyForkBranches().apply(vua);
+
+        ViewUnionAll pruned = as(result, ViewUnionAll.class);
+        assertEquals(1, pruned.children().size());
+        assertSame(kept, pruned.children().getFirst());
+        assertEquals(List.of("name_kept"), List.copyOf(pruned.namedSubqueries().keySet()));
     }
 }

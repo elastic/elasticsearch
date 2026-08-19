@@ -39,7 +39,7 @@ public class InputTypeTranslator implements ToXContentFragment, Writeable {
 
         Map<String, Object> inputTypeTranslation = Objects.requireNonNullElse(
             extractOptionalMap(map, INPUT_TYPE_TRANSLATOR, validationException),
-            new HashMap<>(Map.of())
+            new HashMap<>()
         );
 
         Map<String, Object> translationMap = extractOptionalMap(inputTypeTranslation, TRANSLATION, validationException);

@@ -13,19 +13,33 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.column.LongColumn;
+import org.apache.lucene.document.column.LongTupleCursor;
+import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnBuilder;
+import org.elasticsearch.escf.EscfColumnData;
+import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.LuceneBinaryColumn;
+import org.elasticsearch.escf.LuceneLongColumn;
+import org.elasticsearch.escf.PresentDocIterator;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -44,6 +58,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -73,22 +88,17 @@ public class BooleanFieldMapper extends FieldMapper {
         public static final BytesRef FALSE = new BytesRef("F");
     }
 
+    private static final IndexableFieldType SORTED_NUMERIC_DV_FIELD_TYPE = SortedNumericDocValuesField.TYPE;
+    private static final IndexableFieldType SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE = SortedNumericDocValuesField.indexedField("_sentinel", 0L)
+        .fieldType();
+
     private static BooleanFieldMapper toType(FieldMapper in) {
         return (BooleanFieldMapper) in;
     }
 
-    public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
-        true,
-        DocValuesParameter.Values.Cardinality.LOW,
-        DocValuesParameter.Values.MultiValue.SORTED
-    );
-
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
-        private final DocValuesParameter docValuesParameters = DocValuesParameter.sorted(
-            DEFAULT_DOC_VALUES_PARAMS,
-            m -> toType(m).docValuesParameters()
-        );
+        private final DocValuesParameter docValuesParameters;
         private final Parameter<Boolean> indexed;
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
@@ -120,6 +130,15 @@ public class BooleanFieldMapper extends FieldMapper {
             super(name);
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.indexSettings = Objects.requireNonNull(indexSettings);
+            this.docValuesParameters = DocValuesParameter.of(
+                DocValuesParameter.defaultValues(
+                    indexSettings,
+                    DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
+                    DocValuesParameter.Values.Cardinality.LOW
+                ),
+                m -> toType(m).docValuesParameters(),
+                indexSettings.getMode().isStrictColumnar()
+            );
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
                 true,
@@ -178,6 +197,20 @@ public class BooleanFieldMapper extends FieldMapper {
             if (inheritDimensionParameterFromParentObject(context)) {
                 dimension(true);
             }
+            String offsetsFieldName = getOffsetsFieldName(
+                context,
+                indexSettings.sourceKeepMode(),
+                docValuesParameters.getValue().enabled(),
+                stored.getValue(),
+                this,
+                indexSettings.getIndexVersionCreated(),
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_BOOLEAN,
+                indexSettings.getMode().isStrictColumnar(),
+                docValuesParameters.getValue().multiValue()
+            );
+            boolean readInArrayOrder = offsetsFieldName != null
+                && docValuesParameters.getValue().multiValue()
+                && indexSettings.getMode().isStrictColumnar();
             MappedFieldType ft = new BooleanFieldType(
                 context.buildFullName(leafName()),
                 indexType(),
@@ -186,19 +219,11 @@ public class BooleanFieldMapper extends FieldMapper {
                 scriptValues(),
                 meta.getValue(),
                 dimension.getValue(),
-                context.isSourceSynthetic()
+                context.isSourceSynthetic(),
+                readInArrayOrder
             );
             hasScript = script.get() != null;
             onScriptError = onScriptErrorParam.getValue();
-            String offsetsFieldName = getOffsetsFieldName(
-                context,
-                indexSettings.sourceKeepMode(),
-                docValuesParameters.getValue().enabled(),
-                stored.getValue(),
-                this,
-                indexSettings.getIndexVersionCreated(),
-                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_BOOLEAN
-            );
             return new BooleanFieldMapper(
                 leafName(),
                 ft,
@@ -232,6 +257,7 @@ public class BooleanFieldMapper extends FieldMapper {
         private final FieldValues<Boolean> scriptValues;
         private final boolean isDimension;
         private final boolean isSyntheticSource;
+        private final boolean readInArrayOrder;
 
         public BooleanFieldType(
             String name,
@@ -243,11 +269,26 @@ public class BooleanFieldMapper extends FieldMapper {
             boolean isDimension,
             boolean isSyntheticSource
         ) {
+            this(name, indexType, isStored, nullValue, scriptValues, meta, isDimension, isSyntheticSource, false);
+        }
+
+        public BooleanFieldType(
+            String name,
+            IndexType indexType,
+            boolean isStored,
+            Boolean nullValue,
+            FieldValues<Boolean> scriptValues,
+            Map<String, String> meta,
+            boolean isDimension,
+            boolean isSyntheticSource,
+            boolean readInArrayOrder
+        ) {
             super(name, indexType, isStored, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.nullValue = nullValue;
             this.scriptValues = scriptValues;
             this.isDimension = isDimension;
             this.isSyntheticSource = isSyntheticSource;
+            this.readInArrayOrder = readInArrayOrder;
         }
 
         public BooleanFieldType(String name) {
@@ -301,8 +342,8 @@ public class BooleanFieldMapper extends FieldMapper {
             };
         }
 
-        private boolean parseBoolean(String text) {
-            return Booleans.parseBoolean(text.toCharArray(), 0, text.length(), false);
+        private static boolean parseBoolean(String text) {
+            return Booleans.parseBoolean(text, false);
         }
 
         @Override
@@ -350,11 +391,12 @@ public class BooleanFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
-                return new BooleansBlockLoader(name());
+                return new BooleansBlockLoader(name(), readInArrayOrder);
             }
 
+            // columnar_stored pre-builds _source as a single blob; skip the per-field fallback loader.
             // Multi fields don't have fallback synthetic source.
-            if (isSyntheticSource && blContext.parentField(name()) == null) {
+            if (isSyntheticSource && blContext.mappingLookup().isSourceColumnarStored() == false && blContext.parentField(name()) == null) {
                 return new FallbackSyntheticSourceBlockLoader(
                     fallbackSyntheticSourceBlockLoaderReader(),
                     name(),
@@ -516,12 +558,14 @@ public class BooleanFieldMapper extends FieldMapper {
     private final Boolean nullValue;
     private final boolean indexed;
     private final DocValuesParameter.Values docValuesParameters;
+    private final DocValuesFieldFactory dvFactory;
     private final boolean stored;
     private final Script script;
     private final FieldValues<Boolean> scriptValues;
     private final ScriptCompiler scriptCompiler;
     private final Explicit<Boolean> ignoreMalformed;
     private final IndexSettings indexSettings;
+    private final boolean writeDimensionRouting;
     private final boolean storeMalformedFields;
 
     private final String offsetsFieldName;
@@ -539,10 +583,18 @@ public class BooleanFieldMapper extends FieldMapper {
         this.stored = builder.stored.getValue();
         this.indexed = builder.indexed.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
+        this.dvFactory = new DocValuesFieldFactory(
+            docValuesParameters.multiValue(),
+            ((BooleanFieldType) mappedFieldType).indexType.hasDocValuesSkipper(),
+            builder.indexSettings.getIndexVersionCreated()
+        );
         this.script = builder.script.get();
         this.scriptValues = builder.scriptValues();
         this.scriptCompiler = builder.scriptCompiler;
         this.indexSettings = builder.indexSettings;
+        this.writeDimensionRouting = builder.dimension.getValue()
+            && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
+            && efs.extractDimensionsWhileMapping();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.storeMalformedFields = storeMalformedFields;
         this.offsetsFieldName = offsetsFieldName;
@@ -558,6 +610,21 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean isSingleValueEnforced() {
+        return docValuesParameters.multiValue() == false;
+    }
+
+    @Override
+    protected DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return docValuesParameters.onFailure();
+    }
+
+    @Override
+    public boolean isNullable() {
+        return docValuesParameters.nullability() || nullValue != null;
+    }
+
+    @Override
     public BooleanFieldType fieldType() {
         return (BooleanFieldType) super.fieldType();
     }
@@ -565,6 +632,18 @@ public class BooleanFieldMapper extends FieldMapper {
     @Override
     public String getOffsetFieldName() {
         return offsetsFieldName;
+    }
+
+    @Override
+    public boolean supportsBatchIndexing() {
+        // Plain boolean mappers can be driven through parseCreateField by the bulk batch path.
+        // ignore_malformed is allowed — parseCreateField handles it via addIgnoredField, which
+        // BatchDocumentParserContext records. Dimensions, copy_to, multi-fields, and scripts pull
+        // in behavior that the batch path does not support.
+        return hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && multiFields().iterator().hasNext() == false
+            && fieldType().isDimension() == false;
     }
 
     @Override
@@ -587,7 +666,7 @@ public class BooleanFieldMapper extends FieldMapper {
                     context.addIgnoredField(mappedFieldType.name());
                     if (storeMalformedFields) {
                         // Save a copy of the field so synthetic source can load it
-                        IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
+                        FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED);
                     }
                     return;
                 } else {
@@ -596,7 +675,7 @@ public class BooleanFieldMapper extends FieldMapper {
             }
         }
         indexValue(context, value);
-        if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
+        if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (value != null) {
                 context.getOffSetContext().recordOffset(offsetsFieldName, value);
             } else {
@@ -610,7 +689,7 @@ public class BooleanFieldMapper extends FieldMapper {
             return;
         }
 
-        if (fieldType().isDimension()) {
+        if (writeDimensionRouting) {
             context.getRoutingFields().addBoolean(fieldType().name(), value);
         }
         if (indexed) {
@@ -620,11 +699,7 @@ public class BooleanFieldMapper extends FieldMapper {
             context.doc().add(new StoredField(fieldType().name(), value ? "T" : "F"));
         }
         if (docValuesParameters.enabled()) {
-            if (fieldType().indexType.hasDocValuesSkipper()) {
-                context.doc().add(SortedNumericDocValuesField.indexedField(fieldType().name(), value ? 1 : 0));
-            } else {
-                context.doc().add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
-            }
+            dvFactory.addNumericField(context.doc(), fieldType().name(), value ? 1 : 0);
         } else {
             context.addToFieldNames(fieldType().name());
         }
@@ -696,4 +771,80 @@ public class BooleanFieldMapper extends FieldMapper {
 
         return super.syntheticSourceSupport();
     }
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // doc_values.multi_value and ignore_malformed are not implemented by mapColumnBatch
+        // but are not rejected here — they fall back per document at parse time.
+        return indexSettings.getMode().isStrictColumnar()
+            && docValuesParameters.enabled()
+            && stored == false
+            && hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && multiFields().iterator().hasNext() == false
+            && fieldType().isDimension() == false
+            && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
+    }
+
+    @Override
+    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+        switch (source.kind()) {
+            case EscfColumnKind.BOOL, EscfColumnKind.STRING -> {
+            }
+            default -> throw new UnsupportedOperationException(
+                "mapColumnBatch: ESCF column kind ["
+                    + EscfColumnKind.name(source.kind())
+                    + "] is not yet supported for boolean field ["
+                    + fullPath()
+                    + "]"
+            );
+        }
+        EscfColumnData longData = booleansToLongs(source);
+        if (fieldType().indexType().hasDocValuesSkipper()) {
+            ctx.addColumn(
+                LuceneLongColumn.of(longData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, LongColumn.NumericKind.INT)
+            );
+        } else if (indexed) {
+            ctx.addColumn(LuceneBinaryColumn.of(booleansToTerms(longData), fieldType().name(), StringField.TYPE_NOT_STORED));
+            ctx.addColumn(LuceneLongColumn.of(longData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.INT));
+        } else {
+            ctx.addColumn(LuceneLongColumn.of(longData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.INT));
+        }
+    }
+
+    private EscfColumnData booleansToLongs(EscfColumn source) {
+        EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        builder.lockScalar(EscfColumnKind.LONG);
+        if (source.kind() == EscfColumnKind.BOOL) {
+            FixedBitSet boolValues = source.columnData().values();
+            PresentDocIterator it = source.presentDocs();
+            for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
+                builder.setLong(doc, (boolValues != null && boolValues.get(doc)) ? 1L : 0L);
+            }
+        } else {
+            final ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                final BytesRef value = cursor.value();
+                if (value == null) {
+                    if (nullValue != null) {
+                        builder.setLong(doc, nullValue ? 1L : 0L);
+                    }
+                } else {
+                    builder.setLong(doc, Booleans.parseBoolean(value.utf8ToString(), false) ? 1L : 0L);
+                }
+            }
+        }
+        return builder.finish(source.docCount());
+    }
+
+    private EscfColumnData booleansToTerms(EscfColumnData longData) {
+        EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        builder.lockScalar(EscfColumnKind.STRING);
+        LongTupleCursor cursor = EscfColumn.from(longData).longCursor();
+        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+            builder.setString(doc, cursor.longValue() != 0L ? Values.TRUE : Values.FALSE);
+        }
+        return builder.finish(longData.docCount());
+    }
+
 }

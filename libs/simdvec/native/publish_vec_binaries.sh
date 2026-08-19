@@ -17,7 +17,7 @@
 
 set -euo pipefail
 
-VERSION="1.0.87"
+VERSION="1.0.139"
 
 LOCAL=false
 FORCE_UPLOAD=false
@@ -34,12 +34,20 @@ if [ "$LOCAL" = false ] || [ "$FORCE_UPLOAD" = true ]; then
   UPLOAD=true
 fi
 
+# zip runs inside the upload pipelines below; if it is missing, pipefail only
+# aborts after curl has already uploaded an empty archive from the dead pipe,
+# permanently burning the version number. Fail fast instead.
+if ! command -v zip > /dev/null; then
+  echo 'Error: zip must be installed.'
+  exit 1;
+fi
+
 if [ "$UPLOAD" = true ] && [ -z "${ARTIFACTORY_API_KEY:-}" ]; then
   echo 'Error: The ARTIFACTORY_API_KEY environment variable must be set.'
   exit 1;
 fi
 
-TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:2"
+TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:3"
 if [ "$LOCAL" = true ]; then
   TOOLCHAIN_IMAGE="es-native-cross-toolchain:local"
 fi
@@ -54,7 +62,7 @@ if [ "$UPLOAD" = true ]; then
 fi
 
 echo 'Building all binaries...'
-docker run --rm --platform linux/amd64 \
+docker run --rm \
   -v "$(pwd)":/workspace \
   -w /workspace \
   "$TOOLCHAIN_IMAGE" \
@@ -67,13 +75,25 @@ cp build/libs/vec/shared/aarch64/libvec.dylib "$TEMP/darwin-aarch64/"
 cp build/libs/vec/shared/aarch64/libvec.so    "$TEMP/linux-aarch64/"
 cp build/libs/vec/shared/amd64/libvec.so      "$TEMP/linux-x64/"
 
+TEMP_DBG=$(mktemp -d)
+mkdir -p "$TEMP_DBG/darwin-aarch64"
+mkdir -p "$TEMP_DBG/linux-aarch64"
+mkdir -p "$TEMP_DBG/linux-x64"
+cp -r build/libs/vec/shared/aarch64/libvec.dylib.dSYM  "$TEMP_DBG/darwin-aarch64/"
+cp    build/libs/vec/shared/aarch64/libvec.so.debug   "$TEMP_DBG/linux-aarch64/"
+cp    build/libs/vec/shared/amd64/libvec.so.debug     "$TEMP_DBG/linux-x64/"
+
 if [ "$UPLOAD" = true ]; then
   echo 'Uploading to Artifactory...'
   (cd "$TEMP" && zip -rq - .) | curl -sSf -X PUT -H "X-JFrog-Art-Api: ${ARTIFACTORY_API_KEY}" --data-binary @- --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/vec/${VERSION}/vec-${VERSION}.zip"
-  rm -rf "$TEMP"
+  (cd "$TEMP_DBG" && zip -rq - .) | curl -sSf -X PUT -H "X-JFrog-Art-Api: ${ARTIFACTORY_API_KEY}" --data-binary @- --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/vec/${VERSION}/vec-${VERSION}-debuginfo.zip"
+  rm -rf "$TEMP" "$TEMP_DBG"
 else
   ZIP="$(pwd)/vec-${VERSION}-local.zip"
+  DBG_ZIP="$(pwd)/vec-${VERSION}-debuginfo-local.zip"
   (cd "$TEMP" && zip -rq "$ZIP" .)
-  rm -rf "$TEMP"
+  (cd "$TEMP_DBG" && zip -rq "$DBG_ZIP" .)
+  rm -rf "$TEMP" "$TEMP_DBG"
   echo "Local build complete. Artifact: $ZIP"
+  echo "Debug info:  $DBG_ZIP"
 fi

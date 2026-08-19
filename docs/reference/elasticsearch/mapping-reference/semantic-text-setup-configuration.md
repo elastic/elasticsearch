@@ -9,18 +9,22 @@ applies_to:
 
 # Set up and configure `semantic_text` fields [set-up-configuration-semantic-text]
 
-This page provides instructions for setting up and configuring `semantic_text` fields. Learn how to configure {{infer}} endpoints, including [default](#default-endpoints) and [preconfigured](#preconfigured-endpoints) options, ELSER on EIS, custom endpoints, and dedicated endpoints for ingestion and search operations.
+This page provides instructions for setting up and configuring `semantic_text` fields. Learn how to configure {{infer}} endpoints, including [default](#default-endpoints) endpoints, [Jina on EIS](#using-jina-on-eis), [ELSER on EIS](#using-elser-on-eis), [third-party models on EIS](#using-eis-models), [external {{infer}}](#using-external-inference), and dedicated endpoints for ingestion and search operations.
+
+`semantic_text` accepts text only. For images, audio, video, or PDF files, use [`semantic`](./semantic-field.md) with a compatible multimodal embedding endpoint.
 
 ## Configure {{infer}} endpoints [configure-inference-endpoints]
 
 You can configure {{infer}} endpoints for `semantic_text` fields in the following ways:
 
+- [Default endpoints](#default-endpoints)
+- [Use Jina on EIS](#using-jina-on-eis)
 - [Use ELSER on EIS](#using-elser-on-eis)
-- [Default](#default-endpoints) and [preconfigured](#preconfigured-endpoints) endpoints
-- [Use a custom {{infer}} endpoint](#using-custom-endpoint)
+- [Use third-party models on EIS](#using-eis-models)
+- [Use external {{infer}}](#using-external-inference)
 
 :::{note}
-If you use a [custom {{infer}} endpoint](#using-custom-endpoint) through your ML node and not through Elastic {{infer-cap}} Service (EIS), the recommended method is to [use dedicated endpoints for ingestion and search](#dedicated-endpoints-for-ingestion-and-search).
+If you use an {{infer}} endpoint through your ML node and not through Elastic {{infer-cap}} Service (EIS), the recommended method is to [use dedicated endpoints for ingestion and search](#dedicated-endpoints-for-ingestion-and-search).
 
 {applies_to}`stack: ga 9.1.0` If you use EIS, you don't have to set up dedicated endpoints.
 :::
@@ -45,19 +49,18 @@ PUT my-index-000001
 ```
 % TEST[skip:Requires {{infer}} endpoint]
 
-:::{important}
+
 
 The default {{infer}} endpoint varies by deployment type and version:
 
-- {applies_to}`stack: ga 9.4` On {{ecloud}} 9.4+, the `inference_id` parameter defaults to `.jina-embeddings-v5-text-small` and runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md). `.jina-embeddings-v5-text-small` is expected to become the default model for Serverless soon.
+- {applies_to}`stack: ga 9.4` {applies_to}`serverless: ga` On {{ech}} deployments running {{stack}} 9.4+ and on {{serverless-short}}, the `inference_id` parameter defaults to `.jina-embeddings-v5-text-small` and runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md). 
 
-- {applies_to}`stack: ga 9.3` {applies_to}`serverless: ga` In version 9.3 and on {{serverless-short}}, the `inference_id` parameter defaults to `.elser-2-elastic` and runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis).
+- {applies_to}`stack: ga 9.3` On {{ech}} deployments running {{stack}} 9.3, the `inference_id` parameter defaults to `.elser-2-elastic` and runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis).
 
-- {applies_to}`stack: ga 9.0-9.2` In versions 9.0-9.2, the `inference_id` parameter defaults to `.elser-2-elasticsearch` and runs on the `elasticsearch` service.
+- {applies_to}`stack: ga 9.0-9.2` On {{ech}} deployments running {{stack}} 9.0-9.2, the `inference_id` parameter defaults to `.elser-2-elasticsearch` and runs on the `elasticsearch` service.
 
 If you use the default {{infer}} endpoint, it might be updated to a newer version and use a different embedding model than the previous default endpoints. Queries that target these indices together can produce unexpected ranking results.
 For details, refer to [potential issues when mixing embedding models across indices](#default-endpoint-considerations).
-:::
 
 :::::{dropdown} Potential issues when mixing embedding models across indices
 :name: default-endpoint-considerations
@@ -132,22 +135,24 @@ To mitigate this issue, adjust alert thresholds to match the scoring range of th
 
 :::::
 
-### Use preconfigured endpoints [preconfigured-endpoints]
+### Use Jina on EIS [using-jina-on-eis]
 
-Preconfigured endpoints are {{infer}} endpoints that are automatically available in the deployment or project and do not require manual creation. The available preconfigured endpoints vary across deployment types and versions.
+```{applies_to}
+stack: ga 9.4+
+serverless: ga
+```
 
-To view the list of available preconfigured endpoints for your deployment, go to **{{infer-cap}} endpoints** in {{kib}}.
-
-To use a preconfigured endpoint, set the `inference_id` parameter to the identifier of the endpoint you want to use:
+If you use the `.jina-embeddings-v5-text-small` endpoint through the Elastic {{infer-cap}} Service ([Jina on EIS](docs-content://explore-analyze/elastic-inference/eis.md#jina-embeddings-v5-on-eis)), you can
+set up `semantic_text` with the following API request:
 
 ```console
-PUT my-index-000004
+PUT my-index-jina
 {
   "mappings": {
     "properties": {
       "inference_field": {
         "type": "semantic_text",
-        "inference_id": ".jina-embeddings-v5-text-nano"
+        "inference_id": ".jina-embeddings-v5-text-small"
       }
     }
   }
@@ -164,39 +169,8 @@ deployment:
 serverless: ga
 ```
 
-If you use the preconfigured `.elser-2-elastic` endpoint that utilizes the ELSER model as a service through the Elastic {{infer-cap}} Service ([ELSER on EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis)), you can
+If you use the `.elser-2-elastic` endpoint that uses the ELSER model as a service through the Elastic {{infer-cap}} Service ([ELSER on EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis)), you can
 set up `semantic_text` with the following API request:
-
-:::::::{tab-set}
-
-::::::{tab-item} Using ELSER on EIS on Serverless
-
-```{applies_to}
-serverless: ga
-```
-
-```console
-PUT my-index-000001
-{
-  "mappings": {
-    "properties": {
-      "inference_field": {
-        "type": "semantic_text"
-      }
-    }
-  }
-}
-```
-
-::::::
-
-::::::{tab-item} Using ELSER on EIS in Cloud
-
-```{applies_to}
-stack: ga 9.2
-deployment:
-  self: unavailable
-```
 
 ```console
 PUT my-index-000001
@@ -213,24 +187,25 @@ PUT my-index-000001
 ```
 % TEST[skip:Requires {{infer}} endpoint]
 
-::::::
+### Use third-party models on EIS [using-eis-models]
 
-:::::::
+```{applies_to}
+stack: ga 9.3+
+serverless: ga
+```
 
-### Use a custom {{infer}} endpoint [using-custom-endpoint]
+[Elastic {{infer-cap}} Service (EIS)](docs-content://explore-analyze/elastic-inference/eis.md) also provides third-party embedding models. To use one with `semantic_text`, create an {{infer}} endpoint that references the model, then set the `inference_id` parameter to that endpoint's identifier.
 
-To use a custom {{infer}} endpoint instead of the [default](#default-endpoints) or [preconfigured](#preconfigured-endpoints) endpoints, you
-must [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
-and specify its `inference_id` when setting up the `semantic_text` field type.
+The following examples show `semantic_text` fields configured with EIS endpoints for third-party models available on EIS. These are examples only; for the full list, refer to [Supported models](docs-content://explore-analyze/elastic-inference/eis-supported-models.md).
 
 ```console
-PUT my-index-000002
+PUT my-index-gemini
 {
   "mappings": {
     "properties": {
       "inference_field": {
         "type": "semantic_text",
-        "inference_id": "my-openai-endpoint" <1>
+        "inference_id": "eis-google-gemini-embedding-001"
       }
     }
   }
@@ -238,11 +213,30 @@ PUT my-index-000002
 ```
 % TEST[skip:Requires {{infer}} endpoint]
 
-1. The `inference_id` of the {{infer}} endpoint to use to generate embeddings.
+```console
+PUT my-index-e5
+{
+  "mappings": {
+    "properties": {
+      "inference_field": {
+        "type": "semantic_text",
+        "inference_id": "eis-microsoft-multilingual-e5-large"
+      }
+    }
+  }
+}
+```
+% TEST[skip:Requires {{infer}} endpoint]
+
+### Use external {{infer}} [using-external-inference]
+
+You can use your own API keys to connect to external model providers. Create an {{infer}} endpoint with the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put), then set that endpoint's ID as the `inference_id` on your `semantic_text` field.
+
+You can also manage external endpoints in {{kib}}. For details, refer to [External {{infer}}](docs-content://explore-analyze/elastic-inference/external.md).
 
 ### Use dedicated endpoints for ingestion and search [dedicated-endpoints-for-ingestion-and-search]
 
-If you use a [custom {{infer}} endpoint](#using-custom-endpoint) through your ML node and not through Elastic {{infer-cap}} Service, the recommended way to use `semantic_text` is by having dedicated {{infer}} endpoints for ingestion and search.
+If you use an {{infer}} endpoint through your ML node and not through Elastic {{infer-cap}} Service, the recommended way to use `semantic_text` is by having dedicated {{infer}} endpoints for ingestion and search.
 
 This ensures that search speed remains unaffected by ingestion workloads, and vice versa. After creating dedicated {{infer}} endpoints for both, you can reference them using the `inference_id`
 and `search_inference_id` parameters when setting up the index mapping for an index that uses the `semantic_text` field.
@@ -422,4 +416,3 @@ The `element_type` override is only valid for {{infer}} endpoints that produce `
 For `float` models, valid values are `float` and `bfloat16`.
 For other model element types (such as `byte` or `bit`), the `element_type` must match the model's native element type if specified.
 :::
-

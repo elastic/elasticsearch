@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `IRATE` function [esql-irate]
 
-:::{include} ../../_snippets/functions/layout/irate.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/irate.md
 :::

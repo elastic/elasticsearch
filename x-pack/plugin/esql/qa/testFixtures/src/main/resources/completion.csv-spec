@@ -88,3 +88,15 @@ ROW prompt="test prompt"
 completion:keyword
 temperature:1 TEST PROMPT
 ;
+
+completionWithTimeout
+required_capability: completion
+required_capability: inference_accept_timeout
+
+ROW prompt="Who is Victor Hugo?"
+| COMPLETION completion_output = prompt WITH { "inference_id": "test_completion", "timeout": "30s" }
+;
+
+prompt:keyword      | completion_output:keyword
+Who is Victor Hugo? | WHO IS VICTOR HUGO?
+;

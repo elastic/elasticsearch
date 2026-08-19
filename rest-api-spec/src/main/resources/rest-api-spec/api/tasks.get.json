@@ -37,6 +37,11 @@
         "type": "time",
         "default": "30s",
         "description": "Explicit operation timeout"
+      },
+      "follow_relocations": {
+        "type": "boolean",
+        "default": true,
+        "description": "Internal use only"
       }
     }
   }

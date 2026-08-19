@@ -11,12 +11,12 @@ package org.elasticsearch.telemetry.apm.internal.export.agent;
 
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 
 import static org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportHelpers.agentFlushWaitTimeMs;
-import static org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportHelpers.sleepForAgentExport;
 
 /**
  * A {@link MeterSupplier} that supplies a {@link Meter} from {@link GlobalOpenTelemetry}
@@ -26,10 +26,15 @@ import static org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportH
  * @see org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportMeterSupplier
  */
 public final class AgentExportMeterSupplier implements MeterSupplier {
-    private final long agentFlushWaitTime;
+    private final Runnable flushFn;
 
     public AgentExportMeterSupplier(Settings settings) {
-        agentFlushWaitTime = agentFlushWaitTimeMs(settings);
+        this(() -> AgentExportHelpers.sleepForAgentExport(agentFlushWaitTimeMs(settings)));
+    }
+
+    // package-private for testing: allows injecting a recording or no-op flush
+    AgentExportMeterSupplier(Runnable flushFn) {
+        this.flushFn = flushFn;
     }
 
     @Override
@@ -38,7 +43,10 @@ public final class AgentExportMeterSupplier implements MeterSupplier {
     }
 
     @Override
-    public void attemptFlushMetrics() {
-        sleepForAgentExport(agentFlushWaitTime);
+    public CompletableResultCode attemptFlushMetrics() {
+        // Blocks the calling thread: the APM agent has no async flush API, so this sleeps for
+        // the configured interval. The result is already complete when this method returns.
+        flushFn.run();
+        return CompletableResultCode.ofSuccess();
     }
 }

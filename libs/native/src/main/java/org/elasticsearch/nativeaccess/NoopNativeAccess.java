@@ -9,6 +9,7 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.elasticsearch.foreign.CloseableByteBuffer;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -91,14 +92,19 @@ class NoopNativeAccess implements NativeAccess {
     }
 
     @Override
-    public CloseableMappedByteBuffer map(FileChannel fileChannel, FileChannel.MapMode mode, long position, long size) {
+    public MappedSegment map(FileChannel fileChannel, FileChannel.MapMode mode, long position, long size) {
         logger.warn("cannot map because native access is not available");
         return null;
     }
 
     @Override
-    public Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions() {
+    public Optional<SimdVecLibrary> getVectorSimilarityFunctions() {
         logger.warn("cannot get vector distance because native access is not available");
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<ParquetRsFunctions> getParquetRsFunctions() {
         return Optional.empty();
     }
 }

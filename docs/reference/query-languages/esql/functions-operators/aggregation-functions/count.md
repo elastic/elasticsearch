@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `COUNT` function [esql-count]
 
-:::{include} ../../_snippets/functions/layout/count.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/count.md
 :::

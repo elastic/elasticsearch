@@ -13,7 +13,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
@@ -27,6 +30,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * A source of paginated search results. Pumps data out into the passed onResponse consumer. If a scrollable search is used, then the
@@ -45,6 +49,10 @@ public abstract class PaginatedHitSource {
     private final Consumer<AsyncResponse> onResponse;
     protected final Consumer<Exception> fail;
 
+    /// Each cycle must be executed in the root thread context and not in a descendant context of the previous task, so that the tracing
+    /// subsystem does not form a deeply-nested linked list of spans.
+    private final Supplier<ThreadContext.StoredContext> rootStoredContextSupplier;
+
     public PaginatedHitSource(
         Logger logger,
         BackoffPolicy backoffPolicy,
@@ -59,10 +67,11 @@ public abstract class PaginatedHitSource {
         this.countSearchRetry = countSearchRetry;
         this.onResponse = onResponse;
         this.fail = fail;
+        this.rootStoredContextSupplier = threadPool.getThreadContext().newRestorableContext(true);
     }
 
     public final void start() {
-        doFirstSearch(createRetryListener(this::doFirstSearch));
+        doFirstSearchInRootContext(createRetryListener(this::doFirstSearchInRootContext));
     }
 
     /**
@@ -95,7 +104,9 @@ public abstract class PaginatedHitSource {
             fail.accept(new IllegalStateException("No pagination cursor available for next batch"));
             return;
         }
-        doNextSearch(cursor, extraKeepAlive, searchListener);
+        try (var ignored = rootStoredContextSupplier.get()) {
+            doNextSearch(cursor, extraKeepAlive, searchListener);
+        }
     }
 
     private void onResponse(Response response) {
@@ -142,6 +153,12 @@ public abstract class PaginatedHitSource {
      */
     public abstract boolean hasMoreBatches();
 
+    private void doFirstSearchInRootContext(RejectAwareActionListener<Response> searchListener) {
+        try (var ignored = rootStoredContextSupplier.get()) {
+            doFirstSearch(searchListener);
+        }
+    }
+
     // following is the SPI to be implemented.
     protected abstract void doFirstSearch(RejectAwareActionListener<Response> searchListener);
 
@@ -152,8 +169,8 @@ public abstract class PaginatedHitSource {
     );
 
     /**
-     * Called to release pagination resources (e.g. clear scroll context).
-     * For PIT-based pagination this is a no-op as the PIT is closed elsewhere.
+     * Called to release pagination resources held by this hit source. For scroll-based pagination this clears the
+     * scroll context. For PIT-based pagination this is a no-op as the PIT is closed elsewhere.
      *
      * @param onCompletion implementers must call this after completing the release whether they are
      *        successful or not
@@ -177,7 +194,7 @@ public abstract class PaginatedHitSource {
 
         /**
          * Called when done processing response to signal more data is needed.
-         * @param extraKeepAlive extra time to keep underlying scroll open.
+         * @param extraKeepAlive extra time to extend the search context keep-alive.
          */
         void done(TimeValue extraKeepAlive);
     }
@@ -231,6 +248,45 @@ public abstract class PaginatedHitSource {
             this.scrollId = scrollId;
             this.searchAfterValues = searchAfterValues;
             this.pitId = pitId;
+        }
+
+        /**
+         * Nullable releasable for the circuit breaker reservation covering the remote HTTP response body
+         * bytes that back this batch's hits. Set only for remote reindex responses; null for local searches.
+         * Wrapped in {@link Releasables#releaseOnce} so it is safe to call {@link #closeBodyReleasable()}
+         * from both the normal-path cleanup and the early-exit (hit release) paths.
+         */
+        @Nullable
+        private Releasable bodyReleasable;
+
+        /**
+         * Attaches a circuit-breaker {@link Releasable} for the remote HTTP response body.
+         * Must be called at most once; asserts that no releasable is already set.
+         */
+        public void setBodyReleasable(Releasable releasable) {
+            assert bodyReleasable == null : "bodyReleasable already set";
+            this.bodyReleasable = Releasables.releaseOnce(releasable);
+        }
+
+        /**
+         * Closes the body releasable if one was attached via {@link #setBodyReleasable}.
+         * Safe to call multiple times; only the first call releases.
+         */
+        public void closeBodyReleasable() {
+            if (bodyReleasable != null) {
+                bodyReleasable.close();
+            }
+        }
+
+        /**
+         * Moves the body releasable from this response to {@code dest}.
+         * After this call {@link #closeBodyReleasable()} on this instance is a no-op; the caller is
+         * responsible for releasing via {@code dest}.
+         */
+        public void moveBodyReleasableTo(Response dest) {
+            assert dest.bodyReleasable == null : "dest already has a bodyReleasable";
+            dest.bodyReleasable = this.bodyReleasable;
+            this.bodyReleasable = null;
         }
 
         /**
@@ -342,6 +398,12 @@ public abstract class PaginatedHitSource {
          */
         @Nullable
         String getRouting();
+
+        /**
+         * Release any ref-counted resources held by this hit. Call when the hit is no longer needed.
+         * Default is no-op; implementations that wrap ref-counted resources (e.g. {@link SearchHit}) override to release.
+         */
+        default void release() {}
 
         /**
          * The sort values of the hit, used for search_after pagination. Null if not available.

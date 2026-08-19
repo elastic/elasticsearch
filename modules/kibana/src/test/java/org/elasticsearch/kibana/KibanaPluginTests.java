@@ -10,8 +10,12 @@
 package org.elasticsearch.kibana;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
 
@@ -20,7 +24,52 @@ public class KibanaPluginTests extends ESTestCase {
     public void testKibanaIndexNames() {
         assertThat(
             new KibanaPlugin().getSystemIndexDescriptors(Settings.EMPTY).stream().map(SystemIndexDescriptor::getIndexPattern).toList(),
-            contains(".kibana_*", ".reporting-*", ".chat-*", ".workflows-*", ".apm-agent-configuration*", ".apm-custom-link*")
+            contains(
+                KibanaPlugin.KIBANA_SYSTEM_INDEX_PATTERN,
+                ".reporting-*",
+                ".chat-*",
+                ".contextengine-*",
+                KibanaPlugin.WORKFLOWS_SYSTEM_INDEX_PATTERN,
+                ".apm-agent-configuration*",
+                ".apm-custom-link*"
+            )
         );
+    }
+
+    public void testKibanaDataStreamsRegistered() {
+        assertThat(
+            new KibanaPlugin().getSystemDataStreamDescriptors().stream().map(SystemDataStreamDescriptor::getDataStreamName).toList(),
+            contains(
+                KibanaPlugin.WORKFLOWS_EVENTS_DATA_STREAM_NAME,
+                KibanaPlugin.WORKFLOWS_EXECUTION_LOGS_DATA_STREAM_NAME,
+                KibanaPlugin.CHANGE_HISTORY_DATA_STREAM_NAME
+            )
+        );
+    }
+
+    public void testNoSystemIndexPatternCoversRegisteredDataStreams() {
+        var indexDescriptors = new KibanaPlugin().getSystemIndexDescriptors(Settings.EMPTY);
+        assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".workflows-events")));
+        assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".workflows-execution-data-stream-logs")));
+        assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".kibana_change_history")));
+        assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".kibana_change_history-000001")));
+    }
+
+    public void testWorkflowsSystemIndexDescriptorCoversOtherWorkflowsIndices() {
+        assertTrue(KibanaPlugin.WORKFLOWS_INDEX_DESCRIPTOR.matchesIndexPattern(".workflows-internal"));
+        assertTrue(KibanaPlugin.WORKFLOWS_INDEX_DESCRIPTOR.matchesIndexPattern(".workflows-state"));
+    }
+
+    public void testKibanaSystemIndexDescriptorStillCoversKibanaSavedObjects() {
+        assertTrue(KibanaPlugin.KIBANA_INDEX_DESCRIPTOR.matchesIndexPattern(".kibana_1"));
+        assertTrue(KibanaPlugin.KIBANA_INDEX_DESCRIPTOR.matchesIndexPattern(".kibana_alerting_cases"));
+        assertTrue(KibanaPlugin.KIBANA_INDEX_DESCRIPTOR.matchesIndexPattern(".kibana_task_manager_8.0.0_001"));
+        assertFalse(KibanaPlugin.KIBANA_INDEX_DESCRIPTOR.matchesIndexPattern(".kibana_change_history"));
+        assertFalse(KibanaPlugin.KIBANA_INDEX_DESCRIPTOR.matchesIndexPattern(".kibana_change_history-2026.07.16-000001"));
+    }
+
+    public void testKibanaFeaturePassesSystemIndicesOverlapChecks() {
+        SystemIndices.Feature feature = SystemIndices.Feature.fromSystemIndexPlugin(new KibanaPlugin(), Settings.EMPTY);
+        assertNotNull(new SystemIndices(List.of(feature)));
     }
 }

@@ -68,7 +68,7 @@ public class ByteRankVectorsDocValuesField extends RankVectorsDocValuesField {
     }
 
     protected RankVectors getVector() {
-        return new ByteRankVectors(vectorValue, magnitudesValue, numVecs, dims);
+        return new ByteRankVectors(vectorValue, magnitudesValue, numVecs, dims, value);
     }
 
     @Override

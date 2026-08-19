@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -264,6 +265,16 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         assertMessageFailure(message, SearchLogContext.TYPE, "quick brown", SearchPhaseExecutionException.class, "all shards failed");
         assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("0"));
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo(INDEX_NAME));
+    }
+
+    public void testUnknownIndexFailureLog() {
+        final String missingIndex = "search-logging-unknown-index";
+        expectThrows(IndexNotFoundException.class, prepareSearch(missingIndex).setQuery(matchAllQuery()));
+        var event = appender.getLastEventAndReset();
+        Map<String, String> message = getMessageData(event);
+        assertMessageFailure(message, SearchLogContext.TYPE, "match_all", IndexNotFoundException.class, "no such index");
+        assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("0"));
+        assertThat(message.get(QUERY_FIELD_INDICES), equalTo(missingIndex));
     }
 
     public void testSearchCancel() throws Exception {

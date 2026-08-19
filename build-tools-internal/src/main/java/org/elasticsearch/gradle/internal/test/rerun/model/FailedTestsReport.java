@@ -12,39 +12,47 @@ package org.elasticsearch.gradle.internal.test.rerun.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import java.util.List;
+import java.util.Map;
 
 /**
- * This reflects the model provided by develocity api call
- * {@code api/tests/build/<buildId>?testOutcomes=failed}.
+ * Shape of {@code .failed-test-history.json} produced by the smart-retry
+ * pre-command script and consumed by {@code InternalTestRerunPlugin}.
  * <p>
- * The {@code executedTestTasks} field is populated from a separate API call to
- * {@code api/builds/<buildId>/gradle-test-performance} and contains the task paths
- * of all test tasks that actually executed in the previous build. This enables
- * three-state logic in the retry plugin:
- * <ul>
- *   <li>Task in workUnits: rerun only failed tests</li>
- *   <li>Task in executedTestTasks but not workUnits: skip (confirmed passed)</li>
- *   <li>Task not in executedTestTasks: run all tests (never executed)</li>
- *   <li>executedTestTasks is null: fallback to run all tests for unknown tasks</li>
- * </ul>
+ * {@code successfulTasks} lists Gradle task paths (e.g. {@code :server:test})
+ * that completed successfully across all previous runs. The plugin skips any
+ * test task in this list entirely.
  * <p>
- * <b>Null semantics:</b> {@code workUnits} is normalised to an empty list when the
- * API returns {@code null} (meaning "no failures"), so consumers can iterate it
- * unconditionally. In contrast, {@code executedTestTasks} is intentionally left
- * nullable: {@code null} means the performance API data was unavailable (fall back
- * to running all tests), while an empty list means the API was reachable but no
- * test tasks executed in the previous build.
+ * {@code successfulSuites} maps task paths to lists of test class names
+ * (e.g. {@code "org.elasticsearch.FooTests"}) whose entire suite passed.
+ * The plugin excludes these whole classes from re-execution.
+ * <p>
+ * {@code successfulTests} maps task paths to lists of individual test methods
+ * (formatted as {@code "className#methodName"}) that passed within suites that
+ * were not fully successful. The plugin excludes these specific tests from
+ * re-execution while running everything else in the suite.
  *
- * @param workUnits          list of failed test work-units; never {@code null} (defaulted to empty)
- * @param testseed           the randomised test seed from the original build
- * @param executedTestTasks  task paths of executed test tasks, or {@code null} if the data was unavailable
+ * @param successfulTasks  task paths confirmed successful across previous runs; never {@code null} (defaulted to empty)
+ * @param successfulSuites per-task lists of passing test classes; never {@code null} (defaulted to empty)
+ * @param successfulTests  per-task lists of passing test methods; never {@code null} (defaulted to empty)
+ * @param testseed         the randomised test seed from the original build
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record FailedTestsReport(List<WorkUnit> workUnits, String testseed, List<String> executedTestTasks) {
+public record FailedTestsReport(
+    List<String> successfulTasks,
+    Map<String, List<String>> successfulSuites,
+    Map<String, List<String>> successfulTests,
+    String testseed
+) {
 
-    public FailedTestsReport(List<WorkUnit> workUnits, String testseed, List<String> executedTestTasks) {
-        this.workUnits = workUnits != null ? workUnits : java.util.Collections.emptyList();
+    public FailedTestsReport(
+        List<String> successfulTasks,
+        Map<String, List<String>> successfulSuites,
+        Map<String, List<String>> successfulTests,
+        String testseed
+    ) {
+        this.successfulTasks = successfulTasks != null ? successfulTasks : java.util.Collections.emptyList();
+        this.successfulSuites = successfulSuites != null ? successfulSuites : java.util.Collections.emptyMap();
+        this.successfulTests = successfulTests != null ? successfulTests : java.util.Collections.emptyMap();
         this.testseed = testseed;
-        this.executedTestTasks = executedTestTasks;
     }
 }

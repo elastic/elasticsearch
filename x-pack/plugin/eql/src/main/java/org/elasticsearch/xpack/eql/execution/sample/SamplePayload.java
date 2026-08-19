@@ -35,7 +35,12 @@ class SamplePayload extends AbstractPayload {
             List<SearchHit> hits = docs.get(i);
             List<Event> events = new ArrayList<>(hits.size());
             for (SearchHit hit : hits) {
-                events.add(new Event(hit));
+                try {
+                    // Event(SearchHit) retains _source; decRef only releases the hit wrapper.
+                    events.add(new Event(hit));
+                } finally {
+                    hit.decRef();
+                }
             }
             values.add(new org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence(s.key().asList(), events));
         }

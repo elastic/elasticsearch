@@ -19,6 +19,7 @@ import io.opentelemetry.api.metrics.DoubleUpDownCounter;
 import io.opentelemetry.api.metrics.DoubleUpDownCounterBuilder;
 import io.opentelemetry.api.metrics.LongCounter;
 import io.opentelemetry.api.metrics.LongCounterBuilder;
+import io.opentelemetry.api.metrics.LongGauge;
 import io.opentelemetry.api.metrics.LongGaugeBuilder;
 import io.opentelemetry.api.metrics.LongHistogram;
 import io.opentelemetry.api.metrics.LongHistogramBuilder;
@@ -38,7 +39,6 @@ import io.opentelemetry.context.Context;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.MetricRecorder;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Queue;
@@ -148,6 +148,13 @@ public class RecordingOtelMeter implements Meter {
         }
 
         @Override
+        public boolean isEnabled() {
+            // This is goofy: LongCounter and LongUpDownCounter both offer default isEnabled methods,
+            // so we're forced to implement this, yet we're not forced to choose one.
+            return super.isEnabled();
+        }
+
+        @Override
         public void add(long value) {
             assert value >= 0;
             super.add(value);
@@ -230,6 +237,13 @@ public class RecordingOtelMeter implements Meter {
         }
 
         @Override
+        public boolean isEnabled() {
+            // This is goofy: LongCounter and LongUpDownCounter both offer default isEnabled methods,
+            // so we're forced to implement this, yet we're not forced to choose one.
+            return super.isEnabled();
+        }
+
+        @Override
         public void add(double value) {
             assert value >= 0;
             super.add(value);
@@ -302,7 +316,7 @@ public class RecordingOtelMeter implements Meter {
 
         @Override
         public void add(long value) {
-            recorder.call(instrument, name, value, null);
+            recorder.call(instrument, name, value, Map.of());
         }
 
         @Override
@@ -366,7 +380,7 @@ public class RecordingOtelMeter implements Meter {
 
         @Override
         public void add(double value) {
-            recorder.call(instrument, name, value, null);
+            recorder.call(instrument, name, value, Map.of());
         }
 
         @Override
@@ -403,10 +417,10 @@ public class RecordingOtelMeter implements Meter {
 
         Map<String, Object> toMap(Attributes attributes) {
             if (attributes == null) {
-                return null;
+                return Map.of();
             }
             if (attributes.isEmpty()) {
-                return Collections.emptyMap();
+                return Map.of();
             }
             Map<String, Object> map = new HashMap<>(attributes.size());
             attributes.forEach((k, v) -> map.put(k.getKey(), v));
@@ -512,7 +526,7 @@ public class RecordingOtelMeter implements Meter {
 
         @Override
         public void record(double value) {
-            recorder.call(instrument, name, value, null);
+            recorder.call(instrument, name, value, Map.of());
         }
 
         @Override
@@ -547,10 +561,38 @@ public class RecordingOtelMeter implements Meter {
         }
 
         @Override
+        public LongGauge build() {
+            SyncLongGaugeRecorder gauge = new SyncLongGaugeRecorder(name);
+            recorder.register(gauge, gauge.getInstrument(), name, description, unit);
+            return gauge;
+        }
+
+        @Override
         public ObservableLongMeasurement buildObserver() {
             LongMeasurementRecorder measurement = new LongMeasurementRecorder(name);
             recorder.register(measurement, measurement.getInstrument(), name, description, unit);
             return measurement;
+        }
+    }
+
+    private class SyncLongGaugeRecorder extends AbstractInstrument implements LongGauge, OtelInstrument {
+        SyncLongGaugeRecorder(String name) {
+            super(name, InstrumentType.LONG_GAUGE);
+        }
+
+        @Override
+        public void set(long value) {
+            recorder.call(instrument, name, value, Map.of());
+        }
+
+        @Override
+        public void set(long value, Attributes attributes) {
+            recorder.call(instrument, name, value, toMap(attributes));
+        }
+
+        @Override
+        public void set(long value, Attributes attributes, Context context) {
+            recorder.call(instrument, name, value, toMap(attributes));
         }
     }
 
@@ -583,7 +625,7 @@ public class RecordingOtelMeter implements Meter {
 
         @Override
         public void record(long value) {
-            recorder.call(instrument, name, value, null);
+            recorder.call(instrument, name, value, Map.of());
         }
 
         @Override
@@ -630,7 +672,7 @@ public class RecordingOtelMeter implements Meter {
 
         @Override
         public void record(double value) {
-            recorder.call(getInstrument(), name, value, null);
+            recorder.call(getInstrument(), name, value, Map.of());
         }
 
         @Override
@@ -677,7 +719,7 @@ public class RecordingOtelMeter implements Meter {
 
         @Override
         public void record(long value) {
-            recorder.call(getInstrument(), name, value, null);
+            recorder.call(getInstrument(), name, value, Map.of());
         }
 
         @Override

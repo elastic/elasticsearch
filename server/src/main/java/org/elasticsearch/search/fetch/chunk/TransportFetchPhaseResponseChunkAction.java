@@ -96,6 +96,7 @@ public class TransportFetchPhaseResponseChunkAction {
             BytesTransportRequest::new,
             (request, channel, task) -> {
                 ReleasableBytesReference bytesRef = request.bytes();
+                long rawBytesLength = bytesRef.length();
                 long coordinatingTaskId;
                 FetchPhaseResponseChunk chunk;
 
@@ -110,6 +111,7 @@ public class TransportFetchPhaseResponseChunkAction {
                 processChunk(
                     coordinatingTaskId,
                     chunk,
+                    rawBytesLength,
                     ActionListener.releaseAfter(
                         ActionListener.wrap(ignored -> channel.sendResponse(ActionResponse.Empty.INSTANCE), channel::sendResponse),
                         chunk
@@ -133,14 +135,21 @@ public class TransportFetchPhaseResponseChunkAction {
      *
      * @param coordinatingTaskId the ID of the coordinating search task
      * @param chunk the chunk to process
+     * @param rawBytesLength the total byte length of the {@link BytesTransportRequest} payload
      * @param listener callback for sending the acknowledgment
      */
-    private void processChunk(long coordinatingTaskId, FetchPhaseResponseChunk chunk, ActionListener<ActionResponse.Empty> listener) {
+    private void processChunk(
+        long coordinatingTaskId,
+        FetchPhaseResponseChunk chunk,
+        long rawBytesLength,
+        ActionListener<ActionResponse.Empty> listener
+    ) {
         ActionListener.run(listener, l -> {
             ShardId shardId = chunk.shardId();
 
             final var responseStream = activeFetchPhaseTasks.acquireResponseStream(coordinatingTaskId, shardId);
             try {
+                responseStream.consumeChunkBytes(rawBytesLength);
                 responseStream.writeChunk(chunk, () -> l.onResponse(ActionResponse.Empty.INSTANCE));
             } finally {
                 responseStream.decRef();

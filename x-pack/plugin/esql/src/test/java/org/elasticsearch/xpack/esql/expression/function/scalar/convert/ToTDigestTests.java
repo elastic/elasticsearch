@@ -138,7 +138,7 @@ public class ToTDigestTests extends AbstractScalarFunctionTestCase {
         double min = Double.NaN;
         double max = Double.NaN;
         double sum = Double.NaN;
-        if (in.valueCount() > 0) {
+        if (in.isEmpty() == false) {
             min = in.min();
             max = in.max();
             sum = in.sum();

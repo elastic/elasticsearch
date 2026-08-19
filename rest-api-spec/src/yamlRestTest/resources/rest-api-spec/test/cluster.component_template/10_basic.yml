@@ -181,10 +181,12 @@
         - method: PUT
           path: /_component_template/{name}
           capabilities: [ "dlm.frozen_after" ]
-      test_runner_features: [ "capabilities" ]
+      test_runner_features: [ "capabilities", "allowed_warnings" ]
       reason: "Frozen after added"
 
   - do:
+      allowed_warnings:
+        - "Data stream lifecycle field [frozen_after] is not supported in serverless."
       cluster.put_component_template:
         name: test-lifecycle
         body:
@@ -201,6 +203,27 @@
   - match: {component_templates.0.component_template.template.lifecycle.enabled: true}
   - match: {component_templates.0.component_template.template.lifecycle.data_retention: "30d"}
   - match: {component_templates.0.component_template.template.lifecycle.frozen_after: "10d"}
+
+---
+"Setting frozen_after on failure store lifecycle in component template is rejected":
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_component_template/{name}
+          capabilities: [ "failure_store.lifecycle.frozen_after_rejected" ]
+      test_runner_features: [ "capabilities" ]
+      reason: "Failure store lifecycle rejecting frozen_after was added in 9.5.1+"
+
+  - do:
+      cluster.put_component_template:
+        name: test-failure-lifecycle
+        body:
+          template:
+            data_stream_options:
+              failure_store:
+                lifecycle:
+                  frozen_after: "30d"
+      catch: '/Failure store lifecycle does not support freezing/'
 
 ---
 "Get data stream lifecycle with default rollover":

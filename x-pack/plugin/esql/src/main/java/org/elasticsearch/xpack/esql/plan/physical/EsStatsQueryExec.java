@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Queries;
@@ -164,16 +165,16 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize, Data
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(nodeName())
-            .append("[")
-            .append(indexPattern)
-            .append("], stats[")
-            .append(stat)
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        sb.append(nodeName()).append('[').append(mapper.index(indexPattern)).append("], stats[");
+        // The stats descriptor + raw query DSL both carry user content (field references inside
+        // aggregations, predicate values inside the Lucene query) that we can't safely walk into;
+        // route them through the opaque mapper — raw under identity, redacted under anonymization.
+        sb.append(mapper.opaque(String.valueOf(stat)))
             .append("], query[")
-            .append(query != null ? Strings.toString(query, false, true) : "")
-            .append("]");
-        NodeUtils.toString(sb, attrs, format);
+            .append(mapper.opaque(query != null ? Strings.toString(query, false, true) : ""))
+            .append(']');
+        NodeUtils.toString(sb, attrs, format, mapper);
         sb.append(", limit[").append(limit != null ? limit.toString(format) : "").append("], ");
     }
 }

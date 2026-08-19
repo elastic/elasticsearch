@@ -214,7 +214,7 @@ public class SnapshotsServiceUtils {
                         : "Found shard snapshot actively executing in ["
                             + entry
                             + "] when it should be blocked by a running delete ["
-                            + Strings.toString(snapshotDeletionsInProgress)
+                            + Strings.toTruncatedString(snapshotDeletionsInProgress)
                             + "]";
                 }
             }
@@ -1076,10 +1076,18 @@ public class SnapshotsServiceUtils {
     }
 
     /**
-     * Returns the indices that are currently being snapshotted (with partial == false) and that are contained in the indices-to-check set.
+     * Returns the non-partial, non-clone snapshots that are currently snapshotting one or more of the indices in
+     * {@code indicesToCheck}, each mapped to the subset of those indices it covers. The relation is many-to-many: a single index may be
+     * held by several concurrent snapshots, and a single snapshot may hold several of the indices. Callers that report a conflict to the
+     * user should render the whole map so the user knows which snapshots to take action on.
+     *
+     * @see #describeSnapshottingIndices(Map)
      */
-    public static Set<Index> snapshottingIndices(final ProjectState projectState, final Set<Index> indicesToCheck) {
-        final Set<Index> indices = new HashSet<>();
+    public static Map<Snapshot, Set<Index>> snapshottingIndicesBySnapshot(
+        final ProjectState projectState,
+        final Set<Index> indicesToCheck
+    ) {
+        Map<Snapshot, Set<Index>> result = new HashMap<>();
         for (List<SnapshotsInProgress.Entry> snapshotsInRepo : SnapshotsInProgress.get(projectState.cluster())
             .entriesByRepo(projectState.projectId())) {
             for (final SnapshotsInProgress.Entry entry : snapshotsInRepo) {
@@ -1087,13 +1095,36 @@ public class SnapshotsServiceUtils {
                     for (String indexName : entry.indices().keySet()) {
                         IndexMetadata indexMetadata = projectState.metadata().index(indexName);
                         if (indexMetadata != null && indicesToCheck.contains(indexMetadata.getIndex())) {
-                            indices.add(indexMetadata.getIndex());
+                            result.computeIfAbsent(entry.snapshot(), k -> new HashSet<>()).add(indexMetadata.getIndex());
                         }
                     }
                 }
             }
         }
-        return indices;
+        return result;
+    }
+
+    /**
+     * Renders the result of {@link #snapshottingIndicesBySnapshot} for use in a user-facing error message. Each snapshot is identified
+     * as {@code repository/snapshotName} (the form a user needs for the snapshots API). Output is capped at 5 KB; any snapshots beyond
+     * that limit are omitted with a count of how many were dropped.
+     */
+    public static String describeSnapshottingIndices(Map<Snapshot, Set<Index>> indicesBySnapshot) {
+        StringBuilder sb = new StringBuilder();
+        var collector = new Strings.BoundedDelimitedStringCollector(sb, ", ", 5 * 1024);
+        for (Map.Entry<Snapshot, Set<Index>> entry : indicesBySnapshot.entrySet()) {
+            Snapshot snapshot = entry.getKey();
+            collector.appendItem(
+                "["
+                    + snapshot.getRepository()
+                    + "/"
+                    + snapshot.getSnapshotId().getName()
+                    + "] indices:"
+                    + entry.getValue().stream().map(i -> i.getName() + "/" + i.getUUID()).toList()
+            );
+        }
+        collector.finish();
+        return sb.toString();
     }
 
     /**

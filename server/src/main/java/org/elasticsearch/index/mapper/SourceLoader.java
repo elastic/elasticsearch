@@ -158,10 +158,12 @@ public interface SourceLoader {
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             SyntheticFieldLoader loader = syntheticFieldLoaderLeafSupplier.get();
-            return new LeafWithMetrics(
-                new SyntheticLeaf(filter, loader, loader.docValuesLoader(reader, docIdsInLeaf), ignoredSourceFormat, reader),
-                metrics
-            );
+            var leaf = new SyntheticLeaf(filter, loader, loader.docValuesLoader(reader, docIdsInLeaf), ignoredSourceFormat, reader);
+            if (metrics == SourceFieldMetrics.NOOP) {
+                return leaf;
+            } else {
+                return new LeafWithMetrics(leaf, metrics);
+            }
         }
 
         private record LeafWithMetrics(Leaf leaf, SourceFieldMetrics metrics) implements Leaf {
@@ -213,7 +215,7 @@ public interface SourceLoader {
                 this.ignoredSourceFormat = ignoredSourceFormat;
                 if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE) {
                     this.ignoredSourcedocValues = Objects.requireNonNull(
-                        MultiValuedSortedBinaryDocValues.from(leafReader, IgnoredSourceFieldMapper.NAME)
+                        MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, IgnoredSourceFieldMapper.NAME)
                     );
                 } else {
                     this.ignoredSourcedocValues = null;

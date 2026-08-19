@@ -34,6 +34,7 @@ import org.gradle.api.tasks.javadoc.Javadoc;
 import org.gradle.external.javadoc.CoreJavadocOptions;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
+import org.gradle.jvm.toolchain.JvmVendorSpec;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.io.File;
@@ -152,6 +153,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
             javadoc.getJavadocTool().set(javaToolchains.javadocToolFor(spec -> {
                 spec.getLanguageVersion().set(JavaLanguageVersion.of(buildParams.getMinimumRuntimeVersion().getMajorVersion()));
+                spec.getVendor().set(JvmVendorSpec.ORACLE);
             }));
         });
 

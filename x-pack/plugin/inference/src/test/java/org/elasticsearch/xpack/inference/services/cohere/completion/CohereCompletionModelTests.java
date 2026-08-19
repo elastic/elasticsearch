@@ -12,7 +12,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.HashMap;
@@ -35,9 +36,12 @@ public class CohereCompletionModelTests extends ESTestCase {
     }
 
     public static CohereCompletionModel createModel(String url, String apiKey, @Nullable String model) {
+        var testUri = url != null ? ServiceUtils.createUri(url) : null;
         return new CohereCompletionModel(
             "id",
-            new CohereCompletionServiceSettings(url, model, null, CohereServiceSettings.CohereApiVersion.V2),
+            new CohereCompletionServiceSettings(
+                new CohereCommonServiceSettings(testUri, model, null, CohereCommonServiceSettings.CohereApiVersion.V2)
+            ),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

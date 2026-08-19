@@ -12,15 +12,19 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -31,6 +35,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
@@ -69,9 +74,13 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
     private ThreadPool threadPool;
     private ClusterService clusterService;
     private AtomicReference<ForceMergeRequest> capturedForceMergeRequest;
+    private AtomicReference<String> capturedForceMergeOrigin;
     private AtomicReference<BroadcastResponse> mockForceMergeResponse;
     private AtomicReference<Exception> mockForceMergeFailure;
     private AtomicReference<IndicesSegmentResponse> mockSegmentResponse;
+    private AtomicReference<ClusterHealthRequest> capturedHealthRequest;
+    private AtomicReference<ClusterHealthResponse> mockHealthResponse;
+    private AtomicReference<Exception> mockHealthFailure;
 
     @Before
     public void setup() {
@@ -86,9 +95,13 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
         );
         index = new Index(indexName, indexUuid);
         capturedForceMergeRequest = new AtomicReference<>();
+        capturedForceMergeOrigin = new AtomicReference<>();
         mockForceMergeResponse = new AtomicReference<>();
         mockForceMergeFailure = new AtomicReference<>();
         mockSegmentResponse = new AtomicReference<>();
+        capturedHealthRequest = new AtomicReference<>();
+        mockHealthResponse = new AtomicReference<>(new ClusterHealthResponse()); // default: non-timed-out
+        mockHealthFailure = new AtomicReference<>();
     }
 
     @After
@@ -108,6 +121,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
             ) {
                 if (request instanceof ForceMergeRequest) {
                     capturedForceMergeRequest.set((ForceMergeRequest) request);
+                    capturedForceMergeOrigin.set(threadPool().getThreadContext().getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
                     if (mockForceMergeFailure.get() != null) {
                         listener.onFailure(mockForceMergeFailure.get());
                     } else if (mockForceMergeResponse.get() != null) {
@@ -120,9 +134,35 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
                         // Default: no segments found (force merge not complete)
                         listener.onResponse((Response) new IndicesSegmentResponse(new ShardSegments[0], 0, 0, 0, List.of()));
                     }
+                } else if (request instanceof ClusterHealthRequest healthRequest) {
+                    capturedHealthRequest.set(healthRequest);
+                    if (mockHealthFailure.get() != null) {
+                        listener.onFailure(mockHealthFailure.get());
+                    } else if (mockHealthResponse.get() != null) {
+                        listener.onResponse((Response) mockHealthResponse.get());
+                    }
                 }
             }
         };
+    }
+
+    public void testForceMergeIssuesRequestWithDataStreamLifecycleOrigin() throws InterruptedException {
+        mockForceMergeResponse.set(new BroadcastResponse(1, 1, 0, List.of()));
+
+        createProjectState();
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
+            indexName,
+            projectId,
+            new OriginSettingClient(createMockClient(), DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN),
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
+
+        converter.maybeForceMergeIndex(indexName);
+
+        assertThat(capturedForceMergeRequest.get(), is(notNullValue()));
+        assertThat(capturedForceMergeOrigin.get(), is(DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN));
     }
 
     public void testSkipsForceMergeWhenAlreadyForceMergedToSingleSegment() throws InterruptedException {
@@ -139,7 +179,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 
@@ -163,7 +203,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 
@@ -190,7 +230,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 
@@ -209,7 +249,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 
@@ -228,7 +268,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 
@@ -248,12 +288,31 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> converter.maybeForceMergeIndex(indexName));
         assertThat(exception.getCause().getMessage(), containsString("transport failure"));
+    }
+
+    public void testThrowsWhenYellowStatusTimeoutBreached() {
+        createProjectState();
+
+        DLMConvertToFrozen converter = new DLMConvertToFrozenSnapshotTests.TestDLMConvertToFrozenWithTimeout(
+            indexName,
+            projectId,
+            createMockClient(),
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
+
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> converter.maybeForceMergeIndex(indexName));
+        assertThat(exception.getMessage(), containsString("timed out"));
+        assertThat(exception.getMessage(), containsString(indexName));
+        // No force merge request should have been issued
+        assertThat(capturedForceMergeRequest.get(), is(nullValue()));
     }
 
     private static final String REPO_NAME = "my-repo";

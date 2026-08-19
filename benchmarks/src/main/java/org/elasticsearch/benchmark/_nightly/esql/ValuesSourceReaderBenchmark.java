@@ -87,8 +87,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
-@Warmup(iterations = 5)
-@Measurement(iterations = 7)
+@Warmup(iterations = 5, time = 5, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 7, time = 5, timeUnit = TimeUnit.SECONDS)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Thread)
@@ -281,6 +281,8 @@ public class ValuesSourceReaderBenchmark {
             false,
             null,
             null,
+            false,
+            false,
             false
         ).blockLoader(new BenchContext());
     }
@@ -322,7 +324,8 @@ public class ValuesSourceReaderBenchmark {
             reuseColumnLoaders,
             0,
             PlannerSettings.SOURCE_RESERVATION_FACTOR.getDefault(Settings.EMPTY),
-            PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY)
+            PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY),
+            () -> 0L
         );
         long sum = 0;
         for (Page page : pages) {

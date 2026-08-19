@@ -12,7 +12,18 @@ package org.elasticsearch.transport;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class TransportServiceIT extends ESSingleNodeTestCase {
+
+    @Override
+    protected List<String> filteredWarnings() {
+        var warnings = new ArrayList<>(super.filteredWarnings());
+        warnings.add("[transport.enable_stack_protection] setting was deprecated");
+        return warnings;
+    }
+
     @Override
     protected Settings nodeSettings() {
         return Settings.builder()

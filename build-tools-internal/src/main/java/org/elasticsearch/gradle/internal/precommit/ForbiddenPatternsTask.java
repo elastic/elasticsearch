@@ -19,7 +19,6 @@ import org.gradle.api.problems.Problem;
 import org.gradle.api.problems.ProblemId;
 import org.gradle.api.problems.ProblemReporter;
 import org.gradle.api.problems.Problems;
-import org.gradle.api.problems.Severity;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
@@ -149,7 +148,6 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
                                         ElasticsearchBuildProblems.FORBIDDEN_PATTERNS
                                     ),
                                     spec -> spec.contextualLabel(label)
-                                        .severity(Severity.ERROR)
                                         .lineInFileLocation(absolutePath, lineNumber)
                                         .solution("Remove the forbidden pattern from the source file")
                                 )
@@ -158,8 +156,7 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
                 );
         }
         if (problems.isEmpty() == false) {
-            problemReporter.report(problems);
-            throw new GradleException("Found invalid patterns:\n" + String.join("\n", violations));
+            throw problemReporter.throwing(new GradleException("Found invalid patterns:\n" + String.join("\n", violations)), problems);
         }
 
         File outputMarker = getOutputMarker();

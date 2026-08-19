@@ -1,6 +1,0 @@
-pr: 140539
-summary: "Support arithmetic operations for dense_vectors: vector version"
-area: ES|QL
-type: enhancement
-issues:
- - 140537

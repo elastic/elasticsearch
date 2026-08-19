@@ -13,7 +13,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 
-public class UpdateByQueryRequestBuilder extends AbstractBulkIndexByScrollRequestBuilder<
+public class UpdateByQueryRequestBuilder extends AbstractBulkIndexByPaginatedSearchRequestBuilder<
     UpdateByQueryRequest,
     UpdateByQueryRequestBuilder> {
 

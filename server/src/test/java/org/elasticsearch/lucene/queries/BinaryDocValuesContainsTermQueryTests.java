@@ -10,24 +10,61 @@ package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.lucene.queries.BinaryDocValuesContainsTermQuery.contains;
 
 public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
+
+    public void testArrayOrderInlineNull() throws Exception {
+        String fieldName = "field";
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = ArrayOrderInlineNullTestUtils.newWriter(dir)) {
+                ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, "alpha", null, "beta"); // multi-value; "beta" contains "et"
+                ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, (String) null);          // all-null, immediately before a match
+                ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, "beta");                  // single value; contains "et"
+                ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, "xa", "bz");              // boundary bait, see below
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    // A multi-valued doc is present, so the maxValue<=1 gate disables the whole-blob tryContainsIterator and the per-value
+                    // decode fallback runs. "et" is contained by "beta" in the multi-value and single-value docs; the all-null doc that
+                    // immediately precedes the single-value "beta" doc must not be matched.
+                    assertEquals(2, searcher.count(new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("et"), true)));
+                    // The bytes {'a', 0x03, 'b'} appear contiguously in the raw multi-value blob of ["xa","bz"] (the 0x03 is the length
+                    // prefix of "bz"), so a whole-blob scan would falsely match. Per-value decoding tests "xa" and "bz" individually and
+                    // correctly finds no match — guarding that the gate routes multi-value contains away from the raw-blob fast path.
+                    var framingTerm = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef(new byte[] { 'a', 0x03, 'b' }), true);
+                    assertEquals(0, searcher.count(framingTerm));
+                }
+            }
+        }
+    }
 
     public void testContainsExactMatch() {
         BytesRef value = new BytesRef("foobar");
@@ -139,7 +176,7 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
 
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("search"));
+                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("search"), false);
                     assertEquals(3, searcher.count(query));
                 }
             }
@@ -161,7 +198,7 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
 
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("ell"));
+                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("ell"), false);
                     assertEquals(2, searcher.count(query));
                 }
             }
@@ -177,7 +214,7 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("test"));
+                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("test"), false);
                     assertEquals(0, searcher.count(query));
                 }
             }
@@ -191,7 +228,7 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("test"));
+                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("test"), false);
                     assertEquals(1, searcher.count(query));
                 }
             }
@@ -208,18 +245,63 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
 
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("xyz"));
+                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("xyz"), false);
                     assertEquals(0, searcher.count(query));
                 }
             }
         }
     }
 
+    public void testChecksCircuitBreakerWhenReaderOpened() throws IOException {
+        String fieldName = "field";
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir)) {
+                addSingleValueDoc(writer, fieldName, "elasticsearch");
+                addSingleValueDoc(writer, fieldName, "kibana");
+                try (IndexReader reader = writer.getReader()) {
+                    // The real trip path (child breaker -> parent real-heap sampling) cannot be triggered deterministically from a unit
+                    // test, so we substitute a breaker that always trips to verify the contains query consults it and passes 0 bytes.
+                    AtomicLong checkpointedBytes = new AtomicLong(-1);
+                    CircuitBreaker breaker = new NoopCircuitBreaker("test") {
+                        @Override
+                        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                            checkpointedBytes.set(bytes);
+                            throw new CircuitBreakingException("test trip", Durability.TRANSIENT);
+                        }
+                    };
+                    ContextIndexSearcher searcher = new ContextIndexSearcher(
+                        reader,
+                        IndexSearcher.getDefaultSimilarity(),
+                        IndexSearcher.getDefaultQueryCache(),
+                        IndexSearcher.getDefaultQueryCachingPolicy(),
+                        true
+                    );
+                    searcher.setCircuitBreaker(breaker);
+
+                    Query present = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("search"), false);
+                    expectThrows(CircuitBreakingException.class, () -> searcher.count(present));
+                    // Checkpointed with 0 bytes so the child breaker never accumulates and nothing needs releasing.
+                    assertEquals(0L, checkpointedBytes.get());
+
+                    // A field absent from the segment opens no binary doc values reader, so the checkpoint must not fire.
+                    checkpointedBytes.set(-1);
+                    Query absent = new BinaryDocValuesContainsTermQuery("missing", new BytesRef("search"), false);
+                    assertEquals(0, searcher.count(absent));
+                    assertEquals(-1L, checkpointedBytes.get());
+
+                    // With no breaker configured the query runs normally.
+                    searcher.setCircuitBreaker(null);
+                    assertEquals(1, searcher.count(present));
+                }
+            }
+        }
+    }
+
     public void testEqualsAndHashCode() {
-        BinaryDocValuesContainsTermQuery q1 = new BinaryDocValuesContainsTermQuery("field", new BytesRef("term"));
-        BinaryDocValuesContainsTermQuery q2 = new BinaryDocValuesContainsTermQuery("field", new BytesRef("term"));
-        BinaryDocValuesContainsTermQuery q3 = new BinaryDocValuesContainsTermQuery("other", new BytesRef("term"));
-        BinaryDocValuesContainsTermQuery q4 = new BinaryDocValuesContainsTermQuery("field", new BytesRef("other"));
+        BinaryDocValuesContainsTermQuery q1 = new BinaryDocValuesContainsTermQuery("field", new BytesRef("term"), false);
+        BinaryDocValuesContainsTermQuery q2 = new BinaryDocValuesContainsTermQuery("field", new BytesRef("term"), false);
+        BinaryDocValuesContainsTermQuery q3 = new BinaryDocValuesContainsTermQuery("other", new BytesRef("term"), false);
+        BinaryDocValuesContainsTermQuery q4 = new BinaryDocValuesContainsTermQuery("field", new BytesRef("other"), false);
 
         assertEquals(q1, q2);
         assertEquals(q1.hashCode(), q2.hashCode());
@@ -227,9 +309,70 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
         assertNotEquals(q1, q4);
     }
 
+    public void testNoBinaryDocValuesOpenedDuringPlanning() throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir)) {
+                addSingleValueDoc(writer, "field", "hello");
+                try (DirectoryReader reader = forbidBinaryDvOpenReader(writer.getReader())) {
+                    final IndexSearcher searcher = new IndexSearcher(reader);
+                    final Weight weight = new BinaryDocValuesContainsTermQuery("field", new BytesRef("hello"), false).createWeight(
+                        searcher,
+                        ScoreMode.COMPLETE_NO_SCORES,
+                        1f
+                    );
+                    for (LeafReaderContext ctx : reader.leaves()) {
+                        weight.scorerSupplier(ctx);
+                    }
+                }
+            }
+        }
+    }
+
+    private static DirectoryReader forbidBinaryDvOpenReader(DirectoryReader reader) throws IOException {
+        return new FilterDirectoryReader(reader, new FilterDirectoryReader.SubReaderWrapper() {
+            @Override
+            public LeafReader wrap(LeafReader leaf) {
+                return new FilterLeafReader(leaf) {
+                    @Override
+                    public BinaryDocValues getBinaryDocValues(String field) {
+                        throw new AssertionError(
+                            "getBinaryDocValues() must not be called during scorerSupplier() (planning phase);"
+                                + " defer reader construction to ScorerSupplier#get(). field=["
+                                + field
+                                + "]"
+                        );
+                    }
+
+                    @Override
+                    public IndexReader.CacheHelper getCoreCacheHelper() {
+                        return null;
+                    }
+
+                    @Override
+                    public IndexReader.CacheHelper getReaderCacheHelper() {
+                        return null;
+                    }
+                };
+            }
+        }) {
+            @Override
+            protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+                return in;
+            }
+
+            @Override
+            public IndexReader.CacheHelper getReaderCacheHelper() {
+                return null;
+            }
+        };
+    }
+
     private static void addSingleValueDoc(RandomIndexWriter writer, String fieldName, String value) throws IOException {
         Document document = new Document();
-        var field = new MultiValuedBinaryDocValuesField.SeparateCount(fieldName, false);
+        var field = new MultiValuedBinaryDocValuesField.SeparateCount(
+            fieldName,
+            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+        );
         field.add(new BytesRef(value.getBytes(StandardCharsets.UTF_8)));
         var countField = NumericDocValuesField.indexedField(fieldName + ".counts", 1);
         document.add(field);
@@ -239,7 +382,10 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
 
     private static void addMultiValueDoc(RandomIndexWriter writer, String fieldName, String... values) throws IOException {
         Document document = new Document();
-        var field = new MultiValuedBinaryDocValuesField.SeparateCount(fieldName, false);
+        var field = new MultiValuedBinaryDocValuesField.SeparateCount(
+            fieldName,
+            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+        );
         for (String value : values) {
             field.add(new BytesRef(value.getBytes(StandardCharsets.UTF_8)));
         }

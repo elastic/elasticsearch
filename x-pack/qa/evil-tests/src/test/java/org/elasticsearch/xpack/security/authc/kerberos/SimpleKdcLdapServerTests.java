@@ -17,16 +17,11 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.ietf.jgss.GSSException;
 
 import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.PrivilegedActionException;
-import java.text.ParseException;
 import java.util.Base64;
-
-import javax.security.auth.login.LoginException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -52,7 +47,7 @@ public class SimpleKdcLdapServerTests extends KerberosTestCase {
         }
     }
 
-    public void testClientServiceMutualAuthentication() throws PrivilegedActionException, GSSException, LoginException, ParseException {
+    public void testClientServiceMutualAuthentication() throws Exception {
         final String serviceUserName = randomFrom(serviceUserNames);
         // Client login and init token preparation
         final String clientUserName = randomFrom(clientUserNames);

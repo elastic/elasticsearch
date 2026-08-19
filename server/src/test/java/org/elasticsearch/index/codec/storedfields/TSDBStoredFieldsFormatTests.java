@@ -25,7 +25,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class TSDBStoredFieldsFormatTests extends BaseStoredFieldsFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 

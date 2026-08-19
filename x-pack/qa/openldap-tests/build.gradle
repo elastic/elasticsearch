@@ -9,5 +9,4 @@ dependencies {
 
 tasks.named('test') {
   // test suite uses jks which is not supported in fips mode
-  systemProperty 'tests.security.manager', 'false'
 }

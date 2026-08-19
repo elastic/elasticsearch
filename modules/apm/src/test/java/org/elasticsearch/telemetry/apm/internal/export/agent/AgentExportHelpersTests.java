@@ -19,6 +19,22 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class AgentExportHelpersTests extends ESTestCase {
 
+    public void testAgentFlushWaitTimeMs_disableSendReturnsZero() {
+        Settings settings = Settings.builder()
+            .put("telemetry.agent.disable_send", "true")
+            .put("telemetry.agent.metrics_interval", "60s")
+            .build();
+        assertThat(agentFlushWaitTimeMs(settings), equalTo(0L));
+    }
+
+    public void testAgentFlushWaitTimeMs_disableSendFalseUsesInterval() {
+        Settings settings = Settings.builder()
+            .put("telemetry.agent.disable_send", "false")
+            .put("telemetry.agent.metrics_interval", "60s")
+            .build();
+        assertThat(agentFlushWaitTimeMs(settings), equalTo(120_000L));
+    }
+
     public void testAgentFlushWaitTimeMs_validInterval() {
         for (String intervalStr : new String[] { "1s", "500ms" }) {
             Settings settings = Settings.builder().put("telemetry.agent.metrics_interval", intervalStr).build();

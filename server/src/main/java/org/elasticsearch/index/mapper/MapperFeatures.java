@@ -264,10 +264,12 @@ public class MapperFeatures implements FeatureSpecification {
                 DOC_VALUES_MULTI_VALUE_INDEX_SETTING,
                 DOC_VALUES_MULTI_VALUE_FALSE_ALIAS,
                 DOC_VALUES_EXTENDED_FORM_ONLY_IN_COLUMNAR,
-                DOC_VALUES_NULLABILITY,
-                DOC_VALUES_ON_FAILURE
+                DOC_VALUES_NULLABILITY
             )
         );
+        if (FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled()) {
+            features.add(DOC_VALUES_ON_FAILURE);
+        }
         if (Build.current().isSnapshot()) {
             features.addAll(Set.of(BBQ_DISK_BYTE_SUPPORT, ASH_QUANTIZATION_TYPE_SUPPORT));
         }

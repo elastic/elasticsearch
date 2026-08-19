@@ -74,6 +74,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class KeywordFieldMapperTests extends MapperTestCase {
@@ -1205,7 +1206,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createColumnarModeDocumentMapper(
             fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject())
         );
-        mapper.parse(source(b -> b.startArray("field").nullValue().value(randomAlphanumericOfLength(5)).endArray()));
+        ParsedDocument doc = mapper.parse(source(b -> b.startArray("field").nullValue().value(randomAlphanumericOfLength(5)).endArray()));
+        assertThat("null discarded: no multi_value violation", doc.rootDoc().getFields("_ignored"), empty());
+        assertThat("non-null value must be indexed", doc.rootDoc().getFields("field"), not(empty()));
     }
 
     /**
@@ -1215,7 +1218,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createColumnarModeDocumentMapper(
             fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject())
         );
-        mapper.parse(source(b -> b.startArray("field").value(randomAlphanumericOfLength(5)).nullValue().endArray()));
+        ParsedDocument doc = mapper.parse(source(b -> b.startArray("field").value(randomAlphanumericOfLength(5)).nullValue().endArray()));
+        assertThat("null discarded: no multi_value violation", doc.rootDoc().getFields("_ignored"), empty());
+        assertThat("non-null value must be indexed", doc.rootDoc().getFields("field"), not(empty()));
     }
 
     public void testMultiValueFalseAcceptsSingleNull() throws IOException {

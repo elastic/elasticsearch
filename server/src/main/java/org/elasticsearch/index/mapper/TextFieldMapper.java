@@ -2199,6 +2199,9 @@ public final class TextFieldMapper extends FieldMapper {
         var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
         if (kwd != null) {
             layers.addAll(kwd.syntheticFieldLoaderLayers());
+            if (kwd.writesOnFailureColumn()) {
+                layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(kwd.fullPath(), indexSettings.getIndexVersionCreated()));
+            }
         }
 
         if (writesOnFailureColumn()) {

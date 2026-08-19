@@ -778,6 +778,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean nullIsAbsent() {
+        return nullValue == null;
+    }
+
+    @Override
     protected FieldMapper.DocValuesParameter.Values.OnFailure onFailureBehavior() {
         return docValuesParameters.onFailure();
     }

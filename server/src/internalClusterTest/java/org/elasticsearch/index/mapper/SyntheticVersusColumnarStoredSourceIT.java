@@ -190,8 +190,10 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
     }
 
     /**
-     * A {@code nullability=false, on_failure=ignore} field that is absent in a document is merely marked ignored rather
-     * than rejecting the document. Both source modes must omit the field from the reconstructed {@code _source}.
+     * A {@code nullability=false, on_failure=ignore} field that is absent in a document is marked ignored rather than rejecting
+     * the document. Both source modes must omit the field from the reconstructed {@code _source}.
+     * Note: an absent field writes nothing to {@code ._on_failure}, so the new read-side reconstruction wiring is not exercised here;
+     * this is a regression test for the existing nullability-tracking path.
      */
     public void testNullabilityViolationOmittedIdenticallyAcrossSourceModes() throws Exception {
         assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
@@ -294,6 +296,31 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
     }
 
     private void assertEqualSource(XContentBuilder mappingXContent, Map<String, ?> document, boolean useTimeSeriesDocValuesFormat) {
+        var sources = indexAndFetchSources(mappingXContent, document, useTimeSeriesDocValuesFormat);
+        assertEquals(sources.get(0), sources.get(1));
+    }
+
+    /**
+     * Like {@link #assertEqualSource(XContentBuilder, Map, boolean)} but also asserts the reconstructed source equals
+     * {@code expectedSource}, not just that both modes agree with each other.
+     */
+    private void assertEqualSource(
+        XContentBuilder mappingXContent,
+        Map<String, ?> document,
+        boolean useTimeSeriesDocValuesFormat,
+        Map<String, ?> expectedSource
+    ) {
+        var sources = indexAndFetchSources(mappingXContent, document, useTimeSeriesDocValuesFormat);
+        assertEquals(sources.get(0), sources.get(1));
+        assertEquals("synthetic source must match expected content", expectedSource, sources.get(0));
+        assertEquals("columnar stored source must match expected content", expectedSource, sources.get(1));
+    }
+
+    private List<Map<String, Object>> indexAndFetchSources(
+        XContentBuilder mappingXContent,
+        Map<String, ?> document,
+        boolean useTimeSeriesDocValuesFormat
+    ) {
         var syntheticSettings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
@@ -313,25 +340,7 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
 
         var syntheticSource = client().prepareGet("test_synthetic", "1").get().getSourceAsMap();
         var columnarStoredSource = client().prepareGet("test_columnar_stored", "1").get().getSourceAsMap();
-
-        assertEquals(syntheticSource, columnarStoredSource);
-    }
-
-    /**
-     * Like {@link #assertEqualSource(XContentBuilder, Map, boolean)} but also asserts the reconstructed source equals
-     * {@code expectedSource}, not just that both modes agree with each other.
-     */
-    private void assertEqualSource(
-        XContentBuilder mappingXContent,
-        Map<String, ?> document,
-        boolean useTimeSeriesDocValuesFormat,
-        Map<String, ?> expectedSource
-    ) {
-        assertEqualSource(mappingXContent, document, useTimeSeriesDocValuesFormat);
-        var syntheticSource = client().prepareGet("test_synthetic", "1").get().getSourceAsMap();
-        assertEquals("synthetic source must match expected content", expectedSource, syntheticSource);
-        var columnarStoredSource = client().prepareGet("test_columnar_stored", "1").get().getSourceAsMap();
-        assertEquals("columnar stored source must match expected content", expectedSource, columnarStoredSource);
+        return List.of(syntheticSource, columnarStoredSource);
     }
 
     private DataGeneratorSpecification buildSpec() {

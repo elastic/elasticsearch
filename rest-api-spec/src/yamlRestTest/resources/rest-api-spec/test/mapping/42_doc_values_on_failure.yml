@@ -53,6 +53,14 @@
 
   - match: { _source.kw: ["val1", "val2", "val3"] }
 
+  # On-failure values must be tracked in _ignored.
+  - do:
+      get:
+        index: test_on_failure_synthetic
+        id: "1"
+        stored_fields: [ _ignored ]
+  - match: { fields._ignored: [ "kw" ] }
+
   - do:
       get:
         index: test_on_failure_synthetic
@@ -131,6 +139,14 @@
         id: "1"
 
   - match: { _source.kw: ["val1", "val2", "val3"] }
+
+  # On-failure values must be tracked in _ignored.
+  - do:
+      get:
+        index: test_on_failure_synthetic_columnar
+        id: "1"
+        stored_fields: [ _ignored ]
+  - match: { fields._ignored: [ "kw" ] }
 
   - do:
       get:
@@ -211,12 +227,39 @@
 
   - match: { _source.kw: ["val1", "val2", "val3"] }
 
+  # On-failure values must be tracked in _ignored.
+  - do:
+      get:
+        index: test_on_failure_columnar_stored
+        id: "1"
+        stored_fields: [ _ignored ]
+  - match: { fields._ignored: [ "kw" ] }
+
   - do:
       get:
         index: test_on_failure_columnar_stored
         id: "2"
 
   - match: { _source.kw: "only" }
+
+  # The sidecar is not surfaced to search: only the primary doc-value is visible.
+  - do:
+      search:
+        index: test_on_failure_columnar_stored
+        body:
+          query:
+            term:
+              kw: "val2"
+  - match: { hits.total.value: 0 }
+
+  - do:
+      search:
+        index: test_on_failure_columnar_stored
+        body:
+          query:
+            term:
+              kw: "val1"
+  - match: { hits.total.value: 1 }
 
 ---
 "on_failure=ignore redirects extra values to ._on_failure sidecar (columnar, columnar_stored source)":
@@ -269,12 +312,39 @@
 
   - match: { _source.kw: ["val1", "val2", "val3"] }
 
+  # On-failure values must be tracked in _ignored.
+  - do:
+      get:
+        index: test_on_failure_columnar_stored_columnar
+        id: "1"
+        stored_fields: [ _ignored ]
+  - match: { fields._ignored: [ "kw" ] }
+
   - do:
       get:
         index: test_on_failure_columnar_stored_columnar
         id: "2"
 
   - match: { _source.kw: "only" }
+
+  # The sidecar is not surfaced to search: only the primary doc-value is visible.
+  - do:
+      search:
+        index: test_on_failure_columnar_stored_columnar
+        body:
+          query:
+            term:
+              kw: "val2"
+  - match: { hits.total.value: 0 }
+
+  - do:
+      search:
+        index: test_on_failure_columnar_stored_columnar
+        body:
+          query:
+            term:
+              kw: "val1"
+  - match: { hits.total.value: 1 }
 
 ---
 "on_failure=ignore trailing null round-trips (logsdb_columnar)":

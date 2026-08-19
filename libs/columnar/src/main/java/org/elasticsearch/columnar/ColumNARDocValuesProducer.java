@@ -43,6 +43,7 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
 
     private final int maxDoc;
     private final IndexInput data;
+    private final IndexInput skipIndex;
     private final Map<Integer, Column> columns = new HashMap<>();
     private boolean closed = false;
 
@@ -98,6 +99,26 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
                 );
             }
             CodecUtil.retrieveChecksum(data);
+
+            String skipName = IndexFileNames.segmentFileName(
+                state.segmentInfo.name,
+                state.segmentSuffix,
+                ColumNARDocValuesFormat.SKIP_EXTENSION
+            );
+            skipIndex = state.directory.openInput(skipName, state.context);
+            final FormatVersion skipVersion = ColumnarCodecUtil.checkHeader(
+                skipIndex,
+                ColumNARDocValuesFormat.SKIP_CODEC,
+                state.segmentInfo.getId(),
+                state.segmentSuffix
+            );
+            if (metaVersion.equals(skipVersion) == false) {
+                throw new CorruptIndexException(
+                    "Format versions mismatch: meta=" + metaVersion.version() + ", skip=" + skipVersion.version(),
+                    skipIndex
+                );
+            }
+            CodecUtil.retrieveChecksum(skipIndex);
             success = true;
         } finally {
             if (success == false) {
@@ -131,7 +152,7 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
         // Dense single-valued columns map a document id onto its value ordinal, which unlocks the
         // vectorized range and bulk-read fast paths; every other shape falls back to per-doc reads.
         boolean vectorizable = iterator.isDense() && metadata.multiValued() == false;
-        return new ColumnarNumericBinaryDocValues(reader, iterator, maxDoc, vectorizable, metadata.skipper(), data);
+        return new ColumnarNumericBinaryDocValues(reader, iterator, maxDoc, vectorizable, metadata.skipper(), skipIndex);
     }
 
     @Override
@@ -172,6 +193,7 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
     @Override
     public void checkIntegrity() throws IOException {
         CodecUtil.checksumEntireFile(data);
+        CodecUtil.checksumEntireFile(skipIndex);
     }
 
     @Override
@@ -180,6 +202,6 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
             return;
         }
         closed = true;
-        IOUtils.close(data);
+        IOUtils.close(data, skipIndex);
     }
 }

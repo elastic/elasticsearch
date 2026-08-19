@@ -57,6 +57,7 @@ public final class NumericColumnWriter {
      * @param directory        directory used for the temporary table files
      * @param context          IO context for the temporary table files
      * @param data             data output (iterator, value blocks, and tables are appended)
+     * @param skipIndex        skip-index output (the skip region is appended)
      */
     public static NumericColumnMetadata write(
         int maxDoc,
@@ -68,7 +69,8 @@ public final class NumericColumnWriter {
         SkipIndexCodec skipCodec,
         Directory directory,
         IOContext context,
-        IndexOutput data
+        IndexOutput data,
+        IndexOutput skipIndex
     ) throws IOException {
         ColumnIteratorMetadata iterator = ColumnIteratorWriter.write(cursors.get(), numDocsWithField, maxDoc, data);
         if (numDocsWithField == 0) {
@@ -148,9 +150,9 @@ public final class NumericColumnWriter {
             MonotonicWriter.Table blocks = blockOffsets.finish(data);
             MonotonicWriter.Table addresses = multiValued ? valueAddresses.finish(data) : MonotonicWriter.Table.NONE;
 
-            // The skip region is appended after the value blocks and tables: the writer buffered its
-            // bytes while being fed inline, so its recorded offset is the data pointer here.
-            NumericColumnMetadata.Skipper skipper = skip == null ? null : skip.finish(data);
+            // The writer buffered the skip bytes while being fed inline; they are flushed here, so the
+            // recorded offset is the skip-index file's pointer.
+            NumericColumnMetadata.Skipper skipper = skip == null ? null : skip.finish(skipIndex);
 
             return new NumericColumnMetadata(
                 iterator,

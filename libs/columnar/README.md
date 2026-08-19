@@ -56,11 +56,24 @@ the ids it was written with, older data lists only old ids and a newer reader re
 - **Skip index.** Range pushdown lives inside the column (a `BINARY` field can't carry a Lucene
   skipper): a multi-level per-interval min/max index the range query consults.
 
+## Files
+
+A segment writes three files, split by how they are read:
+
+- **`.cnm` — metadata.** One fixed-size record per column: offsets, lengths, counts, the pipeline's
+  stage ids, and the `DirectMonotonic` table headers. Read in full when the segment opens, and the
+  only part held on the heap — so nothing in it may scale with the column.
+- **`.cnd` — data.** Everything variable-length: presence (`IndexedDISI`), the value blocks, and the
+  packed bytes of the offset and address tables. Read through the mapped input, never materialized.
+- **`.cns` — skip index.** The per-column multi-level min/max structure. It gets its own file because
+  a range query scans it to choose which intervals to visit before touching any value bytes; out of
+  `.cnd` that scan is sequential and can be cached without pulling the column's bytes.
+
 ## Memory & versioning
 
 Nothing column-proportional is on the heap — read, write and merge stream one block at a time; offset
 and address tables use `DirectMonotonic` (temp file on write, mapped slice on read). Each segment
-carries a format version stamp in both the `.cnd` and `.cnm` headers. The on-disk component ids
+carries a format version stamp in the `.cnm`, `.cnd`, and `.cns` headers. The on-disk component ids
 (field type, block encoding, block-bytes codec, skip-index codec) are frozen once shipped and must
 never be reused or renumbered. A format bump is required for layout changes — new fields in `readFrom`,
 different block framing, changed offset-table encoding — not for id additions: an unknown id already

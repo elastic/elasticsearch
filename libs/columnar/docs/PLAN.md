@@ -18,6 +18,9 @@ The direction, the decisions that constrain it, and the build order. Update as d
   pipeline, backed by the existing `org.elasticsearch.nativeaccess.Zstd` binding rather than a Java
   LZ4/Zstd (the native codec is faster).
 - **Order preserved; nothing column-sized on the heap.** See `AGENTS.md`.
+- **Metadata separate from content.** `.cnm` holds fixed-size per-column records only (read in full
+  at open, the only part on the heap); everything column-proportional goes to `.cnd`, and a structure
+  read before the values — the skip index — gets its own `.cns`. See `AGENTS.md`.
 
 ## Done
 
@@ -28,7 +31,8 @@ The direction, the decisions that constrain it, and the build order. Update as d
 - `NumericBinaryPayload` seam (payload ↔ longs); `binaryValue()` re-emit.
 - Read fast paths on `ColumnarNumericBinaryDocValues`: `bulkLongs` (block loader) and `rangeIterator`
   (SIMD `inRangeBitmask`, `intoBitSet`/`docIDRunEnd`), skipper-aware and no-skipper.
-- Native multi-level skip index inside the column (`NumericSkipWriter`/`NumericColumnSkipper`).
+- Native multi-level skip index inside the column (`NumericSkipWriter`/`NumericColumnSkipper`),
+  written to its own `.cns` file.
 - `ColumnarNumericRangeQuery`: self-contained Lucene range query over `getBinary`.
 - Tests: round-trip, fast-path + skipper vs brute force, end-to-end range query, multi-segment merge.
 - `SplitDeltaTransform` (frozen id 3) and `AlpDoubleTransform` (frozen id 4) registered in

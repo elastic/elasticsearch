@@ -22,6 +22,14 @@ Read `README.md` for the architecture first, then this. It covers what is expens
    tables use `DirectMonotonic` (temp file on write, mapped slice on read); presence uses
    `IndexedDISI`. Only bounded metadata and one decode block stay in memory.
 
+6. **Metadata and content live in different files.** A segment writes `.cnm` (metadata), `.cnd`
+   (data) and `.cns` (skip index). Anything whose size scales with the column — presence, value
+   blocks, offset-table bytes, the skip index — goes in `.cnd` or `.cns` and is read through the
+   mapped input. `.cnm` carries only fixed-size per-column records: it is read in full at segment
+   open and is the one part that lives on the heap, so a structure added there must not grow with
+   the data. A structure a reader consults *before* it touches values gets its own file, so it can
+   be read and cached without fetching the column's bytes; the skip index is the case today.
+
 ## Encoders
 
 A block is encoded by a `NumericPipeline`: adaptive `BlockTransform`s (delta, offset, GCD — reversible

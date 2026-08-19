@@ -242,9 +242,7 @@ public class SharedBytes extends AbstractRefCounted {
      */
     public static int copyToCacheFileAligned(IO fc, InputStream input, int fileChannelPos, IntConsumer progressUpdater, ByteBuffer buffer)
         throws IOException {
-        final int[] bytesCopied = { 0 };
-        copyToCacheFileAligned(fc, input, fileChannelPos, progressUpdater, ignored -> {}, bytes -> bytesCopied[0] = bytes, buffer);
-        return bytesCopied[0];
+        return copyToCacheFileAligned(fc, input, fileChannelPos, progressUpdater, ignored -> {}, bytes -> bytesCopied[0] = bytes, buffer);
     }
 
     /**
@@ -257,9 +255,10 @@ public class SharedBytes extends AbstractRefCounted {
      * @param bytesReadConsumer callback to invoke with the number of bytes copied in each read
      * @param totalBytesReadConsumer callback to invoke with the total bytes copied when all reading completes
      * @param buffer bytebuffer to use for writing
+     * @return the number of bytes copied
      * @throws IOException on failure
      */
-    public static void copyToCacheFileAligned(
+    public static int copyToCacheFileAligned(
         IO fc,
         InputStream input,
         int fileChannelPos,
@@ -284,6 +283,7 @@ public class SharedBytes extends AbstractRefCounted {
             totalBytesConsumed += bytesCopied;
             progressUpdater.accept(totalBytesConsumed);
         }
+        return totalBytesConsumed;
     }
 
     /**

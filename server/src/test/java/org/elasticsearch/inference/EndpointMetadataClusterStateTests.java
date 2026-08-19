@@ -120,6 +120,73 @@ public class EndpointMetadataClusterStateTests extends AbstractBWCSerializationT
             """)));
     }
 
+    public void testFingerprintMatches() {
+        var nullFingerprint1 = new EndpointMetadataClusterState(
+            EndpointMetadataTests.randomHeuristics(),
+            new EndpointMetadata.Internal(null, null)
+        );
+        var nullFingerprint2 = new EndpointMetadataClusterState(
+            EndpointMetadataTests.randomHeuristics(),
+            new EndpointMetadata.Internal(null, null)
+        );
+        var fingerprintAbc1 = new EndpointMetadataClusterState(
+            EndpointMetadataTests.randomHeuristics(),
+            new EndpointMetadata.Internal("abc", null)
+        );
+        var fingerprintAbc2 = new EndpointMetadataClusterState(
+            EndpointMetadataTests.randomHeuristics(),
+            new EndpointMetadata.Internal("abc", null)
+        );
+        var fingerprintXyz1 = new EndpointMetadataClusterState(
+            EndpointMetadataTests.randomHeuristics(),
+            new EndpointMetadata.Internal("xyz", null)
+        );
+        var fingerprintXyz2 = new EndpointMetadataClusterState(
+            EndpointMetadataTests.randomHeuristics(),
+            new EndpointMetadata.Internal("xyz", null)
+        );
+
+        assertTrue(nullFingerprint1.fingerprintMatches(nullFingerprint2));
+        assertFalse(nullFingerprint1.fingerprintMatches(fingerprintAbc1));
+        assertFalse(nullFingerprint1.fingerprintMatches(fingerprintXyz1));
+
+        assertTrue(fingerprintAbc1.fingerprintMatches(fingerprintAbc2));
+        assertTrue(fingerprintXyz1.fingerprintMatches(fingerprintXyz2));
+
+        assertFalse(fingerprintXyz1.fingerprintMatches(fingerprintAbc1));
+    }
+
+    public void testIsNewerThan() {
+        var nullVersion1 = new EndpointMetadataClusterState(
+            EndpointMetadataTests.randomHeuristics(),
+            new EndpointMetadata.Internal(null, null)
+        );
+        var nullVersion2 = new EndpointMetadataClusterState(
+            EndpointMetadataTests.randomHeuristics(),
+            new EndpointMetadata.Internal(null, null)
+        );
+        var versionFour = new EndpointMetadataClusterState(
+            EndpointMetadataTests.randomHeuristics(),
+            new EndpointMetadata.Internal(null, 4L)
+        );
+        var anotherVersionFour = new EndpointMetadataClusterState(
+            EndpointMetadataTests.randomHeuristics(),
+            new EndpointMetadata.Internal(null, 4L)
+        );
+        var versionFive = new EndpointMetadataClusterState(
+            EndpointMetadataTests.randomHeuristics(),
+            new EndpointMetadata.Internal(null, 5L)
+        );
+
+        assertFalse(nullVersion1.isNewerThan(nullVersion2));
+        assertFalse(nullVersion1.isNewerThan(versionFour));
+        assertTrue(versionFour.isNewerThan(nullVersion1));
+        assertFalse(versionFour.isNewerThan(anotherVersionFour));
+        assertFalse(versionFour.isNewerThan(versionFive));
+        assertTrue(versionFive.isNewerThan(versionFour));
+        assertTrue(versionFive.isNewerThan(nullVersion2));
+    }
+
     /**
      * Verifies that the lenient parser silently drops unknown fields written by older nodes (display, regions, denied_by_region_policy).
      */

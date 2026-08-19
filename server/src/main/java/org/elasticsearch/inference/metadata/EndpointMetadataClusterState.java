@@ -104,6 +104,20 @@ public record EndpointMetadataClusterState(Heuristics heuristics, Internal inter
     }
 
     /**
+     * Returns {@code true} if this cluster-state metadata's fingerprint equals the other's.
+     */
+    public boolean fingerprintMatches(EndpointMetadataClusterState other) {
+        return internal.fingerprintMatches(other.internal());
+    }
+
+    /**
+     * Returns {@code true} if this cluster-state metadata has a higher internal version than the other.
+     */
+    public boolean isNewerThan(EndpointMetadataClusterState other) {
+        return internal.isNewerThan(other.internal());
+    }
+
+    /**
      * Creates an {@link EndpointMetadataClusterState} from the given {@link EndpointMetadata}, keeping only
      * {@code heuristics} and {@code internal}.
      */

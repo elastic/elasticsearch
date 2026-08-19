@@ -243,17 +243,17 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
             false
         );
 
-        assertThat(endpointWithNullFingerprint1.internal().fingerprintMatches(endpointWithNullFingerprint2.internal()), is(true));
-        assertThat(endpointWithNullFingerprint1.internal().fingerprintMatches(endpointWithFingerprintAbc1.internal()), is(false));
-        assertThat(endpointWithNullFingerprint1.internal().fingerprintMatches(endpointWithFingerprintXyz1.internal()), is(false));
+        assertTrue(fingerprintMatches(endpointWithNullFingerprint1, endpointWithNullFingerprint2));
+        assertFalse(fingerprintMatches(endpointWithNullFingerprint1, endpointWithFingerprintAbc1));
+        assertFalse(fingerprintMatches(endpointWithNullFingerprint1, endpointWithFingerprintXyz1));
 
-        assertThat(endpointWithFingerprintAbc1.internal().fingerprintMatches(endpointWithFingerprintAbc2.internal()), is(true));
-        assertThat(endpointWithFingerprintXyz1.internal().fingerprintMatches(endpointWithFingerprintXyz2.internal()), is(true));
+        assertTrue(fingerprintMatches(endpointWithFingerprintAbc1, endpointWithFingerprintAbc2));
+        assertTrue(fingerprintMatches(endpointWithFingerprintXyz1, endpointWithFingerprintXyz2));
 
-        assertThat(endpointWithFingerprintXyz1.internal().fingerprintMatches(endpointWithFingerprintAbc1.internal()), is(false));
+        assertFalse(fingerprintMatches(endpointWithFingerprintXyz1, endpointWithFingerprintAbc1));
     }
 
-    public void testHasNewerVersionThan() {
+    public void testIsNewerThan() {
         EndpointMetadata endpointWithNullVersion1 = new EndpointMetadata(
             randomHeuristics(),
             new EndpointMetadata.Internal(null, null),
@@ -290,13 +290,21 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
             false
         );
 
-        assertThat(endpointWithNullVersion1.internal().isNewerThan(endpointWithNullVersion2.internal()), is(false));
-        assertThat(endpointWithNullVersion1.internal().isNewerThan(endpointWithVersionFour.internal()), is(false));
-        assertThat(endpointWithVersionFour.internal().isNewerThan(endpointWithNullVersion1.internal()), is(true));
-        assertThat(endpointWithVersionFour.internal().isNewerThan(anotherEndpointWithVersionFour.internal()), is(false));
-        assertThat(endpointWithVersionFour.internal().isNewerThan(endpointWithVersionFive.internal()), is(false));
-        assertThat(endpointWithVersionFive.internal().isNewerThan(endpointWithVersionFour.internal()), is(true));
-        assertThat(endpointWithVersionFive.internal().isNewerThan(endpointWithNullVersion2.internal()), is(true));
+        assertFalse(isNewerThan(endpointWithNullVersion1, endpointWithNullVersion2));
+        assertFalse(isNewerThan(endpointWithNullVersion1, endpointWithVersionFour));
+        assertTrue(isNewerThan(endpointWithVersionFour, endpointWithNullVersion1));
+        assertFalse(isNewerThan(endpointWithVersionFour, anotherEndpointWithVersionFour));
+        assertFalse(isNewerThan(endpointWithVersionFour, endpointWithVersionFive));
+        assertTrue(isNewerThan(endpointWithVersionFive, endpointWithVersionFour));
+        assertTrue(isNewerThan(endpointWithVersionFive, endpointWithNullVersion2));
+    }
+
+    private static boolean fingerprintMatches(EndpointMetadata first, EndpointMetadata second) {
+        return first.internal().fingerprintMatches(second.internal());
+    }
+
+    private static boolean isNewerThan(EndpointMetadata first, EndpointMetadata second) {
+        return first.internal().isNewerThan(second.internal());
     }
 
     @Override

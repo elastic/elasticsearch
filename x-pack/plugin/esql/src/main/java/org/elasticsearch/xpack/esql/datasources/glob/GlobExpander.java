@@ -558,7 +558,8 @@ public final class GlobExpander {
                     if (first == '_') {
                         // Hive partition directories use key=value notation; a segment starting with '_'
                         // that contains '=' is a legitimate partition directory, not metadata litter.
-                        boolean isPartitionSegment = relativePath.indexOf('=', start) < i && relativePath.indexOf('=', start) >= start;
+                        int eqIdx = relativePath.indexOf('=', start);
+                        boolean isPartitionSegment = eqIdx >= start && eqIdx < i;
                         if (isPartitionSegment == false) {
                             return true;
                         }

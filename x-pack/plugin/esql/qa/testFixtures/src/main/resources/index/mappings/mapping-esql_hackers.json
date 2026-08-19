@@ -1,0 +1,19 @@
+{
+  "properties": {
+    "name": {
+      "type": "keyword"
+    },
+    "handle": {
+      "type": "keyword"
+    },
+    "active_period": {
+      "type": "date_range"
+    },
+    "commits": {
+      "type": "integer"
+    },
+    "areas": {
+      "type": "keyword"
+    }
+  }
+}

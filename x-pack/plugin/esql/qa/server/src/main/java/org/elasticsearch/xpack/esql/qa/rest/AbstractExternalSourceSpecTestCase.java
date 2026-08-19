@@ -867,7 +867,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     @Override
     protected List<String> indicesToLoad() {
         // languages: enrich policy source; languages_lookup: LOOKUP JOIN (see CsvTestsDataLoader.loadEnrichPoliciesForLoadedSourceIndices)
-        return List.of("languages", "languages_lookup");
+        // esql_hackers: loaded only when DATE_RANGE_FIELD_TYPE_V6 is available; skipped otherwise alongside its gated spec tests
+        return List.of("languages", "languages_lookup", "esql_hackers");
     }
 
     @Override

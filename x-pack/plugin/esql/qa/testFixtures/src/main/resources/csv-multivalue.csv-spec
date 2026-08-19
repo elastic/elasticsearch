@@ -269,3 +269,22 @@ emp_no:integer
 ;
 
 // TRANGE and TBUCKET require @timestamp; RENAME hire_date to @timestamp for these tests.
+
+// Most well-rounded ES|QL contributors by number of distinct contribution areas.
+esqlHackersWellRounded
+required_capability: date_range_field_type_v6
+
+FROM esql_hackers
+| EVAL area_count = MV_COUNT(areas)
+| SORT area_count DESC, handle ASC
+| KEEP handle, area_count
+| LIMIT 5
+;
+
+handle:keyword  | area_count:integer
+nik9000         | 17
+costin          | 10
+dnhatn          | 10
+luigidellaquila | 10
+bpintea         | 8
+;

@@ -1810,3 +1810,44 @@ decade:integer | ct:integer
 1950           | 2
 2000           | 2
 ;
+
+// ES|QL contributors currently active on 2026-08-18, ranked by commit count.
+esqlHackersActiveContributors
+required_capability: date_range_field_type_v6
+required_capability: fn_range_contains
+
+FROM esql_hackers
+| WHERE RANGE_CONTAINS(active_period, "2026-08-18"::datetime)
+| SORT commits DESC
+| KEEP handle, commits
+| LIMIT 5
+;
+
+handle:keyword   | commits:integer
+dnhatn           | 573
+luigidellaquila  | 315
+costin           | 281
+bpintea          | 259
+astefan          | 205
+;
+
+// ES|QL contributors active during the project's first six months (2022-06-01 to 2022-12-31).
+esqlHackersFoundingTeam
+required_capability: date_range_field_type_v6
+required_capability: fn_range_intersects
+
+FROM esql_hackers
+| WHERE RANGE_INTERSECTS(active_period, TO_RANGE("2022-06-01"::datetime, "2022-12-31"::datetime))
+| SORT handle ASC
+| KEEP handle
+;
+
+handle:keyword
+ChrisHegarty
+astefan
+bpintea
+costin
+dnhatn
+luigidellaquila
+nik9000
+;

@@ -14,6 +14,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentSubParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
@@ -25,7 +26,6 @@ import java.util.Deque;
 import java.util.Optional;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
 
 public class AnthropicStreamingProcessor extends DelegatingProcessor<Deque<ServerSentEvent>, StreamingChatCompletionResults.Results> {
@@ -42,28 +42,8 @@ public class AnthropicStreamingProcessor extends DelegatingProcessor<Deque<Serve
         var results = new ArrayDeque<StreamingChatCompletionResults.Result>(item.size());
         for (var event : item) {
             if (event.hasData()) {
-                try (var parser = parser(event.data())) {
-                    var eventType = eventType(parser);
-                    switch (eventType) {
-                        case "error" -> {
-                            onError(parseError(parser));
-                            return;
-                        }
-                        case "content_block_start" -> {
-                            parseStartBlock(parser).ifPresent(results::offer);
-                        }
-                        case "content_block_delta" -> {
-                            parseMessage(parser).ifPresent(results::offer);
-                        }
-                        case "message_start", "message_stop", "message_delta", "content_block_stop", "ping" -> {
-                            log.debug("Skipping event type [{}] for line [{}].", eventType, item);
-                        }
-                        default -> {
-                            // "handle unknown events gracefully" https://docs.anthropic.com/en/api/messages-streaming#other-events
-                            // we'll ignore unknown events
-                            log.debug("Unknown event type [{}] for line [{}].", eventType, item);
-                        }
-                    }
+                try (var outerParser = parser(event.data())) {
+                    parseObjects(results, outerParser);
                 } catch (Exception e) {
                     log.warn("Failed to parse line {}", event);
                     throw e;
@@ -75,6 +55,37 @@ public class AnthropicStreamingProcessor extends DelegatingProcessor<Deque<Serve
             upstream().request(1);
         } else {
             downstream().onNext(new StreamingChatCompletionResults.Results(results));
+        }
+    }
+
+    private void parseObjects(Deque<StreamingChatCompletionResults.Result> results, XContentParser outerParser) throws IOException {
+        // Loop over all root JSON objects in the event data. Per the SSE spec, successive
+        // data: lines are joined with \n, so one event may legally carry multiple objects.
+        while (outerParser.nextToken() != null) {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, outerParser.currentToken(), outerParser);
+            try (var objParser = new XContentSubParser(outerParser)) {
+                var eventType = eventType(objParser);
+                switch (eventType) {
+                    case "error" -> {
+                        onError(parseError(objParser));
+                        return;
+                    }
+                    case "content_block_start" -> {
+                        parseStartBlock(objParser).ifPresent(results::offer);
+                    }
+                    case "content_block_delta" -> {
+                        parseMessage(objParser).ifPresent(results::offer);
+                    }
+                    case "message_start", "message_stop", "message_delta", "content_block_stop", "ping" -> {
+                        log.debug("Skipping event type [{}].", eventType);
+                    }
+                    default -> {
+                        // "handle unknown events gracefully" https://docs.anthropic.com/en/api/messages-streaming#other-events
+                        // we'll ignore unknown events
+                        log.debug("Unknown event type [{}].", eventType);
+                    }
+                }
+            }
         }
     }
 
@@ -111,7 +122,6 @@ public class AnthropicStreamingProcessor extends DelegatingProcessor<Deque<Serve
     }
 
     private static String eventType(XContentParser parser) throws IOException {
-        moveToFirstToken(parser);
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         return parseString(parser, "type");
     }

@@ -232,6 +232,46 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
     }
 
     /**
+     * Two consecutive resets within a single bucket. Each of the three values triggers the
+     * reset criterion ({@code counterValue > previousValue}) in back-to-back iterations,
+     * exercising the {@code previousAlreadyPersisted} guard added to mirror the analogous fix
+     * in the exponential-histogram path.
+     * <p>
+     * Values (descending time order, i.e. the order in which the collector receives them):
+     * <ol>
+     *   <li>t=40: 5  — first collected; initialises state</li>
+     *   <li>t=30: 10 — reset 1: 10 &gt; 5; the guard pushes (t=40, 5) then line 567 pushes (t=30, 10)</li>
+     *   <li>t=20: 15 — reset 2: 15 &gt; 10; {@code previousAlreadyPersisted} is true because the stack
+     *       top already carries t=30, so the guard skips the redundant push of (t=30, 10)</li>
+     * </ol>
+     * Downsampled doc: 15 (oldest value)
+     * Reset docs: 10 at t=30, 5 at t=40
+     */
+    public void testConsecutiveResetsDoNotDuplicateDataPoint() throws IOException {
+        ResetDataPoints resetDataPoints = new ResetDataPoints();
+        NumericMetricFieldDownsampler.AggregateCounter producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
+        IntArrayList docIdBuffer = IntArrayList.from(0, 1, 2);
+        long[] timeValues = new long[] { 40, 30, 20 };
+        SortedNumericDoubleValues counterValues = getIterator(docIdBuffer, 5.0, 10.0, 15.0);
+        producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
+        producer.updateResetDataPoints(resetDataPoints);
+
+        assertThat(producer.downsampledValue(), equalTo(15.0));
+        assertThat(resetDataPoints.countResetDocuments(), equalTo(2));
+        resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
+            // Each timestamp must have exactly one entry — a duplicate would indicate the guard misfired
+            assertThat("timestamp " + timestamp + " must have exactly one reset value", dataPoints.size(), equalTo(1));
+            assertThat(timestamp, anyOf(equalTo(30L), equalTo(40L)));
+            if (timestamp == 30L) {
+                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(10.0)))));
+            }
+            if (timestamp == 40L) {
+                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(5.0)))));
+            }
+        });
+    }
+
+    /**
      * Two buckets processed in reverse time order. Bucket #2 (t=50-70) has monotonically
      * increasing values 4, 5, 6 with no resets. Bucket #1 (t=10-40) has values 7, 8, 0, 2
      * with a reset at t=30. Both the last-before-reset value (8 at t=20) and the after-reset

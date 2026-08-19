@@ -33,6 +33,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.view.ViewResolutionService;
 
 import java.io.IOException;
@@ -59,6 +60,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
     private final ViewResolutionService viewResolutionService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final ProjectResolver projectResolver;
+    private final boolean federationAvailable;
 
     @Inject
     public EsqlResolveFieldsAction(
@@ -76,6 +78,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         this.viewResolutionService = new ViewResolutionService(indexNameExpressionResolver);
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.projectResolver = projectResolver;
+        this.federationAvailable = Federation.isAvailable(clusterService.getSettings());
     }
 
     @Override
@@ -88,7 +91,10 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         List<String> remoteViews = abstractionOptions.resolveViews()
             ? qualify(request.clusterAlias(), getViews(request.indices(), request.indicesOptions(), request.getResolvedIndexExpressions()))
             : List.of();
-        List<String> remoteDatasets = abstractionOptions.resolveDatasets()
+        // When federation is not available this node reports no datasets, so a FROM <remote:name> falls through to normal
+        // remote index resolution and the node is indistinguishable from one that never shipped the feature, rather than
+        // failing with a RemoteDatasetNotSupportedException that names pre-existing datasets still in cluster state.
+        List<String> remoteDatasets = abstractionOptions.resolveDatasets() && federationAvailable
             ? qualify(request.clusterAlias(), getDatasets(request.indices(), request.indicesOptions()))
             : List.of();
         boolean hasRemoteViews = remoteViews.isEmpty() == false;
@@ -117,12 +123,15 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
                 FieldCapabilitiesRequest remoteRequest,
                 ActionListenerResponseHandler<FieldCapabilitiesResponse> responseHandler
             ) {
+                // A node without federation does not ask its remotes for datasets either, so a remote that has the feature on
+                // cannot make FROM <remote>:<name> fail here with an error naming datasets; the name falls through to normal
+                // remote index resolution instead.
                 remoteRequest.indicesOptions(
                     IndicesOptions.builder(remoteRequest.indicesOptions())
                         .indexAbstractionOptions(
                             IndicesOptions.IndexAbstractionOptions.builder(remoteRequest.indicesOptions().indexAbstractionOptions())
                                 .resolveViews(true)
-                                .resolveDatasets(true)
+                                .resolveDatasets(federationAvailable)
                         )
                         .build()
                 );

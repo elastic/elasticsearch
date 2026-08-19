@@ -160,7 +160,12 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         // Lookup join after INLINE STATS (coordinator-only) is not supported in CCS yet
         "Inline stats by and lookup join",
         // Lookup join after STATS (coordinator-only) is not supported in CCS yet
-        "Lookup join after stats by"
+        "Lookup join after stats by",
+        // The second LOOKUP JOIN (after STATS) is not supported in CCS yet.
+        // Previously passed accidentally: before #152845, Join#replaceChildren dropped the isRemote flag,
+        // so postOptimizationVerification never saw isRemote=true on this join.
+        // #152845 fixed the flag propagation, exposing that CCS LOOKUP JOIN after STATS is unsupported.
+        "Lookup join before and after stats by"
     );
 
     @Override

@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
-import org.junit.Before;
 
 import java.util.EnumSet;
 import java.util.Map;
@@ -22,15 +21,6 @@ import java.util.Map;
 public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION);
-
-    @Before
-    public void checkInSubquerySupport() {
-        assumeTrue("Requires IN_SUBQUERY support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-    }
-
-    private static void requireInSubqueryViewSupport() {
-        assumeTrue("Requires IN subquery with view support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
-    }
 
     public void testDisjunctiveInSubqueryAtTopLevel() {
         runGoldenTest("""
@@ -105,8 +95,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     // The default golden-test builder randomizes the minimum transport version, which would make the captured plan
     // flap between the two forms. Pin a version that supports `dimension_values` so the snapshot stays deterministic.
     public void testTsRateWithInSubquery() {
-        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
-        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
         runGoldenTest("""
             TS k8s
             | WHERE cluster IN (TS k8s
@@ -117,8 +105,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testTsRateWithNotInSubquery() {
-        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
-        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
         runGoldenTest("""
             TS k8s
             | WHERE cluster NOT IN (TS k8s
@@ -136,9 +122,7 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     // the subquery relation keeps just its own _tsid. Pinned to TransportVersion.current() (rather than a random
     // version supporting `dimension_values`) so that the version-gated SUM long-overflow mode stays deterministic.
     public void testTsWithoutAndRateWithInSubquery() {
-        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
         assumeTrue("Requires WITHOUT grouping support", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
-        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
         runGoldenTest("""
             TS k8s
             | WHERE cluster IN (TS k8s
@@ -149,9 +133,7 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testTsWithoutAndRateWithNotInSubquery() {
-        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
         assumeTrue("Requires WITHOUT grouping support", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
-        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
         runGoldenTest("""
             TS k8s
             | WHERE cluster NOT IN (TS k8s
@@ -162,8 +144,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultipleTsSubqueriesInsideInSubquery() {
-        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
-        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
         runGoldenTest("""
             TS k8s
             | WHERE cluster IN (FROM
@@ -182,9 +162,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultipleTsSubqueriesInsideNotInSubquery() {
-        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
-        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
-
         runGoldenTest("""
             TS k8s
             | WHERE cluster NOT IN (FROM
@@ -202,10 +179,132 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES, TransportVersion.current());
     }
 
+    // -- PropagateEmptyRelation through SEMI / ANTI / MARK join tests --
+
+    public void testPropagateEmptyRelationThroughSemiJoin() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | KEEP emp_no) AND false
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughAntiJoin() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM employees | KEEP emp_no) AND false
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughMarkJoin() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE false
+            | WHERE emp_no > 0 OR emp_no IN (FROM employees | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughSemiJoinWithEmptySubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | WHERE false | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughAntiJoinWithEmptySubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM employees | WHERE false | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughMarkJoinWithEmptySubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no > 0 OR emp_no IN (FROM employees | WHERE false | KEEP emp_no)
+            """, STAGES);
+    }
+
+    // Both sides empty: left becomes LocalRelation(EMPTY) via PruneFilters(WHERE false), right via WHERE false in subquery.
+
+    public void testPropagateEmptyRelationThroughSemiJoinBothSidesEmpty() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE false
+            | WHERE emp_no IN (FROM employees | WHERE false | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughAntiJoinBothSidesEmpty() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE false
+            | WHERE emp_no NOT IN (FROM employees | WHERE false | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughMarkJoinBothSidesEmpty() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE false
+            | WHERE emp_no > 0 OR emp_no NOT IN (FROM employees | WHERE false | KEEP emp_no)
+            """, STAGES);
+    }
+
+    // Empty left side cascading through downstream operators
+
+    public void testPropagateEmptyRelationThroughSemiJoinWithKeep() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | KEEP emp_no) AND false
+            | KEEP emp_no, first_name
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughSemiJoinWithStats() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | KEEP emp_no) AND false
+            | STATS cnt = COUNT(*)
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughAntiJoinWithKeep() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM employees | KEEP emp_no) AND false
+            | KEEP emp_no, first_name
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughAntiJoinWithStats() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM employees | KEEP emp_no) AND false
+            | STATS cnt = COUNT(*)
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughMarkJoinWithKeep() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE false
+            | WHERE emp_no > 0 OR emp_no IN (FROM employees | KEEP emp_no)
+            | KEEP emp_no
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughMarkJoinWithStats() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE false
+            | WHERE emp_no > 0 OR emp_no IN (FROM employees | KEEP emp_no)
+            | STATS cnt = COUNT(*)
+            """, STAGES);
+    }
+
     // -- IN / NOT IN subqueries referencing views --
 
     public void testInSubqueryReferencingView() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no IN (FROM emps_view)
@@ -214,7 +313,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNotInSubqueryReferencingView() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no NOT IN (FROM emps_view)
@@ -223,7 +321,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testInSubqueryReferencingViewWithInSubqueryInDefinition() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no IN (FROM filtered_emps)
@@ -232,7 +329,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testInSubqueryReferencingViewWithSortLimit() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no IN (FROM sorted_emps)
@@ -241,7 +337,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testDisjunctiveInSubqueryReferencingView() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no IN (FROM emps_view) OR salary > 50000
@@ -250,7 +345,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMainFromAndNotInSubqueryEachReferenceMultipleViewSubqueries() {
-        requireInSubqueryViewSupport();
         runGoldenTest(
             """
                 FROM (FROM main_view_a | KEEP emp_no), (FROM main_view_b | KEEP emp_no)

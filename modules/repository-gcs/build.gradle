@@ -46,7 +46,7 @@ dependencies {
   runtimeOnly 'com.google.http-client:google-http-client-gson:1.46.3'
   runtimeOnly 'com.google.http-client:google-http-client-appengine:1.46.3'
   runtimeOnly 'com.google.http-client:google-http-client-jackson2:1.46.3'
-  runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}" // 2.18.2 in bom
+  runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   runtimeOnly 'com.google.api:gax-httpjson:2.63.1'
   runtimeOnly 'io.opencensus:opencensus-api:0.31.1'
   runtimeOnly 'io.opencensus:opencensus-contrib-http-util:0.31.1'

@@ -44,10 +44,12 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -168,6 +170,31 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
          * need one in ten documents.
          */
         public abstract double storedFieldsSequentialProportion();
+
+        /**
+         * Returns {@code true} if {@code name} is a concrete mapped field in this shard's
+         * index — including index-level runtime fields and dynamically-resolved sub-fields of
+         * {@link MetadataFieldMapper} instances, but excluding dynamically-resolved sub-keys of
+         * {@code flattened} fields. Those sub-keys appear in Lucene's field infos even though they
+         * are absent from the mapping, and counting them with an EXISTS query would inflate
+         * aggregation results when field types differ across indices.
+         * <p>
+         * The default implementation uses the mapping lookup alone. {@link DefaultShardContext}
+         * overrides this to also respect query-time runtime fields and {@code allowedFields}.
+         */
+        public boolean isMappedField(String name) {
+            MappingLookup lookup = mappingLookup();
+            if (lookup.getFullNameToFieldType().containsKey(name)) {
+                return true;
+            }
+            int dotIndex = name.indexOf('.');
+            if (dotIndex > 0) {
+                return lookup.getMapper(name.substring(0, dotIndex)) instanceof MetadataFieldMapper metaMapper
+                    && metaMapper.fieldType() instanceof DynamicFieldType dft
+                    && dft.getChildFieldType(name.substring(dotIndex + 1)) != null;
+            }
+            return false;
+        }
     }
 
     private final IndexedByShardId<? extends ShardContext> shardContexts;
@@ -396,6 +423,15 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         @Override
+        public boolean isMappedField(String name) {
+            // For the unmapped field we are loading, bypass the mapped-field gate.
+            // This allows both truly unmapped fields (which use a source-based loader) and
+            // dynamic subfields of flattened fields (which use the keyed block loader) to
+            // produce real values rather than ConstantNull.
+            return name.equals(unmappedEsField.getName()) || super.isMappedField(name);
+        }
+
+        @Override
         public @Nullable MappedFieldType fieldType(String name) {
             var superResult = super.fieldType(name);
             return superResult == null && name.equals(unmappedEsField.getName()) ? createUnmappedFieldType(name, this) : superResult;
@@ -440,6 +476,29 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 queryBuilderAndTags.tags()
             );
         }).toList();
+    }
+
+    /**
+     * Like {@link #querySupplier(QueryBuilder)} but skips shards where {@code fieldName} is not
+     * a concrete mapped field. Flattened fields store terms for their sub-keys in Lucene even though
+     * those sub-keys are absent from the real mapping; a plain EXISTS query would therefore find
+     * documents in flattened shards and inflate field-level COUNT results. Wildcard ({@code "*"})
+     * means COUNT(*) — count every document — so no per-field guard is applied in that case.
+     */
+    public Function<org.elasticsearch.compute.lucene.ShardContext, List<LuceneSliceQueue.QueryAndTags>> querySupplierForField(
+        QueryBuilder builder,
+        String fieldName
+    ) {
+        Function<org.elasticsearch.compute.lucene.ShardContext, List<LuceneSliceQueue.QueryAndTags>> innerFn = querySupplier(builder);
+        if ("*".equals(fieldName)) {
+            return innerFn;
+        }
+        return ctx -> {
+            if (shardContexts.get(ctx.index()).isMappedField(fieldName) == false) {
+                return List.of();
+            }
+            return innerFn.apply(ctx);
+        };
     }
 
     @Override
@@ -733,9 +792,20 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             if (asUnsupportedSource) {
                 return ConstantNull.INSTANCE;
             }
+            // Resolve the field type in a single pass. fieldType() (via the search execution context) applies field-level
+            // security, resolves slice aliases (e.g. _slice -> _routing) and query-time runtime fields, and returns null for
+            // fields absent from this context.
             MappedFieldType fieldType = fieldType(name);
             if (fieldType == null) {
                 // the field does not exist in this context
+                return ConstantNull.INSTANCE;
+            }
+            // Exclude dynamically-resolved flattened sub-keys: fieldType() resolves them to a non-null type, but field caps
+            // does not report them and they must not be extracted (see #154508). Only a dotted name can be such a sub-key,
+            // and for a flat name a non-null fieldType already implies isMappedField(name) == true — so gating the (virtual)
+            // mapped-field probe on the dot keeps flat names (the common case) at a single resolution.
+            if (name.indexOf('.') > 0 // only dotted names can be flattened sub-keys; skip the redundant probe for flat names
+                && isMappedField(name) == false) {
                 return ConstantNull.INSTANCE;
             }
             BlockLoader loader = fieldType.blockLoader(
@@ -769,6 +839,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public double storedFieldsSequentialProportion() {
             return EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.get(ctx.getIndexSettings().getSettings());
+        }
+
+        @Override
+        public boolean isMappedField(String name) {
+            return ctx.isMappedField(name);
         }
 
         @Override

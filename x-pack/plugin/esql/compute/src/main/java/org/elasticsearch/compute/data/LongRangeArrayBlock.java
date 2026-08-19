@@ -15,7 +15,7 @@ import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 
-public final class LongRangeArrayBlock extends AbstractNonThreadSafeRefCounted implements LongRangeBlock {
+public final class LongRangeArrayBlock extends AbstractBlockRefCounted implements LongRangeBlock {
     private final LongBlock fromBlock;
     private final LongBlock toBlock;
 
@@ -86,6 +86,7 @@ public final class LongRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         fromBlock.allowPassingToDifferentDriver();
         toBlock.allowPassingToDifferentDriver();
     }

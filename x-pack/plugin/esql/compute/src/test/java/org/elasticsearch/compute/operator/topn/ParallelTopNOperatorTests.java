@@ -9,14 +9,18 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -36,6 +40,7 @@ import java.util.stream.LongStream;
 
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_UNSORTABLE;
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -526,6 +531,102 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
                 op.close();
             }
         }
+    }
+
+    /**
+     * Two sibling pages carry two <em>distinct</em> {@link OrdinalBytesRefBlock} instances that
+     * share the same underlying dictionary {@link BytesRefVector} (via {@code incRef}), matching
+     * what a degenerate, full-range {@link OrdinalBytesRefBlock#slice}/{@link
+     * OrdinalBytesRefBlock#keepMask} does in production -- a new wrapper block, but the same
+     * dictionary instance. Dispatched to two different worker threads, their releases raced on the
+     * shared dictionary's reference count before it became thread safe (see
+     * {@link org.elasticsearch.core.AbstractRefCounted}).
+     */
+    public void testConcurrentReleaseOfSharedDictionaryThroughRealOperator() throws Exception {
+        int workerCount = 2;
+        TestThreadPool racePool = new TestThreadPool(
+            "race-pool",
+            new FixedExecutorBuilder(
+                Settings.EMPTY,
+                "race_worker",
+                workerCount,
+                1024,
+                "race_worker",
+                EsExecutors.TaskTrackingConfig.DEFAULT
+            )
+        );
+        List<Throwable> escaped = Collections.synchronizedList(new ArrayList<>());
+        // ParallelTopNOperator submits worker tasks as AbstractRunnable, whose run() only catches
+        // Exception. Releasables#closeExpectNoException raises an AssertionError (an Error) on a
+        // failed decRef, so it escapes uncaught to the thread pool. Capture it here directly
+        // instead of relying on the test runner's global uncaught-exception handling.
+        Executor observingExecutor = command -> racePool.executor("race_worker").execute(() -> {
+            try {
+                command.run();
+            } catch (Throwable t) {
+                escaped.add(t);
+            }
+        });
+        try {
+            for (int i = 0; i < 20_000 && escaped.isEmpty(); i++) {
+                DriverContext driverContext = driverContext();
+                BlockFactory blockFactory = driverContext.blockFactory();
+
+                // Two distinct OrdinalBytesRefBlock wrappers sharing one dictionary vector,
+                // matching the incRef a degenerate slice/keepMask performs in production.
+                BytesRefVector dict = blockFactory.newConstantBytesRefVector(new BytesRef("shared"), 1);
+                IntBlock ordinalsA = blockFactory.newConstantIntBlockWith(0, 1);
+                OrdinalBytesRefBlock blockA = new OrdinalBytesRefBlock(ordinalsA, dict);
+                dict.incRef();
+                IntBlock ordinalsB = blockFactory.newConstantIntBlockWith(0, 1);
+                OrdinalBytesRefBlock blockB = new OrdinalBytesRefBlock(ordinalsB, dict);
+
+                TopNOperator.TopNOperatorFactory factory = workerOnlyBytesRefFactory();
+                TopNOperator initial = factory.get(driverContext);
+                TopNOperator.ParallelWorkerConfig config = new TopNOperator.ParallelWorkerConfig(
+                    observingExecutor,
+                    workerCount,
+                    workerCount * 4,
+                    0
+                );
+                ParallelTopNOperator op = new ParallelTopNOperator(config, driverContext, initial);
+                try {
+                    op.addInput(new Page(blockA));
+                    op.addInput(new Page(blockB));
+                    op.finish();
+                    assertBusy(() -> assertThat(op.isBlocked(), sameInstance(Operator.NOT_BLOCKED)));
+                    drainAndClose(op);
+                } catch (Throwable t) {
+                    escaped.add(t);
+                } finally {
+                    try {
+                        op.close();
+                    } catch (Throwable t) {
+                        escaped.add(t);
+                    }
+                }
+            }
+        } finally {
+            terminate(racePool);
+        }
+        assertThat("expected no races releasing the shared dictionary vector", escaped, empty());
+    }
+
+    /**
+     * A single-column {@code BYTES_REF} factory used by
+     * {@link #testConcurrentReleaseOfSharedDictionaryThroughRealOperator}.
+     */
+    private static TopNOperator.TopNOperatorFactory workerOnlyBytesRefFactory() {
+        return new TopNOperator.TopNOperatorFactory(
+            100,
+            List.of(ElementType.BYTES_REF),
+            List.of(TopNEncoder.UTF8),
+            List.of(new TopNOperator.SortOrder(0, true, false)),
+            100,
+            Long.MAX_VALUE,
+            TopNOperator.InputOrdering.NOT_SORTED,
+            null
+        );
     }
 
     // -------------------------------------------------------------------------

@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.indices.template.put.TransportPutComposabl
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,6 +29,7 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -36,7 +38,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MapperFeatures;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.tasks.Task;
@@ -62,6 +68,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -69,6 +76,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
@@ -78,13 +86,21 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class IndexTemplateRegistryTests extends ESTestCase {
+
+    // Matches the marker settings baked into the fixtures defined in TestRegistryWithNodeFeatureFilters.
+    private static final NodeFeature FEATURE_ONE = new NodeFeature("feature_one");
+    private static final NodeFeature FEATURE_TWO = new NodeFeature("feature_two");
+    private static final Predicate<Template> MATCHES_COMPONENT_TWO = t -> "1".equals(t.settings().get("index.number_of_replicas"));
+    private static final Predicate<Template> MATCHES_INDEX_TWO = t -> "2".equals(t.settings().get("index.number_of_shards"));
 
     private final ProjectId projectId = randomProjectIdOrDefault();
 
@@ -900,7 +916,8 @@ public class IndexTemplateRegistryTests extends ESTestCase {
                 clusterService,
                 threadPool,
                 client,
-                NamedXContentRegistry.EMPTY
+                NamedXContentRegistry.EMPTY,
+                new FeatureService(List.of())
             ) {
                 @Override
                 protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
@@ -940,7 +957,8 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of())
         ) {
             @Override
             protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
@@ -972,7 +990,8 @@ public class IndexTemplateRegistryTests extends ESTestCase {
                 clusterService,
                 threadPool,
                 client,
-                NamedXContentRegistry.EMPTY
+                NamedXContentRegistry.EMPTY,
+                new FeatureService(List.of())
             ) {
                 @Override
                 protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
@@ -1011,7 +1030,8 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of())
         ) {
             @Override
             protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
@@ -1071,7 +1091,309 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         assertThat(IndexTemplateRegistry.findRolloverTargetDataStreams(project, "it5", it5), empty());
     }
 
-    // -------------
+    public void testNoFiltersReturnsAllTemplatesUnfiltered() {
+        TestRegistryWithNodeFeatureFilters registry = createRegistryWithFilters(Map.of());
+        ClusterState state = stateWithNodeFeatures();
+        Map<String, ComponentTemplate> componentTemplates = registry.getComponentTemplatesReadyToInstall(state);
+        Map<String, ComposableIndexTemplate> composableTemplates = registry.getComposableTemplatesReadyToInstall(state);
+        assertThat(componentTemplates.keySet(), containsInAnyOrder("test-one@component-template", "test-two@component-template"));
+        assertThat(composableTemplates.keySet(), containsInAnyOrder("test-index-one@template", "test-index-two@template"));
+        assertThat(registry.allFeaturesSupported(), equalTo(true));
+    }
+
+    public void testFeaturePresentOnAllNodesKeepsAllTemplates() {
+        TestRegistryWithNodeFeatureFilters registry = createRegistryWithFilters(Map.of(FEATURE_ONE, MATCHES_COMPONENT_TWO));
+        ClusterState state = stateWithNodeFeatures(FEATURE_ONE);
+        assertThat(
+            registry.getComponentTemplatesReadyToInstall(state).keySet(),
+            containsInAnyOrder("test-one@component-template", "test-two@component-template")
+        );
+        assertThat(
+            registry.getComposableTemplatesReadyToInstall(state).keySet(),
+            containsInAnyOrder("test-index-one@template", "test-index-two@template")
+        );
+        assertThat(registry.allFeaturesSupported(), equalTo(true));
+    }
+
+    public void testTemporalitySettingRequiresClusterFeature() {
+        Predicate<Template> filter = IndexTemplateRegistry.NODE_FEATURE_FILTERS.get(MapperFeatures.TSDB_METRIC_TEMPORALITY_SUPPORT);
+        assertThat(filter, notNullValue());
+        assertThat(
+            filter.test(
+                new Template(
+                    Settings.builder().put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), "temporality").build(),
+                    null,
+                    null
+                )
+            ),
+            equalTo(true)
+        );
+        assertThat(filter.test(new Template(Settings.EMPTY, null, null)), equalTo(false));
+        assertThat(filter.test(null), equalTo(false));
+    }
+
+    public void testFeatureAbsentFiltersMatchingComponentTemplate() {
+        // FEATURE_ONE is not reported by any node, so templates matching its filter must be excluded.
+        TestRegistryWithNodeFeatureFilters registry = createRegistryWithFilters(Map.of(FEATURE_ONE, MATCHES_COMPONENT_TWO));
+        ClusterState state = stateWithNodeFeatures();
+        assertThat(registry.getComponentTemplatesReadyToInstall(state).keySet(), containsInAnyOrder("test-one@component-template"));
+        // Composable templates are unaffected, since the filter only matches component template "test-two@component-template".
+        assertThat(
+            registry.getComposableTemplatesReadyToInstall(state).keySet(),
+            containsInAnyOrder("test-index-one@template", "test-index-two@template")
+        );
+        assertThat(registry.allFeaturesSupported(), equalTo(false));
+    }
+
+    public void testFeatureAbsentFiltersMatchingComposableTemplate() {
+        TestRegistryWithNodeFeatureFilters registry = createRegistryWithFilters(Map.of(FEATURE_ONE, MATCHES_INDEX_TWO));
+        ClusterState state = stateWithNodeFeatures();
+        assertThat(
+            registry.getComponentTemplatesReadyToInstall(state).keySet(),
+            containsInAnyOrder("test-one@component-template", "test-two@component-template")
+        );
+        assertThat(registry.getComposableTemplatesReadyToInstall(state).keySet(), containsInAnyOrder("test-index-one@template"));
+        assertThat(registry.allFeaturesSupported(), equalTo(false));
+    }
+
+    public void testOnlyUnsupportedFeaturesFilterTemplates() {
+        // FEATURE_ONE is present cluster-wide so its filter is inert; FEATURE_TWO is absent so its filter applies.
+        TestRegistryWithNodeFeatureFilters registry = createRegistryWithFilters(
+            Map.of(FEATURE_ONE, MATCHES_COMPONENT_TWO, FEATURE_TWO, MATCHES_INDEX_TWO)
+        );
+        ClusterState stateWithFeatureOne = stateWithNodeFeatures(FEATURE_ONE);
+        assertThat(
+            registry.getComponentTemplatesReadyToInstall(stateWithFeatureOne).keySet(),
+            containsInAnyOrder("test-one@component-template", "test-two@component-template")
+        );
+        assertThat(
+            registry.getComposableTemplatesReadyToInstall(stateWithFeatureOne).keySet(),
+            containsInAnyOrder("test-index-one@template")
+        );
+        assertThat(registry.allFeaturesSupported(), equalTo(false));
+        // Second filter is also supported
+        ClusterState stateWithBothFeatures = stateWithNodeFeatures(FEATURE_ONE, FEATURE_TWO);
+        assertThat(
+            registry.getComponentTemplatesReadyToInstall(stateWithBothFeatures).keySet(),
+            containsInAnyOrder("test-one@component-template", "test-two@component-template")
+        );
+        assertThat(
+            registry.getComposableTemplatesReadyToInstall(stateWithBothFeatures).keySet(),
+            containsInAnyOrder("test-index-one@template", "test-index-two@template")
+        );
+        assertThat(registry.allFeaturesSupported(), equalTo(true));
+    }
+
+    public void testEmptyFilterMapReturnsSameMapInstance() {
+        TestRegistryWithNodeFeatureFilters registry = createRegistryWithFilters(Map.of());
+        ClusterState state = stateWithNodeFeatures();
+        // After the first call allFeaturesSupported is set to true; subsequent calls short-circuit
+        // and return the same backing map instance rather than building a new filtered copy.
+        Map<String, ComponentTemplate> first = registry.getComponentTemplatesReadyToInstall(state);
+        assertThat(registry.getComponentTemplatesReadyToInstall(state), sameInstance(first));
+        assertThat(registry.allFeaturesSupported(), equalTo(true));
+    }
+
+    /**
+     * Verifies the rolling-upgrade lifecycle of a feature-gated template:
+     * <ol>
+     *   <li>While the cluster is mixed (not all nodes report FEATURE_ONE), the composable template
+     *       that requires FEATURE_ONE is suppressed and only the unblocked template is installed.</li>
+     *   <li>Once all nodes report FEATURE_ONE the registry unblocks the gated template, installs it
+     *       on the next cluster-changed event, and marks {@code allFeaturesSupported} as {@code true}.</li>
+     * </ol>
+     */
+    public void testRollingUpgradeInstallsGatedTemplateAfterAllNodesUpgraded() throws Exception {
+        // Two-node cluster: local node is the master; otherNode is a second data node.
+        // Phase 1 simulates a rolling upgrade in progress: the local node has upgraded and reports
+        // FEATURE_ONE, but otherNode hasn't yet. The intersection across nodes is empty, so the
+        // feature is not considered cluster-wide and the gated template must stay suppressed.
+        DiscoveryNode localNode = clusterService.localNode();
+        DiscoveryNode otherNode = DiscoveryNodeUtils.create("other");
+        DiscoveryNodes twoNodes = DiscoveryNodes.builder()
+            .localNodeId(localNode.getId())
+            .masterNodeId(localNode.getId())
+            .add(localNode)
+            .add(otherNode)
+            .build();
+
+        Set<String> installedIndexTemplates = ConcurrentHashMap.newKeySet();
+        NoOpClient trackingClient = new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext())) {
+            @Override
+            @SuppressWarnings("unchecked")
+            protected <Req extends ActionRequest, Resp extends ActionResponse> void doExecute(
+                ActionType<Resp> action,
+                Req request,
+                ActionListener<Resp> listener
+            ) {
+                if (action == TransportPutComposableIndexTemplateAction.TYPE) {
+                    installedIndexTemplates.add(((TransportPutComposableIndexTemplateAction.Request) request).name());
+                }
+                listener.onResponse((Resp) AcknowledgedResponse.TRUE);
+            }
+        };
+
+        // FEATURE_ONE gates test-index-two@template (matched by MATCHES_INDEX_TWO).
+        TestRegistryWithNodeFeatureFilters registry = new TestRegistryWithNodeFeatureFilters(
+            Settings.EMPTY,
+            clusterService,
+            threadPool,
+            trackingClient,
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of()),
+            Map.of(FEATURE_ONE, MATCHES_INDEX_TWO)
+        );
+
+        // Phase 1: mixed cluster — local node reports FEATURE_ONE but otherNode does not.
+        // The feature intersection across all nodes is therefore empty, so test-index-two@template
+        // must be suppressed. The cluster state already has both component templates installed
+        // (prerequisite for composable templates) but no composable templates yet.
+        Map<String, Set<String>> mixedNodeFeatures = Map.of(localNode.getId(), Set.of(FEATURE_ONE.id()), otherNode.getId(), Set.of());
+        ClusterState phaseOneState = buildClusterStateForFeatureTest(
+            Map.of("test-one@component-template", 1L, "test-two@component-template", 1L),
+            Map.of(),
+            twoNodes,
+            mixedNodeFeatures
+        );
+        registry.clusterChanged(createClusterChangedEvent(twoNodes, phaseOneState));
+
+        assertBusy(() -> assertThat(installedIndexTemplates, containsInAnyOrder("test-index-one@template")));
+        assertThat(registry.allFeaturesSupported(), equalTo(false));
+
+        // Phase 2: otherNode has now upgraded — all nodes report FEATURE_ONE.
+        // The gated template must be installed on the next cluster-changed event.
+        // Cluster state reflects what was installed in phase 1: component templates and
+        // test-index-one@template are present, but test-index-two@template is still absent.
+        Map<String, Set<String>> allNodesUpgradedFeatures = Map.of(
+            localNode.getId(),
+            Set.of(FEATURE_ONE.id()),
+            otherNode.getId(),
+            Set.of(FEATURE_ONE.id())
+        );
+        ClusterState phaseTwoState = buildClusterStateForFeatureTest(
+            Map.of("test-one@component-template", 1L, "test-two@component-template", 1L),
+            Map.of("test-index-one@template", 1L),
+            twoNodes,
+            allNodesUpgradedFeatures
+        );
+        registry.clusterChanged(createClusterChangedEvent(twoNodes, phaseTwoState));
+
+        assertBusy(() -> assertThat(installedIndexTemplates, containsInAnyOrder("test-index-one@template", "test-index-two@template")));
+        assertThat(registry.allFeaturesSupported(), equalTo(true));
+    }
+
+    private ClusterState stateWithNodeFeatures(NodeFeature... features) {
+        DiscoveryNode localNode = clusterService.localNode();
+        Set<String> featureIds = Arrays.stream(features).map(NodeFeature::id).collect(Collectors.toUnmodifiableSet());
+        return ClusterState.builder(clusterService.state()).nodeFeatures(Map.of(localNode.getId(), featureIds)).build();
+    }
+
+    private TestRegistryWithNodeFeatureFilters createRegistryWithFilters(Map<NodeFeature, Predicate<Template>> nodeFeatureFilters) {
+        return new TestRegistryWithNodeFeatureFilters(
+            Settings.EMPTY,
+            clusterService,
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of()),
+            nodeFeatureFilters
+        );
+    }
+
+    private ClusterState buildClusterStateForFeatureTest(
+        Map<String, Long> componentTemplateVersions,
+        Map<String, Long> indexTemplateVersions,
+        DiscoveryNodes nodes,
+        Map<String, Set<String>> nodeFeaturesByNode
+    ) {
+        Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
+        for (Map.Entry<String, Long> entry : componentTemplateVersions.entrySet()) {
+            ComponentTemplate mockTemplate = mock(ComponentTemplate.class);
+            when(mockTemplate.version()).thenReturn(entry.getValue());
+            componentTemplates.put(entry.getKey(), mockTemplate);
+        }
+
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID)
+            .componentTemplates(componentTemplates);
+        for (Map.Entry<String, Long> entry : indexTemplateVersions.entrySet()) {
+            ComposableIndexTemplate mockTemplate = mock(ComposableIndexTemplate.class);
+            when(mockTemplate.version()).thenReturn(entry.getValue());
+            projectBuilder.put(entry.getKey(), mockTemplate);
+        }
+
+        ClusterState.Builder stateBuilder = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().transientSettings(Settings.EMPTY).put(projectBuilder.build()).build())
+            .blocks(new ClusterBlocks.Builder().build())
+            .nodes(nodes);
+        if (nodeFeaturesByNode.isEmpty() == false) {
+            stateBuilder.nodeFeatures(nodeFeaturesByNode);
+        }
+        return stateBuilder.build();
+    }
+
+    /**
+     * Minimal {@link IndexTemplateRegistry} that provides two component templates and two composable
+     * templates with distinct settings, used to exercise node-feature-based template filtering.
+     * <p>
+     * The settings baked into the templates match the predicates {@link #MATCHES_COMPONENT_TWO} and
+     * {@link #MATCHES_INDEX_TWO}: {@code test-two@component-template} has
+     * {@code index.number_of_replicas=1} and {@code test-index-two@template} has
+     * {@code index.number_of_shards=2}.
+     */
+    static class TestRegistryWithNodeFeatureFilters extends IndexTemplateRegistry {
+
+        private final Map<String, ComponentTemplate> componentTemplates;
+        private final Map<String, ComposableIndexTemplate> composableTemplates;
+
+        TestRegistryWithNodeFeatureFilters(
+            Settings nodeSettings,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            Client client,
+            NamedXContentRegistry xContentRegistry,
+            FeatureService featureService,
+            Map<NodeFeature, Predicate<Template>> nodeFeatureFilters
+        ) {
+            super(nodeSettings, clusterService, threadPool, client, xContentRegistry, featureService, nodeFeatureFilters);
+            componentTemplates = Map.of(
+                "test-one@component-template",
+                new ComponentTemplate(new Template(Settings.builder().put("index.number_of_replicas", 0).build(), null, null), 1L, null),
+                "test-two@component-template",
+                new ComponentTemplate(new Template(Settings.builder().put("index.number_of_replicas", 1).build(), null, null), 1L, null)
+            );
+            composableTemplates = Map.of(
+                "test-index-one@template",
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(List.of("test-index-one-*"))
+                    .template(new Template(Settings.builder().put("index.number_of_shards", 1).build(), null, null))
+                    .componentTemplates(List.of("test-one@component-template"))
+                    .version(1L)
+                    .build(),
+                "test-index-two@template",
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(List.of("test-index-two-*"))
+                    .template(new Template(Settings.builder().put("index.number_of_shards", 2).build(), null, null))
+                    .componentTemplates(List.of("test-two@component-template"))
+                    .version(1L)
+                    .build()
+            );
+        }
+
+        @Override
+        protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
+            return componentTemplates;
+        }
+
+        @Override
+        protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
+            return composableTemplates;
+        }
+
+        @Override
+        protected String getOrigin() {
+            return "test";
+        }
+    }
 
     /**
      * A client that delegates to a verifying function for action/request/listener

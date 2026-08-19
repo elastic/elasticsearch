@@ -724,6 +724,8 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         safeAwait(exceptionSeen);
     }
 
+    // Uses doSlice to bypass trySliceBuffer (may return ByteArrayIndexInput). Non-zero lengths
+    // because randomAccessSlice still goes through public slice().
     public void testSlicing() throws IOException {
         final var settings = sharedCacheSettings(ByteSizeValue.ofBytes(randomLongBetween(0, 10_000_000)));
         try (
@@ -756,15 +758,15 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
             assertNull(indexInput.getSliceDescription());
 
-            long pos = randomLongBetween(0, input.length - 1);
-            IndexInput slice = indexInput.slice("fake", 0, pos);
+            long pos = randomLongBetween(1, input.length - 1);
+            IndexInput slice = indexInput.doSlice("fake", 0, pos);
             BlobCacheIndexInput blobCacheIndexInputSlice = asInstanceOf(BlobCacheIndexInput.class, slice);
             assertThat(getCacheFile(blobCacheIndexInputSlice), not(equalTo(getCacheFile(indexInput))));
             assertThat(blobCacheIndexInputSlice.getFilePointer(), equalTo(indexInput.getFilePointer()));
             assertEquals("fake", blobCacheIndexInputSlice.getSliceDescription());
 
-            long secondPos = randomLongBetween(0, input.length - 1);
-            IndexInput secondSlice = indexInput.slice("fake.nmv", 0, secondPos);
+            long secondPos = randomLongBetween(1, input.length - 1);
+            IndexInput secondSlice = indexInput.doSlice("fake.nmv", 0, secondPos);
             BlobCacheIndexInput secondBlobCacheIndexInputSlice = asInstanceOf(BlobCacheIndexInput.class, secondSlice);
             assertThat(getCacheFile(secondBlobCacheIndexInputSlice), not(equalTo(getCacheFile(indexInput))));
             assertThat(secondBlobCacheIndexInputSlice.getFilePointer(), equalTo(indexInput.getFilePointer()));

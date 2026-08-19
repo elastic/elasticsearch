@@ -9,9 +9,13 @@
 
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
@@ -21,6 +25,8 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertScrollResponsesAndHitCount;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.SuiteScopeTestCase
 public class AggregationsIntegrationIT extends ESIntegTestCase {
@@ -58,5 +64,57 @@ public class AggregationsIntegrationIT extends ESIntegTestCase {
                 }
             }
         );
+    }
+
+    public void testDeeplyNestedAggregationIsRejectedWithoutKillingTheNode() {
+        TermsAggregationBuilder agg = terms("a0").field("f");
+        for (int i = 1; i < 2000; i++) {
+            agg = terms("a" + i).field("f").subAggregation(agg);
+        }
+        final TermsAggregationBuilder deepAgg = agg;
+        ActionRequestValidationException e = expectThrows(
+            ActionRequestValidationException.class,
+            () -> prepareSearch("index").addAggregation(deepAgg).get()
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "The nested depth of the aggregations exceeds the maximum nested depth for aggregations of ["
+                    + AggregatorFactories.MAX_NESTED_DEPTH
+                    + "]"
+            )
+        );
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+
+        ensureGreen("index");
+        assertNoFailures(prepareSearch("index").addAggregation(terms("f").field("f")));
+    }
+
+    public void testDeeplyNestedAggregationIsRejectedAsAWholeRequestWithPartialResultsAllowed() {
+        assertAcked(
+            prepareCreate("deeply-nested-multi-shard").setSettings(indexSettings(between(2, 5), 0)).setMapping("f", "type=keyword")
+        );
+        indexRandom(true, prepareIndex("deeply-nested-multi-shard").setSource("f", "0"));
+
+        TermsAggregationBuilder agg = terms("a0").field("f");
+        for (int i = 1; i < 2000; i++) {
+            agg = terms("a" + i).field("f").subAggregation(agg);
+        }
+        final TermsAggregationBuilder deepAgg = agg;
+        ActionRequestValidationException e = expectThrows(
+            ActionRequestValidationException.class,
+            () -> prepareSearch("deeply-nested-multi-shard").setAllowPartialSearchResults(true).addAggregation(deepAgg).get()
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "The nested depth of the aggregations exceeds the maximum nested depth for aggregations of ["
+                    + AggregatorFactories.MAX_NESTED_DEPTH
+                    + "]"
+            )
+        );
+
+        ensureGreen("deeply-nested-multi-shard");
+        assertNoFailures(prepareSearch("deeply-nested-multi-shard").addAggregation(terms("f").field("f")));
     }
 }

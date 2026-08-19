@@ -94,6 +94,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.LocalFileAccess;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
@@ -372,6 +373,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             .flatMap(p -> p.checkers(services.projectResolver(), services.clusterService()).stream())
             .toList();
 
+        // Report the effective federation state at startup rather than lazily on the first federation operation. Logging
+        // is all this call does: an invalid value for the operator property is rejected when Federation#REGISTERED is
+        // initialized, which getSettings() has already triggered by reading FEDERATION_ENABLED off the class.
+        Federation.logEffectiveState(services.clusterService().getSettings());
+
         // Discover DataSourcePlugin implementations via SPI (META-INF/services)
         // This discovers built-in plugins from this plugin's classloader
         List<DataSourcePlugin> allDataSourcePlugins = new ArrayList<>(dataSourcePlugins);
@@ -392,24 +398,34 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         DataSourceCredentials dataSourceCredentials = new DataSourceCredentials(encryptionService);
 
         boolean isStateless = DiscoveryNode.isStateless(settings);
+        // The external source settings are registered only while the federation feature is registered (see
+        // Federation#settings), so an unregistered node has neither a configured value to start from nor an update
+        // consumer to attach: ClusterSettings rejects a consumer for a setting it does not know. The credential gates
+        // below are therefore off outright rather than resolved from settings, which states the invariant here instead
+        // of resting on startup validation having already rejected the keys.
+        boolean federationRegistered = Federation.isRegistered();
+
         // Read through MANAGED_IDENTITY_ENABLED, which falls back to the deprecated workload_identity key, so a
         // pre-rename operator config is still honored. Its update consumer fires on changes to either key because the
         // setting's raw value resolves the fallback.
         AtomicBoolean managedIdentityEnabled = new AtomicBoolean(
-            isStateless == false && ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.get(settings)
+            federationRegistered && isStateless == false && ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.get(settings)
         );
-        services.clusterService()
-            .getClusterSettings()
-            .addSettingsUpdateConsumer(
-                ExternalSourceSettings.MANAGED_IDENTITY_ENABLED,
-                v -> managedIdentityEnabled.set(isStateless == false && v)
-            );
-
-        // Disabled by default; an operator can enable it dynamically;
-        AtomicBoolean federatedIdentityEnabled = new AtomicBoolean(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED.get(settings));
-        services.clusterService()
-            .getClusterSettings()
-            .addSettingsUpdateConsumer(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED, federatedIdentityEnabled::set);
+        // Disabled by default; while the feature is registered an operator can enable it dynamically.
+        AtomicBoolean federatedIdentityEnabled = new AtomicBoolean(
+            federationRegistered && ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED.get(settings)
+        );
+        if (federationRegistered) {
+            services.clusterService()
+                .getClusterSettings()
+                .addSettingsUpdateConsumer(
+                    ExternalSourceSettings.MANAGED_IDENTITY_ENABLED,
+                    v -> managedIdentityEnabled.set(isStateless == false && v)
+                );
+            services.clusterService()
+                .getClusterSettings()
+                .addSettingsUpdateConsumer(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED, federatedIdentityEnabled::set);
+        }
 
         // Local-disk gate: parsed once at startup (NodeScope setting — no update consumer needed).
         LocalFileAccess localFileAccess = LocalFileAccess.create(settings);
@@ -453,9 +469,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             );
 
         ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings);
-        services.clusterService()
-            .getClusterSettings()
-            .addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
+        if (federationRegistered) {
+            services.clusterService()
+                .getClusterSettings()
+                .addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
+        }
 
         // Build the format metadata the dataset CRUD validator uses to (a) accept format-specific
         // fields (e.g. CSV's "delimiter") so they persist in cluster state and reach the format reader
@@ -603,8 +621,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
-                DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING,
-                DatasetService.MAX_DATASETS_COUNT_SETTING,
                 GROK_WATCHDOG_MAX_EXECUTION_TIME
             )
         );
@@ -613,11 +629,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Inference command settings
         settings.addAll(InferenceSettings.getSettings());
 
-        // External source rate limiting settings
-        settings.addAll(ExternalSourceSettings.settings());
-
-        // External source cache settings
-        settings.addAll(ExternalSourceCacheSettings.settings());
+        // The federation gate, every external source knob below it, and the data source / dataset count ceilings,
+        // registered only while an operator leaves the feature registered. On a node where the feature is
+        // unregistered these keys are unknown, so carrying one in elasticsearch.yml fails startup instead of
+        // configuring a feature that is not there.
+        settings.addAll(Federation.settings());
 
         return Collections.unmodifiableList(settings);
     }
@@ -638,8 +654,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
             new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
             new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
-            new ActionHandler(EsqlResolveDatasetAction.TYPE, EsqlResolveDatasetAction.class),
             new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class),
+            new ActionHandler(EsqlResolveDatasetAction.TYPE, EsqlResolveDatasetAction.class),
             new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class),
             new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class),
             new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class),
@@ -656,23 +672,31 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         EsqlCapabilities capabilities = this.capabilities.get();
-        return List.of(
-            new RestEsqlQueryAction(capabilities),
-            new RestEsqlAsyncQueryAction(capabilities),
-            new RestEsqlGetAsyncResultAction(),
-            new RestEsqlStopAsyncAction(),
-            new RestEsqlDeleteAsyncResultAction(),
-            new RestEsqlListQueriesAction(),
-            new RestPutViewAction(),
-            new RestDeleteViewAction(),
-            new RestGetViewAction(),
-            new RestPutDataSourceAction(),
-            new RestGetDataSourceAction(),
-            new RestDeleteDataSourceAction(),
-            new RestPutDatasetAction(),
-            new RestGetDatasetAction(),
-            new RestDeleteDatasetAction()
+        List<RestHandler> handlers = new ArrayList<>(
+            List.of(
+                new RestEsqlQueryAction(capabilities),
+                new RestEsqlAsyncQueryAction(capabilities),
+                new RestEsqlGetAsyncResultAction(),
+                new RestEsqlStopAsyncAction(),
+                new RestEsqlDeleteAsyncResultAction(),
+                new RestEsqlListQueriesAction(),
+                new RestPutViewAction(),
+                new RestDeleteViewAction(),
+                new RestGetViewAction()
+            )
         );
+        // Federation (external data sources) REST handlers are registered only when the feature is on. When it is
+        // not available the routes are unregistered, so PUT/GET/DELETE of data sources and datasets return the
+        // framework's standard "no handler found for uri" (400), as if the feature never existed.
+        if (Federation.isAvailable(restHandlersServices.settings())) {
+            handlers.add(new RestPutDataSourceAction());
+            handlers.add(new RestGetDataSourceAction());
+            handlers.add(new RestDeleteDataSourceAction());
+            handlers.add(new RestPutDatasetAction());
+            handlers.add(new RestGetDatasetAction());
+            handlers.add(new RestDeleteDatasetAction());
+        }
+        return handlers;
     }
 
     @Override

@@ -13,6 +13,10 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
+// Each suite is parameterized over the upgrade phases and an earlier phase sets up the cluster state a later phase asserts on,
+// so a phase that passed must still run when a later phase is retried.
+smartRetry.pruneIndividualTests.set(false)
+
 dependencies {
   testImplementation testArtifact(project(':server'))
   testImplementation testArtifact(project(xpackModule('core')))

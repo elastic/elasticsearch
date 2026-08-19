@@ -47,6 +47,7 @@ import java.util.Set;
 
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
@@ -362,6 +363,19 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             false
         );
         assertEquals(inclusiveLower, ft.rangeQuery("lower", null, true, false, MOCK_CONTEXT));
+    }
+
+    public void testSingleSidedRangeQueryChargesBreakerOnceAndMarksPreCharged() {
+        KeyedFlattenedFieldType ft = createFieldType();
+        SearchExecutionContext context = mock(SearchExecutionContext.class);
+        when(context.allowExpensiveQueries()).thenReturn(true);
+
+        Query query = ft.rangeQuery("lower", null, true, false, context);
+
+        assertTrue("single-sided keyed range must build a TermRangeQuery", query instanceof TermRangeQuery);
+        long ramBytesUsed = ((TermRangeQuery) query).ramBytesUsed();
+        verify(context).addCircuitBreakerMemory(ramBytesUsed, "range:" + ft.name());
+        verify(context).markQueryMemoryPreCharged(query);
     }
 
     /**

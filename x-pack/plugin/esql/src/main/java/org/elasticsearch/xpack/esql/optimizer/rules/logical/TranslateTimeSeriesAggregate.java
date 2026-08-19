@@ -55,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * Time-series aggregation is special because it must be computed per time series, regardless of the grouping keys.
@@ -290,7 +291,19 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             if (group instanceof Attribute || group instanceof Alias) {
                 NamedExpression g = (NamedExpression) group;
                 if (timeBucket != null && g.id().equals(timeBucket.id())) {
-                    addBucket(g instanceof Attribute ? timeBucket.toAttribute() : timeBucket, g, firstPassGroupings, secondPassGroupings);
+                    var firstPassBucket = g instanceof Attribute ? timeBucket.toAttribute() : timeBucket;
+                    // use different name for bucket in the first pass if conflict
+                    if (firstPassBucket instanceof Alias alias
+                        && aggregate.child().output().stream().anyMatch(a -> a.name().equals(alias.name()))) {
+                        firstPassBucket = new Alias(
+                            timeBucket.source(),
+                            Attribute.rawTemporaryName(timeBucket.name(), "time_bucket"),
+                            Alias.unwrap(firstPassBucket),
+                            firstPassBucket.id()
+                        );
+                    }
+                    firstPassGroupings.add(firstPassBucket);
+                    secondPassGroupings.add(new Alias(group.source(), g.name(), firstPassBucket.toAttribute(), g.id()));
                 } else {
                     var unwrapped = Alias.unwrap(g);
                     if (unwrapped instanceof Attribute a) {
@@ -362,6 +375,10 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                 mergeExpressions(secondPassAggs, secondPassGroupings)
             );
         } else {
+            // Drop second-pass aggs whose names collide with user groupings before building Aggregate/Project.
+            // Eval would otherwise emit Project[[alias, grouping]]; optimizer RemoveStatsOverride cannot fix that.
+            shadowAggsOverriddenByGroupings(aggregate, context, secondPassAggs);
+
             Eval packValues = new Eval(firstPhase.source(), firstPhase, packDimensions);
             Aggregate secondPhase = new Aggregate(
                 firstPhase.source(),
@@ -386,6 +403,28 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         }
     }
 
+    private static void shadowAggsOverriddenByGroupings(
+        TimeSeriesAggregate inputAggregate,
+        AnalyzerContext context,
+        List<NamedExpression> secondPassAggs
+    ) {
+        var aggsThenGroupings = new ArrayList<NamedExpression>(secondPassAggs.size() + inputAggregate.groupings().size());
+        aggsThenGroupings.addAll(secondPassAggs);
+        for (var g : inputAggregate.groupings()) {
+            aggsThenGroupings.add(Expressions.attribute(g));
+        }
+
+        List<NamedExpression> unique = RemoveStatsOverride.keepLastNamedExpression(
+            aggsThenGroupings,
+            context.deferredHeaderWarnings()::add
+        );
+
+        Set<NameId> originalAggIds = secondPassAggs.stream().map(NamedExpression::id).collect(Collectors.toUnmodifiableSet());
+
+        secondPassAggs.clear();
+        secondPassAggs.addAll(unique.stream().filter(e -> originalAggIds.contains(e.id())).toList());
+    }
+
     private TimeSeriesAggregate replaceSurrogateTimeseriesAggs(TimeSeriesAggregate aggregate) {
         return (TimeSeriesAggregate) aggregate.transformExpressionsOnly(TimeSeriesAggregateFunction.class, aggFunc -> {
             if (aggFunc instanceof SurrogateExpression) {
@@ -396,16 +435,6 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             }
             return aggFunc;
         }).transformExpressionsUp(FilteredExpression.class, FilteredExpression::surrogate);
-    }
-
-    private void addBucket(
-        NamedExpression timeBucket,
-        NamedExpression group,
-        List<Expression> firstPassGroupings,
-        List<Expression> secondPassGroupings
-    ) {
-        firstPassGroupings.add(timeBucket);
-        secondPassGroupings.add(new Alias(group.source(), group.name(), timeBucket.toAttribute(), group.id()));
     }
 
     private void addAttribute(

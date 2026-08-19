@@ -232,18 +232,17 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                     );
                 }
 
-                // Track memory usage
-                int bytesSize = lastChunkBytes.length();
-                circuitBreaker.addEstimateBytesAndMaybeBreak(bytesSize, "fetch_chunk_accumulation");
-                responseStream.trackBreakerBytes(bytesSize);
-
+                long estimatedRetainedBytes = 0L;
                 try (StreamInput in = new NamedWriteableAwareStreamInput(lastChunkBytes.streamInput(), namedWriteableRegistry)) {
                     for (int i = 0; i < hitCount; i++) {
                         int position = in.readVInt();
                         SearchHit hit = SearchHit.readFrom(in);
+                        estimatedRetainedBytes += hit.ramBytesUsed();
                         responseStream.addHitWithSequence(hit, position);
                     }
                 }
+                circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedRetainedBytes, "fetch_chunk_accumulation");
+                responseStream.trackBreakerBytes(estimatedRetainedBytes);
             }
 
             // Build final result from all accumulated hits

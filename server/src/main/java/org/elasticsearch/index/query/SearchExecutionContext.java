@@ -75,6 +75,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -139,6 +140,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     @Nullable
     private final CircuitBreaker circuitBreaker;
     private final AtomicLong queryConstructionMemoryUsed = new AtomicLong(0);
+    private final Set<Query> preChargedQueries = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
 
     public SearchExecutionContext(
         int shardId,
@@ -855,10 +857,34 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
+     * Marks that {@code query}'s memory was already charged to the breaker at construction time, so the visitor walk skips it.
+     */
+    public void markQueryMemoryPreCharged(Query query) {
+        if (query != null) {
+            preChargedQueries.add(query);
+        }
+    }
+
+    /**
+     * @return {@code true} if {@code query} was already charged at construction time (see {@link #markQueryMemoryPreCharged}).
+     */
+    public boolean isQueryMemoryPreCharged(Query query) {
+        return preChargedQueries.contains(query);
+    }
+
+    /**
+     * Drops all pre-charge markers.
+     */
+    protected final void clearPreChargedQueries() {
+        preChargedQueries.clear();
+    }
+
+    /**
      * Release all accumulated query construction memory back to the circuit breaker. Safe to
      * call multiple times; subsequent calls after the pool is drained are no-ops.
      */
     public void releaseQueryConstructionMemory() {
+        clearPreChargedQueries();
         long memoryToRelease = queryConstructionMemoryUsed.getAndSet(0);
         if (memoryToRelease > 0 && circuitBreaker != null) {
             circuitBreaker.addWithoutBreaking(-memoryToRelease);

@@ -305,7 +305,10 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
     @Override
     public NumericDocValues getNumericDocValues(String field) throws IOException {
-        return hasField(field) ? super.getNumericDocValues(field) : null;
+        if (hasField(field) == false || isIgnoredSourceCountsField(field)) {
+            return null;
+        }
+        return super.getNumericDocValues(field);
     }
 
     @Override
@@ -327,6 +330,20 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     private boolean isIgnoredSourceDocValues(BinaryDocValues dv, String field) {
         return dv != null
             && IgnoredSourceFieldMapper.NAME.equals(field)
+            && ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE;
+    }
+
+    /**
+     * Returns whether this is the companion {@code .counts} field of the {@code _ignored_source} binary doc values.
+     * <p>
+     * These counts must be hidden from callers: {@link FilteredIgnoredSourceDocValues} re-encodes the surviving values in the
+     * {@link MultiValuedBinaryDocValuesField.IntegratedCount} format, but
+     * {@link MultiValuedSortedBinaryDocValues#fromMultiValued(LeafReader, String, BinaryDocValues)} picks the decoding format based on
+     * whether a {@code .counts} field is present. Leaving it visible makes the filtered payload be read as
+     * {@link MultiValuedBinaryDocValuesField.SeparateCount} against unfiltered counts, which mis-decodes the values.
+     */
+    private boolean isIgnoredSourceCountsField(String field) {
+        return (IgnoredSourceFieldMapper.NAME + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX).equals(field)
             && ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE;
     }
 

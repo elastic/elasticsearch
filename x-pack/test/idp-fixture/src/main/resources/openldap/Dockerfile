@@ -1,5 +1,4 @@
-FROM osixia/openldap:1.4.0
-
+FROM osixia/openldap:1.5.0
 
 ENV LDAP_ADMIN_PASSWORD=NickFuryHeartsES
 ENV LDAP_DOMAIN=oldap.test.elasticsearch.com
@@ -10,8 +9,18 @@ ENV LDAP_TLS_CA_CRT_FILENAME=ca_server.pem
 ENV LDAP_TLS_KEY_FILENAME=ldap_server.key
 ENV LDAP_TLS_VERIFY_CLIENT=never
 ENV LDAP_TLS_CIPHER_SUITE=NORMAL
-ENV LDAP_LOG_LEVEL=256
+ENV LDAP_LOG_LEVEL=0
 
 COPY ./ldif/users.ldif /container/service/slapd/assets/config/bootstrap/ldif/custom/20-bootstrap-users.ldif
 COPY ./ldif/config.ldif /container/service/slapd/assets/config/bootstrap/ldif/custom/10-bootstrap-config.ldif
 COPY ./certs /container/service/slapd/assets/certs
+COPY wait-for-slapd.sh /usr/local/bin/wait-for-slapd
+
+# inject a patched slapd startup check, to avoid e.g. https://github.com/elastic/elasticsearch/issues/152601
+RUN chmod 0755 /usr/local/bin/wait-for-slapd \
+    && grep -Fq \
+        'while [ ! -e /run/slapd/slapd.pid ]; do sleep 0.1; done' \
+        /container/service/slapd/startup.sh \
+    && sed -i \
+        's|while \[ ! -e /run/slapd/slapd.pid \]; do sleep 0.1; done|/usr/local/bin/wait-for-slapd|' \
+        /container/service/slapd/startup.sh

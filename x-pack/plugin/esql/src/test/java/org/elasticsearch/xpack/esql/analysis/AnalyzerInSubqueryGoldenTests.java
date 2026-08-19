@@ -60,6 +60,10 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
         assumeTrue("Requires where in subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
     }
 
+    private static void requireTsMixedWithNonTsSourcesFix() {
+        assumeTrue("Requires fix for mixing TS with non-TS sources", EsqlCapabilities.Cap.FIX_TS_MIXED_WITH_NON_TS_SOURCES.isEnabled());
+    }
+
     // -- basic IN subqueries --
 
     public void testInSubquery() {
@@ -972,6 +976,36 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
             FROM salaries_int
             | WHERE emp_no NOT IN (FROM salaries_long | KEEP emp_no)
             """);
+    }
+
+    // -- TS subquery mixed with non-TS sources: outer STATS must produce plain Aggregate --
+
+    public void testTsSubqueryMixedWithStandardSubquery() {
+        requireTsMixedWithNonTsSourcesFix();
+        runGoldenTest("""
+            FROM (TS k8s-downsampled), (FROM sample_data) | STATS count(*)
+            """, STAGES);
+    }
+
+    public void testTwoTsSubqueriesInFrom() {
+        requireTsMixedWithNonTsSourcesFix();
+        runGoldenTest("""
+            FROM (TS k8s-downsampled), (TS k8s-downsampled) | STATS count(*)
+            """, STAGES);
+    }
+
+    public void testTsSubqueryMixedWithDirectIndex() {
+        requireTsMixedWithNonTsSourcesFix();
+        runGoldenTest("""
+            FROM (TS k8s-downsampled), sample_data | STATS count(*)
+            """, STAGES);
+    }
+
+    public void testTsSubqueryMixedWithView() {
+        requireTsMixedWithNonTsSourcesFix();
+        runGoldenTest("""
+            FROM (TS k8s-downsampled), my_view | STATS count(*)
+            """, STAGES, Map.of("my_view", "FROM sample_data | STATS total = COUNT() BY message"));
     }
 
     // -- helpers --

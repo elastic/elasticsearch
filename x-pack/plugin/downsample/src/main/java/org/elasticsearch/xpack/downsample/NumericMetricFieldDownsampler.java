@@ -486,19 +486,25 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
                     // We check if we need to persist the previous value too
                     // If timestamp -1 means that the previous value is already persisted by a previous bucket, nothing extra to persist
                     if (lastTimestamp > 0) {
-                        // If we have a previous value in this bucket, we need to see if the last persisted value is enough to capture
-                        // the
-                        // reset or not.
-                        double lastPersisted = Double.NaN;
-                        if (resetStack.isEmpty() == false) {
-                            lastPersisted = ((ResetDataPoints.CounterResetValue) resetStack.peek().value()).value();
-                        } else if (Double.isNaN(previousBucketValue) == false) {
-                            lastPersisted = previousBucketValue;
-                        }
-                        // If there is no known last persisted value or the last persisted is larger than the current value,
-                        // we need to store the previous document to capture the reset.
-                        if (Double.isNaN(lastPersisted) || Double.compare(counterValue, lastPersisted) < 0) {
-                            resetStack.push(new ResetDataPoints.ResetPoint(lastTimestamp, previousValue));
+                        // The previous data point is already on the top of the stack when the previous iteration also detected a reset
+                        // (its timestamp matches lastTimestamp). Re-pushing it would produce two entries for the same
+                        // (field, timestamp) pair, which causes a duplicate field error in the reset document.
+                        boolean previousAlreadyPersisted = resetStack.isEmpty() == false && resetStack.peek().timestamp() == lastTimestamp;
+                        if (previousAlreadyPersisted == false) {
+                            // If we have a previous value in this bucket, we need to see if the last persisted value is enough to capture
+                            // the
+                            // reset or not.
+                            double lastPersisted = Double.NaN;
+                            if (resetStack.isEmpty() == false) {
+                                lastPersisted = ((ResetDataPoints.CounterResetValue) resetStack.peek().value()).value();
+                            } else if (Double.isNaN(previousBucketValue) == false) {
+                                lastPersisted = previousBucketValue;
+                            }
+                            // If there is no known last persisted value or the last persisted is larger than the current value,
+                            // we need to store the previous document to capture the reset.
+                            if (Double.isNaN(lastPersisted) || Double.compare(counterValue, lastPersisted) < 0) {
+                                resetStack.push(new ResetDataPoints.ResetPoint(lastTimestamp, previousValue));
+                            }
                         }
                     }
                     // This is the last value before reset, which we always need to persist

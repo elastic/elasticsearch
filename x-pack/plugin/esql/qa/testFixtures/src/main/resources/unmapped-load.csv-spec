@@ -1,11 +1,11 @@
 ####################
 # No loading tests #
 ####################
-// Reproducer for #151525: a partially unmapped small numeric field is implicitly widened (short -> integer) without a cast.
+// #152997: a bare short PUNK surfaces as integer. Nothing loads here (no id in partial_mapping_sample_data _source); see the next test.
 partiallyUnmappedSmallNumericFieldIsWidened
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_partially_unmapped_small_numeric
-required_capability: optional_fields_warn_non_loadable_punk
+required_capability: optional_fields_fix_implicit_cast_on_small_numeric_punk
 
 SET unmapped_fields="load"\;
 FROM apps_short, partial_mapping_sample_data
@@ -13,13 +13,35 @@ FROM apps_short, partial_mapping_sample_data
 | SORT name DESC NULLS LAST
 | LIMIT 3
 ;
-// TODO This shouldn't warn. See #151525.
-warning:Field [id] of type [short] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 id:integer | name:keyword
 14         | mmmmm
 13         | lllll
 11         | kkkkk
+;
+
+partiallyUnmappedSmallNumericFieldIsWidenedAndLoaded
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_partially_unmapped_small_numeric
+required_capability: optional_fields_fix_implicit_cast_on_small_numeric_punk
+
+SET unmapped_fields="load"\;
+FROM all_types, all_types_no_short METADATA _index
+| KEEP _index, short
+| SORT _index, short
+;
+
+_index:keyword     | short:integer
+all_types          | 10
+all_types          | 20
+all_types          | 30
+all_types          | 40
+all_types          | 50
+all_types_no_short | 10
+all_types_no_short | 20
+all_types_no_short | 30
+all_types_no_short | 40
+all_types_no_short | 50
 ;
 
 // Reproducer for #151525: explicit cast on a partially unmapped small numeric field should not throw a ClassCastException.
@@ -3021,7 +3043,7 @@ fork2         | 42                     | 43
 loadUnmappedFieldsMultiIndexForkWithMvExpand
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: fork_v9
-required_capability: optional_fields_warn_non_loadable_punk
+required_capability: optional_fields_fix_implicit_cast_on_small_numeric_punk
 
 SET unmapped_fields="load"\;
 FROM employees, languages METADATA _index
@@ -3030,8 +3052,6 @@ FROM employees, languages METADATA _index
 | KEEP emp_no, *language*, does*, _index
 | STATS c = COUNT(does_not_exist2)
 ;
-warning:Field [languages.byte] of type [byte] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
-warning:Field [languages.short] of type [short] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 c:long
 0

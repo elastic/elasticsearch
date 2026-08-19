@@ -1743,13 +1743,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // content and runs on EVERY split — macro-splits past the first stay correctly bound.
                 schemaFieldIndex = declaredPathFieldIndexes(readSchema, null, object);
             } else if (options.headerRow() && declaredPathBinding && context.firstSplit() == false) {
-                // The split gate (declaredNameBindingNeedsFileStart) must keep a headered by-name read whole-file;
-                // if a non-first split reaches here the gate failed, so fail loudly rather than mis-bind positionally.
-                throw new IllegalStateException(
-                    "headered path-bound read of ["
-                        + object.path()
-                        + "] reached a non-first split; the declared-name split gate did not hold"
-                );
+                // This read does not own the file's start, so the header is not in front of it. Bind by name
+                // against the header columns whoever cut the file up read once and passed down. Without them
+                // there is no way to know what this chunk's fields are called, and binding by position would
+                // shift every column silently — so fail loudly instead.
+                List<String> headerColumns = context.fileHeaderColumns();
+                if (headerColumns == null) {
+                    throw new IllegalStateException(
+                        "headered path-bound read of ["
+                            + object.path()
+                            + "] reached a non-first split without the file's header columns; cannot bind the declared "
+                            + "schema by name"
+                    );
+                }
+                schemaFieldIndex = bindDeclaredToHeaderNames(headerColumns.toArray(new String[0]), readSchema, object);
             }
             warnAbsentDeclaredColumns(schemaFieldIndex, readSchema, context.informationalWarningSink());
             effectiveSchema = readSchema;
@@ -1913,6 +1920,25 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
+     * Binds a declared schema to a file's columns by name, given the header column names rather than the
+     * header line itself. Used by a read that cannot see the header — a chunk after the first — where the
+     * names were read once from the file's start and passed down. Identical binding to the first-chunk path,
+     * including duplicate-header rejection, so the two cannot drift apart.
+     */
+    private int[] bindDeclaredToHeaderNames(String[] headerNames, List<Attribute> readSchema, StorageObject object) {
+        // Normalise here rather than trusting the caller: a read that owns the file's start derives these names
+        // from the header line, while a later chunk gets them from the reader's own metadata, and the two
+        // derivations trimmed surrounding whitespace differently. A header cell of [" value "] then bound on the
+        // first chunk and null-filled on every other one — the same column, read two ways, in one file.
+        String[] normalised = new String[headerNames.length];
+        for (int i = 0; i < headerNames.length; i++) {
+            normalised[i] = headerNames[i] == null ? null : headerNames[i].trim();
+        }
+        rejectDuplicateHeaderNames(normalised, object);
+        return declaredPathFieldIndexes(readSchema, normalised, object);
+    }
+
+    /**
      * Width tripwire for an externally-supplied (declared) positional schema against the file's actual header.
      *
      * <p>A declared schema binds text columns <b>positionally</b>: the declared names replace the header's names in
@@ -1935,9 +1961,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         String[] fields = splitFieldsForOptions(headerLine, options);
         if (declaredPathBinding) {
-            String[] headerNames = headerColumnNames(headerLine, fields);
-            rejectDuplicateHeaderNames(headerNames, object);
-            return declaredPathFieldIndexes(readSchema, headerNames, object);
+            return bindDeclaredToHeaderNames(headerColumnNames(headerLine, fields), readSchema, object);
         }
         if (readSchema.size() > fields.length) {
             throw new IllegalArgumentException(

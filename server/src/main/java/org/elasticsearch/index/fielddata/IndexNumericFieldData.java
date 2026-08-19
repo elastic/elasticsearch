@@ -86,15 +86,12 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
      * match the field's <code>numericType</code>.
      */
     public final SortField sortField(
-        boolean indexSort,
         NumericType targetNumericType,
         Object missingValue,
         MultiValueMode sortMode,
         Nested nested,
         boolean reverse
     ) {
-        XFieldComparatorSource source = comparatorSource(targetNumericType, missingValue, sortMode, nested);
-
         /*
          * Use a SortField with the custom comparator logic if required because
          * 1. The underlying data source needs it.
@@ -105,18 +102,33 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         boolean requiresCustomComparator = nested != null
             || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
             || targetNumericType != getNumericType();
-        if (indexSort == false || sortRequiresCustomComparator()) {
+        return buildSortField(targetNumericType, missingValue, sortMode, nested, reverse, false, requiresCustomComparator == false);
+    }
+
+    private SortField buildSortField(
+        NumericType targetNumericType,
+        Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        boolean reverse,
+        boolean useNativeSortField,
+        boolean optimizeSortWithPoints
+    ) {
+        XFieldComparatorSource source = comparatorSource(targetNumericType, missingValue, sortMode, nested);
+        if (useNativeSortField == false || sortRequiresCustomComparator()) {
             SortField sortField = new SortField(getFieldName(), source, reverse);
-            sortField.setOptimizeSortWithPoints(requiresCustomComparator == false && canUseOptimizedSort(indexType()));
+            sortField.setOptimizeSortWithPoints(optimizeSortWithPoints && canUseOptimizedSort(indexType()));
             return sortField;
         }
 
+        assert nested == null;
+        assert sortMode == MultiValueMode.MIN || sortMode == MultiValueMode.MAX;
         SortedNumericSelector.Type selectorType = sortMode == MultiValueMode.MAX
             ? SortedNumericSelector.Type.MAX
             : SortedNumericSelector.Type.MIN;
-        SortField sortField = new SortedNumericSortField(getFieldName(), getNumericType().sortFieldType, reverse, selectorType);
+        SortField sortField = new SortedNumericSortField(getFieldName(), targetNumericType.sortFieldType, reverse, selectorType);
         sortField.setMissingValue(source.missingObject(missingValue, reverse));
-        sortField.setOptimizeSortWithPoints(canUseOptimizedSort(indexType()));
+        sortField.setOptimizeSortWithPoints(optimizeSortWithPoints && canUseOptimizedSort(indexType()));
         return sortField;
     }
 
@@ -139,7 +151,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
 
     @Override
     public final SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-        return sortField(false, getNumericType(), missingValue, sortMode, nested, reverse);
+        return sortField(getNumericType(), missingValue, sortMode, nested, reverse);
     }
 
     @Override
@@ -156,7 +168,25 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         Nested nested,
         boolean reverse
     ) {
-        SortField sortField = sortField(indexSort, getNumericType(), missingValue, sortMode, nested, reverse);
+        // Integer sorts used LONG before 8.19 and in 9.0. Use that historical type directly because an index sort's type is persisted
+        // in the index writer configuration, and search sorts must use the same representation for compatibility.
+        boolean useBwcLongSort = getNumericType().sortFieldType == SortField.Type.INT
+            // we introduced INT sort type in 8.19 and from 9.1
+            && indexCreatedVersion.before(IndexVersions.INDEX_INT_SORT_INT_TYPE)
+            && indexCreatedVersion.between(IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19, UPGRADE_TO_LUCENE_10_0_0) == false;
+
+        NumericType targetNumericType = useBwcLongSort ? NumericType.LONG : getNumericType();
+        boolean hasNativeSelector = nested == null && (sortMode == MultiValueMode.MIN || sortMode == MultiValueMode.MAX);
+        boolean useNativeSortField = hasNativeSelector && (indexSort || useBwcLongSort);
+        SortField sortField = buildSortField(
+            targetNumericType,
+            missingValue,
+            sortMode,
+            nested,
+            reverse,
+            useNativeSortField,
+            useBwcLongSort == false && hasNativeSelector
+        );
 
         if (getNumericType() == NumericType.DATE_NANOSECONDS
             && indexCreatedVersion.before(IndexVersions.V_7_14_0)
@@ -166,43 +196,8 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             // to 0L - for compatibility we require to a missing value of MIN_VALUE to allow to
             // open the index.
             sortField.setMissingValue(Long.MIN_VALUE);
-            return sortField;
         }
-
-        if (getNumericType().sortFieldType != SortField.Type.INT
-            // we introduced INT sort type in 8.19 and from 9.1
-            || indexCreatedVersion.onOrAfter(IndexVersions.INDEX_INT_SORT_INT_TYPE)
-            || indexCreatedVersion.between(IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19, UPGRADE_TO_LUCENE_10_0_0)) {
-            return sortField;
-        }
-
-        // if the index was created before 8.19, or in 9.0
-        // we need to rewrite the sort field to use LONG sort type
-        // Before indices used TYPE.LONG for index sorting on integer field,
-        // and this is stored in their index writer config on disk and can't be modified.
-        // Now sortField() returns TYPE.INT when sorting on integer field,
-        // but to support sorting on old indices, we need to rewrite this sort to TYPE.LONG.
-
-        XFieldComparatorSource longSource = comparatorSource(NumericType.LONG, missingValue, sortMode, nested);
-        if (sortField instanceof SortedNumericSortField snsf) {
-            SortedNumericSortField rewrittenSortField = new SortedNumericSortField(
-                snsf.getField(),
-                SortField.Type.LONG,
-                snsf.getReverse(),
-                snsf.getSelector()
-            );
-            rewrittenSortField.setMissingValue(longSource.missingObject(missingValue, reverse));
-            // we don't optimize sorting on int field for old indices
-            rewrittenSortField.setOptimizeSortWithPoints(false);
-            return rewrittenSortField;
-        }
-
-        SortField rewrittenSortField = new SortedNumericSortField(sortField.getField(), SortField.Type.LONG, reverse);
-        rewrittenSortField.setMissingValue(longSource.missingObject(missingValue, reverse));
-        // we don't optimize sorting on int field for old indices
-        rewrittenSortField.setOptimizeSortWithPoints(false);
-        return rewrittenSortField;
-
+        return sortField;
     }
 
     /**

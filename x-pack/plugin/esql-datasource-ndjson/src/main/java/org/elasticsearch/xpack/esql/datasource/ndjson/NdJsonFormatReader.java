@@ -305,17 +305,34 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Resolve the effective schema when the planner has bound a read schema. When the
-     * coordinator-side projection ({@code resolvedSchema}) is unavailable, the bound schema is used
-     * as-is. Otherwise the bound schema's column order is preserved and projection types/nullability
-     * overlay matching names — same semantics as {@link #mergeInferredWithPreferred}, just with the
-     * planner-supplied schema standing in for the per-file inference result.
+     * Resolve the effective schema when the planner has bound a read schema for this file.
+     * <p>
+     * <b>The bound schema wins on type.</b> It is the planner's read contract — a declared type, or a type
+     * reconciled across every file of the dataset — and the reader-level {@code projection} may be nothing
+     * more than what this file's own values happened to look like. Letting the projection's type win means a
+     * column declared {@code long} is read as {@code int} because the values in view were small, and the
+     * resulting block fails to cast in a compute engine still expecting {@code long}.
+     * <p>
+     * Inference never has more information than the planner here: the planner saw the declaration, or saw
+     * every file. A value that does not fit the bound type is the error policy's business at parse time, not
+     * grounds to retype the column.
+     * <p>
+     * The projection still supplies nullability for matching names, and contributes any column the bound
+     * schema does not mention. Bound column order is preserved.
      */
     private static List<Attribute> mergeBoundWithProjection(List<Attribute> bound, List<Attribute> projection) {
         if (projection == null || projection.isEmpty()) {
             return bound;
         }
-        return mergeInferredWithPreferred(bound, projection);
+        Map<String, Attribute> byName = new LinkedHashMap<>();
+        for (Attribute a : bound) {
+            byName.put(a.name(), a);
+        }
+        for (Attribute p : projection) {
+            Attribute existing = byName.get(p.name());
+            byName.put(p.name(), existing == null ? p : existing.withNullability(p.nullable()));
+        }
+        return List.copyOf(byName.values());
     }
 
     /**
@@ -468,6 +485,11 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         ErrorPolicy errorPolicy = context.errorPolicy() != null ? context.errorPolicy() : defaultErrorPolicy();
         // Bound read schema wins when non-null; null falls through to per-file inference.
         // Prevents cross-file type drift on multi-file globs (e.g. y:LONG vs file-with-1.5 y:DOUBLE).
+        //
+        // A bound schema is used as given. It must NOT be supplemented by inferring here: this method is
+        // handed storage that may be a single-use stream, and opening it again for inference both breaks
+        // that contract and re-reads the file on every chunk. Whoever owns the file's leading bytes resolves
+        // any facts the projection does not carry before the read starts.
         List<Attribute> effectiveSchema = context.readSchema() == null
             ? inferSchemaIfNeeded(resolvedSchema, object, skipFirstLine)
             : mergeBoundWithProjection(context.readSchema(), resolvedSchema);

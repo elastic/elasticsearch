@@ -434,11 +434,14 @@ public class HollowShardsService extends AbstractLifecycleComponent implements M
                                 assert engine instanceof IndexEngine : shardId + ": expected IndexEngine but was " + engine.getClass();
                                 engine.flush(true, true, ActionListener.wrap(flushResult -> {
                                     assert flushResult.skippedDueToCollision() == false : "Flush was skipped";
+                                    // Check hollow state before removeHollowShard: once the shard leaves the hollow map a
+                                    // concurrent relocation can call prepareForEngineReset → flushHollow on this engine,
+                                    // which would overwrite lastCommittedSegmentInfos and cause a spurious assertion failure.
+                                    assert assertIndexEngineLastCommitHollow(shardId, engine, false);
                                     removeHollowShard(indexShard, "unhollowing gen " + flushResult.generation());
                                     logger.info("{} unhollowed shard with gen {}", shardId, flushResult.generation());
                                     metrics.unhollowSuccessCounter().increment();
                                     metrics.unhollowTimeMs().record(relativeTimeSupplierInMillis.getAsLong() - startTime);
-                                    assert assertIndexEngineLastCommitHollow(shardId, engine, false);
                                 }, e -> failedUnhollowing(shardId, e)));
                                 return null;
                             });

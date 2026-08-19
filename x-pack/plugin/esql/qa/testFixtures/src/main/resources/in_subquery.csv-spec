@@ -2822,3 +2822,179 @@ FROM employees, employees_incompatible METADATA _index
 c:long | _index:keyword
 100    | employees_incompatible
 ;
+
+propagateEmptyRelationWithEmptyRelationBeforeSemiJoinMarkJoinAndMatchPhrase
+required_capability: where_in_subquery_without_view
+required_capability: propagate_empty_relation_past_where_in_subquery
+required_capability: match_phrase_function
+
+FROM books
+| WHERE book_no IN (FROM books | KEEP book_no) AND false
+| WHERE author RLIKE ".*" OR book_no IN (FROM books | KEEP book_no) AND match_phrase(description, "test")
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+propagateEmptyRelationWithNonEmptyRelationBeforeMarkJoinAndMatchFunction
+required_capability: where_in_subquery_without_view
+required_capability: propagate_empty_relation_past_where_in_subquery
+required_capability: match_function
+
+FROM books
+| WHERE author RLIKE ".*" OR book_no IN (FROM books | KEEP book_no) AND match(description, "test")
+| WHERE book_no IN (FROM books | KEEP book_no) AND false
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+propagateEmptyRelationWithNonEmptyRelationBeforeSemiJoinMarkJoinAndMatchOperator
+required_capability: where_in_subquery_without_view
+required_capability: propagate_empty_relation_past_where_in_subquery
+required_capability: match_operator_colon
+
+FROM books
+| WHERE book_no IN (FROM books | KEEP book_no) AND true
+| WHERE author RLIKE ".*" OR book_no IN (FROM books | KEEP book_no) AND description : "test"
+| STATS c = COUNT(*)
+;
+
+c:long
+79
+;
+
+propagateEmptyRelationWithEmptyRelationBeforeAntiJoinMarkJoinAndMatchFunction
+required_capability: where_in_subquery_without_view
+required_capability: propagate_empty_relation_past_where_in_subquery
+required_capability: match_function
+
+FROM books
+| WHERE book_no NOT IN (FROM books | KEEP book_no) AND 1 > 1
+| WHERE author RLIKE ".*" OR book_no IN (FROM books | KEEP book_no) AND match(description, "test")
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+propagateEmptyRelationWithNonEmptyRelationBeforeTwoMarkJoinAndMatchOperator
+required_capability: where_in_subquery_without_view
+required_capability: propagate_empty_relation_past_where_in_subquery
+required_capability: match_operator_colon
+
+FROM books
+| WHERE book_no IN (FROM books | KEEP book_no) OR 1 > 1
+| WHERE author RLIKE ".*" OR book_no IN (FROM books | KEEP book_no) AND description : "test"
+| STATS c = COUNT(*)
+;
+
+c:long
+79
+;
+
+propagateEmptyRelationWithEmptyRelationBeforeAntiJoinSemiJoinAndMatchPhrase
+required_capability: where_in_subquery_without_view
+required_capability: propagate_empty_relation_past_where_in_subquery
+required_capability: match_phrase_function
+
+FROM books
+| WHERE book_no NOT IN (FROM books | KEEP book_no) AND 1 > 1
+| WHERE author RLIKE ".*" AND book_no IN (FROM books | KEEP book_no) AND match_phrase(description, "test")
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+propagateEmptyRelationWithEmptyRelationBeforeTwoAntiJoinAndMatchFunction
+required_capability: where_in_subquery_without_view
+required_capability: propagate_empty_relation_past_where_in_subquery
+required_capability: match_function
+
+FROM books
+| WHERE book_no NOT IN (FROM books | KEEP book_no) AND 1 > 1
+| WHERE author RLIKE ".*" AND book_no NOT IN (FROM books | KEEP book_no) AND match(description, "test")
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+propagateEmptyRelationWithEmptyRelationBeforeSemiJoinMarkJoinAndKnn
+required_capability: where_in_subquery_without_view
+required_capability: propagate_empty_relation_past_where_in_subquery
+required_capability: knn_function_v5
+
+FROM colors
+| WHERE hex_code IN (FROM colors | KEEP hex_code) AND false
+| WHERE color RLIKE ".*" OR hex_code IN (FROM colors | KEEP hex_code) AND knn(rgb_vector, [0, 0, 0])
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+propagateEmptyRelationSemiJoinWithEmptySubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees | WHERE false | KEEP emp_no)
+| KEEP emp_no
+;
+
+emp_no:integer
+;
+
+propagateEmptyRelationAntiJoinWithEmptySubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees | WHERE false | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no
+| LIMIT 3
+;
+
+emp_no:integer
+10001
+10002
+10003
+;
+
+propagateEmptyRelationMarkJoinWithEmptySubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no > 0 OR emp_no IN (FROM employees | WHERE false | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no
+| LIMIT 3
+;
+
+emp_no:integer
+10001
+10002
+10003
+;
+
+propagateEmptyRelationAntiJoinBothSidesEmpty
+required_capability: where_in_subquery_without_view
+required_capability: propagate_empty_relation_past_where_in_subquery
+
+FROM employees
+| WHERE false
+| WHERE emp_no NOT IN (FROM employees | WHERE false | KEEP emp_no)
+| KEEP emp_no
+;
+
+emp_no:integer
+;

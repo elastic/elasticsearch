@@ -16,27 +16,40 @@ import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.stream.IntStream.range;
@@ -75,6 +88,14 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             .put(SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE)
             .put(SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE)
             .put(SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(EvictionTrackingStatelessPlugin.class);
+        return plugins;
     }
 
     /**
@@ -120,8 +141,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         );
 
         // Force-merge to 1 segment
-        forceMerge(true);
-        refresh(indexName);
+        forceMergeThenRefreshAndAwaitEvictions(indexName, searchEngine, searchDirectory);
 
         var blobsRegionsAfterMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
 
@@ -131,25 +151,23 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             equalTo(true)
         );
 
-        assertBusy(() -> {
-            assertThat(
-                "cached regions should match exactly the regions from post-merge segments",
-                searchCacheService.countCachedRegions(
-                    searchShard.shardId(),
-                    (key, region) -> blobsRegionsAfterMerge.containsKey(key.fileName())
-                ),
-                equalTo(blobsRegionsAfterMerge.values().stream().mapToLong(BitSet::cardinality).sum())
-            );
+        assertThat(
+            "cached regions should match exactly the regions from post-merge segments",
+            searchCacheService.countCachedRegions(
+                searchShard.shardId(),
+                (key, region) -> blobsRegionsAfterMerge.containsKey(key.fileName())
+            ),
+            equalTo(blobsRegionsAfterMerge.values().stream().mapToLong(BitSet::cardinality).sum())
+        );
 
-            assertThat(
-                "no cached region should belong to a pre-merge blob",
-                searchCacheService.countCachedRegions(
-                    searchShard.shardId(),
-                    (key, region) -> blobsRegionsBeforeMerge.containsKey(key.fileName())
-                ),
-                equalTo(0L)
-            );
-        });
+        assertThat(
+            "no cached region should belong to a pre-merge blob",
+            searchCacheService.countCachedRegions(
+                searchShard.shardId(),
+                (key, region) -> blobsRegionsBeforeMerge.containsKey(key.fileName())
+            ),
+            equalTo(0L)
+        );
     }
 
     /**
@@ -202,8 +220,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         final var pitId = openPitResponse.getPointInTimeId();
 
         // Force-merge to 1 segment
-        forceMerge(true);
-        refresh(indexName);
+        forceMergeThenRefreshAndAwaitEvictions(indexName, searchEngine, searchDirectory);
 
         var blobsRegionsAfterMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
 
@@ -231,8 +248,20 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
 
         // After PIT close, trigger a new commit so the search node processes retainFilesAndEvict without the PIT reader
         // TODO Fix this, it would be better to have immediate release/eviction after a reader is closed
+        final var indexEngine = getShardEngine(findIndexShard(indexName), IndexEngine.class);
+        long minGeneration = indexEngine.getCurrentGeneration();
+
+        final var cacheService = asInstanceOf(
+            EvictionTrackingCacheService.class,
+            BlobStoreCacheDirectoryTestUtils.getCacheService(searchDirectory)
+        );
+        final var future = cacheService.startTracking();
+        searchEngine.addPrimaryTermAndGenerationListener(0L, minGeneration + 2L, ActionListener.releasing(future.refs.acquire()));
+
         flush(indexName);
         refresh(indexName);
+
+        cacheService.stopTrackingAndAwait(future);
 
         var blobsRegionsAfterClosePIT = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
 
@@ -242,25 +271,23 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             equalTo(true)
         );
 
-        assertBusy(() -> {
-            assertThat(
-                "cached regions should match exactly the regions from post-merge segments",
-                searchCacheService.countCachedRegions(
-                    searchShard.shardId(),
-                    (key, region) -> blobsRegionsAfterClosePIT.containsKey(key.fileName())
-                ),
-                equalTo(blobsRegionsAfterClosePIT.values().stream().mapToLong(BitSet::cardinality).sum())
-            );
+        assertThat(
+            "cached regions should match exactly the regions from post-merge segments",
+            searchCacheService.countCachedRegions(
+                searchShard.shardId(),
+                (key, region) -> blobsRegionsAfterClosePIT.containsKey(key.fileName())
+            ),
+            equalTo(blobsRegionsAfterClosePIT.values().stream().mapToLong(BitSet::cardinality).sum())
+        );
 
-            assertThat(
-                "no cached region should belong to a pre-merge blob",
-                searchCacheService.countCachedRegions(
-                    searchShard.shardId(),
-                    (key, region) -> blobsRegionsBeforeMerge.containsKey(key.fileName())
-                ),
-                equalTo(0L)
-            );
-        });
+        assertThat(
+            "no cached region should belong to a pre-merge blob",
+            searchCacheService.countCachedRegions(
+                searchShard.shardId(),
+                (key, region) -> blobsRegionsBeforeMerge.containsKey(key.fileName())
+            ),
+            equalTo(0L)
+        );
     }
 
     /**
@@ -321,8 +348,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         );
 
         // Force-merge to 1 segment
-        forceMerge(true);
-        refresh(indexName);
+        forceMergeThenRefreshAndAwaitEvictions(indexName, searchEngine, searchDirectory);
 
         var blobsRegionsAfterMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
 
@@ -332,25 +358,23 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             equalTo(true)
         );
 
-        assertBusy(() -> {
-            assertThat(
-                "cached regions should match exactly the regions from post-merge segments",
-                searchCacheService.countCachedRegions(
-                    searchShard.shardId(),
-                    (key, region) -> blobsRegionsAfterMerge.containsKey(key.fileName())
-                ),
-                equalTo(blobsRegionsAfterMerge.values().stream().mapToLong(BitSet::cardinality).sum())
-            );
+        assertThat(
+            "cached regions should match exactly the regions from post-merge segments",
+            searchCacheService.countCachedRegions(
+                searchShard.shardId(),
+                (key, region) -> blobsRegionsAfterMerge.containsKey(key.fileName())
+            ),
+            equalTo(blobsRegionsAfterMerge.values().stream().mapToLong(BitSet::cardinality).sum())
+        );
 
-            assertThat(
-                "no cached region should belong to a pre-merge blob (including generational file blobs)",
-                searchCacheService.countCachedRegions(
-                    searchShard.shardId(),
-                    (key, region) -> blobsRegionsBeforeMerge.containsKey(key.fileName())
-                ),
-                equalTo(0L)
-            );
-        });
+        assertThat(
+            "no cached region should belong to a pre-merge blob (including generational file blobs)",
+            searchCacheService.countCachedRegions(
+                searchShard.shardId(),
+                (key, region) -> blobsRegionsBeforeMerge.containsKey(key.fileName())
+            ),
+            equalTo(0L)
+        );
     }
 
     /**
@@ -370,7 +394,10 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         final var searchShard = findSearchShard(indexName);
         final var searchEngine = getShardEngine(searchShard, SearchEngine.class);
         final var searchDirectory = SearchDirectory.unwrapDirectory(searchShard.store().directory());
-        final var searchCacheService = BlobStoreCacheDirectoryTestUtils.getCacheService(searchDirectory);
+        final var searchCacheService = asInstanceOf(
+            EvictionTrackingCacheService.class,
+            BlobStoreCacheDirectoryTestUtils.getCacheService(searchDirectory)
+        );
 
         final int nbSegments = randomIntBetween(1, 5);
         final var bytes = randomUnicodeOfLength(BlobCacheUtils.toIntBytes(REGION_SIZE.getBytes()));
@@ -429,10 +456,19 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             assertThat(docResult.getResponse().getResult(), equalTo(DocWriteResponse.Result.UPDATED));
         }
 
+        final boolean randomFlush = randomBoolean();
+        final var indexEngine = getShardEngine(findIndexShard(indexName), IndexEngine.class);
+        long minGeneration = indexEngine.getCurrentGeneration() + 1L + (randomFlush ? 1L : 0L);
+
+        final var future = searchCacheService.startTracking();
+        searchEngine.addPrimaryTermAndGenerationListener(0L, minGeneration, ActionListener.releasing(future.refs.acquire()));
+
         refresh(indexName);
-        if (randomBoolean()) {
-            flushAndWaitForSearchShard(indexName, searchEngine);
+        if (randomFlush) {
+            flush(indexName);
         }
+
+        searchCacheService.stopTrackingAndAwait(future);
 
         final var blobsRegionsAfterUpdates = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
         if (updatedDocs.size() == nbSegments) {
@@ -440,25 +476,23 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             assertThat(blobsRegionsAfterUpdates.size(), equalTo(1));
             assertThat(blobsRegionsAfterUpdates.keySet().stream().noneMatch(blobsRegionsBeforeUpdates::containsKey), equalTo(true));
 
-            assertBusy(() -> {
-                assertThat(
-                    "cached regions should match exactly the regions from post-update segment",
-                    searchCacheService.countCachedRegions(
-                        searchShard.shardId(),
-                        (key, region) -> blobsRegionsAfterUpdates.containsKey(key.fileName())
-                    ),
-                    equalTo(blobsRegionsAfterUpdates.values().stream().mapToLong(BitSet::cardinality).sum())
-                );
+            assertThat(
+                "cached regions should match exactly the regions from post-update segment",
+                searchCacheService.countCachedRegions(
+                    searchShard.shardId(),
+                    (key, region) -> blobsRegionsAfterUpdates.containsKey(key.fileName())
+                ),
+                equalTo(blobsRegionsAfterUpdates.values().stream().mapToLong(BitSet::cardinality).sum())
+            );
 
-                assertThat(
-                    "no cached region should belong to a pre-update blob",
-                    searchCacheService.countCachedRegions(
-                        searchShard.shardId(),
-                        (key, region) -> blobsRegionsBeforeUpdates.containsKey(key.fileName())
-                    ),
-                    equalTo(0L)
-                );
-            });
+            assertThat(
+                "no cached region should belong to a pre-update blob",
+                searchCacheService.countCachedRegions(
+                    searchShard.shardId(),
+                    (key, region) -> blobsRegionsBeforeUpdates.containsKey(key.fileName())
+                ),
+                equalTo(0L)
+            );
 
         } else {
             // Otherwise we have 2 BCCs, including the one before updates
@@ -483,20 +517,18 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             var expectedRemovedRegions = (BitSet) removedRegions.clone();
             expectedRemovedRegions.andNot(retainedRegions);
 
-            assertBusy(() -> {
-                assertThat(
-                    "Regions of pre-update blob should be only those containing non-updated docs",
-                    searchCacheService.countCachedRegions(searchShard.shardId(), (key, region) -> {
-                        if (blobsRegionsBeforeUpdates.containsKey(key.fileName())) {
-                            assertThat(retainedRegions.get(region), equalTo(true));
-                            assertThat(expectedRemovedRegions.get(region), equalTo(false));
-                            return true;
-                        }
-                        return false;
-                    }),
-                    equalTo((long) blobsRegionsAfterUpdates.get(docPerSegments.get(0).blobName()).cardinality())
-                );
-            });
+            assertThat(
+                "Regions of pre-update blob should be only those containing non-updated docs",
+                searchCacheService.countCachedRegions(searchShard.shardId(), (key, region) -> {
+                    if (blobsRegionsBeforeUpdates.containsKey(key.fileName())) {
+                        assertThat(retainedRegions.get(region), equalTo(true));
+                        assertThat(expectedRemovedRegions.get(region), equalTo(false));
+                        return true;
+                    }
+                    return false;
+                }),
+                equalTo((long) blobsRegionsAfterUpdates.get(docPerSegments.get(0).blobName()).cardinality())
+            );
         }
     }
 
@@ -519,7 +551,10 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         final var searchShard = findSearchShard(indexName);
         final var searchEngine = getShardEngine(searchShard, SearchEngine.class);
         final var searchDirectory = SearchDirectory.unwrapDirectory(searchShard.store().directory());
-        final var searchCacheService = BlobStoreCacheDirectoryTestUtils.getCacheService(searchDirectory);
+        final var searchCacheService = asInstanceOf(
+            EvictionTrackingCacheService.class,
+            BlobStoreCacheDirectoryTestUtils.getCacheService(searchDirectory)
+        );
 
         final var bytes = randomUnicodeOfLength(BlobCacheUtils.toIntBytes(REGION_SIZE.getBytes()));
 
@@ -547,37 +582,44 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             equalTo(blobsRegionsBeforeMerge.values().stream().mapToLong(BitSet::cardinality).sum())
         );
 
+        final boolean randomFlush = randomBoolean();
+        final var indexEngine = getShardEngine(findIndexShard(indexName), IndexEngine.class);
+        long minGeneration = indexEngine.getCurrentGeneration() + 1L + (randomFlush ? 1L : 0L);
+
+        final var future = searchCacheService.startTracking();
+        searchEngine.addPrimaryTermAndGenerationListener(0L, minGeneration, ActionListener.releasing(future.refs.acquire()));
+
         assertNoFailures(indicesAdmin().prepareForceMerge().setFlush(false).setMaxNumSegments(1).get());
         refresh(indexName);
-        if (randomBoolean()) {
-            flushAndWaitForSearchShard(indexName, searchEngine);
+        if (randomFlush) {
+            flush(indexName);
         }
+
+        searchCacheService.stopTrackingAndAwait(future);
 
         var blobsRegionsAfterMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
         assertThat("all segments should be in a single BCC blob", blobsRegionsAfterMerge.size(), equalTo(1));
 
-        assertBusy(() -> {
-            assertThat(
-                "cached regions should match exactly the regions from post-merge segments",
-                searchCacheService.countCachedRegions(
-                    searchShard.shardId(),
-                    (key, region) -> blobsRegionsAfterMerge.containsKey(key.fileName())
-                ),
-                equalTo(blobsRegionsAfterMerge.values().stream().mapToLong(BitSet::cardinality).sum())
-            );
+        assertThat(
+            "cached regions should match exactly the regions from post-merge segments",
+            searchCacheService.countCachedRegions(
+                searchShard.shardId(),
+                (key, region) -> blobsRegionsAfterMerge.containsKey(key.fileName())
+            ),
+            equalTo(blobsRegionsAfterMerge.values().stream().mapToLong(BitSet::cardinality).sum())
+        );
 
-            assertThat(
-                "no cached region should belong exclusively to a pre-merge blob",
-                searchCacheService.countCachedRegions(searchShard.shardId(), (key, region) -> {
-                    if (blobsRegionsBeforeMerge.containsKey(key.fileName()) == false) {
-                        return false;
-                    }
-                    BitSet afterMergeRegions = blobsRegionsAfterMerge.get(key.fileName());
-                    return afterMergeRegions == null || afterMergeRegions.get(region) == false;
-                }),
-                equalTo(0L)
-            );
-        });
+        assertThat(
+            "no cached region should belong exclusively to a pre-merge blob",
+            searchCacheService.countCachedRegions(searchShard.shardId(), (key, region) -> {
+                if (blobsRegionsBeforeMerge.containsKey(key.fileName()) == false) {
+                    return false;
+                }
+                BitSet afterMergeRegions = blobsRegionsAfterMerge.get(key.fileName());
+                return afterMergeRegions == null || afterMergeRegions.get(region) == false;
+            }),
+            equalTo(0L)
+        );
     }
 
     /**
@@ -622,6 +664,25 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         }
     }
 
+    /** Force-merges to 1 segment, refreshes, then waits for the search shard to process both commits and complete all evictions. */
+    private void forceMergeThenRefreshAndAwaitEvictions(String indexName, SearchEngine searchEngine, SearchDirectory searchDirectory) {
+        final var indexEngine = getShardEngine(findIndexShard(indexName), IndexEngine.class);
+        final long minGeneration = indexEngine.getCurrentGeneration() + 2L;
+
+        final var cacheService = asInstanceOf(
+            EvictionTrackingCacheService.class,
+            BlobStoreCacheDirectoryTestUtils.getCacheService(searchDirectory)
+        );
+        final var future = cacheService.startTracking();
+        searchEngine.addPrimaryTermAndGenerationListener(0L, minGeneration, ActionListener.releasing(future.refs.acquire()));
+
+        forceMerge(true);
+        refresh(indexName);
+
+        cacheService.stopTrackingAndAwait(future);
+    }
+
+    /** Flushes and blocks until the search shard has processed the resulting commit. */
     private void flushAndWaitForSearchShard(final String indexName, final SearchEngine searchEngine) {
         assertThat(indexName, equalTo(searchEngine.config().getShardId().getIndexName()));
         final var future = new PlainActionFuture<Long>();
@@ -630,5 +691,101 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         searchEngine.addPrimaryTermAndGenerationListener(0L, indexEngine.getCurrentGeneration() + 1L, ActionListener.assertOnce(future));
         flush(indexName);
         safeGet(future);
+    }
+
+    /** Stateless plugin whose cache service tracks async eviction tasks, allowing tests to deterministically await their completion. */
+    public static class EvictionTrackingStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
+
+        public EvictionTrackingStatelessPlugin(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        protected StatelessSharedBlobCacheService createSharedBlobCacheService(
+            NodeEnvironment nodeEnvironment,
+            Settings settings,
+            ThreadPool threadPool,
+            BlobCacheMetrics blobCacheMetrics,
+            ClusterService clusterService,
+            IndicesService indicesService
+        ) {
+            return new EvictionTrackingCacheService(
+                nodeEnvironment,
+                settings,
+                threadPool,
+                blobCacheMetrics,
+                clusterService,
+                indicesService
+            );
+        }
+    }
+
+    private static class EvictionFuture {
+
+        private final PlainActionFuture<Void> future;
+        private final RefCountingRunnable refs;
+
+        EvictionFuture() {
+            this.future = new PlainActionFuture<>();
+            this.refs = new RefCountingRunnable(() -> future.onResponse(null));
+        }
+    }
+
+    static class EvictionTrackingCacheService extends StatelessSharedBlobCacheService {
+
+        private final AtomicReference<EvictionFuture> current = new AtomicReference<>();
+
+        EvictionTrackingCacheService(
+            NodeEnvironment nodeEnvironment,
+            Settings settings,
+            ThreadPool threadPool,
+            BlobCacheMetrics blobCacheMetrics,
+            ClusterService clusterService,
+            IndicesService indicesService
+        ) {
+            super(
+                nodeEnvironment,
+                settings,
+                threadPool,
+                blobCacheMetrics,
+                clusterService,
+                indicesService,
+                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+            );
+        }
+
+        /** Starts tracking eviction tasks. Must be followed by {@link #stopTrackingAndAwait}. */
+        EvictionFuture startTracking() {
+            final var tracker = new EvictionFuture();
+            if (current.compareAndSet(null, tracker) == false) {
+                Releasables.close(tracker.refs);
+                throw new AssertionError("Already tracking evictions");
+            }
+            return tracker;
+        }
+
+        /** Stops tracking and blocks until all tracked eviction tasks have completed. */
+        void stopTrackingAndAwait(final EvictionFuture tracker) {
+            if (current.compareAndSet(tracker, null) == false) {
+                throw new AssertionError("Already tracking evictions");
+            }
+            Releasables.close(tracker.refs);
+            safeGet(tracker.future);
+        }
+
+        @Override
+        public void submitAsyncEviction(Runnable task) {
+            final EvictionFuture tracker = current.get();
+            if (tracker != null) {
+                final var releasable = tracker.refs.acquire();
+                super.submitAsyncEviction(() -> {
+                    try (releasable) {
+                        task.run();
+                    }
+                });
+            } else {
+                super.submitAsyncEviction(task);
+            }
+        }
     }
 }

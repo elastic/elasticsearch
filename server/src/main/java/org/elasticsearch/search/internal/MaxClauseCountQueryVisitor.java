@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.FuzzyQuery;
@@ -26,6 +27,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.lucene.search.cost.PointRangeQueryCostEstimator;
 
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -37,7 +39,7 @@ import java.util.function.Supplier;
  * can charge the request circuit breaker once per top-level call instead of once per leaf builder.
  * <p>
  * When a non-null {@link CircuitBreaker} is supplied, the visitor trips it mid-walk as soon as the
- * projected total (breaker baseline plus running estimate) exceeds the limit, so pathological
+ * projected total (live {@code breaker.getUsed()} plus running estimate) exceeds the limit, so pathological
  * queries fail before their full Lucene tree is materialised.
  * <p>
  * {@link IndexOrDocValuesQuery} is counted as one clause and its inner queries are ignored;
@@ -56,16 +58,42 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
 
     @Nullable
     private final CircuitBreaker breaker;
-    private long breakerBaseline;
+
+    @Nullable
+    private final Predicate<Query> preCharged;
+
+    /**
+     * Index segment count charged against fuzzy clauses' per-segment expansion cost; see
+     * {@link FuzzyQueries#estimateBytes(FuzzyQuery, int)}.
+     */
+    private final int segmentCount;
 
     public MaxClauseCountQueryVisitor(int maxClauseCount) {
         this(maxClauseCount, null);
     }
 
     public MaxClauseCountQueryVisitor(int maxClauseCount, @Nullable CircuitBreaker breaker) {
+        this(maxClauseCount, breaker, null);
+    }
+
+    public MaxClauseCountQueryVisitor(int maxClauseCount, @Nullable CircuitBreaker breaker, @Nullable Predicate<Query> preCharged) {
+        this(maxClauseCount, breaker, preCharged, FuzzyQueries.DEFAULT_SEGMENT_COUNT_WHEN_UNKNOWN);
+    }
+
+    public MaxClauseCountQueryVisitor(
+        int maxClauseCount,
+        @Nullable CircuitBreaker breaker,
+        @Nullable Predicate<Query> preCharged,
+        int segmentCount
+    ) {
         this.maxClauseCount = maxClauseCount;
         this.breaker = breaker;
-        this.breakerBaseline = breaker == null ? 0L : breaker.getUsed();
+        this.preCharged = preCharged;
+        this.segmentCount = segmentCount;
+    }
+
+    public static int segmentCountOrDefault(@Nullable IndexReader reader) {
+        return reader == null ? FuzzyQueries.DEFAULT_SEGMENT_COUNT_WHEN_UNKNOWN : reader.leaves().size();
     }
 
     public int getMaxClauseCount() {
@@ -89,15 +117,12 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
     }
 
     /**
-     * Clears the accumulated clause count and byte estimate, and recaptures the breaker baseline
-     * from {@code breaker.getUsed()} when a breaker is configured.
+     * Clears the accumulated clause count and byte estimate. The breaker projection reads
+     * {@code breaker.getUsed()} live, so there is no cached baseline to recapture.
      */
     public void reset() {
         numClauses = 0;
         estimatedBytes = 0L;
-        if (breaker != null) {
-            breakerBaseline = breaker.getUsed();
-        }
     }
 
     public void merge(MaxClauseCountQueryVisitor other) {
@@ -118,9 +143,16 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
      */
     private void chargeBytesFor(Query query, int termMultiplier) {
         assert termMultiplier > 0 : "termMultiplier must be positive, got " + termMultiplier;
+
+        if (preCharged != null && preCharged.test(query)) {
+            // Retained bytes were already charged to the breaker at construction time (e.g. wildcard / regexp automata under
+            // their dedicated category); skip so the same leaf is not counted twice.
+            return;
+        }
+
         long bytes;
         if (query instanceof FuzzyQuery fq) {
-            bytes = FuzzyQueries.estimateBytes(fq);
+            bytes = FuzzyQueries.estimateBytes(fq, segmentCount);
         } else if (query instanceof PointRangeQuery prq) {
             bytes = new PointRangeQueryCostEstimator(prq.getNumDims(), prq.getBytesPerDim()).estimate();
         } else if (query instanceof Accountable a) {
@@ -141,7 +173,7 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
             return;
         }
 
-        long projected = breakerBaseline + estimatedBytes;
+        long projected = breaker.getUsed() + estimatedBytes;
         if (projected > limit) {
             // Throw-only: circuitBreak bumps trippedCount and throws, but does NOT touch the breaker's
             // used counter. The accumulated estimate is committed in a single addCircuitBreakerMemory

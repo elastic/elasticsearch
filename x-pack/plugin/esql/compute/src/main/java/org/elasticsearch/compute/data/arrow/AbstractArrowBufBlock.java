@@ -12,7 +12,7 @@ import org.apache.arrow.vector.FixedWidthVector;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.compute.data.AbstractNonThreadSafeRefCounted;
+import org.elasticsearch.compute.data.AbstractBlockRefCounted;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -23,7 +23,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
-public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> extends AbstractNonThreadSafeRefCounted implements Block {
+public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> extends AbstractBlockRefCounted implements Block {
 
     protected final int valueCount;
     protected final int offsetCount;
@@ -167,6 +167,7 @@ public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> e
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         // FIXME: Does this apply to Arrow buffers? Their allocator references the circuit breaker.
     }
 

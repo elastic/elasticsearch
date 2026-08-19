@@ -150,6 +150,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     public void execute(Runnable command) {
         final Runnable wrappedRunnable = command != WORKER_PROBE ? wrapRunnable(command) : WORKER_PROBE;
 
+        logger.trace(() -> format("enqueuing task [%s] on [%s]", command, name));
         maybeLogForLargeQueueSize();
 
         try {

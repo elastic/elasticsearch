@@ -45,7 +45,6 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -122,7 +121,7 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
             clusterService,
             transportService,
             mock(ShardStateAction.class),
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             indicesService,
             mock(ThreadPool.class)
         );
@@ -145,7 +144,7 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
             clusterService,
             transportService,
             mock(ShardStateAction.class),
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             indicesService,
             threadPool,
             waitForBlocks
@@ -214,7 +213,7 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
             clusterService,
             transportService,
             mock(ShardStateAction.class),
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             indicesService,
             threadPool,
             true

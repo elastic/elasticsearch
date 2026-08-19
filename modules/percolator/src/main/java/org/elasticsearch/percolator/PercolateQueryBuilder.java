@@ -731,6 +731,7 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
                 if (bytes > 0) {
                     source.releaseQueryConstructionMemory(bytes);
                 }
+                clearPreChargedQueries();
             }
         };
 

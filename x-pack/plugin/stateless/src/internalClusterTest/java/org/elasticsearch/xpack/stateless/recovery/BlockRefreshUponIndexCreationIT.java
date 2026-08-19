@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless.recovery;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.RemoveIndexBlockRequest;
@@ -22,6 +23,7 @@ import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -42,6 +44,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -486,15 +489,23 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
         );
         String searchNodeName = startSearchNode();
 
-        // Intercept TransportRegisterCommitForRecoveryAction on the search node. This action is sent
-        // by the search node to register its shard copy during recovery; until it completes the shard
-        // stays in RECOVERING (not STARTED)
-        Queue<CheckedRunnable<Exception>> blockedRegistrations = new ConcurrentLinkedQueue<>();
+        // Intercept TransportRegisterCommitForRecoveryAction on the search node. This action is sent by the search
+        // node to register its shard copy during recovery; until it completes the shard stays in RECOVERING (not
+        // STARTED). Hold every such send until the test releases them: once released, the held send(s) and any
+        // later retry / re-allocation send are forwarded immediately (a completed SubscribableListener runs late
+        // subscribers inline), so recovery can never get stuck on a send the test forgot to forward.
         CountDownLatch recoveryBlockedLatch = new CountDownLatch(1);
+        SubscribableListener<Void> releaseRegistrations = new SubscribableListener<>();
         MockTransportService.getInstance(searchNodeName).addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(TransportRegisterCommitForRecoveryAction.NAME)) {
-                blockedRegistrations.add(() -> connection.sendRequest(requestId, action, request, options));
                 recoveryBlockedLatch.countDown();
+                releaseRegistrations.addListener(ActionListener.running(() -> {
+                    try {
+                        connection.sendRequest(requestId, action, request, options);
+                    } catch (IOException e) {
+                        throw new AssertionError(e);
+                    }
+                }));
             } else {
                 connection.sendRequest(requestId, action, request, options);
             }
@@ -526,9 +537,8 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
             assertNoSearchHits(prepareSearch(indexName).setQuery(new MatchAllQueryBuilder()));
         }
 
-        var registration = blockedRegistrations.poll();
-        assertNotNull(registration);
-        registration.run();
+        // Release the held registration(s); any subsequent retry / re-allocation send is forwarded inline.
+        releaseRegistrations.onResponse(null);
 
         assertAcked(createIndexFuture.actionGet());
         ensureGreen(indexName);

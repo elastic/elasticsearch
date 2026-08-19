@@ -1014,7 +1014,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         // The cluster health API always runs on the master node, and the master only completes cluster state publication when all nodes
         // in the cluster have accepted the new cluster state. By waiting for all events to have finished on the master node, we ensure
         // that the whole cluster has a consistent view of which node is the master.
-        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setTimeout(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+            .setTimeout(TEST_REQUEST_TIMEOUT)
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNodes(Integer.toString(internalCluster().size()))
+            .get();
     }
 
     /**

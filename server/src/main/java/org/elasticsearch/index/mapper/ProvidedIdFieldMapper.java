@@ -245,7 +245,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             int bucketSize,
             BucketedSort.ExtraData extra
         ) {
-            throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
+            throw new IllegalArgumentException("Can't sort on the [" + CONTENT_TYPE + "] field");
         }
 
         private static LeafFieldData wrap(LeafFieldData in) {

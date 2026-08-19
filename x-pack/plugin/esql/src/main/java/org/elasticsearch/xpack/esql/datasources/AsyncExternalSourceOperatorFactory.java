@@ -1092,7 +1092,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * partition / {@code _file.*} columns. The iterator allocates the constant blocks against
      * {@link #producerBlockFactory} when set (production: the node-level root factory) and
      * falls back to the driver context's factory otherwise (test convenience). Returns
-     * {@code pages} unchanged when there are no virtual columns to materialise.
+     * {@code pages} unchanged when there are no virtual columns to materialise — either the
+     * dataset is unpartitioned, or the query projects no output columns at all (a zero-projection
+     * {@code COUNT(*)} read, which forwards the reader's position-only pages untouched).
      */
     private CloseableIterator<Page> wrapWithVirtualColumns(
         CloseableIterator<Page> pages,
@@ -1116,7 +1118,19 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         DriverContext driverContext,
         StoragePath filePath
     ) {
-        if (partitionColumnNames.isEmpty()) {
+        // Two independent skip axes. The DATASET axis: an unpartitioned dataset has no virtual
+        // columns to materialise. The OUTPUT axis: a zero-projection read (a bare STATS COUNT(*),
+        // whose argument is a literal and so references no columns) has an empty output schema —
+        // there is no slot to render a partition column into, and the iterator's constructor
+        // rejects an empty fullOutput. In both cases forwarding the reader's pages unchanged is
+        // correct: the row count rides Page.getPositionCount(), and forwarding a page whole (rather
+        // than narrowing it, the only reason inject must release surplus blocks) keeps every block
+        // owned by its page, so nothing leaks even when a reader over-projects a zero projection to
+        // the full file schema. This is the same passthrough the unpartitioned arm has always taken.
+        // Testing `attributes` (the exact list handed to the iterator as fullOutput) rather than
+        // `queryDataSchema` is deliberate: COUNT(partition_col) / KEEP partition_col project the
+        // partition column, so `attributes` is non-empty there and the wrap still runs as required.
+        if (partitionColumnNames.isEmpty() || attributes.isEmpty()) {
             return pages;
         }
         BytesRef idPrefix = idColumnRequested ? ExternalRowIdentity.prefix(filePath, resolveMtimeMillis(partitionValuesForFile)) : null;
@@ -1987,7 +2001,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 StorageObject obj = FileSplitProvider.storageObjectForSplit(storageProvider, fileSplit);
                 attachStorageMetrics(obj); // before any read — see note at the single-object dispatch above
                 boolean recordAlignedMacro = FileSplitProvider.isRecordAlignedMacroSplit(fileSplit);
-                boolean firstSplit = fileSplit.offset() == 0 || "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
+                boolean firstSplit = FileSplitProvider.isFirstInFile(fileSplit);
                 if (cols.isEmpty() && recordAlignedMacro && firstSplit == false) {
                     // COUNT(*)/empty-projection path on a non-leading record-aligned macro-split:
                     // bind schema from the full file (header-bearing formats like CSV need file-leading bytes).
@@ -2020,11 +2034,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     withoutRowPosition.remove(compressedRowPosSlot);
                     readerCols = withoutRowPosition;
                 }
-                // A record-aligned macro-split that owns the file's trailing bytes is file-final; a genuine
-                // whole-file read (offset 0, not record-aligned, last split) is also file-final. Either way the
-                // last split's trailing segment may close its last stripe to EOF.
-                boolean splitIsFileFinal = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY))
-                    || (recordAlignedMacro == false && firstSplit && fileSplit.offset() == 0);
+                // Owning the file's trailing bytes means the last segment may close its last stripe to EOF.
+                // Same fact as the reader's lastSplit below — one derivation, so the two cannot disagree.
+                boolean splitIsFileFinal = FileSplitProvider.isLastInFile(fileSplit);
                 pages = openWithParallelism(
                     fileReader,
                     obj,
@@ -2042,14 +2054,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     bufferedInformationalWarningSink(state.buffer)
                 );
                 if (pages == null) {
-                    boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
                     FormatReadContext ctx = FormatReadContext.builder()
                         .projectedColumns(PhysicalNames.translateNames(readerCols, renames))
                         .batchSize(batchSize)
                         .rowLimit(FormatReader.NO_LIMIT)
                         .errorPolicy(errorPolicy)
                         .firstSplit(firstSplit)
-                        .lastSplit(lastSplit)
+                        .lastSplit(splitIsFileFinal)
                         .recordAligned(recordAlignedMacro)
                         .readSchema(PhysicalNames.translateSchema(perFileReadSchema, renames))
                         .splitStartByte(fileSplit.offset())

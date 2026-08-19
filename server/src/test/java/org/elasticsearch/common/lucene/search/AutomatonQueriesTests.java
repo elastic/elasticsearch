@@ -9,12 +9,16 @@
 
 package org.elasticsearch.common.lucene.search;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Locale;
@@ -154,6 +158,24 @@ public class AutomatonQueriesTests extends ESTestCase {
 
     private static void assertCollapsed(String input, String expected) {
         assertEquals(expected, AutomatonQueries.collapseConsecutiveQuantifiers(input));
+    }
+
+    public void testToRegexpAutomatonReservesAndReleasesBreakerMemory() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
+        Term term = new Term("field", "a{100}b?c*");
+        Automaton dfa = AutomatonQueries.toRegexpAutomaton(term, RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, breaker);
+        assertTrue(dfa.isDeterministic());
+        assertEquals("all reserved memory should be released after a successful build", 0, breaker.getUsed());
+    }
+
+    public void testToRegexpAutomatonTripsBreakerForHugeRepetitionBeforeBuild() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(500));
+        Term term = new Term("field", "a{10000000}");
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> AutomatonQueries.toRegexpAutomaton(term, RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, breaker)
+        );
+        assertEquals("no memory should remain reserved after the breaker trips", 0, breaker.getUsed());
     }
 
     private static void assertCollapsedAndLanguagePreserved(String pattern, String collapsed) {

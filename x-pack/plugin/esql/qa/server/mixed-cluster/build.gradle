@@ -65,12 +65,12 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
   def javaRestTest = tasks.register("v${bwcVersion}#javaRestTest", StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
-    maxParallelForks = 1
   }
 
   def csvSpecTest = tasks.register("v${bwcVersion}#csvSpecTests", StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
+    // AbstractMixedClusterEsqlSpecIT declares its cluster with shared(true), which is incompatible with parallel forks
     maxParallelForks = 1
     testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
     classpath = sourceSets.csvSpecTest.runtimeClasspath

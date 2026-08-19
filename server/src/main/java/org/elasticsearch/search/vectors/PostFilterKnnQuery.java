@@ -176,24 +176,20 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             }
         }
 
-
         // k = 10
         // oversample = 3
         // postfitler sees k = 30
         // makes it k = 45
 
-
         // with autocalibration
         // postfitler sees k = 10
         // makes it k = 15
 
-        //scoredocs[][] =  scoredocs[25][15][15][20]
+        // scoredocs[][] = scoredocs[25][15][15][20]
         // merge these results
 
         // each segment will act as needed
         // eventually rescore
-
-
 
         // Accumulate the post-filter attempt's vector ops regardless of outcome so the profile
         // reflects the full cost - the outer rewrite() adds the bare innerQuery's own ops on top

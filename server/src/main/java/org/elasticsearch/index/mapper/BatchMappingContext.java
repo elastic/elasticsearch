@@ -9,11 +9,13 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.column.Column;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.escf.LuceneLongColumn;
+import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnData;
+import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.EscfLongColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.sourcebatch.LuceneColumn;
@@ -51,6 +53,14 @@ public final class BatchMappingContext {
     private DeduplicatingStringColumnAccumulator fieldNames;
     /** Accumulates {@code (doc, name)} pairs for {@code _ignored}. */
     private DeduplicatingStringColumnAccumulator ignoredFields;
+    /**
+     * The mapped {@code @timestamp} column, published by {@code DateFieldMapper.mapColumnBatch}
+     * when it maps the data-stream timestamp field. Readable via {@link #timestampAt(int)} /
+     * {@link #hasTimestamps()}; {@code null} before the column is mapped. Mirrors the per-document
+     * side channel that {@link DataStreamTimestampFieldMapper} uses on the row path
+     * ({@code DataStreamTimestampFieldMapper.storeTimestampValueForReuse}).
+     */
+    private EscfLongColumn timestampColumn;
 
     /**
      * Primary constructor. Delegates all per-doc data accessors to {@code batch} and records
@@ -79,20 +89,67 @@ public final class BatchMappingContext {
     }
 
     /**
-     * Returns the {@link LuceneLongColumn} added by {@link FieldMapper#mapColumnBatch} for the given
-     * field, or {@code null} if no such column was produced (e.g. the field was absent from the batch).
-     * Must only be called during {@link MetadataFieldMapper#postColumnarParse}, after all field mappers
-     * have run.
+     * Records the mapped {@code @timestamp} ESCF column so that {@code postColumnarParse} hooks
+     * can read per-document timestamp values via {@link #timestampAt(int)} without re-scanning
+     * the Lucene column list. Mirrors the row-path side channel
+     * ({@code DataStreamTimestampFieldMapper.storeTimestampValueForReuse}). The data is the same
+     * {@link EscfColumnData} that {@code DateFieldMapper.mapColumnBatch} already built; no copy
+     * is made. Multi-valued (array) timestamp columns are rejected the same way the row path
+     * rejects multiple values for the same document.
+     *
+     * @throws IllegalArgumentException if called more than once or if the column is multi-valued
      */
-    public LuceneLongColumn mappedLongColumn(String fieldName) {
-        for (LuceneColumn column : columns) {
-            if (column instanceof Column namedColumn && fieldName.equals(namedColumn.name())) {
-                assert column instanceof LuceneLongColumn
-                    : "expected LuceneLongColumn for [" + fieldName + "] but got [" + column.getClass() + "]";
-                return (LuceneLongColumn) column;
-            }
+    public void recordTimestampColumn(EscfColumnData timestamps) {
+        if (timestampColumn != null) {
+            throw new IllegalArgumentException(
+                "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] encountered multiple values"
+            );
         }
-        return null;
+        if (timestamps.kind() == EscfColumnKind.ARRAY) {
+            throw new IllegalArgumentException(
+                "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] encountered multiple values"
+            );
+        }
+        this.timestampColumn = (EscfLongColumn) EscfColumn.from(timestamps);
+    }
+
+    /**
+     * Returns {@code true} when {@link #recordTimestampColumn} has been called and timestamp
+     * values are available via {@link #timestampAt(int)}.
+     */
+    public boolean hasTimestamps() {
+        return timestampColumn != null;
+    }
+
+    /**
+     * Returns the parsed {@code @timestamp} millisecond value for document {@code doc}.
+     *
+     * @throws IllegalArgumentException if no timestamp column was recorded (mirrors the row path's
+     *     "data stream timestamp field [@timestamp] is missing" error from
+     *     {@link DataStreamTimestampFieldMapper#extractTimestampValue})
+     * @throws IllegalArgumentException if document {@code doc} is absent in the timestamp column
+     */
+    public long timestampAt(int doc) {
+        if (timestampColumn == null) {
+            throw new IllegalArgumentException(
+                "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is missing"
+            );
+        }
+        if (timestampColumn.isPresent(doc) == false) {
+            throw new IllegalArgumentException(
+                "document [" + doc + "] is missing data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "]"
+            );
+        }
+        return timestampColumn.getLongValue(doc);
+    }
+
+    /**
+     * Whether {@code _data_stream_timestamp} is present and enabled for this index. Mirrors
+     * {@link MappingLookup#isDataStreamTimestampFieldEnabled()} which is the row-path equivalent
+     * used by {@code DateFieldMapper.indexValue}.
+     */
+    public boolean isDataStreamTimestampFieldEnabled() {
+        return mappingLookup.isDataStreamTimestampFieldEnabled();
     }
 
     // TODO: nothing allocates through this yet — the columns it would produce have no owner to release them.

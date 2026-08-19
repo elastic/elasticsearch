@@ -11,13 +11,10 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
-import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.TimestampBounds;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
@@ -302,43 +299,28 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             return;
         }
 
-        LuceneLongColumn timestampColumn = context.mappedLongColumn(DEFAULT_PATH);
-        if (timestampColumn == null) {
-            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is missing");
-        }
-
-        boolean shouldValidateTimestamp = context.indexSettings().getMode().shouldValidateTimestamp();
+        // Presence is always required; bounds are only checked when the index mode demands it.
+        // Unlike the row-based postParse (called per-document, failures isolated by the engine's
+        // bulk loop), this method runs once for the entire batch. Any violation rejects the whole
+        // batch. This is intentional: the columnar write path has no partial-commit mechanism.
+        final IndexSettings indexSettings = context.indexSettings();
+        boolean shouldValidateTimestamp = indexSettings.getMode().shouldValidateTimestamp();
         TimestampBounds bounds = null;
         boolean isDateNanos = false;
         if (shouldValidateTimestamp) {
-            bounds = context.indexSettings().getTimestampBounds();
+            bounds = indexSettings.getTimestampBounds();
             isDateNanos = context.mappingLookup().getMapper(DEFAULT_PATH).typeName().equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE);
         }
-
-        // Timestamp presence is always required; but bounds are only checked when shouldValidateTimestamp is true.
-        // Note: unlike the row-based postParse (called per-document, failures isolated by the engine's bulk loop),
-        // this method runs once for the entire batch. Any violation rejects the whole batch. This is intentional,
-        // since the columnar write path has no partial-commit mechanism.
-        LongTupleCursor cursor = timestampColumn.tuples();
         int docCount = context.docCount();
-        int expected = 0;
-        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-            if (doc != expected) {
-                throw new IllegalArgumentException(
-                    "document [" + expected + "] is missing data stream timestamp field [" + DEFAULT_PATH + "]"
-                );
-            }
+        for (int doc = 0; doc < docCount; doc++) {
+            long timestamp = context.timestampAt(doc);
             if (shouldValidateTimestamp) {
                 try {
-                    validateTimestampValue(bounds, cursor.longValue(), isDateNanos);
+                    validateTimestampValue(bounds, timestamp, isDateNanos);
                 } catch (IllegalArgumentException e) {
                     throw new IllegalArgumentException("document [" + doc + "]: " + e.getMessage(), e);
                 }
             }
-            expected++;
-        }
-        if (expected != docCount) {
-            throw new IllegalArgumentException("document [" + expected + "] is missing data stream timestamp field [" + DEFAULT_PATH + "]");
         }
     }
 

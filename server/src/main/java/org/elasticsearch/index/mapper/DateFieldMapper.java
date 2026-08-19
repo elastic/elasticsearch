@@ -1309,6 +1309,9 @@ public final class DateFieldMapper extends FieldMapper {
             columnFieldType = SORTED_NUMERIC_DV_FIELD_TYPE;
         }
         ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), columnFieldType, LongColumn.NumericKind.LONG));
+        if (isDataStreamTimestampField && ctx.isDataStreamTimestampFieldEnabled()) {
+            ctx.recordTimestampColumn(outData);
+        }
     }
 
     private EscfColumnData datesFromStrings(EscfColumn source) {

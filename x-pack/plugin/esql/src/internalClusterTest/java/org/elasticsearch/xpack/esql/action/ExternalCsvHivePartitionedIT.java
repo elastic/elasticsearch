@@ -31,6 +31,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Regression test: {@code hive_partitioning} and {@code partition_path} * were not included in
@@ -78,10 +79,14 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * Same fixture, queries with explicit {@code partition_path} key, asserting that
-     * {@code partition_path} is accepted by the coordinator-key validator (was also missing
-     * from COORDINATOR_KEYS before this fix). The primary assertion is that the query does
-     * not fail with "unknown option [partition_path]".
+     * Same fixture, with an explicit {@code partition_path}. This template names NO columns — the detector matches a
+     * path segment in full, so {@code year={year}} is not a placeholder — which is why it detects nothing rather
+     * than throwing (see {@code GlobExpander.resolveDetector}'s guard). The dataset predates
+     * {@code partition_detection} reaching the read path, so this pins that it keeps reading.
+     *
+     * <p>It previously asserted only that the query did not fail with "unknown option [partition_path]", which is
+     * how a completely inert setting survived review: an acceptance assertion cannot tell a working template from a
+     * dropped one. It now asserts the resulting columns.
      */
     public void testPartitionPathValidatesAndParses() throws Exception {
         Path root = createTempDir().resolve("template_csv");
@@ -92,9 +97,39 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
         String dataset = registerDataset("template_csv", glob, Map.of("partition_path", "year={year}/month={month}/*.csv"));
         String query = "FROM " + dataset + " | LIMIT 1";
 
-        // Primary assertion: query does not throw "unknown option [partition_path]".
         try (var response = run(syncEsqlQueryRequest(query))) {
-            assertThat("expect at least 1 column", response.columns().size(), greaterThanOrEqualTo(1));
+            List<String> columnNames = response.columns().stream().map(c -> c.name()).collect(Collectors.toList());
+            assertThat("the data columns must still be read", columnNames, hasItem("id"));
+            assertThat("a template naming no columns detects nothing, so no path-derived year appears", columnNames, not(hasItem("year")));
+            assertThat("nor a path-derived month", columnNames, not(hasItem("month")));
+        }
+    }
+
+    /**
+     * The documented opt-out against a colliding layout: with {@code partition_detection: none} nothing is derived
+     * from the path, so the PHYSICAL {@code year} (1999) is read rather than the directory's 2024, and no shadow
+     * warning is emitted. This is the end-to-end form of the defect in elastic/esql-planning#1749 — on main the
+     * setting was inert, so the substitution happened regardless of what the user asked for.
+     */
+    public void testDetectionNoneReadsThePhysicalColumnOnACollidingLayout() throws Exception {
+        Path root = createTempDir().resolve("hive_collision_none_csv");
+        writeCollisionCsvFiles(root);
+
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // checkstyle thinks this is Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.csv";
+        String dataset = registerDataset("hive_collision_none_csv", glob, Map.of("partition_detection", "none"));
+
+        String query = "FROM " + dataset + " | KEEP id, year, value | LIMIT 5";
+        try (var response = run(syncEsqlQueryRequest(query))) {
+            List<String> columnNames = response.columns().stream().map(c -> c.name()).collect(Collectors.toList());
+            int yearIdx = columnNames.indexOf("year");
+            assertThat("the physical year column must be readable", yearIdx, greaterThanOrEqualTo(0));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("expect the rows from the data file", rows.size(), greaterThanOrEqualTo(2));
+            for (List<Object> row : rows) {
+                assertThat("partition_detection:none reads the file's own 1999, not the path's 2024", row.get(yearIdx), is(1999));
+            }
         }
     }
 

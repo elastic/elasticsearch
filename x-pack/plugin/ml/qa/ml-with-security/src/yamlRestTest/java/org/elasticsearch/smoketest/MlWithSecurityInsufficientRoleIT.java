@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.either;
 public class MlWithSecurityInsufficientRoleIT extends MlWithSecurityIT {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = MlWithSecurityIT.createCluster();
+    public static ElasticsearchCluster cluster = MlWithSecurityClusters.create();
 
     private final ClientYamlTestCandidate testCandidate;
 

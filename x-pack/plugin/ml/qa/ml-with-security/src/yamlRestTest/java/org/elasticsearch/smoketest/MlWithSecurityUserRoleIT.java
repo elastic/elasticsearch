@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.either;
 public class MlWithSecurityUserRoleIT extends MlWithSecurityIT {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = MlWithSecurityIT.createCluster();
+    public static ElasticsearchCluster cluster = MlWithSecurityClusters.create();
 
     /**
      * These are actions that require the monitor role and/or access to the relevant source index.

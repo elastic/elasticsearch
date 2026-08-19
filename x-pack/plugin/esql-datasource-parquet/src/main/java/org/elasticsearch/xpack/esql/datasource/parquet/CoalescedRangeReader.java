@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -112,18 +113,28 @@ final class CoalescedRangeReader {
             storageObject.readBytesAsync(mr.offset, mr.length, factory, executor, new ActionListener<>() {
                 @Override
                 public void onResponse(DirectReadBuffer result) {
-                    synchronized (results) {
-                        buffers.add(result);
-                        ByteBuffer buffer = result.buffer();
-                        for (ByteRange original : mr.constituents) {
-                            int relativeOffset = (int) (original.offset - mr.offset);
-                            ByteBuffer slice = buffer.duplicate();
-                            slice.position(relativeOffset);
-                            slice.limit(relativeOffset + (int) original.length);
-                            results.put(original, slice.slice());
+                    try {
+                        synchronized (results) {
+                            // Track the buffer before slicing so a slice failure (e.g. a short read whose
+                            // constituent offset runs past the delivered bytes) still hands ownership to the
+                            // terminal complete(), which closes it along with its siblings.
+                            buffers.add(result);
+                            sliceConstituents(result.buffer(), mr, results);
                         }
+                    } catch (Throwable t) {
+                        // Do not rethrow. {@code result} is already in {@code buffers}, so the terminal
+                        // complete() will close it. Rethrowing would let the SPI's default readBytesAsync
+                        // catch also close {@code result}, double-freeing the backing ArrowBuf. Folding
+                        // every throwable (not just Exception) into firstFailure guarantees a failure is
+                        // delivered: with the finally below already calling complete(), letting an Error
+                        // through instead would deliver a spurious success with truncated slices.
+                        Exception e = t instanceof Exception ex ? ex : new ElasticsearchException(t);
+                        if (firstFailure.compareAndSet(null, e) == false) {
+                            firstFailure.get().addSuppressed(e);
+                        }
+                    } finally {
+                        complete();
                     }
-                    complete();
                 }
 
                 @Override
@@ -149,6 +160,26 @@ final class CoalescedRangeReader {
                     }
                 }
             });
+        }
+    }
+
+    /**
+     * Slices each constituent {@link ByteRange} out of the coalesced {@code buffer} and stores the
+     * resulting view in {@code results}. Package-private and free of I/O so the short-read boundary
+     * math is directly testable.
+     *
+     * <p>A short read delivers a buffer whose {@code limit()} is below the requested length. When a
+     * constituent's relative offset (or its end) falls past that limit, {@link ByteBuffer#position}
+     * / {@link ByteBuffer#limit} throw {@link IllegalArgumentException}; the caller folds that into
+     * the coalesced read's failure rather than delivering a truncated slice.
+     */
+    static void sliceConstituents(ByteBuffer buffer, MergedRange mr, Map<ByteRange, ByteBuffer> results) {
+        for (ByteRange original : mr.constituents()) {
+            int relativeOffset = (int) (original.offset() - mr.offset());
+            ByteBuffer slice = buffer.duplicate();
+            slice.position(relativeOffset);
+            slice.limit(relativeOffset + (int) original.length());
+            results.put(original, slice.slice());
         }
     }
 

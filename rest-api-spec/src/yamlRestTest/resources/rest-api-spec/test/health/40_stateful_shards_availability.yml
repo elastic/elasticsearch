@@ -9,10 +9,11 @@
         index: red_index
         master_timeout: 1s
         timeout: 1s
+        wait_for_active_shards: 0
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
+            number_of_replicas: 1
             index.routing.allocation.enable: none
 
   - do:
@@ -21,10 +22,10 @@
 
   - is_true: cluster_name
   - match: { indicators.shards_availability.status: "red" }
-  - match: { indicators.shards_availability.symptom: "This cluster has 1 unavailable primary shard." }
+  - match: { indicators.shards_availability.symptom: "This cluster has 1 unavailable primary shard, 1 unavailable replica shard." }
 
   - match: { indicators.shards_availability.details.unassigned_primaries: 1 }
-  - match: { indicators.shards_availability.details.unassigned_replicas: 0 }
+  - match: { indicators.shards_availability.details.unassigned_replicas: 1 }
   - match: { indicators.shards_availability.details.initializing_primaries: 0 }
   - match: { indicators.shards_availability.details.creating_primaries: 0 }
   - match: { indicators.shards_availability.details.restarting_primaries: 0 }
@@ -33,6 +34,7 @@
   - match: { indicators.shards_availability.details.restarting_replicas: 0 }
   - exists: indicators.shards_availability.details.started_primaries
   - exists: indicators.shards_availability.details.started_replicas
+    # These fields do not exist on the stateful indicator
   - is_false: indicators.shards_availability.details.indices_with_unavailable_primaries
   - is_false: indicators.shards_availability.details.indices_with_unavailable_replicas
   - is_false: indicators.shards_availability.details.indices_with_provisionally_unavailable_primaries

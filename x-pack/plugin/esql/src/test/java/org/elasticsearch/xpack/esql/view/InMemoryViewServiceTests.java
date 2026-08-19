@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -1017,6 +1018,29 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     /**
+     * Views matched only via wildcards are silently skipped in TS commands — the relation is
+     * returned unchanged so field-caps' {@code _index_mode:time_series} filter excludes them
+     * naturally. Concrete view names in TS patterns are still rejected (see
+     * {@link #testViewNotSupportedAsSoleTsSource} and friends).
+     */
+    public void testTsWildcardSkipsViews() {
+        assumeTrue("Requires TS wildcard skipping views", EsqlCapabilities.Cap.TS_COMMAND_WILDCARDS_SKIP_VIEWS.isEnabled());
+        addView("view_a", "FROM emp");
+        assertThat(replaceViews(query("TS *")), matchesPlan(query("TS *")));
+    }
+
+    /**
+     * Exclusion wildcards (e.g. {@code -.*}) in a TS pattern are not concrete view names, so they
+     * must not trigger a rejection either. The plan is returned unchanged; field-caps handles the
+     * exclusion on real indices.
+     */
+    public void testTsWildcardWithExclusionSkipsViews() {
+        assumeTrue("Requires TS wildcard skipping views", EsqlCapabilities.Cap.TS_COMMAND_WILDCARDS_SKIP_VIEWS.isEnabled());
+        addView("view_a", "FROM emp");
+        assertThat(replaceViews(query("TS *,-.*")), matchesPlan(query("TS *,-.*")));
+    }
+
+    /**
      * Reproduces https://github.com/elastic/elasticsearch/issues/146665
      * FORK queries that reference no views should succeed even when circular views exist on the cluster.
      */
@@ -1343,6 +1367,32 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         } catch (Exception e) {
             throw new AssertionError("unexpected exception", e);
         }
+    }
+
+    public void testDescriptionRoundTrip() {
+        addView("view1", "FROM a", "A useful view");
+        View stored = viewService.get(projectId, "view1");
+        assertThat(stored.description(), equalTo("A useful view"));
+        assertThat(stored.query(), equalTo("FROM a"));
+    }
+
+    public void testDescriptionIsOptional() {
+        addView("view1", "FROM a");
+        assertNull(viewService.get(projectId, "view1").description());
+    }
+
+    public void testDescriptionLengthExceeded() {
+        String tooLong = "x".repeat(ViewService.MAX_VIEW_DESCRIPTION_LENGTH + 1);
+        expectThrows(
+            Exception.class,
+            containsString(
+                "view description is too large: "
+                    + tooLong.length()
+                    + " characters, the maximum allowed is "
+                    + ViewService.MAX_VIEW_DESCRIPTION_LENGTH
+            ),
+            () -> addView("view1", "FROM a", tooLong)
+        );
     }
 
     public void testViewWithDateMathInBody() {
@@ -2783,7 +2833,19 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private void addView(String name, String query, ViewService viewService) {
-        PutViewAction.Request request = new PutViewAction.Request(TimeValue.ONE_MINUTE, TimeValue.ONE_MINUTE, new View(name, query));
+        addView(name, query, null, viewService);
+    }
+
+    private void addView(String name, String query, String description) {
+        addView(name, query, description, viewService);
+    }
+
+    private void addView(String name, String query, String description, ViewService viewService) {
+        PutViewAction.Request request = new PutViewAction.Request(
+            ESTestCase.TEST_REQUEST_TIMEOUT,
+            ESTestCase.TEST_REQUEST_TIMEOUT,
+            new View(name, query, description)
+        );
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> err = new AtomicReference<>(null);
         viewService.putView(projectId, request, ActionListener.wrap(r -> latch.countDown(), e -> {

@@ -15,6 +15,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -42,7 +43,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.chronoToLo
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.chronoToLongNanos;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToChrono;
 
-public class DateExtract extends EsqlConfigurationFunction {
+public class DateExtract extends EsqlConfigurationFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DateExtract",

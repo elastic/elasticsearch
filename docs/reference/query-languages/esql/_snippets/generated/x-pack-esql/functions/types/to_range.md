@@ -5,4 +5,5 @@
 | from | to | result |
 | --- | --- | --- |
 | date | date | date_range |
+| double {applies_to}`stack: preview 9.6.0` | double {applies_to}`stack: preview 9.6.0` | double_range |
 

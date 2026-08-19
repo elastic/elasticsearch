@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
@@ -273,6 +274,8 @@ public final class PromqlFunctionDefinition {
     );
     public static final PromqlParamInfo MIN_SCALAR = PromqlParamInfo.of("min", PromqlDataType.SCALAR, "Minimum value.");
     public static final PromqlParamInfo MAX_SCALAR = PromqlParamInfo.of("max", PromqlDataType.SCALAR, "Maximum value.");
+    public static final PromqlParamInfo LOWER_SCALAR = PromqlParamInfo.of("lower", PromqlDataType.SCALAR, "Lower bound of the range.");
+    public static final PromqlParamInfo UPPER_SCALAR = PromqlParamInfo.of("upper", PromqlDataType.SCALAR, "Upper bound of the range.");
 
     /**
      * Shared extended-description fragment for the counter rate family ({@code rate}, {@code irate}, {@code increase}),
@@ -588,19 +591,34 @@ public final class PromqlFunctionDefinition {
             return this;
         }
 
-        public PromqlFunctionDefinition.Builder acrossSeriesBinaryReduction(
+        public PromqlFunctionDefinition.Builder acrossSeriesBinaryReduceSortDesc(PromqlParamInfo paramInfo) {
+            return acrossSeriesBinaryReduceSort(paramInfo, Order.OrderDirection.DESC);
+        }
+
+        public PromqlFunctionDefinition.Builder acrossSeriesBinaryReduceSortAsc(PromqlParamInfo paramInfo) {
+            return acrossSeriesBinaryReduceSort(paramInfo, Order.OrderDirection.ASC);
+        }
+
+        private PromqlFunctionDefinition.Builder acrossSeriesBinaryReduceSort(
             PromqlParamInfo paramInfo,
-            FunctionDefinition.QuaternaryBuilder<? extends Expression> ctorRef
+            Order.OrderDirection orderDirection
         ) {
             this.functionType = FunctionType.ACROSS_SERIES_REDUCTION;
             this.arity = PromqlFunctionArity.TWO;
-            this.builder = (source, target, ctx, extraParams) -> ctorRef.build(
-                source,
-                target,
-                Literal.TRUE,
-                ctx.window(),
-                extraParams.getFirst()
-            );
+            this.builder = (source, target, ctx, extraParams) -> new Order(source, target, orderDirection, Order.NullsPosition.LAST);
+            this.params = List.of(paramInfo, INSTANT_VECTOR);
+            return this;
+        }
+
+        /**
+         * Across-series reduction that keeps {@code k} arbitrary elements with no value-based ranking.
+         * The {@link FunctionBuilder} returns {@code null} to signal "no sort order" to the translator,
+         * which emits a {@link org.elasticsearch.xpack.esql.plan.logical.TopNBy} with an empty order list.
+         */
+        public PromqlFunctionDefinition.Builder acrossSeriesBinaryReduceUnordered(PromqlParamInfo paramInfo) {
+            this.functionType = FunctionType.ACROSS_SERIES_REDUCTION;
+            this.arity = PromqlFunctionArity.TWO;
+            this.builder = (source, target, ctx, extraParams) -> null;
             this.params = List.of(paramInfo, INSTANT_VECTOR);
             return this;
         }
@@ -618,6 +636,14 @@ public final class PromqlFunctionDefinition {
             this.arity = PromqlFunctionArity.TWO;
             this.builder = builder;
             this.params = List.of(paramInfo, INSTANT_VECTOR);
+            return this;
+        }
+
+        public PromqlFunctionDefinition.Builder histogramTernary(PromqlParamInfo p1, PromqlParamInfo p2, FunctionBuilder builder) {
+            this.functionType = FunctionType.HISTOGRAM;
+            this.arity = PromqlFunctionArity.fixed(3);
+            this.builder = builder;
+            this.params = List.of(p1, p2, INSTANT_VECTOR);
             return this;
         }
 

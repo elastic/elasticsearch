@@ -867,6 +867,12 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                         environment.putIfAbsent(key, value);
                     }
                 }
+                // Ask elasticsearch-env.bat to print the resolved ES_HOME and launcher classpath directory
+                // contents to stderr. Windows CI intermittently fails test cluster tool invocations with a
+                // "could not find or load main class" (empty classpath). This captures, from the tool's own
+                // process, whether the launcher jars are actually present, so we can tell a >MAX_PATH glob
+                // failure from missing jars or a mis-resolved ES_HOME. Captured alongside the tool's stderr.
+                environment.put("ES_TOOLS_DEBUG", "1");
             }
 
             environment = environment.entrySet()

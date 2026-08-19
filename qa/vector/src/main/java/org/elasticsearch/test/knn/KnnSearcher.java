@@ -68,6 +68,8 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.IVFKnnByteSlicedVectorQuery;
+import org.elasticsearch.search.vectors.IVFKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.PostFilterKnnQuery;
@@ -446,7 +448,7 @@ public class KnnSearcher {
                     Query filter = filterProvider.filter(i, sliced);
                     BytesRef partition = filterProvider.partition(i);
                     if (vectorEncoding.equals(VectorEncoding.BYTE)) {
-                        doVectorQuery(byteQueries[qIdx], searcher, filter, searchParameters);
+                        doVectorQuery(byteQueries[qIdx], searcher, filter, searchParameters, partition, testConfiguration);
                     } else {
                         doVectorQuery(floatQueries[qIdx], searcher, filter, searchParameters, partition, testConfiguration);
                     }
@@ -458,7 +460,14 @@ public class KnnSearcher {
                     BytesRef partition = filterProvider.partition(searchIdx);
                     try {
                         if (vectorEncoding.equals(VectorEncoding.BYTE)) {
-                            results[searchIdx] = doVectorQuery(byteQueries[qIdx], searcher, filter, searchParameters);
+                            results[searchIdx] = doVectorQuery(
+                                byteQueries[qIdx],
+                                searcher,
+                                filter,
+                                searchParameters,
+                                partition,
+                                testConfiguration
+                            );
                         } else {
                             results[searchIdx] = doVectorQuery(
                                 floatQueries[qIdx],
@@ -760,17 +769,66 @@ public class KnnSearcher {
         return true;
     }
 
-    TopDocs doVectorQuery(byte[] vector, IndexSearcher searcher, Query filterQuery, SearchParameters searchParameters) throws IOException {
+    TopDocs doVectorQuery(
+        byte[] vector,
+        IndexSearcher searcher,
+        Query filterQuery,
+        SearchParameters searchParameters,
+        BytesRef partition,
+        TestConfiguration testConfiguration
+    ) throws IOException {
         if (searchParameters.exact()) {
             return doExactVectorQuery(vector, searcher, filterQuery, searchParameters);
         }
         Query knnQuery;
-        if (searchParameters.overSamplingFactor() > 1f) {
-            throw new IllegalArgumentException("oversampling factor > 1 is not supported for byte vectors");
-        }
         if (indexType == KnnIndexTester.IndexType.IVF) {
-            throw new IllegalArgumentException("IVF index type does not support byte vectors");
+            int overSampledTopK = searchParameters.topK();
+            if (searchParameters.overSamplingFactor() > 1f) {
+                overSampledTopK = (int) Math.ceil(overSampledTopK * searchParameters.overSamplingFactor());
+            }
+            int efSearch = Math.max(overSampledTopK, searchParameters.numCandidates());
+            float visitRatio = (float) (searchParameters.visitPercentage() / 100);
+            float mappingOversample = searchParameters.overSamplingFactor() > 0f
+                ? searchParameters.overSamplingFactor()
+                : DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
+            int quantBits = testConfiguration.quantizeBits() != null ? testConfiguration.quantizeBits() : 4;
+            var ivfQueryConfigResolver = IvfQueryConfigResolver.from(
+                testConfiguration.autoCalibrate(),
+                doPrecondition,
+                quantBits,
+                mappingOversample,
+                null
+            );
+            if (sliced) {
+                knnQuery = new IVFKnnByteSlicedVectorQuery(
+                    VECTOR_FIELD,
+                    vector,
+                    searchParameters.topK(),
+                    efSearch,
+                    filterQuery,
+                    visitRatio,
+                    ivfQueryConfigResolver,
+                    PARTITION_ID_FIELD,
+                    partition
+                );
+            } else {
+                knnQuery = new IVFKnnByteVectorQuery(
+                    VECTOR_FIELD,
+                    vector,
+                    searchParameters.topK(),
+                    efSearch,
+                    filterQuery,
+                    visitRatio,
+                    ivfQueryConfigResolver
+                );
+            }
+            if (searchParameters.overSamplingFactor() > 1f) {
+                knnQuery = RescoreKnnVectorQuery.fromInnerQuery(VECTOR_FIELD, vector, searchParameters.topK(), overSampledTopK, knnQuery);
+            }
         } else {
+            if (searchParameters.overSamplingFactor() > 1f) {
+                throw new IllegalArgumentException("oversampling factor > 1 is not supported for byte vectors with HNSW/FLAT");
+            }
             knnQuery = new ESKnnByteVectorQuery(
                 VECTOR_FIELD,
                 vector,

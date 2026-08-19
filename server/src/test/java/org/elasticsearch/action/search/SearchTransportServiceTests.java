@@ -12,6 +12,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.AbstractTransportRequest;
 
@@ -19,8 +21,31 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class SearchTransportServiceTests extends ESTestCase {
+
+    /**
+     * Verifies that the free-context executor concurrency is half the allocated processors, with a minimum of 1.
+     * A node with many processors must be able to drain free-context requests concurrently; with a single drainer
+     * the queue can grow unboundedly under burst traffic and exhaust the heap.
+     */
+    public void testFreeContextConcurrency() {
+        // single processor → minimum of 1
+        assertThat(SearchTransportService.freeContextConcurrency(settings(1)), equalTo(1));
+        // two processors → 1
+        assertThat(SearchTransportService.freeContextConcurrency(settings(2)), equalTo(1));
+        // four processors → 2
+        assertThat(SearchTransportService.freeContextConcurrency(settings(4)), equalTo(2));
+        // eight processors → 4
+        assertThat(SearchTransportService.freeContextConcurrency(settings(8)), equalTo(4));
+        // default settings use Runtime.availableProcessors() → at least 1
+        assertThat(SearchTransportService.freeContextConcurrency(Settings.EMPTY), greaterThanOrEqualTo(1));
+    }
+
+    private static Settings settings(int processors) {
+        return Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), processors).build();
+    }
 
     /**
      * Verifies that {@link SearchTransportService#countingRequest} and

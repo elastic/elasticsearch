@@ -1,11 +1,11 @@
 ####################
 # No loading tests #
 ####################
-// Reproducer for #151525: a partially unmapped small numeric field is implicitly widened (short -> integer) without a cast.
+// #152997: a bare short PUNK surfaces as integer. Nothing loads here (no id in partial_mapping_sample_data _source); see the next test.
 partiallyUnmappedSmallNumericFieldIsWidened
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_partially_unmapped_small_numeric
-required_capability: optional_fields_warn_non_loadable_punk
+required_capability: optional_fields_fix_implicit_cast_on_small_numeric_punk
 
 SET unmapped_fields="load"\;
 FROM apps_short, partial_mapping_sample_data
@@ -13,13 +13,35 @@ FROM apps_short, partial_mapping_sample_data
 | SORT name DESC NULLS LAST
 | LIMIT 3
 ;
-// TODO This shouldn't warn. See #151525.
-warning:Field [id] of type [short] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 id:integer | name:keyword
 14         | mmmmm
 13         | lllll
 11         | kkkkk
+;
+
+partiallyUnmappedSmallNumericFieldIsWidenedAndLoaded
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_partially_unmapped_small_numeric
+required_capability: optional_fields_fix_implicit_cast_on_small_numeric_punk
+
+SET unmapped_fields="load"\;
+FROM all_types, all_types_no_short METADATA _index
+| KEEP _index, short
+| SORT _index, short
+;
+
+_index:keyword     | short:integer
+all_types          | 10
+all_types          | 20
+all_types          | 30
+all_types          | 40
+all_types          | 50
+all_types_no_short | 10
+all_types_no_short | 20
+all_types_no_short | 30
+all_types_no_short | 40
+all_types_no_short | 50
 ;
 
 // Reproducer for #151525: explicit cast on a partially unmapped small numeric field should not throw a ClassCastException.
@@ -3057,7 +3079,7 @@ fork2         | 42                     | 43
 loadUnmappedFieldsMultiIndexForkWithMvExpand
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: fork_v9
-required_capability: optional_fields_warn_non_loadable_punk
+required_capability: optional_fields_fix_implicit_cast_on_small_numeric_punk
 
 SET unmapped_fields="load"\;
 FROM employees, languages METADATA _index
@@ -3066,8 +3088,6 @@ FROM employees, languages METADATA _index
 | KEEP emp_no, *language*, does*, _index
 | STATS c = COUNT(does_not_exist2)
 ;
-warning:Field [languages.byte] of type [byte] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
-warning:Field [languages.short] of type [short] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
 
 c:long
 0
@@ -4112,4 +4132,68 @@ FROM sample_data
 
 @timestamp:date          | client_ip:ip | event_duration:long
 2023-10-23T13:55:01.543Z | 172.21.3.15  | 1756467
+;
+
+// foo is mapped only in cross_mapping_a and bar only in cross_mapping_b, so each index has the other field in
+// _source only. LOAD makes both partially mapped and loads the unmapped leg from _source, so no value is lost.
+// The LOAD_ALL twin of this test lives in unmapped-load-all.csv-spec under the same name.
+crossMappingLoadsBothLegs
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM cross_mapping_a, cross_mapping_b METADATA _index
+| SORT foo
+;
+
+bar:keyword | foo:keyword | _index:keyword
+b1          | a1          | cross_mapping_a
+b2          | a2          | cross_mapping_b
+;
+
+// Synthetic source drops nothing: dynamic: false stores the unmapped fields in _ignored_source, so naming one loads it.
+// The LOAD_ALL twin in unmapped-load-all.csv-spec selects the same field by wildcard instead.
+syntheticSourceLoadsScalarUnmappedField
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM synthetic_source_partial_mapping
+| KEEP @timestamp, unmapped_message
+| SORT @timestamp
+| LIMIT 3
+;
+
+@timestamp:datetime      | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 43
+;
+
+loadPartiallyMappedNormalizedKeyword
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_partially_mapped
+
+SET unmapped_fields="load"\;
+FROM normalized_keyword, normalized_keyword_unmapped
+| WHERE kw == "hello"
+| KEEP doc_id, kw
+;
+
+doc_id:keyword | kw:keyword
+a-1            | hello
+;
+
+// Exact match on the normalized keyword must stay in the compute engine; pushing it to Lucene would fold the literal through the normalizer and match case-insensitively.
+partiallyMappedNormalizedKeywordExactMatchIsCaseSensitive
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_partially_mapped
+
+SET unmapped_fields="load"\;
+FROM normalized_keyword, normalized_keyword_unmapped
+| WHERE kw == "HELLO"
+| KEEP doc_id, kw
+| SORT doc_id
+;
+
+doc_id:keyword | kw:keyword
+b-1            | HELLO
 ;

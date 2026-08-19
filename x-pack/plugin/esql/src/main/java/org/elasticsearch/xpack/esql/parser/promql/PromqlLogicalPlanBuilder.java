@@ -125,7 +125,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         if (step.value() instanceof Duration duration) {
             return duration;
         }
-        Bucket autoBucket = new Bucket(buckets.source(), timestamp, buckets, start, end, ConfigurationAware.CONFIGURATION_MARKER);
+        Bucket autoBucket = new Bucket(buckets.source(), timestamp, buckets, start, end, null, ConfigurationAware.CONFIGURATION_MARKER);
         long rangeStart = ((Number) start.value()).longValue();
         long rangeEnd = ((Number) end.value()).longValue();
         var rounding = autoBucket.getDateRounding(FoldContext.small(), rangeStart, rangeEnd);

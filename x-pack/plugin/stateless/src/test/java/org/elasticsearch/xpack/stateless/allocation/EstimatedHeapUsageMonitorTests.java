@@ -23,6 +23,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.List;
@@ -42,8 +43,8 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
     private long totalBytesPerNode;
     private RerouteService rerouteService;
 
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initMonitorResources() throws Exception {
         totalBytesPerNode = ByteSizeUnit.GB.toBytes(between(2, 16));
         rerouteService = mock(RerouteService.class);
     }

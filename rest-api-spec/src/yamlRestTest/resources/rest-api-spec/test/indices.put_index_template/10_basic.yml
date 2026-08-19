@@ -263,3 +263,26 @@
   - match: {index_templates.0.index_template.template.lifecycle.enabled: true}
   - match: {index_templates.0.index_template.template.lifecycle.data_retention: "30d"}
   - match: {index_templates.0.index_template.template.lifecycle.frozen_after: "10d"}
+
+---
+"Setting frozen_after on failure store lifecycle in index template is rejected":
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_index_template/{name}
+          capabilities: [ "failure_store.lifecycle.frozen_after_rejected" ]
+      test_runner_features: [ "capabilities" ]
+      reason: "Failure store lifecycle rejecting frozen_after was added in 9.5.1+"
+
+  - do:
+      indices.put_index_template:
+        name: test-failure-lifecycle
+        body:
+          index_patterns: frozen-failure-*
+          data_stream: {}
+          template:
+            data_stream_options:
+              failure_store:
+                lifecycle:
+                  frozen_after: "30d"
+      catch: '/Failure store lifecycle does not support freezing/'

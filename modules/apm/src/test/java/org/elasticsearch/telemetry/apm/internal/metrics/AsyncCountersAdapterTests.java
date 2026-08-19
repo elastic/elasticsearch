@@ -102,6 +102,26 @@ public class AsyncCountersAdapterTests extends ESTestCase {
         assertThat(metrics, hasSize(0));
     }
 
+    public void testZeroValuedAsyncCountersAreNotRecorded() {
+        LongAsyncCounter longCounter = registry.registerLongAsyncCounter(
+            "es.test.long.total",
+            "desc",
+            "unit",
+            () -> new LongWithAttributes(0L)
+        );
+        DoubleAsyncCounter doubleCounter = registry.registerDoubleAsyncCounter(
+            "es.test.double.total",
+            "desc",
+            "unit",
+            () -> new DoubleWithAttributes(0.0)
+        );
+
+        otelMeter.collectMetrics();
+
+        assertThat(otelMeter.getRecorder().getMeasurements(longCounter), hasSize(0));
+        assertThat(otelMeter.getRecorder().getMeasurements(doubleCounter), hasSize(0));
+    }
+
     public void testLongWithInvalidAttribute() {
         registry.registerLongAsyncCounter("es.test.name.total", "desc", "unit", () -> new LongWithAttributes(1, Map.of("index", "index1")));
 

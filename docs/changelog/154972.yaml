@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 154866
-pr: 154972
-summary: Fixing a concurrency issue in InferenceOperator#pollNextRequest in case of a failed response
-type: bug

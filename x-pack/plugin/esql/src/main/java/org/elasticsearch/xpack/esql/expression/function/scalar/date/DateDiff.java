@@ -17,6 +17,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -59,7 +60,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt
  * in multiples of the unit specified in the first argument.
  * If the second argument (start) is greater than the third argument (end), then negative values are returned.
  */
-public class DateDiff extends EsqlConfigurationFunction {
+public class DateDiff extends EsqlConfigurationFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "DateDiff", DateDiff::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(DateDiff.class)
         .ternaryConfig(DateDiff::new)

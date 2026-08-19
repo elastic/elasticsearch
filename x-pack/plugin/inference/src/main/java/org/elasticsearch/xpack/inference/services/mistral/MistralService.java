@@ -166,7 +166,11 @@ public class MistralService extends SenderService<MistralModel> {
 
             for (var request : batchedRequests) {
                 var action = mistralEmbeddingsModel.accept(actionCreator);
-                action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+                action.execute(
+                    new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                    timeout,
+                    request.listener()
+                );
             }
         } else {
             listener.onFailure(createInvalidModelException(model));

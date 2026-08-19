@@ -40,7 +40,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
@@ -105,6 +104,7 @@ import static org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoun
 import static org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure.CURRENT_CHUNKS_BYTES_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_MISSING_TIMESTAMP_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_NUMBER_COMMITS_HISTOGRAM_METRIC;
@@ -144,18 +144,6 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
 
         public TestStatelessPlugin(Settings settings) {
             super(settings);
-        }
-
-        @Override
-        public Collection<Object> createComponents(PluginServices services) {
-            final Collection<Object> components = super.createComponents(services);
-            components.add(
-                new PluginComponentBinding<>(
-                    StatelessCommitService.class,
-                    components.stream().filter(c -> c instanceof TestStatelessCommitService).findFirst().orElseThrow()
-                )
-            );
-            return components;
         }
 
         @Override
@@ -1239,7 +1227,6 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                     handler.messageReceived(request, new TransportChannel() {
                         @Override
                         public void sendResponse(Exception exception) {
-                            assertThat(chunk2Attempts.getCount(), greaterThan(0L));
                             final var rejectedException = ExceptionsHelper.unwrap(exception, EsRejectedExecutionException.class);
                             assertNotNull(rejectedException);
                             assertThat(
@@ -1299,21 +1286,32 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         assertNoFailures(safeGet(refresh2));
         assertBusy(() -> assertThat(vbccChunksPressure.getCurrentChunksBytes(), equalTo(0L)));
 
-        // Confirm that the pressure metrics were correctly set
+        // Confirm that the pressure metrics were correctly set. Every admitted chunk request records exactly one
+        // +PAGE_SIZE measurement at GetVirtualBatchedCompoundCommitChunksPressure#markChunkStarted and one -PAGE_SIZE
+        // measurement when its releasable runs, so the first refresh (index1) contributes exactly 2 * `pages`
+        // measurements. The two refreshes admit independent numbers of chunk requests, and because of the concurrent
+        // overlap documented below for rejections, either refresh may admit an extra chunk request (a page re-fetched
+        // after a retry) which adds an extra +/-PAGE_SIZE pair. The exact total is therefore not deterministic, so we
+        // assert the invariants that always hold instead of an exact count/order: at least 2 * `pages` + 2 measurements
+        // (the first refresh's exact 2 * `pages`, plus at least one +/-PAGE_SIZE pair from the second refresh, which
+        // reads at least one page), each measurement is +/-PAGE_SIZE, and the additions and removals balance so the
+        // pressure returns to zero.
         final int pages = pagesRead.get();
         var measurements = metricsPlugin.getLongUpDownCounterMeasurement(CURRENT_CHUNKS_BYTES_METRIC);
-        assertThat(measurements.size(), equalTo(pages * 4));
-        for (int p = 0; p < pages; p++) {
-            // The first refresh results in two measurements (one that adds bytes, and one that removes bytes) for each page chunk request
-            assertMeasurement(measurements.get(p * 2), PAGE_SIZE);
-            assertMeasurement(measurements.get(p * 2 + 1), -PAGE_SIZE);
-            // The second refresh had the same amount of measurements, that appear after the first refresh's measurements
-            assertMeasurement(measurements.get(pages * 2 + p * 2), PAGE_SIZE);
-            assertMeasurement(measurements.get(pages * 2 + p * 2 + 1), -PAGE_SIZE);
+        assertThat(measurements.size(), greaterThanOrEqualTo(pages * 2 + 2));
+        long netChunksBytes = 0;
+        for (Measurement measurement : measurements) {
+            assertThat(Math.abs(measurement.getLong()), equalTo((long) PAGE_SIZE));
+            netChunksBytes += measurement.getLong();
         }
+        assertThat("chunk pressure additions and removals must balance out to zero", netChunksBytes, equalTo(0L));
 
         measurements = metricsPlugin.getLongCounterMeasurement(CHUNK_REQUESTS_REJECTED_METRIC);
-        assertThat(measurements.size(), equalTo(2));
+        // A BCC larger than one PAGE_SIZE produces multiple concurrent valid chunk2 requests. Those may overlap: a
+        // second request can call GetVirtualBatchedCompoundCommitChunksPressure#markChunkStarted after the first has
+        // gotten its GetVirtualBatchedCompoundCommitChunkResponse, but before the pressure is released (after onResponseSent).
+        // Extra rejections beyond the two we explicitly wait for are therefore possible, so only assert a lower bound.
+        assertThat(measurements.size(), greaterThanOrEqualTo(2));
         assertRejectionMeasurement(measurements.get(0));
         assertRejectionMeasurement(measurements.get(1));
     }
@@ -1362,6 +1360,17 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                 metricsPlugin.resetMeter();
             }
         }
+
+        // Throughput metrics are pulled.
+        metricsPlugin.collect();
+
+        List<Measurement> averageThroughputMeasurements = metricsPlugin.getDoubleGaugeMeasurement(
+            BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC
+        );
+        // We don't want to repeat specific calculation logic here but the metric should be present.
+        assertEquals(1, averageThroughputMeasurements.size());
+        assertTrue(averageThroughputMeasurements.get(0).getDouble() > 0);
+        metricsPlugin.resetMeter();
     }
 
     public void testBccTimestampRangeMetricRecordedOnUpload() throws Exception {

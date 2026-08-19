@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 155038
-summary: Fix off-heap memory growth when reading external Parquet datasets
-type: bug

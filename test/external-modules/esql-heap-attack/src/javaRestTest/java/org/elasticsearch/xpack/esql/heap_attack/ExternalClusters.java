@@ -34,7 +34,8 @@ class ExternalClusters {
      */
     static ElasticsearchCluster buildExternalCluster(Supplier<String> s3EndpointSupplier) {
         return Clusters.buildClusterSpec()
-            // This suite registers data sources and reads them, so it needs the opt-in federation setting.
+            // This suite registers data sources and reads them, so it pins the federation gate
+            // rather than depending on the build default.
             .setting("esql.federation.enabled", "true")
             // Pin the request-breaker limit so the suite reliably trips it regardless of the
             // base cluster's heap size (which varies between the standard and serverless configs).

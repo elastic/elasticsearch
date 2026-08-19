@@ -182,6 +182,14 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         // Check all capabilities on the local cluster first.
         super.shouldSkipTest(testName);
 
+        // Slice tests need the slice dataset, which is not loaded when either cluster predates the current (renamed)
+        // slice parameter (see clusterHasCapability). Slice indexing is unreleased, so skip them in a bwc CCS cluster.
+        assumeFalse(
+            "Slice indexing is unreleased and unsupported on the older bwc cluster",
+            slicesSupportedByBothClusters() == false
+                && testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_SLICE.capabilityName())
+        );
+
         assumeTrue(
             "Local cluster must not support " + testCase.missingCapabilitiesLocalCluster + " for test " + testName,
             doesntHaveCapabilities(adminClient(), testCase.missingCapabilitiesLocalCluster)
@@ -436,6 +444,11 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
                 return "1:" + newPosition;
             }));
         }
+        // To make warnings optional for some version, uncomment this. Tests might also
+        // need changing, but that's fine.
+        // if (Clusters.bwcVersion().before(Version.V_9_6_0)) {
+        // testCase.makeWarningsOptional();
+        // }
         return testCase;
     }
 
@@ -492,11 +505,20 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected boolean clusterHasCapability(EsqlCapabilities.Cap capability) {
+        // Skip loading the slice dataset when a cluster predates the current (renamed) slice parameter: slice indexing
+        // is unreleased, so the older bwc cluster cannot ingest it via the `slice` bulk parameter.
+        if (capability == EsqlCapabilities.Cap.METADATA_SLICE && slicesSupportedByBothClusters() == false) {
+            return false;
+        }
         try {
             return super.clusterHasCapability(capability) && hasCapabilities(remoteClusterClient(), List.of(capability.capabilityName()));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static boolean slicesSupportedByBothClusters() {
+        return Version.min(Clusters.localClusterVersion(), Clusters.remoteClusterVersion()).before(Version.CURRENT) == false;
     }
 
     /**

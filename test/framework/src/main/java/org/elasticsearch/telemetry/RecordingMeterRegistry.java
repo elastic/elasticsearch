@@ -115,6 +115,11 @@ public class RecordingMeterRegistry implements MeterRegistry {
     }
 
     @Override
+    public DoubleHistogram registerDoubleHistogram(String name, String description, String unit, List<Double> bucketBoundaries) {
+        return registerDoubleHistogram(name, description, unit);
+    }
+
+    @Override
     public DoubleHistogram getDoubleHistogram(String name) {
         return (DoubleHistogram) recorder.getInstrument(InstrumentType.DOUBLE_HISTOGRAM, name);
     }
@@ -231,6 +236,11 @@ public class RecordingMeterRegistry implements MeterRegistry {
         LongHistogram instrument = buildLongHistogram(name, description, unit);
         recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
         return instrument;
+    }
+
+    @Override
+    public LongHistogram registerLongHistogram(String name, String description, String unit, List<Long> bucketBoundaries) {
+        return registerLongHistogram(name, description, unit);
     }
 
     @Override

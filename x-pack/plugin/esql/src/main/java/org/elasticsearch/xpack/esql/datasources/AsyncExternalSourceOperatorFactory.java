@@ -2076,6 +2076,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .stats(fileSplit.offset(), statsStripeSize, splitIsFileFinal)
                         .statsColumnScope(statsColumnScope)
                         .informationalWarningSink(bufferedInformationalWarningSink(state.buffer))
+                        .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
                         .build();
                     pages = fileReader.read(obj, ctx);
                 }
@@ -2261,6 +2262,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .maxRecordBytes(maxRecordBytes)
                     .statsColumnScope(statsColumnScope)
                     .informationalWarningSink(bufferedInformationalWarningSink(state.buffer))
+                    .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
                     .build();
                 pages = fileReader.read(obj, ctx);
             }
@@ -2397,6 +2399,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .maxRecordBytes(maxRecordBytes)
                         .statsColumnScope(statsColumnScope)
                         .informationalWarningSink(bufferedInformationalWarningSink(buffer))
+                        .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
                         .build();
                     opened = reader.read(storageObject, ctx);
                 }
@@ -2798,10 +2801,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 CompressionDelegatingFormatReader cdr = (CompressionDelegatingFormatReader) reader;
                 SegmentableFormatReader seg = resolveSegmentableReader(reader);
                 DecompressionCodec codec = cdr.codec();
+                // Shared by both the codec's native-footprint accounting and the coordinator's chunk
+                // buffers, so the whole streaming pipeline reports against a single breaker.
+                var streamingBreaker = producerBlockFactory != null
+                    ? producerBlockFactory.breaker()
+                    : new NoopCircuitBreaker("streaming-parse");
                 InputStream raw = obj.newStream();
                 InputStream decompressed;
                 try {
-                    decompressed = codec.decompress(raw);
+                    // Account the codec's native decompression footprint (zstd streaming context)
+                    // against the producer breaker so it is visible; codecs use addWithoutBreaking,
+                    // so this never rejects a file mid-open.
+                    decompressed = codec.decompress(raw, streamingBreaker);
                 } catch (Exception e) {
                     try {
                         obj.abortStream(raw);
@@ -2832,7 +2843,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         statsColumnScope,
                         new StreamingParallelParsingCoordinator.WarningSinks(partialResultsWarningSink, warningSink),
                         streamingSegmentatorAdmission,
-                        producerBlockFactory != null ? producerBlockFactory.breaker() : new NoopCircuitBreaker("streaming-parse")
+                        streamingBreaker
                     );
                 } catch (Exception e) {
                     try {

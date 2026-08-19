@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -36,12 +38,19 @@ final class DecompressingStorageObject implements StorageObject {
 
     private final StorageObject delegate;
     private final DecompressionCodec codec;
+    @Nullable
+    private final CircuitBreaker breaker;
 
     DecompressingStorageObject(StorageObject delegate, DecompressionCodec codec) {
+        this(delegate, codec, null);
+    }
+
+    DecompressingStorageObject(StorageObject delegate, DecompressionCodec codec, @Nullable CircuitBreaker breaker) {
         Check.notNull(delegate, "delegate cannot be null");
         Check.notNull(codec, "codec cannot be null");
         this.delegate = delegate;
         this.codec = codec;
+        this.breaker = breaker;
     }
 
     @Override
@@ -56,7 +65,7 @@ final class DecompressingStorageObject implements StorageObject {
             // S3 that drains the full response body to recycle the connection. Hiding close() from
             // the codec lets us release its inflate buffers separately from the raw stream, so
             // abortStream() below can route the abort to the raw stream without a drain.
-            InputStream decompressed = codec.decompress(new UncloseableInputStream(raw));
+            InputStream decompressed = codec.decompress(new UncloseableInputStream(raw), breaker);
             return new DecompressedStream(decompressed, raw);
         } catch (IOException | RuntimeException e) {
             try {

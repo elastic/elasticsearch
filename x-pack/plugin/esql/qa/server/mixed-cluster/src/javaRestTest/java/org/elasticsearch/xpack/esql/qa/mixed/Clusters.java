@@ -69,7 +69,7 @@ public class Clusters {
      */
     private static void currentVersionNode(LocalNodeSpecBuilder node, Path csvDataPath) {
         node.version(Version.CURRENT)
-            .setting("esql.datasource.local_allowed_paths", csvDataPath::toString)
+            .setting("esql.external.local_allowed_paths", csvDataPath::toString)
             .setting(FEDERATION_ENABLED_SETTING, "true");
     }
 

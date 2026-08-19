@@ -55,6 +55,9 @@ tests:
 - class: org.elasticsearch.xpack.ccr.ChainIT
   method: testFollowIndex {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/157152
+- class: org.elasticsearch.index.query.SearchExecutionContextTests
+  method: testFielddataLookupSometimesLoop
+  issue: https://github.com/elastic/elasticsearch/issues/157154
 
 # Examples:
 #

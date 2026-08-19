@@ -51,8 +51,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
-import org.elasticsearch.index.mapper.BlockSourceReader;
-import org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -612,8 +610,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
     public void testPlanUnmappedFieldExtractStoredSource() throws Exception {
         var blockLoader = constructBlockLoader();
-        // In case of stored source we expect bytes based block source loader (this loads source from _source)
-        assertThat(blockLoader.loader(), instanceOf(BlockSourceReader.BytesRefsBlockLoader.class));
+        assertThat(blockLoader.loader(), instanceOf(UnmappedKeywordBlockLoader.class));
     }
 
     public void testPlanUnmappedFieldExtractSyntheticSource() throws Exception {
@@ -621,8 +618,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         settings = Settings.builder().put(settings).put("index.mapping.source.mode", "synthetic").build();
 
         var blockLoader = constructBlockLoader();
-        // In case of synthetic source we expect bytes based block source loader (this loads source from _ignored_source)
-        assertThat(blockLoader.loader(), instanceOf(FallbackSyntheticSourceBlockLoader.class));
+        assertThat(blockLoader.loader(), instanceOf(UnmappedKeywordBlockLoader.class));
     }
 
     public void testTimeSeries() throws IOException {

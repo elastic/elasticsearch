@@ -269,11 +269,6 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         return Collections.emptyMap();
     }
 
-    /** The mock server's address, for tests that need to drive it directly over sockets rather than through a client. */
-    protected static InetSocketAddress httpServerAddress() {
-        return httpServer.getAddress();
-    }
-
     protected static String httpServerUrl() {
         return "http://" + serverUrl();
     }

@@ -133,6 +133,22 @@ public class HighlightOptionsTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Option [max_analyzed_offset] must be a positive integer, or -1"));
     }
 
+    public void testIntegerOptionsRejectValuesAboveIntRange() {
+        long value = (1L << 32) + 1;
+        for (String name : List.of(
+            Highlight.MAX_ANALYZED_OFFSET,
+            Highlight.NUMBER_OF_FRAGMENTS,
+            Highlight.FRAGMENT_SIZE,
+            Highlight.NO_MATCH_SIZE
+        )) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> HighlightOptions.from(map(name, Literal.fromLong(Source.EMPTY, value)), FoldContext.small())
+            );
+            assertThat(e.getMessage(), containsString("Option [" + name + "] must be <= " + Integer.MAX_VALUE + ", found [" + value + "]"));
+        }
+    }
+
     public void testPhraseLimitIsAcceptedButIgnored() {
         HighlightOptions options = HighlightOptions.from(
             map(Highlight.PHRASE_LIMIT, Literal.integer(Source.EMPTY, -1), Highlight.NUMBER_OF_FRAGMENTS, Literal.integer(Source.EMPTY, 3)),

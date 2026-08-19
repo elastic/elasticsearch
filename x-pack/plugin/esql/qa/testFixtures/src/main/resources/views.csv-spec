@@ -2444,3 +2444,22 @@ language_code:integer | language_name:keyword | _index:keyword          | viewC_
 3                     | Spanish               | view_languages_nested_a | languages           | view_languages_nested_c   | view_languages_nested_b
 4                     | German                | view_languages_nested_a | languages           | view_languages_nested_c   | view_languages_nested_b
 ;
+
+viewMetadataIdHasViewNamePrefix
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_metadata_behavior_changes
+
+FROM view_languages METADATA _id
+| EVAL has_prefix = starts_with(_id, "view_languages/")
+| SORT language_code
+| KEEP language_code, language_name, has_prefix
+;
+
+language_code:integer | language_name:keyword | has_prefix:boolean
+1                     | English               | true
+2                     | French                | true
+3                     | Spanish               | true
+4                     | German                | true
+;
+

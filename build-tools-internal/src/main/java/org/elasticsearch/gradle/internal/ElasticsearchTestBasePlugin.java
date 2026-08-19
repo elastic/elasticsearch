@@ -59,7 +59,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
      * read freshly allocated arrays, zeroing the leading bytes/chars of UTF-8 round-trips. Disable COH
      * until a fixed JDK 27 build is available; mirrors SystemJvmOptions#maybeWorkaroundC2Bug.
      */
-    private static final List<String> JDK27_C2_BUG_WORKAROUND = List.of("-XX:-UseCompactObjectHeaders");
+    private static final List<String> JDK27_C2_BUG_WORKAROUND = List.of("-XX:-SpecialEncodeISOArray");
 
     @Inject
     protected abstract ProviderFactory getProviderFactory();

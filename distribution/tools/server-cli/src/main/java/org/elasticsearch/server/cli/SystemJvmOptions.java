@@ -166,7 +166,7 @@ final class SystemJvmOptions {
      */
     private static Stream<String> maybeWorkaroundC2Bug() {
         if (Runtime.version().feature() == 27) {
-            return Stream.of("-XX:-UseCompactObjectHeaders");
+            return Stream.of("-XX:-SpecialEncodeISOArray");
         }
         return Stream.of();
     }

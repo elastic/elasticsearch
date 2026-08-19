@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -1237,9 +1238,12 @@ public abstract class GoldenTestCase extends ESTestCase {
         CsvTestsDataLoader.MultiIndexTestDataset datasets,
         boolean trackUnmappedFieldIndices
     ) {
-        Map<String, IndexMode> indexModes = datasets.datasets()
+        Map<String, IndexProperties> indexModes = datasets.datasets()
             .stream()
-            .collect(Collectors.toMap(CsvTestsDataLoader.TestDataset::indexName, GoldenTestCase::indexModeOf));
+            .collect(Collectors.toMap(CsvTestsDataLoader.TestDataset::indexName, ds -> {
+                IndexMode m = indexModeOf(ds);
+                return new IndexProperties(m, 0);
+            }));
         List<MappingPerIndex> mappings = datasets.datasets()
             .stream()
             .map(ds -> new MappingPerIndex(ds.indexName(), createMappingForIndex(ds)))

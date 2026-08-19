@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.esql.datasources.cache;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -45,9 +48,9 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
     private static Settings defaultSettings() {
         return Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
     }
 
@@ -1760,9 +1763,9 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      */
     public void testDatasetAggregateSurvivesPerFileCacheEviction() throws Exception {
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "512kb") // small: a burst of per-file entries overflows the schema slice
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "512kb") // small: a burst of per-file entries overflows the schema slice
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
             SchemaCacheKey dsKey = datasetKey();
@@ -1786,7 +1789,9 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     /**
      * B1: {@code esql.source.cache.schema.ttl} shipped in released versions, so it must stay REGISTERED — a
      * node carrying it in {@code elasticsearch.yml} would fail startup on an unregistered setting. It is now
-     * a deprecated no-op: wired to nothing, ignored.
+     * a deprecated no-op: wired to nothing, ignored. Unlike the other pre-rename {@code esql.source.cache.*}
+     * keys (covered by {@link #testRenamedCacheKeysResolveThroughDeprecatedOldKeys}), it has no
+     * {@code esql.external.cache.*} counterpart to fall back to — renaming a no-op would be pointless.
      */
     public void testDeprecatedSchemaTtlSettingStaysRegisteredAndInert() throws Exception {
         assertTrue(
@@ -1794,16 +1799,58 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             ExternalSourceCacheSettings.settings().stream().anyMatch(s -> s.getKey().equals("esql.source.cache.schema.ttl"))
         );
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
             .put("esql.source.cache.schema.ttl", "5m") // carried over from an earlier version
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
             SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/f.parquet", 1000L, ".parquet", Map.of());
             service.getOrComputeSchema(key, k -> testSchemaEntry());
             assertEquals(1, service.usageStats().get("schema_cache.count"));
         }
+    }
+
+    /**
+     * The pre-rename {@code esql.source.cache.*} keys shipped in released versions, so they stay registered
+     * as deprecated fallbacks of the unified {@code esql.external.cache.*} keys: a node carrying the old
+     * spelling in {@code elasticsearch.yml} still starts, the value still takes effect through the fallback,
+     * and reading it emits a deprecation warning. When both spellings are present, the new key wins.
+     */
+    public void testRenamedCacheKeysResolveThroughDeprecatedOldKeys() {
+        for (String oldKey : List.of("esql.source.cache.size", "esql.source.cache.enabled", "esql.source.cache.listing.ttl")) {
+            assertTrue(
+                oldKey + " must stay registered (deprecated fallback) so upgrades don't fail startup",
+                ExternalSourceCacheSettings.settings().stream().anyMatch(s -> s.getKey().equals(oldKey))
+            );
+        }
+        Settings oldSpelling = Settings.builder()
+            .put("esql.source.cache.size", "10mb")
+            .put("esql.source.cache.enabled", false)
+            .put("esql.source.cache.listing.ttl", "45s")
+            .build();
+        assertEquals(ByteSizeValue.ofMb(10), ExternalSourceCacheSettings.CACHE_SIZE.get(oldSpelling));
+        assertFalse(ExternalSourceCacheSettings.CACHE_ENABLED.get(oldSpelling));
+        assertEquals(TimeValue.timeValueSeconds(45), ExternalSourceCacheSettings.LISTING_TTL.get(oldSpelling));
+
+        Settings bothSpellings = Settings.builder().put("esql.source.cache.size", "10mb").put("esql.external.cache.size", "20mb").build();
+        assertEquals(
+            "the new key wins over its fallback",
+            ByteSizeValue.ofMb(20),
+            ExternalSourceCacheSettings.CACHE_SIZE.get(bothSpellings)
+        );
+
+        // The old enabled key is deliberately NOT dynamic: the live consumer observes the new key only, and a
+        // dynamic update through the old key must be rejected with a clear error instead of silently ignored.
+        assertTrue(ExternalSourceCacheSettings.CACHE_ENABLED.isDynamic());
+        assertFalse(ExternalSourceCacheSettings.CACHE_ENABLED_OLD.isDynamic());
+
+        assertSettingDeprecationsAndWarnings(
+            new Setting<?>[] {
+                ExternalSourceCacheSettings.CACHE_SIZE_OLD,
+                ExternalSourceCacheSettings.CACHE_ENABLED_OLD,
+                ExternalSourceCacheSettings.LISTING_TTL_OLD }
+        );
     }
 
     public void testPendingDatasetAggregateRefusedWhenSingleGlobExceedsPathBudget() {

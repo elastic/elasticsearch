@@ -102,10 +102,6 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
         format = new ES920DiskBBQVectorsFormat(128, 4);
     }
 
-    public final void setUp() throws Exception {
-        super.setUp();
-    }
-
     abstract AbstractIVFKnnVectorQuery getKnnVectorQuery(String field, V query, int k, Query queryFilter, float visitRatio);
 
     protected TestIvfQueryConfigResolver testResolver() {

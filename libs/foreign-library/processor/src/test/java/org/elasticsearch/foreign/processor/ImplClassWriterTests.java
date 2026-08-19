@@ -15,16 +15,30 @@ import java.lang.classfile.ClassFile;
 import java.lang.classfile.Opcode;
 import java.lang.classfile.instruction.BranchInstruction;
 import java.lang.classfile.instruction.InvokeInstruction;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 /**
- * Tests that {@link ImplClassWriter} generates correct {@code $Impl} class files.
+ * Tests that {@link ImplClassWriter} generates correct {@code $Impl} class files. This is the suite for
+ * positive codegen: both structural assertions on the emitted class/method shape and behavioral tests
+ * that actually load the generated implementation (through the {@code LibraryProvider} SPI, via
+ * {@link #loadLibrary}) and invoke its methods end to end. Compile-error diagnostics for invalid inputs
+ * live in the per-feature suites such as {@link BoundsCheckTests} and {@link LibraryProcessorTests}.
+ *
+ * <p>The behavioral tests bind to ubiquitous libc symbols reachable through the default linker lookup —
+ * {@code memcmp} (pure/read-only, alignment-agnostic, on every platform) and POSIX {@code qsort} (for
+ * {@code @Upcall} callbacks) — so they need no native library build dependency.
  */
 @SuppressForbidden(reason = "tests verify private fields of processor-generated classes; getDeclaredField is the only way to access them")
 public class ImplClassWriterTests extends ProcessorTestCase {
@@ -1736,5 +1750,458 @@ public class ImplClassWriterTests extends ProcessorTestCase {
         assertTrue("$assertionsDisabled must be static", java.lang.reflect.Modifier.isStatic(field.getModifiers()));
         assertTrue("$assertionsDisabled must be private", java.lang.reflect.Modifier.isPrivate(field.getModifiers()));
         assertTrue("$assertionsDisabled must be final", java.lang.reflect.Modifier.isFinal(field.getModifiers()));
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Behavioral tests: load the generated $Impl through the LibraryProvider SPI and invoke it for
+    // real, proving the emitted downcall/upcall/bounds-check bytecode actually works end to end.
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * Drives a real {@code Arena}-scoped {@code @Upcall} stub through libc's {@code qsort}, proving native
+     * code calling back into the JVM through the generated stub actually sorts the array.
+     *
+     * <p>qsort's comparator symbol is resolved via the CRT on Windows rather than the default linker
+     * lookup, so this test is skipped there.
+     */
+    public void testQsortUpcallSortsArray() throws Throwable {
+        if (System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows")) {
+            return;
+        }
+
+        Map<String, String> sources = new LinkedHashMap<>();
+        sources.put("test.IntCompare", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.Upcall;
+            @Upcall
+            @FunctionalInterface
+            public interface IntCompare {
+                int compare(MemorySegment a, MemorySegment b);
+            }
+            """);
+        sources.put("test.AscendingIntCompare", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import java.lang.foreign.ValueLayout;
+            public final class AscendingIntCompare implements IntCompare {
+                public int compare(MemorySegment a, MemorySegment b) {
+                    // qsort passes raw element pointers as zero-length MemorySegments; widen before reading.
+                    int x = a.reinterpret(ValueLayout.JAVA_INT.byteSize()).get(ValueLayout.JAVA_INT, 0);
+                    int y = b.reinterpret(ValueLayout.JAVA_INT.byteSize()).get(ValueLayout.JAVA_INT, 0);
+                    return Integer.compare(x, y);
+                }
+            }
+            """);
+        sources.put("test.QsortLib", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            @LibrarySpecification
+            public interface QsortLib {
+                @Function("qsort")
+                void qsort(MemorySegment base, long nmemb, long size, IntCompare compar);
+            }
+            """);
+
+        LoadedLibrary lib = loadLibrary(sources, "test.QsortLib");
+        Object comparator = lib.newInstance("test.AscendingIntCompare");
+
+        int[] unsorted = { 5, 3, 4, 1, 2 };
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment base = arena.allocate((long) unsorted.length * Integer.BYTES, Integer.BYTES);
+            for (int i = 0; i < unsorted.length; i++) {
+                base.setAtIndex(ValueLayout.JAVA_INT, i, unsorted[i]);
+            }
+
+            lib.call("qsort", base, (long) unsorted.length, (long) Integer.BYTES, comparator);
+
+            int[] sorted = new int[unsorted.length];
+            for (int i = 0; i < sorted.length; i++) {
+                sorted[i] = base.getAtIndex(ValueLayout.JAVA_INT, i);
+            }
+            assertEquals("qsort must sort ascending via the upcall comparator", "[1, 2, 3, 4, 5]", Arrays.toString(sorted));
+        }
+    }
+
+    /**
+     * A {@code @Critical} binding with a real fallback adapter links and calls {@code memcmp} correctly.
+     */
+    public void testCriticalFallbackAdapterCall() throws Throwable {
+        Map<String, String> sources = new LinkedHashMap<>();
+        sources.put("test.MemCmpAdapter", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import java.lang.invoke.MethodHandle;
+            public final class MemCmpAdapter {
+                public static int memcmp(MethodHandle mh, MemorySegment a, MemorySegment b, long n) throws Throwable {
+                    return (int) mh.invokeExact(a, b, n);
+                }
+            }
+            """);
+        sources.put("test.MemCmpLib", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.Critical;
+            @LibrarySpecification
+            public interface MemCmpLib {
+                @Function("memcmp")
+                @Critical(fallbackAdapter = MemCmpAdapter.class)
+                int memcmp(MemorySegment a, MemorySegment b, long n);
+            }
+            """);
+
+        LoadedLibrary lib = loadLibrary(sources, "test.MemCmpLib");
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment a = fill(arena.allocate(4));
+            MemorySegment b = fill(arena.allocate(4));
+            assertEquals("equal 4-byte segments compare equal", 0, (int) lib.call("memcmp", a, b, 4L));
+        }
+    }
+
+    /**
+     * The {@code Critical.UnsupportedFallback} sentinel behaves differently per JDK, but these tests
+     * always run on JDK &gt;= 25 (they compile snippets and run our processor, which requires JDK 24+), so
+     * this asserts the JDK 22+ behavior: the binding is a normal critical call with heap segment support,
+     * so passing heap-backed {@link MemorySegment}s links and calls {@code memcmp} correctly.
+     */
+    public void testCriticalUnsupportedFallbackSentinel() throws Throwable {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.Critical;
+            @LibrarySpecification
+            public interface MemCmpLib {
+                @Function("memcmp")
+                @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
+                int memcmp(MemorySegment a, MemorySegment b, long n);
+            }
+            """;
+
+        LoadedLibrary lib = loadLibrary("test.MemCmpLib", source);
+        MemorySegment a = MemorySegment.ofArray(new byte[] { 0, 1, 2, 3 });
+        MemorySegment b = MemorySegment.ofArray(new byte[] { 0, 1, 2, 3 });
+        assertEquals("equal 4-byte heap segments compare equal", 0, (int) lib.call("memcmp", a, b, 4L));
+    }
+
+    /**
+     * Proves the emitted {@code Objects.checkFromIndexSize} call really does throw on an undersized
+     * segment, and really does let a correctly-sized call through to the native function.
+     */
+    public void testVectorSegmentCheckThrowsOnUndersizedSegment() throws Throwable {
+        LoadedLibrary lib = loadLibrary("test.MemCmpLib", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.VectorSegment;
+            @LibrarySpecification
+            public interface MemCmpLib {
+                @Function("memcmp")
+                int memcmp(
+                    @VectorSegment(countParam = "n", elementBits = 8) MemorySegment a,
+                    @VectorSegment(countParam = "n", elementBits = 8) MemorySegment b,
+                    long n);
+            }
+            """);
+
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment good = arena.allocate(8);
+            MemorySegment tooSmall = arena.allocate(4);
+            lib.expectThrows(IndexOutOfBoundsException.class, "memcmp", tooSmall, good, 8L);
+
+            MemorySegment a = fill(arena.allocate(8));
+            MemorySegment b = fill(arena.allocate(8));
+            assertEquals(0, (int) lib.call("memcmp", a, b, 8L));
+        }
+    }
+
+    /**
+     * Proves the {@code aligned} attribute's emitted assert really does fire on a misaligned off-heap
+     * segment (the test JVM runs with {@code -ea}), and really doesn't on an aligned one.
+     */
+    public void testAlignedVectorSegmentThrowsOnMisalignedSegment() throws Throwable {
+        LoadedLibrary lib = loadLibrary("test.MemCmpLib", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.VectorSegment;
+            @LibrarySpecification
+            public interface MemCmpLib {
+                @Function("memcmp")
+                int memcmp(
+                    @VectorSegment(countParam = "n", elementBits = 64, aligned = true) MemorySegment a,
+                    @VectorSegment(countParam = "n", elementBits = 64) MemorySegment b,
+                    long n);
+            }
+            """);
+
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment buf = arena.allocate(16, 8);
+            MemorySegment misaligned = buf.asSlice(1, 8);
+            MemorySegment aligned = buf.asSlice(0, 8);
+
+            lib.expectThrows(AssertionError.class, "memcmp", misaligned, aligned, 1L);
+            lib.call("memcmp", aligned, aligned, 1L);
+        }
+    }
+
+    /**
+     * Same idea as {@link #testVectorSegmentCheckThrowsOnUndersizedSegment}, for {@code @MatrixSegment}.
+     * {@code rowsParam}/{@code colsParam} both reference the same parameter {@code n} to describe an n*n
+     * "matrix", so the method's real arity stays at {@code (a, b, n)}, matching {@code memcmp}'s
+     * actual signature.
+     */
+    public void testMatrixSegmentCheckThrowsOnUndersizedSegment() throws Throwable {
+        LoadedLibrary lib = loadLibrary("test.MemCmpLib", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.MatrixSegment;
+            @LibrarySpecification
+            public interface MemCmpLib {
+                @Function("memcmp")
+                int memcmp(
+                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBits = 8) MemorySegment a,
+                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBits = 8) MemorySegment b,
+                    long n);
+            }
+            """);
+
+        // rows = cols = n = 4, so each segment needs n*n = 16 bytes; memcmp itself only reads n=4.
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment good = arena.allocate(16);
+            MemorySegment tooSmall = arena.allocate(8);
+            lib.expectThrows(IndexOutOfBoundsException.class, "memcmp", tooSmall, good, 4L);
+
+            MemorySegment a = fill(arena.allocate(16), 4);
+            MemorySegment b = fill(arena.allocate(16), 4);
+            assertEquals(0, (int) lib.call("memcmp", a, b, 4L));
+        }
+    }
+
+    /**
+     * Same idea as {@link #testAlignedVectorSegmentThrowsOnMisalignedSegment}, for
+     * {@code @MatrixSegment}.
+     */
+    public void testAlignedMatrixSegmentThrowsOnMisalignedSegment() throws Throwable {
+        LoadedLibrary lib = loadLibrary("test.MemCmpLib", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.MatrixSegment;
+            @LibrarySpecification
+            public interface MemCmpLib {
+                @Function("memcmp")
+                int memcmp(
+                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBits = 64, aligned = true) MemorySegment a,
+                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBits = 64) MemorySegment b,
+                    long n);
+            }
+            """);
+
+        // rows = cols = n = 1 -> requires 1*1*64/8 = 8 bytes (elementBits=64), 8-byte aligned.
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment buf = arena.allocate(16, 8);
+            MemorySegment misaligned = buf.asSlice(1, 8);
+            MemorySegment aligned = buf.asSlice(0, 8);
+
+            lib.expectThrows(AssertionError.class, "memcmp", misaligned, aligned, 1L);
+            lib.call("memcmp", aligned, aligned, 1L);
+        }
+    }
+
+    /**
+     * The {@code paddingBytesParam} size math. All attributes ({@code rowsParam}/{@code colsParam}/
+     * {@code paddingBytesParam}) reference the same parameter {@code n}, so the method's real arity
+     * stays at {@code (a, b, n)}, matching {@code memcmp}'s actual signature exactly.
+     * With {@code elementBits = 8}, {@code rowBytes = n*8/8 + n = 2n}, so the required size is
+     * {@code rows * rowBytes = n * 2n = 2n²} — twice the packed (no-padding) size {@code n²}. This
+     * proves the padding is added to each row rather than ignored (a regression here would accept a
+     * segment only {@code n²} bytes long).
+     */
+    public void testMatrixSegmentPaddingBytesAddsToRowSize() throws Throwable {
+        LoadedLibrary lib = loadLibrary("test.MemCmpLib", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.MatrixSegment;
+            @LibrarySpecification
+            public interface MemCmpLib {
+                @Function("memcmp")
+                int memcmp(
+                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBits = 8, paddingBytesParam = "n")
+                    MemorySegment a,
+                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBits = 8, paddingBytesParam = "n")
+                    MemorySegment b,
+                    long n);
+            }
+            """);
+
+        // n = 4 -> rowBytes = 2*4 = 8, size = 4*8 = 32 bytes required; the packed size would be only 16.
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment good = arena.allocate(32);
+            MemorySegment tooSmall = arena.allocate(16);
+            lib.expectThrows(IndexOutOfBoundsException.class, "memcmp", tooSmall, good, 4L);
+
+            MemorySegment a = fill(arena.allocate(32), 4);
+            MemorySegment b = fill(arena.allocate(32), 4);
+            assertEquals(0, (int) lib.call("memcmp", a, b, 4L));
+        }
+    }
+
+    /**
+     * The {@code paddingBytesParam} guard rejects a negative padding value with an
+     * {@code IllegalArgumentException}, thrown before any size check or native call. All attributes
+     * reference the same {@code n}, so passing {@code n = -1} drives the padding negative and the
+     * emitted {@code if (paddingBytes < 0) throw} fires.
+     */
+    public void testMatrixSegmentNegativePaddingThrows() throws Throwable {
+        LoadedLibrary lib = loadLibrary("test.MemCmpLib", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.MatrixSegment;
+            @LibrarySpecification
+            public interface MemCmpLib {
+                @Function("memcmp")
+                int memcmp(
+                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBits = 8, paddingBytesParam = "n")
+                    MemorySegment a,
+                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBits = 8, paddingBytesParam = "n")
+                    MemorySegment b,
+                    long n);
+            }
+            """);
+
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment a = arena.allocate(64);
+            MemorySegment b = arena.allocate(64);
+            lib.expectThrows(IllegalArgumentException.class, "memcmp", a, b, -1L);
+        }
+    }
+
+    /**
+     * Verifies a sub-byte {@code elementBits} check rounds each row's byte size <em>up</em> to whole
+     * bytes: a 2D segment is {@code rows} independently packed vectors, and each vector must have room
+     * for all its bits.
+     */
+    public void testMatrixSegmentSubByteRowSizeRoundsUpToWholeBytes() throws Throwable {
+        LoadedLibrary lib = loadLibrary("test.MemCmpLib", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.MatrixSegment;
+            @LibrarySpecification
+            public interface MemCmpLib {
+                @Function("memcmp")
+                int memcmp(
+                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBits = 4) MemorySegment a,
+                    MemorySegment b,
+                    long n);
+            }
+            """);
+
+        // rows = cols = n = 3, elementBits = 4: each row is 3*4 = 12 bits -> ceil(12/8) = 2 bytes, so the
+        // required size is rows * 2 = 6 bytes. A 5-byte segment must be rejected.
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment b = fill(arena.allocate(6), 3);
+            MemorySegment tooSmall = arena.allocate(5);
+            lib.expectThrows(IndexOutOfBoundsException.class, "memcmp", tooSmall, b, 3L);
+
+            MemorySegment a = fill(arena.allocate(6), 3);
+            assertEquals(0, (int) lib.call("memcmp", a, b, 3L));
+        }
+    }
+
+    /**
+     * Same rounding-up rule as {@link #testMatrixSegmentSubByteRowSizeRoundsUpToWholeBytes}, for a 1D
+     * {@code @VectorSegment}: a sub-byte packed vector's byte size is {@code ceil(count*elementBits/8)},
+     * so a segment sized to the floored value is rejected.
+     */
+    public void testVectorSegmentSubByteSizeRoundsUpToWholeBytes() throws Throwable {
+        LoadedLibrary lib = loadLibrary("test.MemCmpLib", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.VectorSegment;
+            @LibrarySpecification
+            public interface MemCmpLib {
+                @Function("memcmp")
+                int memcmp(
+                    @VectorSegment(countParam = "n", elementBits = 4) MemorySegment a,
+                    MemorySegment b,
+                    long n);
+            }
+            """);
+
+        // n = 3, elementBits = 4: 3*4 = 12 bits -> ceil(12/8) = 2 bytes required. A 1-byte segment must be
+        // rejected even though a floored size (12/8 = 1) would accept it. The check throws before memcmp runs.
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment b = fill(arena.allocate(3), 3);
+            MemorySegment tooSmall = arena.allocate(1);
+            lib.expectThrows(IndexOutOfBoundsException.class, "memcmp", tooSmall, b, 3L);
+
+            MemorySegment a = fill(arena.allocate(3), 3);
+            assertEquals(0, (int) lib.call("memcmp", a, b, 3L));
+        }
+    }
+
+    /**
+     * A negative element count must be rejected. Rounding the bit count up to whole bytes with
+     * {@code (bits + 7) / 8} would truncate a small negative product toward zero -- for
+     * {@code count = -1, elementBits = 8}, {@code (-8 + 7) / 8 == 0} -- and the check would pass a
+     * negative count straight through to the native call.
+     */
+    public void testVectorSegmentRejectsNegativeCount() throws Throwable {
+        LoadedLibrary lib = loadLibrary("test.MemCmpLib", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.VectorSegment;
+            @LibrarySpecification
+            public interface MemCmpLib {
+                @Function("memcmp")
+                int memcmp(
+                    @VectorSegment(countParam = "n", elementBits = 8) MemorySegment a,
+                    MemorySegment b,
+                    long n);
+            }
+            """);
+
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment a = arena.allocate(3);
+            MemorySegment b = arena.allocate(3);
+            // -1 is the value that survives the (bits + 7) / 8 form; -2 fails under both forms.
+            for (long n : new long[] { -1L, -2L }) {
+                lib.expectThrows(IndexOutOfBoundsException.class, "memcmp", a, b, n);
+            }
+        }
+    }
+
+    /** Fills the whole segment with ascending byte values and returns it. */
+    private static MemorySegment fill(MemorySegment segment) {
+        return fill(segment, (int) segment.byteSize());
+    }
+
+    /** Fills the first {@code count} bytes of the segment with ascending byte values and returns it. */
+    private static MemorySegment fill(MemorySegment segment, int count) {
+        for (int i = 0; i < count; i++) {
+            segment.set(ValueLayout.JAVA_BYTE, i, (byte) i);
+        }
+        return segment;
     }
 }

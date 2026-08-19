@@ -63,7 +63,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length) {
         if (aOffset == 0 && bOffset == 0 && length == a.length && a.length == b.length) {
-            return dotProduct(a, b);
+            return VectorUtil.dotProduct(a, b);
         }
         float sum = 0f;
         int aEnd = aOffset + length;
@@ -120,7 +120,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public float dotProduct(byte[] a, byte[] b, int offset, int length) {
         if (offset == 0 && length == a.length) {
-            return dotProduct(a, b);
+            return VectorUtil.dotProduct(a, b);
         }
         int sum = 0;
         int end = offset + length;
@@ -167,7 +167,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         float dist = 0;
         for (int i = 0; i < a.length; i++) {
             float diff = a[i] - b[i];
-            dist += diff * diff;
+            dist = fma(diff, diff, dist);
         }
         return dist;
     }
@@ -534,7 +534,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     public static float ipFloatByteImpl(float[] q, byte[] d) {
         float ret = 0;
         for (int i = 0; i < q.length; i++) {
-            ret += q[i] * d[i];
+            ret = fma(q[i], d[i], ret);
         }
         return ret;
     }
@@ -545,7 +545,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         float invStep = nSteps / (upperInterval - lowInterval);
         int sumQuery = 0;
         for (int h = 0; h < vector.length; h++) {
-            float xi = Math.min(Math.max(vector[h], lowInterval), upperInterval);
+            float xi = Math.clamp(vector[h], lowInterval, upperInterval);
             int assignment = Math.round((xi - lowInterval) * invStep);
             sumQuery += assignment;
             destination[h] = assignment;

@@ -60,3 +60,29 @@ emp_no:integer | first_name:keyword | salary:double
 10002          | "Bezalel"          | 56371.0
 10003          | "Parto"            | 61805.0
 ;
+
+// Binding a dotted physical key, and the condition under which it works. NdJsonPageDecoder.prepareSchema asks
+// hasDottedPrefixConflict whether some OTHER column in the schema is the dotted name's prefix: if so the name is
+// read as a literal flat key, otherwise it is split on "." and read as nested traversal. The check consults the
+// SCHEMA, never the file -- and under a strict declaration the schema IS the declaration. This fixture carries
+// "languages" and "languages.long" as sibling literal flat keys, so declaring both makes the conflict fire and the
+// dotted key binds literally.
+//
+// Declaring the dotted column WITHOUT its prefix is the failing shape, tracked as esql-planning#1467: no conflict
+// is found, traversal into a "languages" object begins, and the read fails with a parsing_exception blaming the
+// data ("value is a number, but [/languages] resolved to an object") when the file is in fact well formed. That
+// case is deliberately not written here -- it would be a red test for a known defect. Add it, and promote the
+// dotted case in parquet-declared-binding.csv-spec into the shared spec, when #1467 is fixed.
+strictDeclaredSchemaBindsDottedKeyWhenPrefixAlsoDeclaredOnNdjson
+required_capability: dataset_in_from_command
+dataset: employees_declared_dotted_nd: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "languages": {"type": "long"}, "langs": {"type": "long", "path": "languages.long"}}}}
+
+FROM employees_declared_dotted_nd
+| SORT id
+| LIMIT 3;
+
+id:long | languages:long | langs:long
+10001   | 2              | 2
+10002   | 5              | 5
+10003   | 4              | 4
+;

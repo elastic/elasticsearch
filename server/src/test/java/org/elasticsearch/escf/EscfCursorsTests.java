@@ -778,6 +778,50 @@ public class EscfCursorsTests extends ESTestCase {
         return new BytesArray(bytes);
     }
 
+    public void testLongValueAtDense() {
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
+        b.addLong(10);
+        b.addLong(20);
+        b.addLong(30);
+        EscfLongColumn col = (EscfLongColumn) EscfColumn.from(b.finish(3));
+
+        assertNull("dense column has no validity bitset", col.toColumnData().validity());
+        assertEquals(10L, col.longValueAt(0));
+        assertEquals(20L, col.longValueAt(1));
+        assertEquals(30L, col.longValueAt(2));
+    }
+
+    public void testLongValueAtSparse() {
+        // Docs: [10, absent, 30]
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
+        b.addLong(10);
+        b.addAbsent();
+        b.addLong(30);
+        EscfLongColumn col = (EscfLongColumn) EscfColumn.from(b.finish(3));
+
+        assertTrue(col.isPresent(0));
+        assertFalse(col.isPresent(1));
+        assertTrue(col.isPresent(2));
+        assertEquals(10L, col.longValueAt(0));
+        assertEquals(30L, col.longValueAt(2));
+    }
+
+    public void testLongValueAtBoundaryValues() {
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
+        b.addLong(Long.MIN_VALUE);
+        b.addLong(-1L);
+        b.addLong(0L);
+        b.addLong(1L);
+        b.addLong(Long.MAX_VALUE);
+        EscfLongColumn col = (EscfLongColumn) EscfColumn.from(b.finish(5));
+
+        assertEquals(Long.MIN_VALUE, col.longValueAt(0));
+        assertEquals(-1L, col.longValueAt(1));
+        assertEquals(0L, col.longValueAt(2));
+        assertEquals(1L, col.longValueAt(3));
+        assertEquals(Long.MAX_VALUE, col.longValueAt(4));
+    }
+
     /** Packs a long array into little-endian bytes suitable for {@link EscfColumnData#ofFixed64}. */
     private static BytesReference longBytes(long[] values) {
         byte[] bytes = new byte[values.length * 8];

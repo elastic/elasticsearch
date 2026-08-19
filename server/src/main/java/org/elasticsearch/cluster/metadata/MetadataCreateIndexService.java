@@ -991,6 +991,7 @@ public class MetadataCreateIndexService {
             xContentRegistry,
             request.index()
         );
+        request.setMatchingTemplate(template);
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
             metadata,
             projectMetadata,

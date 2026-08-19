@@ -1,11 +1,21 @@
 area: Ingest Node
 breaking:
   area: Ingest Node
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  details: >-
+    Elasticsearch now bounds how much enrich policy data a cluster can accumulate. Enrich policies are stored in the cluster state, which
+    is held in heap on every node and reserialized on every cluster state update, so an unbounded or oversized set of policies can
+    destabilize a cluster. Four dynamic node settings are enforced whenever an enrich policy is created: `enrich.max_policies`, the
+    maximum number of policies, defaulting to `1000`; `enrich.max_field_name_length`, the maximum length (in characters) of the
+    `match_field` and each `enrich_fields` entry, defaulting to `1024`; `enrich.max_policy_size`, the maximum serialized size of a single
+    policy, defaulting to `256kb`; and `enrich.max_total_metadata_size`, the maximum combined serialized size of all policies, defaulting
+    to `5mb`. Policies that already exist are never invalidated. They continue to work and can still be retrieved.
+  impact: >-
+    A request to create an enrich policy that would exceed one of these limits is rejected with an HTTP 400 error naming the setting
+    responsible. The vast majority of deployments do not approach these limits and will see no change in behavior. If you do reach a
+    limit, either delete enrich policies you no longer need or raise the relevant setting with the cluster update settings API. On Elastic
+    Cloud Serverless these settings are not self-configurable; request an increase through support.
   notable: false
-  title: Putting size limits on enrich policies
+  title: Enrich policies are now subject to size and count limits
 issues: []
 pr: 152232
 summary: Putting size limits on enrich policies

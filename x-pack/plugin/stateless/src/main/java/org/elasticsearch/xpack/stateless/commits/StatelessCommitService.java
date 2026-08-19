@@ -233,6 +233,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
     public static final String BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC = "es.bcc.timestamp_range.histogram";
     public static final String BCC_MISSING_TIMESTAMP_METRIC = "es.bcc.missing_timestamp.total";
+    public static final String BCC_NOTIFICATION_TIME_HISTOGRAM_METRIC = "es.bcc.notification_time.histogram";
     public static final String BCC_SIZE_ATTRIBUTE_KEY = "es_bcc_size";
 
     private final ClusterService clusterService;
@@ -270,6 +271,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final LongHistogram bccAgeHistogram;
     private final DoubleHistogram bccTimestampRangeHistogram;
     private final LongCounter bccMissingTimestampCounter;
+    private final LongHistogram bccNotificationTimeHistogram;
 
     /**
      * An estimate of the maximum size in bytes that the header and replicated contents are likely to fill in a region. This is used when a
@@ -390,6 +392,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 BCC_MISSING_TIMESTAMP_METRIC,
                 "Number of uploaded batched compound commits where none of the compound commits have a @timestamp range",
                 "count"
+            );
+        this.bccNotificationTimeHistogram = telemetryProvider.getMeterRegistry()
+            .registerLongHistogram(
+                BCC_NOTIFICATION_TIME_HISTOGRAM_METRIC,
+                "Histogram for time in milliseconds from sending a new-uploaded-commit notification until the search tier responds "
+                    + "(or the notification timeout fires), broken down by the ["
+                    + BCC_SIZE_ATTRIBUTE_KEY
+                    + "] size bucket",
+                "ms"
             );
     }
 
@@ -1013,7 +1024,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 commitState.fireUploadedGenerationListeners(ccGeneration);
                 Releasable cleanup = null;
                 try {
-                    cleanup = commitState.createAfterNotificationCleanup(virtualBcc);
+                    final long notificationSentAt = threadPool.relativeTimeInMillis();
+                    final long bccBlobLength = uploadedBcc.calculateBccBlobLength();
+                    cleanup = commitState.createAfterNotificationCleanup(
+                        virtualBcc,
+                        () -> bccNotificationTimeHistogram.record(
+                            threadPool.relativeTimeInMillis() - notificationSentAt,
+                            Map.of(BCC_SIZE_ATTRIBUTE_KEY, bccSizeBucket(bccBlobLength))
+                        )
+                    );
                     commitState.sendNewUploadedCommitNotification(blobReference, uploadedBcc, cleanup);
                     cleanup = null;
                 } catch (Exception e) {
@@ -2648,10 +2667,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          * {@link #handleUploadedBcc} adds the VBCC to {@link #recentlyUploadedVbccs} just before this method is called (in the same
          * thread), ensuring there is no gap where the VBCC is findable in neither map.
          */
-        Releasable createAfterNotificationCleanup(VirtualBatchedCompoundCommit virtualBcc) {
+        Releasable createAfterNotificationCleanup(VirtualBatchedCompoundCommit virtualBcc, Runnable onBeforeCleanup) {
             final long gen = virtualBcc.getPrimaryTermAndGeneration().generation();
             assert recentlyUploadedVbccs.get(gen) == virtualBcc;
             final Releasable cleanup = Releasables.releaseOnce(() -> {
+                onBeforeCleanup.run();
                 VirtualBatchedCompoundCommit removedVBCC = recentlyUploadedVbccs.remove(gen);
                 assert removedVBCC != null;
                 assert removedVBCC == virtualBcc;

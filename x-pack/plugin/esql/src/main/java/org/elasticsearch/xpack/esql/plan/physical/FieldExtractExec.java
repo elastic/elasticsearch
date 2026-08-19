@@ -267,6 +267,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         sb.append(nodeName());
+        sb.append("[");
         NodeUtils.toString(sb, attributesToExtract, format, mapper);
         // Route the doc-values / bounds / centroid attribute sets through the mapper too — a raw
         // append would call Attribute.toString (identity) and leak the field names under anonymization.
@@ -276,7 +277,13 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         NodeUtils.toString(sb, boundsAttributes, format, mapper);
         sb.append(",");
         NodeUtils.toString(sb, centroidAttributes, format, mapper);
-        sb.append(">");
+        sb.append(">,");
+        if (sourceAttribute == null) {
+            sb.append("null");
+        } else {
+            sourceAttribute.nodeString(sb, format, mapper);
+        }
+        sb.append("]");
     }
 
     public MappedFieldType.FieldExtractPreference fieldExtractPreference(Attribute attr) {

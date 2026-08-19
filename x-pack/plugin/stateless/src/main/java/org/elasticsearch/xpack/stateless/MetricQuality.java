@@ -52,6 +52,6 @@ public enum MetricQuality {
 
     /// Ironically, the "lowest" quality has the highest ordinal, so that's why this comparison looks backwards
     public boolean isLowerQualityThan(MetricQuality other) {
-        return this.id > other.id;
+        return this.compareTo(other) > 0;
     }
 }

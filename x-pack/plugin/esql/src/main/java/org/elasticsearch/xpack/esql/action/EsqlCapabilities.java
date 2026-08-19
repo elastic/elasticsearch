@@ -3711,7 +3711,6 @@ public class EsqlCapabilities {
          */
         TS_STATS_LITERAL_AGG_FIX,
 
-
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

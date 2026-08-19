@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 157122
+summary: Fix `PruneColumns` corrupting inner FORK branch projections
+type: bug

@@ -48,21 +48,3 @@ FROM employees_hive_declared
 rows:long | ids:long
 17        | 17
 ;
-
-// Declaring is REINTERPRETATION, not just supplying what is missing -- which is where a declaration earns its
-// keep on a format that already carries authoritative types. parquet stores avg_worked_seconds as a 64-bit
-// integer; declaring it `date` makes the reader read those same bits as epoch milliseconds through the
-// licensed long->datetime coercion. Inference cannot produce this column at all: it reports a long.
-strictDeclaredLongReadsAsDatetimeOnParquet
-required_capability: dataset_in_from_command
-dataset: employees_declared_epoch: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "worked": {"type": "date", "path": "avg_worked_seconds"}}}}
-
-FROM employees_declared_epoch
-| SORT id
-| LIMIT 3;
-
-id:long | worked:date
-10001   | 1970-01-04T02:38:48.049Z
-10002   | 1970-01-04T19:22:02.887Z
-10003   | 1970-01-03T07:38:16.405Z
-;

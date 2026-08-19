@@ -1,4 +1,8 @@
-// CSV-only spec: a dataset that DECLARES its schema instead of letting the read derive one.
+// Delimited-text spec: a dataset that DECLARES its schema instead of letting the read derive one.
+//
+// Loaded by the CSV *and* TSV suites -- a `csv-*` name does not mean CSV-only, since both formats go
+// through the same delimited reader. Cases that need a property only the CSV materialization has live in
+// csv-only-declared-dialect.csv-spec instead.
 //
 // A declaration rides the `dataset:` directive under the reserved `mappings` key, which DatasetRegistry lifts
 // out of the WITH JSON and sends as the PUT body's top-level `mappings` field -- settings validation rejects
@@ -17,25 +21,6 @@
 //
 // Every case here asserts a read that DIFFERS from an undeclared one. A declaration that merely restates the
 // file changes nothing by construction and is therefore not worth hand-writing.
-
-// Strict declaration that renames and retypes: physical emp_no/first_name are exposed as id/name, and
-// every other column of the file is hidden. Discriminating by construction -- if the declaration were
-// dropped anywhere in the chain the dataset would resolve by inference to the file's 23 header columns
-// and `SORT id` would fail on an unknown column, and if only the retype were lost the pinned id:long
-// would not match the inferred emp_no:integer.
-strictDeclaredSchemaRenamesAndRetypes
-required_capability: dataset_in_from_command
-dataset: employees_declared_strict: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "name": {"type": "keyword", "path": "first_name"}}}}
-
-FROM employees_declared_strict
-| SORT id
-| LIMIT 3;
-
-id:long | name:keyword
-10001   | "Georgi"
-10002   | "Bezalel"
-10003   | "Parto"
-;
 
 // A declaration and format settings must BOTH survive the split, so this case is discriminating on each
 // axis independently. header_row:false turns the typed header line into data row 0 and synthesizes
@@ -77,45 +62,6 @@ emp_no:long | first_name:keyword | salary:integer
 10003       | "Parto"            | 61805
 ;
 
-// A declaration binds BY NAME even with no `path` on any column: binding is keyed on the schema's
-// provenance (declared vs inferred), not on whether a path was written, so `dynamic` cannot leak into how
-// columns bind (esql-planning#1307). This declaration is deliberately NOT in file order -- the file is
-// birth_date, emp_no, first_name, ... -- so binding it by declaration POSITION would serve birth_date's
-// values under `first_name`. It also pins that the declaration's property order survives the trip through
-// the registry into the PUT body, since the output column order is the declared order.
-strictDeclaredSchemaWithoutPathBindsByNameNotPosition
-required_capability: dataset_in_from_command
-dataset: employees_declared_byname: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"first_name": {"type": "keyword"}, "emp_no": {"type": "long"}}}}
-
-FROM employees_declared_byname
-| SORT emp_no
-| LIMIT 3;
-
-first_name:keyword | emp_no:long
-"Georgi"           | 10001
-"Bezalel"          | 10002
-"Parto"            | 10003
-;
-
-// A declared column the file does not supply reads null and warns, rather than failing the read: the
-// declaration is the contract, and a file that is missing a column is a data problem the caller sees in
-// the values. `department` is not among the fixture's 23 columns. The warning names the PHYSICAL column it
-// could not find (the `path`), not the logical name the query sees.
-strictDeclaredSchemaAbsentColumnReadsNull
-required_capability: dataset_in_from_command
-dataset: employees_declared_absent: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "dept": {"type": "keyword", "path": "department"}}}}
-
-FROM employees_declared_absent
-| SORT id
-| LIMIT 3;
-warningRegex:declared column \[department\] is not present in some source files and reads null there
-
-id:long | dept:keyword
-10001   | null
-10002   | null
-10003   | null
-;
-
 // Aggregates over a declared column, which the harness runs cold then warm automatically, so this asserts
 // the declaration is in force on the coordinator's cached per-file schema as well as on the cold scan --
 // the aggregate-metadata pushdown that serves COUNT/MIN/MAX from that cache is a second code path.
@@ -130,9 +76,15 @@ rows:long | lowest:long | highest:long
 100       | 10001       | 10100
 ;
 
-// The same declaration with trimming on, so the pair isolates trim_spaces as the only variable. Kept adjacent
-// deliberately: a reader comparing the two sees exactly what the dialect knob does under a fixed declaration.
-strictDeclaredSchemaWithTrimmingTrimsDeclaredKeyword
+// An explicit format setting sitting BESIDE a declaration in one WITH object. That coexistence is what this
+// pins -- the declaresSetting suppression path end to end: the harness injects "trim_spaces": true into every
+// csv/tsv directive that does not already set it, and must leave a directive that DOES set it untouched.
+//
+// It deliberately does NOT contrast with an untrimmed read. Injection re-adds the same value, so this case and
+// an identical one without the explicit key are configuration-identical; a pair would isolate nothing. The
+// discriminating untrimmed contrast is in csv-only-declared-dialect.csv-spec, which pins LENGTH 11 under
+// trim_spaces:false -- CSV-only because the TSV generator writes those padded fields unpadded.
+strictDeclaredSchemaCoexistsWithExplicitTrimSetting
 required_capability: dataset_in_from_command
 dataset: employees_declared_trimmed: "{{employees_no_mv}}" WITH {"trim_spaces": true, "mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "name": {"type": "keyword", "path": "first_name"}}}}
 

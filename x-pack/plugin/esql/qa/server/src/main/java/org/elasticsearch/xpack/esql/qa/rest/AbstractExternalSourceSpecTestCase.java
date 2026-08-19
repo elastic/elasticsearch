@@ -389,9 +389,9 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
         // A declared schema is a property of the DATASET, not of a query: EXTERNAL has no clause that carries one, and
         // copying the directive's reserved `mappings` key into an EXTERNAL WITH would fail option validation instead of
-        // skipping. Deliberately dormant today -- the only EXTERNAL-rebuild suite reads shared external-*.csv-spec
-        // files, none of which declare a schema -- and it is what lets those files carry declarations later without
-        // failing that suite. Do not delete it as dead code.
+        // Live, not dormant: ParquetRsFormatSpecIT globs external-*.csv-spec AND forces the EXTERNAL rebuild, and
+        // external-declared-schema.csv-spec is now such a file in which every case declares a schema. This skip is
+        // what keeps those cases off that suite -- a declaration has no EXTERNAL-query equivalent to rebuild into.
         assumeFalse(
             "a declared schema cannot be expressed as an EXTERNAL ... WITH query; skipped on EXTERNAL-rebuild backends",
             declaresMappings()

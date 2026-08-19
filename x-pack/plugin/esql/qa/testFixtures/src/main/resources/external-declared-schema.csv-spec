@@ -1,5 +1,9 @@
 // Shared spec: declared-schema reads that every format must agree on.
 //
+// Audience is six suites, not four: the CSV, TSV, NDJSON and Parquet spec suites run these cases, ORC also picks
+// them up (it globs external-*), and parquet-rs is skipped by the EXTERNAL-rebuild guard because a declaration has
+// no EXTERNAL-query form to rebuild into.
+//
 // A declaration rides the `dataset:` directive under the reserved `mappings` key, which DatasetRegistry lifts out
 // of the WITH JSON and sends as the PUT body's top-level `mappings` field. See csv-declared-schema.csv-spec for
 // why `required_capability: dataset_declared_schema` must never appear in a csv-spec.
@@ -71,9 +75,11 @@ id:long | pay_double:double | hired_text:keyword
 10003   | 61805.0           | "false"
 ;
 
-// A declared column the file does not supply reads null and warns rather than failing: the declaration is the
+// A declared column the file does not supply reads null rather than failing the read: the declaration is the
 // contract, and a missing column is a data problem the caller sees in the values. `department` is not among the
-// fixture's columns on any format. The warning names the PHYSICAL column (the `path`), not the logical name.
+// fixture's columns on any format. The text readers also warn, naming the physical column; `warningRegex` only PERMITS that warning
+// (it maps to AllowedRegexes, which constrains the warnings that occur and cannot require one), and the columnar
+// readers emit none -- so the null values, not the warning, are what this pins.
 sharedStrictDeclaredSchemaAbsentColumnReadsNull
 required_capability: dataset_in_from_command
 dataset: shared_declared_absent: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "dept": {"type": "keyword", "path": "department"}}}}
@@ -88,7 +94,3 @@ id:long | dept:keyword
 10002   | null
 10003   | null
 ;
-
-// An overlay case does NOT live here. `dynamic: true` means inference supplies the undeclared columns, so the
-// expected table depends on what each format infers -- the one thing a shared spec cannot pin. Overlay cases stay
-// per-format: see csv-declared-schema.csv-spec and ndjson-declared-schema.csv-spec.

@@ -1310,7 +1310,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
         ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), columnFieldType, LongColumn.NumericKind.LONG));
         if (isDataStreamTimestampField && ctx.isDataStreamTimestampFieldEnabled()) {
-            ctx.recordTimestampColumn(outData);
+            ctx.setTimestamps(outData);
         }
     }
 

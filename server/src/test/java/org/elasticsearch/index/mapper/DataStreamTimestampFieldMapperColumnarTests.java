@@ -116,7 +116,7 @@ public class DataStreamTimestampFieldMapperColumnarTests extends MapperServiceTe
             mapping(b -> b.startObject(DEFAULT_PATH).field("type", "date").endObject())
         );
         BatchMappingContext context = contextWithNDocs(mapperService, 1);
-        context.recordTimestampColumn(denseTimestampData(1_000L));
+        context.setTimestamps(denseTimestampData(1_000L));
         assertTrue(context.hasTimestamps());
     }
 
@@ -144,7 +144,7 @@ public class DataStreamTimestampFieldMapperColumnarTests extends MapperServiceTe
 
         // 2-doc batch; only doc 0 has a timestamp — doc 1 is absent in the sparse column.
         BatchMappingContext context = contextWithNDocs(mapperService, 2);
-        context.recordTimestampColumn(sparseTimestampData(2, 1_000_000L, 0));
+        context.setTimestamps(sparseTimestampData(2, 1_000_000L, 0));
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -161,7 +161,7 @@ public class DataStreamTimestampFieldMapperColumnarTests extends MapperServiceTe
         );
 
         BatchMappingContext context = contextWithNDocs(mapperService, 3);
-        context.recordTimestampColumn(denseTimestampData(1_000L, 2_000L, 3_000L));
+        context.setTimestamps(denseTimestampData(1_000L, 2_000L, 3_000L));
 
         DataStreamTimestampFieldMapper.ENABLED_INSTANCE.postColumnarParse(context); // must not throw
     }
@@ -174,7 +174,7 @@ public class DataStreamTimestampFieldMapperColumnarTests extends MapperServiceTe
         );
 
         BatchMappingContext context = contextWithNDocs(mapperService, 1);
-        context.recordTimestampColumn(denseTimestampData(42_000L));
+        context.setTimestamps(denseTimestampData(42_000L));
 
         DataStreamTimestampFieldMapper.ENABLED_INSTANCE.postColumnarParse(context); // must not throw
     }
@@ -188,7 +188,7 @@ public class DataStreamTimestampFieldMapperColumnarTests extends MapperServiceTe
 
         // 3-doc batch; only docs 1 and 2 are present — doc 0 is absent.
         BatchMappingContext context = contextWithNDocs(mapperService, 3);
-        context.recordTimestampColumn(sparseTimestampData(3, 1_000_000L, 1, 2));
+        context.setTimestamps(sparseTimestampData(3, 1_000_000L, 1, 2));
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -206,7 +206,7 @@ public class DataStreamTimestampFieldMapperColumnarTests extends MapperServiceTe
 
         // 1 ms before the 2021-04-28T00:00:00Z window start
         BatchMappingContext context = contextWithNDocs(mapperService, 1);
-        context.recordTimestampColumn(denseTimestampData(1_619_567_999_999L));
+        context.setTimestamps(denseTimestampData(1_619_567_999_999L));
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -224,7 +224,7 @@ public class DataStreamTimestampFieldMapperColumnarTests extends MapperServiceTe
 
         // Exactly 2021-04-29T00:00:00Z — equal to end, so out of bounds
         BatchMappingContext context = contextWithNDocs(mapperService, 1);
-        context.recordTimestampColumn(denseTimestampData(1_619_654_400_000L));
+        context.setTimestamps(denseTimestampData(1_619_654_400_000L));
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -242,7 +242,7 @@ public class DataStreamTimestampFieldMapperColumnarTests extends MapperServiceTe
 
         // Window start (inclusive) and midday — both valid
         BatchMappingContext context = contextWithNDocs(mapperService, 2);
-        context.recordTimestampColumn(denseTimestampData(1_619_568_000_000L, 1_619_610_000_000L));
+        context.setTimestamps(denseTimestampData(1_619_568_000_000L, 1_619_610_000_000L));
 
         DataStreamTimestampFieldMapper.ENABLED_INSTANCE.postColumnarParse(context); // must not throw
     }
@@ -257,7 +257,7 @@ public class DataStreamTimestampFieldMapperColumnarTests extends MapperServiceTe
 
         // 2021-04-28T12:00:00Z in nanoseconds — midday, well within the window
         BatchMappingContext context = contextWithNDocs(mapperService, 1);
-        context.recordTimestampColumn(denseTimestampData(1_619_611_200_000_000_000L));
+        context.setTimestamps(denseTimestampData(1_619_611_200_000_000_000L));
 
         DataStreamTimestampFieldMapper.ENABLED_INSTANCE.postColumnarParse(context); // must not throw
     }
@@ -271,7 +271,7 @@ public class DataStreamTimestampFieldMapperColumnarTests extends MapperServiceTe
 
         // 1 ms before 2021-04-28T00:00:00Z, expressed in nanoseconds
         BatchMappingContext context = contextWithNDocs(mapperService, 1);
-        context.recordTimestampColumn(denseTimestampData(1_619_567_999_999_000_000L));
+        context.setTimestamps(denseTimestampData(1_619_567_999_999_000_000L));
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,

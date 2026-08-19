@@ -60,7 +60,7 @@ public final class BatchMappingContext {
      * side channel that {@link DataStreamTimestampFieldMapper} uses on the row path
      * ({@code DataStreamTimestampFieldMapper.storeTimestampValueForReuse}).
      */
-    private EscfLongColumn timestampColumn;
+    private EscfLongColumn timestamps;
 
     /**
      * Primary constructor. Delegates all per-doc data accessors to {@code batch} and records
@@ -99,8 +99,8 @@ public final class BatchMappingContext {
      *
      * @throws IllegalArgumentException if called more than once or if the column is multi-valued
      */
-    public void recordTimestampColumn(EscfColumnData timestamps) {
-        if (timestampColumn != null) {
+    public void setTimestamps(EscfColumnData timestamps) {
+        if (this.timestamps != null) {
             throw new IllegalArgumentException(
                 "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] encountered multiple values"
             );
@@ -110,15 +110,15 @@ public final class BatchMappingContext {
                 "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] encountered multiple values"
             );
         }
-        this.timestampColumn = (EscfLongColumn) EscfColumn.from(timestamps);
+        this.timestamps = (EscfLongColumn) EscfColumn.from(timestamps);
     }
 
     /**
-     * Returns {@code true} when {@link #recordTimestampColumn} has been called and timestamp
+     * Returns {@code true} when {@link #setTimestamps} has been called and timestamp
      * values are available via {@link #timestampAt(int)}.
      */
     public boolean hasTimestamps() {
-        return timestampColumn != null;
+        return timestamps != null;
     }
 
     /**
@@ -130,17 +130,17 @@ public final class BatchMappingContext {
      * @throws IllegalArgumentException if document {@code doc} is absent in the timestamp column
      */
     public long timestampAt(int doc) {
-        if (timestampColumn == null) {
+        if (timestamps == null) {
             throw new IllegalArgumentException(
                 "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is missing"
             );
         }
-        if (timestampColumn.isPresent(doc) == false) {
+        if (timestamps.isPresent(doc) == false) {
             throw new IllegalArgumentException(
                 "document [" + doc + "] is missing data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "]"
             );
         }
-        return timestampColumn.getLongValue(doc);
+        return timestamps.getLongValue(doc);
     }
 
     /**

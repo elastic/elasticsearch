@@ -1245,7 +1245,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             switch (expectedOutcome) {
                 case FAILED -> super.onResponse(null);
                 case CANCELLED_IN_QUEUE, CANCELLED_STARTED -> {
-                    assert expectedOutcome == ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE || failureStrategy.sendShardFailure()
+                    assert expectedOutcome == ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE || failureStrategy.notifyMaster()
                         : "should notify the master solely when cancelling started recoveries";
                     if (e instanceof RecoveryCancelledException == false) {
                         throw new AssertionError("unexpected failure type", e);

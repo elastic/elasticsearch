@@ -1283,7 +1283,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 l -> failAndRemoveShard(
                     shardRouting,
                     primaryTerm,
-                    failureStrategy.sendShardFailure(),
+                    failureStrategy.notifyMaster(),
                     "failed recovery",
                     failure,
                     state,
@@ -1401,7 +1401,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private void failAndRemoveShard(
         ShardRouting shardRouting,
         long primaryTerm,
-        boolean sendShardFailure,
+        boolean notifyMaster,
         String message,
         @Nullable Exception failure,
         ClusterState state,
@@ -1430,7 +1430,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 inner
             );
         }
-        if (sendShardFailure) {
+        if (notifyMaster) {
             sendFailShard(shardRouting, primaryTerm, message, failure, state);
         }
     }

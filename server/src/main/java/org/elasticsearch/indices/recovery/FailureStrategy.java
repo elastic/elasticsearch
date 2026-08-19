@@ -15,16 +15,16 @@ public enum FailureStrategy {
     FAIL_SILENT(false, false),
     FAIL_SEND(true, false);
 
-    private final boolean sendShardFailure;
+    private final boolean notifyMaster;
     private final boolean retry;
 
-    FailureStrategy(boolean sendShardFailure, boolean retry) {
-        this.sendShardFailure = sendShardFailure;
+    FailureStrategy(boolean notifyMaster, boolean retry) {
+        this.notifyMaster = notifyMaster;
         this.retry = retry;
     }
 
-    public boolean sendShardFailure() {
-        return sendShardFailure;
+    public boolean notifyMaster() {
+        return notifyMaster;
     }
 
     public boolean retry() {

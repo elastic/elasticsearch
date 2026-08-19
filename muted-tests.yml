@@ -681,9 +681,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:PARQUET_DATASET}
   issue: https://github.com/elastic/elasticsearch/issues/156789
-- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusLogsdbFieldLevelSecurityChallengeRestIT
-  method: testFieldLevelSecuritySourceEquivalence
-  issue: https://github.com/elastic/elasticsearch/issues/156629
 - class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
   method: testIndexTimeFieldData {p0=false p1=BASIC}
   issue: https://github.com/elastic/elasticsearch/issues/156846

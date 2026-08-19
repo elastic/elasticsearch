@@ -96,6 +96,7 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
 
 /**
  * {@link RangeAwareFormatReader} implementation for Apache ORC files.
@@ -466,7 +467,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             declaredDateFormats,
             declaredTypeColumns,
             object.path().toString(),
-            resolveErrorPolicy(context.errorPolicy())
+            resolveErrorPolicy(context.errorPolicy()),
+            context.informationalWarningSink()
         );
         return rowLimit != NO_LIMIT ? new RowLimitingIterator(iter, rowLimit) : iter;
     }
@@ -612,7 +614,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             declaredDateFormats,
             declaredTypeColumns,
             object.path().toString(),
-            resolveErrorPolicy(context.errorPolicy())
+            resolveErrorPolicy(context.errorPolicy()),
+            context.informationalWarningSink()
         );
     }
 
@@ -1228,6 +1231,17 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         /** The read's error policy; strict ({@code fail_fast}) makes {@link #coercionWarnings()} return {@code null}. */
         private final ErrorPolicy errorPolicy;
         /**
+         * Deferred absent-column warning state: non-null when at least one projected attribute has
+         * {@link DataType#NULL} (the {@link #resolveProjection} sentinel for columns absent from
+         * the ORC file's schema). Emitted lazily in {@link #next()} after the first batch is
+         * confirmed loaded, so that stripes pruned to zero rows by the skip table never trigger
+         * warnings for a column that never affected the result.
+         */
+        @Nullable
+        private String[] pendingAbsentWarnings;
+        @Nullable
+        private Consumer<String> pendingAbsentWarnSink;
+        /**
          * File-global row number of the first row in the current batch, captured from
          * {@link RecordReader#getRowNumber()} immediately before each {@code nextBatch}. ORC reports
          * an absolute, file-global row number even on stripe-ranged reads, so it is split-invariant.
@@ -1248,7 +1262,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             Map<String, String> declaredDateFormats,
             Set<String> declaredTypeColumns,
             String fileLocation,
-            ErrorPolicy errorPolicy
+            ErrorPolicy errorPolicy,
+            @Nullable Consumer<String> warningSink
         ) {
             this.errorPolicy = errorPolicy;
             this.reader = reader;
@@ -1291,6 +1306,29 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 }
             }
             validatePlannerTypesAgainstFile(fileLocation, declaredTypeColumns);
+
+            // Collect columns absent from the ORC file. resolveProjection uses DataType.NULL as a
+            // sentinel for columns not found in the file schema; those columns are null-filled
+            // silently in convertToPage(). Defer warning to the first batch so stripes pruned to
+            // zero rows by the skip table do not trigger spurious absent-column warnings.
+            if (warningSink != null) {
+                List<String> absent = null;
+                for (int col = 0; col < attributes.size(); col++) {
+                    if (col == rowPositionColumnIndex) {
+                        continue;
+                    }
+                    if (attributes.get(col).dataType() == DataType.NULL) {
+                        if (absent == null) {
+                            absent = new ArrayList<>();
+                        }
+                        absent.add(attributes.get(col).name());
+                    }
+                }
+                if (absent != null) {
+                    this.pendingAbsentWarnings = absent.toArray(String[]::new);
+                    this.pendingAbsentWarnSink = warningSink;
+                }
+            }
         }
 
         /** Walks {@code path} down the file schema's STRUCT children to the leaf {@link TypeDescription}. */
@@ -1388,6 +1426,19 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             return tentative;
         }
 
+        private void emitAbsentColumnWarningsOnce() {
+            Consumer<String> sink = pendingAbsentWarnSink;
+            if (sink == null) {
+                return;
+            }
+            pendingAbsentWarnSink = null;
+            String[] names = pendingAbsentWarnings;
+            pendingAbsentWarnings = null;
+            for (String name : names) {
+                sink.accept(SkipWarnings.absentDeclaredColumnMessage(name));
+            }
+        }
+
         @Override
         public boolean hasNext() {
             if (exhausted) {
@@ -1452,6 +1503,10 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             }
             batchReady = false;
             counters.addRowsEmitted(batch.size);
+            // Emit only after the batch is confirmed loaded (hasNext() already called
+            // rows.nextBatch): if the stripe read threw, no data was produced and the
+            // absent-column context would be misleading.
+            emitAbsentColumnWarningsOnce();
             return convertToPage();
         }
 

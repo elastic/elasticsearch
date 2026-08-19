@@ -1,0 +1,2 @@
+TS k8s
+| STATS source = "k8s", metric = "cost", cnt = COUNT(COUNT_OVER_TIME(network.cost)) BY cluster

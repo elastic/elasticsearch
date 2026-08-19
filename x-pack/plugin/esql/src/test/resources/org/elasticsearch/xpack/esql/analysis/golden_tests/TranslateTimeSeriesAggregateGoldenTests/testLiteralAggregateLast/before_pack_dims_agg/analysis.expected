@@ -1,0 +1,7 @@
+Limit[10000[INTEGER],false,false]
+\_Project[[cnt{r}#0, metric_type{r}#1, cluster{r}#2]]
+  \_UnpackDims[_$packed_grouping_dims{r}#3,[cluster{r}#2]]
+    \_Aggregate[[_$packed_dims{f$}#4 AS _$packed_grouping_dims#3],[COUNT(COUNTOVERTIME_$1{r}#5,true[BOOLEAN],PT0S[TIME_DURATION]) AS cnt#0, cost[KEYWORD] AS metric_type#1, _$packed_grouping_dims{r}#3]]
+      \_PackDims[[cluster{r}#6],_$packed_dims{f$}#4]
+        \_TimeSeriesAggregate[[_tsid{m}#7],[COUNT(network.cost{f}#8,true[BOOLEAN],PT0S[TIME_DURATION]) AS COUNTOVERTIME_$1#5, DIMENSIONVALUES(cluster{f}#2,true[BOOLEAN],PT0S[TIME_DURATION]) AS cluster#6, _tsid{m}#7],null,null,@timestamp{f}#9,TS_COMMAND]
+          \_EsRelation[k8s][@timestamp{f}#9, client.ip{f}#10, cluster{f}#2, event{f}#11, event_city{f}#12, event_city_boundary{f}#13, event_location{f}#14, event_log{f}#15, event_shape{f}#16, events_received{f}#17, network.bytes_in{f}#18, network.cost{f}#8, network.eth0.currently_connected_clients{f}#19, network.eth0.firmware_version{f}#20, network.eth0.last_up{f}#21, network.eth0.rx{f}#22, network.eth0.tx{f}#23, network.eth0.up{f}#24, network.total_bytes_in{f}#25, network.total_bytes_out{f}#26, network.total_cost{f}#27, pod{f}#28, region{f}#29, _tsid{m}#7]

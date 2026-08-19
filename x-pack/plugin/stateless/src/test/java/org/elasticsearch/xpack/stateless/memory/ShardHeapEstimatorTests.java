@@ -271,4 +271,40 @@ public class ShardHeapEstimatorTests extends ESTestCase {
         var result = estimator.aggregateShardMetrics(Map.of(id1, m1, id2, m2), (id, m) -> {});
         assertThat(result.mappingSizeInBytes(), equalTo(mapping1 + mapping2));
     }
+
+    // --- getEffectiveShardPostingsInBytes ---
+
+    public void testEffectivePostingsZeroWhenPostingsIncludedInEstimate() {
+        // includePostingsInEstimate=true: postings are already folded into computeShardHeapUsage, so effective postings must be 0
+        long postings = randomLongBetween(1, 1_000_000);
+        ShardHeapEstimator estimator = new ShardHeapEstimator(ByteSizeValue.ZERO, 0.0, 0L, false, true);
+        var m = metrics(0, 0, 0, postings, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.EXACT);
+        assertThat(estimator.getEffectiveShardPostingsInBytes(m), equalTo(0L));
+    }
+
+    public void testEffectivePostingsReturnedWhenSelfReportedDisabled() {
+        // includePostingsInEstimate=false, selfReported=false: postings tracked separately, adaptive estimate used for shard
+        long postings = randomLongBetween(1, 1_000_000);
+        long selfReportedOverhead = randomLongBetween(1, 10_000_000); // defined, but self-reported is disabled
+        ShardHeapEstimator estimator = new ShardHeapEstimator(ByteSizeValue.ZERO, 0.0, 0L, false, false);
+        var m = metrics(0, 0, 0, postings, 0, 0, selfReportedOverhead, MetricQuality.EXACT);
+        assertThat(estimator.getEffectiveShardPostingsInBytes(m), equalTo(postings));
+    }
+
+    public void testEffectivePostingsReturnedWhenSelfReportedEnabledButUndefined() {
+        // includePostingsInEstimate=false, selfReported=true but no value reported: adaptive estimate used, postings tracked separately
+        long postings = randomLongBetween(1, 1_000_000);
+        ShardHeapEstimator estimator = new ShardHeapEstimator(ByteSizeValue.ZERO, 0.0, 0L, true, false);
+        var m = metrics(0, 0, 0, postings, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.EXACT);
+        assertThat(estimator.getEffectiveShardPostingsInBytes(m), equalTo(postings));
+    }
+
+    public void testEffectivePostingsZeroWhenSelfReportedAvailable() {
+        // includePostingsInEstimate=false, selfReported=true and defined: self-reported overhead already covers postings, return 0
+        long postings = randomLongBetween(1, 1_000_000);
+        long selfReportedOverhead = randomLongBetween(1, 10_000_000);
+        ShardHeapEstimator estimator = new ShardHeapEstimator(ByteSizeValue.ZERO, 0.0, 0L, true, false);
+        var m = metrics(0, 0, 0, postings, 0, 0, selfReportedOverhead, MetricQuality.EXACT);
+        assertThat(estimator.getEffectiveShardPostingsInBytes(m), equalTo(0L));
+    }
 }

@@ -156,24 +156,23 @@ final class AshSphericalScalarQuantizer {
         }
 
         if (bestK == 0) {
-            // every dim is 0.5
-            for (int j = 0; j < d; j++) {
-                out[outOffset + j] = Math.copySign(0.5f, z[zOffset + j]);
-            }
-        } else {
-            float threshold = absZ[d - bestK];
-            for (int j = 0; j < d; j++) {
-                // The tie rule above only ever sets bestK at the end of a run of equal magnitudes, so
-                // selecting every dimension at or above the smallest upgraded magnitude picks out exactly
-                // bestK of them
-                // need to recalculate abs(z[..]) here, as the absZ array order has changed
-                float v = z[zOffset + j];
-                out[outOffset + j] = Math.copySign(Math.abs(v) >= threshold ? 1.5f : 0.5f, v);
-            }
+            // bah humbug, didn't find anything, so everything is 0.5
+            return quantizeExact1Bit(z, zOffset, out, outOffset, d);
         }
 
-        // vector is now (d - bestK) x 0.5, and bestK x 1.5 (squares = 0.25, 2.25), which is what the
-        // sweep accumulated into bestNormSq
+        float threshold = absZ[d - bestK];
+        for (int j = 0; j < d; j++) {
+            // The tie rule above only ever sets bestK at the end of a run of equal magnitudes,
+            // so selecting every dimension at or above the smallest upgraded magnitude
+            // picks out exactly bestK of them
+            // need to recalculate abs(z[..]) here, as the absZ array order has changed
+            float v = z[zOffset + j];
+            out[outOffset + j] = Math.copySign(Math.abs(v) >= threshold ? 1.5f : 0.5f, v);
+        }
+
+        // vector is now (d - bestK) x 0.5, and bestK x 1.5,
+        // which is what the iteration accumulated into bestNormSq
+        // it started out as d x 0.5^2, and was adjusted for every dim switched to 1.5
         return (float) Math.sqrt(bestNormSq);
     }
 
@@ -185,12 +184,12 @@ final class AshSphericalScalarQuantizer {
      * gains a level: the critical time of the pair (step, dim) is {@code step / |z_j|}. Those times
      * ascend with step for a fixed dimension, so once the magnitudes are sorted the
      * {@code nSteps * d} events form {@code nSteps} runs that are each already ordered, and the
-     * sweep is a merge of the runs rather than a sort of all the events. The selected set is
-     * recovered from the threshold alone, which is why only magnitudes need sorting and not the
-     * dimension indices alongside them.
+     * sweep is a merge of the runs. The selected set is recovered from the threshold alone,
+     * which is why only magnitudes need sorting and not the dimension indices alongside them.
      */
     static float quantizeExactGeneral(float[] z, int zOffset, float[] out, int outOffset, int d, int nSteps) {
         // Base level: all dims at 0.5 -> dot = sum(0.5 * |z_j|), normSq = 0.25 * d
+        // use doubles here, as small differences between steps can be significant
         float[] absZ = new float[d];
         double baseDot = 0;
         for (int j = 0; j < d; j++) {
@@ -199,8 +198,8 @@ final class AshSphericalScalarQuantizer {
             baseDot = Math.fma(0.5, a, baseDot);
         }
 
-        // Sorted ascending; every run walks it backwards, so zero magnitudes -- which gain no level
-        // at any threshold -- sit past the end of each run
+        // Sorted ascending; every run walks it backwards, so zero magnitudes
+        // sit at the end of each run (the start of this array)
         Arrays.sort(absZ);
         int firstNonZero = 0;
         while (firstNonZero < d && absZ[firstNonZero] == 0) {
@@ -215,41 +214,36 @@ final class AshSphericalScalarQuantizer {
         double bestMag = 0;
 
         if (firstNonZero < d) {
-            // Run s (1..nSteps) holds the events of step s, next one at position heads[s - 1]. All
-            // runs start at the largest magnitude, where the critical time s / |z| ascends with s,
+            // Run s (1..nSteps) holds the events of step s, next one at position heads[s - 1].
+            // All runs start at the largest magnitude, where the critical time s / |z| ascends with s,
             // so the runs in step order already satisfy the heap invariant.
-            int[] heads = new int[nSteps];
-            double[] headMags = new double[nSteps];
-            int[] heap = new int[nSteps];
-            Arrays.fill(heads, d - 1);
-            Arrays.fill(headMags, absZ[d - 1]);
-            Arrays.setAll(heap, IntUnaryOperator.identity());
-
             double dot = baseDot;
             double normSq = bestNormSq;
+            RunHeap heap = new RunHeap(nSteps, d, absZ[d - 1]);
             int events = nSteps * (d - firstNonZero);
+
             for (int e = 0; e < events; e++) {
-                int run = heap[0];
+                int run = heap.heap[0];
                 int step = run + 1;
-                double mag = headMags[run];
+                double mag = heap.headMags[run];
 
                 dot += mag;
                 normSq += 2 * step;
 
-                int head = --heads[run];
-                // An exhausted run carries magnitude 0, i.e. an infinite critical time, so it sinks
-                // to the bottom of the heap and is never selected again
-                headMags[run] = head < firstNonZero ? 0 : absZ[head];
-                siftDown(heap, headMags, nSteps);
+                int head = --heap.heads[run];
+                // An exhausted run carries magnitude 0, i.e. an infinite critical time,
+                // so it sinks to the bottom of the heap and is never selected again
+                heap.headMags[run] = head < firstNonZero ? 0 : absZ[head];
+                heap.siftDown();
 
                 // Handle ties: skip evaluation if the next event is at the same critical time
-                int next = heap[0];
-                if (step * headMags[next] == (next + 1) * mag) {
+                int next = heap.heap[0];
+                if (step * heap.headMags[next] == (next + 1) * mag) {
                     continue;
                 }
 
-                // dot / sqrt(normSq) > bestDot / sqrt(bestNormSq), cross-multiplied to avoid a
-                // divide and a square root per event
+                // dot / sqrt(normSq) > bestDot / sqrt(bestNormSq),
+                // cross-multiplied to avoid a divide and a square root per event
                 if (dot * dot * bestNormSq > bestDot * bestDot * normSq) {
                     bestDot = dot;
                     bestNormSq = normSq;
@@ -260,6 +254,7 @@ final class AshSphericalScalarQuantizer {
         }
 
         if (bestStep == 0) {
+            // bah humbug, didn't find anything, so everything is 0.5
             return quantizeExact1Bit(z, zOffset, out, outOffset, d);
         }
 
@@ -269,15 +264,14 @@ final class AshSphericalScalarQuantizer {
         // threshold picks out exactly the consumed events.
         for (int j = 0; j < d; j++) {
             float v = z[zOffset + j];
-            // Exact: bestStep occupies 7 bits at most and the magnitude 24
             double scaled = bestStep * (double) Math.abs(v);
             int levels = (int) Math.min(scaled / bestMag, nSteps);
-            // That division is the only inexact step, so nudge the level it landed on. Both
-            // comparisons are exact, and each loop runs at most once.
-            while (levels < nSteps && (levels + 1) * bestMag <= scaled) {
+            // That division is the only inexact step, and it is correctly rounded, so the truncated
+            // quotient sits either side of the exact level by at most one. Both comparisons below
+            // are exact, so a single correction in one direction settles it.
+            if (levels < nSteps && (levels + 1) * bestMag <= scaled) {
                 levels++;
-            }
-            while (levels > 0 && levels * bestMag > scaled) {
+            } else if (levels > 0 && levels * bestMag > scaled) {
                 levels--;
             }
             out[outOffset + j] = Math.copySign(0.5f + levels, v);
@@ -289,37 +283,54 @@ final class AshSphericalScalarQuantizer {
     }
 
     /**
-     * Restores the heap invariant at the root, ordering runs by the critical time of their next
-     * event.
+     * Min-heap of runs, ordered by the critical time of their next event.
      */
-    private static void siftDown(int[] heap, double[] headMags, int size) {
-        int i = 0;
-        while (true) {
-            int child = 2 * i + 1;
-            if (child >= size) {
-                return;
-            }
-            int right = child + 1;
-            if (right < size && earlier(heap[right], heap[child], headMags)) {
-                child = right;
-            }
-            if (earlier(heap[child], heap[i], headMags) == false) {
-                return;
-            }
-            int tmp = heap[i];
-            heap[i] = heap[child];
-            heap[child] = tmp;
-            i = child;
-        }
-    }
+    private static class RunHeap {
+        private final int[] heap;
+        private final int[] heads;
+        private final double[] headMags;
 
-    /**
-     * Whether run {@code r1}'s next event precedes run {@code r2}'s, i.e.
-     * {@code (r1 + 1) / mag(r1) < (r2 + 1) / mag(r2)}, cross-multiplied so that the comparison --
-     * and the tie detection it feeds -- stays exact. A run carrying magnitude 0 is exhausted and
-     * never precedes a live run.
-     */
-    private static boolean earlier(int r1, int r2, double[] headMags) {
-        return (r1 + 1) * headMags[r2] < (r2 + 1) * headMags[r1];
+        RunHeap(int nSteps, int d, double maxMag) {
+            heap = new int[nSteps];
+            heads = new int[nSteps];
+            headMags = new double[nSteps];
+            Arrays.setAll(heap, IntUnaryOperator.identity());
+            Arrays.fill(heads, d - 1);
+            Arrays.fill(headMags, maxMag);
+        }
+
+        /**
+         * Restores the heap invariant at the root, ordering runs by the critical time
+         * of their next event.
+         */
+        private void siftDown() {
+            int i = 0;
+            while (true) {
+                int child = 2 * i + 1;
+                if (child >= heap.length) {
+                    return;
+                }
+                int right = child + 1;
+                if (right < heap.length && earlier(heap[right], heap[child])) {
+                    child = right;
+                }
+                if (!earlier(heap[child], heap[i])) {
+                    return;
+                }
+                int swp = heap[i];
+                heap[i] = heap[child];
+                heap[child] = swp;
+                i = child;
+            }
+        }
+
+        /**
+         * Whether run {@code r1}'s next event precedes run {@code r2}'s,
+         * i.e. {@code (r1 + 1) / mag(r1) < (r2 + 1) / mag(r2)}, but cross-multiplied for efficiency.
+         * A run carrying magnitude 0 is exhausted and never precedes a live run.
+         */
+        private boolean earlier(int r1, int r2) {
+            return (r1 + 1) * headMags[r2] < (r2 + 1) * headMags[r1];
+        }
     }
 }

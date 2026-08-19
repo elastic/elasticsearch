@@ -286,3 +286,33 @@
                 lifecycle:
                   frozen_after: "30d"
       catch: '/Failure store lifecycle does not support freezing/'
+
+---
+"PUT index template with duplicate dynamic template names emits a warning":
+  - requires:
+      test_runner_features: ["allowed_warnings", "warnings"]
+
+  - do:
+      allowed_warnings:
+        - "index template [test-dup-dynamic-templates] has index patterns [test-dup-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-dup-dynamic-templates] will take precedence during new index creation"
+      warnings:
+        - "Dynamic template [my_template] in template [test-dup-dynamic-templates] is defined more than once. It is not defined which of the duplicate definitions takes effect. Defining multiple dynamic templates with the same name will be rejected in a future version."
+      indices.put_index_template:
+        name: test-dup-dynamic-templates
+        body:
+          index_patterns: test-dup-*
+          template:
+            mappings:
+              dynamic_templates:
+                - my_template:
+                    match: "foo_*"
+                    mapping:
+                      type: keyword
+                - my_template:
+                    match: "bar_*"
+                    mapping:
+                      type: text
+
+  - do:
+      indices.delete_index_template:
+        name: test-dup-dynamic-templates

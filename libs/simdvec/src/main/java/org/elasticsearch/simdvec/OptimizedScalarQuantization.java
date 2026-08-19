@@ -257,7 +257,7 @@ public class OptimizedScalarQuantization {
      * @return return the sum of all the elements of the resulting quantized vector.
      */
     public int quantizeWithIntervals(float[] vector, int[] destination, float lowInterval, float upperInterval, byte bits) {
-        assert vector.length == destination.length : "vector dimensions differ: " + vector.length + "!=" + destination.length;
+        assert vector.length <= destination.length : "vector dimensions differ: " + vector.length + ">" + destination.length;
         assert bits > 0 && bits <= Byte.SIZE : "bits must be between 1 and 8, but was: " + bits;
 
         float nSteps = ((1 << bits) - 1);

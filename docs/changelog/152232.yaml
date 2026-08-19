@@ -9,4 +9,4 @@ breaking:
 issues: []
 pr: 152232
 summary: Putting size limits on enrich policies
-type: "breaking, enhancement"
+type: breaking

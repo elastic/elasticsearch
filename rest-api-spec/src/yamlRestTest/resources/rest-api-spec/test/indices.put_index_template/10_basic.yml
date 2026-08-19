@@ -290,6 +290,8 @@
 ---
 "PUT index template with duplicate dynamic template names emits a warning":
   - requires:
+      cluster_features: [ "mapper.dynamic_template.warn_on_duplicate_names" ]
+      reason: duplicate dynamic template name warning was added
       test_runner_features: ["allowed_warnings", "warnings"]
 
   - do:

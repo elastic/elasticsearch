@@ -147,6 +147,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after FORK",
         // Full-text functions and `:` operator are not allowed after HIGHLIGHT
         "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after HIGHLIGHT",
+        // Full-text functions and `:` operator are not allowed after LIMIT (can arise when a FORK
+        // branch contains a LIMIT and a full-text function appears in the command after the FORK)
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after LIMIT",
+        // Full-text functions are not allowed after DEDUP (can arise when a FORK branch contains
+        // a DEDUP and a full-text function appears in the WHERE after the FORK)
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after DEDUP",
         // Full-text functions mixed with lookup-side fields via OR cannot be pushed before LOOKUP JOIN _coordinator:
         "cannot be used in a WHERE clause that references both data-side and lookup-side fields after LOOKUP JOIN _coordinator:",
         "sub-plan execution results too large",  // INLINE STATS limitations
@@ -347,6 +353,92 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         }
     }
 
+    /**
+     * Pipeline executor that runs each generated command against the cluster and feeds the result
+     * back into the generator. Subclasses of {@link GenerativeRestTest} may override
+     * {@link GenerativeRestTest#runCommand} to intercept command execution (e.g. to also run the
+     * command against a second index and compare the results) without having to duplicate this class.
+     *
+     * <p>{@code previousResult} is intentionally package-private so that
+     * {@link GenerativeRestTest#test()} can read it in the catch block to build a reproduction message.
+     */
+    protected class PipelineExecutor implements EsqlQueryGenerator.Executor {
+        boolean continueExecuting;
+        List<Column> currentSchema;
+        List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
+        QueryExecuted previousResult;
+
+        @Override
+        public void run(CommandGenerator generator, CommandGenerator.CommandDescription current) {
+            QueryExecuted result = runCommand(previousResult, current);
+
+            final boolean hasException = result.exception() != null;
+            if (hasException
+                || checkPipelineResults(previousCommands, generator, current, previousResult, result, currentSchema).success() == false) {
+                if (hasException) {
+                    List<CommandGenerator.CommandDescription> commands = new ArrayList<>(previousCommands.size() + 1);
+                    commands.addAll(previousCommands);
+                    commands.add(current);
+                    checkPipelineException(result, commands, currentSchema);
+                }
+                continueExecuting = false;
+                currentSchema = List.of();
+            } else {
+                continueExecuting = true;
+                currentSchema = updateIndexMapped(result.outputSchema(), currentSchema, current);
+            }
+
+            previousCommands.add(current);
+            previousResult = result;
+        }
+
+        @Override
+        public List<CommandGenerator.CommandDescription> previousCommands() {
+            return previousCommands;
+        }
+
+        @Override
+        public boolean continueExecuting() {
+            return continueExecuting;
+        }
+
+        @Override
+        public List<Column> currentSchema() {
+            return currentSchema;
+        }
+
+        @Override
+        public void clearCommandHistory() {
+            previousCommands = new ArrayList<>();
+            previousResult = null;
+        }
+    }
+
+    /**
+     * Creates a new {@link PipelineExecutor} for one test iteration.
+     * Subclasses may override to return a specialised executor that carries additional per-iteration
+     * state (e.g. a candidate result for cross-index-mode comparison).
+     */
+    protected PipelineExecutor executor() {
+        return new PipelineExecutor();
+    }
+
+    /**
+     * Executes one pipeline step and returns the result. Called from {@link PipelineExecutor#run}.
+     *
+     * <p>Subclasses may override to also execute the command against a second index set and compare
+     * the results before returning the primary result to the executor.
+     *
+     * @param previousResult the result of the previous pipeline step, or {@code null} for the first
+     *                       (source) command
+     * @param current        the command description produced by the generator
+     * @return the {@link QueryExecuted} that should drive the next generator step
+     */
+    protected QueryExecuted runCommand(QueryExecuted previousResult, CommandGenerator.CommandDescription current) {
+        String command = current.commandString();
+        return previousResult == null ? execute(command, 0) : execute(previousResult.query() + command, previousResult.depth());
+    }
+
     public void test() throws IOException {
         List<String> indices = availableIndices();
         List<LookupIdx> lookupIndices = lookupIndices();
@@ -355,62 +447,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         CommandGenerator.QuerySchema mappingInfo = new CommandGenerator.QuerySchema(indices, lookupIndices, policies, viewNames);
 
         for (int i = 0; i < ITERATIONS; i++) {
-            var exec = new EsqlQueryGenerator.Executor() {
-                @Override
-                public void run(CommandGenerator generator, CommandGenerator.CommandDescription current) {
-                    final String command = current.commandString();
-
-                    QueryExecuted result = previousResult == null
-                        ? execute(command, 0)
-                        : execute(previousResult.query() + command, previousResult.depth());
-
-                    final boolean hasException = result.exception() != null;
-                    if (hasException
-                        || checkPipelineResults(previousCommands, generator, current, previousResult, result, currentSchema)
-                            .success() == false) {
-                        if (hasException) {
-                            List<CommandGenerator.CommandDescription> commands = new ArrayList<>(previousCommands.size() + 1);
-                            commands.addAll(previousCommands);
-                            commands.add(current);
-                            checkPipelineException(result, commands, currentSchema);
-                        }
-                        continueExecuting = false;
-                        currentSchema = List.of();
-                    } else {
-                        continueExecuting = true;
-                        currentSchema = updateIndexMapped(result.outputSchema(), currentSchema, current);
-                    }
-
-                    previousCommands.add(current);
-                    previousResult = result;
-                }
-
-                @Override
-                public List<CommandGenerator.CommandDescription> previousCommands() {
-                    return previousCommands;
-                }
-
-                @Override
-                public boolean continueExecuting() {
-                    return continueExecuting;
-                }
-
-                @Override
-                public List<Column> currentSchema() {
-                    return currentSchema;
-                }
-
-                @Override
-                public void clearCommandHistory() {
-                    previousCommands = new ArrayList<>();
-                    previousResult = null;
-                }
-
-                boolean continueExecuting;
-                List<Column> currentSchema;
-                List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
-                QueryExecuted previousResult;
-            };
+            var exec = executor();
             try {
                 EsqlQueryGenerator.generatePipeline(
                     MAX_DEPTH,
@@ -553,7 +590,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isAggregateAbsentToStringSubqueryLookupJoinBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isInlineStatsSubqueryAggregateExecBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isEvalWhereFilterBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isRenameInlineStatsProjectBug(ctx.normalizedErrorMessage, ctx.query), };
+        ctx -> isRenameInlineStatsProjectBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isEvalInlineStatsAggregateBug(ctx.normalizedErrorMessage, ctx.query), };
 
     /**
      * Returns extra error-message patterns the {@link #enabledFeatures()} are allowed to surface. Aggregated
@@ -599,7 +637,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             allowedFailureRules = Stream.concat(
                 Arrays.stream(ALLOWED_FAILURE_RULES),
                 additionalAllowedErrors().stream()
-                    .map(s -> Pattern.compile(".*" + s + ".*", Pattern.DOTALL))
+                    .map(s -> Pattern.compile(".*" + Pattern.quote(s) + ".*", Pattern.DOTALL))
                     .<AllowedFailureRule>map(p -> ctx -> p.matcher(ctx.normalizedErrorMessage).matches())
             ).toList();
         }
@@ -1305,6 +1343,25 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return RENAME_COMMAND_PATTERN.matcher(query).find() && INLINE_STATS_COMMAND_PATTERN.matcher(query).find();
     }
 
+    private static final Pattern STATS_COMMAND_PATTERN = Pattern.compile("(?i)(?<!INLINE\\s)\\|\\s*STATS\\b");
+
+    /**
+     * EVAL reassigning an existing index field followed by INLINE STATS + STATS causes the
+     * optimizer to incorrectly prune the original field reference from the Aggregate plan,
+     * leaving it with a missing reference. Related to {@link #isEvalWhereFilterBug} (#154146).
+     */
+    static boolean isEvalInlineStatsAggregateBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return EVAL_COMMAND_PATTERN.matcher(query).find()
+            && INLINE_STATS_COMMAND_PATTERN.matcher(query).find()
+            && STATS_COMMAND_PATTERN.matcher(query).find();
+    }
+
     @Override
     public boolean isAllowedFailure(
         QueryExecuted result,
@@ -1373,7 +1430,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return originalTypes;
     }
 
-    private List<String> availableIndices() throws IOException {
+    protected List<String> availableIndices() throws IOException {
         List<String> indices = new ArrayList<>(
             availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries(), cap -> false).stream()
                 .filter(x -> x.inferenceEndpoints().isEmpty())
@@ -1442,7 +1499,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return List.of();
     }
 
-    private List<LookupIdx> lookupIndices() {
+    protected List<LookupIdx> lookupIndices() {
         List<LookupIdx> result = new ArrayList<>();
         // we don't have key info from the dataset loader, let's hardcode it for now
         result.add(new LookupIdx("languages_lookup", List.of(new LookupIdxColumn("language_code", "integer"))));

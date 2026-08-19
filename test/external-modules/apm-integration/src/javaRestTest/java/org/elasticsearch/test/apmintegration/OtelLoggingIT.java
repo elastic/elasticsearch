@@ -19,12 +19,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.otelfilter.TestOtelFilterPlugin;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
 
 import java.util.HexFormat;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.tasks.Task.TRACE_PARENT_HTTP_HEADER;
 import static org.hamcrest.Matchers.equalTo;
@@ -48,6 +54,7 @@ public class OtelLoggingIT extends AbstractTelemetryIT {
         .distribution(DistributionType.DEFAULT)
         .module("test-apm-integration")
         .module("apm")
+        .module("test-otel-filter-plugin")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.audit.enabled", "true")
@@ -159,5 +166,46 @@ public class OtelLoggingIT extends AbstractTelemetryIT {
         ReceivedTelemetry.ReceivedResource resource = apmServer().resource();
         assertNotNull("log export should carry a resource", resource);
         assertThat(resource.attributes(), equalTo(Map.of("service.name", "serverless-elasticsearch", "service.type", "elasticsearch")));
+    }
+
+    /**
+     * Verifies that the plugin filter can drop querylog events: searches on
+     * {@value TestOtelFilterPlugin#DROP_INDEX_NAME} are suppressed, while a subsequent search
+     * on a normal index still flows through (proving the appender is still live).
+     */
+    public void testQuerylogFilterDropsEvents() throws Exception {
+        createIndex(TestOtelFilterPlugin.DROP_INDEX_NAME);
+        createIndex("filter_pass_index");
+
+        // Track whether a log for the drop index ever arrives.
+        AtomicBoolean dropIndexSeen = new AtomicBoolean(false);
+        CountDownLatch passIndexArrived = new CountDownLatch(1);
+        AtomicReference<ReceivedTelemetry.ReceivedLog> passLog = new AtomicReference<>();
+
+        Consumer<ReceivedTelemetry> consumer = msg -> {
+            if (msg instanceof ReceivedTelemetry.ReceivedLog log && log.scopeName().equals(QueryLogging.QUERY_LOGGER_NAME)) {
+                Object indicesAttr = log.attributes().get(QueryLogging.QUERY_FIELD_INDICES);
+                if (indicesAttr instanceof ArrayValue av
+                    && av.getValuesList().stream().anyMatch(v -> TestOtelFilterPlugin.DROP_INDEX_NAME.equals(v.getStringValue()))) {
+                    dropIndexSeen.set(true);
+                }
+                // A log with the marker field came from "filter_pass_index"
+                if (TestOtelFilterPlugin.MARKER_VALUE.equals(log.attributes().get(TestOtelFilterPlugin.MARKER_FIELD))) {
+                    if (passLog.compareAndSet(null, log)) {
+                        passIndexArrived.countDown();
+                    }
+                }
+            }
+        };
+        recordingApmServer.addMessageConsumer(consumer);
+
+        // Search the drop index first; its querylog event should be suppressed by the filter.
+        client().performRequest(new Request("GET", "/" + TestOtelFilterPlugin.DROP_INDEX_NAME + "/_search"));
+        // Then search the pass index; its record carries the marker and signals the flush reached the server.
+        client().performRequest(new Request("GET", "/filter_pass_index/_search"));
+        client().performRequest(new Request("GET", "/_flush_telemetry"));
+
+        assertTrue("Timeout waiting for pass-index querylog record", passIndexArrived.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS));
+        assertFalse("Querylog record for drop index must be suppressed by the filter", dropIndexSeen.get());
     }
 }

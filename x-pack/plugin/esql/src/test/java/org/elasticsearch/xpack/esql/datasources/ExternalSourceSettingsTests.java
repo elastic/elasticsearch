@@ -144,7 +144,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         // A pool large enough that the explicit value is not clamped.
         Settings settings = Settings.builder()
             .put("esql.external.max_concurrent_requests", 64)
-            .put("esql.external.max_concurrent_segmentators", 24)
+            .put("esql.external.max_concurrent_segmenters", 24)
             .build();
         assertEquals(24, ExternalSourceSettings.maxConcurrentSegmentators(settings));
     }
@@ -153,7 +153,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         // A tiny pool forces the cap down to poolSize - 1 so at least one thread stays free for parser tasks.
         Settings settings = Settings.builder()
             .put("esql.external.max_concurrent_requests", 4)
-            .put("esql.external.max_concurrent_segmentators", 100)
+            .put("esql.external.max_concurrent_segmenters", 100)
             .build();
         assertEquals(3, ExternalSourceSettings.maxConcurrentSegmentators(settings));
     }
@@ -170,7 +170,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
     }
 
     public void testManagedIdentityCanBeEnabled() {
-        Settings settings = Settings.builder().put("esql.datasource.managed_identity.enabled", true).build();
+        Settings settings = Settings.builder().put("esql.external.managed_identity.enabled", true).build();
         assertTrue(ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.get(settings));
     }
 
@@ -179,7 +179,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
     }
 
     public void testFederatedIdentityCanBeEnabled() {
-        Settings settings = Settings.builder().put("esql.datasource.federated_identity.enabled", true).build();
+        Settings settings = Settings.builder().put("esql.external.federated_identity.enabled", true).build();
         assertTrue(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED.get(settings));
     }
 
@@ -188,7 +188,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
     public void testDeprecatedWorkloadIdentityKeyStillEnablesManagedIdentity() {
         // An operator's pre-rename config keeps working: the new setting falls back to the deprecated key's value,
         // and using the deprecated key emits a deprecation warning.
-        Settings settings = Settings.builder().put("esql.datasource.workload_identity.enabled", true).build();
+        Settings settings = Settings.builder().put("esql.external.workload_identity.enabled", true).build();
         assertTrue(ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.get(settings));
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED });
     }
@@ -196,8 +196,8 @@ public class ExternalSourceSettingsTests extends ESTestCase {
     public void testManagedIdentityKeyTakesPrecedenceOverDeprecatedKey() {
         // When the new key is set it wins and the deprecated key is not consulted (so no fallback read here).
         Settings settings = Settings.builder()
-            .put("esql.datasource.workload_identity.enabled", false)
-            .put("esql.datasource.managed_identity.enabled", true)
+            .put("esql.external.workload_identity.enabled", false)
+            .put("esql.external.managed_identity.enabled", true)
             .build();
         assertTrue(ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.get(settings));
     }
@@ -213,10 +213,10 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         AtomicBoolean enabled = new AtomicBoolean(false);
         clusterSettings.addSettingsUpdateConsumer(ExternalSourceSettings.MANAGED_IDENTITY_ENABLED, enabled::set);
 
-        clusterSettings.applySettings(Settings.builder().put("esql.datasource.workload_identity.enabled", true).build());
+        clusterSettings.applySettings(Settings.builder().put("esql.external.workload_identity.enabled", true).build());
         assertTrue("enabling the deprecated key dynamically must fire the consumer on the new setting", enabled.get());
 
-        clusterSettings.applySettings(Settings.builder().put("esql.datasource.workload_identity.enabled", false).build());
+        clusterSettings.applySettings(Settings.builder().put("esql.external.workload_identity.enabled", false).build());
         assertFalse("disabling the deprecated key dynamically must fire the consumer (security-critical)", enabled.get());
 
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED });
@@ -227,7 +227,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
     public void testManagedIdentityDisabledOnStatelessNodeAtStartup() {
         Settings settings = Settings.builder()
             .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
-            .put("esql.datasource.managed_identity.enabled", true)
+            .put("esql.external.managed_identity.enabled", true)
             .build();
         boolean isStateless = DiscoveryNode.isStateless(settings);
         AtomicBoolean enabled = new AtomicBoolean(isStateless == false && ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.get(settings));
@@ -235,7 +235,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
     }
 
     public void testManagedIdentityEnabledOnNonStatelessNode() {
-        Settings settings = Settings.builder().put("esql.datasource.managed_identity.enabled", true).build();
+        Settings settings = Settings.builder().put("esql.external.managed_identity.enabled", true).build();
         boolean isStateless = DiscoveryNode.isStateless(settings);
         AtomicBoolean enabled = new AtomicBoolean(isStateless == false && ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.get(settings));
         assertTrue("managed identity must be on when setting is true and node is not stateless", enabled.get());
@@ -267,7 +267,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
     }
 
     public void testLocalAllowedPathsCanBeSet() {
-        Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", "/data/allowed", "/mnt/shared").build();
+        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", "/data/allowed", "/mnt/shared").build();
         List<String> paths = ExternalSourceSettings.LOCAL_ALLOWED_PATHS.get(settings);
         assertEquals(2, paths.size());
         assertEquals("/data/allowed", paths.get(0));
@@ -275,7 +275,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
     }
 
     public void testLocalAllowedPathsEnabledWhenSet() {
-        Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", "/data/allowed").build();
+        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", "/data/allowed").build();
         LocalFileAccess access = LocalFileAccess.create(settings);
         assertTrue("local disk access must be enabled when allowlist is set", access.enabled());
     }

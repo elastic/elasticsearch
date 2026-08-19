@@ -145,7 +145,7 @@ public final class ExternalSourceSettings {
      * size). Node-scoped: the pool is sized at startup.
      */
     public static final Setting<Integer> MAX_CONCURRENT_SEGMENTATORS = Setting.intSetting(
-        "esql.external.max_concurrent_segmentators",
+        "esql.external.max_concurrent_segmenters",
         0,
         0,
         4096,
@@ -230,12 +230,13 @@ public final class ExternalSourceSettings {
     );
 
     /**
-     * Deprecated former name for {@link #MANAGED_IDENTITY_ENABLED}. Still honored for backwards compatibility — it is the
-     * fallback source for the new key, so an operator's existing {@code esql.datasource.workload_identity.enabled} config
-     * keeps working — and emits a deprecation warning when set. Prefer {@link #MANAGED_IDENTITY_ENABLED}.
+     * Deprecated former name for {@link #MANAGED_IDENTITY_ENABLED}. Still honored for backwards compatibility — it is
+     * the fallback source for the new key, so a {@code workload_identity.enabled} config (under the unified
+     * {@code esql.external.} prefix) keeps working — and emits a deprecation warning when set.
+     * Prefer {@link #MANAGED_IDENTITY_ENABLED}.
      */
     public static final Setting<Boolean> WORKLOAD_IDENTITY_ENABLED = Setting.boolSetting(
-        "esql.datasource.workload_identity.enabled",
+        "esql.external.workload_identity.enabled",
         false,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic,
@@ -256,7 +257,7 @@ public final class ExternalSourceSettings {
      * setting see an operator's pre-rename configuration.
      */
     public static final Setting<Boolean> MANAGED_IDENTITY_ENABLED = Setting.boolSetting(
-        "esql.datasource.managed_identity.enabled",
+        "esql.external.managed_identity.enabled",
         WORKLOAD_IDENTITY_ENABLED,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
@@ -274,7 +275,7 @@ public final class ExternalSourceSettings {
      * gitops without exposing a customer-facing toggle.
      */
     public static final Setting<Boolean> FEDERATED_IDENTITY_ENABLED = Setting.boolSetting(
-        "esql.datasource.federated_identity.enabled",
+        "esql.external.federated_identity.enabled",
         false,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
@@ -289,7 +290,7 @@ public final class ExternalSourceSettings {
      * This is a node-scope setting; a node restart is required for changes to take effect.
      */
     public static final Setting<List<String>> LOCAL_ALLOWED_PATHS = Setting.stringListSetting(
-        "esql.datasource.local_allowed_paths",
+        "esql.external.local_allowed_paths",
         Setting.Property.NodeScope
     );
 

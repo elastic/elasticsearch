@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * Cluster wide opt-out for the ES95 TSDB doc values codec, complementing the per-index
@@ -77,7 +76,7 @@ public final class ES95CodecClusterSettingProvider implements IndexSettingProvid
             return templateIndexMode;
         }
         final String modeName = settings.get(IndexSettings.MODE.getKey());
-        return modeName == null ? null : IndexMode.valueOf(modeName.toUpperCase(Locale.ROOT));
+        return modeName == null ? null : IndexMode.fromString(modeName);
     }
 
     @Override

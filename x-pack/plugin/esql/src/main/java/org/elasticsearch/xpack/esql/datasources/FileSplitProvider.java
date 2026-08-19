@@ -458,15 +458,16 @@ public class FileSplitProvider implements SplitProvider {
         // flat batch under a single concurrency budget, so the number of in-flight probe reads is bounded by that
         // budget no matter how many files are being probed. Probing per file instead would multiply the per-file
         // budget by the number of files in flight.
-        Map<DeferredNewlineSplits, List<Long>> probedBoundaries = probeDeferredBoundaries(planResults, isCancelled);
+        Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> probedOutcomes = probeDeferredBoundaries(planResults, isCancelled);
 
         // Splits are emitted in file order: walking the plan results keeps a deferred file's macro-splits in the
         // same position its file occupied in the file list.
         List<ExternalSplit> splits = new ArrayList<>();
-        // Files big enough to macro-split whose every offset failed to find a record boundary, so one node reads
-        // each of them whole. What causes it is a property of the dataset rather than of one file, so a scan whose
-        // records are wider than the probe window hits it on every file it has: they are counted and reported once
-        // for the query instead of one warning per file.
+        // Files whose probes found no terminator in any window, so one node reads each of them whole. What causes
+        // it is a property of the dataset rather than of one file, so a scan whose records are wider than the probe
+        // window hits it on every file it has: they are counted and reported once for the query instead of one
+        // warning per file. A file whose only found boundary would leave a short tail is also read whole, but that
+        // is a file barely over one stride, not this case.
         int unsplittableFiles = 0;
         DeferredNewlineSplits firstUnsplittable = null;
         for (PlanResult planResult : planResults) {
@@ -474,13 +475,14 @@ public class FileSplitProvider implements SplitProvider {
                 case PlanResult.Splits planned -> splits.addAll(planned.splits());
                 case PlanResult.NeedsProbing needsProbing -> {
                     DeferredNewlineSplits deferred = needsProbing.deferred();
-                    List<Long> starts = probedBoundaries.get(deferred);
-                    if (starts == null) {
+                    List<RecordBoundaryProbe.Outcome> outcomes = probedOutcomes.get(deferred);
+                    if (outcomes == null) {
                         // A file is only deferred when it has offsets to probe, so the probe phase answers for
                         // every deferred file. Fail loud rather than on a null if that ever stops holding.
                         throw new IllegalStateException("no probed boundaries for deferred file " + deferred.filePath());
                     }
-                    if (starts.size() <= 1) {
+                    List<Long> starts = RecordBoundaryProbe.reduce(outcomes);
+                    if (starts.size() <= 1 && RecordBoundaryProbe.anyWithoutBoundary(outcomes)) {
                         unsplittableFiles++;
                         if (firstUnsplittable == null) {
                             firstUnsplittable = deferred;
@@ -491,10 +493,10 @@ public class FileSplitProvider implements SplitProvider {
             }
         }
         if (firstUnsplittable != null) {
-            // Nothing else records this, and the remedies (a larger target_split_size, or records that are not the
-            // size of the probe window) are the user's, so it goes to the query's response rather than the node log
-            // where only an operator who cannot act on it would see it. Every file of a query is cut at the same
-            // stride, so the one reported here is the stride of all of them.
+            // Nothing else records this, and the remedy (records that fit in the probe window) is the user's, so
+            // it goes to the query's response rather than the node log where only an operator who cannot act on
+            // it would see it. Every file of a query is cut at the same stride, so the one reported here is the
+            // stride of all of them.
             HeaderWarning.addWarning(
                 "no record boundary found in {} file(s) at any of their probe offsets {} bytes apart; each is read "
                     + "as a single whole-file split, e.g. [{}] ({} bytes, {} offsets probed)",
@@ -516,14 +518,17 @@ public class FileSplitProvider implements SplitProvider {
      * With an executor, all files' stride offsets are gathered into one flat batch so a single concurrency budget
      * ({@link #splitDiscoveryConcurrency()}) bounds the in-flight probe reads across the whole query, rather than
      * one budget per file multiplied by the files in flight. Without one, each file is walked serially. Both
-     * produce the same boundaries.
+     * produce the same per-offset outcomes; the caller reduces them to split starts.
      * <p>
      * Keying on the descriptor's identity rather than on a file's position in {@code planResults} is what keeps
      * the two phases from having to agree on an ordering: a probe task already carries the descriptor it
      * contributes to, so filtering or reordering the plan results between planning and probing cannot hand one
      * file another file's boundaries.
      */
-    private Map<DeferredNewlineSplits, List<Long>> probeDeferredBoundaries(List<PlanResult> planResults, BooleanSupplier isCancelled) {
+    private Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> probeDeferredBoundaries(
+        List<PlanResult> planResults,
+        BooleanSupplier isCancelled
+    ) {
         List<DeferredNewlineSplits> deferredFiles = new ArrayList<>();
         int probeCount = 0;
         for (PlanResult planResult : planResults) {
@@ -541,12 +546,12 @@ public class FileSplitProvider implements SplitProvider {
         }
 
         try {
-            Map<DeferredNewlineSplits, List<Long>> boundariesByFile = new IdentityHashMap<>(deferredFiles.size());
+            Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> outcomesByFile = new IdentityHashMap<>(deferredFiles.size());
             if (executor == null) {
                 for (DeferredNewlineSplits deferred : deferredFiles) {
-                    boundariesByFile.put(
+                    outcomesByFile.put(
                         deferred,
-                        RecordBoundaryProbe.probeStridedSerially(
+                        RecordBoundaryProbe.stridedOutcomes(
                             deferred.splitter(),
                             deferred.storageObject(),
                             deferred.fileLength(),
@@ -573,12 +578,8 @@ public class FileSplitProvider implements SplitProvider {
 
                 // Results come back in input order, and each file's offsets were added in ascending order, so
                 // grouping by file preserves the ascending order the reduction requires.
-                Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> outcomesByFile = new IdentityHashMap<>(deferredFiles.size());
                 for (int i = 0; i < probeTasks.size(); i++) {
                     outcomesByFile.computeIfAbsent(probeTasks.get(i).deferred(), k -> new ArrayList<>()).add(outcomes.get(i));
-                }
-                for (Map.Entry<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> entry : outcomesByFile.entrySet()) {
-                    boundariesByFile.put(entry.getKey(), RecordBoundaryProbe.reduce(entry.getValue()));
                 }
             }
             // A cancel landing after the last probe has read is seen by no probe, so check once more here rather
@@ -586,7 +587,7 @@ public class FileSplitProvider implements SplitProvider {
             if (isCancelled.getAsBoolean()) {
                 throw new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE);
             }
-            return boundariesByFile;
+            return outcomesByFile;
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {

@@ -74,18 +74,31 @@ final class RecordBoundaryProbe {
     static final long MAX_DRAIN_BYTES = 128 * 1024;
 
     /**
-     * The outcome of probing one offset: either the record boundary to cut at, or {@link #NONE} when the offset
-     * yields no boundary, because none lies within its probe window or because the one it found would leave too
-     * little of the file behind it.
+     * The outcome of probing one offset: a record boundary to cut at, {@link #NONE} when none lies within its
+     * probe window, or {@link #TAIL_TOO_SHORT} when the boundary it found would leave too little of the file
+     * behind it.
      * <p>
-     * {@link #NONE} is local to its own offset: nothing about one offset's outcome constrains another's, which
-     * is what lets a set of offsets be probed in any order, or concurrently.
+     * Neither rejection contributes a split start, and both are local to their own offset: nothing about one
+     * offset's outcome constrains another's, which is what lets a set of offsets be probed in any order, or
+     * concurrently. They are distinct so a file that is merely a little longer than one stride is not reported
+     * as having no record boundary.
      */
-    record Outcome(boolean found, long boundary) {
-        static final Outcome NONE = new Outcome(false, -1L);
+    record Outcome(Kind kind, long boundary) {
+        enum Kind {
+            FOUND,
+            NONE,
+            TAIL_TOO_SHORT
+        }
+
+        static final Outcome NONE = new Outcome(Kind.NONE, -1L);
+        static final Outcome TAIL_TOO_SHORT = new Outcome(Kind.TAIL_TOO_SHORT, -1L);
 
         static Outcome at(long boundary) {
-            return new Outcome(true, boundary);
+            return new Outcome(Kind.FOUND, boundary);
+        }
+
+        boolean found() {
+            return kind == Kind.FOUND;
         }
     }
 
@@ -147,10 +160,11 @@ final class RecordBoundaryProbe {
             return Outcome.NONE;
         }
         long boundary = pos + skipped;
-        // Cutting this close to the end would leave a runt final span. Every higher offset resolves to a
-        // boundary at least this far in, so they all yield nothing too and the last span extends to EOF.
+        // Cutting this close to the end would leave a final span below the minimum. Every higher offset
+        // resolves to a boundary at least this far in, so they all yield nothing too and the last span
+        // extends to EOF.
         if (boundary >= fileLength || fileLength - boundary < minSegment) {
-            return Outcome.NONE;
+            return Outcome.TAIL_TOO_SHORT;
         }
         return Outcome.at(boundary);
     }
@@ -258,15 +272,26 @@ final class RecordBoundaryProbe {
     }
 
     /**
-     * Probes each offset on the calling thread. Every probe is independent of every other, so this produces the
-     * same boundaries as gathering the same offsets concurrently and reducing the results, which is what lets a
-     * node without an executor fall back to this walk without changing how a file is cut.
+     * Whether any offset found no terminator in its window. Distinct from {@link Outcome#TAIL_TOO_SHORT}: a
+     * short leftover after a found boundary is not a missing boundary.
+     */
+    static boolean anyWithoutBoundary(List<Outcome> outcomes) {
+        for (Outcome outcome : outcomes) {
+            if (outcome.kind() == Outcome.Kind.NONE) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The per-offset outcomes of probing {@code positions} on the calling thread, before {@link #reduce}.
      * <p>
      * The whole walk owns one {@link StorageRetryCancellation} scope: it runs on a single thread, so one scope
      * covers every probe in it and a probe parked in retry/throttle backoff aborts on cancel rather than
      * sleeping out its retry budget.
      */
-    static List<Long> probeStridedSerially(
+    static List<Outcome> stridedOutcomes(
         RecordSplitter splitter,
         StorageObject storageObject,
         long fileLength,
@@ -280,8 +305,26 @@ final class RecordBoundaryProbe {
             for (long pos : positions) {
                 outcomes.add(probeAt(splitter, storageObject, pos, fileLength, minSegment, strideBytes, isCancelled));
             }
-            return reduce(outcomes);
+            return outcomes;
         });
+    }
+
+    /**
+     * Probes each offset on the calling thread and reduces the outcomes to split starts. Every probe is
+     * independent of every other, so this produces the same boundaries as gathering the same offsets
+     * concurrently and reducing the results, which is what lets a node without an executor fall back to this
+     * walk without changing how a file is cut.
+     */
+    static List<Long> probeStridedSerially(
+        RecordSplitter splitter,
+        StorageObject storageObject,
+        long fileLength,
+        List<Long> positions,
+        long minSegment,
+        long strideBytes,
+        BooleanSupplier isCancelled
+    ) throws IOException {
+        return reduce(stridedOutcomes(splitter, storageObject, fileLength, positions, minSegment, strideBytes, isCancelled));
     }
 
     /**

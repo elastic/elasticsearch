@@ -1084,6 +1084,31 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * A file just over one stride whose only probe finds a newline too close to EOF is read whole, which is the
+     * intended cut, not a missing boundary. The query is not told to raise {@code target_split_size}: that would
+     * point the wrong way.
+     */
+    public void testAFileWhoseOnlyFoundBoundaryLeavesAShortTailIsReadWholeWithoutWarning() {
+        long stride = CSV_MIN_SEGMENT_BYTES;
+        byte[] row = "a,b,c\n".getBytes(StandardCharsets.UTF_8);
+        byte[] payload = new byte[Math.toIntExact(stride + CSV_MIN_SEGMENT_BYTES)];
+        for (int i = 0; i < payload.length; i++) {
+            payload[i] = row[i % row.length];
+        }
+        assertEquals(
+            "the file must offer exactly one probe, at the stride",
+            1,
+            RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size()
+        );
+
+        // No assertWarnings call: the test framework fails on any warning left unasserted, so the absence of one
+        // here is what pins that a short leftover after a found boundary is not reported as no record boundary.
+        List<ExternalSplit> splits = discoverPlainCsvSplits(Map.of("just-over-one-stride.csv", payload), stride, null, null);
+
+        assertEquals("a file barely over one stride is read whole", 1, splits.size());
+    }
+
+    /**
      * A target split size below the probe window splits at its own offsets: the probe window is capped at the
      * stride, which is what keeps one probe's window from reaching into the next offset. A caller asking for
      * splits smaller than the window gets them, with correspondingly smaller probes.
@@ -2067,6 +2092,25 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(List.of(0L, 120L, 360L), boundaries);
     }
 
+    /**
+     * A found boundary that would leave a short tail is dropped the same way as an offset that found nothing:
+     * it does not start a split, and the spans either side of it merge.
+     */
+    public void testReduceProbeOutcomesSkipsATailTooShortOffset() {
+        List<Long> boundaries = RecordBoundaryProbe.reduce(
+            List.of(RecordBoundaryProbe.Outcome.at(120), RecordBoundaryProbe.Outcome.TAIL_TOO_SHORT, RecordBoundaryProbe.Outcome.at(360))
+        );
+        assertEquals(List.of(0L, 120L, 360L), boundaries);
+    }
+
+    public void testAnyWithoutBoundaryIsOnlyTheMissingTerminator() {
+        assertFalse(RecordBoundaryProbe.anyWithoutBoundary(List.of(RecordBoundaryProbe.Outcome.TAIL_TOO_SHORT)));
+        assertFalse(RecordBoundaryProbe.anyWithoutBoundary(List.of(RecordBoundaryProbe.Outcome.at(120))));
+        assertTrue(
+            RecordBoundaryProbe.anyWithoutBoundary(List.of(RecordBoundaryProbe.Outcome.TAIL_TOO_SHORT, RecordBoundaryProbe.Outcome.NONE))
+        );
+    }
+
     /** Two stride offsets landing inside one record resolve to the same boundary; only one split starts there. */
     public void testReduceProbeOutcomesDropsBoundariesThatDoNotAdvance() {
         List<Long> boundaries = RecordBoundaryProbe.reduce(
@@ -2099,8 +2143,8 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals("a record spanning the whole window leaves nothing to split at", RecordBoundaryProbe.Outcome.NONE, outcome);
     }
 
-    /** A boundary too close to end-of-file would leave a runt split, so the probe yields none instead. */
-    public void testProbeStridedBoundaryYieldsNoBoundaryWhenTailIsBelowMinimumSegment() throws IOException {
+    /** A boundary too close to end-of-file would leave a short final split, so the probe yields tail-too-short instead. */
+    public void testProbeStridedBoundaryYieldsTailTooShortWhenTailIsBelowMinimumSegment() throws IOException {
         byte[] payload = "aaaa\nbbbb\ncccc\n".getBytes(StandardCharsets.UTF_8);
         StorageObject object = createInMemoryStorageObject(payload, StoragePath.of("mem://short.ndjson"));
         RecordSplitter splitter = stridedSplitter();
@@ -2111,7 +2155,7 @@ public class FileSplitProviderTests extends ESTestCase {
         );
         // With a 6-byte minimum segment, the same boundary leaves only 5 of the 15 bytes behind it.
         assertEquals(
-            RecordBoundaryProbe.Outcome.NONE,
+            RecordBoundaryProbe.Outcome.TAIL_TOO_SHORT,
             RecordBoundaryProbe.probeAt(splitter, object, 5, payload.length, 6, payload.length, () -> false)
         );
     }

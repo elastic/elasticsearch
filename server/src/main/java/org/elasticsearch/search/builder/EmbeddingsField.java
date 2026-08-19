@@ -17,6 +17,8 @@ import org.elasticsearch.inference.VectorType;
 
 import java.io.IOException;
 
+import static org.elasticsearch.search.builder.SearchSourceBuilder.SEARCH_SOURCE_EMBEDDINGS_FIELDS;
+
 public record EmbeddingsField(String field, @Nullable VectorType vectorType) implements Writeable {
     public EmbeddingsField(StreamInput in) throws IOException {
         this(in.readString(), in.readOptionalEnum(VectorType.class));
@@ -24,6 +26,9 @@ public record EmbeddingsField(String field, @Nullable VectorType vectorType) imp
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().supports(SEARCH_SOURCE_EMBEDDINGS_FIELDS) == false) {
+            throw new IllegalStateException("Cannot serialize EmbeddingsField with transport version [" + out.getTransportVersion() + "]");
+        }
         out.writeString(field);
         out.writeOptionalEnum(vectorType);
     }

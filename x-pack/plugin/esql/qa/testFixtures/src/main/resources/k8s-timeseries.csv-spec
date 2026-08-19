@@ -1630,3 +1630,33 @@ network.cost        | 3        | prod
 network.cost        | 3        | qa
 network.cost        | 3        | staging
 ;
+
+// Multiple constant literal aggregates — each must reach the outer Aggregate.
+tsStatsWithMultipleLiteralAggregates
+required_capability: ts_command_v0
+required_capability: ts_stats_literal_agg_fix
+
+TS k8s
+| STATS source = "k8s", metric = "cost", cnt = COUNT(COUNT_OVER_TIME(network.cost)) BY cluster
+| SORT cluster;
+
+source:keyword | metric:keyword | cnt:long | cluster:keyword
+k8s            | cost           | 3        | prod
+k8s            | cost           | 3        | qa
+k8s            | cost           | 3        | staging
+;
+
+// Literal appearing last in the STATS clause — position must not affect routing.
+tsStatsWithLiteralAggregateAtEnd
+required_capability: ts_command_v0
+required_capability: ts_stats_literal_agg_fix
+
+TS k8s
+| STATS cnt = COUNT(COUNT_OVER_TIME(network.cost)), metric_type = "cost" BY cluster
+| SORT cluster;
+
+cnt:long | metric_type:keyword | cluster:keyword
+3        | cost                | prod
+3        | cost                | qa
+3        | cost                | staging
+;

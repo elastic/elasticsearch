@@ -54,9 +54,14 @@ public class PartitionConfigTests extends ESTestCase {
         assertEquals(PartitionConfig.Strategy.NONE, config.strategy());
     }
 
-    public void testFromConfigAutoWithTemplatePromotesToTemplate() {
+    /**
+     * A partition_path with no partition_detection stays AUTO. AUTO is "Hive first, template as a fallback", which
+     * is what such a dataset resolved to before the setting reached the read path; promoting to TEMPLATE here would
+     * take the Hive columns away from every one stored against a key=value layout.
+     */
+    public void testFromConfigAutoWithTemplateStaysAuto() {
         PartitionConfig config = PartitionConfig.fromConfig(Map.of(CONFIG_PARTITIONING_PATH, "{year}/{month}"));
-        assertEquals(PartitionConfig.Strategy.TEMPLATE, config.strategy());
+        assertEquals(PartitionConfig.Strategy.AUTO, config.strategy());
         assertEquals("{year}/{month}", config.pathTemplate());
     }
 
@@ -100,12 +105,12 @@ public class PartitionConfigTests extends ESTestCase {
         }
     }
 
-    /** Explicit true carries no information — it is the default — so it must not pin the strategy to HIVE. */
-    public void testHivePartitioningTrueDoesNotPinHive() {
+    /** Explicit true carries no information — it is the default — so it must not change the resolved strategy. */
+    public void testHivePartitioningTrueDoesNotChangeTheStrategy() {
         PartitionConfig config = PartitionConfig.fromConfig(
             Map.of(PartitionConfig.CONFIG_PARTITIONING_HIVE, true, CONFIG_PARTITIONING_PATH, "{year}")
         );
-        assertEquals(PartitionConfig.Strategy.TEMPLATE, config.strategy());
+        assertEquals(PartitionConfig.Strategy.AUTO, config.strategy());
         assertEquals("{year}", config.pathTemplate());
     }
 
@@ -117,9 +122,10 @@ public class PartitionConfigTests extends ESTestCase {
         assertEquals(PartitionConfig.Strategy.NONE, config.strategy());
     }
 
-    public void testTemplateWithoutPathResolvesToNoneNotHive() {
+    /** An explicit template with nothing to templatise falls back to AUTO, keeping a stored dataset's columns. */
+    public void testTemplateWithoutPathFallsBackToAuto() {
         PartitionConfig config = PartitionConfig.fromConfig(Map.of(CONFIG_PARTITIONING_DETECTION, "template"));
-        assertEquals(PartitionConfig.Strategy.NONE, config.strategy());
+        assertEquals(PartitionConfig.Strategy.AUTO, config.strategy());
     }
 
     /** A value stored before the setting was validated as an enum must not fail the read. */

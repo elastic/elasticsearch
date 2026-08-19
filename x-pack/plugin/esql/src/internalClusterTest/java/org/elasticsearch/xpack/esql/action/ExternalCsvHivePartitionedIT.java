@@ -31,7 +31,6 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 
 /**
  * Regression test: {@code hive_partitioning} and {@code partition_path} * were not included in
@@ -80,9 +79,9 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
 
     /**
      * Same fixture, with an explicit {@code partition_path}. This template names NO columns — the detector matches a
-     * path segment in full, so {@code year={year}} is not a placeholder — which is why it detects nothing rather
-     * than throwing (see {@code GlobExpander.resolveDetector}'s guard). The dataset predates
-     * {@code partition_detection} reaching the read path, so this pins that it keeps reading.
+     * path segment in full, so {@code year={year}} is not a placeholder. With no {@code partition_detection} the
+     * strategy is AUTO, which tries Hive first, so the dataset keeps the {@code year}/{@code month} columns it had
+     * before the setting reached the read path.
      *
      * <p>It previously asserted only that the query did not fail with "unknown option [partition_path]". An
      * acceptance assertion cannot tell an applied template from an unapplied one, so it passed while the setting
@@ -100,8 +99,10 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
         try (var response = run(syncEsqlQueryRequest(query))) {
             List<String> columnNames = response.columns().stream().map(c -> c.name()).collect(Collectors.toList());
             assertThat("the data columns must still be read", columnNames, hasItem("id"));
-            assertThat("a template naming no columns detects nothing, so no path-derived year appears", columnNames, not(hasItem("year")));
-            assertThat("nor a path-derived month", columnNames, not(hasItem("month")));
+            // The template names no columns, so AUTO falls through to Hive detection -- the same columns this
+            // dataset produced before partition_path reached the read path.
+            assertThat("the Hive-derived year must still appear", columnNames, hasItem("year"));
+            assertThat("and the Hive-derived month", columnNames, hasItem("month"));
         }
     }
 

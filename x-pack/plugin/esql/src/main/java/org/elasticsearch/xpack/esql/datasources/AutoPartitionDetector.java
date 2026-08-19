@@ -40,8 +40,10 @@ public final class AutoPartitionDetector implements PartitionDetector {
         }
 
         // Fall back to template if configured
+        // Same grammar guard as GlobExpander.resolveDetector: TemplatePartitionDetector's constructor rejects a
+        // template naming no whole-segment {name} placeholders, and this fallback is reachable with any stored value.
         String template = partitionConfig.pathTemplate();
-        if (template != null && template.isEmpty() == false) {
+        if (template != null && TemplatePartitionDetector.parseTemplateColumns(template).isEmpty() == false) {
             TemplatePartitionDetector templateDetector = new TemplatePartitionDetector(template);
             return templateDetector.detect(files);
         }

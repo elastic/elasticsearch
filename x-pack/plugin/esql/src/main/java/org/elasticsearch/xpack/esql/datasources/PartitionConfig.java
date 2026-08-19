@@ -90,14 +90,15 @@ public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) 
         Object templateValue = config.get(CONFIG_PARTITIONING_PATH);
         String template = templateValue != null ? templateValue.toString() : null;
 
-        if (template != null && Strategy.AUTO == strategy) {
-            strategy = Strategy.TEMPLATE;
-        }
+        // AUTO is NOT promoted to TEMPLATE when a partition_path is present. AUTO means "Hive first, template as a
+        // fallback" (see AutoPartitionDetector), and that is exactly what a dataset carrying only a partition_path
+        // resolved to before this setting reached the read path: Hive detection. Promoting here would take the Hive
+        // columns away from every such dataset stored against a key=value layout.
 
-        // A template strategy with nothing to templatise detects nothing. Falling back to Hive here would silently
-        // substitute a different strategy for the one the user named.
+        // An explicit TEMPLATE with nothing to templatise falls back to AUTO rather than detecting nothing, so a
+        // dataset stored before this combination was rejected at registration keeps the Hive columns it had.
         if (Strategy.TEMPLATE == strategy && (template == null || template.isEmpty())) {
-            strategy = Strategy.NONE;
+            strategy = Strategy.AUTO;
         }
 
         if (hivePartitioningDisabled(config)) {

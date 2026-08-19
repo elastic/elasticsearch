@@ -198,7 +198,7 @@ public final class GlobExpander {
                 // strategy at TEMPLATE and returning no detector changes detection only, the strictly smaller
                 // behaviour delta, and keeps the template grammar out of PartitionConfig.
                 if (template == null || TemplatePartitionDetector.parseTemplateColumns(template).isEmpty()) {
-                    yield null;
+                    yield HivePartitionDetector.INSTANCE;
                 }
                 yield new TemplatePartitionDetector(template);
             }

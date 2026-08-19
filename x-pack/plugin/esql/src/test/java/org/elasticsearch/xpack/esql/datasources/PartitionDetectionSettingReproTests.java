@@ -116,17 +116,18 @@ public class PartitionDetectionSettingReproTests extends ESTestCase {
     }
 
     /**
-     * A stored template naming no columns — {@code year={year}} is not a whole-segment placeholder — must read as
-     * "no partitions" rather than throwing. {@code TemplatePartitionDetector}'s constructor rejects such a
-     * template, so without the guard in {@code resolveDetector} this shape would 400 on every query.
+     * A stored template that names no columns — {@code year={year}} is not a whole-segment placeholder — must keep
+     * reading as it did before the setting reached the read path, which for this layout means Hive detection.
+     * {@code TemplatePartitionDetector}'s constructor rejects such a template, so the guard in
+     * {@code resolveDetector} is what stops this shape from throwing on every query.
      */
-    public void testStoredPlaceholderlessTemplateDetectsNothingRatherThanThrowing() throws IOException {
+    public void testStoredPlaceholderlessTemplateFallsBackToHive() throws IOException {
         FileList listing = expandAsResolverDoes(
             HIVE_PATTERN,
             HIVE_TREE,
             Map.of("partition_detection", "template", "partition_path", "year={year}/month={month}")
         );
-        assertNull("a placeholderless template detects nothing and must not throw", listing.partitionMetadata());
+        assertEquals("a placeholderless template must not throw, and must keep the Hive columns", Set.of("year"), columnsOf(listing));
     }
 
     /**

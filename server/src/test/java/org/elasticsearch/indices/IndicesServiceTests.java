@@ -334,6 +334,18 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                     }
                     listener.onResponse(null);
                 }
+
+                @Override
+                public void indexShardStateChanged(
+                    IndexShard indexShard,
+                    @Nullable IndexShardState previousState,
+                    IndexShardState currentState,
+                    @Nullable String reason
+                ) {
+                    for (IndexEventListener indexEventListener : indexEventListeners) {
+                        indexEventListener.indexShardStateChanged(indexShard, previousState, currentState, reason);
+                    }
+                }
             });
         }
     }

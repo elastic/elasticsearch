@@ -16,6 +16,7 @@ restResources {
 }
 
 tasks.named("yamlRestTest").configure {
+  usesDefaultDistribution("ML with security requires x-pack trial license and security")
   systemProperty 'tests.rest.blacklist', [
     // Remove these tests because they don't call an ML endpoint and we don't want
     // to grant extra permissions to the users used in this test suite

@@ -14,6 +14,7 @@ import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 
@@ -23,16 +24,20 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Reads a single unmapped field from {@code _source} as a keyword. ES|QL fabricates a keyword type for a field that is unmapped on a
- * shard (see {@code EsPhysicalOperationProviders.DefaultShardContextForUnmappedField}); when that path's {@code _source} value is an
- * object, a keyword scalar has no representation for it, so the field reads as {@code null}.
+ * Reads a single unmapped field from {@code _source} as a keyword (ES|QL fabricates the keyword type for a field unmapped on a shard; see
+ * {@code EsPhysicalOperationProviders.DefaultShardContextForUnmappedField}). An object {@code _source} value has no keyword scalar, so it
+ * reads as {@code null}.
  */
 final class UnmappedKeywordBlockLoader implements BlockLoader {
 
     private final String fieldName;
+    private final Set<String> sourcePaths;
+    private final IgnoredSourceFormat ignoredSourceFormat;
 
-    UnmappedKeywordBlockLoader(String fieldName) {
+    UnmappedKeywordBlockLoader(String fieldName, Set<String> sourcePaths, IgnoredSourceFormat ignoredSourceFormat) {
         this.fieldName = fieldName;
+        this.sourcePaths = sourcePaths;
+        this.ignoredSourceFormat = ignoredSourceFormat;
     }
 
     @Override
@@ -52,7 +57,7 @@ final class UnmappedKeywordBlockLoader implements BlockLoader {
 
     @Override
     public StoredFieldsSpec rowStrideStoredFieldSpec() {
-        return new StoredFieldsSpec(true, false, Set.of());
+        return StoredFieldsSpec.withSourcePaths(ignoredSourceFormat, sourcePaths);
     }
 
     @Override

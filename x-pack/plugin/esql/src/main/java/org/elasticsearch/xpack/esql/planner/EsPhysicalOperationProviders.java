@@ -495,7 +495,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             ByteSizeValue blockLoaderSizeScript
         ) {
             if (asUnsupportedSource == false && name.equals(fullFieldName) && super.fieldType(name) == null) {
-                return new UnmappedKeywordBlockLoader(name);
+                return unmappedKeywordBlockLoader(name, this);
             }
             return super.blockLoader(
                 name,
@@ -506,6 +506,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 blockLoaderSizeOrdinals,
                 blockLoaderSizeScript
             );
+        }
+
+        static BlockLoader unmappedKeywordBlockLoader(String name, DefaultShardContext context) {
+            // restrict the _source read to this field's own paths so a single unmapped reference does not force a full _source load
+            Set<String> sourcePaths = context.ctx.isSourceEnabled() ? context.ctx.sourcePath(name) : Set.of();
+            return new UnmappedKeywordBlockLoader(name, sourcePaths, context.ctx.getIndexSettings().getIgnoredSourceFormat());
         }
 
         static MappedFieldType createUnmappedFieldType(String name, DefaultShardContext context) {

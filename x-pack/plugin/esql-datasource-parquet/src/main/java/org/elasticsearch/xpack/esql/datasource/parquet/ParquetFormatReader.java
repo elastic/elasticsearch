@@ -852,12 +852,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 // the same shape as the synchronous read path so callers see consistent errors.
                 throw newInvalidParquetFileException(object.path().toString(), e);
             }
-            // Best-effort seed of the unranged full footer so Phase-2 loadFooter / readRange
-            // can reuse this instance. Same key as loadFooter. Do not record footer_cache_misses
-            // here — that counter is a loadFooter lookup metric. If Phase-2 loadFooter still
-            // finds the seed, that lookup is recorded as a hit.
+            SourceMetadata metadata = buildFooterMetadata(object, footer);
+            // Seed only after a successful build so a failed integrity check does not occupy
+            // an LRU slot. Same key as loadFooter. Do not record footer_cache_misses here;
+            // that counter is a loadFooter lookup metric.
             PARSED_FOOTERS.put(cacheKey, footer);
-            return buildFooterMetadata(object, footer);
+            return metadata;
         }
     }
 

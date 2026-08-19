@@ -138,7 +138,7 @@ public final class ParsedFooterCache<T> {
      * Unlike {@link FooterByteCache#put}, insertion is not skipped by size; the count-based LRU
      * may evict later.
      *
-     * @throws IllegalArgumentException if {@code value} is null
+     * @throws IllegalArgumentException if {@code key} or {@code value} is null
      */
     public void put(FooterByteCache.Key key, T value) {
         if (key == null) {

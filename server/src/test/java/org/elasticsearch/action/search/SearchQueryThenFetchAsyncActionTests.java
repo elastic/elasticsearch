@@ -10,10 +10,13 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -25,32 +28,50 @@ import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -60,6 +81,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
@@ -932,6 +954,129 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
             assertThat(phase.numReducePhases(), greaterThanOrEqualTo(1));
             assertThat(phase.totalHits().value, equalTo(2L));
+        }
+    }
+
+    public void testBatchedNodeResponseExceptionReachesCoordinator() throws Exception {
+        assertSerializationExceptionReachesCoordinator(TransportVersion.current());
+    }
+
+    public void testBwcBuildResponseExceptionReachesCoordinator() throws Exception {
+        assertSerializationExceptionReachesCoordinator(TransportVersion.fromName("batched_query_phase_version"));
+    }
+
+    private void assertSerializationExceptionReachesCoordinator(TransportVersion channelVersion) throws Exception {
+        TestThreadPool threadPool = new TestThreadPool(getTestName());
+        var innerTransport = MockTransportService.newMockTransport(Settings.EMPTY, TransportVersion.current(), threadPool);
+        String nodeId = UUIDs.randomBase64UUID();
+        MockTransportService transport = new MockTransportService(
+            Settings.EMPTY,
+            innerTransport,
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> DiscoveryNodeUtils.builder(nodeId)
+                .address(boundAddress.publishAddress())
+                .version(VersionInformation.CURRENT)
+                .build(),
+            null,
+            Collections.emptySet()
+        );
+        ClusterService clusterService = new ClusterService(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool,
+            null
+        );
+        List<QuerySearchResult> resultsToRelease = Collections.synchronizedList(new ArrayList<>());
+        SearchService searchService = new SearchService(
+            clusterService,
+            null,
+            threadPool,
+            null,
+            null,
+            new RankFeatureShardPhase(),
+            new FetchPhase(Collections.emptyList()),
+            null,
+            new NoneCircuitBreakerService(),
+            EmptySystemIndices.INSTANCE.getExecutorSelector(),
+            Tracer.NOOP
+        ) {
+            @Override
+            public void executeQueryPhase(ShardSearchRequest req, CancellableTask task, ActionListener<SearchPhaseResult> listener) {
+                QuerySearchResult result = new QuerySearchResult(
+                    new ShardSearchContextId(UUIDs.randomBase64UUID(), 1),
+                    new SearchShardTarget(transport.getLocalNode().getId(), req.shardId(), null),
+                    null
+                );
+                result.topDocs(
+                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+                    new DocValueFormat[0]
+                );
+                result.from(0);
+                result.size(0);
+                resultsToRelease.add(result);
+                listener.onResponse(result);
+            }
+
+            @Override
+            public boolean freeReaderContext(ShardSearchContextId contextId) {
+                throw new RuntimeException("simulated freeReaderContext failure");
+            }
+        };
+        try {
+            transport.start();
+
+            SearchQueryThenFetchAsyncAction.registerNodeSearchAction(
+                new SearchTransportService(transport, null, null),
+                searchService,
+                new SearchPhaseController((t, r) -> InternalAggregationTestCase.emptyReduceContextBuilder()),
+                new NamedWriteableRegistry(List.of())
+            );
+
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.source(new SearchSourceBuilder().size(0));
+            searchRequest.allowPartialSearchResults(false);
+            var nodeQueryRequest = new SearchQueryThenFetchAsyncAction.NodeQueryRequest(searchRequest, 2, 0L, null);
+            nodeQueryRequest.shards.add(
+                new SearchQueryThenFetchAsyncAction.ShardToQuery(1.0f, new String[] { "idx" }, 0, new ShardId("idx", "uuid", 0), null)
+            );
+            nodeQueryRequest.shards.add(
+                new SearchQueryThenFetchAsyncAction.ShardToQuery(1.0f, new String[] { "idx" }, 1, new ShardId("idx", "uuid", 1), null)
+            );
+
+            CountDownLatch latch = new CountDownLatch(1);
+            TransportChannel channel = new TransportChannel() {
+                @Override
+                public String getProfileName() {
+                    return "";
+                }
+
+                @Override
+                public TransportVersion getVersion() {
+                    return channelVersion;
+                }
+
+                @Override
+                public void sendResponse(TransportResponse response) {}
+
+                @Override
+                public void sendResponse(Exception exception) {
+                    latch.countDown();
+                }
+            };
+
+            @SuppressWarnings("unchecked")
+            RequestHandlerRegistry<SearchQueryThenFetchAsyncAction.NodeQueryRequest> handler = (RequestHandlerRegistry<
+                SearchQueryThenFetchAsyncAction.NodeQueryRequest>) transport.getRequestHandler(
+                    SearchQueryThenFetchAsyncAction.NODE_SEARCH_ACTION_NAME
+                );
+            handler.processMessageReceived(nodeQueryRequest, channel);
+
+            boolean completed = latch.await(10, TimeUnit.SECONDS);
+            resultsToRelease.forEach(QuerySearchResult::decRef);
+            assertTrue("channel was not responded to within 10 seconds", completed);
+        } finally {
+            IOUtils.closeWhileHandlingException(searchService, clusterService, transport, threadPool);
         }
     }
 

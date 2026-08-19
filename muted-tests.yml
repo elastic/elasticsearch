@@ -367,18 +367,12 @@ tests:
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: initializationError
   issue: https://github.com/elastic/elasticsearch/issues/156737
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.highlight/70_number_of_fragments/number_of_fragments above the maximum should FAIL}
-  issue: https://github.com/elastic/elasticsearch/issues/156739
 - class: org.elasticsearch.join.ParentChildClientYamlTestSuiteIT
   method: test {yaml=/20_parent_join/join field named _type is not returned as root metadata}
   issue: https://github.com/elastic/elasticsearch/issues/156742
 - class: org.elasticsearch.join.ParentChildClientYamlTestSuiteIT
   method: test {yaml=/20_parent_join/keyword field named _type is not returned as root metadata}
   issue: https://github.com/elastic/elasticsearch/issues/156743
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.highlight/70_number_of_fragments/negative number_of_fragments should FAIL}
-  issue: https://github.com/elastic/elasticsearch/issues/155977
 
 # Examples:
 #

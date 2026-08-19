@@ -2614,7 +2614,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     fa.synthetic()
                 );
             }
-            // Drop coordinator-only conflict fields nested in a healthy parent's properties (dead weight that throws on transport).
+            // Neutralize coordinator-only conflict fields nested in a healthy parent's properties (they throw when the parent is
+            // transported).
             EsField cleaned = stripNestedConflicts(field);
             FieldAttribute attr = cleaned == field
                 ? fa
@@ -2631,24 +2632,38 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return attr.flagTypeConflicts();
         }
 
+        /**
+         * A conflict object nested in a healthy parent's {@code properties} throws when the parent serializes, so swap it for a
+         * transportable {@link UnsupportedEsField} instead of stripping the properties: a text parent resolves its exact keyword
+         * sub-field from this map on the data node ({@code TextEsField#getExactInfo}, used by Lucene pushdown), and the unsupported
+         * replacement keeps the conflict's original types for error messages. Healthy sub-fields are kept as-is (rebuilding the
+         * parent would downgrade an unsupported one and lose its original types), so the parent is rebuilt only when a nested
+         * conflict was actually replaced.
+         */
         private static EsField stripNestedConflicts(EsField field) {
             Map<String, EsField> properties = field.getProperties();
             if (properties == null || properties.isEmpty()) {
                 return field;
             }
-            Map<String, EsField> kept = new LinkedHashMap<>(properties.size());
+            Map<String, EsField> rewritten = new LinkedHashMap<>(properties.size());
             boolean changed = false;
             for (Map.Entry<String, EsField> entry : properties.entrySet()) {
                 EsField child = entry.getValue();
-                if (child instanceof InvalidMappedField || child instanceof InvalidMappedTsField) {
-                    changed = true;
-                    continue;
-                }
-                EsField cleanedChild = stripNestedConflicts(child);
-                kept.put(entry.getKey(), cleanedChild);
+                EsField cleanedChild = asTransportable(child);
+                rewritten.put(entry.getKey(), cleanedChild);
                 changed |= cleanedChild != child;
             }
-            return changed ? field.withProperties(kept) : field;
+            return changed ? field.withProperties(rewritten) : field;
+        }
+
+        private static EsField asTransportable(EsField field) {
+            if (field instanceof InvalidMappedField imf) {
+                return new UnsupportedEsField(imf.getName(), imf.getTypesToIndices().keySet().stream().toList());
+            }
+            if (field instanceof InvalidMappedTsField imtf) {
+                return new UnsupportedEsField(imtf.getName(), List.of());
+            }
+            return stripNestedConflicts(field);
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {

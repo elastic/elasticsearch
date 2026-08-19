@@ -1,0 +1,6 @@
+pr: 156980
+summary: Decouple type-check exactness from pushdown exactness for fused block-loader
+  functions
+area: ES|QL
+type: bug
+issues: []

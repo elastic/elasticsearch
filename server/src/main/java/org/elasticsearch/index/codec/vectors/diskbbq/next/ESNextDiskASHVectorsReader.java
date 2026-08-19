@@ -48,8 +48,18 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
     /** Default query quantization bits for ASH integer scoring (D2Q4). Set to 0 to use the float path. */
     static final int DEFAULT_ASH_QUERY_BITS_PER_DIM = 4;
 
+    private final int queryBitsPerDim;
+
     public ESNextDiskASHVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
         throws IOException {
+        this(state, getFormatReader, DEFAULT_ASH_QUERY_BITS_PER_DIM);
+    }
+
+    public ESNextDiskASHVectorsReader(
+        SegmentReadState state,
+        GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader,
+        int queryBitsPerDim
+    ) throws IOException {
         super(
             state,
             getFormatReader,
@@ -63,11 +73,13 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
             ESNextDiskASHVectorsFormat.DYNAMIC_VISIT_RATIO
         );
         this.ashMatrixCache = new ConcurrentHashMap<>();
+        this.queryBitsPerDim = queryBitsPerDim;
     }
 
     private ESNextDiskASHVectorsReader(ESNextDiskASHVectorsReader other, GenericFlatVectorReaders genericReaders) {
         super(other, genericReaders);
         this.ashMatrixCache = other.ashMatrixCache;
+        this.queryBitsPerDim = other.queryBitsPerDim;
     }
 
     @Override
@@ -255,7 +267,7 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
             indexInput,
             needsScoring,
             entry.ashBitsPerDim(),
-            DEFAULT_ASH_QUERY_BITS_PER_DIM,
+            queryBitsPerDim,
             centroidReader
         );
     }

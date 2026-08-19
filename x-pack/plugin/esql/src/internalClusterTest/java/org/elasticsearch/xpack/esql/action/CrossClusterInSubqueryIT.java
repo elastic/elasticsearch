@@ -71,7 +71,6 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase imple
 
     @Before
     public void checkCapabilityAndSetup() throws IOException {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         setupClusters(3);
         setupInSubqueryIndices();
         // Local view: red events from the local cluster (ids 1, 3, 5).
@@ -84,14 +83,6 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase imple
         );
         // Remote view stored on cluster-a for the rejection-guard test.
         createViewOnCluster(REMOTE_CLUSTER_1, "remote_events_view", "FROM events | LIMIT 1");
-    }
-
-    private static void checkSubqueryWithRowSupport() {
-        assumeTrue("Requires subquery with ROW as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
-    }
-
-    private static void checkSubqueryWithTSSupport() {
-        assumeTrue("Requires subquery with TS as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
     }
 
     // ---- SEMI join (top-level IN) ----
@@ -446,7 +437,6 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase imple
      * Union = {1,2,3,4,6}; {1,3,5} ∩ union = {1,3} → 2 rows.
      */
     public void testFromUnionInsideInSubquery() {
-        assumeTrue("Requires FROM-subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         try (EsqlQueryResponse resp = runQuery("""
             FROM events_red
             | WHERE id IN (
@@ -618,7 +608,6 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase imple
      * whether the ROW-based IN is folded to a literal filter or kept as a join.
      */
     public void testRowLookupJoinInsideAndAfterWhereInSubquery() {
-        checkSubqueryWithRowSupport();
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
 
@@ -656,8 +645,6 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase imple
      * source, and {@code cluster-a} for a TS source.
      */
     public void testMissingLookupIndexInsideWhereInSubquery() {
-        checkSubqueryWithRowSupport();
-        checkSubqueryWithTSSupport();
         setupTsMetricsIndex(REMOTE_CLUSTER_1, "cluster-a");
 
         // ROW source -> lookup scoped to the local cluster
@@ -704,8 +691,6 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase imple
      * missing-index error names only the outer cluster(s) - never the IN-subquery's ROW (local) or remote-b source.
      */
     public void testMissingLookupIndexAfterWhereInSubquery() {
-        checkSubqueryWithRowSupport();
-        checkSubqueryWithTSSupport();
         setupTsMetricsIndex(REMOTE_CLUSTER_1, "cluster-a");
 
         // ROW IN-subquery + lookup after -> scoped to the outer cluster-a only (the ROW filter does not add the local cluster)
@@ -840,7 +825,6 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase imple
      * events with {@code tag == "cluster-a"} match, yielding 6 rows.
      */
     public void testTsSourceInSubquery() {
-        checkSubqueryWithTSSupport();
         setupTsMetricsIndex(REMOTE_CLUSTER_1, "cluster-a");
         try (EsqlQueryResponse resp = runQuery("""
             FROM *:events
@@ -867,7 +851,6 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase imple
      * Events where id == 1 (one per cluster) are returned.
      */
     public void testRowSourceInSubquery() {
-        checkSubqueryWithRowSupport();
         try (EsqlQueryResponse resp = runQuery("""
             FROM *:events, events
             | WHERE id IN (ROW id = 1 | KEEP id)
@@ -1312,6 +1295,223 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase imple
             deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich_b");
             deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich_c");
             clearSkipUnavailable(3);
+        }
+    }
+
+    // ---- INLINE STATS WHERE IN / NOT IN subquery across clusters ----
+
+    /**
+     * INLINE STATS WHERE IN with outer FROM spanning both remotes and subquery on the local cluster.
+     * The subquery returns red ids {1,3,5}; both remotes have 3 matching rows each → count = 6.
+     * Every row in the result carries c = 6.
+     */
+    public void testInlineStatsWhereInFromOuterLocalSubquery() {
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:events
+            | INLINE STATS c = COUNT(*) WHERE id IN (FROM events | WHERE color == "red" | KEEP id)
+            | STATS max_c = MAX(c) BY tag
+            | SORT tag
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(2));
+            assertEquals(List.of(6L, REMOTE_CLUSTER_1), values.get(0));
+            assertEquals(List.of(6L, REMOTE_CLUSTER_2), values.get(1));
+            // subquery is local-only (1 shard); main plan hits both remotes each with 1 shard
+            assertCCSExecutionInfoDetailsWithShards(
+                resp.getExecutionInfo(),
+                Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1)
+            );
+        }
+    }
+
+    /**
+     * INLINE STATS WHERE NOT IN with outer FROM spanning both remotes and subquery on the local cluster.
+     * The subquery returns red ids {1,3,5}; the NOT IN count is the 3 blue rows per remote → 6 total.
+     */
+    public void testInlineStatsWhereNotInFromOuterLocalSubquery() {
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:events
+            | INLINE STATS c = COUNT(*) WHERE id NOT IN (FROM events | WHERE color == "red" | KEEP id)
+            | STATS max_c = MAX(c) BY tag
+            | SORT tag
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(2));
+            assertEquals(List.of(6L, REMOTE_CLUSTER_1), values.get(0));
+            assertEquals(List.of(6L, REMOTE_CLUSTER_2), values.get(1));
+            // subquery is local-only (1 shard); main plan hits both remotes each with 1 shard
+            assertCCSExecutionInfoDetailsWithShards(
+                resp.getExecutionInfo(),
+                Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1)
+            );
+        }
+    }
+
+    /**
+     * INLINE STATS WHERE IN with local outer FROM and subquery on a remote cluster.
+     * The subquery on cluster-a returns red ids {1,3,5}; local events have 3 matching rows → c = 3.
+     */
+    public void testInlineStatsWhereInLocalOuterRemoteSubquery() {
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM events
+            | INLINE STATS c = COUNT(*) WHERE id IN (FROM cluster-a:events | WHERE color == "red" | KEEP id)
+            | STATS max_c = MAX(c)
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(1));
+            assertEquals(List.of(3L), values.get(0));
+            // subquery hits cluster-a (1 shard); main plan is local-only (1 shard)
+            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1));
+        }
+    }
+
+    /**
+     * INLINE STATS WHERE IN with outer FROM spanning all three clusters and a ROW subquery.
+     * ROW produces id = 1; one row per cluster matches → count = 3 across all clusters.
+     */
+    public void testInlineStatsWhereInFromOuterRowSubquery() {
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:events, events
+            | INLINE STATS c = COUNT(*) WHERE id IN (ROW id = 1 | KEEP id)
+            | STATS max_c = MAX(c) BY tag
+            | SORT tag
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(3));
+            assertEquals(List.of(3L, REMOTE_CLUSTER_1), values.get(0));
+            assertEquals(List.of(3L, "local"), values.get(1));
+            assertEquals(List.of(3L, REMOTE_CLUSTER_2), values.get(2));
+            // ROW subplan touches no remote clusters; all shard counts come from the main plan
+            assertCCSExecutionInfoDetailsWithShards(
+                resp.getExecutionInfo(),
+                Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1)
+            );
+        }
+    }
+
+    /**
+     * INLINE STATS WHERE NOT IN with outer FROM spanning both remotes and a ROW subquery.
+     * ROW produces id = 1; NOT IN {1} matches 5 rows per remote → count = 10.
+     */
+    public void testInlineStatsWhereNotInFromOuterRowSubquery() {
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:events
+            | INLINE STATS c = COUNT(*) WHERE id NOT IN (ROW id = 1 | KEEP id)
+            | STATS max_c = MAX(c) BY tag
+            | SORT tag
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(2));
+            assertEquals(List.of(10L, REMOTE_CLUSTER_1), values.get(0));
+            assertEquals(List.of(10L, REMOTE_CLUSTER_2), values.get(1));
+            // ROW subplan touches no clusters; main plan hits both remotes each with 1 shard
+            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1));
+        }
+    }
+
+    /**
+     * INLINE STATS WHERE IN with outer FROM spanning both remotes and a TS subquery on cluster-a.
+     * The subquery aggregates ts_metrics and returns cluster = "cluster-a"; the IN count is the
+     * 6 rows from cluster-a in {@code *:events} whose tag equals that dimension value.
+     */
+    public void testInlineStatsWhereInFromOuterTsSubquery() {
+        setupTsMetricsIndex(REMOTE_CLUSTER_1, "cluster-a");
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:events
+            | INLINE STATS c = COUNT(*) WHERE tag IN (
+                TS cluster-a:ts_metrics
+                | STATS top_bytes = MAX(max_bytes) BY cluster
+                | KEEP cluster
+              )
+            | STATS max_c = MAX(c) BY tag
+            | SORT tag
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(2));
+            // tag IN {"cluster-a"}: 6 rows from cluster-a in *:events (12 total) → c = 6
+            assertEquals(List.of(6L, REMOTE_CLUSTER_1), values.get(0));
+            assertEquals(List.of(6L, REMOTE_CLUSTER_2), values.get(1));
+            // subplan queries cluster-a:ts_metrics (1 shard); main plan queries both remote events indices
+            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1));
+        }
+    }
+
+    /**
+     * INLINE STATS WHERE NOT IN with outer FROM spanning all three clusters and a TS subquery on cluster-a.
+     * The subquery returns cluster = "cluster-a"; NOT IN {"cluster-a"} matches the 6 local rows
+     * plus the 6 remote-b rows → count = 12 for every row in the result.
+     */
+    public void testInlineStatsWhereNotInAllClustersOuterTsSubquery() {
+        setupTsMetricsIndex(REMOTE_CLUSTER_1, "cluster-a");
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:events, events
+            | INLINE STATS c = COUNT(*) WHERE tag NOT IN (
+                TS cluster-a:ts_metrics
+                | STATS top_bytes = MAX(max_bytes) BY cluster
+                | KEEP cluster
+              )
+            | STATS max_c = MAX(c) BY tag
+            | SORT tag
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(3));
+            // NOT IN {"cluster-a"}: local (6) + remote-b (6) = 12 rows → c = 12
+            assertEquals(List.of(12L, REMOTE_CLUSTER_1), values.get(0));
+            assertEquals(List.of(12L, "local"), values.get(1));
+            assertEquals(List.of(12L, REMOTE_CLUSTER_2), values.get(2));
+            // subplan queries cluster-a:ts_metrics (1 shard); main plan hits all three clusters (1 shard each)
+            assertCCSExecutionInfoDetailsWithShards(
+                resp.getExecutionInfo(),
+                Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1)
+            );
+        }
+    }
+
+    /**
+     * INLINE STATS WHERE IN with TS as the outer source and a ROW subquery.
+     * TS cluster-a:ts_metrics → after STATS BY cluster: one row {cluster="cluster-a", mb=2000}.
+     * ROW returns {"cluster-a"}; the single TS row's cluster matches → c = 1.
+     */
+    public void testInlineStatsWhereInTsOuterRowSubquery() {
+        setupTsMetricsIndex(REMOTE_CLUSTER_1, "cluster-a");
+        try (EsqlQueryResponse resp = runQuery("""
+            TS cluster-a:ts_metrics
+            | STATS mb = MAX(max_bytes) BY cluster
+            | INLINE STATS c = COUNT(*) WHERE cluster IN (ROW cluster = "cluster-a")
+            | KEEP cluster, c
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(1));
+            assertEquals(List.of("cluster-a", 1L), values.get(0));
+            // TS main plan queries cluster-a:ts_metrics (1 shard); ROW subplan touches no clusters
+            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1));
+        }
+    }
+
+    /**
+     * INLINE STATS WHERE NOT IN with TS as the outer source and a FROM subquery on the local cluster.
+     * TS cluster-a:ts_metrics → one row with cluster="cluster-a". The subquery on the local cluster
+     * returns tag="local" (renamed to cluster). NOT IN {"local"}: the single TS row qualifies → c = 1.
+     */
+    public void testInlineStatsWhereNotInTsOuterLocalFromSubquery() {
+        setupTsMetricsIndex(REMOTE_CLUSTER_1, "cluster-a");
+        try (EsqlQueryResponse resp = runQuery("""
+            TS cluster-a:ts_metrics
+            | STATS mb = MAX(max_bytes) BY cluster
+            | INLINE STATS c = COUNT(*) WHERE cluster NOT IN (
+                FROM events
+                | WHERE color == "blue"
+                | EVAL cluster = tag
+                | KEEP cluster
+              )
+            | KEEP cluster, c
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(1));
+            // cluster-a NOT IN {"local"} → the single TS STATS row passes → c = 1
+            assertEquals(List.of("cluster-a", 1L), values.get(0));
+            // TS main plan queries cluster-a:ts_metrics (1 shard); subquery hits local events (1 shard)
+            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1));
         }
     }
 

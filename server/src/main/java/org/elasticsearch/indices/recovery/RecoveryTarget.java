@@ -480,7 +480,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             // to recover from in case of a full cluster shutdown just when this code executes...
             multiFileWriter.renameAllTempFiles();
             final Store store = store();
-            // covered by RecoveryTarget store ref.
+            // covered by the RecoveryTarget store ref.
             assert store.hasReferences();
             try {
                 if (indexShard.routingEntry().isPromotableToPrimary()) {
@@ -600,7 +600,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private static void bootstrap(final IndexShard indexShard, long globalCheckpoint) throws IOException {
         assert indexShard.routingEntry().isPromotableToPrimary();
         final var store = indexShard.store();
-        //
         assert store.hasReferences();
         final var translogLocation = indexShard.shardPath().resolveTranslog();
         if (indexShard.hasTranslog() == false) {

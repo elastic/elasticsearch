@@ -130,6 +130,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:UNMAPPED_FIELDS_LOAD}
   issue: https://github.com/elastic/elasticsearch/issues/148619
+- class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
+  method: testRetainCommitForReadersAfterShardMovedAway
+  issue: https://github.com/elastic/elasticsearch/issues/149083
 - class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
   method: testRightClosedBucketIsNotSubstituted
   issue: https://github.com/elastic/elasticsearch/issues/149133

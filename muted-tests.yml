@@ -744,8 +744,6 @@ tests:
 - class: org.elasticsearch.xpack.core.transform.action.ResetTransformActionRequestTests
   method: testCloudCredentialRoundTripPreservesValue
   issue: https://github.com/elastic/elasticsearch/issues/156851
-- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/156852
 - class: org.elasticsearch.cluster.action.shard.ShardStartedTaskExecutorTests
   issue: https://github.com/elastic/elasticsearch/issues/156853
 - class: org.elasticsearch.common.util.BigArraysTests
@@ -817,3 +815,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=snapshot.restore/10_basic/Create a snapshot and then restore single index from it}
   issue: https://github.com/elastic/elasticsearch/issues/157065
+- class: org.elasticsearch.xpack.stateless.engine.IndexEngineTests
+  method: testHollowEngineWithConcurrentNonHollowFlush
+  issue: https://github.com/elastic/elasticsearch/issues/157095

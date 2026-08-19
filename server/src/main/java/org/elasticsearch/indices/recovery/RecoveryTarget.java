@@ -520,8 +520,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 RecoveryFailedException rfe = new RecoveryFailedException(state(), "failed to clean after recovery", ex);
                 fail(rfe, true);
                 throw rfe;
-            } finally {
-                store.decRef();
             }
             return null;
         });

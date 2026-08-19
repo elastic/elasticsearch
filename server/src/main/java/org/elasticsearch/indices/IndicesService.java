@@ -1007,8 +1007,8 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
         // Take a store ref when the recovery task actually runs, and release it before invoking the recovery listener
-        // to avoid conflicting with a concurrent shard closure. If the shard is closed, the recovery will notice and
-        // call the listener (which will dec the ref).
+        // to avoid conflicting with a concurrent shard closure. If the shard is already closed when the task runs,
+        // recovery is aborted early and no ref is taken.
         final var store = indexShard.store();
         final var storeRefHeld = new AtomicBoolean();
         final Runnable releaseStoreRefIfHeld = () -> {

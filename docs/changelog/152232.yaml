@@ -1,6 +1,6 @@
 area: Ingest Node
 breaking:
-  area: Ingest Node
+  area: Ingest
   details: >-
     Elasticsearch now bounds how much enrich policy data a cluster can accumulate. Enrich policies are stored in the cluster state, which
     is held in heap on every node and reserialized on every cluster state update, so an unbounded or oversized set of policies can

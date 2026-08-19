@@ -5,4 +5,5 @@
 | from | to | result |
 | --- | --- | --- |
 | date | date | date_range |
+| double | double | double_range |
 

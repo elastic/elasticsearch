@@ -9,15 +9,19 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.indices.recovery.RecoveryGate.Decision;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.indices.recovery.RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RecoveryGateMonitorTests extends ESTestCase {
@@ -87,7 +91,7 @@ public class RecoveryGateMonitorTests extends ESTestCase {
         final var monitor = new RecoveryGateMonitor(() -> {
             resolutions.incrementAndGet();
             return List.of(() -> Decision.RUN);
-        }, new DeterministicTaskQueue().getThreadPool());
+        }, new DeterministicTaskQueue().getThreadPool(), clusterSettingsWithGatesEnabled());
 
         assertThat("supplier must not be resolved at construction", resolutions.get(), equalTo(0));
         for (int i = between(1, 3); i > 0; i--) {
@@ -160,11 +164,71 @@ public class RecoveryGateMonitorTests extends ESTestCase {
         assertFalse(taskQueue.hasDeferredTasks());
     }
 
+    public void testGatesAreNotConsultedByDefault() {
+        // Gates are off by default: recoveries are always allowed and the gates are not consulted, not even resolved.
+        final var monitor = new RecoveryGateMonitor(
+            () -> { throw new AssertionError("gates must not be resolved while the gates are disabled"); },
+            new DeterministicTaskQueue().getThreadPool(),
+            ClusterSettings.createBuiltInClusterSettings()
+        );
+        for (int i = between(1, 3); i > 0; i--) {
+            assertTrue(monitor.evaluate().mayRun());
+        }
+    }
+
+    public void testGatesEnabledSettingUpdatesDynamically() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(ENABLE_RECOVERY_GATES_SETTING));
+        final var monitor = new RecoveryGateMonitor(
+            () -> List.of(() -> Decision.block(randomIdentifier(), randomAlphaOfLengthBetween(5, 30))),
+            taskQueue.getThreadPool(),
+            clusterSettings
+        );
+        assertTrue("gates are disabled by default", monitor.evaluate().mayRun());
+
+        clusterSettings.applySettings(Settings.builder().put(ENABLE_RECOVERY_GATES_SETTING.getKey(), true).build());
+        assertFalse(monitor.evaluate().mayRun());
+
+        // Resetting the setting disables the gates again.
+        clusterSettings.applySettings(Settings.EMPTY);
+        assertTrue(monitor.evaluate().mayRun());
+    }
+
+    public void testDisablingGatesReleasesWaitingCallbacks() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var clusterSettings = clusterSettingsWithGatesEnabled();
+        final var monitor = new RecoveryGateMonitor(
+            () -> List.of(() -> Decision.block(randomIdentifier(), randomAlphaOfLengthBetween(5, 30))),
+            taskQueue.getThreadPool(),
+            clusterSettings
+        );
+
+        final AtomicInteger fired = new AtomicInteger();
+        monitor.addCallback(RecoveryGate.Outcome.RUN, fired::incrementAndGet);
+        taskQueue.runAllRunnableTasks();
+        assertThat(fired.get(), equalTo(0));
+        assertTrue("waiting callback starts the periodic recheck", taskQueue.hasDeferredTasks());
+
+        // Disabling the gates is noticed by the next periodic recheck, which fires the waiting callback and stops rescheduling.
+        clusterSettings.applySettings(Settings.builder().put(ENABLE_RECOVERY_GATES_SETTING.getKey(), false).build());
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
+        assertThat(fired.get(), equalTo(1));
+        assertFalse(taskQueue.hasDeferredTasks());
+    }
+
     private static RecoveryGateMonitor newMonitor(DeterministicTaskQueue taskQueue, AtomicReference<Decision> decision) {
         return newMonitor(taskQueue, List.of(decision::get));
     }
 
     private static RecoveryGateMonitor newMonitor(DeterministicTaskQueue taskQueue, List<RecoveryGate> gateList) {
-        return new RecoveryGateMonitor(() -> gateList, taskQueue.getThreadPool());
+        return new RecoveryGateMonitor(() -> gateList, taskQueue.getThreadPool(), clusterSettingsWithGatesEnabled());
+    }
+
+    private static ClusterSettings clusterSettingsWithGatesEnabled() {
+        return new ClusterSettings(
+            Settings.builder().put(ENABLE_RECOVERY_GATES_SETTING.getKey(), true).build(),
+            Set.of(ENABLE_RECOVERY_GATES_SETTING)
+        );
     }
 }

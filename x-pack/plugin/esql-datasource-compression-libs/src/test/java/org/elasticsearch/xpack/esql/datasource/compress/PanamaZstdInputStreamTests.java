@@ -378,10 +378,7 @@ public class PanamaZstdInputStreamTests extends ESTestCase {
     public void testConstructionChargeTripsBreaker() throws IOException {
         byte[] compressed = compress(randomBytesForCompression(1024));
         UsedBytesCircuitBreaker breaker = new UsedBytesCircuitBreaker(1L);
-        expectThrows(
-            CircuitBreakingException.class,
-            () -> new PanamaZstdInputStream(new ByteArrayInputStream(compressed), zstd, breaker)
-        );
+        expectThrows(CircuitBreakingException.class, () -> new PanamaZstdInputStream(new ByteArrayInputStream(compressed), zstd, breaker));
         assertEquals(0L, breaker.getUsed());
     }
 

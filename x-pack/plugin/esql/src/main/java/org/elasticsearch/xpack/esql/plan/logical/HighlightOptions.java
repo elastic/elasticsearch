@@ -216,11 +216,15 @@ public record HighlightOptions(
         if (value == null) {
             return defaultValue;
         }
-        int intValue = integral(name, value.fold(foldContext));
-        if (intValue < 0) {
-            throw new IllegalArgumentException("Option [" + name + "] must be >= 0, found [" + intValue + "]");
+        Object folded = value.fold(foldContext);
+        long longValue = integral(name, folded);
+        if (longValue < 0) {
+            throw new IllegalArgumentException("Option [" + name + "] must be >= 0, found [" + folded + "]");
         }
-        return intValue;
+        if (longValue > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Option [" + name + "] must be <= " + Integer.MAX_VALUE + ", found [" + folded + "]");
+        }
+        return (int) longValue;
     }
 
     /**
@@ -232,18 +236,19 @@ public record HighlightOptions(
         if (value == null) {
             return DEFAULT_MAX_ANALYZED_OFFSET;
         }
-        int intValue = integral(name, value.fold(foldContext));
-        if (intValue < -1 || intValue == 0) {
-            throw new IllegalArgumentException("Option [" + name + "] must be a positive integer, or -1, found [" + intValue + "]");
+        Object folded = value.fold(foldContext);
+        long longValue = integral(name, folded);
+        if (longValue < -1 || longValue == 0) {
+            throw new IllegalArgumentException("Option [" + name + "] must be a positive integer, or -1, found [" + folded + "]");
         }
-        return intValue;
+        if (longValue > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Option [" + name + "] must be <= " + Integer.MAX_VALUE + ", found [" + folded + "]");
+        }
+        return (int) longValue;
     }
 
-    /**
-     * Extracts an int from a folded numeric option, rejecting non-numbers and fractional values (e.g. {@code 0.9})
-     * rather than silently truncating them.
-     */
-    private static int integral(String name, Object folded) {
+    /** Extracts a long from a numeric option without silently truncating fractional values. */
+    private static long integral(String name, Object folded) {
         if (folded instanceof Number number) {
             if (number instanceof Float || number instanceof Double) {
                 double doubleValue = number.doubleValue();
@@ -251,7 +256,7 @@ public record HighlightOptions(
                     throw new IllegalArgumentException("Option [" + name + "] must be an integer, found [" + folded + "]");
                 }
             }
-            return number.intValue();
+            return number.longValue();
         }
         throw new IllegalArgumentException("Option [" + name + "] must be numeric, found [" + folded + "]");
     }

@@ -778,7 +778,7 @@ public class EscfCursorsTests extends ESTestCase {
         return new BytesArray(bytes);
     }
 
-    public void testLongValueAtDense() {
+    public void testGetLongValueDense() {
         var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         b.addLong(10);
         b.addLong(20);
@@ -786,12 +786,12 @@ public class EscfCursorsTests extends ESTestCase {
         EscfLongColumn col = (EscfLongColumn) EscfColumn.from(b.finish(3));
 
         assertNull("dense column has no validity bitset", col.toColumnData().validity());
-        assertEquals(10L, col.longValueAt(0));
-        assertEquals(20L, col.longValueAt(1));
-        assertEquals(30L, col.longValueAt(2));
+        assertEquals(10L, col.getLongValue(0));
+        assertEquals(20L, col.getLongValue(1));
+        assertEquals(30L, col.getLongValue(2));
     }
 
-    public void testLongValueAtSparse() {
+    public void testGetLongValueSparse() {
         // Docs: [10, absent, 30]
         var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         b.addLong(10);
@@ -802,11 +802,11 @@ public class EscfCursorsTests extends ESTestCase {
         assertTrue(col.isPresent(0));
         assertFalse(col.isPresent(1));
         assertTrue(col.isPresent(2));
-        assertEquals(10L, col.longValueAt(0));
-        assertEquals(30L, col.longValueAt(2));
+        assertEquals(10L, col.getLongValue(0));
+        assertEquals(30L, col.getLongValue(2));
     }
 
-    public void testLongValueAtBoundaryValues() {
+    public void testGetLongValueBoundaryValues() {
         var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         b.addLong(Long.MIN_VALUE);
         b.addLong(-1L);
@@ -815,11 +815,11 @@ public class EscfCursorsTests extends ESTestCase {
         b.addLong(Long.MAX_VALUE);
         EscfLongColumn col = (EscfLongColumn) EscfColumn.from(b.finish(5));
 
-        assertEquals(Long.MIN_VALUE, col.longValueAt(0));
-        assertEquals(-1L, col.longValueAt(1));
-        assertEquals(0L, col.longValueAt(2));
-        assertEquals(1L, col.longValueAt(3));
-        assertEquals(Long.MAX_VALUE, col.longValueAt(4));
+        assertEquals(Long.MIN_VALUE, col.getLongValue(0));
+        assertEquals(-1L, col.getLongValue(1));
+        assertEquals(0L, col.getLongValue(2));
+        assertEquals(1L, col.getLongValue(3));
+        assertEquals(Long.MAX_VALUE, col.getLongValue(4));
     }
 
     /** Packs a long array into little-endian bytes suitable for {@link EscfColumnData#ofFixed64}. */

@@ -32,11 +32,7 @@ public final class EscfLongColumn extends AbstractFixed64Column {
     }
 
     @Override
-    long getLongValue(int row) {
-        return rawLong(row);
-    }
-
-    public long longValueAt(int row) {
+    public long getLongValue(int row) {
         return rawLong(row);
     }
 

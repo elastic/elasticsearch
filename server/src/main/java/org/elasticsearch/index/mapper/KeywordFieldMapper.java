@@ -972,7 +972,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                     indexedValueForSearch(value).utf8ToString(),
                     syntaxFlags,
                     matchFlags,
-                    maxDeterminizedStates
+                    maxDeterminizedStates,
+                    context.getCircuitBreaker()
                 );
             }
         }

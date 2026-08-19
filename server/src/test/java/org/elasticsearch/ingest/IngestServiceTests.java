@@ -1247,6 +1247,72 @@ public class IngestServiceTests extends ESTestCase {
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
+    public void testExecuteSelfReferenceFailures() {
+        Processor.Factory selfRefProcessor = (factories, tag, description, config) -> {
+            boolean ingestMetadata = Boolean.TRUE.equals(config.remove("ingest_metadata"));
+            return new FakeProcessor("self_ref", tag, description, ingestDocument -> {
+                Map<String, Object> selfReference = new HashMap<>();
+                selfReference.put("self", selfReference);
+                if (ingestMetadata) {
+                    ingestDocument.getIngestMetadata().put("self", selfReference);
+                } else {
+                    ingestDocument.setFieldValue("self", selfReference);
+                }
+                ingestDocument.doNoSelfReferencesCheck(true);
+            });
+        };
+        IngestService ingestService = createWithProcessors(Map.of("self_ref", selfRefProcessor));
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousClusterState = clusterState;
+        clusterState = executePut(
+            new PutPipelineRequest("source_self_ref", new BytesArray("{\"processors\": [{\"self_ref\" : {}}]}"), XContentType.JSON),
+            clusterState
+        );
+        clusterState = executePut(
+            new PutPipelineRequest(
+                "ingest_metadata_self_ref",
+                new BytesArray("{\"processors\": [{\"self_ref\" : {\"ingest_metadata\": true}}]}"),
+                XContentType.JSON
+            ),
+            clusterState
+        );
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest("_index").id("_id1").source(Map.of()).setPipeline("source_self_ref").setFinalPipeline("_none"));
+        bulkRequest.add(
+            new IndexRequest("_index").id("_id2").source(Map.of()).setPipeline("ingest_metadata_self_ref").setFinalPipeline("_none")
+        );
+        boolean[] failures = new boolean[2];
+        List<String> expectedMessages = List.of(
+            "Iterable object is self-referencing itself (source document)",
+            "Iterable object is self-referencing itself (ingest metadata)"
+        );
+        final TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> failureHandler = (slot, e, status) -> {
+            failures[slot] = true;
+            assertThat(e, instanceOf(IngestPipelineException.class));
+            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(e.getCause().getCause().getMessage(), equalTo(expectedMessages.get(slot)));
+            assertThat(status, equalTo(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN));
+        };
+        @SuppressWarnings("unchecked")
+        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        ingestService.executeBulkRequest(
+            bulkRequest.numberOfActions(),
+            bulkRequest.requests(),
+            indexReq -> {},
+            s -> null,
+            (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
+            failureHandler,
+            completionHandler,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
+        assertTrue(failures[0]);
+        assertTrue(failures[1]);
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+    }
+
     public void testDynamicTemplates() throws Exception {
         IngestService ingestService = createWithProcessors(
             Map.of(

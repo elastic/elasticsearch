@@ -8,19 +8,25 @@
  */
 package org.elasticsearch.action.admin.cluster.state;
 
+import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
@@ -28,17 +34,16 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
@@ -155,21 +160,14 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
     public void runRepeatedlyWhileChangingMaster(Runnable runnable) throws Exception {
         internalCluster().startNodes(3);
 
-        assertBusy(
-            () -> assertThat(
-                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
-                    .clear()
-                    .setMetadata(true)
-                    .setBlocks(true)
-                    .get()
-                    .getState()
-                    .getLastCommittedConfiguration()
-                    .getNodeIds()
-                    .stream()
-                    .filter(n -> ClusterBootstrapService.isBootstrapPlaceholder(n) == false)
-                    .collect(Collectors.toSet()),
-                hasSize(3)
-            )
+        ClusterServiceUtils.awaitClusterState(
+            cs -> cs.getLastCommittedConfiguration()
+                .getNodeIds()
+                .stream()
+                .filter(Predicate.not(ClusterBootstrapService::isBootstrapPlaceholder))
+                .collect(Collectors.toSet())
+                .size() == 3,
+            internalCluster().getInstance(ClusterService.class)
         );
 
         final String masterName = internalCluster().getMasterName();
@@ -180,30 +178,83 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
                 runnable.run();
             }
         }, "asserting thread");
+        assertingThread.start();
 
-        final Thread updatingThread = new Thread(() -> {
-            String value = "none";
-            while (shutdown.get() == false) {
-                value = "none".equals(value) ? "all" : "none";
-                final String nonMasterNode = randomValueOtherThan(masterName, () -> randomFrom(internalCluster().getNodeNames()));
-                assertAcked(
-                    client(nonMasterNode).admin()
-                        .cluster()
-                        .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-                        .setPersistentSettings(Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), value))
-                );
+        final var oldMasterUpdatesCompletedLatch = new CountDownLatch(between(1, 5));
+        final var updatesCompleteLatch = new CountDownLatch(1);
+        final var newMasterElectedLatch = new CountDownLatch(1);
+        final var newMasterUpdatesCompletedLatch = new CountDownLatch(between(1, 5));
+        try (
+            var updatesRunningRefs = new RefCountingRunnable(updatesCompleteLatch::countDown);
+            var awaitingNewMasterRefs = new RefCountingRunnable(newMasterElectedLatch::countDown)
+        ) {
+            for (var clusterService : internalCluster().getInstances(ClusterService.class)) {
+                class UpdateTask {
+
+                    private final Releasable awaitingNewMasterRef = awaitingNewMasterRefs.acquire();
+                    private final Releasable updatesRunningRef = updatesRunningRefs.acquire();
+                    private final boolean isOriginalMaster = clusterService.localNode().getName().equals(masterName);
+
+                    public void start() {
+                        ClusterServiceUtils.addTemporaryStateListener(
+                            clusterService,
+                            isOriginalMaster
+                                ? state -> state.nodes().getMasterNode() == null
+                                : state -> Optional.ofNullable(state.nodes().getMasterNode())
+                                    .map(n -> masterName.equals(n.getName()) == false)
+                                    .orElse(false)
+                                    && state.nodes().stream().noneMatch(n -> n.getName().equals(masterName))
+                        ).addListener(ActionTestUtils.assertNoFailureListener(v -> awaitingNewMasterRef.close()));
+
+                        submitLoopingUpdateTask();
+                    }
+
+                    public void submitLoopingUpdateTask() {
+                        if (shutdown.get()) {
+                            updatesRunningRef.close();
+                            return;
+                        }
+
+                        clusterService.submitUnbatchedStateUpdateTask("test update", new ClusterStateUpdateTask() {
+                            @Override
+                            public ClusterState execute(ClusterState currentState) {
+                                // perform a no-op update of the Metadata, forcing a new version and triggering a publication
+                                return ClusterState.builder(currentState)
+                                    .metadata(Metadata.builder(currentState.metadata()).build())
+                                    .build();
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                if (MasterService.isPublishFailureException(e)) {
+                                    submitLoopingUpdateTask();
+                                } else {
+                                    fail(e);
+                                }
+                            }
+
+                            @Override
+                            public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                                assertThat(newState.metadata().version(), greaterThan(initialState.metadata().version()));
+                                (isOriginalMaster ? oldMasterUpdatesCompletedLatch : newMasterUpdatesCompletedLatch).countDown();
+                                submitLoopingUpdateTask();
+                            }
+                        });
+                    }
+                }
+
+                new UpdateTask().start();
             }
-        }, "updating thread");
+        }
 
         final List<MockTransportService> mockTransportServices = StreamSupport.stream(
             internalCluster().getInstances(TransportService.class).spliterator(),
             false
-        ).map(ts -> (MockTransportService) ts).toList();
-
-        assertingThread.start();
-        updatingThread.start();
+        ).map(ts -> asInstanceOf(MockTransportService.class, ts)).toList();
 
         final var masterTransportService = MockTransportService.getInstance(masterName);
+
+        safeAwait(oldMasterUpdatesCompletedLatch);
 
         for (final var mockTransportService : mockTransportServices) {
             if (masterTransportService != mockTransportService) {
@@ -212,15 +263,11 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
             }
         }
 
-        assertBusy(() -> {
-            final String nonMasterNode = randomValueOtherThan(masterName, () -> randomFrom(internalCluster().getNodeNames()));
-            final String claimedMasterName = internalCluster().getMasterName(nonMasterNode);
-            assertThat(claimedMasterName, not(equalTo(masterName)));
-        });
-
+        safeAwait(newMasterElectedLatch);
+        safeAwait(newMasterUpdatesCompletedLatch);
         shutdown.set(true);
         assertingThread.join();
-        updatingThread.join();
+        safeAwait(updatesCompleteLatch);
         internalCluster().close();
     }
 

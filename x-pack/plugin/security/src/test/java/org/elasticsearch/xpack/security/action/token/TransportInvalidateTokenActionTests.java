@@ -38,7 +38,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.time.Clock;
-import java.util.Collections;
 
 import static org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest.Type.ACCESS_TOKEN;
 import static org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest.Type.REFRESH_TOKEN;
@@ -97,7 +96,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
         );
         final TransportInvalidateTokenAction action = new TransportInvalidateTokenAction(
             transportService,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             tokenService
         );
 
@@ -146,7 +145,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
         );
         final TransportInvalidateTokenAction action = new TransportInvalidateTokenAction(
             transportService,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             tokenService
         );
 

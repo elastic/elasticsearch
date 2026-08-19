@@ -10,6 +10,11 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
@@ -124,9 +129,12 @@ public class DelayableWriteableTests extends ESTestCase {
     }
 
     public void testRoundTripFromDelayed() throws IOException {
-        Example e = new Example(randomAlphaOfLength(5));
+        Example e = new Example(randomAlphaOfLengthBetween(100, 1000));
         DelayableWriteable<Example> original = DelayableWriteable.referencing(e).asSerialized(Example::new, writableRegistry());
         assertTrue(original.isSerialized());
+        long length = DelayableWriteable.getSerializedSize(e);
+        long page = PageCacheRecycler.BYTE_PAGE_SIZE;
+        assertThat(original.getSerializedSize(), equalTo(((length + page - 1) / page) * page));
         roundTripTestCase(original, Example::new);
     }
 
@@ -163,6 +171,26 @@ public class DelayableWriteableTests extends ESTestCase {
         DelayableWriteable<Example> d = DelayableWriteable.referencing(e).asSerialized(Example::new, writableRegistry());
         assertTrue(d.isSerialized());
         assertSame(d, d.asSerialized(Example::new, writableRegistry()));
+    }
+
+    public void testPageAlignedRamUsedByReferenceBytes() {
+        final int page = PageCacheRecycler.BYTE_PAGE_SIZE;
+        assertThat(DelayableWriteable.pageAlignedRamUsedByReferenceBytes(BytesArray.EMPTY), equalTo(0L));
+        assertThat(DelayableWriteable.pageAlignedRamUsedByReferenceBytes(new BytesArray(new byte[1])), equalTo((long) page));
+        assertThat(DelayableWriteable.pageAlignedRamUsedByReferenceBytes(new BytesArray(new byte[page])), equalTo((long) page));
+        assertThat(DelayableWriteable.pageAlignedRamUsedByReferenceBytes(new BytesArray(new byte[page + 1])), equalTo(2L * page));
+
+        assertThat(
+            DelayableWriteable.pageAlignedRamUsedByReferenceBytes(ReleasableBytesReference.wrap(new BytesArray(new byte[1]))),
+            equalTo((long) page)
+        );
+
+        BytesReference composite = CompositeBytesReference.of(
+            new BytesArray(new byte[1]),
+            new BytesArray(new byte[page / 2]),
+            new BytesArray(new byte[page + 1])
+        );
+        assertThat(DelayableWriteable.pageAlignedRamUsedByReferenceBytes(composite), equalTo(4L * page));
     }
 
     private <T extends Writeable> void roundTripTestCase(DelayableWriteable<T> original, Writeable.Reader<T> reader) throws IOException {

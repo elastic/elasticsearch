@@ -243,7 +243,7 @@ number of fragments is set to 0, no fragments are returned. Instead,
 the entire field contents are highlighted and returned. This can be
 handy when you need to highlight short texts such as a title or
 address, but fragmentation is not required. If `number_of_fragments`
-is 0, `fragment_size` is ignored. Defaults to 5.
+is 0, `fragment_size` is ignored. Defaults to 5. Cannot exceed 10000.
 
 order:: Sorts highlighted fragments by score when set to `score`. By default,
 fragments will be output in the order they appear in the field (order: `none`).

@@ -179,7 +179,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
 
         stopTransform(transformId, true);
 
-        assertThat(getTransformTasks(), is(empty()));
+        assertBusy(() -> assertThat(getTransformTasks(), is(empty())));
         assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
     }
 

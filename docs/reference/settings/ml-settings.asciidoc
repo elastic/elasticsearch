@@ -145,6 +145,10 @@ enabled, this setting can be updated only by operator users. Valid values must
 be greater than `0.0` or equal to `-1.0`, where `-1.0` means a default value is
 used. Defaults to `-1.0`
 
+[[xpack.ml.anomalies.heal_reindexed_v7.enabled]]
+`xpack.ml.anomalies.heal_reindexed_v7.enabled` {applies_to}`stack: ga 8.19`::
+(<<cluster-update-settings,Dynamic>>) Controls if {es} automatically fixes anomaly detection result aliases that point to `.reindexed-v7-ml-anomalies-*` indices with incorrect mappings after an upgrade. See https://github.com/elastic/elasticsearch/issues/147686[#147686] for details. When `true`, startup maintenance repairs affected aliases; historic data remains in old indices, with {ml} Notifications providing manual reindexing steps. Set to `false` to disable. Defaults to `true`.
+
 `xpack.ml.node_concurrent_job_allocations`::
 (<<cluster-update-settings,Dynamic>>) The maximum number of jobs that can
 concurrently be in the `opening` state on each node. Typically, jobs spend a

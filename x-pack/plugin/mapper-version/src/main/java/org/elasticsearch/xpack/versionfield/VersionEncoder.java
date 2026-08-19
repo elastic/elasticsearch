@@ -51,6 +51,10 @@ class VersionEncoder {
     private static final char BUILD_SEPARATOR = '+';
     private static final String ENCODED_EMPTY_STRING = new String(new byte[] { NO_PRERELEASE_SEPARATOR_BYTE }, Charsets.UTF_8);
 
+    // Max dot-separated identifiers per version part. The patterns below recurse per identifier, so
+    // more than this could overflow the stack.
+    static final int MAX_LEGAL_VERSION_IDENTIFIERS = 32;
+
     // Regex to test relaxed Semver Main Version validity. Allows for more or less than three main version parts
     private static Pattern LEGAL_MAIN_VERSION_SEMVER = Pattern.compile("(0|[1-9]\\d*)(\\.(0|[1-9]\\d*))*");
 
@@ -67,8 +71,8 @@ class VersionEncoder {
         VersionParts versionParts = VersionParts.ofVersion(versionString);
 
         // don't treat non-legal versions further, just mark them as illegal and return
-        if (legalVersionString(versionParts) == false) {
-            if (versionString.length() == 0) {
+        if (tooManyIdentifiers(versionParts) || legalVersionString(versionParts) == false) {
+            if (versionString.isEmpty()) {
                 // special case, we want empty string to sort after valid strings, which all start with 0x01, add a higher char that
                 // we are sure to remove when decoding
                 versionString = ENCODED_EMPTY_STRING;
@@ -165,6 +169,22 @@ class VersionEncoder {
             inputPos++;
         }
         return new BytesRef(result, 0, resultPos);
+    }
+
+    // True if any part exceeds MAX_LEGAL_VERSION_IDENTIFIERS. Null parts (no pre-release or build) are within the limit.
+    private static boolean tooManyIdentifiers(VersionParts versionParts) {
+        for (String part : new String[] { versionParts.mainVersion, versionParts.preRelease, versionParts.buildSuffix }) {
+            if (part == null) {
+                continue;
+            }
+            int identifiers = 1;
+            for (int i = 0; i < part.length(); i++) {
+                if (part.charAt(i) == '.' && ++identifiers > MAX_LEGAL_VERSION_IDENTIFIERS) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     static boolean legalVersionString(VersionParts versionParts) {

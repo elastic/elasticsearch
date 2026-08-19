@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
@@ -101,6 +102,13 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         assertThat(doc.rootDoc().getFields("field"), hasSize(1));
         doc = mapper.parse(source(b -> b.field("field", "-9223372036854775808.9")));
         assertThat(doc.rootDoc().getFields("field"), hasSize(1));
+    }
+
+    public void testLongIndexingRejectsOversizedString() throws Exception {
+        // A quoted numeric value long enough to be costly to parse is rejected instead of coerced.
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        String oversized = "1." + "0".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH);
+        expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("field", oversized))));
     }
 
     // This is the biggest long that double can represent exactly

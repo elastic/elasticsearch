@@ -27,6 +27,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeSet;
 
 import static org.elasticsearch.xpack.inference.common.JsonUtils.toJson;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.REQUEST;
@@ -42,19 +43,39 @@ public class CustomRequest implements Request {
     public CustomRequest(RequestParameters requestParams, CustomModel model) {
         this.model = Objects.requireNonNull(model);
 
+        var secretParameters = model.getSecretSettings().getSecretParameters();
+        var taskSettingsParameters = model.getTaskSettings().getParameters();
+        validateTaskSettingsDoNotOverrideSecrets(secretParameters, taskSettingsParameters);
+
         var stringOnlyParams = new HashMap<String, String>();
-        addStringParams(stringOnlyParams, model.getSecretSettings().getSecretParameters());
-        addStringParams(stringOnlyParams, model.getTaskSettings().getParameters());
+        addStringParams(stringOnlyParams, secretParameters);
+        addStringParams(stringOnlyParams, taskSettingsParameters);
 
         var jsonParams = new HashMap<String, String>();
-        addJsonStringParams(jsonParams, model.getSecretSettings().getSecretParameters());
-        addJsonStringParams(jsonParams, model.getTaskSettings().getParameters());
+        addJsonStringParams(jsonParams, secretParameters);
+        addJsonStringParams(jsonParams, taskSettingsParameters);
 
         jsonParams.putAll(requestParams.jsonParameters());
 
         jsonPlaceholderReplacer = new ValidatingSubstitutor(jsonParams, "${", "}");
         stringPlaceholderReplacer = new ValidatingSubstitutor(stringOnlyParams, "${", "}");
         uri = buildUri();
+    }
+
+    private static void validateTaskSettingsDoNotOverrideSecrets(
+        Map<String, SecureString> secretParameters,
+        Map<String, Object> taskSettingsParameters
+    ) {
+        var overlappingKeys = new TreeSet<>(secretParameters.keySet());
+        overlappingKeys.retainAll(taskSettingsParameters.keySet());
+        if (overlappingKeys.isEmpty() == false) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "Task settings parameters %s are not allowed to override secret parameters with the same name",
+                    overlappingKeys
+                )
+            );
+        }
     }
 
     private static void addStringParams(Map<String, String> stringParams, Map<String, ?> paramsToAdd) {

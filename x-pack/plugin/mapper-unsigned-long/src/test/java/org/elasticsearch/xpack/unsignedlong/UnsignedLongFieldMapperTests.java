@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.unsignedlong;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -111,6 +112,29 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         IndexableField dvField = fields.get(0);
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
         assertEquals(9223372036854775807L, dvField.numericValue().longValue());
+    }
+
+    public void testIndexingOversizedStringIsRejected() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        String oversized = "1." + "0".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH);
+        expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("field", oversized))));
+    }
+
+    public void testRangeTermsRejectOversizedString() {
+        String oversized = "1." + "0".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> UnsignedLongFieldMapper.UnsignedLongFieldType.parseLowerRangeTerm(oversized, true)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> UnsignedLongFieldMapper.UnsignedLongFieldType.parseUpperRangeTerm(oversized, true)
+        );
+    }
+
+    public void testTermRejectsOversizedString() {
+        String oversized = "1." + "0".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH);
+        expectThrows(IllegalArgumentException.class, () -> UnsignedLongFieldMapper.UnsignedLongFieldType.parseTerm(oversized));
     }
 
     public void testNoDocValues() throws Exception {

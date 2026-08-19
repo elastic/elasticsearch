@@ -202,6 +202,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 randomFrom(SearchService.ResultsType.values()),
                 randomBoolean(),
                 randomInt(),
+                1024 * 1024L,
                 null
             );
             contextWithoutScroll.from(300);
@@ -245,6 +246,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     randomFrom(SearchService.ResultsType.values()),
                     randomBoolean(),
                     randomInt(),
+                    1024 * 1024L,
                     null
                 )
             ) {
@@ -328,6 +330,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     randomFrom(SearchService.ResultsType.values()),
                     randomBoolean(),
                     randomInt(),
+                    1024 * 1024L,
                     null
                 )
             ) {
@@ -371,6 +374,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     randomFrom(SearchService.ResultsType.values()),
                     randomBoolean(),
                     randomInt(),
+                    1024 * 1024L,
                     null
                 )
             ) {
@@ -403,6 +407,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     randomFrom(SearchService.ResultsType.values()),
                     randomBoolean(),
                     randomInt(),
+                    1024 * 1024L,
                     null
                 )
             ) {
@@ -475,6 +480,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 randomFrom(SearchService.ResultsType.values()),
                 randomBoolean(),
                 randomInt(),
+                1024 * 1024L,
                 null
             );
 
@@ -1124,6 +1130,21 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         }
     }
 
+    public void testCheckCircuitBreaker() throws Exception {
+        IndexShard indexShard = null;
+        try (DefaultSearchContext context = createDefaultSearchContext(Settings.EMPTY)) {
+            indexShard = context.indexShard();
+            // above the 1MiB buffer — breaker should be called
+            assertThat(context.checkCircuitBreaker(1024 * 1800, "test"), is(true));
+            // below the 1MiB buffer — breaker should not be called
+            assertThat(context.checkCircuitBreaker(1024 * 5, "test"), is(false));
+        } finally {
+            if (indexShard != null) {
+                indexShard.getThreadPool().shutdown();
+            }
+        }
+    }
+
     private DefaultSearchContext createDefaultSearchContext(Executor executor, SearchService.ResultsType resultsType) throws IOException {
         return createDefaultSearchContext(Settings.EMPTY, null, executor, resultsType);
     }
@@ -1161,6 +1182,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         QueryCache queryCache = mock(QueryCache.class);
         when(indexCache.query()).thenReturn(queryCache);
         when(indexService.cache()).thenReturn(indexCache);
+        when(indexService.breakerService()).thenReturn(new NoneCircuitBreakerService());
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(indexService.newSearchExecutionContext(eq(shardId.id()), eq(shardId.id()), any(), any(), nullable(String.class), any()))
             .thenReturn(searchExecutionContext);
@@ -1229,6 +1251,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 resultsType,
                 executor != null || randomBoolean(),
                 randomInt(),
+                1024 * 1024L,
                 null
             );
         }

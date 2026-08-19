@@ -5,6 +5,10 @@ apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 
+// Each suite is parameterized over the upgrade states and an earlier state sets up the cluster state a later one asserts on,
+// so a state that passed must still run when a later state is retried.
+smartRetry.pruneIndividualTests.set(false)
+
 dependencies {
   testImplementation project(':x-pack:qa')
 }

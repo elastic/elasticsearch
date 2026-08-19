@@ -843,6 +843,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return bigArrays;
     }
 
+    public CircuitBreakerService breakerService() {
+        return circuitBreakerService;
+    }
+
     /**
      * The {@link ScriptService} to use for this index.
      */

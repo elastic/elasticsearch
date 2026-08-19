@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -22,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.StrictDynamicMappingException;
@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidationResult;
 import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.io.IOException;
@@ -56,6 +57,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
@@ -73,7 +75,6 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     private final XPackLicenseState licenseState;
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
-    private final Client client;
     private volatile boolean skipValidationAndStart;
 
     @Inject
@@ -85,7 +86,6 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         XPackLicenseState licenseState,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
-        Client client,
         Settings settings
     ) {
         super(
@@ -101,7 +101,6 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         this.licenseState = licenseState;
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
-        this.client = client;
         this.skipValidationAndStart = InferencePlugin.SKIP_VALIDATE_AND_START.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(InferencePlugin.SKIP_VALIDATE_AND_START, this::setSkipValidationAndStart);
@@ -209,42 +208,84 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         Metadata metadata,
         ActionListener<PutInferenceModelAction.Response> listener
     ) {
-        ActionListener<Model> storeModelListener = listener.delegateFailureAndWrap(
-            (delegate, verifiedModel) -> modelRegistry.storeModel(
-                verifiedModel,
-                ActionListener.wrap(r -> startInferenceEndpoint(service, timeout, verifiedModel, delegate), e -> {
-                    if (e.getCause() instanceof StrictDynamicMappingException && e.getCause().getMessage().contains("chunking_settings")) {
-                        delegate.onFailure(
-                            new ElasticsearchStatusException(
-                                "One or more nodes in your cluster does not support chunking_settings. "
-                                    + "Please update all nodes in your cluster to the latest version to use chunking_settings.",
-                                RestStatus.BAD_REQUEST
-                            )
-                        );
-                    } else {
-                        delegate.onFailure(e);
+        var validationResultRef = new AtomicReference<ModelValidationResult>();
+        // Before we return, let's ensure that the deployment is stopped if one was started
+        var stopOnFailure = listener.delegateResponse(
+            (l, e) -> stopModelDeploymentIfStarted(service, inferenceEntityId, validationResultRef.get(), l, e)
+        );
+
+        ActionListener<ModelValidationResult> storeModelListener = stopOnFailure.delegateFailureAndWrap(
+            (delegate, validationResult) -> modelRegistry.storeModel(
+                validationResult.model(),
+                ActionListener.wrap(
+                    r -> startInferenceEndpoint(service, timeout, validationResult.model(), validationResult.deploymentStarted(), delegate),
+                    e -> {
+                        if (e.getCause() instanceof StrictDynamicMappingException
+                            && e.getCause().getMessage().contains("chunking_settings")) {
+                            delegate.onFailure(
+                                new ElasticsearchStatusException(
+                                    "One or more nodes in your cluster does not support chunking_settings. "
+                                        + "Please update all nodes in your cluster to the latest version to use chunking_settings.",
+                                    RestStatus.BAD_REQUEST
+                                )
+                            );
+                        } else {
+                            delegate.onFailure(e);
+                        }
                     }
-                }),
+                ),
                 timeout
             )
         );
 
-        ActionListener<Model> modelValidatingListener = listener.delegateFailureAndWrap((delegate, model) -> {
+        ActionListener<ModelValidationResult> existingUsesListener = storeModelListener.delegateFailureAndWrap(
+            (delegate, validationResult) -> {
+                validationResultRef.set(validationResult);
+                var model = validationResult.model();
+                var modelDelegate = delegate.<Model>delegateFailureAndWrap(
+                    (validationResultActionListener, ignored) -> validationResultActionListener.onResponse(validationResult)
+                );
+                // Execute in another thread because checking for existing uses requires reading from indices
+                threadPool.executor(UTILITY_THREAD_POOL_NAME)
+                    .execute(() -> checkForExistingUsesOfInferenceId(metadata, model, modelDelegate));
+            }
+        );
+
+        ActionListener<Model> modelValidatingListener = existingUsesListener.delegateFailureAndWrap((delegate, model) -> {
             if (skipValidationAndStart) {
-                storeModelListener.onResponse(model);
+                delegate.onResponse(new ModelValidationResult(model, false));
             } else {
                 ModelValidatorBuilder.buildModelValidator(model.getTaskType(), service)
-                    .validate(service, model, timeout, storeModelListener);
+                    .validate(service, model, timeout, existingUsesListener);
             }
         });
 
-        ActionListener<Model> existingUsesListener = listener.delegateFailureAndWrap((delegate, model) -> {
-            // Execute in another thread because checking for existing uses requires reading from indices
-            threadPool.executor(UTILITY_THREAD_POOL_NAME)
-                .execute(() -> checkForExistingUsesOfInferenceId(metadata, model, modelValidatingListener));
-        });
+        service.parseRequestConfig(inferenceEntityId, taskType, config, modelValidatingListener);
+    }
 
-        service.parseRequestConfig(inferenceEntityId, taskType, config, existingUsesListener);
+    private void stopModelDeploymentIfStarted(
+        InferenceService service,
+        String inferenceEntityId,
+        @Nullable ModelValidationResult result,
+        ActionListener<PutInferenceModelAction.Response> listener,
+        Exception e
+    ) {
+        if (result == null || result.deploymentStarted() == false) {
+            listener.onFailure(e);
+            return;
+        }
+
+        service.stop(result.model(), ActionListener.wrap(stopped -> listener.onFailure(e), stopException -> {
+            stopException.addSuppressed(e);
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Failed to create the inference endpoint [{}] and the model deployment could not be stopped",
+                    RestStatus.INTERNAL_SERVER_ERROR,
+                    stopException,
+                    inferenceEntityId
+                )
+            );
+        }));
     }
 
     private void checkForExistingUsesOfInferenceId(Metadata metadata, Model model, ActionListener<Model> modelValidatingListener) {
@@ -289,9 +330,10 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         InferenceService service,
         TimeValue timeout,
         Model model,
+        boolean deploymentStarted,
         ActionListener<PutInferenceModelAction.Response> listener
     ) {
-        if (skipValidationAndStart) {
+        if (skipValidationAndStart || deploymentStarted) {
             listener.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()));
         } else {
             service.start(model, timeout, listener.map(started -> new PutInferenceModelAction.Response(model.getConfigurations())));

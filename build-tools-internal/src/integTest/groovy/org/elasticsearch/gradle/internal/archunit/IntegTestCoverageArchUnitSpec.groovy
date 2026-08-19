@@ -144,7 +144,7 @@ class IntegTestCoverageArchUnitSpec extends Specification {
         // their original base class until the harness supports deferred/multi-project application.
         "org.elasticsearch.gradle.internal.InternalDistributionArchiveCheckPlugin",
         "org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin",
-        // "org.elasticsearch.gradle.internal.doc.DocsTestPlugin",
+        "org.elasticsearch.gradle.internal.doc.DocsTestPlugin",
         "org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin",
         "org.elasticsearch.gradle.internal.test.rest.RestResourcesPlugin",
         "org.elasticsearch.gradle.internal.test.rest.compat.compat.LegacyYamlRestCompatTestPlugin",
@@ -160,7 +160,6 @@ class IntegTestCoverageArchUnitSpec extends Specification {
         // "org.elasticsearch.gradle.internal.release.BundleChangelogsTask",
         "org.elasticsearch.gradle.internal.snyk.GenerateSnykDependencyGraph",
         "org.elasticsearch.gradle.internal.snyk.UploadSnykDependenciesGraph",
-        "org.elasticsearch.gradle.internal.test.AntFixture",
         "org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask",
     ] as Set
 

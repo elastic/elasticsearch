@@ -715,6 +715,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             this.frequency = config.frequency;
             this.syncConfig = config.syncConfig;
             this.description = config.description;
+            this.headers = config.headers;
             this.transformVersion = config.transformVersion;
             this.createTime = config.createTime;
             this.pivotConfig = config.pivotConfig;

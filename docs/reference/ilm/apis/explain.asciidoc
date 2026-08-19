@@ -108,8 +108,9 @@ GET my-index-000001/_ilm/explain?human
 --------------------------------------------------
 // TEST[continued]
 
-When management of the index is first taken over by {ilm-init}, `explain` shows
-that the index is managed and in the `new` phase:
+To include hidden indices when using wildcard expressions, set `expand_wildcards` to include `hidden` (for example, `open,hidden`).
+
+When management of the index is first taken over by {{ilm-init}}, `explain` shows that the index is managed and in the `new` phase:
 
 [source,console-result]
 --------------------------------------------------

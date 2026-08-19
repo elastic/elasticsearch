@@ -271,7 +271,8 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * Set the number of fragments, defaults to {@link HighlightBuilder#DEFAULT_NUMBER_OF_FRAGMENTS}
+     * Set the number of fragments, defaults to {@link HighlightBuilder#DEFAULT_NUMBER_OF_FRAGMENTS}. Must be between
+     * {@code 0} and {@link HighlightBuilder#MAX_NUMBER_OF_FRAGMENTS}; this is enforced when parsing a request.
      */
     @SuppressWarnings("unchecked")
     public HB numOfFragments(Integer numOfFragments) {
@@ -663,7 +664,14 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         parser.declareString(HB::order, ORDER_FIELD);
         parser.declareBoolean(HB::highlightFilter, HIGHLIGHT_FILTER_FIELD);
         parser.declareInt(HB::fragmentSize, FRAGMENT_SIZE_FIELD);
-        parser.declareInt(HB::numOfFragments, NUMBER_OF_FRAGMENTS_FIELD);
+        parser.declareInt((HB hb, Integer numOfFragments) -> {
+            if (numOfFragments < 0 || numOfFragments > HighlightBuilder.MAX_NUMBER_OF_FRAGMENTS) {
+                throw new IllegalArgumentException(
+                    "[" + NUMBER_OF_FRAGMENTS_FIELD + "] must be between [0] and [" + HighlightBuilder.MAX_NUMBER_OF_FRAGMENTS + "]"
+                );
+            }
+            hb.numOfFragments(numOfFragments);
+        }, NUMBER_OF_FRAGMENTS_FIELD);
         parser.declareString(HB::encoder, ENCODER_FIELD);
         parser.declareString(HB::tagsSchema, TAGS_SCHEMA_FIELD);
         parser.declareBoolean(HB::requireFieldMatch, REQUIRE_FIELD_MATCH_FIELD);

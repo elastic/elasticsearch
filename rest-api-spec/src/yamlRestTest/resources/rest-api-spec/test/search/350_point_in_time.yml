@@ -1,7 +1,11 @@
+# See https://github.com/elastic/elasticsearch/issues/152811 for why we need to extend idle period here
 setup:
   - do:
       indices.create:
           index:  test
+          body:
+            settings:
+              index.search.idle.after: "24h"
   - do:
       index:
           index:  test

@@ -325,7 +325,12 @@ public class LocalExecutionPlanner {
         EsStatsQueryExec.Stat stat = statsQuery.stats().get(0);
 
         EsPhysicalOperationProviders esProvider = (EsPhysicalOperationProviders) physicalOperationProviders;
-        final LuceneOperator.Factory luceneFactory = esProvider.countSource(context, stat.filter(statsQuery.query()), statsQuery.limit());
+        final LuceneOperator.Factory luceneFactory = esProvider.countSource(
+            context,
+            stat.filter(statsQuery.query()),
+            stat.name(),
+            statsQuery.limit()
+        );
 
         Layout.Builder layout = new Layout.Builder();
         layout.append(statsQuery.outputSet());

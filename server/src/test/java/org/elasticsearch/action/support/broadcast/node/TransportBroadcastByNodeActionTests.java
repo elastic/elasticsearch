@@ -175,7 +175,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 actionName,
                 TransportBroadcastByNodeActionTests.this.clusterService,
                 TransportBroadcastByNodeActionTests.this.transportService,
-                new ActionFilters(Set.of()),
+                ActionFilters.EMPTY,
                 new MyResolver(),
                 Request::new,
                 TransportBroadcastByNodeActionTests.this.transportService.getThreadPool().executor(TEST_THREAD_POOL_NAME)

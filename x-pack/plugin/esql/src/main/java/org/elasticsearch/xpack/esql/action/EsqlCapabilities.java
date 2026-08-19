@@ -186,6 +186,11 @@ public class EsqlCapabilities {
         REPEAT,
 
         /**
+         * Empty input used to loop {@code count} times; int length*count overflow used to bypass the size guard.
+         */
+        FN_REPEAT_FIX_SIZE_GUARD,
+
+        /**
          * Cast string literals to datetime in addition and subtraction when the other side is a date or time interval.
          */
         STRING_LITERAL_AUTO_CASTING_TO_DATETIME_ADD_SUB,
@@ -1137,6 +1142,29 @@ public class EsqlCapabilities {
         FIX_FILTER_ORDINALS,
 
         FIX_ALIAS_ID_WHEN_DROP_ALL_AGGREGATES,
+
+        /**
+         * Fix multi value unsigned long conversion to aggregate metric double
+         */
+        FIX_UNSIGNED_LONG_TO_AGGREGATE_METRIC_DOUBLE,
+
+        /**
+         * FROM_BASE64 returns null + warning for decoded bytes that are not well-formed UTF-8,
+         * instead of producing keywords that crash later string operations.
+         */
+        FN_FROM_BASE64_VALIDATE_UTF8,
+
+        /**
+         * Fix for {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource} pushing only a
+         * pushable <em>prefix</em> of a compound {@code SORT}'s keys together with the full {@code LIMIT}. Lucene then
+         * truncated to {@code LIMIT} documents ordered by that prefix alone, so when the prefix had ties straddling the
+         * limit boundary, documents the full sort would have ranked into the top-N were dropped at the source and could
+         * never be recovered - returning wrong results (e.g. {@code SORT score, ABS(x) | LIMIT n}). The compound TopN is
+         * now pushed only when every sort key is pushable.
+         * See <a href="https://github.com/elastic/elasticsearch/pull/155923">#155923</a>.
+         */
+        FIX_PARTIAL_PREFIX_COMPOUND_TOPN_PUSHDOWN,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

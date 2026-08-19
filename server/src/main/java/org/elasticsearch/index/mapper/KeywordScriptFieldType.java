@@ -197,7 +197,8 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
             value,
             syntaxFlags,
             matchFlags,
-            maxDeterminizedStates
+            maxDeterminizedStates,
+            context.getCircuitBreaker()
         );
     }
 

@@ -253,6 +253,31 @@ public class TimeSeriesLifecycleActionsIT extends IlmESRestTestCase {
         });
     }
 
+    public void testAllocateActionRemovesAutoExpandReplicas() throws Exception {
+        createIndexWithSettings(
+            client(),
+            index,
+            alias,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+        );
+        AllocateAction allocateAction = new AllocateAction(0, null, null, null, null);
+        String endPhase = randomFrom("warm", "cold");
+        createNewSingletonPolicy(client(), policy, endPhase, allocateAction);
+        updatePolicy(client(), index, policy);
+        assertBusy(() -> {
+            Map<String, Object> settings = getOnlyIndexSettings(client(), index);
+            assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep(endPhase).getKey()));
+            assertThat(settings.get(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()), equalTo("0"));
+            assertNull(
+                "auto_expand_replicas must be removed when an explicit replica count is set by the allocate action",
+                settings.get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS)
+            );
+        });
+    }
+
     @SuppressWarnings("unchecked")
     public void testWaitForSnapshot() throws Exception {
         createIndexWithSettings(

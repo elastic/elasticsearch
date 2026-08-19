@@ -33,6 +33,20 @@ import java.util.Objects;
 abstract class FetchPhaseDocsIterator {
 
     /**
+     * Tracks bytes reserved in the request circuit breaker during this fetch.
+     * Cleaned up after each fetch phase; must not be accessed by subclasses directly.
+     */
+    private long requestBreakerBytes;
+
+    public void addRequestBreakerBytes(long delta) {
+        requestBreakerBytes += delta;
+    }
+
+    public long getRequestBreakerBytes() {
+        return requestBreakerBytes;
+    }
+
+    /**
      * Called when a new leaf reader is reached
      * @param ctx           the leaf reader for this set of doc ids
      * @param docsInLeaf    the reader-specific docids to be fetched in this leaf reader

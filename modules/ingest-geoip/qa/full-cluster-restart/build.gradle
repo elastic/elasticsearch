@@ -13,6 +13,10 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 
 
+// Each suite is parameterized over the old and upgraded cluster and the old-cluster run sets up the state the upgraded run
+// asserts on, so a parameter that passed must still run when the other one is retried.
+smartRetry.pruneIndividualTests.set(false)
+
 dependencies {
   javaRestTestImplementation project(':test:fixtures:geoip-fixture')
   javaRestTestImplementation(testArtifact(project(":qa:full-cluster-restart"), "javaRestTest"))

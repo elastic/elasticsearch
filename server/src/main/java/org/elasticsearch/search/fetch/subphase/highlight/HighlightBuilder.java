@@ -62,6 +62,8 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
     public static final int DEFAULT_NO_MATCH_SIZE = 0;
     /** the default number of fragments for highlighting */
     public static final int DEFAULT_NUMBER_OF_FRAGMENTS = 5;
+    /** the maximum accepted number of fragments for highlighting */
+    public static final int MAX_NUMBER_OF_FRAGMENTS = 10_000;
     /** the default number of fragments size in characters */
     public static final int DEFAULT_FRAGMENT_CHAR_SIZE = 100;
     /** the default opening tag  */
@@ -247,9 +249,8 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
                 fieldOptionsBuilder.matchedFields(matchedFields);
             }
             transferOptions(field, fieldOptionsBuilder, context);
-            fieldOptions.add(
-                new SearchHighlightContext.Field(field.name(), fieldOptionsBuilder.merge(globalOptionsBuilder.build()).build())
-            );
+            final FieldOptions options = fieldOptionsBuilder.merge(globalOptionsBuilder.build()).build();
+            fieldOptions.add(new SearchHighlightContext.Field(field.name(), options));
         }
         return new SearchHighlightContext(fieldOptions);
     }

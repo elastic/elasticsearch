@@ -1461,7 +1461,7 @@ public class NumberFieldMapper extends FieldMapper {
                     return false;
                 }
                 String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
-                BigDecimal bigDecimalValue = new BigDecimal(stringValue);
+                BigDecimal bigDecimalValue = Numbers.newBigDecimal(stringValue);
                 return bigDecimalValue.compareTo(BigDecimal.valueOf(Long.MAX_VALUE)) > 0
                     || bigDecimalValue.compareTo(BigDecimal.valueOf(Long.MIN_VALUE)) < 0;
             }

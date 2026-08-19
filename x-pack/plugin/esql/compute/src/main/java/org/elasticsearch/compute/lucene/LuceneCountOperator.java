@@ -105,7 +105,7 @@ public class LuceneCountOperator extends LuceneOperator {
 
     @Override
     public boolean isFinished() {
-        return doneCollecting || remainingDocs == 0;
+        return doneCollecting || remainingDocs <= 0;
     }
 
     @Override
@@ -115,23 +115,15 @@ public class LuceneCountOperator extends LuceneOperator {
 
     @Override
     protected Page getCheckedOutput() throws IOException {
-        if (isFinished()) {
-            assert remainingDocs <= 0 : remainingDocs;
-            return null;
-        }
         long start = System.nanoTime();
         try {
             final LuceneScorer scorer = getCurrentOrLoadNextScorer();
-            // no scorer means no more docs
-            if (scorer == null) {
-                remainingDocs = 0;
-            } else {
+            if (scorer != null && remainingDocs > 0) {
                 if (scorer.tags().isEmpty() == false) {
                     throw new UnsupportedOperationException("tags not supported by " + getClass());
                 }
                 Weight weight = scorer.weight();
                 var leafReaderContext = scorer.leafReaderContext();
-                // see org.apache.lucene.search.TotalHitCountCollector
                 int leafCount = weight.count(leafReaderContext);
                 if (leafCount != -1) {
                     var count = Math.min(leafCount, remainingDocs);
@@ -139,15 +131,12 @@ public class LuceneCountOperator extends LuceneOperator {
                     remainingDocs -= count;
                     scorer.markAsDone();
                 } else {
-                    // could not apply shortcut, trigger the search
-                    // TODO: avoid iterating all documents in multiple calls to make cancellation more responsive.
                     scorer.scoreNextRange(leafCollector, leafReaderContext.reader().getLiveDocs(), remainingDocs);
                 }
             }
 
-            Page page = null;
-            // emit only one page
-            if (remainingDocs <= 0 && pagesEmitted == 0) {
+            if (isFinished() && pagesEmitted == 0) {
+                Page page = null;
                 LongBlock count = null;
                 BooleanBlock seen = null;
                 try {
@@ -159,11 +148,12 @@ public class LuceneCountOperator extends LuceneOperator {
                         Releasables.closeExpectNoException(count, seen);
                     }
                 }
+                return page;
             }
-            return page;
         } finally {
             processingNanos += System.nanoTime() - start;
         }
+        return null;
     }
 
     @Override

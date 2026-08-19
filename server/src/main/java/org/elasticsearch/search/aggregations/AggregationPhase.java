@@ -52,6 +52,8 @@ public class AggregationPhase {
             return new AggregatorCollector(aggregators, bucketCollector);
         } catch (IOException e) {
             throw new AggregationInitializationException("Could not initialize aggregators", e);
+        } catch (StackOverflowError e) {
+            throw new IllegalArgumentException("The aggregations are too deeply nested to build");
         }
     }
 

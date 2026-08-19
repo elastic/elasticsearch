@@ -107,7 +107,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             new IndexingPressure(Settings.EMPTY),
             EmptySystemIndices.INSTANCE
         );
@@ -144,7 +144,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             new IndexingPressure(Settings.EMPTY),
             EmptySystemIndices.INSTANCE
         );
@@ -185,7 +185,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             new IndexingPressure(Settings.EMPTY),
             EmptySystemIndices.INSTANCE
         );

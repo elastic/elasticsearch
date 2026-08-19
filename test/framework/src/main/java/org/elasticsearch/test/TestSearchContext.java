@@ -12,6 +12,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
@@ -550,5 +551,18 @@ public class TestSearchContext extends SearchContext {
     @Override
     public IdLoader newIdLoader() {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public CircuitBreaker circuitBreaker() {
+        if (indexService == null) {
+            throw new UnsupportedOperationException("circuitBreaker() requires indexService — override in test subclass");
+        }
+        return indexService.getBigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST);
+    }
+
+    @Override
+    public long memAccountingBufferSize() {
+        return 1024 * 1024L;
     }
 }

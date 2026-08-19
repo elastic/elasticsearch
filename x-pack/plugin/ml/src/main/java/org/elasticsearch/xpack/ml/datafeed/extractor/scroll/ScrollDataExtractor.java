@@ -8,9 +8,11 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -34,6 +36,8 @@ import org.elasticsearch.xpack.ml.extractor.SourceSupplier;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
@@ -54,17 +58,25 @@ class ScrollDataExtractor implements DataExtractor {
     private final Client client;
     private final ScrollDataExtractorContext context;
     private final DatafeedTimingStatsReporter timingStatsReporter;
+    private final ScrollDataExtractorFactory factory;
     private String scrollId;
     private boolean isCancelled;
     private boolean hasNext;
     private Long timestampOnCancel;
     protected Long lastTimestamp;
     private boolean searchHasShardFailure;
+    private final List<String> failedClearScrollIds = new ArrayList<>();
 
-    ScrollDataExtractor(Client client, ScrollDataExtractorContext dataExtractorContext, DatafeedTimingStatsReporter timingStatsReporter) {
+    ScrollDataExtractor(
+        Client client,
+        ScrollDataExtractorContext dataExtractorContext,
+        DatafeedTimingStatsReporter timingStatsReporter,
+        ScrollDataExtractorFactory factory
+    ) {
         this.client = Objects.requireNonNull(client);
         this.context = Objects.requireNonNull(dataExtractorContext);
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
+        this.factory = Objects.requireNonNull(factory);
         hasNext = true;
         searchHasShardFailure = false;
     }
@@ -89,6 +101,23 @@ class ScrollDataExtractor implements DataExtractor {
     public void destroy() {
         cancel();
         clearScroll();
+        List<String> scrollIdsToRetry = List.copyOf(failedClearScrollIds);
+        failedClearScrollIds.clear();
+        for (String orphanedScrollId : scrollIdsToRetry) {
+            clearScrollLoggingExceptions(orphanedScrollId);
+        }
+        // Transfer any IDs that still couldn't be cleared (e.g. due to ongoing network disruption)
+        // to the long-lived factory so they can be retried when the next extractor connects.
+        if (failedClearScrollIds.isEmpty() == false) {
+            factory.addOrphanedScrollIds(List.copyOf(failedClearScrollIds));
+            failedClearScrollIds.clear();
+        }
+        // Also retry any scroll IDs previously orphaned by other extractors. This is especially
+        // important when the datafeed is shutting down and no further initScroll() calls will
+        // happen to trigger the retry there. If the network has since recovered, these will clear.
+        if (factory.hasOrphanedScrollIds()) {
+            factory.retryClearOrphanedScrollIds();
+        }
     }
 
     @Override
@@ -112,7 +141,7 @@ class ScrollDataExtractor implements DataExtractor {
         try {
             return scrollId == null ? Optional.ofNullable(initScroll(context.queryContext.start)) : Optional.ofNullable(continueScroll());
         } catch (Exception e) {
-            scrollId = null;
+            clearScroll();
             if (searchHasShardFailure) {
                 throw e;
             }
@@ -123,6 +152,9 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     protected InputStream initScroll(long startTimestamp) throws IOException {
+        if (factory.hasOrphanedScrollIds()) {
+            factory.retryClearOrphanedScrollIds();
+        }
         logger.debug("[{}] Initializing scroll with start time [{}]", context.jobId, startTimestamp);
         SearchResponse searchResponse = executeSearchRequest(buildSearchRequest(startTimestamp));
         try {
@@ -237,6 +269,7 @@ class ScrollDataExtractor implements DataExtractor {
                     throw searchExecutionException;
                 }
                 logger.debug("[{}] search failed due to SearchPhaseExecutionException. Will attempt again with new scroll", context.jobId);
+                clearScroll();
                 markScrollAsErrored();
                 searchResponse = executeSearchRequest(
                     buildSearchRequest(lastTimestamp == null ? context.queryContext.start : lastTimestamp)
@@ -269,7 +302,7 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     private void clearScroll() {
-        innerClearScroll(scrollId);
+        clearScrollLoggingExceptions(scrollId);
         scrollId = null;
     }
 
@@ -277,9 +310,10 @@ class ScrollDataExtractor implements DataExtractor {
         try {
             innerClearScroll(scrollId);
         } catch (Exception e) {
-            // This method is designed to be called from exception handlers, so just logs this exception
-            // in the cleanup process so that the original exception can be propagated
             logger.error(() -> "[" + context.jobId + "] Failed to clear scroll", e);
+            if (scrollId != null) {
+                failedClearScrollIds.add(scrollId);
+            }
         }
     }
 
@@ -287,12 +321,15 @@ class ScrollDataExtractor implements DataExtractor {
         if (scrollId != null) {
             ClearScrollRequest request = new ClearScrollRequest();
             request.addScrollId(scrollId);
-            ClientHelper.executeWithHeaders(
+            ClearScrollResponse response = ClientHelper.executeWithHeaders(
                 context.queryContext.headers,
                 ClientHelper.ML_ORIGIN,
                 client,
                 () -> client.execute(TransportClearScrollAction.TYPE, request).actionGet()
             );
+            if (response.isSucceeded() == false) {
+                throw new ElasticsearchException("Failed to clear scroll context [{}]", scrollId);
+            }
         }
     }
 

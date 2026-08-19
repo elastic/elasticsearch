@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
+import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
@@ -20,6 +21,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
@@ -276,8 +278,13 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             for (int i = 0; i < dims; i++) {
                 queryVector[i] = randomFloat();
             }
-            Query query = field.createExactKnnQuery(VectorData.fromFloats(queryVector), null);
-            assertTrue(query instanceof DenseVectorQuery.Floats);
+            Query query = field.createExactKnnQuery(VectorData.fromFloats(queryVector), null, null);
+            // A quantized field with a configured oversample scores against the full-precision vectors, which wraps the
+            // dense vector query in a FunctionScoreQuery; unwrap so this stays an assertion about the underlying query.
+            if (query instanceof FunctionScoreQuery functionScoreQuery) {
+                query = functionScoreQuery.getWrappedQuery();
+            }
+            assertThat(query, instanceOf(DenseVectorQuery.Floats.class));
         }
         {
             DenseVectorFieldType field = new DenseVectorFieldType(
@@ -295,9 +302,80 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             for (int i = 0; i < dims; i++) {
                 queryVector[i] = randomByte();
             }
-            Query query = field.createExactKnnQuery(VectorData.fromBytes(queryVector), null);
-            assertTrue(query instanceof DenseVectorQuery.Bytes);
+            Query query = field.createExactKnnQuery(VectorData.fromBytes(queryVector), null, null);
+            assertThat(query, instanceOf(DenseVectorQuery.Bytes.class));
         }
+    }
+
+    /**
+     * The exact query backing {@code inner_hits} has to score at the same fidelity the approximate query phase did,
+     * so whether it reads the quantized or the full-precision vectors follows the oversample that phase resolved.
+     */
+    public void testExactKnnQueryScoringFidelityFollowsOversample() {
+        int dims = randomIntBetween(BBQ_MIN_DIMS, 2048);
+        if (dims % 2 != 0) {
+            dims++;
+        }
+        float[] queryVector = new float[dims];
+        for (int i = 0; i < dims; i++) {
+            queryVector[i] = randomFloat();
+        }
+        // l2_norm so the query vector is not normalized on the way in and can be compared as-is below
+        DenseVectorFieldType rescored = new DenseVectorFieldType(
+            "f",
+            IndexVersion.current(),
+            FLOAT,
+            dims,
+            true,
+            VectorSimilarity.L2_NORM,
+            randomIndexOptionsHnswQuantized(new DenseVectorFieldMapper.RescoreVector(randomFloatBetween(1.1f, 9.9f, false))),
+            Collections.emptyMap(),
+            false
+        );
+
+        // The mapping configures an oversample, so the query phase rescores against the full-precision vectors. The exact
+        // query must score through the very same value source RescoreKnnVectorQuery uses, or the two phases disagree.
+        Query fullPrecision = rescored.createExactKnnQuery(VectorData.fromFloats(queryVector), null, null);
+        assertThat(fullPrecision, instanceOf(FunctionScoreQuery.class));
+        assertThat(((FunctionScoreQuery) fullPrecision).getWrappedQuery(), instanceOf(DenseVectorQuery.Floats.class));
+        assertThat(
+            ((FunctionScoreQuery) fullPrecision).getSource(),
+            equalTo(
+                new VectorSimilarityFloatValueSource(
+                    "f",
+                    queryVector,
+                    VectorSimilarity.L2_NORM.vectorSimilarityFunction(IndexVersion.current(), ElementType.FLOAT)
+                )
+            )
+        );
+
+        // A query-time oversample of 0 turns rescoring off, so both phases stay on the quantized vectors.
+        assertThat(
+            rescored.createExactKnnQuery(VectorData.fromFloats(queryVector), null, 0f),
+            equalTo(new DenseVectorQuery.Floats(queryVector, "f"))
+        );
+
+        // Without a configured oversample the query phase does not rescore, and neither does the exact query...
+        DenseVectorFieldType notRescored = new DenseVectorFieldType(
+            "f",
+            IndexVersion.current(),
+            FLOAT,
+            dims,
+            true,
+            VectorSimilarity.L2_NORM,
+            randomIndexOptionsHnswQuantized(null),
+            Collections.emptyMap(),
+            false
+        );
+        assertThat(
+            notRescored.createExactKnnQuery(VectorData.fromFloats(queryVector), null, null),
+            equalTo(new DenseVectorQuery.Floats(queryVector, "f"))
+        );
+        // ...unless the query overrides it.
+        assertThat(
+            notRescored.createExactKnnQuery(VectorData.fromFloats(queryVector), null, randomFloatBetween(1.1f, 9.9f, false)),
+            instanceOf(FunctionScoreQuery.class)
+        );
     }
 
     public void testFloatCreateKnnQuery() {

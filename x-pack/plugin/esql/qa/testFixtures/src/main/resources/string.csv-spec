@@ -2029,6 +2029,115 @@ ZWxhc3RpYw== | elastic
 // end::from_base64-result[]
 ;
 
+base64DecodeInvalidUtf8
+required_capability: fn_from_base64_validate_utf8
+// Truncated UTF-8 lead byte 0xF0 ('a' + 0xF0).
+ROW a = FROM_BASE64("YfA=")
+| KEEP a
+;
+
+warning:Line 1:9: evaluation of [FROM_BASE64(\"YfA=\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.IllegalArgumentException: decoded value is not valid UTF-8, which is not supported yet
+
+a:keyword
+null
+;
+
+base64DecodeInvalidUtf8Locate
+required_capability: fn_from_base64_validate_utf8
+// Invalid UTF-8 from FROM_BASE64 must not crash LOCATE (CONTAINS is not on this branch).
+ROW c = LOCATE(FROM_BASE64("YfA="), "a")
+;
+
+warning:Line 1:16: evaluation of [FROM_BASE64(\"YfA=\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:16: java.lang.IllegalArgumentException: decoded value is not valid UTF-8, which is not supported yet
+
+c:integer
+null
+;
+
+base64DecodeMixedMvExpandSort
+required_capability: fn_from_base64_validate_utf8
+ROW enc = ["YfA=", "ZWxhc3RpYw=="]
+| MV_EXPAND enc
+| EVAL d = FROM_BASE64(enc)
+| SORT d
+| KEEP d
+;
+
+warning:Line 3:12: evaluation of [FROM_BASE64(enc)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:12: java.lang.IllegalArgumentException: decoded value is not valid UTF-8, which is not supported yet
+
+d:keyword
+elastic
+null
+;
+
+base64DecodeMixedMvExpand
+required_capability: fn_from_base64_validate_utf8
+ROW enc = ["ZWxhc3RpYw==", "YfA=", "not!!base64"]
+| MV_EXPAND enc
+| EVAL d = FROM_BASE64(enc)
+| KEEP enc, d
+;
+
+warning:Line 3:12: evaluation of [FROM_BASE64(enc)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:12: java.lang.IllegalArgumentException: decoded value is not valid UTF-8, which is not supported yet
+warning:Line 3:12: java.lang.IllegalArgumentException: Illegal base64 character 21
+
+enc:keyword    | d:keyword
+ZWxhc3RpYw==   | elastic
+YfA=           | null
+not!!base64    | null
+;
+
+base64DecodeInvalidBase64
+required_capability: fn_from_base64_validate_utf8
+ROW a = FROM_BASE64("not!!base64")
+;
+
+warning:Line 1:9: evaluation of [FROM_BASE64(\"not!!base64\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.IllegalArgumentException: Illegal base64 character 21
+
+a:keyword
+null
+;
+
+base64DecodeInvalidBase64WrongEndingUnit
+required_capability: fn_from_base64_validate_utf8
+ROW a = FROM_BASE64("YfAAAAAAAAAAAAAAAAAAAAAA=")
+;
+
+warning:Line 1:9: evaluation of [FROM_BASE64(\"YfAAAAAAAAAAAAAAAAAAAAAA=\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.IllegalArgumentException: Input byte array has wrong 4-byte ending unit
+
+a:keyword
+null
+;
+
+base64DecodeInvalidBase64InsufficientBits
+required_capability: fn_from_base64_validate_utf8
+ROW a = FROM_BASE64("YfAAAAAAAAAAAAAAAAAAAAAAA=")
+;
+
+warning:Line 1:9: evaluation of [FROM_BASE64(\"YfAAAAAAAAAAAAAAAAAAAAAAA=\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.IllegalArgumentException: Last unit does not have enough valid bits
+
+a:keyword
+null
+;
+
+base64EncodeDecodeUnicode
+required_capability: base64_decode_encode
+ROW a = "cafè ☕ 日本語"
+| EVAL e = TO_BASE64(a), d = FROM_BASE64(e)
+| KEEP a, d
+;
+
+a:keyword       | d:keyword
+cafè ☕ 日本語   | cafè ☕ 日本語
+;
+
 base64EncodeDecodeEmp#[skip:-8.13.99,reason:new base64 function added in 8.14]
 required_capability: base64_decode_encode
 
@@ -2089,6 +2198,26 @@ row a = "cheese" | eval repeated = repeat(a, 0);
 
 a:keyword | repeated:keyword
 cheese | ""
+;
+
+// Large empty REPEAT used to loop needlessly
+repeatEmptyMaxInt
+required_capability: fn_repeat_fix_size_guard
+ROW repeated = REPEAT("", 2147483647);
+
+repeated:keyword
+""
+;
+
+// int length*count overflow used to bypass the size guard
+repeatLengthOverflowMaxInt
+required_capability: fn_repeat_fix_size_guard
+ROW repeated = REPEAT("ab", 2147483647);
+warning:Line 1:16: evaluation of [REPEAT(\"ab\", 2147483647)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:16: java.lang.IllegalArgumentException: Creating repeated strings with more than [1048576] bytes is not supported
+
+repeated:keyword
+null
 ;
 
 repeatNegative

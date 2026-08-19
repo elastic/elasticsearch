@@ -11,12 +11,15 @@ package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -203,14 +206,29 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
 
         @Override
         public long getSerializedSize() {
-            // We're already serialized
-            return serialized.length();
+            return pageAlignedRamUsedByReferenceBytes(serialized);
         }
 
         @Override
         public void close() {
             serialized.close();
         }
+    }
+
+    /**
+     * Over-estimates retained RAM by rounding each component up to a
+     * {@link PageCacheRecycler#BYTE_PAGE_SIZE} page (composites sum per component).
+     * Matches how Netty retains page-sized buffers rather than exact payload lengths.
+     */
+    static long pageAlignedRamUsedByReferenceBytes(BytesReference bytes) {
+        if (bytes instanceof ReleasableBytesReference r) {
+            return pageAlignedRamUsedByReferenceBytes(r.delegate());
+        }
+        if (bytes instanceof CompositeBytesReference composited) {
+            return Arrays.stream(composited.references()).mapToLong(DelayableWriteable::pageAlignedRamUsedByReferenceBytes).sum();
+        }
+        final long numPages = (bytes.length() + PageCacheRecycler.BYTE_PAGE_SIZE - 1L) / PageCacheRecycler.BYTE_PAGE_SIZE;
+        return numPages * PageCacheRecycler.BYTE_PAGE_SIZE;
     }
 
     /**

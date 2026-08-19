@@ -40,7 +40,7 @@ public class ChatCompletionModelValidatorTests extends ESTestCase {
     @Mock
     private Model mockModel;
     @Mock
-    private ActionListener<Model> mockActionListener;
+    private ActionListener<ModelValidationResult> mockActionListener;
 
     private ChatCompletionModelValidator underTest;
 
@@ -84,7 +84,7 @@ public class ChatCompletionModelValidatorTests extends ESTestCase {
 
         verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), eq(TIMEOUT), any());
         verify(mockActionListener).delegateFailureAndWrap(any());
-        verify(mockActionListener).onResponse(mockModel);
+        verify(mockActionListener).onResponse(new ModelValidationResult(mockModel, false));
         verify(mockInferenceService).updateModelWithChatCompletionDetails(mockModel);
         verifyNoMoreInteractions(
             mockServiceIntegrationValidator,

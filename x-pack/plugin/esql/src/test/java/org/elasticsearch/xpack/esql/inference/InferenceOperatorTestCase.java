@@ -14,8 +14,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -35,8 +33,7 @@ import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.threadpool.FixedExecutorBuilder;
-import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -55,15 +52,14 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
 
     @Before
     public void setThreadPool() {
-        threadPool = new TestThreadPool(
-            getTestClass().getSimpleName(),
-            new FixedExecutorBuilder(
-                Settings.EMPTY,
+        threadPool = createThreadPool(
+            new ScalingExecutorBuilder(
                 EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
-                between(1, 10),
-                1024,
-                "esql",
-                EsExecutors.TaskTrackingConfig.DEFAULT
+                0,
+                10,
+                TimeValue.timeValueMinutes(10),
+                false,
+                "thread_pool." + EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME
             )
         );
     }
@@ -78,8 +74,13 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
     }
 
     @Override
+    protected int largeInputSize() {
+        return between(100, 1_000);
+    }
+
+    @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new AbstractBlockSourceOperator(blockFactory, 8 * 1024) {
+        return new AbstractBlockSourceOperator(blockFactory, between(100, 8 * 1024)) {
             @Override
             protected int remaining() {
                 return size - currentPosition;

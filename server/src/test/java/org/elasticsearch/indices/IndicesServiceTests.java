@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -71,6 +72,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -80,12 +82,16 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.NonNegativeScoresSimilarity;
 import org.elasticsearch.indices.IndicesService.ShardDeletionCheckResult;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
+import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
+import org.elasticsearch.indices.recovery.TestRecoverySchedulingListener;
+import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -98,6 +104,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -137,8 +145,10 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Stream.concat(super.getPlugins().stream(), Stream.of(TestPlugin.class, FooEnginePlugin.class, BarEnginePlugin.class))
-            .toList();
+        return Stream.concat(
+            super.getPlugins().stream(),
+            Stream.of(TestPlugin.class, FooEnginePlugin.class, BarEnginePlugin.class, InternalSettingsPlugin.class)
+        ).toList();
     }
 
     public static class FooEnginePlugin extends Plugin implements EnginePlugin {
@@ -1152,6 +1162,109 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         } finally {
             proceedRecovering.countDown();
             TestPlugin.removeIndexEventListener(indexListener);
+        }
+    }
+
+    /**
+     * Verifies the {@link IndicesService#createShard} fast path when the store is already closed before the
+     * recovery task runs: {@code tryIncRef} fails, recovery aborts, and the listener must not {@code decRef}
+     * a store reference that was never taken.
+     */
+    public void testTryIncRecoveryFastPath() throws Exception {
+        updateClusterSettings(
+            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+        );
+        final String blockingIndex = randomIndexName();
+        final String closedIndex = randomIndexName();
+
+        final var blocked = new CountDownLatch(1);
+        final var proceedBlocked = new CountDownLatch(1);
+        final IndexEventListener blockingListener = new IndexEventListener() {
+            @Override
+            public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+                if (indexShard.shardId().getIndexName().equals(blockingIndex)) {
+                    blocked.countDown();
+                    safeAwait(proceedBlocked);
+                }
+                listener.onResponse(null);
+            }
+
+            @Override
+            public void indexShardStateChanged(
+                IndexShard indexShard,
+                @Nullable IndexShardState previousState,
+                IndexShardState currentState,
+                @Nullable String reason
+            ) {
+                if (currentState == IndexShardState.RECOVERING && closedIndex.equals(indexShard.shardId().getIndexName())) {
+                    fail("closed index recovery should never reach RECOVERING");
+                }
+            }
+        };
+        TestPlugin.addIndexEventListener(blockingListener);
+        try {
+            assertAcked(
+                indicesAdmin().prepareCreate(blockingIndex).setSettings(indexSettings(1, 0)).setWaitForActiveShards(ActiveShardCount.NONE)
+            );
+            safeAwait(blocked);
+
+            assertAcked(
+                indicesAdmin().prepareCreate(closedIndex).setSettings(indexSettings(1, 0)).setWaitForActiveShards(ActiveShardCount.NONE)
+            );
+            final IndexService closedIndexService = getIndicesService().indexServiceSafe(resolveIndex(closedIndex));
+            final IndexShard closedShard = closedIndexService.getShard(0);
+            awaitRecoveryStats(closedShard, stats -> stats.currentFromStoreQueued() == 1);
+            assertThat(closedShard.state(), equalTo(IndexShardState.CREATED));
+
+            final var store = closedShard.store();
+            final PlainActionFuture<Void> shardRemoved = new PlainActionFuture<>();
+            closedIndexService.removeShard(0, "close before recovery starts", EsExecutors.DIRECT_EXECUTOR_SERVICE, shardRemoved);
+            shardRemoved.actionGet();
+            assertThat(closedShard.state(), equalTo(IndexShardState.CLOSED));
+            assertFalse(store.hasReferences());
+
+            // Free a slot so the queued task runs against the closed store.
+            updateClusterSettings(
+                Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 2).build()
+            );
+
+            // releaseStoreRefIfHeld must not decRef (would assert invalid decRef).
+            awaitRecoveryStats(closedShard, RecoveryStats::noCurrentRecoveries);
+        } finally {
+            proceedBlocked.countDown();
+            TestPlugin.removeIndexEventListener(blockingListener);
+            updateClusterSettings(
+                Settings.builder().putNull(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey()).build()
+            );
+        }
+    }
+
+    /**
+     * Waits until {@code predicate} is satisfied for {@code shard}'s recovery stats, re-checking on every
+     * recovery scheduling event (same idea as {@code awaitRecoveryCountStats} in integ tests).
+     */
+    private void awaitRecoveryStats(IndexShard shard, Predicate<RecoveryStats> predicate) {
+        final var conditionLatch = new CountDownLatch(1);
+        final var success = new AtomicBoolean();
+        final var schedulingListeners = getInstanceFromNode(CompositeRecoverySchedulingListener.class);
+        final var listener = new TestRecoverySchedulingListener() {
+            @Override
+            public void onRecoverySchedulingChange() {
+                if (success.get()) {
+                    return;
+                }
+                if (predicate.test(shard.recoveryStats())) {
+                    conditionLatch.countDown();
+                    success.set(true);
+                }
+            }
+        };
+        schedulingListeners.addListener(listener);
+        try {
+            listener.onRecoverySchedulingChange();
+            safeAwait(conditionLatch);
+        } finally {
+            schedulingListeners.removeListener(listener);
         }
     }
 

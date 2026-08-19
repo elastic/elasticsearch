@@ -225,7 +225,7 @@ public class ShardHeapEstimatorTests extends ESTestCase {
 
     public void testAggregateShardMetricsEmpty() {
         ShardHeapEstimator estimator = adaptiveEstimator(0.0, 0L);
-        var result = estimator.aggregateShardMetrics(Map.of(), (id, m) -> {});
+        var result = estimator.aggregateShardMetrics(Map.of());
         assertThat(result.totalShardHeapInBytes(), equalTo(0L));
         assertThat(result.maxShardHeapInBytes(), equalTo(0L));
         assertThat(result.mappingSizeInBytes(), equalTo(0L));
@@ -233,16 +233,17 @@ public class ShardHeapEstimatorTests extends ESTestCase {
     }
 
     public void testAggregateShardMetricsSumsTotals() {
-        ShardHeapEstimator estimator = fixedEstimator(ByteSizeValue.ofBytes(1000));
-        long mapping1 = 200, mapping2 = 300;
+        final long fixedShardSizeBytes = randomLongBetween(1_000, 10_000_000);
+        ShardHeapEstimator estimator = fixedEstimator(ByteSizeValue.ofBytes(fixedShardSizeBytes));
+        long mapping1 = randomLongBetween(1_000, 2_000), mapping2 = randomLongBetween(1_000, 2_000);
         var m1 = metrics(mapping1, 0, 0, 0, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.EXACT);
         var m2 = metrics(mapping2, 0, 0, 0, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.EXACT);
         ShardId id1 = new ShardId(new Index("idx1", "uuid1"), 0);
         ShardId id2 = new ShardId(new Index("idx2", "uuid2"), 0);
 
-        var result = estimator.aggregateShardMetrics(Map.of(id1, m1, id2, m2), (id, m) -> {});
-        assertThat(result.totalShardHeapInBytes(), equalTo(2000L));
-        assertThat(result.maxShardHeapInBytes(), equalTo(1000L));
+        var result = estimator.aggregateShardMetrics(Map.of(id1, m1, id2, m2));
+        assertThat(result.totalShardHeapInBytes(), equalTo(2 * fixedShardSizeBytes));
+        assertThat(result.maxShardHeapInBytes(), equalTo(fixedShardSizeBytes));
         assertThat(result.mappingSizeInBytes(), equalTo(mapping1 + mapping2));
         assertThat(result.metricQuality(), equalTo(MetricQuality.EXACT));
     }
@@ -255,29 +256,19 @@ public class ShardHeapEstimatorTests extends ESTestCase {
         ShardId id1 = new ShardId(new Index("idx", "uuid"), 0);
         ShardId id2 = new ShardId(new Index("idx", "uuid"), 1);
 
-        var result = estimator.aggregateShardMetrics(Map.of(id1, small, id2, large), (id, m) -> {});
+        var result = estimator.aggregateShardMetrics(Map.of(id1, small, id2, large));
         assertThat(result.maxShardHeapInBytes(), equalTo(estimator.computeShardHeapUsage(large)));
     }
 
     public void testAggregateShardMetricsPropagatesNonExactQuality() {
         ShardHeapEstimator estimator = fixedEstimator(ByteSizeValue.ofBytes(500));
-        var exact = metrics(0, 0, 0, 0, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.EXACT);
-        var minimum = metrics(0, 0, 0, 0, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.MINIMUM);
-        ShardId id1 = new ShardId(new Index("idx1", "uuid1"), 0);
-        ShardId id2 = new ShardId(new Index("idx2", "uuid2"), 0);
-
-        var result = estimator.aggregateShardMetrics(Map.of(id1, exact, id2, minimum), (id, m) -> {});
-        assertThat(result.metricQuality(), equalTo(MetricQuality.MINIMUM));
-    }
-
-    public void testAggregateShardMetricsMissingQualityPropagated() {
-        ShardHeapEstimator estimator = fixedEstimator(ByteSizeValue.ofBytes(500));
-        var exact = metrics(0, 0, 0, 0, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.EXACT);
-        var missing = metrics(0, 0, 0, 0, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.MISSING);
-        ShardId id1 = new ShardId(new Index("idx1", "uuid1"), 0);
-        ShardId id2 = new ShardId(new Index("idx2", "uuid2"), 0);
-
-        var result = estimator.aggregateShardMetrics(Map.of(id1, exact, id2, missing), (id, m) -> {});
+        final var shardMemoryMetrics = new LinkedHashMap<ShardId, StatelessMemoryMetricsService.ShardMemoryMetrics>(3);
+        final var metricsValues = shuffledList(MetricQuality.EXACT, MetricQuality.MINIMUM, MetricQuality.MISSING);
+        for (int i = 0; i < metricsValues.size(); i++) {
+            final var shardMetrics = metrics(0, 0, 0, 0, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, metricsValues.get(i));
+            shardMemoryMetrics.put(new ShardId(new Index("idx" + i, "uuid" + i), 0), shardMetrics);
+        }
+        var result = estimator.aggregateShardMetrics(shardMemoryMetrics);
         assertThat(result.metricQuality(), equalTo(MetricQuality.MISSING));
     }
 
@@ -303,31 +294,11 @@ public class ShardHeapEstimatorTests extends ESTestCase {
         ShardId id1 = new ShardId(new Index("idx1", "uuid1"), 0);
         ShardId id2 = new ShardId(new Index("idx2", "uuid2"), 0);
 
-        var result = estimator.aggregateShardMetrics(Map.of(id1, m1, id2, m2), (id, m) -> {});
+        var result = estimator.aggregateShardMetrics(Map.of(id1, m1, id2, m2));
         assertThat(result.mappingSizeInBytes(), equalTo(mapping1 + mapping2));
     }
 
     // --- getEffectiveShardPostingsInBytes ---
-
-    public void testAggregateShardMetricsMissingBeatsMinimumRegardlessOfOrder() {
-        ShardHeapEstimator estimator = fixedEstimator(ByteSizeValue.ofBytes(500));
-        var minimum = metrics(0, 0, 0, 0, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.MINIMUM);
-        var missing = metrics(0, 0, 0, 0, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.MISSING);
-        ShardId id1 = new ShardId(new Index("idx1", "uuid1"), 0);
-        ShardId id2 = new ShardId(new Index("idx2", "uuid2"), 0);
-
-        // MISSING then MINIMUM
-        var missingFirst = new LinkedHashMap<ShardId, StatelessMemoryMetricsService.ShardMemoryMetrics>();
-        missingFirst.put(id1, missing);
-        missingFirst.put(id2, minimum);
-        assertThat(estimator.aggregateShardMetrics(missingFirst, (id, m) -> {}).metricQuality(), equalTo(MetricQuality.MISSING));
-
-        // MINIMUM then MISSING
-        var minimumFirst = new LinkedHashMap<ShardId, StatelessMemoryMetricsService.ShardMemoryMetrics>();
-        minimumFirst.put(id1, minimum);
-        minimumFirst.put(id2, missing);
-        assertThat(estimator.aggregateShardMetrics(minimumFirst, (id, m) -> {}).metricQuality(), equalTo(MetricQuality.MISSING));
-    }
 
     public void testEffectivePostingsZeroWhenPostingsIncludedInEstimate() {
         // includePostingsInEstimate=true: postings are already folded into computeShardHeapUsage, so effective postings must be 0

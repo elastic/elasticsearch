@@ -89,6 +89,12 @@ public class ShardHeapEstimator {
     }
 
     public ShardMetricsAggregation aggregateShardMetrics(
+        Map<ShardId, StatelessMemoryMetricsService.ShardMemoryMetrics> shardMemoryMetrics
+    ) {
+        return aggregateShardMetrics(shardMemoryMetrics, (shardId, metrics) -> {});
+    }
+
+    public ShardMetricsAggregation aggregateShardMetrics(
         Map<ShardId, StatelessMemoryMetricsService.ShardMemoryMetrics> shardMemoryMetrics,
         BiConsumer<ShardId, StatelessMemoryMetricsService.ShardMemoryMetrics> metricVisitor
     ) {

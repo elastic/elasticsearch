@@ -55,6 +55,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Base class for tests that run the {@link DiversifyRetrieverBuilder} over an inference field, across every embedding task type and dense
+ * vector element type the field mapper supports. Documents are indexed with multiple values per field so that each hit has multiple chunk
+ * embeddings, and searches are issued from a coordinating-only node so that hits cross the transport layer.
+ * <p>
+ * Subclasses supply the field mapping and field values for the concrete inference field type under test.
+ * </p>
+ */
 @ESIntegTestCase.ClusterScope(numDataNodes = 2, numClientNodes = 1, supportsDedicatedMasters = false)
 abstract class AbstractInferenceFieldDiversifyRetrieverIT extends ESIntegTestCase {
     static final int VECTOR_DIMENSIONS = 128;  // Use a dimension count that is compatible with BIT element type

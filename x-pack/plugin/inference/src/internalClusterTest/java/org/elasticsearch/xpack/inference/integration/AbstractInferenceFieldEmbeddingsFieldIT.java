@@ -50,6 +50,15 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
+/**
+ * Base class for tests that fetch embeddings from an inference field via {@link SearchSourceBuilder#fetchEmbeddingsField}, across every
+ * embedding task type and dense vector element type the field mapper supports. Covers explicit and inferred {@link VectorType}, mismatched
+ * vector types, and the empty-index case. Searches are issued from a coordinating-only node so that fetched embeddings cross the transport
+ * layer.
+ * <p>
+ * Subclasses supply the field mapping for the concrete inference field type under test.
+ * </p>
+ */
 @ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 1, supportsDedicatedMasters = false)
 abstract class AbstractInferenceFieldEmbeddingsFieldIT extends ESIntegTestCase {
     static final int VECTOR_DIMENSIONS = 128;  // Use a dimension count that is compatible with BIT element type

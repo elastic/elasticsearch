@@ -1299,7 +1299,7 @@ public class FileSplitProvider implements SplitProvider {
      */
     public static long validateTargetSplitSize(String value) {
         long result = ByteSizeValue.parseBytesSizeValue(value, CONFIG_TARGET_SPLIT_SIZE).getBytes();
-        Check.isTrue(result > 0, "Invalid value for [{}]: [{}]; must be positive", CONFIG_TARGET_SPLIT_SIZE, value);
+        Check.clientError(result > 0, "Invalid value for [{}]: [{}]; must be positive", CONFIG_TARGET_SPLIT_SIZE, value);
         return result;
     }
 

@@ -203,7 +203,8 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         final Map<BlobFile, Long> timestampPerBlob = SearchCommitPrefetcher.computeTimestampPerBlob(
             commit,
             Set.of(internalBlob, referencedBlobA, referencedBlobB, referencedBlobC),
-            resolver
+            resolver,
+            x -> x
         );
 
         assertThat("internal blob takes the notification commit midpoint", timestampPerBlob.get(internalBlob), equalTo(2000L));
@@ -214,13 +215,13 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
             equalTo(2500L)
         );
         assertThat(
-            "referenced blob C has no known file timestamp, so it resolved to UNKNOWN_TIMESTAMP",
+            "referenced blob C has no known file timestamp, so it falls back to the triggering commit's midpoint",
             timestampPerBlob.get(referencedBlobC),
-            equalTo(UNKNOWN_TIMESTAMP)
+            equalTo(2000L)
         );
     }
 
-    public void testComputeTimestampPerBlobKeepsUnknownWhenNotificationTimestampUnknown() {
+    public void testComputeTimestampPerBlobBehaviourWhenNotificationTimestampUnknown() {
         final BlobFile referencedBlob = blobFile(1);
         final Map<String, BlobLocation> commitFiles = new HashMap<>();
         // No internal files: the whole commit has no timestamp range, and the referenced file is unknown too.
@@ -232,13 +233,26 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         final Map<BlobFile, Long> timestampPerBlob = SearchCommitPrefetcher.computeTimestampPerBlob(
             commit,
             Set.of(referencedBlob),
-            resolver
+            resolver,
+            x -> x
         );
-
         assertThat(
-            "with an unknown notification timestamp there is nothing to fall back to, so the blob stays unknown",
+            "with an identity resolver, an all-unknown blob stays unknown",
             timestampPerBlob.get(referencedBlob),
             equalTo(UNKNOWN_TIMESTAMP)
+        );
+
+        final long resolvedTimestamp = randomNonNegativeLong();
+        final Map<BlobFile, Long> resolvedTimestampPerBlob = SearchCommitPrefetcher.computeTimestampPerBlob(
+            commit,
+            Set.of(referencedBlob),
+            resolver,
+            ignored -> resolvedTimestamp
+        );
+        assertThat(
+            "the region timestamp resolver's result is used",
+            resolvedTimestampPerBlob.get(referencedBlob),
+            equalTo(resolvedTimestamp)
         );
     }
 
@@ -271,15 +285,35 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         final ThreadPool threadPool = taskQueue.getThreadPool();
 
+        final ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            Sets.addToCopy(
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING,
+                SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,
+                SearchCommitPrefetcherDynamicSettings.PREFETCH_SEARCH_IDLE_TIME_SETTING,
+                SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
+                SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
+                SearchCommitPrefetcher.FORCE_PREFETCH_SETTING,
+                SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT,
+                StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
+                StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,
+                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING,
+                StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING
+            )
+        );
+
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             StatelessSharedBlobCacheService cacheService = new StatelessSharedBlobCacheService(
                 environment,
                 settings,
+                clusterSettings,
                 threadPool,
                 BlobCacheMetrics.NOOP,
                 new DefaultEvictionPolicy<FileCacheKey>(),
                 System::nanoTime,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             ) {
                 @Override
@@ -300,20 +334,6 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
                 }
             }
         ) {
-            final ClusterSettings clusterSettings = new ClusterSettings(
-                Settings.EMPTY,
-                Sets.addToCopy(
-                    ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
-                    SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING,
-                    SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,
-                    SearchCommitPrefetcherDynamicSettings.PREFETCH_SEARCH_IDLE_TIME_SETTING,
-                    SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
-                    SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
-                    SearchCommitPrefetcher.FORCE_PREFETCH_SETTING,
-                    SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
-                )
-            );
-
             final CacheBlobReader cacheBlobReader = new CacheBlobReader() {
                 @Override
                 public ByteRange getRange(long position, int length, long remainingFileLength) {
@@ -330,8 +350,9 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
                 shardId,
                 cacheService,
                 blobFile -> cacheBlobReader,
-                // Internal files take the notification commit's timestamp, so the resolver value is irrelevant here.
+                // Internal files take the notification commit's timestamp, so the resolver values are irrelevant here.
                 fileName -> UNKNOWN_TIMESTAMP,
+                x -> x,
                 threadPool,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 clusterSettings,

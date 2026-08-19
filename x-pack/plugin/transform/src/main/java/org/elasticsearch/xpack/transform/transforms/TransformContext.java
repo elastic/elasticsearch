@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.Transform;
 
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -56,12 +57,25 @@ public class TransformContext {
     private final AtomicReference<PersistedCloudCredential> persistedCloudCredential = new AtomicReference<>();
 
     /**
+     * Set to {@code true} once the transform has processed its first source document, i.e. it has moved past its initial
+     * catch-up phase. Only ever transitions from {@code false} to {@code true}. A {@code _start}-time {@code initial_delay}
+     * override is applied by the checkpoint provider only while this is {@code false}.
+     */
+    private final AtomicBoolean hasProcessedData = new AtomicBoolean(false);
+
+    /**
      * If the destination index is blocked (e.g. during a reindex), the Transform will fail to write to it.
      * {@link TransformFailureHandler} will silence the error so the Transform automatically retries.
      * Every time the Transform runs, it will check if the index is unblocked and reset this to false.
      * Users can override this via the `_schedule_now` API.
      */
     private volatile boolean isWaitingForIndexToUnblock = false;
+
+    // Facts from this transform's most recent completed search, recorded by the indexer and read
+    // by the per-node APM gauges via the TransformNode task registry. Null until the first search
+    // completes; the gauges skip transforms with unknown status.
+    private volatile Boolean uiamAuth = null;
+    private volatile Boolean lastSearchCrossProject = null;
 
     // the checkpoint of this transform, storing the checkpoint until data indexing from source to dest is _complete_
     // Note: Each indexer run creates a new future checkpoint which becomes the current checkpoint only after the indexer run finished
@@ -143,6 +157,17 @@ public class TransformContext {
         return from;
     }
 
+    public boolean hasProcessedData() {
+        return hasProcessedData.get();
+    }
+
+    /**
+     * Marks that the transform has processed at least one source document. Monotonic: once set it never reverts.
+     */
+    public void setHasProcessedData() {
+        hasProcessedData.set(true);
+    }
+
     ProjectId projectId() {
         return projectId;
     }
@@ -220,6 +245,22 @@ public class TransformContext {
 
     public void setIsWaitingForIndexToUnblock(boolean isWaitingForIndexToUnblock) {
         this.isWaitingForIndexToUnblock = isWaitingForIndexToUnblock;
+    }
+
+    /** {@code true} when the config carries a UIAM cloud credential (migrated), or {@code null} if no search has completed yet. */
+    public Boolean getUiamAuth() {
+        return uiamAuth;
+    }
+
+    /** {@code true} when the last search touched at least one linked project, or {@code null} if no search has completed yet. */
+    public Boolean getLastSearchCrossProject() {
+        return lastSearchCrossProject;
+    }
+
+    /** Records the per-search facts. Called once per completed search so values stay current after {@code _update}. */
+    public void recordSearchMetrics(boolean uiamAuth, boolean crossProject) {
+        this.uiamAuth = uiamAuth;
+        this.lastSearchCrossProject = crossProject;
     }
 
     public AuthorizationState getAuthState() {

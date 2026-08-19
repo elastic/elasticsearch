@@ -19,6 +19,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -50,7 +51,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
  * Note that this function is currently only intended for usage in surrogates and not available as a user-facing function.
  * Therefore, it is intentionally not registered in {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.
  */
-public class ExtractHistogramComponent extends EsqlScalarFunction {
+public class ExtractHistogramComponent extends EsqlScalarFunction implements AnyNullIsNull {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,

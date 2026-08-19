@@ -1201,7 +1201,9 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 null,
                 null,
                 null,
-                new Reasoning(Reasoning.ReasoningEffort.MEDIUM, Reasoning.ReasoningSummary.DETAILED, false, false)
+                new Reasoning(Reasoning.ReasoningEffort.MEDIUM, Reasoning.ReasoningSummary.DETAILED, false, false),
+                null,
+                null
             );
 
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();

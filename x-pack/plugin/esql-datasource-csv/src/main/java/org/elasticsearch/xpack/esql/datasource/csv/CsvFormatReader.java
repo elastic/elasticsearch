@@ -228,7 +228,8 @@ import java.util.function.Consumer;
  *   <tr><th>ES/ESQL key</th><th>Behaviour</th></tr>
  *   <tr><td>{@code fail_fast}</td><td>Abort on first error (default)</td></tr>
  *   <tr><td>{@code skip_row}</td><td>Drop the entire bad row</td></tr>
- *   <tr><td>{@code null_field}</td><td>Null-fill unparseable fields, keep the row</td></tr>
+ *   <tr><td>{@code null_field}</td><td>Null-fill unparseable fields, keep the row; structural failures
+ *       (tokeniser error, row-shape mismatch, field over {@code max_field_size}) still drop the row</td></tr>
  * </table>
  *
  * <h2>Examples</h2>
@@ -244,6 +245,14 @@ import java.util.function.Consumer;
  * (HTTP, S3, local filesystem).
  */
 public class CsvFormatReader implements SegmentableFormatReader {
+
+    /**
+     * The schema-sampling default this reader applies when the setting is absent, surfaced from
+     * {@link CsvSchemaInferrer} so the registration-time bound on {@code schema_sample_size} can be pinned against
+     * it. The bound must never sit below any reader's default, or the validator forbids the very value the reader
+     * uses when the user says nothing.
+     */
+    public static final int DEFAULT_SCHEMA_SAMPLE_SIZE = CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE;
 
     private static final Logger logger = LogManager.getLogger(CsvFormatReader.class);
 
@@ -470,7 +479,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * When {@code true} (default), eligible non-bracket reads use the direct-to-block path that parses
      * logical records straight into typed {@code Block} builders: plain (unquoted) reads take the
      * simplest walk, and RFC 4180 quoted reads (with or without backslash escapes) take the
-     * quote/escape-aware walk. Controlled by the node setting {@code esql.csv.direct_block.enabled}
+     * quote/escape-aware walk. Controlled by the node setting {@code esql.external.csv.direct_block.enabled}
      * via {@link #withDirectBlockEnabled(boolean)}; turning it off forces the byte-equivalent Jackson
      * bulk path everywhere.
      */
@@ -554,7 +563,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /**
      * Returns a copy of this reader with the direct-to-block read path toggled. Threaded from the
-     * {@code esql.csv.direct_block.enabled} node setting at reader-construction time.
+     * {@code esql.external.csv.direct_block.enabled} node setting at reader-construction time.
      */
     public CsvFormatReader withDirectBlockEnabled(boolean enabled) {
         if (enabled == directBlockEnabled) {
@@ -1043,7 +1052,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         CsvFormatOptions parsed = parseOptionsFromConfig(config, options);
         int newSampleSize = parseInt(config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
-        Check.isTrue(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
+        Check.clientError(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
         ErrorPolicy resolvedPolicy = ErrorPolicy.fromConfig(config, effectivePolicy);
         CsvFormatReader result = parsed != null ? withOptions(parsed) : this;
         // Pin the node-stable config identity from THIS query's WITH config. buildFormatConfig filters
@@ -1144,7 +1153,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 break;
             }
             if (headerLine == null) {
-                throw new IOException("CSV file has no schema line");
+                // Names the format the user asked for, not the reader's class. This reader serves tsv as well as
+                // csv, so a hard-coded "CSV" told someone querying a .tsv about a format they never mentioned.
+                throw new IOException(
+                    format.toUpperCase(Locale.ROOT) + " file has no schema line: the object is empty or contains only comments"
+                );
             }
             List<Attribute> typedSchema = parseSchema(headerLine);
             if (typedSchema != null) {
@@ -1315,7 +1328,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * True when the failure chain carries a {@link CsvRecordTooLargeException} — an over-{@code max_record_size}
+     * True when the failure chain carries a {@link CsvRecordTooLargeException} — an over-{@code external_max_record_size}
      * record dropped by the record-reader path and laundered into an unchecked wrapper by
      * {@link ExternalFailures#surface} (see {@link CsvRecordIterator#hasNext}). Detected by cause-walk so the
      * pragma-dependent survivor loss can safe-miss the stats publish, matching the bracket path's typed catch.
@@ -1328,7 +1341,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * Bulk-path iterator: hands the raw {@link Reader} straight to Jackson's {@link CsvParser} so the
      * per-row hot loop tokenizes characters in Jackson's internal char buffer instead of re-materializing
      * each logical record into a {@link StringBuilder} for a follow-up Jackson parse. The byte-level
-     * {@code max_record_size} cap is enforced upstream by {@link CsvRecordCappingInputStream}, so this
+     * {@code external_max_record_size} cap is enforced upstream by {@link CsvRecordCappingInputStream}, so this
      * path no longer needs the per-char accounting that {@link CsvLogicalRecordReader#readRecord} added.
      * Used after schema resolution / sampling, where every subsequent record flows through this iterator —
      * but only when {@link #jacksonGrammarApplies()} (trim on, or escaped mode). Under no-trim the data
@@ -1621,7 +1634,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // _rowPosition projected (_id / _file.record_ref requested) forces the same CsvLogicalRecordReader
         // data path as bracket mode: the Jackson bulk iterator bypasses recordReader's per-record byte
         // accounting, so the composed file-global offset would stay pinned at the header boundary for every
-        // data row. That path enforces max_record_size per record (char-decoded), so it must not also carry
+        // data row. That path enforces external_max_record_size per record (char-decoded), so it must not also carry
         // the byte-level cap wrap, for the same mid-fill desync reason as bracket mode.
         boolean rowPositionProjected = SyntheticColumns.rowPositionIndexInNames(context.projectedColumns()) >= 0;
         // Direct-to-block path: non-bracket, non-escaped-mode reads parse logical records straight into
@@ -3159,9 +3172,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
          */
         private boolean stripeCaptureDisabled = false;
         /**
-         * Set when the error policy RECOVERED an over-{@code max_record_size} record by dropping it (the
+         * Set when the error policy RECOVERED an over-{@code external_max_record_size} record by dropping it (the
          * bracket/record-reader path). Unlike a normal SKIP_ROW drop, that survivor loss is determined by the
-         * {@code max_record_size} query PRAGMA, which is NOT in the cache fingerprint -- so a warm query under a
+         * {@code external_max_record_size} query PRAGMA, which is NOT in the cache fingerprint -- so a warm query under a
          * larger cap would serve this scan's under-count instead of its own N. Suppress the whole publish
          * (safe-miss, re-scan) rather than cache a pragma-dependent count. Rare (pathological oversized records).
          */
@@ -3779,7 +3792,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                             } catch (RuntimeException e) {
                                 totalRowCount++;
                                 if (isRecordCapDrop(e)) {
-                                    // An over-max_record_size record dropped by the record-reader path
+                                    // An over-external_max_record_size record dropped by the record-reader path
                                     // (rowPositionSlot >= 0): CsvRecordIterator.hasNext launders the typed
                                     // CsvRecordTooLargeException through ExternalFailures.surface, so it arrives
                                     // here as the cause of an unchecked wrapper. Same survivor loss as
@@ -3830,7 +3843,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return recordReader.readRecord(true);
             } catch (CsvRecordTooLargeException e) {
                 totalRowCount++;
-                // A cap-determined drop: the max_record_size pragma is not fingerprinted, so this survivor
+                // A cap-determined drop: the external_max_record_size pragma is not fingerprinted, so this survivor
                 // loss is not reproducible from the cache key. Mark the scan uncacheable (safe-miss) so a warm
                 // query under a different cap re-scans rather than serving this pragma-dependent count.
                 recordCapDropped = true;

@@ -154,7 +154,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         if (cause instanceof NoSuchKeyException) {
             return new IOException("Object not found: " + path, cause);
         }
-        return new IOException(context + " " + path, cause);
+        return new IOException(context + " " + path + ": " + S3FailureDetail.of(cause), cause);
     }
 
     /**
@@ -314,7 +314,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
                 fetchMetadataViaRangeGet();
             } else {
-                throw new IOException("HeadObject request failed for " + path, e);
+                throw new IOException("HeadObject request failed for " + path + ": " + S3FailureDetail.of(e), e);
             }
         }
     }
@@ -340,7 +340,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             if (e instanceof NoSuchKeyException) {
                 setNotFound();
             } else {
-                throw new IOException("Failed to get metadata for " + path + " (HEAD denied, range GET also failed)", e);
+                throw new IOException(
+                    "Failed to get metadata for " + path + " (HEAD denied, range GET also failed): " + S3FailureDetail.of(e),
+                    e
+                );
             }
         }
     }

@@ -11,6 +11,7 @@ import org.elasticsearch.gradle.util.GradleUtils
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
   description = 'Apm integration plugin'
@@ -30,6 +31,7 @@ def otelVersion = '1.62.0'
 
 dependencies {
   clusterModules project(':modules:apm')
+  javaRestTestImplementation project(':test:external-modules:test-otel-filter-plugin')
   implementation project(':libs:logging')
   javaRestTestImplementation "io.opentelemetry.proto:opentelemetry-proto:1.7.0-alpha"
   javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-common:$otelVersion"

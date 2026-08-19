@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -1368,7 +1369,7 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
                 "salary",
                 new EsField("salary", INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
             ),
-            Map.of("employees", IndexMode.STANDARD),
+            Map.of("employees", new IndexProperties(IndexMode.STANDARD, 0)),
             Map.of(),
             Map.of()
         );

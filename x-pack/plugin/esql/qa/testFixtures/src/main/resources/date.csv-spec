@@ -293,7 +293,6 @@ date1:date               | dd_ms:integer
 ;
 
 dateDiffTestWarnings
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: functions_source_serialization_warnings
 
 FROM employees
@@ -408,6 +407,19 @@ ROW diff = DATE_DIFF("months", "2010-10-07T00:00:00-03:00"::date, "2010-11-06T23
 
 diff:integer
 0
+;
+
+dateDiffUnitFromField
+FROM date_extract_fields
+| EVAL diff = DATE_DIFF(inner_val, "2022-01-01T00:00:00.000Z"::date, "2023-01-01T00:00:00.000Z"::date)
+| KEEP inner_val, diff
+| SORT inner_val;
+
+inner_val:keyword | diff:integer
+day               | 365
+hour              | 8760
+month             | 12
+year              | 1
 ;
 
 evalDateParseWithSimpleDate
@@ -1142,6 +1154,48 @@ day_of_month      | 6
 hour_of_day       | 14
 month_of_year     | 5
 year              | 2022
+;
+
+dateFormatFromFields
+required_capability: fn_date_format
+
+FROM date_fn_fields
+| EVAL formatted = DATE_FORMAT(date_format, date_val)
+| KEEP date_format, date_val, formatted
+| SORT date_val;
+
+date_format:keyword | date_val:date            | formatted:keyword
+HH:mm               | 2021-12-25T08:15:00.000Z | 08:15
+yyyy                | 2023-02-10T00:00:00.000Z | 2023
+yyyy-MM-dd          | 2024-02-15T14:30:00.000Z | 2024-02-15
+;
+
+dateParseFromFields
+required_capability: fn_date_parse
+
+FROM date_fn_fields
+| EVAL parsed = DATE_PARSE(date_pattern, date_string)
+| KEEP date_pattern, date_string, parsed
+| SORT date_string;
+
+date_pattern:keyword | date_string:keyword | parsed:date
+yyyy-MM-dd           | 2021-12-25          | 2021-12-25T00:00:00.000Z
+yyyy-MM-dd           | 2023-02-10          | 2023-02-10T00:00:00.000Z
+yyyy-MM-dd           | 2024-02-15          | 2024-02-15T00:00:00.000Z
+;
+
+dateUnitCountFromFields
+required_capability: esql_date_unit_count_fn
+
+FROM date_fn_fields
+| EVAL n = DATE_UNIT_COUNT(to_unit, from_unit, date_val)
+| KEEP to_unit, from_unit, date_val, n
+| SORT date_val;
+
+to_unit:keyword | from_unit:keyword | date_val:date            | n:long
+hour            | day               | 2021-12-25T08:15:00.000Z | 24
+day             | month             | 2023-02-10T00:00:00.000Z | 28
+day             | month             | 2024-02-15T14:30:00.000Z | 29
 ;
 
 docsDateFormat

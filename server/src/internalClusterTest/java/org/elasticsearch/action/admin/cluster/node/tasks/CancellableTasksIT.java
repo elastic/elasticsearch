@@ -44,7 +44,6 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -66,7 +65,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -205,7 +203,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         } finally {
             allowEntireRequest(rootRequest);
             cancelFuture.actionGet();
-            waitForRootTask(rootTaskFuture, false);
+            waitForRootTask(rootTaskFuture);
             ensureBansAndCancellationsConsistency();
         }
     }
@@ -226,7 +224,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         assertFalse(cancelFuture.isDone());
         allowEntireRequest(rootRequest);
         assertThat(cancelFuture.actionGet().getTaskFailures(), empty());
-        waitForRootTask(mainTaskFuture, false);
+        waitForRootTask(mainTaskFuture);
         ListTasksResponse cancelError = clusterAdmin().prepareCancelTasks()
             .setTargetTaskId(taskId)
             .waitForCompletion(randomBoolean())
@@ -256,7 +254,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
             cancelFuture.get();
         }
         allowEntireRequest(rootRequest);
-        waitForRootTask(mainTaskFuture, false);
+        waitForRootTask(mainTaskFuture);
         if (waitForCompletion) {
             cancelFuture.actionGet();
         }
@@ -278,7 +276,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         TaskCancelledException te = expectThrows(TaskCancelledException.class, future);
         assertThat(te.getMessage(), equalTo("parent task was cancelled [by user request]"));
         allowEntireRequest(rootRequest);
-        waitForRootTask(rootTaskFuture, false);
+        waitForRootTask(rootTaskFuture);
         ensureBansAndCancellationsConsistency();
     }
 
@@ -370,20 +368,6 @@ public class CancellableTasksIT extends ESIntegTestCase {
         }
     }
 
-    public void testChildrenTasksCancelledOnTimeout() throws Exception {
-        Set<DiscoveryNode> nodes = clusterService().state().nodes().stream().collect(Collectors.toSet());
-        final TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 4), true);
-        ActionFuture<TestResponse> rootTaskFuture = client().execute(TransportTestAction.ACTION, rootRequest);
-        allowEntireRequest(rootRequest);
-        waitForRootTask(rootTaskFuture, true);
-        ensureBansAndCancellationsConsistency();
-
-        // Make sure all descendent requests have completed
-        for (TestRequest subRequest : rootRequest.descendants()) {
-            safeAwait(completedLatches.get(subRequest));
-        }
-    }
-
     static TaskId getRootTaskId(TestRequest request) throws Exception {
         SetOnce<TaskId> taskId = new SetOnce<>();
         assertBusy(() -> {
@@ -401,24 +385,19 @@ public class CancellableTasksIT extends ESIntegTestCase {
         return taskId.get();
     }
 
-    static void waitForRootTask(ActionFuture<TestResponse> rootTask, boolean expectToTimeout) {
+    static void waitForRootTask(ActionFuture<TestResponse> rootTask) {
         try {
             rootTask.actionGet();
         } catch (Exception e) {
-            final Throwable cause = ExceptionsHelper.unwrap(
-                e,
-                expectToTimeout ? ReceiveTimeoutTransportException.class : TaskCancelledException.class
-            );
+            final Throwable cause = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
             assertNotNull(cause);
             assertThat(
                 cause.getMessage(),
-                expectToTimeout
-                    ? containsStringIgnoringCase("timed out after")
-                    : anyOf(
-                        equalTo("parent task was cancelled [by user request]"),
-                        equalTo("task cancelled before starting [by user request]"),
-                        equalTo("task cancelled [by user request]")
-                    )
+                anyOf(
+                    equalTo("parent task was cancelled [by user request]"),
+                    equalTo("task cancelled before starting [by user request]"),
+                    equalTo("task cancelled [by user request]")
+                )
             );
         }
     }

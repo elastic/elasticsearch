@@ -94,6 +94,7 @@ import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.Force
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.LowestFrequencyEviction;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.Promote;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.SlotAssignment;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.UNKNOWN_TIMESTAMP;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.telemetry.InstrumentType.DOUBLE_HISTOGRAM;
 import static org.elasticsearch.telemetry.InstrumentType.LONG_HISTOGRAM;
@@ -114,6 +115,10 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
     private static long size(long numPages) {
         return numPages * SharedBytes.PAGE_SIZE;
+    }
+
+    private static long irrelevantTimestamp() {
+        return UNKNOWN_TIMESTAMP;
     }
 
     private static <E extends Exception> void completeWith(ActionListener<Void> listener, CheckedRunnable<E> runnable) {
@@ -146,13 +151,13 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         ) {
             final var cacheKey = generateCacheKey();
             assertEquals(5, cacheService.freeRegionCount());
-            final var region0 = cacheService.get(cacheKey, size(250), 0);
+            final var region0 = cacheService.get(cacheKey, size(250), 0, irrelevantTimestamp());
             assertEquals(size(100), region0.tracker.getLength());
             assertEquals(4, cacheService.freeRegionCount());
-            final var region1 = cacheService.get(cacheKey, size(250), 1);
+            final var region1 = cacheService.get(cacheKey, size(250), 1, irrelevantTimestamp());
             assertEquals(size(100), region1.tracker.getLength());
             assertEquals(3, cacheService.freeRegionCount());
-            final var region2 = cacheService.get(cacheKey, size(250), 2);
+            final var region2 = cacheService.get(cacheKey, size(250), 2, irrelevantTimestamp());
             assertEquals(size(50), region2.tracker.getLength());
             assertEquals(2, cacheService.freeRegionCount());
 
@@ -242,9 +247,60 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertSame(region0, region0Again);
             assertEquals(timestamp, region0Again.timestampMillis());
 
-            // a region created without a timestamp defaults to UNKNOWN_TIMESTAMP
-            final var region1 = cacheService.get(cacheKey, size(250), 1);
-            assertEquals(SharedBlobCacheService.UNKNOWN_TIMESTAMP, region1.timestampMillis());
+            // a region created with UNKNOWN_TIMESTAMP is stamped with it
+            final var region1 = cacheService.get(cacheKey, size(250), 1, UNKNOWN_TIMESTAMP);
+            assertEquals(UNKNOWN_TIMESTAMP, region1.timestampMillis());
+        }
+    }
+
+    public void testBackfillRegionTimestamps() throws IOException {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)))
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(new RecordingMeterRegistry())
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+
+            // region 0 and region 2 start BACKFILL_IN_PROGRESS and should be backfilled
+            final var region0 = cacheService.get(cacheKey, size(500), 0, SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP);
+            assertEquals(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP, region0.timestampMillis());
+            final var region2 = cacheService.get(cacheKey, size(500), 2, SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP);
+            assertEquals(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP, region2.timestampMillis());
+
+            // region 1 already carries a real timestamp; the guard must keep it
+            final long realTs = randomLongBetween(1, Long.MAX_VALUE - 1);
+            final var region1 = cacheService.get(cacheKey, size(500), 1, realTs);
+            assertEquals(realTs, region1.timestampMillis());
+
+            // UNKNOWN regions must not be modified by backfill
+            final var unknownRegion = cacheService.get(cacheKey, size(500), 3, UNKNOWN_TIMESTAMP);
+            assertEquals(UNKNOWN_TIMESTAMP, unknownRegion.timestampMillis());
+
+            // Backfill all present regions of the blob with a single timestamp.
+            final long backfill = randomLongBetween(1, Long.MAX_VALUE - 1);
+            cacheService.backfillRegionTimestamps(cacheKey.shardId(), key -> key.equals(cacheKey) ? backfill : null);
+
+            assertEquals(backfill, region0.timestampMillis());
+            assertEquals(realTs, region1.timestampMillis()); // the guard kept the pre-existing real value
+            assertEquals(backfill, region2.timestampMillis());
+            assertEquals(UNKNOWN_TIMESTAMP, unknownRegion.timestampMillis());
+
+            // backfilling an already-resolved region is a no-op (transition only from BACKFILL_IN_PROGRESS)
+            cacheService.backfillRegionTimestamps(cacheKey.shardId(), key -> key.equals(cacheKey) ? backfill + 1 : null);
+            assertEquals(backfill, region0.timestampMillis());
         }
     }
 
@@ -288,7 +344,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
                 cacheService.fetchRegion(cacheKey, 0, regionSize, writer, bulkExecutor, true, ts, future);
                 assertThat(future.get(10, TimeUnit.SECONDS), is(true));
-                assertEquals(ts, cacheService.get(cacheKey, regionSize, 0).timestampMillis());
+                // The timestamps passed in the get() call is ignored as the region is already populated and the initial timestamp is kept.
+                assertEquals(ts, cacheService.get(cacheKey, regionSize, 0, UNKNOWN_TIMESTAMP).timestampMillis());
             }
             {
                 final var cacheKey = generateCacheKey();
@@ -297,7 +354,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
                 cacheService.fetchRange(cacheKey, 0, range, regionSize, writer, bulkExecutor, true, ts, future);
                 assertThat(future.get(10, TimeUnit.SECONDS), is(true));
-                assertEquals(ts, cacheService.get(cacheKey, regionSize, 0).timestampMillis());
+                assertEquals(ts, cacheService.get(cacheKey, regionSize, 0, UNKNOWN_TIMESTAMP).timestampMillis());
             }
             {
                 final var cacheKey = generateCacheKey();
@@ -305,7 +362,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
                 cacheService.maybeFetchRegion(cacheKey, 0, regionSize, writer, bulkExecutor, ts, future);
                 assertThat(future.get(10, TimeUnit.SECONDS), is(true));
-                assertEquals(ts, cacheService.get(cacheKey, regionSize, 0).timestampMillis());
+                assertEquals(ts, cacheService.get(cacheKey, regionSize, 0, UNKNOWN_TIMESTAMP).timestampMillis());
             }
             {
                 final var cacheKey = generateCacheKey();
@@ -314,7 +371,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
                 cacheService.maybeFetchRange(cacheKey, 0, range, regionSize, writer, bulkExecutor, ts, future);
                 assertThat(future.get(10, TimeUnit.SECONDS), is(true));
-                assertEquals(ts, cacheService.get(cacheKey, regionSize, 0).timestampMillis());
+                assertEquals(ts, cacheService.get(cacheKey, regionSize, 0, UNKNOWN_TIMESTAMP).timestampMillis());
             }
         } finally {
             TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
@@ -377,7 +434,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             );
             secondFuture.get(10, TimeUnit.SECONDS);
 
-            assertEquals(firstTimestamp, cacheService.get(cacheKey, regionSize, 0).timestampMillis());
+            assertEquals(firstTimestamp, cacheService.get(cacheKey, regionSize, 0, UNKNOWN_TIMESTAMP).timestampMillis());
         } finally {
             TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
@@ -430,7 +487,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             );
             assertThat(bytesRead, is(1));
 
-            assertEquals(ts, cacheService.get(cacheKey, 1L, 0).timestampMillis());
+            assertEquals(ts, cacheService.get(cacheKey, 1L, 0, UNKNOWN_TIMESTAMP).timestampMillis());
         } finally {
             ThreadPool.terminate(ioExecutor, 10, TimeUnit.SECONDS);
         }
@@ -466,7 +523,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
                 cacheKey,
                 1L,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                irrelevantTimestamp()
             );
 
             ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
@@ -492,7 +550,12 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             Path tempFile2 = createTempFile("test", "cfs");
             resourceDescription = tempFile2.toAbsolutePath().toString();
-            cacheFile = cacheService.getCacheFile(generateCacheKey(), 1L, SharedBlobCacheService.CacheMissHandler.NOOP);
+            cacheFile = cacheService.getCacheFile(
+                generateCacheKey(),
+                1L,
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                irrelevantTimestamp()
+            );
 
             ByteBuffer writeBuffer2 = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
 
@@ -552,17 +615,17 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         ) {
             final var cacheKey = generateCacheKey();
             assertEquals(2, cacheService.freeRegionCount());
-            final var region0 = cacheService.get(cacheKey, size(250), 0);
+            final var region0 = cacheService.get(cacheKey, size(250), 0, irrelevantTimestamp());
             assertEquals(size(100), region0.tracker.getLength());
             assertEquals(1, cacheService.freeRegionCount());
-            final var region1 = cacheService.get(cacheKey, size(250), 1);
+            final var region1 = cacheService.get(cacheKey, size(250), 1, irrelevantTimestamp());
             assertEquals(size(100), region1.tracker.getLength());
             assertEquals(0, cacheService.freeRegionCount());
             assertFalse(region0.isEvicted());
             assertFalse(region1.isEvicted());
 
             // acquire region 2, which should evict region 0 (oldest)
-            final var region2 = cacheService.get(cacheKey, size(250), 2);
+            final var region2 = cacheService.get(cacheKey, size(250), 2, irrelevantTimestamp());
             assertEquals(size(50), region2.tracker.getLength());
             assertEquals(0, cacheService.freeRegionCount());
             assertTrue(region0.isEvicted());
@@ -598,9 +661,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final var cacheKey1 = generateCacheKey();
             final var cacheKey2 = generateCacheKey();
             assertEquals(5, cacheService.freeRegionCount());
-            final var region0 = cacheService.get(cacheKey1, size(250), 0);
+            final var region0 = cacheService.get(cacheKey1, size(250), 0, irrelevantTimestamp());
             assertEquals(4, cacheService.freeRegionCount());
-            final var region1 = cacheService.get(cacheKey2, size(250), 1);
+            final var region1 = cacheService.get(cacheKey2, size(250), 1, irrelevantTimestamp());
             assertEquals(3, cacheService.freeRegionCount());
             assertFalse(region0.isEvicted());
             assertFalse(region1.isEvicted());
@@ -637,9 +700,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final var cacheKey1 = generateCacheKey();
             final var cacheKey2 = generateCacheKey();
             assertEquals(5, cacheService.freeRegionCount());
-            final var region0 = cacheService.get(cacheKey1, size(250), 0);
+            final var region0 = cacheService.get(cacheKey1, size(250), 0, irrelevantTimestamp());
             assertEquals(4, cacheService.freeRegionCount());
-            final var region1 = cacheService.get(cacheKey2, size(250), 1);
+            final var region1 = cacheService.get(cacheKey2, size(250), 1, irrelevantTimestamp());
             assertEquals(3, cacheService.freeRegionCount());
             assertFalse(region0.isEvicted());
             assertFalse(region1.isEvicted());
@@ -675,9 +738,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final var cacheKey1 = generateCacheKey();
             final var cacheKey2 = generateCacheKey();
             assertEquals(5, cacheService.freeRegionCount());
-            final var region0 = cacheService.get(cacheKey1, size(250), 0);
+            final var region0 = cacheService.get(cacheKey1, size(250), 0, irrelevantTimestamp());
             assertEquals(4, cacheService.freeRegionCount());
-            final var region1 = cacheService.get(cacheKey2, size(250), 1);
+            final var region1 = cacheService.get(cacheKey2, size(250), 1, irrelevantTimestamp());
             assertEquals(3, cacheService.freeRegionCount());
             assertFalse(region0.isEvicted());
             assertFalse(region1.isEvicted());
@@ -717,9 +780,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final var cacheKey1 = randomTestCacheKey(shard1);
             final var cacheKey2 = randomTestCacheKey(shard2);
 
-            final var region0 = cacheService.get(cacheKey1, size(250), 0);
-            final var region1 = cacheService.get(cacheKey1, size(250), 1);
-            final var region2 = cacheService.get(cacheKey2, size(250), 0);
+            final var region0 = cacheService.get(cacheKey1, size(250), 0, irrelevantTimestamp());
+            final var region1 = cacheService.get(cacheKey1, size(250), 1, irrelevantTimestamp());
+            final var region2 = cacheService.get(cacheKey2, size(250), 0, irrelevantTimestamp());
 
             assertEquals(1, cacheService.getFreq(region0));
             assertEquals(1, cacheService.getFreq(region1));
@@ -769,8 +832,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final var protectedKey = randomTestCacheKey(protectedShard);
             final var victimKey = randomTestCacheKey(victimShard);
 
-            final var protectedRegion0 = cacheService.get(protectedKey, size(250), 0);
-            final var protectedRegion1 = cacheService.get(protectedKey, size(250), 1);
+            final var protectedRegion0 = cacheService.get(protectedKey, size(250), 0, irrelevantTimestamp());
+            final var protectedRegion1 = cacheService.get(protectedKey, size(250), 1, irrelevantTimestamp());
             assertThat(cacheService.freeRegionCount(), equalTo(1));
 
             cacheService.computeDecay();
@@ -779,7 +842,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertEquals(0, cacheService.getFreq(protectedRegion0));
             assertEquals(0, cacheService.getFreq(protectedRegion1));
 
-            final var victimRegion0 = cacheService.get(victimKey, size(250), 0);
+            final var victimRegion0 = cacheService.get(victimKey, size(250), 0, irrelevantTimestamp());
             assertThat(cacheService.freeRegionCount(), equalTo(0));
             assertEquals(1, cacheService.getFreq(victimRegion0));
 
@@ -832,7 +895,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 final TestCacheKey cacheKey = cacheKeyPerShard.get(entry.getKey());
                 final long blobLength = size(100L * entry.getValue());
                 for (int r = 0; r < entry.getValue(); r++) {
-                    cacheService.get(cacheKey, blobLength, r);
+                    cacheService.get(cacheKey, blobLength, r, irrelevantTimestamp());
                 }
             }
 
@@ -875,9 +938,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final var cacheKey2 = randomTestCacheKey(shard2);
 
             // populate regions: 2 for shard1, 1 for shard2
-            final var region0 = cacheService.get(cacheKey1, size(250), 0);
-            final var region1 = cacheService.get(cacheKey1, size(250), 1);
-            final var region2 = cacheService.get(cacheKey2, size(250), 0);
+            final var region0 = cacheService.get(cacheKey1, size(250), 0, irrelevantTimestamp());
+            final var region1 = cacheService.get(cacheKey1, size(250), 1, irrelevantTimestamp());
+            final var region2 = cacheService.get(cacheKey2, size(250), 0, irrelevantTimestamp());
             assertEquals(2, cacheService.freeRegionCount());
 
             // evict only region 0 of shard1
@@ -926,8 +989,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final ShardId shard1 = randomShardId();
             final var cacheKey1 = randomTestCacheKey(shard1);
 
-            final var region0 = cacheService.get(cacheKey1, size(250), 0);
-            final var region1 = cacheService.get(cacheKey1, size(250), 1);
+            final var region0 = cacheService.get(cacheKey1, size(250), 0, irrelevantTimestamp());
+            final var region1 = cacheService.get(cacheKey1, size(250), 1, irrelevantTimestamp());
             assertFalse(region0.isEvicted());
             assertFalse(region1.isEvicted());
 
@@ -978,13 +1041,13 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final var cacheKey3 = generateCacheKey();
             final var evictKey = generateCacheKey();
             // add a region that we can evict when provoking first decay
-            cacheService.get(evictKey, size(250), 0);
+            cacheService.get(evictKey, size(250), 0, irrelevantTimestamp());
             assertEquals(3, cacheService.freeRegionCount());
-            final var region0 = cacheService.get(cacheKey1, size(250), 0);
+            final var region0 = cacheService.get(cacheKey1, size(250), 0, irrelevantTimestamp());
             assertEquals(2, cacheService.freeRegionCount());
-            final var region1 = cacheService.get(cacheKey2, size(250), 1);
+            final var region1 = cacheService.get(cacheKey2, size(250), 1, irrelevantTimestamp());
             assertEquals(1, cacheService.freeRegionCount());
-            final var region2 = cacheService.get(cacheKey3, size(250), 1);
+            final var region2 = cacheService.get(cacheKey3, size(250), 1, irrelevantTimestamp());
             assertEquals(0, cacheService.freeRegionCount());
 
             assertEquals(1, cacheService.getFreq(region0));
@@ -993,7 +1056,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             AtomicLong expectedEpoch = new AtomicLong();
             Runnable triggerDecay = () -> {
                 assertThat(taskQueue.hasRunnableTasks(), is(false));
-                cacheService.get(generateCacheKey(), size(250), 0);
+                cacheService.get(generateCacheKey(), size(250), 0, irrelevantTimestamp());
                 assertThat(taskQueue.hasRunnableTasks(), is(true));
                 taskQueue.runAllRunnableTasks();
                 assertThat(cacheService.epoch(), equalTo(expectedEpoch.incrementAndGet()));
@@ -1003,13 +1066,13 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             triggerDecay.run();
 
-            cacheService.get(cacheKey1, size(250), 0);
-            cacheService.get(cacheKey2, size(250), 1);
-            cacheService.get(cacheKey3, size(250), 1);
+            cacheService.get(cacheKey1, size(250), 0, irrelevantTimestamp());
+            cacheService.get(cacheKey2, size(250), 1, irrelevantTimestamp());
+            cacheService.get(cacheKey3, size(250), 1, irrelevantTimestamp());
 
             triggerDecay.run();
 
-            final var region0Again = cacheService.get(cacheKey1, size(250), 0);
+            final var region0Again = cacheService.get(cacheKey1, size(250), 0, irrelevantTimestamp());
             assertSame(region0Again, region0);
             assertEquals(3, cacheService.getFreq(region0));
             assertEquals(1, cacheService.getFreq(region1));
@@ -1017,16 +1080,16 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             triggerDecay.run();
 
-            cacheService.get(cacheKey1, size(250), 0);
+            cacheService.get(cacheKey1, size(250), 0, irrelevantTimestamp());
             assertEquals(4, cacheService.getFreq(region0));
-            cacheService.get(cacheKey1, size(250), 0);
+            cacheService.get(cacheKey1, size(250), 0, irrelevantTimestamp());
             assertEquals(4, cacheService.getFreq(region0));
             assertEquals(0, cacheService.getFreq(region1));
             assertEquals(0, cacheService.getFreq(region2));
 
             // ensure no freq=0 entries
-            cacheService.get(cacheKey2, size(250), 1);
-            cacheService.get(cacheKey3, size(250), 1);
+            cacheService.get(cacheKey2, size(250), 1, irrelevantTimestamp());
+            cacheService.get(cacheKey3, size(250), 1, irrelevantTimestamp());
             assertEquals(2, cacheService.getFreq(region1));
             assertEquals(2, cacheService.getFreq(region2));
 
@@ -1042,8 +1105,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertEquals(0, cacheService.getFreq(region2));
 
             // ensure no freq=0 entries
-            cacheService.get(cacheKey2, size(250), 1);
-            cacheService.get(cacheKey3, size(250), 1);
+            cacheService.get(cacheKey2, size(250), 1, irrelevantTimestamp());
+            cacheService.get(cacheKey3, size(250), 1, irrelevantTimestamp());
             assertEquals(2, cacheService.getFreq(region1));
             assertEquals(2, cacheService.getFreq(region2));
 
@@ -1099,7 +1162,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             // Decay is triggered when (initialFreeRegions after decrement) % initialDecayPollCount == 0.
             for (int i = 0; i < numRegions; i++) {
                 long epochBefore = cacheService.epoch();
-                cacheService.get(generateCacheKey(), fileLength, 0);
+                cacheService.get(generateCacheKey(), fileLength, 0, irrelevantTimestamp());
                 taskQueue.runAllRunnableTasks();
                 long epochAfter = cacheService.epoch();
                 boolean decayExpected = (numRegions - (i + 1)) % initialDecayPollCount == 0;
@@ -1161,7 +1224,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertThat(cacheService.epoch(), equalTo(0L));
             long fileLength = size(numRegions + 10);
             for (int i = 0; i < numRegions; i++) {
-                cacheService.get(generateCacheKey(), fileLength, 0);
+                cacheService.get(generateCacheKey(), fileLength, 0, irrelevantTimestamp());
             }
             taskQueue.runAllRunnableTasks();
             assertThat(
@@ -1203,24 +1266,24 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             for (int i = 0; i < numRegions; i++) {
                 var key = generateCacheKey();
                 keys.add(key);
-                regions.add(cache.get(key, fileLength, 0));
+                regions.add(cache.get(key, fileLength, 0, irrelevantTimestamp()));
             }
-            cache.get(generateCacheKey(), fileLength, 0);
+            cache.get(generateCacheKey(), fileLength, 0, irrelevantTimestamp());
             taskQueue.runAllRunnableTasks();
             for (int i = 0; i < numRegions - 1; i++) {
-                cache.get(keys.get(i), fileLength, 0);
+                cache.get(keys.get(i), fileLength, 0, irrelevantTimestamp());
             }
             long freq0Count = regions.stream().filter(r -> r.isEvicted() == false).filter(r -> cache.getFreq(r) == 0).count();
             assertThat("freq0 count must be below threshold", freq0Count, lessThan((long) threshold));
 
-            var soleFreq0Region = cache.get(keys.get(numRegions - 1), fileLength, 0);
+            var soleFreq0Region = cache.get(keys.get(numRegions - 1), fileLength, 0, irrelevantTimestamp());
             synchronized (cache) {
                 assertTrue(tryEvict(soleFreq0Region));
             }
             taskQueue.runAllRunnableTasks();
             assertThat(cache.freeRegionCount(), equalTo(1));
             long epochBefore = cache.epoch();
-            cache.get(generateCacheKey(), fileLength, 0);
+            cache.get(generateCacheKey(), fileLength, 0, irrelevantTimestamp());
             taskQueue.runAllRunnableTasks();
             assertThat("no decay when freelist is non-empty even though freq0 is below threshold", cache.epoch(), equalTo(epochBefore));
         }
@@ -1257,19 +1320,19 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             for (int i = 0; i < numRegions; i++) {
                 var key = generateCacheKey();
                 keys.add(key);
-                regions.add(cache.get(key, fileLength, 0));
+                regions.add(cache.get(key, fileLength, 0, irrelevantTimestamp()));
             }
-            cache.get(generateCacheKey(), fileLength, 0);
+            cache.get(generateCacheKey(), fileLength, 0, irrelevantTimestamp());
             taskQueue.runAllRunnableTasks();
             for (int i = 0; i < numRegions - 1; i++) {
-                cache.get(keys.get(i), fileLength, 0);
+                cache.get(keys.get(i), fileLength, 0, irrelevantTimestamp());
             }
             long freq0Count = regions.stream().filter(r -> r.isEvicted() == false).filter(r -> cache.getFreq(r) == 0).count();
             assertThat("freq0 below threshold", freq0Count, lessThan((long) threshold));
             assertThat(cache.freeRegionCount(), equalTo(0));
 
             long epochBefore = cache.epoch();
-            cache.get(generateCacheKey(), fileLength, 0);
+            cache.get(generateCacheKey(), fileLength, 0, irrelevantTimestamp());
             taskQueue.runAllRunnableTasks();
             assertThat(
                 "decay is provoked when freelist is empty and freq0 is below threshold (5% of numRegions)",
@@ -1310,14 +1373,14 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             for (int i = 0; i < numRegions; i++) {
                 var key = generateCacheKey();
                 keys.add(key);
-                regions.add(cache.get(key, fileLength, 0));
+                regions.add(cache.get(key, fileLength, 0, irrelevantTimestamp()));
             }
-            cache.get(generateCacheKey(), fileLength, 0);
+            cache.get(generateCacheKey(), fileLength, 0, irrelevantTimestamp());
             taskQueue.runAllRunnableTasks();
             int promoted = 0;
             for (int i = 0; i < numRegions && promoted < numRegions - threshold - 1; i++) {
                 if (regions.get(i).isEvicted() == false) {
-                    cache.get(keys.get(i), fileLength, 0);
+                    cache.get(keys.get(i), fileLength, 0, irrelevantTimestamp());
                     promoted++;
                 }
             }
@@ -1326,7 +1389,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertThat(cache.freeRegionCount(), equalTo(0));
 
             long epochBefore = cache.epoch();
-            cache.get(generateCacheKey(), fileLength, 0);
+            cache.get(generateCacheKey(), fileLength, 0, irrelevantTimestamp());
             taskQueue.runAllRunnableTasks();
             assertThat(
                 "decay is not provoked when freq0 is at or above threshold (5% of numRegions), even with empty freelist",
@@ -1381,18 +1444,18 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             long fileLength = size(regions + 100);
             TestCacheKey cacheKey = generateCacheKey();
             for (int i = 0; i < regions; ++i) {
-                cacheService.get(cacheKey, fileLength, i);
+                cacheService.get(cacheKey, fileLength, i, irrelevantTimestamp());
                 if (Integer.bitCount(i) == 1) {
                     logger.debug("did {} gets", i);
                 }
             }
             assertThat(taskQueue.hasRunnableTasks(), is(false));
-            cacheService.get(cacheKey, fileLength, regions);
+            cacheService.get(cacheKey, fileLength, regions, irrelevantTimestamp());
             decay.run();
             int maxRounds = 5;
             for (int round = 2; round <= maxRounds; ++round) {
                 for (int i = round; i < regions + round; ++i) {
-                    cacheService.get(cacheKey, fileLength, i);
+                    cacheService.get(cacheKey, fileLength, i, irrelevantTimestamp());
                     if (Integer.bitCount(i) == 1) {
                         logger.debug("did {} gets", i);
                     }
@@ -1402,7 +1465,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             Map<Integer, Integer> freqs = new HashMap<>();
             for (int i = maxRounds; i < regions + maxRounds; ++i) {
-                int freq = cacheService.getFreq(cacheService.get(cacheKey, fileLength, i)) - 2;
+                int freq = cacheService.getFreq(cacheService.get(cacheKey, fileLength, i, irrelevantTimestamp())) - 2;
                 freqs.compute(freq, (k, v) -> v == null ? 1 : v + 1);
                 if (Integer.bitCount(i) == 1) {
                     logger.debug("did {} gets", i);
@@ -1467,7 +1530,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                             try {
                                 CacheFileRegion<TestCacheKey> cacheFileRegion;
                                 try {
-                                    cacheFileRegion = cacheService.get(cacheKeys[i], fileLength, regions[i]);
+                                    cacheFileRegion = cacheService.get(cacheKeys[i], fileLength, regions[i], irrelevantTimestamp());
                                 } catch (AlreadyClosedException e) {
                                     assert allowAlreadyClosed || e.getMessage().equals("evicted during free region allocation") : e;
                                     throw e;
@@ -1736,7 +1799,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             // use all regions in cache
             for (int i = 0; i < numRegions; i++) {
                 final var cacheKey = generateCacheKey();
-                var entry = cacheService.get(cacheKey, regionSize, 0);
+                var entry = cacheService.get(cacheKey, regionSize, 0, irrelevantTimestamp());
                 entry.populate(
                     ByteRange.of(0L, regionSize),
                     (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
@@ -1769,13 +1832,13 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             cacheService.maybeScheduleDecayAndNewEpoch();
             taskQueue.runAllRunnableTasks();
 
-            cacheEntries.keySet().forEach(key -> cacheService.get(key, regionSize, 0));
+            cacheEntries.keySet().forEach(key -> cacheService.get(key, regionSize, 0, irrelevantTimestamp()));
             cacheService.maybeScheduleDecayAndNewEpoch();
             taskQueue.runAllRunnableTasks();
 
             // touch some random cache entries
             var usedCacheKeys = Set.copyOf(randomSubsetOf(cacheEntries.keySet()));
-            usedCacheKeys.forEach(key -> cacheService.get(key, regionSize, 0));
+            usedCacheKeys.forEach(key -> cacheService.get(key, regionSize, 0, irrelevantTimestamp()));
 
             cacheEntries.forEach(
                 (key, entry) -> assertThat(cacheService.getFreq(entry), usedCacheKeys.contains(key) ? equalTo(3) : equalTo(1))
@@ -1851,7 +1914,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         ) {
             // fill the cache: every entry lands at frequency 1, leaving the lowest-frequency (0) list empty
             for (int i = 0; i < numRegions; i++) {
-                var entry = cacheService.get(generateCacheKey(), regionSize, 0);
+                var entry = cacheService.get(generateCacheKey(), regionSize, 0, irrelevantTimestamp());
                 entry.populate(
                     ByteRange.of(0L, regionSize),
                     (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
@@ -1946,12 +2009,12 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         ) {
             // fill the cache: every entry lands at frequency 1, leaving the lowest-frequency (0) list empty
             for (int i = 0; i < numRegions; i++) {
-                cacheService.get(generateCacheKey(), regionSize, 0);
+                cacheService.get(generateCacheKey(), regionSize, 0, irrelevantTimestamp());
             }
             assertThat(cacheService.freeRegionCount(), equalTo(0));
 
             // get() of a new key has no free region: the scan walks frequency 0 (empty) then evicts the frequency-1 head
-            cacheService.get(generateCacheKey(), regionSize, 0);
+            cacheService.get(generateCacheKey(), regionSize, 0, irrelevantTimestamp());
 
             var evicted = evictionScanMeasurements(
                 recordingEvicted,
@@ -2004,12 +2067,12 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             )
         ) {
             for (int i = 0; i < numRegions; i++) {
-                cacheService.get(generateCacheKey(), regionSize, 0);
+                cacheService.get(generateCacheKey(), regionSize, 0, irrelevantTimestamp());
             }
             assertThat(cacheService.freeRegionCount(), equalTo(0));
 
             // no entry is evictable: the scan walks every cached entry once across all frequency buckets and the allocation fails
-            expectThrows(AlreadyClosedException.class, () -> cacheService.get(generateCacheKey(), regionSize, 0));
+            expectThrows(AlreadyClosedException.class, () -> cacheService.get(generateCacheKey(), regionSize, 0, irrelevantTimestamp()));
 
             var none = evictionScanMeasurements(recordingNone, LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES, AllFrequencies, None);
             assertThat(none, hasSize(1));
@@ -2097,9 +2160,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             serviceRef.set(cacheService);
 
             // fill the cache: the victim plus numRegions - 1 other keys, all landing at frequency 1
-            cacheService.get(victimKey, regionSize, 0);
+            cacheService.get(victimKey, regionSize, 0, irrelevantTimestamp());
             for (int i = 0; i < numRegions - 1; i++) {
-                cacheService.get(generateCacheKey(), regionSize, 0);
+                cacheService.get(generateCacheKey(), regionSize, 0, irrelevantTimestamp());
             }
             assertThat(cacheService.freeRegionCount(), equalTo(0));
 
@@ -2108,7 +2171,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             taskQueue.runAllRunnableTasks();
 
             // a cache hit promotes the victim to frequency 2, parking it in a bucket the freq-0 scan never walks
-            var victimEntry = cacheService.get(victimKey, regionSize, 0);
+            var victimEntry = cacheService.get(victimKey, regionSize, 0, irrelevantTimestamp());
             assertThat(cacheService.getFreq(victimEntry), equalTo(2));
 
             // the cache is still full, so the only way a region can land in freeRegions mid-scan is the in-scan force-evict below
@@ -2116,7 +2179,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             // get() of a new key has no free region: the freq-0 scan walks all numRegions - 1 entries (predicate false), the first of
             // which force-evicts the freq-2 victim; the freq-1 poll then picks up that freed region, giving the Free outcome
-            cacheService.get(generateCacheKey(), regionSize, 0);
+            cacheService.get(generateCacheKey(), regionSize, 0, irrelevantTimestamp());
 
             var scanned = evictionScanMeasurements(recording, LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES, AllFrequencies, Free);
             assertThat(scanned, hasSize(1));
@@ -2197,7 +2260,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final List<TestCacheKey> keys = new ArrayList<>();
             for (int i = 0; i < numRegions; i++) {
                 final var key = generateCacheKey();
-                var entry = cacheService.get(key, regionSize, 0);
+                var entry = cacheService.get(key, regionSize, 0, irrelevantTimestamp());
                 entry.populate(
                     ByteRange.of(0L, regionSize),
                     (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
@@ -2311,7 +2374,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final List<TestCacheKey> freq0Keys = new ArrayList<>();
             for (int i = 0; i < freq0Regions; i++) {
                 final var key = generateCacheKey();
-                cacheService.get(key, regionSize, 0);
+                cacheService.get(key, regionSize, 0, irrelevantTimestamp());
                 freq0Keys.add(key);
             }
 
@@ -2323,7 +2386,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final List<TestCacheKey> freq1Keys = new ArrayList<>();
             for (int i = 0; i < freq1Regions; i++) {
                 final var key = generateCacheKey();
-                cacheService.get(key, regionSize, 0);
+                cacheService.get(key, regionSize, 0, irrelevantTimestamp());
                 freq1Keys.add(key);
             }
             assertThat(cacheService.freeRegionCount(), equalTo(0));
@@ -2336,7 +2399,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             // get() of a new key has no free region: the freq-0 scan walks all freq0Regions protected entries; the free-region poll at
             // the freq-1 boundary returns nothing (the cache is full and the scan has freed nothing, so this is not the Free path);
             // then the freq-1 scan skips the `skipFreq1Regions` protected entries and evicts freq1Keys.get(skipFreq1Regions)
-            cacheService.get(generateCacheKey(), regionSize, 0);
+            cacheService.get(generateCacheKey(), regionSize, 0, irrelevantTimestamp());
 
             var evicted = evictionScanMeasurements(recording, LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES, AllFrequencies, Evicted);
             assertThat(evicted, hasSize(1));
@@ -2364,7 +2427,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     /// [BlobCacheMetrics.LockAcquireSite#SlotAssignment] sample. No eviction is needed, so the cache-miss eviction site is untouched.
     public void testLockAcquireMetricsSlotAssignment() throws Exception {
         runLockAcquireMetricsTest(ctx -> {
-            ctx.cacheService().get(generateCacheKey(), ctx.regionSize(), 0);
+            ctx.cacheService().get(generateCacheKey(), ctx.regionSize(), 0, irrelevantTimestamp());
 
             assertLockAcquireSamples(ctx.recording(), SlotAssignment, 1, ctx.clockStepMicros());
             // a free slot was available, so no eviction victim had to be scanned for
@@ -2378,7 +2441,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     public void testLockAcquireMetricsCacheMissEviction() throws Exception {
         runLockAcquireMetricsTest(ctx -> {
             for (int i = 0; i < ctx.numRegions(); i++) {
-                ctx.cacheService().get(generateCacheKey(), ctx.regionSize(), 0);
+                ctx.cacheService().get(generateCacheKey(), ctx.regionSize(), 0, irrelevantTimestamp());
             }
             assertThat(ctx.cacheService().freeRegionCount(), equalTo(0));
             // filling used free slots only, so no eviction has happened yet
@@ -2390,7 +2453,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             ctx.recording().getRecorder().resetCalls();
 
             // brand-new key with no free region: initChunk -> maybeEvictAndTake (CacheMissEviction) -> assignToSlot (SlotAssignment)
-            ctx.cacheService().get(generateCacheKey(), ctx.regionSize(), 0);
+            ctx.cacheService().get(generateCacheKey(), ctx.regionSize(), 0, irrelevantTimestamp());
 
             assertLockAcquireSamples(ctx.recording(), CacheMissEviction, 1, ctx.clockStepMicros());
             assertLockAcquireSamples(ctx.recording(), SlotAssignment, 1, ctx.clockStepMicros());
@@ -2403,14 +2466,14 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     public void testLockAcquireMetricsPromote() throws Exception {
         runLockAcquireMetricsTest(ctx -> {
             final var key = generateCacheKey();
-            ctx.cacheService().get(key, ctx.regionSize(), 0);
+            ctx.cacheService().get(key, ctx.regionSize(), 0, irrelevantTimestamp());
 
             // advance the epoch so the next access to key promotes it; this decay task records one Decay sample
             ctx.cacheService().maybeScheduleDecayAndNewEpoch();
             ctx.taskQueue().runAllRunnableTasks();
             assertLockAcquireSamples(ctx.recording(), Decay, 1, ctx.clockStepMicros());
 
-            ctx.cacheService().get(key, ctx.regionSize(), 0);
+            ctx.cacheService().get(key, ctx.regionSize(), 0, irrelevantTimestamp());
             assertLockAcquireSamples(ctx.recording(), Promote, 1, ctx.clockStepMicros());
         });
     }
@@ -2431,7 +2494,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     public void testLockAcquireMetricsForceEvictByKey() throws Exception {
         runLockAcquireMetricsTest(ctx -> {
             final var key = generateCacheKey();
-            ctx.cacheService().get(key, ctx.regionSize(), 0);
+            ctx.cacheService().get(key, ctx.regionSize(), 0, irrelevantTimestamp());
 
             // no matching entries: the lock is never taken
             assertThat(ctx.cacheService().forceEvict(k -> false), equalTo(0));
@@ -2447,7 +2510,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     public void testLockAcquireMetricsForceEvictByKeyAsync() throws Exception {
         runLockAcquireMetricsTest(ctx -> {
             final var key = generateCacheKey();
-            ctx.cacheService().get(key, ctx.regionSize(), 0);
+            ctx.cacheService().get(key, ctx.regionSize(), 0, irrelevantTimestamp());
 
             ctx.cacheService().forceEvictAsync(key::equals);
             // nothing recorded until the queued task runs
@@ -2465,7 +2528,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         runLockAcquireMetricsTest(ctx -> {
             final ShardId shard = randomShardId();
             final var key = randomTestCacheKey(shard);
-            ctx.cacheService().get(key, ctx.regionSize(), 0);
+            ctx.cacheService().get(key, ctx.regionSize(), 0, irrelevantTimestamp());
 
             // no matching regions for the shard: the lock is never taken
             assertThat(ctx.cacheService().forceEvict(shard, (k, region) -> false), equalTo(0));
@@ -2482,7 +2545,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         runLockAcquireMetricsTest(ctx -> {
             final ShardId shard = randomShardId();
             final var key = randomTestCacheKey(shard);
-            ctx.cacheService().get(key, ctx.regionSize(), 0); // lands at frequency 1
+            ctx.cacheService().get(key, ctx.regionSize(), 0, irrelevantTimestamp()); // lands at frequency 1
 
             // unknown shard, no matching entries: the lock is never taken
             assertThat(ctx.cacheService().demoteAll(randomShardId()), equalTo(0));
@@ -2668,6 +2731,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                         }
                     ),
                     bulkExecutor,
+                    irrelevantTimestamp(),
                     future
                 );
 
@@ -2702,6 +2766,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                             }
                         ),
                         bulkExecutor,
+                        irrelevantTimestamp(),
                         listener
                     );
                 }
@@ -2729,6 +2794,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                         }
                     ),
                     bulkExecutor,
+                    irrelevantTimestamp(),
                     future
                 );
                 assertThat("Listener is immediately completed", future.isDone(), is(true));
@@ -2756,6 +2822,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                         }
                     ),
                     bulkExecutor,
+                    irrelevantTimestamp(),
                     future
                 );
 
@@ -2815,6 +2882,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     ),
                     bulkExecutor(threadPool, bulkTaskCount, executionFinishedLatch),
                     true,
+                    irrelevantTimestamp(),
                     future
                 );
 
@@ -2853,6 +2921,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                         ),
                         bulkExecutor(threadPool, bulkTaskCount, executionFinishedLatch),
                         true,
+                        irrelevantTimestamp(),
                         listener
                     );
                 }
@@ -2881,6 +2950,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     ),
                     threadPool.generic(),
                     false,
+                    irrelevantTimestamp(),
                     future
                 );
                 assertThat("Listener is immediately completed", future.isDone(), is(true));
@@ -2912,6 +2982,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                         ),
                         bulkExecutor(threadPool, bulkTaskCount, executionFinishedLatch),
                         true,
+                        irrelevantTimestamp(),
                         listener
                     );
                 }
@@ -2949,6 +3020,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     ),
                     bulkExecutor(threadPool, bulkTaskCount, executionFinishedLatch),
                     randomBoolean(),
+                    irrelevantTimestamp(),
                     future
                 );
 
@@ -3050,6 +3122,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                         }
                     ),
                     bulkExecutor,
+                    irrelevantTimestamp(),
                     future
                 );
                 var fetched = future.get(10, TimeUnit.SECONDS);
@@ -3088,6 +3161,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                             () -> bytesCopied.addAndGet(length)
                         ),
                         bulkExecutor,
+                        irrelevantTimestamp(),
                         listener
                     );
                 }
@@ -3116,6 +3190,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                         }
                     ),
                     bulkExecutor,
+                    irrelevantTimestamp(),
                     future
                 );
                 assertThat("Listener is immediately completed", future.isDone(), is(true));
@@ -3140,6 +3215,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                         () -> bytesCopied.addAndGet(length)
                     ),
                     bulkExecutor,
+                    irrelevantTimestamp(),
                     future
                 );
 
@@ -3222,6 +3298,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                         }
                     ),
                     bulkExecutor,
+                    irrelevantTimestamp(),
                     future
                 );
                 var fetched = future.get(10, TimeUnit.SECONDS);
@@ -3261,6 +3338,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                         ),
                         bulkExecutor,
                         true,
+                        irrelevantTimestamp(),
                         listener
                     );
                 }
@@ -3290,6 +3368,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     ),
                     bulkExecutor,
                     false,
+                    irrelevantTimestamp(),
                     future
                 );
                 assertThat("Listener is immediately completed", future.isDone(), is(true));
@@ -3313,6 +3392,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     ),
                     bulkExecutor,
                     true,
+                    irrelevantTimestamp(),
                     future
                 );
 
@@ -3342,6 +3422,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     ),
                     bulkExecutor,
                     randomBoolean(),
+                    irrelevantTimestamp(),
                     future
                 );
 
@@ -3380,7 +3461,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final var blobLength = size(12L);
 
             // start populating the first region
-            var entry = cacheService.get(cacheKey, blobLength, 0);
+            var entry = cacheService.get(cacheKey, blobLength, 0, irrelevantTimestamp());
             AtomicLong bytesWritten = new AtomicLong(0L);
             final PlainActionFuture<Boolean> future1 = new PlainActionFuture<>();
             entry.populate(
@@ -3401,7 +3482,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertTrue(entry.tracker.waitForRangeIfPending(ByteRange.of(0, regionSize - 1), ActionListener.noop()));
 
             // start populating the second region
-            entry = cacheService.get(cacheKey, blobLength, 1);
+            entry = cacheService.get(cacheKey, blobLength, 1, irrelevantTimestamp());
             final PlainActionFuture<Boolean> future2 = new PlainActionFuture<>();
             entry.populate(
                 ByteRange.of(0, regionSize - 1),
@@ -3419,7 +3500,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertTrue(entry.tracker.waitForRangeIfPending(ByteRange.of(0, regionSize - 1), ActionListener.noop()));
 
             // start populating again the first region; async notified
-            entry = cacheService.get(cacheKey, blobLength, 0);
+            entry = cacheService.get(cacheKey, blobLength, 0, irrelevantTimestamp());
             final PlainActionFuture<Boolean> future3 = new PlainActionFuture<>();
             entry.populate(
                 ByteRange.of(0, regionSize - 1),
@@ -3478,7 +3559,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         ) {
             final var cacheKey = generateCacheKey();
             final var blobLength = size(12L);
-            final var entry = cacheService.get(cacheKey, blobLength, 0);
+            final var entry = cacheService.get(cacheKey, blobLength, 0, irrelevantTimestamp());
             final AtomicLong bytesWritten = new AtomicLong(0L);
             final RangeMissingHandler writer = (
                 channel,
@@ -3575,7 +3656,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 equalTo(BlobCacheUtils.toIntBytes(regionSize))
             );
             for (int region = 0; region < regions; region++) {
-                var cacheFileRegion = cacheService.get(cacheKey, blobLength, region);
+                var cacheFileRegion = cacheService.get(cacheKey, blobLength, region, irrelevantTimestamp());
                 assertThat(cacheFileRegion.tracker.getLength(), equalTo(regionSize));
             }
         }
@@ -3603,7 +3684,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         ) {
             final var cacheKey = generateCacheKey();
             assertEquals(2, cacheService.freeRegionCount());
-            final var region = cacheService.get(cacheKey, size(250), 0);
+            final var region = cacheService.get(cacheKey, size(250), 0, irrelevantTimestamp());
             assertEquals(regionSizeInBytes, region.tracker.getLength());
 
             // Read disjoint ranges to create holes in the region
@@ -3731,7 +3812,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
                 cacheKey,
                 fileLength,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                irrelevantTimestamp()
             );
 
             // before populating, withMemorySegmentSlice should return false (data not available)
@@ -3808,7 +3890,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile1 = cacheService.getCacheFile(
                 cacheKey1,
                 fileLength,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                irrelevantTimestamp()
             );
             byte[] testData = randomByteArrayOfLength((int) fileLength);
             ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
@@ -3835,11 +3918,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             boolean available = cacheFile1.withMemorySegmentSlice(0, (int) fileLength, slice -> {
                 // fill the remaining region with a different key, using up all free regions
                 final var cacheKey2 = generateCacheKey();
-                cacheService.get(cacheKey2, fileLength, 0);
+                cacheService.get(cacheKey2, fileLength, 0, irrelevantTimestamp());
 
                 // now all regions are used; requesting yet another key triggers eviction pressure
                 final var cacheKey3 = generateCacheKey();
-                cacheService.get(cacheKey3, fileLength, 0);
+                cacheService.get(cacheKey3, fileLength, 0, irrelevantTimestamp());
                 taskQueue.runAllRunnableTasks();
 
                 // the memory segment should still contain the original data (region not evicted while ref held)
@@ -3882,7 +3965,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile1 = cacheService.getCacheFile(
                 cacheKey1,
                 fileLength,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                irrelevantTimestamp()
             );
 
             // populate the region
@@ -3911,8 +3995,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertTrue(cacheFile1.withMemorySegmentSlice(0, (int) fileLength, slice -> {}));
 
             // fill the second region, then request a third key to force eviction of cacheKey1's region
-            cacheService.get(generateCacheKey(), fileLength, 0);
-            cacheService.get(generateCacheKey(), fileLength, 0);
+            cacheService.get(generateCacheKey(), fileLength, 0, irrelevantTimestamp());
+            cacheService.get(generateCacheKey(), fileLength, 0, irrelevantTimestamp());
             taskQueue.runAllRunnableTasks();
 
             // after eviction the action must not be invoked and the method must return false
@@ -3952,7 +4036,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
                 cacheKey,
                 fileLength,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                irrelevantTimestamp()
             );
 
             // request a slice that spans the region boundary (region 0 -> region 1)
@@ -3994,7 +4079,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
                 cacheKey,
                 fileLength,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                irrelevantTimestamp()
             );
 
             // populate the cache
@@ -4058,7 +4144,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
                 cacheKey,
                 fileLength,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                irrelevantTimestamp()
             );
 
             // before populating, withSliceAddresses should return false
@@ -4134,7 +4221,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
                 cacheKey,
                 fileLength,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                irrelevantTimestamp()
             );
 
             byte[] testData = randomByteArrayOfLength((int) fileLength);
@@ -4207,7 +4295,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
                 cacheKey,
                 fileLength,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                irrelevantTimestamp()
             );
 
             byte[] testData = randomByteArrayOfLength((int) fileLength);
@@ -4269,7 +4358,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
                 cacheKey,
                 fileLength,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                irrelevantTimestamp()
             );
 
             byte[] testData = randomByteArrayOfLength((int) fileLength);
@@ -4325,7 +4415,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
                 cacheKey,
                 fileLength,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                irrelevantTimestamp()
             );
 
             // populate only region 0, leaving regions 1 and 2 unpopulated
@@ -4352,7 +4443,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             // request slices in region 0 (populated) and region 1 (not populated);
             // the loop acquires a ref on region 0, then hits the population check failure on region 1
-            var region0 = cacheService.get(cacheKey, fileLength, 0);
+            var region0 = cacheService.get(cacheKey, fileLength, 0, irrelevantTimestamp());
             long[] offsets = { 50, (long) regionSize + 10 };
             int sliceLen = 50;
             MemorySegment addrsOut = MemorySegment.ofArray(new long[2]);
@@ -4391,7 +4482,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
                 cacheKey,
                 fileLength,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                irrelevantTimestamp()
             );
 
             byte[] testData = randomByteArrayOfLength((int) fileLength);
@@ -4415,7 +4507,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 "test"
             );
 
-            var region = cacheService.get(cacheKey, fileLength, 0);
+            var region = cacheService.get(cacheKey, fileLength, 0, irrelevantTimestamp());
             int freeBeforeCall = cacheService.freeRegionCount();
 
             long[] offsets = { 0, 50 };
@@ -4454,7 +4546,12 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 BlobCacheMetrics.NOOP
             )
         ) {
-            final var cacheFile = cacheService.getCacheFile(generateCacheKey(), fileLength, SharedBlobCacheService.CacheMissHandler.NOOP);
+            final var cacheFile = cacheService.getCacheFile(
+                generateCacheKey(),
+                fileLength,
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                irrelevantTimestamp()
+            );
             final int initialFreeRegions = cacheService.freeRegionCount();
 
             assertFalse(cacheFile.tryRead(ByteBuffer.allocate(100), 0));
@@ -4495,7 +4592,12 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             )
         ) {
             final var cacheKey = generateCacheKey();
-            final var cacheFile = cacheService.getCacheFile(cacheKey, fileLength, SharedBlobCacheService.CacheMissHandler.NOOP);
+            final var cacheFile = cacheService.getCacheFile(
+                cacheKey,
+                fileLength,
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                irrelevantTimestamp()
+            );
 
             final byte[] testData = randomByteArrayOfLength((int) fileLength);
             final ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
@@ -4579,7 +4681,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final var blobLength = regionSize;
 
             // Step 1: populate the region (simulates warming — no madvise applied)
-            var entry = cacheService.get(cacheKey, blobLength, 0);
+            var entry = cacheService.get(cacheKey, blobLength, 0, irrelevantTimestamp());
             final PlainActionFuture<Boolean> populateFuture = new PlainActionFuture<>();
             entry.populate(
                 ByteRange.of(0, regionSize),
@@ -4595,7 +4697,12 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             // Step 2: read from cache with madvise in the reader callback (simulates CacheFileReader.doRead).
             // The reader callback asserts the channel starts at MADV_NORMAL then applies MADV_RANDOM.
-            final var cacheFile = cacheService.getCacheFile(cacheKey, blobLength, SharedBlobCacheService.CacheMissHandler.NOOP);
+            final var cacheFile = cacheService.getCacheFile(
+                cacheKey,
+                blobLength,
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                irrelevantTimestamp()
+            );
             int bytesRead = cacheFile.populateAndRead(
                 ByteRange.of(0, regionSize),
                 ByteRange.of(0, regionSize),
@@ -4642,7 +4749,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         ) {
             // Step 1: populate a region and set MADV_RANDOM via the fill handler (simulates .vec file)
             final var vecKey = generateCacheKey();
-            var entry = cacheService.get(vecKey, regionSize, 0);
+            var entry = cacheService.get(vecKey, regionSize, 0, irrelevantTimestamp());
             final PlainActionFuture<Boolean> populateFuture1 = new PlainActionFuture<>();
             entry.populate(
                 ByteRange.of(0, regionSize),
@@ -4659,7 +4766,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             // Step 2: evict the region by triggering decay and allocating a new key
             cacheService.computeDecay();
             final var docKey = generateCacheKey();
-            var newEntry = cacheService.get(docKey, regionSize, 0);
+            var newEntry = cacheService.get(docKey, regionSize, 0, irrelevantTimestamp());
 
             // Step 3: populate the reused region (simulates warming for .doc file — no madvise)
             final PlainActionFuture<Boolean> populateFuture2 = new PlainActionFuture<>();
@@ -4677,7 +4784,12 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             // Step 4: read with MADV_NORMAL in the reader callback (simulates CacheFileReader.doRead for .doc).
             // The channel should still carry stale MADV_RANDOM; the reader overwrites it with MADV_NORMAL.
-            final var cacheFile = cacheService.getCacheFile(docKey, regionSize, SharedBlobCacheService.CacheMissHandler.NOOP);
+            final var cacheFile = cacheService.getCacheFile(
+                docKey,
+                regionSize,
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                irrelevantTimestamp()
+            );
             cacheFile.populateAndRead(
                 ByteRange.of(0, regionSize),
                 ByteRange.of(0, regionSize),
@@ -4724,7 +4836,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final var blobLength = regionSize;
 
             // Step 1: populate the region (simulates warming — no madvise applied)
-            var entry = cacheService.get(cacheKey, blobLength, 0);
+            var entry = cacheService.get(cacheKey, blobLength, 0, irrelevantTimestamp());
             final PlainActionFuture<Boolean> populateFuture = new PlainActionFuture<>();
             entry.populate(
                 ByteRange.of(0, regionSize),
@@ -4739,7 +4851,12 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertTrue(populateFuture.get(10, TimeUnit.SECONDS));
 
             // Step 2: use the tryRead fast path with MADV_RANDOM
-            final var cacheFile = cacheService.getCacheFile(cacheKey, blobLength, SharedBlobCacheService.CacheMissHandler.NOOP);
+            final var cacheFile = cacheService.getCacheFile(
+                cacheKey,
+                blobLength,
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                irrelevantTimestamp()
+            );
             ByteBuffer buf = ByteBuffer.allocate(Math.toIntExact(regionSize));
             boolean success = cacheFile.tryRead(buf, 0, SharedBytes.MADV_RANDOM);
             assertTrue(success);

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
+import org.elasticsearch.xpack.esql.plan.logical.InsertEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
+import org.elasticsearch.xpack.esql.plan.physical.InsertEmptyBucketsExec;
 import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
@@ -112,6 +114,17 @@ public class MapperUtils {
 
         if (p instanceof UnpackDims unpack) {
             return new UnpackDimsExec(unpack.source(), child, unpack.packed(), unpack.dims());
+        }
+
+        if (p instanceof InsertEmptyBuckets insertEmptyBuckets) {
+            return new InsertEmptyBucketsExec(
+                insertEmptyBuckets.source(),
+                child,
+                insertEmptyBuckets.buckets(),
+                insertEmptyBuckets.groups(),
+                insertEmptyBuckets.defaultValues(),
+                null
+            );
         }
 
         if (p instanceof Dissect dissect) {
@@ -291,8 +304,7 @@ public class MapperUtils {
                 aggMode,
                 intermediateAttributes,
                 null,
-                ts.timeBucket(),
-                ts.outputTimeBucket()
+                ts.timeBucket()
             );
             case SampledAggregate sample -> new SampledAggregateExec(
                 sample.source(),

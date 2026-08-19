@@ -108,7 +108,6 @@ tasks.named('processJavaRestTestResources').configure {
 tasks.named('javaRestTest') {
   dependsOn generateParquetFixtures
   usesDefaultDistribution("to be triaged")
-  maxParallelForks = 1
 
   systemProperty 'tests.rest.client_timeout', '60'
   systemProperty 'tests.rest.socket_timeout', '60'
@@ -116,6 +115,7 @@ tasks.named('javaRestTest') {
 
 def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
   usesDefaultDistribution("to be triaged")
+  // AbstractEsqlSpecIT declares its cluster with shared(true), which is incompatible with parallel forks
   maxParallelForks = 1
 
   systemProperty 'tests.rest.client_timeout', '60'

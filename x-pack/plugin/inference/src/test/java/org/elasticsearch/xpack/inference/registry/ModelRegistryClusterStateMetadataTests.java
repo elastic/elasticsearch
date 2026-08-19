@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.inference.registry;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.inference.MinimalServiceSettings;
-import org.elasticsearch.inference.MinimalServiceSettingsTests;
+import org.elasticsearch.inference.EndpointClusterState;
+import org.elasticsearch.inference.EndpointClusterStateTests;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -43,9 +43,9 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
         }
         int size = randomIntBetween(1, 5);
 
-        Map<String, MinimalServiceSettings> models = new HashMap<>();
+        Map<String, EndpointClusterState> models = new HashMap<>();
         for (int i = 0; i < size; i++) {
-            models.put(randomAlphaOfLength(10), MinimalServiceSettingsTests.randomInstance());
+            models.put(randomAlphaOfLength(10), EndpointClusterStateTests.randomInstance());
         }
 
         if (isUpgraded) {
@@ -71,7 +71,7 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
         switch (choice) {
             case 0: // Mutate modelMap
                 var models = new HashMap<>(instance.getModelMap());
-                models.put(randomAlphaOfLength(10), MinimalServiceSettingsTests.randomInstance());
+                models.put(randomAlphaOfLength(10), EndpointClusterStateTests.randomInstance());
                 if (instance.isUpgraded()) {
                     return new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
                 } else {
@@ -126,10 +126,10 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
         var metadata = randomInstance(false, false);
         var metadataWithTombstones = metadata.withRemovedModel(Set.of(randomFrom(metadata.getModelMap().keySet())));
 
-        var indexMetadata = metadata.withAddedModel(randomAlphanumericOfLength(10), MinimalServiceSettingsTests.randomInstance());
+        var indexMetadata = metadata.withAddedModel(randomAlphanumericOfLength(10), EndpointClusterStateTests.randomInstance());
         var upgraded = metadataWithTombstones.withUpgradedModels(indexMetadata.getModelMap());
 
-        Map<String, MinimalServiceSettings> expectedModelMap = new HashMap<>(metadataWithTombstones.getModelMap());
+        Map<String, EndpointClusterState> expectedModelMap = new HashMap<>(metadataWithTombstones.getModelMap());
         expectedModelMap.putAll(indexMetadata.getModelMap());
         for (var id : metadataWithTombstones.getTombstones()) {
             expectedModelMap.remove(id);
@@ -149,7 +149,7 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
 
     public void testWithAddedModel_ReturnsSameMetadataInstance() {
         var inferenceId = "id";
-        var settings = MinimalServiceSettingsTests.randomInstance();
+        var settings = EndpointClusterStateTests.randomInstance();
 
         var models = new HashMap<>(Map.of(inferenceId, settings));
         var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
@@ -160,13 +160,13 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
 
     public void testWithAddedModel_ReturnsNewMetadataInstance_ForNewInferenceId() {
         var inferenceId = "id";
-        var settings = MinimalServiceSettingsTests.randomInstance();
+        var settings = EndpointClusterStateTests.randomInstance();
 
         var models = new HashMap<>(Map.of(inferenceId, settings));
         var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
 
         var newInferenceId = "new_id";
-        var newSettings = MinimalServiceSettingsTests.randomInstance();
+        var newSettings = EndpointClusterStateTests.randomInstance();
         var newMetadata = metadata.withAddedModel(newInferenceId, newSettings);
         // ensure metadata hasn't changed
         assertThat(metadata, is(new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build())));
@@ -183,7 +183,7 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
 
     public void testWithAddedModel_UpdatesGivenExistingWithChangedFingerprint() {
         var inferenceId = "id";
-        var settings = MinimalServiceSettingsTests.randomInstance();
+        var settings = EndpointClusterStateTests.randomInstance();
 
         var models = new HashMap<>(Map.of(inferenceId, settings));
         var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
@@ -209,7 +209,7 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
 
     public void testWithAddedModel_UpdatesGivenExistingWithChangedVersion() {
         var inferenceId = "id";
-        var settings = MinimalServiceSettingsTests.randomInstance();
+        var settings = EndpointClusterStateTests.randomInstance();
 
         var models = new HashMap<>(Map.of(inferenceId, settings));
         var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
@@ -242,12 +242,12 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
     public void testWithAddedModel_ReturnsNewMetadataInstance_ForNewInferenceId_WithTombstoneRemoved() {
         var inferenceId = "id";
         var newInferenceId = "new_id";
-        var settings = MinimalServiceSettingsTests.randomInstance();
+        var settings = EndpointClusterStateTests.randomInstance();
 
         var models = new HashMap<>(Map.of(inferenceId, settings));
         var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build(), Set.of(newInferenceId));
 
-        var newSettings = MinimalServiceSettingsTests.randomInstance();
+        var newSettings = EndpointClusterStateTests.randomInstance();
         var newMetadata = metadata.withAddedModel(newInferenceId, newSettings);
         // ensure metadata hasn't changed
         assertThat(metadata, is(new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build(), Set.of(newInferenceId))));
@@ -265,7 +265,7 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
 
     public void testWithAddedModels_ReturnsSameMetadataInstance() {
         var inferenceId = "id";
-        var settings = MinimalServiceSettingsTests.randomInstance();
+        var settings = EndpointClusterStateTests.randomInstance();
 
         var models = new HashMap<>(Map.of(inferenceId, settings));
         var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
@@ -282,7 +282,7 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
     public void testWithAddedModels_ReturnsSameMetadataInstance_MultipleEntriesInMap() {
         var inferenceId = "id";
         var inferenceId2 = "id2";
-        var settings = MinimalServiceSettingsTests.randomInstance();
+        var settings = EndpointClusterStateTests.randomInstance();
 
         var models = new HashMap<>(Map.of(inferenceId, settings, inferenceId2, settings));
         var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
@@ -299,15 +299,15 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
 
     public void testWithAddedModels_ReturnsNewMetadataInstance_ForNewInferenceId() {
         var inferenceId = "id";
-        var settings = MinimalServiceSettingsTests.randomInstance();
+        var settings = EndpointClusterStateTests.randomInstance();
 
         var models = new HashMap<>(Map.of(inferenceId, settings));
         var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
 
         var inferenceId2 = "new_id";
-        var settings2 = MinimalServiceSettingsTests.randomInstance();
+        var settings2 = EndpointClusterStateTests.randomInstance();
         var inferenceId3 = "new_id2";
-        var settings3 = MinimalServiceSettingsTests.randomInstance();
+        var settings3 = EndpointClusterStateTests.randomInstance();
         var newMetadata = metadata.withAddedModels(
             List.of(
                 new ModelRegistryMetadataTask.ModelAndSettings(inferenceId2, settings2),
@@ -331,14 +331,14 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
 
     public void testWithAddedModels_ReturnsNewMetadataInstance_UsesOverridingSettings() {
         var inferenceId = "id";
-        var settings = MinimalServiceSettingsTests.randomInstance();
+        var settings = EndpointClusterStateTests.randomInstance();
 
         var models = new HashMap<>(Map.of(inferenceId, settings));
         var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
 
         var inferenceId2 = "new_id";
-        var settings2 = MinimalServiceSettingsTests.randomInstance();
-        var settings3 = MinimalServiceSettingsTests.randomInstance();
+        var settings2 = EndpointClusterStateTests.randomInstance();
+        var settings3 = EndpointClusterStateTests.randomInstance();
         var newMetadata = metadata.withAddedModels(
             List.of(
                 new ModelRegistryMetadataTask.ModelAndSettings(inferenceId2, settings2),
@@ -365,12 +365,12 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
         var inferenceId = "id";
         var newInferenceId = "new_id";
         var newInferenceId2 = "new_id2";
-        var settings = MinimalServiceSettingsTests.randomInstance();
+        var settings = EndpointClusterStateTests.randomInstance();
 
         var models = new HashMap<>(Map.of(inferenceId, settings));
         var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build(), Set.of(newInferenceId));
 
-        var newSettings = MinimalServiceSettingsTests.randomInstance();
+        var newSettings = EndpointClusterStateTests.randomInstance();
         var newMetadata = metadata.withAddedModels(
             List.of(
                 // This will cause the new settings to be used for inferenceId
@@ -399,8 +399,8 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
         var endpointId1 = "endpointId1";
         var endpointId2 = "endpointId2";
 
-        var settings1 = MinimalServiceSettings.chatCompletion(serviceA);
-        var settings2 = MinimalServiceSettings.sparseEmbedding(serviceA);
+        var settings1 = EndpointClusterState.chatCompletion(serviceA);
+        var settings2 = EndpointClusterState.sparseEmbedding(serviceA);
         var models = Map.of(endpointId1, settings1, endpointId2, settings2);
         var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
 
@@ -415,11 +415,11 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
         var nullEndpoint1 = "nullEndpoint1";
         var nullEndpoint2 = "nullEndpoint2";
 
-        var settings1 = MinimalServiceSettings.chatCompletion(serviceA);
-        var settings2 = MinimalServiceSettings.sparseEmbedding(serviceA);
+        var settings1 = EndpointClusterState.chatCompletion(serviceA);
+        var settings2 = EndpointClusterState.sparseEmbedding(serviceA);
         // I'm not sure why minimal service settings would have a null service name, but testing it anyway
-        var nullServiceNameSettings1 = MinimalServiceSettings.sparseEmbedding(null);
-        var nullServiceNameSettings2 = MinimalServiceSettings.sparseEmbedding(null);
+        var nullServiceNameSettings1 = EndpointClusterState.sparseEmbedding(null);
+        var nullServiceNameSettings2 = EndpointClusterState.sparseEmbedding(null);
         var models = Map.of(
             endpointId1,
             settings1,
@@ -442,7 +442,7 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
         var serviceB = "service_b";
         var endpointId = "endpointId1";
 
-        var settings = MinimalServiceSettings.chatCompletion(serviceA);
+        var settings = EndpointClusterState.chatCompletion(serviceA);
         var models = Map.of(endpointId, settings);
         var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
 
@@ -462,7 +462,7 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
         var serviceA = "service_a";
         var endpointId = "endpointId1";
 
-        var settings = MinimalServiceSettings.chatCompletion(serviceA);
+        var settings = EndpointClusterState.chatCompletion(serviceA);
         var models = Map.of(endpointId, settings);
         var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
 
@@ -470,11 +470,11 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
         expectThrows(UnsupportedOperationException.class, () -> serviceEndpoints.add("newId"));
     }
 
-    private static MinimalServiceSettings copySettingsWithNewEndpointMetadataInternal(
-        MinimalServiceSettings settings,
+    private static EndpointClusterState copySettingsWithNewEndpointMetadataInternal(
+        EndpointClusterState settings,
         EndpointMetadata.Internal internal
     ) {
-        return new MinimalServiceSettings(
+        return new EndpointClusterState(
             settings.service(),
             settings.taskType(),
             settings.dimensions(),

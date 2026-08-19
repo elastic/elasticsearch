@@ -1942,6 +1942,34 @@ emp_no:integer | l1:double | l2:double
 10003          | 4.0       | null     
 ;
 
+greatestWithKeywordFields
+FROM employees
+| EVAL g = GREATEST(first_name, last_name)
+| KEEP emp_no, g
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | g:keyword
+10001          | Georgi
+10002          | Simmel
+10003          | Parto
+;
+
+leastWithKeywordFields
+FROM employees
+| EVAL l = LEAST(first_name, last_name)
+| KEEP emp_no, l
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | l:keyword
+10001          | Facello
+10002          | Bezalel
+10003          | Bamford
+;
+
 copySignWithMixedNumericValues
 required_capability: copy_sign
 

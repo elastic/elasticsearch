@@ -128,13 +128,16 @@ import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.hamcrest.Matcher;
 import org.junit.Assert;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -5232,6 +5235,137 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
     private void waitForReshardCompletion(String indexName) {
         awaitClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() == null);
+    }
+
+    /**
+     * Verifies that deleting an index mid-reshard at a random target shard state (CLONE, HANDOFF, or SPLIT)
+     * results in complete resource cleanup: no dangling cluster state, no orphaned object store blobs.
+     */
+    public void testDeleteIndexDuringReshard() throws Exception {
+        // Master and index nodes must be separate: TransportUpdateSplitTargetShardStateAction is a
+        // MasterNodeAction sent from the index node to the master. When they share a node the dispatch
+        // is local and addSendBehavior never fires.
+        // Set RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT to a short value so the SPLIT transition fires
+        // quickly even if the target shard's search replica is not yet allocated (the state machine
+        // proceeds to SPLIT after the timeout regardless).
+        // Reduce the background consistency-check interval so that stale blob deletion (which goes through
+        // delayedEnsureClusterStateConsistentWithRootBlob) fires within ~200ms instead of the default 10s
+        // worst case (two 5-second ticks). Without this, assertBusy(10s) for blob cleanup races with the
+        // background monitor and fails intermittently.
+        final Settings fastConsistencyInterval = Settings.builder()
+            .put(StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(), "100ms")
+            .build();
+        final Settings indexNodeSettings = Settings.builder()
+            .put(SplitTargetService.RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT.getKey(), "200ms")
+            .put(fastConsistencyInterval)
+            .build();
+        final String masterNode = startMasterOnlyNode(fastConsistencyInterval);
+        final String indexNode = startIndexNode(indexNodeSettings);
+        startSearchNode(fastConsistencyInterval);
+        ensureStableCluster(3);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+        indexDocs(indexName, 100);
+
+        final Index index = resolveIndex(indexName);
+        final ShardId sourceShardId = new ShardId(index, 0);
+        final ShardId targetShardId = new ShardId(index, 1);
+
+        // Pick a random target shard state to delete at.
+        final IndexReshardingState.Split.TargetShardState deleteAtState = randomFrom(
+            IndexReshardingState.Split.TargetShardState.CLONE,
+            IndexReshardingState.Split.TargetShardState.HANDOFF,
+            IndexReshardingState.Split.TargetShardState.SPLIT
+        );
+        logger.info("Will delete index when target shard reaches state [{}]", deleteAtState);
+
+        // deleteCompleted is released after the delete is acknowledged so that any blocked index-node
+        // transport thread can proceed (harmless no-op for the CLONE path).
+        final CountDownLatch deleteCompleted = new CountDownLatch(1);
+
+        if (deleteAtState != IndexReshardingState.Split.TargetShardState.CLONE) {
+            // CLONE is the initial state written directly into the resharding metadata by ReshardIndexService;
+            // it is never sent via TransportUpdateSplitTargetShardStateAction. Only HANDOFF and SPLIT
+            // transitions travel over the index→master transport hop, so we install the intercept for those.
+            final CountDownLatch deleteAtStateReached = new CountDownLatch(1);
+            MockTransportService indexTransportService = MockTransportService.getInstance(indexNode);
+            indexTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
+                    TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+                    if (actualRequest instanceof SplitStateRequest splitStateRequest
+                        && splitStateRequest.getNewTargetShardState() == deleteAtState
+                        && deleteAtStateReached.getCount() > 0) {
+                        deleteAtStateReached.countDown();
+                        safeAwait(deleteCompleted);
+                    }
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+
+            // Initiate reshard — returns as soon as resharding metadata is published in cluster state.
+            // The target shard state machine then runs asynchronously on the index node.
+            client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+            safeAwait(deleteAtStateReached);
+        } else {
+            // CLONE: TransportReshardAction returns only after the resharding metadata is published,
+            // which means target shards have already been set to CLONE state. Delete immediately.
+            client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        }
+
+        logger.info("Deleting index [{}] while target shard is at state [{}]", indexName, deleteAtState);
+        assertAcked(client().admin().indices().delete(new DeleteIndexRequest(indexName)).actionGet());
+        deleteCompleted.countDown();
+
+        // --- Assertions ---
+
+        // 1. Index must not exist in cluster state.
+        assertFalse(
+            "Index [" + indexName + "] should not exist in cluster state after delete",
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject().hasIndex(indexName)
+        );
+
+        // 2. No reshard metadata should linger for any index (a delete+recreate cycle could leave stale metadata
+        // on an existing entry with the same name if cleanup is skipped).
+        clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject().indices().values().forEach(md -> {
+            assertNull("No index should have dangling reshard metadata for [" + indexName + "]", md.getReshardingMetadata());
+        });
+
+        // 3. Object store blobs for the target shard should be cleaned up.
+        // Catch NoSuchFileException: deleteTargetShardBlobsIfIndexDeleted() deletes the entire
+        // target shard container directory. A concurrent FsBlobContainer.children() call on that
+        // path (which creates the directory first via Files.createDirectories, then lists it) can
+        // race with the deletion and throw NoSuchFileException. A missing directory means no blobs.
+        assertBusy(() -> {
+            Set<PrimaryTermAndGeneration> targetBlobs;
+            try {
+                targetBlobs = listBlobsTermAndGenerations(targetShardId);
+            } catch (NoSuchFileException e) {
+                return; // container directory deleted — no blobs remain
+            }
+            assertTrue(
+                "Expected no object store blobs for deleted target shard [" + targetShardId + "] but found: " + targetBlobs,
+                targetBlobs.isEmpty()
+            );
+        });
+
+        // 4. Object store blobs for the source shard should also be cleaned up (index is fully deleted).
+        // Use a 30-second timeout: source shard blob cleanup goes through StatelessCommitCleaner's
+        // delayedEnsureClusterStateConsistentWithRootBlob, processed by the background monitor every
+        // DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING (set to 100ms above, but still needs two ticks).
+        assertBusy(() -> {
+            var sourceBlobs = listBlobsTermAndGenerations(sourceShardId);
+            assertTrue(
+                "Expected no object store blobs for deleted source shard [" + sourceShardId + "] but found: " + sourceBlobs,
+                sourceBlobs.isEmpty()
+            );
+        }, 30, TimeUnit.SECONDS);
+
+        // 5. Search node shared blob cache eviction for this index is handled by StatelessSharedBlobCacheService
+        // via forceEvictAsync when evictDeletedIndexRegionsEnabled is true. There is currently no test-accessible
+        // API to assert per-index cache region counts directly; this is a performance/memory concern rather than
+        // a correctness concern and can be validated separately via cache stats if needed.
     }
 
     /// Asserts that two [ExplainResponse]s describe the same result, without requiring them to be identical.

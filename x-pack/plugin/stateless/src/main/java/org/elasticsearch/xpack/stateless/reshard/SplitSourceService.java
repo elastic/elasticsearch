@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -737,6 +738,47 @@ public class SplitSourceService {
         var stateMachine = activeSourceShards.remove(indexShard);
         if (stateMachine != null) {
             stateMachine.cancel();
+        }
+        deleteTargetShardBlobsIfIndexDeleted(indexShard);
+    }
+
+    /**
+     * Eagerly removes object store blobs for target shards when the index is deleted during a reshard.
+     * <p>
+     * {@link ObjectStoreService#copyShard} and {@link ObjectStoreService#copyCommit} write blobs directly
+     * to the target shard's object store path, bypassing ShardCommitState tracking. Because those blobs are
+     * not tracked, the normal per-shard inline cleanup path misses them and StaleIndicesGCService must handle
+     * them on its 8-hour GC cycle instead. When the source shard closes because its index was deleted, this
+     * method deletes the target shards' blob containers immediately so the storage is reclaimed promptly.
+     */
+    private void deleteTargetShardBlobsIfIndexDeleted(IndexShard indexShard) {
+        var reshardingMetadata = indexShard.indexSettings().getIndexMetadata().getReshardingMetadata();
+        if (reshardingMetadata == null
+            || reshardingMetadata.getSplit() == null
+            || IndexReshardingMetadata.isSplitSource(indexShard.shardId(), reshardingMetadata) == false) {
+            return;
+        }
+        // Check whether the index is still in cluster state; if it was deleted, clean up target shard blobs.
+        var index = indexShard.shardId().getIndex();
+        boolean indexStillExists = clusterService.state().metadata().lookupProject(index).map(p -> p.index(index) != null).orElse(false);
+        if (indexStillExists) {
+            return;
+        }
+        var split = reshardingMetadata.getSplit();
+        int sourceShardNumber = indexShard.shardId().id();
+        for (int t = split.shardCountBefore(); t < split.shardCountAfter(); t++) {
+            if (split.sourceShard(t) == sourceShardNumber) {
+                var targetShardId = new ShardId(index, t);
+                try {
+                    objectStoreService.getProjectBlobContainer(targetShardId).delete(OperationPurpose.INDICES);
+                    logger.debug("Deleted object store blobs for reshard target shard [{}] after index delete", targetShardId);
+                } catch (Exception e) {
+                    logger.warn(
+                        () -> Strings.format("Failed to delete object store blobs for reshard target shard [%s]", targetShardId),
+                        e
+                    );
+                }
+            }
         }
     }
 

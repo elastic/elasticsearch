@@ -1481,6 +1481,14 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_WITH_VIEW,
 
         /**
+         * Fixes a false "Only a single FORK command is supported, but found multiple" error when a FORK appears
+         * inside an IN subquery that is itself nested inside another IN subquery containing a FORK. Each subquery
+         * is its own query scope, so FORKs in different subquery scopes are independent and must not be counted
+         * together.
+         */
+        FORK_INSIDE_IN_SUBQUERY_FIX,
+
+        /**
          * Support ROW as a source command inside subquery in the from command.
          */
         SUBQUERY_WITH_ROW,

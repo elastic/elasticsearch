@@ -10,6 +10,7 @@
 package org.elasticsearch.columnar.numeric;
 
 import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -59,8 +60,50 @@ public class NumericStorageSizeTests extends ESTestCase {
         assertEquals(1026, size);
     }
 
+    public void testSplitDeltaTsdbBlock() throws IOException {
+        // Two sub-runs of 64 values each with constant deltas -1 and +1; collapses to 1 bit per value.
+        long[] block = new long[BLOCK];
+        for (int i = 0; i < 64; i++) {
+            block[i] = 10L - i;
+        }
+        for (int i = 64; i < BLOCK; i++) {
+            block[i] = 10L + (i - 64);
+        }
+        NumericPipeline pipeline = new NumericPipeline(
+            new BlockTransform[] { new SplitDeltaTransform(), DeltaTransform.INSTANCE, OffsetTransform.INSTANCE, GcdTransform.INSTANCE },
+            new ForTerminal(BLOCK),
+            BLOCK
+        );
+        int size = encodedSize(pipeline, block);
+        assertTrue("SplitDelta TSDB block must be far below raw: " + size, size < RAW_BYTES / 10);
+        assertEquals(24, size);
+    }
+
+    public void testAlpConstantDouble() throws IOException {
+        // Constant 22.5: ALP maps to mantissa 225 (e=1, f=0), zero exceptions, Offset+FOR collapse to zero.
+        long sv = NumericUtils.doubleToSortableLong(22.5);
+        long[] block = new long[BLOCK];
+        Arrays.fill(block, sv);
+        NumericPipeline pipeline = new NumericPipeline(
+            new BlockTransform[] {
+                new AlpDoubleTransform(BLOCK),
+                DeltaTransform.INSTANCE,
+                OffsetTransform.INSTANCE,
+                GcdTransform.INSTANCE },
+            new ForTerminal(BLOCK),
+            BLOCK
+        );
+        int size = encodedSize(pipeline, block);
+        assertTrue("ALP constant-double block must be far below raw: " + size, size < RAW_BYTES / 100);
+        assertEquals(7, size);
+    }
+
     private static int encodedSize(long[] block) throws IOException {
-        NumericBlockEncoder encoder = new NumericBlockEncoder(NumericPipeline.defaultPipeline(BLOCK), BLOCK);
+        return encodedSize(NumericPipeline.defaultPipeline(BLOCK), block);
+    }
+
+    private static int encodedSize(NumericPipeline pipeline, long[] block) throws IOException {
+        NumericBlockEncoder encoder = new NumericBlockEncoder(pipeline, BLOCK);
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
         encoder.encode(block.clone(), block.length, out);
         return Math.toIntExact(out.size());

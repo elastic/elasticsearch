@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
@@ -43,6 +42,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsRequest;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -628,8 +628,8 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             Request transportRequest,
             ActionListener<Response> listener
         ) {
-            assertThat(transportRequest, instanceOf(FieldCapabilitiesRequest.class));
-            FieldCapabilitiesRequest r = (FieldCapabilitiesRequest) transportRequest;
+            assertThat(transportRequest, instanceOf(EsqlResolveFieldsRequest.class));
+            EsqlResolveFieldsRequest r = (EsqlResolveFieldsRequest) transportRequest;
             assertThat(r.indices(), arrayWithSize(1));
             String alias = aliases.get(r.indices()[0]);
             assertNotNull(alias);

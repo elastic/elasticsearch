@@ -51,17 +51,26 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
     /**
      * Error shown when a data source is provisioned with federated authentication settings while the
-     * {@code esql.datasource.federated_identity.enabled} cluster setting is disabled. The federated fields
+     * {@code esql.external.federated_identity.enabled} cluster setting is disabled. The federated fields
      * themselves remain registered on each configuration regardless of the setting, so a PUT carrying them
      * produces this explicit message rather than an "unknown setting" error.
      */
     public static final String FEDERATED_IDENTITY_DISABLED_MESSAGE =
-        "federated authentication settings require the [esql.datasource.federated_identity.enabled] cluster setting to be enabled; "
+        "federated authentication settings require the [esql.external.federated_identity.enabled] cluster setting to be enabled; "
             + "it is disabled by default";
 
     // Dataset settings are plain values — no secrets. Credentials are inherited from the parent datasource.
     private static final String SCHEMA_SAMPLE_SIZE = "schema_sample_size";
-    private static final int SCHEMA_SAMPLE_SIZE_MAX = 1000;
+    /**
+     * Upper bound accepted for {@code schema_sample_size} at registration. It MUST NOT sit below any reader's own
+     * default for the setting, or the validator forbids the value the reader uses when the user says nothing: the
+     * bound was 1000 while both text readers default to 20000, so every value from 1001 up to and including the
+     * default was rejected, and the setting was unconfigurable across its whole useful range.
+     * {@code FileDataSourceValidatorSampleSizeBoundTests} pins it against the reader constant so the two cannot
+     * drift apart again. Whether values ABOVE the default should be accepted is a separate question this does not
+     * settle — it only makes the default reachable.
+     */
+    private static final int SCHEMA_SAMPLE_SIZE_MAX = 20_000;
 
     /**
      * Coordinator-level data-shape keys accepted on a dataset, sourced from each owning component's
@@ -171,7 +180,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * Returns a new validator that gates {@code auth=managed_identity} on the supplied boolean supplier.
      * The supplier is called on each validation. Pass a live supplier (e.g. backed by an
      * {@code AtomicBoolean} updated via {@code ClusterSettings.addSettingsUpdateConsumer}) so
-     * that operator changes to {@code esql.datasource.managed_identity.enabled} take effect
+     * that operator changes to {@code esql.external.managed_identity.enabled} take effect
      * without a node restart.
      */
     public FileDataSourceValidator withManagedIdentityEnabled(BooleanSupplier supplier) {

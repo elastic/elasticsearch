@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -24,7 +25,6 @@ import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.anthropic.action.AnthropicActionCreator;
+import org.elasticsearch.xpack.inference.services.anthropic.compatibility.CompatibilityService;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.anthropic.request.AnthropicUnifiedChatCompletionRequest;
@@ -47,6 +48,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 
 public class AnthropicService extends SenderService<AnthropicModel> {
@@ -54,29 +56,33 @@ public class AnthropicService extends SenderService<AnthropicModel> {
     private static final String SERVICE_NAME = "Anthropic";
 
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
-    private static final AnthropicChatCompletionModelCreator COMPLETION_MODEL_CREATOR = new AnthropicChatCompletionModelCreator();
-    private static final Map<TaskType, ModelCreator<? extends AnthropicModel>> MODEL_CREATORS = Map.of(
-        TaskType.COMPLETION,
-        COMPLETION_MODEL_CREATOR,
-        TaskType.CHAT_COMPLETION,
-        COMPLETION_MODEL_CREATOR
-    );
 
     private static final String CHAT_COMPLETION_ERROR_PREFIX = "anthropic chat completions";
-    private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new AnthropicChatCompletionResponseHandler(
-        CHAT_COMPLETION_ERROR_PREFIX
-    );
 
     public AnthropicService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
         InferenceServiceExtension.InferenceServiceFactoryContext context
     ) {
-        this(factory, serviceComponents, context.clusterService());
+        this(factory, serviceComponents, context.clusterService(), context.featureService());
     }
 
-    public AnthropicService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService, MODEL_CREATORS);
+    // Default for testing
+    AnthropicService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        ClusterService clusterService,
+        FeatureService featureService
+    ) {
+        super(factory, serviceComponents, clusterService, createModelCreators(clusterService, featureService));
+    }
+
+    private static Map<TaskType, ModelCreator<? extends AnthropicModel>> createModelCreators(
+        ClusterService clusterService,
+        FeatureService featureService
+    ) {
+        var completionModelCreator = new AnthropicChatCompletionModelCreator(new CompatibilityService(clusterService, featureService));
+        return Map.of(TaskType.COMPLETION, completionModelCreator, TaskType.CHAT_COMPLETION, completionModelCreator);
     }
 
     @Override
@@ -109,10 +115,11 @@ public class AnthropicService extends SenderService<AnthropicModel> {
         var anthropicModel = (AnthropicChatCompletionModel) model;
         var overriddenModel = AnthropicChatCompletionModel.of(anthropicModel, inputs.getRequest());
 
+        var handler = new AnthropicChatCompletionResponseHandler(CHAT_COMPLETION_ERROR_PREFIX, inputs.getRequest().excludeReasoning());
         var requestManager = new GenericRequestManager<>(
             getServiceComponents().threadPool(),
             overriddenModel,
-            UNIFIED_CHAT_COMPLETION_HANDLER,
+            handler,
             (unifiedChatInput) -> new AnthropicUnifiedChatCompletionRequest(unifiedChatInput, overriddenModel),
             UnifiedChatInput.class
         );
@@ -182,6 +189,19 @@ public class AnthropicService extends SenderService<AnthropicModel> {
         private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> CONFIGURATION = new LazyInitializable<>(
             () -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
+
+                configurationMap.put(
+                    URL,
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
+                        "The absolute URL of the Anthropic compatible API endpoint to send requests to."
+                    )
+                        .setLabel("URL")
+                        .setRequired(false)
+                        .setSensitive(false)
+                        .setUpdatable(false)
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
 
                 configurationMap.put(
                     MODEL_ID,

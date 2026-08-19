@@ -285,7 +285,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 // "Alerting V2" views prefix
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(ReservedRolesStore.ALERTING_V2_ALERT_VIEWS, ReservedRolesStore.ALERTING_V2_RULE_VIEWS)
-                    .privileges("indices:admin/esql/view/put") // TODO: use named index privilege when available in serverless
+                    .privileges("create_view")
                     .build(),
                 // "Alerts as data" public index aliases used in Security Solution,
                 // Observability, etc.
@@ -627,8 +627,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         TransportDeleteIndexAction.TYPE.name()
                     )
                     .build(),
-                // For ExtraHop, QualysGAV, SentinelOne, Island Browser, Cyera, IRONSCALES, Axonius
-                // and JupiterOne specific actions.
+                // For ExtraHop, QualysGAV, SentinelOne, Island Browser, Cyera, IRONSCALES, Axonius,
+                // JupiterOne and PingDirectory specific actions.
                 // Kibana reads, writes and manages this index
                 // for configured ILM policies.
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -656,7 +656,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-axonius.storage-*",
                         "logs-axonius.ticket-*",
                         "logs-axonius.user-*",
-                        "logs-jupiter_one.risks_and_alerts-*"
+                        "logs-jupiter_one.risks_and_alerts-*",
+                        "logs-ping_directory.user-*"
                     )
                     .privileges(
                         "manage",
@@ -701,7 +702,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".entities.*")
-                    .privileges("auto_configure", "create_index", "read", "write")
+                    .privileges("auto_configure", "create_index", "delete_index", "manage", "read", "write")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".entities.*history*")
@@ -752,6 +753,10 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices("ai-index-idx-sml-data", "ai-index-idx-sml-data-*")
                     .privileges("all")
                     .build(),
+                // Context Engine feedback-loop signals. Per-space, regular (non-system)
+                // user indices that Kibana creates and manages via the storage adapter
+                // (one index per Kibana space: context-engine-signals-<space>).
+                RoleDescriptor.IndicesPrivileges.builder().indices("context-engine-signals-*").privileges("all").build(),
                 // Significant events. Kibana system user manages index plumbing and document access.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".significant_events-*")

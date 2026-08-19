@@ -73,7 +73,8 @@ public class SecurityTestUtils {
             true,
             ExistingStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         String nodeId = ESTestCase.randomAlphaOfLength(8);
         return RoutingTable.builder()

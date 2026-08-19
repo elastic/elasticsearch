@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -184,7 +185,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         service.getRegisteredRemoteClusterNames(),
                         new String[] {
                             "cluster_1:bar",
-                            "cluster_2:foo:bar",
+                            "cluster_2:foo:bar", // deprecation warning now
                             "cluster_1:test",
                             "cluster_2:foo*",
                             "foo",
@@ -215,6 +216,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     )
                 );
 
+                assertWarnings(LoggerMessageFormat.format(null, RemoteClusterAware.CCS_CHAINING_DEPRECATION_WARNING, "cluster_2:foo:bar"));
                 // test cluster exclusions (order matters: inclusions must precede exclusions)
                 {
                     Map<String, List<String>> perClusterIndices = service.groupClusterIndices(
@@ -387,6 +389,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertArrayEquals(new String[] { "bar", "test", "baz", "boo" }, perClusterIndices.get("cluster_1").indices());
                     assertArrayEquals(new String[] { "foo:bar", "foo*", "baz", "boo" }, perClusterIndices.get("cluster_2").indices());
                 }
+                assertWarnings(LoggerMessageFormat.format(null, RemoteClusterAware.CCS_CHAINING_DEPRECATION_WARNING, "cluster_2:foo:bar"));
                 {
                     expectThrows(
                         NoSuchRemoteClusterException.class,

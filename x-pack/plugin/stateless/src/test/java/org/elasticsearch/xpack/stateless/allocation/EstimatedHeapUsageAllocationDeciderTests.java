@@ -639,7 +639,8 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             TestShardRouting.buildUnassignedInfo("auto generated for test"),
-            ShardRouting.Role.INDEX_ONLY
+            ShardRouting.Role.INDEX_ONLY,
+            TestShardRouting.buildRecoveryPriority(ShardRoutingState.UNASSIGNED, false)
         );
     }
 

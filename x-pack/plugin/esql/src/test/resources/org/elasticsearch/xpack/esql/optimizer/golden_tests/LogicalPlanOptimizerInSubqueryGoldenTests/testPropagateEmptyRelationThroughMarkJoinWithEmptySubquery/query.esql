@@ -1,0 +1,2 @@
+FROM employees
+| WHERE emp_no > 0 OR emp_no IN (FROM employees | WHERE false | KEEP emp_no)

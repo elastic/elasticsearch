@@ -153,6 +153,13 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_CONTINUED_REALTIME = "Datafeed continued in real-time";
     public static final String JOB_AUDIT_DATAFEED_DATA_ANALYSIS_ERROR = "Datafeed is encountering errors submitting data for analysis: {0}";
     public static final String JOB_AUDIT_DATAFEED_DATA_EXTRACTION_ERROR = "Datafeed is encountering errors extracting data: {0}";
+    public static final String JOB_AUDIT_DATAFEED_PARENT_CIRCUIT_BREAKER =
+        "A node ran low on memory and rejected this search. This is usually transient (for example during catch-up) and needs no action. "
+            + "The failed interval was not advanced: a continuously running datafeed retries it automatically; "
+            + "a one-off lookback must be restarted. "
+            + "If this keeps recurring, narrow the datafeed''s indices or query, reduce chunking_config.time_span, "
+            + "use aggregations, or scale up the node. "
+            + "Details: {0}";
     public static final String JOB_AUDIT_DATAFEED_LOOKBACK_COMPLETED = "Datafeed lookback completed";
     public static final String JOB_AUDIT_DATAFEED_LOOKBACK_NO_DATA = "Datafeed lookback retrieved no data";
     public static final String JOB_AUDIT_DATAFEED_NO_DATA = "Datafeed has been retrieving no data for a while";
@@ -171,6 +178,14 @@ public final class Messages {
         "Skipping revocation of cloud API key [{0}] — revoke primitive not yet available";
     public static final String JOB_AUDIT_DATAFEED_CPS_KEY_REVOKED = "Internal cloud API key revoked for cross-project datafeed";
     public static final String JOB_AUDIT_DATAFEED_CPS_KEY_REVOCATION_FAILED = "Failed to revoke internal cloud API key [{0}]";
+    public static final String JOB_AUDIT_DATAFEED_CPS_KEY_RUNTIME_FAILURE =
+        "Internal cloud API key [{0}] failed authentication during datafeed search; it may have been revoked or expired."
+            + " Re-key by issuing a cloud-authenticated POST _ml/datafeeds/_update on this datafeed";
+    public static final String JOB_AUDIT_DATAFEED_CPS_KEY_RUNTIME_AUTHZ_FAILURE =
+        "Datafeed search was denied (forbidden) while using internal cloud API key [{0}];"
+            + " the key's privileges or the requesting user's cross-project access may be insufficient."
+            + " Verify the key and the datafeed owner's project privileges,"
+            + " then re-key with a cloud-authenticated update if the key is the cause";
     public static final String JOB_AUDIT_DATAFEED_CPS_KEY_CLEARED =
         "Internal cloud API key cleared on datafeed update with non-cloud credentials";
     public static final String JOB_AUDIT_DATAFEED_CPS_MIGRATION_PROJECT_ROUTING_DEFAULTED =

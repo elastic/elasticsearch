@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -42,7 +43,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 /**
  * Returns the maximum value of multiple columns.
  */
-public class Greatest extends EsqlScalarFunction implements OptionalArgument {
+public class Greatest extends EsqlScalarFunction implements OptionalArgument, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Greatest", Greatest::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Greatest.class)
         .unaryVariadic(Greatest::new)

@@ -764,10 +764,44 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
             long bucketStart = tsContext.rangeStartInMillis(group) * (long) (dateFactor / 1000.0);
             long bucketEnd = tsContext.rangeEndInMillis(group) * (long) (dateFactor / 1000.0);
             assert state.firstTs() >= bucketStart
-                : "firstTs " + state.firstTs() + " is before bucket start " + bucketStart + " for group " + group;
-            assert state.lastTs() <= bucketEnd : "lastTs " + state.lastTs() + " is after bucket end " + bucketEnd + " for group " + group;
+                : describeMisbucketedGroup("firstTs " + state.firstTs() + " is before bucket start", group, state, bucketStart, bucketEnd);
+            assert state.lastTs() <= bucketEnd
+                : describeMisbucketedGroup("lastTs " + state.lastTs() + " is after bucket end", group, state, bucketStart, bucketEnd);
         }
         return true;
+    }
+
+    /**
+     * Describes a group whose raw timestamps escaped its time bucket, listing every interval the group holds.
+     * The breakdown tells the two possible causes apart: a single interval spanning several buckets points at the
+     * raw-input buffering on the data node, while an extra interval sitting entirely in another bucket points at an
+     * intermediate state that was merged into the wrong group.
+     */
+    private String describeMisbucketedGroup(String problem, int group, ReducedState state, long bucketStart, long bucketEnd) {
+        StringBuilder sb = new StringBuilder(problem);
+        sb.append(" for group ").append(group);
+        sb.append("; bucket=[").append(bucketStart).append(", ").append(bucketEnd).append(')');
+        sb.append(", bucketWidth=").append(bucketEnd - bucketStart);
+        sb.append(", samples=").append(state.samples);
+        sb.append(", resets=").append(state.resets);
+        // combineIntervals, which sorts the intervals so first*()/last*() are meaningful, only runs for samples > 1
+        sb.append(", combined=").append(state.samples > 1);
+        sb.append(", intervals=").append(state.intervals.length).append('[');
+        for (int i = 0; i < state.intervals.length; i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            int intervalId = state.intervals[i];
+            long firstTs = intervalBuffer.firstTs(intervalId);
+            long lastTs = intervalBuffer.lastTs(intervalId);
+            sb.append("{id=").append(intervalId);
+            sb.append(", firstTs=").append(firstTs).append(", firstValue=").append(intervalBuffer.firstValue(intervalId));
+            sb.append(", lastTs=").append(lastTs).append(", lastValue=").append(intervalBuffer.lastValue(intervalId));
+            // offsets are relative to bucketStart, so an in-bucket interval has 0 <= firstTsOffset <= lastTsOffset < bucketWidth
+            sb.append(", firstTsOffset=").append(firstTs - bucketStart).append(", lastTsOffset=").append(lastTs - bucketStart);
+            sb.append('}');
+        }
+        return sb.append(']').toString();
     }
 
     @Override

@@ -811,6 +811,7 @@ public class MetadataIndexTemplateService {
                 projectMetadata,
                 now,
                 combinedSettings,
+                combinedSettings,
                 combinedMappings,
                 IndexVersion.current(),
                 builder

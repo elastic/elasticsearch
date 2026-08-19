@@ -516,7 +516,8 @@ public class MetadataDataStreamsService {
                 template.isRegistryInstalled(),
                 effectiveMappings,
                 projectMetadata,
-                mergedEffectiveSettings
+                mergedEffectiveSettings,
+                templateSettings
             ),
             effectiveMappings,
             indicesService,
@@ -531,7 +532,8 @@ public class MetadataDataStreamsService {
         boolean registryInstalledTemplate,
         CompressedXContent effectiveMappings,
         ProjectMetadata projectMetadata,
-        Settings settings
+        Settings indexTemplateAndDataStreamSettings,
+        Settings templateSettings
     ) {
         Settings.Builder additionalSettings = Settings.builder();
         IndexMode indexMode = projectMetadata.dataStreams().get(dataStreamName).getIndexMode();
@@ -545,7 +547,8 @@ public class MetadataDataStreamsService {
                 registryInstalledTemplate,
                 projectMetadata,
                 Instant.now(),
-                settings,
+                indexTemplateAndDataStreamSettings,
+                templateSettings,
                 List.of(effectiveMappings),
                 IndexVersion.current(),
                 providerSettingsBuilder
@@ -556,16 +559,16 @@ public class MetadataDataStreamsService {
             }
             additionalSettings.put(providerSettings);
         });
-        Settings filteredmergedEffectiveSettings = settings;
+        Settings filteredMergedEffectiveSettings = indexTemplateAndDataStreamSettings;
         if (overrulingSettings.isEmpty() == false) {
             // Filter any conflicting settings from overruling providers, to avoid overwriting their values from templates.
-            final Settings.Builder filtered = Settings.builder().put(settings);
+            final Settings.Builder filtered = Settings.builder().put(indexTemplateAndDataStreamSettings);
             for (String setting : overrulingSettings) {
                 filtered.remove(setting);
             }
-            filteredmergedEffectiveSettings = filtered.build();
+            filteredMergedEffectiveSettings = filtered.build();
         }
-        return additionalSettings.put(filteredmergedEffectiveSettings).build();
+        return additionalSettings.put(filteredMergedEffectiveSettings).build();
     }
 
     private DataStream createDataStreamForUpdatedDataStreamMappings(
@@ -636,7 +639,8 @@ public class MetadataDataStreamsService {
             template.isRegistryInstalled(),
             effectiveMappings,
             projectMetadata,
-            templateSettings.merge(dataStream.getSettings())
+            templateSettings.merge(dataStream.getSettings()),
+            templateSettings
         );
     }
 

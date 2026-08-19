@@ -59,6 +59,7 @@ public final class ES95CodecClusterSettingProvider implements IndexSettingProvid
         final ProjectMetadata projectMetadata,
         final Instant resolvedAt,
         final Settings indexTemplateAndCreateRequestSettings,
+        final Settings templateSettings,
         final List<CompressedXContent> combinedTemplateMappings,
         final IndexVersion indexVersion,
         final Settings.Builder additionalSettings

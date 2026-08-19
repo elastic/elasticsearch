@@ -852,6 +852,47 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(aggregatedIndexSettings.get("request_setting"), equalTo("value2"));
     }
 
+    public void testAggregateSettingsProviderReceivesTemplateSettingsSeparately() {
+        Settings templateSettings = Settings.builder().put("shared_setting", "template").put("template_setting", "template").build();
+        Settings createRequestSettings = Settings.builder().put("shared_setting", "request").put("request_setting", "request").build();
+        request.settings(createRequestSettings);
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+
+        aggregateIndexSettings(
+            clusterState,
+            request,
+            templateSettings,
+            null,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Set.of(new IndexSettingProvider() {
+                @Override
+                public void provideAdditionalSettings(
+                    String indexName,
+                    String dataStreamName,
+                    IndexMode templateIndexMode,
+                    boolean registryInstalledTemplate,
+                    ProjectMetadata projectMetadata,
+                    Instant resolvedAt,
+                    Settings indexTemplateAndCreateRequestSettings,
+                    Settings receivedTemplateSettings,
+                    List<CompressedXContent> combinedTemplateMappings,
+                    IndexVersion indexVersion,
+                    Settings.Builder additionalSettings
+                ) {
+                    assertThat(indexTemplateAndCreateRequestSettings.get("shared_setting"), equalTo("request"));
+                    assertThat(indexTemplateAndCreateRequestSettings.get("template_setting"), equalTo("template"));
+                    assertThat(indexTemplateAndCreateRequestSettings.get("request_setting"), equalTo("request"));
+                    assertThat(receivedTemplateSettings, equalTo(templateSettings));
+                }
+            })
+        );
+    }
+
     public void testAggregateSettingsProviderOverrulesSettingsFromRequest() {
         IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
             builder.settings(Settings.builder().put("template_setting", "value1"));
@@ -879,6 +920,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
+                    Settings templateSettings,
                     List<CompressedXContent> combinedTemplateMappings,
                     IndexVersion indexVersion,
                     Settings.Builder additionalSettings
@@ -932,6 +974,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
+                    Settings templateSettings,
                     List<CompressedXContent> combinedTemplateMappings,
                     IndexVersion indexVersion,
                     Settings.Builder additionalSettings
@@ -977,6 +1020,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
+                    Settings templateSettings,
                     List<CompressedXContent> combinedTemplateMappings,
                     IndexVersion indexVersion,
                     Settings.Builder additionalSettings
@@ -1022,6 +1066,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
+                    Settings templateSettings,
                     List<CompressedXContent> combinedTemplateMappings,
                     IndexVersion indexVersion,
                     Settings.Builder additionalSettings
@@ -1068,6 +1113,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
+                    Settings templateSettings,
                     List<CompressedXContent> combinedTemplateMappings,
                     IndexVersion indexVersion,
                     Settings.Builder additionalSettings
@@ -2266,6 +2312,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                         ProjectMetadata projectMetadata,
                         Instant resolvedAt,
                         Settings indexTemplateAndCreateRequestSettings,
+                        Settings templateSettings,
                         List<CompressedXContent> combinedTemplateMappings,
                         IndexVersion indexVersion,
                         Settings.Builder additionalSettings
@@ -2324,6 +2371,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                         ProjectMetadata projectMetadata,
                         Instant resolvedAt,
                         Settings indexTemplateAndCreateRequestSettings,
+                        Settings templateSettings,
                         List<CompressedXContent> combinedTemplateMappings,
                         IndexVersion indexVersion,
                         Settings.Builder additionalSettings

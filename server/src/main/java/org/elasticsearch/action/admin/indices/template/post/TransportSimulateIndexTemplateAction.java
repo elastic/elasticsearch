@@ -287,6 +287,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
                 simulatedProject,
                 now,
                 templateSettings,
+                templateSettings,
                 mappings,
                 IndexVersion.current(),
                 builder

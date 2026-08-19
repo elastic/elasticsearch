@@ -95,6 +95,7 @@ public class ES95CodecClusterSettingProviderTests extends ESTestCase {
             null,
             Instant.ofEpochMilli(0L),
             indexSettings,
+            Settings.EMPTY,
             List.of(),
             IndexVersion.current(),
             additionalSettings

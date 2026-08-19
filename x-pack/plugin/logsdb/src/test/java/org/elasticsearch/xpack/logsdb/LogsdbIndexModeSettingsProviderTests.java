@@ -188,6 +188,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             emptyProject(),
             Instant.now(),
             settings,
+            Settings.EMPTY,
             mapping == null ? List.of() : List.of(new CompressedXContent(mapping)),
             IndexVersion.current(),
             settingsBuilder
@@ -210,6 +211,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             false,
             emptyProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
+            Settings.EMPTY,
             Settings.EMPTY,
             List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING))),
             IndexVersion.current(),
@@ -235,6 +237,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             emptyProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
+            Settings.EMPTY,
             List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING))),
             IndexVersion.current(),
             settingsBuilder
@@ -259,6 +262,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             emptyProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.getName()).build(),
+            Settings.EMPTY,
             List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING))),
             IndexVersion.current(),
             settingsBuilder
@@ -283,6 +287,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             emptyProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName()).build(),
+            Settings.EMPTY,
             List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING))),
             IndexVersion.current(),
             settingsBuilder
@@ -307,6 +312,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             emptyProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
+            Settings.EMPTY,
             List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING))),
             IndexVersion.current(),
             settingsBuilder
@@ -326,6 +332,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             false,
             buildMetadata(List.of("*"), List.of()),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
+            Settings.EMPTY,
             Settings.EMPTY,
             List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING))),
             IndexVersion.current(),
@@ -347,6 +354,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             buildMetadata(List.of("*"), List.of("logs@settings")),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
+            Settings.EMPTY,
             List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING))),
             IndexVersion.current(),
             settingsBuilder
@@ -366,6 +374,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             false,
             buildMetadata(List.of("*"), List.of("logs@settings", "logs@custom")),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
+            Settings.EMPTY,
             Settings.EMPTY,
             List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING))),
             IndexVersion.current(),
@@ -387,6 +396,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             buildMetadata(List.of("*"), List.of("logs@custom", "custom-component-template")),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
+            Settings.EMPTY,
             List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING))),
             IndexVersion.current(),
             settingsBuilder
@@ -406,6 +416,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             false,
             buildMetadata(List.of("standard-apache-production"), List.of("logs@settings")),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
+            Settings.EMPTY,
             Settings.EMPTY,
             List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING))),
             IndexVersion.current(),
@@ -431,6 +442,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             emptyProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
+            Settings.EMPTY,
             List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING))),
             IndexVersion.current(),
             settingsBuilder
@@ -452,6 +464,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             emptyProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
+            Settings.EMPTY,
             List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING))),
             IndexVersion.current(),
             settingsBuilder
@@ -472,6 +485,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             buildMetadata(List.of("*"), List.of("logs@settings")),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
+            Settings.EMPTY,
             List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING))),
             IndexVersion.current(),
             settingsBuilder
@@ -491,6 +505,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             buildMetadata(List.of("*"), List.of("logs@settings")),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
+            Settings.EMPTY,
             List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING))),
             IndexVersion.current(),
             settingsBuilder
@@ -509,6 +524,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             false,
             buildMetadata(List.of("*"), List.of("logs@settings")),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
+            Settings.EMPTY,
             Settings.EMPTY,
             List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING))),
             IndexVersion.current(),
@@ -757,6 +773,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             project,
             Instant.ofEpochMilli(1L),
             settings,
+            Settings.EMPTY,
             List.of(),
             IndexVersion.current(),
             settingsBuilder
@@ -775,6 +792,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             project,
             Instant.ofEpochMilli(1L),
             settings,
+            Settings.EMPTY,
             List.of(),
             IndexVersion.current(),
             settingsBuilder
@@ -793,6 +811,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             project,
             Instant.ofEpochMilli(1L),
             settings,
+            Settings.EMPTY,
             List.of(),
             IndexVersion.current(),
             settingsBuilder
@@ -811,6 +830,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             project,
             Instant.ofEpochMilli(1L),
             settings,
+            Settings.EMPTY,
             List.of(),
             IndexVersion.current(),
             settingsBuilder
@@ -844,6 +864,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             project,
             Instant.ofEpochMilli(1L),
             settings,
+            Settings.EMPTY,
             List.of(),
             IndexVersion.current(),
             settingsBuilder
@@ -874,6 +895,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             project,
             Instant.ofEpochMilli(1L),
             settings,
+            Settings.EMPTY,
             List.of(),
             IndexVersion.current(),
             settingsBuilder
@@ -899,6 +921,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             project,
             Instant.ofEpochMilli(1L),
             settings,
+            Settings.EMPTY,
             List.of(),
             IndexVersion.current(),
             settingsBuilder
@@ -919,6 +942,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             project,
             Instant.ofEpochMilli(1L),
             builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.toString()).build(),
+            Settings.EMPTY,
             List.of(),
             IndexVersion.current(),
             settingsBuilder
@@ -1402,6 +1426,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             emptyProject(),
             Instant.now(),
             settings,
+            Settings.EMPTY,
             mapping == null ? List.of() : List.of(new CompressedXContent(mapping)),
             IndexVersion.current(),
             settingsBuilder
@@ -1514,6 +1539,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             emptyProject(),
             Instant.now(),
             settings,
+            Settings.EMPTY,
             List.of(new CompressedXContent(getMapping(mappings))),
             IndexVersion.current(),
             settingsBuilder
@@ -1538,6 +1564,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
                 emptyProject(),
                 Instant.now(),
                 settings,
+                Settings.EMPTY,
                 List.of(),
                 IndexVersion.current(),
                 builder()
@@ -1561,6 +1588,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
                 emptyProject(),
                 Instant.now(),
                 settings,
+                Settings.EMPTY,
                 List.of(),
                 IndexVersion.current(),
                 builder()
@@ -1583,6 +1611,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
                 emptyProject(),
                 Instant.now(),
                 Settings.EMPTY,
+                Settings.EMPTY,
                 List.of(),
                 IndexVersion.current(),
                 builder()
@@ -1603,6 +1632,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             emptyProject(),
             Instant.now(),
             settings,
+            Settings.EMPTY,
             List.of(),
             IndexVersion.current(),
             builder()
@@ -1622,6 +1652,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             emptyProject(),
             Instant.now(),
             settings,
+            Settings.EMPTY,
             List.of(),
             IndexVersion.current(),
             builder()
@@ -1643,6 +1674,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             emptyProject(),
             Instant.now(),
             settings,
+            Settings.EMPTY,
             List.of(),
             IndexVersion.current(),
             builder()
@@ -1661,6 +1693,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
                 emptyProject(),
                 Instant.now(),
                 settings,
+                Settings.EMPTY,
                 List.of(),
                 IndexVersion.current(),
                 builder()
@@ -1678,6 +1711,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             emptyProject(),
             Instant.now(),
             settings,
+            Settings.EMPTY,
             List.of(),
             IndexVersion.current(),
             builder()
@@ -1696,6 +1730,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             false,
             emptyProject(),
             Instant.now(),
+            Settings.EMPTY,
             Settings.EMPTY,
             List.of(),
             IndexVersion.current(),
@@ -1723,6 +1758,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             false,
             emptyProject(),
             Instant.now(),
+            Settings.EMPTY,
             Settings.EMPTY,
             List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING))),
             IndexVersion.current(),

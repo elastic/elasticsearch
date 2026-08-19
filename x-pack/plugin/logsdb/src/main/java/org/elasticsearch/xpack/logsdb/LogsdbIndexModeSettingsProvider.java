@@ -132,6 +132,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         final ProjectMetadata metadata,
         final Instant resolvedAt,
         Settings settings,
+        Settings templateSettings,
         final List<CompressedXContent> combinedTemplateMappings,
         IndexVersion indexVersion,
         final Settings.Builder additionalSettings

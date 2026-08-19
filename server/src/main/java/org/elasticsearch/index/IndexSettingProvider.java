@@ -44,6 +44,7 @@ public interface IndexSettingProvider {
      * @param resolvedAt                            The time the request to create this new index was accepted.
      * @param indexTemplateAndCreateRequestSettings All the settings resolved from the template that matches and any settings
      *                                              defined on the create index request
+     * @param templateSettings                      All the settings resolved from the matching template, excluding create request settings
      * @param combinedTemplateMappings              All the mappings resolved from the template that matches
      * @param indexVersion                          The index version to be used for the new index.
      *                                              Always {@link IndexVersion#current()} when invoked during validation.
@@ -59,6 +60,7 @@ public interface IndexSettingProvider {
         ProjectMetadata projectMetadata,
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,
+        Settings templateSettings,
         List<CompressedXContent> combinedTemplateMappings,
         IndexVersion indexVersion,
         Settings.Builder additionalSettings

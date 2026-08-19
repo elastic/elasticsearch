@@ -2918,6 +2918,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     projectMetadata,
                     resolvedAt,
                     indexTemplateAndCreateRequestSettings,
+                    templateSettings,
                     combinedTemplateMappings,
                     indexVersion,
                     additionalSettings) -> {

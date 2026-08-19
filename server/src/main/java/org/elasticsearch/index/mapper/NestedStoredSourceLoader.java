@@ -42,7 +42,7 @@ import java.util.Set;
  * constructed exclusively from the stored-source branch of
  * {@link MappingLookup#newSourceLoader(SourceFilter, SourceFieldMetrics, NestedDocuments)}.
  */
-class NestedStoredSourceLoader implements SourceLoader {
+final class NestedStoredSourceLoader implements SourceLoader {
 
     @Nullable
     private final SourceFilter filter;

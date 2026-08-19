@@ -7,60 +7,65 @@
 
 package org.elasticsearch.xpack.profiling.action;
 
-import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.yaml.YamlXContent;
-import org.elasticsearch.xpack.core.template.ResourceUtils;
-import org.elasticsearch.xpack.oteldata.OTelIndexTemplateRegistry;
+import org.elasticsearch.xpack.oteldata.OTelPlugin;
 import org.junit.Before;
 
-import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
-
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import java.util.Set;
 
 /**
  * Tests the OTel read path with data indexed into {@code *.otel-*} data streams.
- *
- * OTel profiling templates are installed directly from the otel-data classpath rather than via
- * OTelPlugin in nodePlugins(). Loading OTelPlugin at node startup fails because YamlTemplateRegistry
- * picks up the x-pack-core test resources.yaml (which lists test-only templates) before the
- * otel-data one on the shared test classpath.
+ * OTel profiling templates are installed by {@link OTelPlugin} at node startup.
  */
 public class GetStackTracesOtelActionIT extends ProfilingTestCase {
 
-    private static final List<String> PROFILING_COMPONENT_TEMPLATES = List.of(
-        "profiling-events-otel@mappings",
-        "profiling-hosts-otel@mappings",
-        "profiling-stacktraces-otel@mappings",
-        "profiling-stackframes-otel@mappings",
-        "profiling-executables-otel@mappings"
-    );
-
-    private static final List<String> PROFILING_INDEX_TEMPLATES = List.of(
-        "profiling-events-otel@template",
-        "profiling-hosts-otel@template",
-        "profiling-stacktraces-otel@template",
-        "profiling-stackframes-otel@template",
-        "profiling-executables-otel@template"
-    );
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(OTelPlugin.class);
+        return plugins;
+    }
 
     @Override
     protected boolean requiresDataSetup() {
-        // OTel IT manages its own data; skip ECS index creation from the base class.
         return false;
+    }
+
+    @Override
+    protected Set<String> excludeTemplates() {
+        // OTelPlugin's live registry listener races with wipe() if templates are deleted between
+        // tests; excluding them prevents the deletion and keeps wipe() from failing.
+        return Set.of(
+            "profiling-events-otel@mappings",
+            "profiling-hosts-otel@mappings",
+            "profiling-stacktraces-otel@mappings",
+            "profiling-stackframes-otel@mappings",
+            "profiling-executables-otel@mappings",
+            "profiling-events-otel@template",
+            "profiling-hosts-otel@template",
+            "profiling-stacktraces-otel@template",
+            "profiling-stackframes-otel@template",
+            "profiling-executables-otel@template"
+        );
     }
 
     @Before
     public void setupOtelData() throws Exception {
-        installOtelProfilingTemplates();
+        assertBusy(() -> {
+            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            assertTrue(
+                "OTel profiling templates not yet installed",
+                state.metadata().getProject().templatesV2().containsKey("profiling-events-otel@template")
+            );
+        });
 
         for (String file : List.of(
             "data/profiling-events-otel.ndjson",
@@ -80,48 +85,21 @@ public class GetStackTracesOtelActionIT extends ProfilingTestCase {
         forceMerge();
     }
 
-    /**
-     * Reads each profiling OTel component and index template YAML from the {@code otel-data}
-     * plugin's classpath and installs it via the cluster API. Individual template resource paths
-     * such as {@code /component-templates/profiling-events-otel@mappings.yaml} are unique to
-     * otel-data and do not conflict with x-pack-core test resources.
-     */
-    private void installOtelProfilingTemplates() throws Exception {
-        for (String name : PROFILING_COMPONENT_TEMPLATES) {
-            byte[] content = loadOtelResource("/component-templates/" + name + ".yaml");
-            try (XContentParser parser = YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, content)) {
-                ComponentTemplate template = ComponentTemplate.parse(parser);
-                PutComponentTemplateAction.Request req = new PutComponentTemplateAction.Request(name);
-                req.componentTemplate(template);
-                assertAcked(client().execute(PutComponentTemplateAction.INSTANCE, req).actionGet());
-            }
+    private GetStackTracesRequest otelRequest() throws Exception {
+        GetStackTracesRequest request = new GetStackTracesRequest();
+        // tag::noformat
+        try (XContentParser parser = createParser(XContentFactory.jsonBuilder()
+            .startObject()
+                .field("sample_size", 1000)
+                .field("schema", "otel")
+            .endObject()
+        )) {
+            request.parseXContent(parser);
         }
-        for (String name : PROFILING_INDEX_TEMPLATES) {
-            byte[] content = loadOtelResource("/index-templates/" + name + ".yaml");
-            try (XContentParser parser = YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, content)) {
-                ComposableIndexTemplate template = ComposableIndexTemplate.parse(parser);
-                TransportPutComposableIndexTemplateAction.Request req = new TransportPutComposableIndexTemplateAction.Request(name);
-                req.indexTemplate(template);
-                assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, req).actionGet());
-            }
-        }
+        // end::noformat
+        return request;
     }
 
-    private static byte[] loadOtelResource(String path) throws Exception {
-        String raw = ResourceUtils.loadResource(OTelIndexTemplateRegistry.class, path);
-        // Strip the version line so we don't need to know or pin the otel-data template version.
-        // The template content (mappings, settings) is what matters for correctness; the version
-        // field is only used for upgrade detection, which is irrelevant in a fresh test cluster.
-        raw = raw.replaceFirst("(?m)^version:.*\\R", "");
-        return raw.getBytes(StandardCharsets.UTF_8);
-    }
-
-    /**
-     * Verifies that the {@code groupBy} sub-aggregation works through the OTel passthrough mapping.
-     * In the OTel events schema {@code service.name} lives in {@code resource.attributes.service.name};
-     * the passthrough field exposes it as a top-level {@code service.name} so the composite
-     * aggregation can group on it without any OTel-specific branching in the action.
-     */
     public void testGetStackTracesFromOtelSchemaGroupedByServiceName() throws Exception {
         GetStackTracesRequest request = new GetStackTracesRequest();
         // tag::noformat
@@ -153,26 +131,6 @@ public class GetStackTracesOtelActionIT extends ProfilingTestCase {
         assertEquals(Long.valueOf(2L), response.getStackTraceEvents().get(traceEventID).subGroups.getCount("basket"));
     }
 
-    private GetStackTracesRequest otelRequest() throws Exception {
-        GetStackTracesRequest request = new GetStackTracesRequest();
-        // tag::noformat
-        try (XContentParser parser = createParser(XContentFactory.jsonBuilder()
-            .startObject()
-                .field("sample_size", 1000)
-                .field("schema", "otel")
-            .endObject()
-        )) {
-            request.parseXContent(parser);
-        }
-        // end::noformat
-        return request;
-    }
-
-    /**
-     * Verifies the full OTel read path end-to-end: events aggregation, stacktrace mget
-     * (via {@link StackTrace#fromOtelSource}), stackframe mget (via {@link StackFrame#fromOtelSource}),
-     * executable mget, and host lookup (via {@link HostMetadata#fromOtelSource}).
-     */
     public void testGetStackTracesFromOtelSchemaUnfiltered() throws Exception {
         GetStackTracesRequest request = otelRequest();
         request.setAdjustSampleCount(true);

@@ -65,12 +65,6 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
     public static final String ORDER = "order";
     public static final String MAX_ANALYZED_OFFSET = "max_analyzed_offset";
 
-    // Accepted for Query DSL parity but only used by the FastVectorHighlighter, so they are no-ops for the unified
-    // highlighter that HIGHLIGHT always uses.
-    public static final String BOUNDARY_CHARS = "boundary_chars";
-    public static final String BOUNDARY_MAX_SCAN = "boundary_max_scan";
-    public static final String PHRASE_LIMIT = "phrase_limit";
-
     private static final List<String> VALID_OPTION_NAMES = List.of(
         PRE_TAGS,
         POST_TAGS,
@@ -80,12 +74,9 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         ANALYZER,
         BOUNDARY_SCANNER,
         BOUNDARY_SCANNER_LOCALE,
-        BOUNDARY_CHARS,
-        BOUNDARY_MAX_SCAN,
         ORDER,
         NO_MATCH_SIZE,
-        MAX_ANALYZED_OFFSET,
-        PHRASE_LIMIT
+        MAX_ANALYZED_OFFSET
     );
 
     private final String prefix;
@@ -287,7 +278,9 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         try {
             HighlightQueryBuilders.verify(query, fieldNames, analyzer);
         } catch (IllegalArgumentException e) {
-            failures.add(fail(this, "{}", e.getMessage()));
+            // Attach to the query node, not this Highlight node: failures dedupe by node, so pinning it here would let a
+            // co-located option/analyzer failure on this node swallow the query error (see VerifierTests#testHighlightAnalyzerOption).
+            failures.add(fail(query, "{}", e.getMessage()));
         }
     }
 
@@ -306,8 +299,8 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         }
     }
 
-    // Non-foldable values (WITH { ... } allows constants, nested maps and parameters) are skipped here and fail later at
-    // fold time.
+    // WITH { ... } yields constants and parameters, which all fold; the parser rejects map values. Anything else is
+    // skipped here and fails later at fold time.
     private Expression foldableOption(String name) {
         Expression value = options.get(name);
         return value != null && value.foldable() ? value : null;

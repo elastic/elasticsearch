@@ -1179,7 +1179,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         final var blocked = new CountDownLatch(1);
         final var proceedBlocked = new CountDownLatch(1);
-        final IndexEventListener blockingListener = new IndexEventListener() {
+        final var blockingListener = new IndexEventListener() {
             @Override
             public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
                 if (indexShard.shardId().getIndexName().equals(blockingIndex)) {

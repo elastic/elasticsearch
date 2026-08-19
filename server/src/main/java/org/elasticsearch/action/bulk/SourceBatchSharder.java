@@ -26,47 +26,34 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Coordinator-side helper that turns a map of {@code index name → whole-index SourceBatch}
- * (supplied by the bulk request producer) into a {@code Map<ShardId, SourceBatch>} suitable for
- * attaching to individual {@link BulkShardRequest}s.
+ * Turns a map of {@code index name → whole-index EscfBatch} into a {@code Map<ShardId, SourceBatch>}
+ * for attaching to {@link BulkShardRequest}s. Call {@link #recordRouting} for each item as routing
+ * is decided, then {@link #shardBatches} once all items are routed.
  *
- * <p>The producer hands us one batch that covers every row destined for a given concrete index,
- * without knowing which shard each row will land on. The sharder records the coordinator's
- * authoritative shard routing decision for each item (via {@link #recordRouting}), then once all
- * items are routed it uses {@link EscfBatchScatterer} to scatter the whole-index batch into
- * per-shard sub-batches and re-points every item's {@link org.elasticsearch.action.index.IndexSource}
- * at its shard-local row index.
+ * <p>Routing must be resolvable without reading document source: id/routing hash strategies always
+ * work; {@link IndexRouting.ExtractFromSource.ForIndexDimensions} works only when {@code _tsid} is
+ * pre-computed. {@link #checkRoutable} fails hard otherwise.
  *
- * <p>Routing constraints: the coordinator must be able to decide the shard without reading the
- * document source. Supported strategies are the {@code IdAndRoutingOnly} family (hash of id /
- * routing) and {@link IndexRouting.ExtractFromSource.ForIndexDimensions} when the {@code _tsid}
- * has already been pre-computed and set on the request. {@link #checkRoutable} hard-fails the
- * item (and thus the whole bulk) if the routing strategy would require source parsing.
+ * <p>Scattered batches use {@link BytesRefRecycler#NON_RECYCLING_INSTANCE} and are GC-reclaimed;
+ * callers must not close them (a locally-executed shard request reads them asynchronously).
  *
- * <p>Scattered batches use {@link BytesRefRecycler#NON_RECYCLING_INSTANCE}, matching
- * {@link BulkBatchEncoders}. The batches are plain-heap and reclaimed by GC; we deliberately do
- * not close them after handing them off because a locally-executed {@link BulkShardRequest} reads
- * the batch asynchronously.
- *
- * <p>TODO: threading a pooled recycler through {@code TransportBulkAction} → {@code BulkOperation}
- * requires ref-counting each per-shard batch against {@code BulkShardRequest} completion first.
+ * <p>TODO: pooled recycler requires ref-counting each per-shard batch against shard-request completion.
  */
 final class SourceBatchSharder implements Releasable {
 
     private static final class IndexState {
         final EscfBatch sourceBatch;
-        /** Set from the first {@link #recordRouting} call; null until then. */
+        /** Null until the first {@link #recordRouting} call. */
         @Nullable
         Index concreteIndex;
         int shardCount = -1;
         /**
-         * selectors[rowIndex] = shardId (or {@code shardCount} = discard for dropped rows).
-         * Filled with {@link Integer#MAX_VALUE} initially; shardCount is not known until
-         * {@link #recordRouting} is first called, so the discard value is patched at that point.
+         * selectors[rowIndex] = shardId; {@code shardCount} means discard. Pre-filled with
+         * {@link Integer#MAX_VALUE}; patched to {@code shardCount} on the first {@link #recordRouting}.
          */
         final int[] selectors;
-        final IndexRequest[] items;   // items[rowIndex] = IndexRequest
-        int lastRow = -1;             // monotonicity guard
+        final IndexRequest[] items;
+        int lastRow = -1;
 
         IndexState(EscfBatch sourceBatch) {
             this.sourceBatch = sourceBatch;
@@ -108,13 +95,9 @@ final class SourceBatchSharder implements Releasable {
     }
 
     /**
-     * Verifies that the routing strategy for an item that belongs to a pre-built batch can be
-     * resolved without reading the document source. Must be called before
-     * {@link IndexRequest#route(IndexRouting)} for row-bearing items.
-     *
-     * <p>Fails hard for {@link IndexRouting.ExtractFromSource.ForRoutingPath} (which parses source
-     * to hash routing fields) and for {@link IndexRouting.ExtractFromSource.ForIndexDimensions}
-     * when no {@code _tsid} has been pre-computed on the request.
+     * Verifies routing can be resolved without reading document source. Must be called before
+     * {@link IndexRequest#route(IndexRouting)} for row-bearing items. Fails hard for
+     * {@link IndexRouting.ExtractFromSource} strategies unless {@code _tsid} is pre-computed.
      */
     void checkRoutable(IndexRequest request, String concreteIndexName, IndexRouting routing) {
         if (indexStates.containsKey(concreteIndexName) == false) {
@@ -135,15 +118,9 @@ final class SourceBatchSharder implements Releasable {
     }
 
     /**
-     * Records the coordinator's authoritative shard routing for one item. Must be called after
-     * {@code postRoutingProcess} has run for the item.
+     * Records the shard routing decision for one item. Must be called after {@code postRoutingProcess}.
      *
-     * @param request        the item's {@link IndexRequest}
-     * @param concreteIndex  the resolved concrete index (stores the Index with UUID)
-     * @param shardId        the shard id returned by routing
-     * @param shardCount     the total number of shards for the index
-     * @throws IllegalArgumentException if the item has no source-row reference, or if rows arrive
-     *                                  in non-monotonically-increasing order
+     * @throws IllegalArgumentException if the item has no source-row reference, or rows arrive out of order
      */
     void recordRouting(IndexRequest request, Index concreteIndex, int shardId, int shardCount) {
         IndexState state = indexStates.get(concreteIndex.getName());
@@ -193,13 +170,9 @@ final class SourceBatchSharder implements Releasable {
     }
 
     /**
-     * Scatters each whole-index batch into per-shard sub-batches, re-points every item's
-     * {@link org.elasticsearch.action.index.IndexSource} at its shard-local row index, and returns
-     * the resulting map of {@link ShardId} → {@link SourceBatch}.
-     *
-     * <p>Must be called exactly once, after all items have been routed via {@link #recordRouting}.
-     * The returned batches are plain-heap (non-recycled) and must not be closed by the caller;
-     * they are reclaimed by GC when no longer referenced.
+     * Scatters whole-index batches into per-shard sub-batches and re-points each item's
+     * {@link org.elasticsearch.action.index.IndexSource} at its shard-local row index.
+     * Must be called exactly once after all items are routed. Returned batches must not be closed.
      */
     Map<ShardId, SourceBatch> shardBatches() {
         Map<ShardId, SourceBatch> result = new HashMap<>();
@@ -242,7 +215,6 @@ final class SourceBatchSharder implements Releasable {
 
     @Override
     public void close() {
-        // Nothing to release: the source batches are owned by the caller; the scattered sub-batches
-        // are plain-heap and GC'd. The scatterer is already closed inside shardBatches().
+        // Source batches are owned by the caller; scattered sub-batches are GC'd.
     }
 }

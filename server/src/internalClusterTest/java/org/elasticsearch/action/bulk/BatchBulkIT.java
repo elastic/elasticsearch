@@ -1878,12 +1878,6 @@ public class BatchBulkIT extends ESIntegTestCase {
         assertThat("first value must appear in source", getResponse.getSourceAsMap().get("field"), equalTo("val1"));
     }
 
-    /**
-     * Verifies the pre-built-batch path end-to-end for a single-shard index. The test builds an
-     * {@link EscfEncoder} batch client-side, attaches it to the {@link BulkRequest} via
-     * {@link BulkRequest#setPreBuiltBatches}, sends sourceless {@link IndexRequest}s, and asserts
-     * that the batch path ran on the primary shard via the {@link ShardBatchIndexer} TRACE log.
-     */
     public void testPreBuiltBatchSingleShard() throws IOException {
         String index = "test-prebuilt-single-shard";
 
@@ -1976,11 +1970,6 @@ public class BatchBulkIT extends ESIntegTestCase {
         assertThat(getResponse.getSourceAsMap().get("value"), equalTo(0));
     }
 
-    /**
-     * Verifies the pre-built-batch path for a multi-shard index. The test supplies one whole-index
-     * batch; the coordinator scatters it into per-shard sub-batches. The MockLog assertion confirms
-     * the batch path ran on at least one primary shard.
-     */
     public void testPreBuiltBatchMultiShard() throws IOException {
         String index = "test-prebuilt-multi-shard";
         int numShards = 3;
@@ -2068,16 +2057,6 @@ public class BatchBulkIT extends ESIntegTestCase {
         });
     }
 
-    /**
-     * Verifies that a pre-built batch attached to a request targeting an index whose routing
-     * requires source parsing fails fast with a clear per-item error rather than blowing up inside
-     * the encoder on empty bytes.
-     *
-     * <p>The {@code IllegalArgumentException} thrown by {@link SourceBatchSharder#checkRoutable} is
-     * caught by the routing loop and converted into a per-item bulk failure (identical to how
-     * parse errors from inline source are handled). The bulk call itself succeeds; the caller must
-     * inspect {@link BulkResponse#hasFailures()} and the individual item errors.
-     */
     public void testPreBuiltBatchRejectsSourceExtractedRouting() throws IOException {
         String index = "test-prebuilt-routing-path";
 
@@ -2147,14 +2126,6 @@ public class BatchBulkIT extends ESIntegTestCase {
         }
     }
 
-    /**
-     * Verifies that an item in a pre-built-batch index without a source-row reference fails with a
-     * clear per-item error rather than routing to an empty batch position.
-     *
-     * <p>Like {@link #testPreBuiltBatchRejectsSourceExtractedRouting}, the error surfaces as a
-     * per-item bulk failure — not a top-level exception — because the routing loop converts
-     * {@code IllegalArgumentException} into item-level errors.
-     */
     public void testPreBuiltBatchThrowsOnMissingRow() throws IOException {
         String index = "test-prebuilt-missing-row";
 

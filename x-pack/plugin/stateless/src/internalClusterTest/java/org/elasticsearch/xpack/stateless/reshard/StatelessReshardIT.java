@@ -5285,7 +5285,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         final IndexReshardingState.Split.TargetShardState stateIntercept = randomFrom(
             IndexReshardingState.Split.TargetShardState.CLONE,
             IndexReshardingState.Split.TargetShardState.HANDOFF,
-            IndexReshardingState.Split.TargetShardState.SPLIT);
+            IndexReshardingState.Split.TargetShardState.SPLIT
+        );
         final boolean cloneMidCopy = stateIntercept == IndexReshardingState.Split.TargetShardState.CLONE;
         logger.info("testDeleteIndexDuringReshard: intercept=[{}]", cloneMidCopy ? "CLONE_MID_COPY" : stateIntercept);
 
@@ -5315,14 +5316,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                         copyBlocked.countDown();
                         safeAwait(deleteCompleted); // Intentionally blocks until the delete is ACK'd
                         try {
-                            super.blobContainerCopyBlob(
-                                originalRunnable,
-                                purpose,
-                                sourceBlobContainer,
-                                sourceBlobName,
-                                blobName,
-                                blobSize
-                            );
+                            super.blobContainerCopyBlob(originalRunnable, purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
                         } finally {
                             copyWritten.countDown();
                         }

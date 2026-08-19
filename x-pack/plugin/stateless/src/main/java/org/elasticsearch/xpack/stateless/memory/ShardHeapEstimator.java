@@ -95,7 +95,7 @@ public class ShardHeapEstimator {
         long mappingSizeInBytes = 0;
         long totalShardHeapInBytes = 0;
         long maxShardHeapInBytes = 0;
-        MetricQuality metricQuality = MetricQuality.EXACT;
+        MetricQuality lowestMetricQuality = MetricQuality.EXACT;
 
         for (var entry : shardMemoryMetrics.entrySet()) {
             var metric = entry.getValue();
@@ -106,10 +106,12 @@ public class ShardHeapEstimator {
             long shardHeap = computeShardHeapUsage(metric);
             totalShardHeapInBytes += shardHeap;
             maxShardHeapInBytes = Math.max(maxShardHeapInBytes, shardHeap);
-            metricQuality = metric.getMetricQuality() == MetricQuality.EXACT ? metricQuality : metric.getMetricQuality();
+            lowestMetricQuality = metric.getMetricQuality() == MetricQuality.EXACT ? lowestMetricQuality
+                : lowestMetricQuality.compareTo(metric.getMetricQuality()) < 0 ? lowestMetricQuality
+                : metric.getMetricQuality();
             metricVisitor.accept(entry.getKey(), metric);
         }
-        return new ShardMetricsAggregation(mappingSizeInBytes, totalShardHeapInBytes, maxShardHeapInBytes, metricQuality);
+        return new ShardMetricsAggregation(mappingSizeInBytes, totalShardHeapInBytes, maxShardHeapInBytes, lowestMetricQuality);
     }
 
     /// Estimates a shard's fixed/adaptive memory overhead (segment, field, live-doc byte counts, and points memory metrics),

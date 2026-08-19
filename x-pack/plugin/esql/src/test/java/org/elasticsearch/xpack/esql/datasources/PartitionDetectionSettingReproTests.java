@@ -40,14 +40,14 @@ public class PartitionDetectionSettingReproTests extends ESTestCase {
     private static final int MAX = Integer.MAX_VALUE;
 
     /** A Hive-shaped tree: the partition key is spelled in the directory name. */
-    private static final String HIVE_PATTERN = "s3://bucket/data/**/*.parquet";
+    private static final String HIVE_PATTERN = "s3://bucket/data/**" + "/*.parquet";
     private static final List<StorageEntry> HIVE_TREE = List.of(
         entry("s3://bucket/data/year=2024/a.parquet"),
         entry("s3://bucket/data/year=2025/b.parquet")
     );
 
     /** A NON-Hive tree: bare directory segments, exactly what {@code partition_path} exists to describe. */
-    private static final String FLAT_PATTERN = "s3://bucket/logs/**/*.parquet";
+    private static final String FLAT_PATTERN = "s3://bucket/logs/**" + "/*.parquet";
     private static final List<StorageEntry> FLAT_TREE = List.of(
         entry("s3://bucket/logs/2024/a.parquet"),
         entry("s3://bucket/logs/2025/b.parquet")

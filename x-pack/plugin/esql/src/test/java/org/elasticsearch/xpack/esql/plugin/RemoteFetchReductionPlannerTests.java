@@ -104,6 +104,23 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
         );
     }
 
+    public void testPreservesCoordinatorOutputWithoutProject() {
+        PhysicalPlan physicalPlan = distributedQueryPlan("FROM employees | SORT hire_date | LIMIT 20", EsqlTestUtils.TEST_CFG);
+        var coordinatorAndDataNode = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(physicalPlan, EsqlTestUtils.TEST_CFG);
+        PhysicalPlan originalCoordinatorPlan = coordinatorAndDataNode.v1();
+        assertThat(originalCoordinatorPlan, instanceOf(TopNExec.class));
+
+        RemoteFetchReductionPlanner.CoordinatorPlan planned = RemoteFetchReductionPlanner.planCoordinatorTopN(
+            contextFactory(),
+            as(coordinatorAndDataNode.v2(), ExchangeSinkExec.class),
+            originalCoordinatorPlan
+        ).orElseThrow();
+
+        assertThat(planned.coordinatorPlan(), instanceOf(ProjectExec.class));
+        assertThat(planned.coordinatorPlan().output(), equalTo(originalCoordinatorPlan.output()));
+        assertFalse(planned.coordinatorPlan().output().stream().anyMatch(RemoteFetchHandle::isRemoteFetchHandleCarrier));
+    }
+
     public void testDoesNotPlanAggregationFromQueryText() {
         assertTrue(planQuery("FROM employees | STATS total = SUM(salary) | SORT total DESC | LIMIT 5").isEmpty());
     }

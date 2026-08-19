@@ -124,6 +124,33 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
         }
     }
 
+    public void testRemoteFetchTopNWithoutKeepPreservesOutput() {
+        String regressionIndex = indexName + "_without_keep";
+        client().admin()
+            .indices()
+            .prepareCreate(regressionIndex)
+            .setSettings(indexSettings(4, 0))
+            .setMapping("unique_sort", "type=long", "payload", "type=keyword")
+            .get();
+
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < 8; i++) {
+            bulk.add(prepareIndex(regressionIndex).setId(Integer.toString(i)).setSource("unique_sort", i, "payload", "payload-" + i));
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        try (EsqlQueryResponse response = runQuery("FROM " + regressionIndex + " | SORT unique_sort + 1 DESC | LIMIT 3", true)) {
+            assertThat(response.columns().stream().map(column -> column.name()).toList(), equalTo(List.of("payload", "unique_sort")));
+            assertThat(
+                EsqlTestUtils.getValuesList(response),
+                equalTo(List.of(List.of("payload-7", 7L), List.of("payload-6", 6L), List.of("payload-5", 5L)))
+            );
+            assertRemoteFetchRows(response, 3);
+            assertFieldLoadedBeforeFetch(response, "unique_sort");
+            assertFieldNotLoadedBeforeFetch(response, "payload");
+        }
+    }
+
     public void testMultipleSortKeysRemoteFetchTopN() {
         try (
             EsqlQueryResponse response = runQuery(

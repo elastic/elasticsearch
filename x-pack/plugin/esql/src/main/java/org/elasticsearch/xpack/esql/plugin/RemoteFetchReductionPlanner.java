@@ -131,6 +131,7 @@ final class RemoteFetchReductionPlanner {
         ExchangeSinkExec originalDataPlan,
         PhysicalPlan coordinatorPlan
     ) {
+        List<Attribute> originalCoordinatorOutput = coordinatorPlan.output();
         TopNPlanningContext planningContext = topNPlanningContext(contextFactory, originalDataPlan).orElse(null);
         if (planningContext == null) {
             return Optional.empty();
@@ -189,6 +190,11 @@ final class RemoteFetchReductionPlanner {
         });
         if (replacedTopN.get() == false) {
             return Optional.empty();
+        }
+        // Plans without a top-level ProjectExec leave the handle in RemoteFetchExec's output, so restore the exact
+        // pre-rewrite schema and ordering before returning the coordinator plan.
+        if (updatedCoordinatorPlan.output().equals(originalCoordinatorOutput) == false) {
+            updatedCoordinatorPlan = new ProjectExec(coordinatorPlan.source(), updatedCoordinatorPlan, originalCoordinatorOutput);
         }
         return Optional.of(new CoordinatorPlan(updatedCoordinatorPlan, updatedDataPlan));
     }

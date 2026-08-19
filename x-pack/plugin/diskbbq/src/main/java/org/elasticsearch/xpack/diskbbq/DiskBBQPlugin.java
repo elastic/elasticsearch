@@ -21,6 +21,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -86,6 +87,23 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                         : null;
                     IndexVersion indexVersionCreated = indexSettings.getIndexVersionCreated();
                     if (Build.current().isSnapshot()) {
+                        if (diskbbq.getQuantizationType() == DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.ASH) {
+                            return new ESNextDiskASHVectorsFormat(
+                                clusterSize,
+                                ESNextDiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                                elementType,
+                                onDiskRescore,
+                                mergingExecutorService,
+                                maxMergingWorkers,
+                                flatIndexThreshold,
+                                sliceField,
+                                IvfFlushConfigSource.empty(),
+                                IvfMergeConfigResolver.useCodecDefault(),
+                                diskbbq.getBits(),
+                                ESNextDiskASHVectorsFormat.DEFAULT_PROJECTED_DIMS_FRACTION,
+                                ESNextDiskASHVectorsFormat.DEFAULT_QUERY_BITS_PER_DIM
+                            );
+                        }
                         IvfMergeConfigResolver mergeConfigResolver = diskbbq.autoCalibrate()
                             ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
                             : IvfMergeConfigResolver.useCodecDefault();

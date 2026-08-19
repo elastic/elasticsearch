@@ -73,10 +73,9 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
             assert actualProfile.getTransportProfile().equals(connectionManager.getConnectionProfile().getTransportProfile())
                 : "transport profile must be consistent between the connection manager and the actual profile";
             transportService.handshake(
-                RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
+                RemoteConnectionManager.wrapConnectionWithRemoteInfo(
                     newConnection,
-                    clusterAlias,
-                    connectionManager.getLinkedProjectId(),
+                    connectionManager.getRemoteConnectionInfo(),
                     connectionManager.getCredentialsManager()
                 ),
                 actualProfile.getHandshakeTimeout(),

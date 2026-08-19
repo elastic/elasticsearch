@@ -31,7 +31,7 @@ final class DataInputMetadataReader implements MetadataReader {
     /** A reader over the bytes a {@link MetadataBuffer} accumulated, for reading back what was just written. */
     static DataInputMetadataReader wrap(MetadataBuffer buf) {
         DataInputMetadataReader reader = new DataInputMetadataReader();
-        reader.reset(new ByteArrayDataInput(buf.toArrayCopy()));
+        reader.reset(new ByteArrayDataInput(buf.getBytes(), 0, buf.size()));
         return reader;
     }
 

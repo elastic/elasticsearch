@@ -151,9 +151,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
   method: testRightClosedBucketIsNotSubstituted
   issue: https://github.com/elastic/elasticsearch/issues/149133
-- class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
-  method: test {csv-spec:csv-union-by-name.* [LOCAL]}
-  issue: https://github.com/elastic/elasticsearch/issues/149482
 - class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
   method: testRevertModelSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/147383
@@ -295,9 +292,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.FromDatasetIT
   method: testColumnarBadDateTokenNullsCellEagerAndDeferred
   issue: https://github.com/elastic/elasticsearch/issues/153187
-- class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
-  method: testConcurrentProducerLoopsThroughStatsCapturingWrapperDoNotDeadlock
-  issue: https://github.com/elastic/elasticsearch/issues/153210
 - class: org.elasticsearch.xpack.stateless.commits.StatelessClusterIntegrityStressIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/147841

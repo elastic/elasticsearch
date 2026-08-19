@@ -127,7 +127,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
 
     public void testSettingsListNotEmpty() {
         assertFalse(ExternalSourceSettings.settings().isEmpty());
-        assertEquals(9, ExternalSourceSettings.settings().size());
+        assertEquals(13, ExternalSourceSettings.settings().size());
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_CONCURRENT_REQUESTS));
     }
 
@@ -220,6 +220,116 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         assertFalse("disabling the deprecated key dynamically must fire the consumer (security-critical)", enabled.get());
 
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED });
+    }
+
+    // --- Backwards compatibility: the pre-rename esql.datasource.* keys still work via fallback ---
+
+    public void testPreRenameManagedIdentityKeyStillEnablesManagedIdentity() {
+        // A 9.5 config (pre esql.external.* unification) keeps working: the new setting resolves through the
+        // deprecated pre-rename key, which emits a deprecation warning when set.
+        Settings settings = Settings.builder().put("esql.datasource.managed_identity.enabled", true).build();
+        assertTrue(ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.get(settings));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { ExternalSourceSettings.MANAGED_IDENTITY_ENABLED_OLD });
+    }
+
+    public void testPreRenameFederatedIdentityKeyStillEnablesFederatedIdentity() {
+        Settings settings = Settings.builder().put("esql.datasource.federated_identity.enabled", true).build();
+        assertTrue(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED.get(settings));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED_OLD });
+    }
+
+    public void testPreRenameWorkloadIdentityKeyStillEnablesManagedIdentity() {
+        // The deepest fallback: the original 9.5 workload_identity spelling still enables managed identity.
+        Settings settings = Settings.builder().put("esql.datasource.workload_identity.enabled", true).build();
+        assertTrue(ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.get(settings));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED_OLD });
+    }
+
+    public void testNewKeysWinOverPreRenameKeys() {
+        Settings settings = Settings.builder()
+            .put("esql.datasource.managed_identity.enabled", false)
+            .put("esql.external.managed_identity.enabled", true)
+            .put("esql.datasource.federated_identity.enabled", false)
+            .put("esql.external.federated_identity.enabled", true)
+            .build();
+        assertTrue(ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.get(settings));
+        assertTrue(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED.get(settings));
+        // No deprecation warnings: fallback resolution is lazy, so a pre-rename key that loses to the new key is
+        // never read.
+    }
+
+    public void testManagedIdentityFallbackPrecedenceChain() {
+        // Resolution order: external.managed > datasource.managed > external.workload > datasource.workload.
+        // Each step of the chain wins over everything after it.
+        Settings settings = Settings.builder()
+            .put("esql.datasource.managed_identity.enabled", true)
+            .put("esql.external.workload_identity.enabled", false)
+            .put("esql.datasource.workload_identity.enabled", false)
+            .build();
+        assertTrue(ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.get(settings));
+
+        settings = Settings.builder()
+            .put("esql.external.workload_identity.enabled", true)
+            .put("esql.datasource.workload_identity.enabled", false)
+            .build();
+        assertTrue(ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.get(settings));
+
+        // Fallback resolution is lazy: each read stops at the first key present, so only that key warns —
+        // esql.datasource.workload_identity.enabled is set in both scenarios but never reached.
+        assertSettingDeprecationsAndWarnings(
+            new Setting<?>[] { ExternalSourceSettings.MANAGED_IDENTITY_ENABLED_OLD, ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED }
+        );
+    }
+
+    public void testDynamicUpdateOfPreRenameKeysFiresConsumers() {
+        // Serverless operator settings files (the reserved cluster_settings state) still carry the pre-rename keys.
+        // They must be accepted as a dynamic update — this is the regression that motivated restoring them — and
+        // must fire the consumers registered on the new settings, in both directions (disable is security-critical).
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(
+                ExternalSourceSettings.MANAGED_IDENTITY_ENABLED,
+                ExternalSourceSettings.MANAGED_IDENTITY_ENABLED_OLD,
+                ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED,
+                ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED_OLD,
+                ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED,
+                ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED_OLD
+            )
+        );
+        AtomicBoolean managedEnabled = new AtomicBoolean(false);
+        AtomicBoolean federatedEnabled = new AtomicBoolean(false);
+        clusterSettings.addSettingsUpdateConsumer(ExternalSourceSettings.MANAGED_IDENTITY_ENABLED, managedEnabled::set);
+        clusterSettings.addSettingsUpdateConsumer(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED, federatedEnabled::set);
+
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put("esql.datasource.managed_identity.enabled", true)
+                .put("esql.datasource.federated_identity.enabled", true)
+                .build()
+        );
+        assertTrue("enabling the pre-rename managed key dynamically must fire the consumer", managedEnabled.get());
+        assertTrue("enabling the pre-rename federated key dynamically must fire the consumer", federatedEnabled.get());
+
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put("esql.datasource.managed_identity.enabled", false)
+                .put("esql.datasource.federated_identity.enabled", false)
+                .build()
+        );
+        assertFalse("disabling the pre-rename managed key must fire the consumer (security-critical)", managedEnabled.get());
+        assertFalse("disabling the pre-rename federated key must fire the consumer (security-critical)", federatedEnabled.get());
+
+        assertSettingDeprecationsAndWarnings(
+            new Setting<?>[] { ExternalSourceSettings.MANAGED_IDENTITY_ENABLED_OLD, ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED_OLD }
+        );
+    }
+
+    public void testPreRenameLocalAllowedPathsKeyStillTakesEffect() {
+        Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", "/data/allowed").build();
+        List<String> paths = ExternalSourceSettings.LOCAL_ALLOWED_PATHS.get(settings);
+        assertEquals(List.of("/data/allowed"), paths);
+        assertTrue("local disk access must be enabled through the pre-rename key", LocalFileAccess.create(settings).enabled());
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { ExternalSourceSettings.LOCAL_ALLOWED_PATHS_OLD });
     }
 
     // --- Stateless gate (mirrors the AtomicBoolean wiring in EsqlPlugin.createComponents) ---

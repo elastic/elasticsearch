@@ -67,7 +67,10 @@ import java.util.concurrent.ExecutionException;
  *
  * <p>Cached values must be treated as immutable by all callers — callers that need to derive a
  * filtered view (e.g. only the row groups for a specific byte range) should build a new value
- * from the cached one rather than mutating the cached structure.</p>
+ * from the cached one rather than mutating the cached structure. Callers that already hold a
+ * parsed footer can {@link #put} it so a later {@link #getOrLoad} skips deserialization;
+ * inserted values must be the complete file metadata, not a range- or projection-filtered
+ * derivative.</p>
  *
  * @param <T> the parsed metadata type held by this cache (e.g. {@code ParquetMetadata}).
  */
@@ -126,6 +129,22 @@ public final class ParsedFooterCache<T> {
      */
     public T get(FooterByteCache.Key key) {
         return cache.get(key);
+    }
+
+    /**
+     * Stores an already-parsed footer for {@code key}, e.g. after an opportunistic tail parse.
+     * Prefer this over {@code getOrLoad(key, k -> value)} when the caller already holds the
+     * object: it avoids a checked {@link ExecutionException} and reads as an intentional seed.
+     * Unlike {@link FooterByteCache#put}, insertion is not skipped by size; the count-based LRU
+     * may evict later.
+     *
+     * @throws IllegalArgumentException if {@code value} is null
+     */
+    public void put(FooterByteCache.Key key, T value) {
+        if (value == null) {
+            throw new IllegalArgumentException("parsed footer value must not be null");
+        }
+        cache.put(key, value);
     }
 
     /** Removes all entries. Intended for test isolation. */

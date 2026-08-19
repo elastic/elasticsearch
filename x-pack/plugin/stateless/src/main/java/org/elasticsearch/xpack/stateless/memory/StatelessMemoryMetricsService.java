@@ -36,7 +36,6 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.xpack.stateless.MetricQuality;
 
 import java.io.IOException;
@@ -185,11 +184,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     private volatile boolean mergeMemoryEstimateEnabled;
     private volatile double adaptiveExtraOverheadRatio;
     private final Map<String, ShardMergeMemoryEstimatePublication> maxShardMergeMemoryEstimatePerNode = new ConcurrentHashMap<>();
-    /** Populated with the per-node heap estimate results from the last {@link #getPerNodeMemoryMetrics} call, consumed when the gauge is
-     * read. Metric depends on that method being called regularly. */
-    private final AtomicReference<List<NodeHeapEstimateSnapshot>> lastPerNodeHeapSnapshots = new AtomicReference<>(List.of());
-    /** Same snapshots as {@link #lastPerNodeHeapSnapshots}, held in a separate reference so each gauge can consume independently. */
-    private final AtomicReference<List<NodeHeapEstimateSnapshot>> lastPerNodeHostedShardsSnapshots = new AtomicReference<>(List.of());
     protected volatile int shardLimitPerNode;
     protected volatile boolean adaptiveShardMemoryEstimationMinThresholdEnabled;
 
@@ -272,21 +266,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             .max()
             .orElse(0L);
         lastMaxTotalPostingsInMemoryBytes = maxTotalPostingsInMemoryBytes; // Tracked for testing purposes
-        final Map<String, NodeHeapEstimates> nodeIdToHeapUsage = Maps.transformValues(
-            heapUsageBuilders,
-            builder -> builder.getHeapEstimate(maxTotalPostingsInMemoryBytes)
-        );
-        final List<NodeHeapEstimateSnapshot> snapshots = nodeIdToHeapUsage.entrySet()
-            .stream()
-            .filter(e -> discoveryNodes.get(e.getKey()) != null)
-            .map(e -> {
-                final DiscoveryNode node = discoveryNodes.get(e.getKey());
-                return new NodeHeapEstimateSnapshot(e.getKey(), node.getName(), e.getValue());
-            })
-            .toList();
-        lastPerNodeHeapSnapshots.set(snapshots);
-        lastPerNodeHostedShardsSnapshots.set(snapshots);
-        return nodeIdToHeapUsage;
+        return Maps.transformValues(heapUsageBuilders, builder -> builder.getHeapEstimate(maxTotalPostingsInMemoryBytes));
     }
 
     public long getIndexMemoryOverhead() {
@@ -349,8 +329,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return selfReportedShardMemoryOverheadEnabled;
     }
 
-    private record NodeHeapEstimateSnapshot(String nodeId, String nodeName, NodeHeapEstimates nodeHeapEstimates) {}
-
     public long getAdaptiveShardMemoryEstimationMinThreshold() {
         return (MAX_HEAP_SIZE - getNodeBaseHeapEstimateInBytes()) / this.shardLimitPerNode;
     }
@@ -358,30 +336,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     // visible for testing
     public Map<ShardId, ShardMemoryMetrics> getShardMemoryMetrics() {
         return shardMemoryMetrics;
-    }
-
-    public List<LongWithAttributes> getPerNodeHeapAndReset() {
-        final List<NodeHeapEstimateSnapshot> snapshot = lastPerNodeHeapSnapshots.getAndSet(List.of());
-        return snapshot.stream()
-            .map(
-                s -> new LongWithAttributes(
-                    s.nodeHeapEstimates().totalHeapUsage(),
-                    Map.of("es_node_id", s.nodeId(), "es_node_name", s.nodeName())
-                )
-            )
-            .toList();
-    }
-
-    public List<LongWithAttributes> getPerNodeHostedShardsHeapAndReset() {
-        final List<NodeHeapEstimateSnapshot> snapshot = lastPerNodeHostedShardsSnapshots.getAndSet(List.of());
-        return snapshot.stream()
-            .map(
-                s -> new LongWithAttributes(
-                    s.nodeHeapEstimates().hostedShardsHeapUsage(),
-                    Map.of("es_node_id", s.nodeId(), "es_node_name", s.nodeName())
-                )
-            )
-            .toList();
     }
 
     /**

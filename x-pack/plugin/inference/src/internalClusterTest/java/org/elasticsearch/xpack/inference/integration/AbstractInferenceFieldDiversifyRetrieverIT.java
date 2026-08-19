@@ -113,8 +113,6 @@ abstract class AbstractInferenceFieldDiversifyRetrieverIT extends ESIntegTestCas
         for (var entry : inferenceIds.entrySet()) {
             IntegrationTestUtils.deleteInferenceEndpoint(client(), entry.getValue(), entry.getKey());
         }
-        inferenceIds.clear();
-        inferenceFields.clear();
     }
 
     abstract Set<TaskType> supportedTaskTypes();

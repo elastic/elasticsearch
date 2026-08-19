@@ -548,10 +548,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         clusterStateVersion = event.state().version();
     }
 
-    public boolean isInitialized() {
-        return initialized;
-    }
-
     /**
      * Returns the current indexing operations heap memory requirements if they are still valid (not expired),
      * or {@code null} if they are expired or not set.

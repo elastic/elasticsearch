@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.memory;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.stateless.MetricQuality;
 
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -27,41 +29,76 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class ShardHeapEstimatorTests extends ESTestCase {
 
-    // --- helpers ---
+    /// Whether we include postings or not,
+    /// [ShardHeapEstimator#computeIndexHeapUsage(StatelessMemoryMetricsService.ShardMemoryMetrics)] plus
+    /// [ShardHeapEstimator#getEffectiveShardPostingsInBytes(StatelessMemoryMetricsService.ShardMemoryMetrics)]
+    ///
+    /// Should sum to the adaptive estimate plus the postings, unless the shard self-reports an overhead, in which
+    /// case it should sum to the reported overhead
+    public void testComputeShardHeapUsagePlusEffectivePostingsSumsToTotalExceptWhenSelfReportedOverheadEffective() {
+        final long mappingSize = randomLongBetween(0, 10_000_000);
+        final int numSegments = randomIntBetween(1, 100);
+        final int totalFields = randomIntBetween(1, 100);
+        final long postingsInMemoryBytes = randomLongBetween(0, 100_000);
+        final long liveDocsBytes = randomLongBetween(0, 100_000);
+        final long pointsInMemoryBytes = randomLongBetween(0, 100_000);
+        final MetricQuality metricQuality = randomFrom(MetricQuality.values());
+        final double adaptiveExtraOverheadRatio = randomDoubleBetween(0.0, 1.0, false);
 
-    private static StatelessMemoryMetricsService.ShardMemoryMetrics metrics(
-        long mappingSizeInBytes,
-        int numSegments,
-        int totalFields,
-        long postingsInMemoryBytes,
-        long liveDocsBytes,
-        long pointsInMemoryBytes,
-        long shardMemoryOverheadBytes,
-        MetricQuality metricQuality
-    ) {
-        return new StatelessMemoryMetricsService.ShardMemoryMetrics(
-            mappingSizeInBytes,
+        final long adaptiveEstimateIncludingPostings = getAdaptiveEstimateExcludingPostings(
             numSegments,
             totalFields,
-            postingsInMemoryBytes,
             liveDocsBytes,
             pointsInMemoryBytes,
-            shardMemoryOverheadBytes,
-            0L,
-            metricQuality,
-            randomIdentifier(),
-            System.nanoTime()
-        );
-    }
+            adaptiveExtraOverheadRatio
+        ) + postingsInMemoryBytes;
 
-    /** Estimator with a fixed per-shard overhead and no self-reported overhead. */
-    private static ShardHeapEstimator fixedEstimator(ByteSizeValue fixedOverhead) {
-        return new ShardHeapEstimator(fixedOverhead, 0.0, 0L, false, false);
-    }
+        for (boolean selfReportedOverheadEnabled : List.of(true, false)) {
+            for (boolean includePostingsInEstimate : List.of(true, false)) {
+                for (boolean selfReportedOverheadPresent : List.of(true, false)) {
+                    final var estimator = new ShardHeapEstimator(
+                        ByteSizeValue.MINUS_ONE,
+                        adaptiveExtraOverheadRatio,
+                        0L,
+                        selfReportedOverheadEnabled,
+                        includePostingsInEstimate
+                    );
 
-    /** Estimator using the adaptive formula with no extra ratio, no min threshold, no self-reported overhead, postings excluded. */
-    private static ShardHeapEstimator adaptiveEstimator(double extraRatio, long minThreshold) {
-        return new ShardHeapEstimator(ByteSizeValue.ZERO, extraRatio, minThreshold, false, false);
+                    final long selfReportedOverhead = selfReportedOverheadPresent
+                        ? randomValueOtherThan(adaptiveEstimateIncludingPostings, () -> randomLongBetween(1, 100_000_000L))
+                        : UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
+
+                    final var shardMemoryMetrics = metrics(
+                        mappingSize,
+                        numSegments,
+                        totalFields,
+                        postingsInMemoryBytes,
+                        liveDocsBytes,
+                        pointsInMemoryBytes,
+                        selfReportedOverhead,
+                        metricQuality
+                    );
+
+                    final long expectedValue = selfReportedOverheadEnabled && selfReportedOverheadPresent
+                        ? selfReportedOverhead
+                        : adaptiveEstimateIncludingPostings;
+                    String errorMessage = Strings.format(
+                        """
+                            Unexpected: selfReportedOverheadEnabled=%s, includePostingsInEstimate=%s,\
+                             selfReportedOverheadPresent=%s, selfReportedOverhead=%s""",
+                        selfReportedOverheadEnabled,
+                        includePostingsInEstimate,
+                        selfReportedOverheadPresent,
+                        selfReportedOverhead
+                    );
+                    assertEquals(
+                        errorMessage,
+                        expectedValue,
+                        estimator.computeShardHeapUsage(shardMemoryMetrics) + estimator.getEffectiveShardPostingsInBytes(shardMemoryMetrics)
+                    );
+                }
+            }
+        }
     }
 
     // --- computeShardHeapUsage ---
@@ -122,10 +159,10 @@ public class ShardHeapEstimatorTests extends ESTestCase {
     }
 
     public void testAdaptiveFormulaAllComponents() {
-        int numSegments = randomIntBetween(1, 100);
-        int totalFields = randomIntBetween(1, 100);
-        long liveDocsBytes = randomLongBetween(0, 100_000);
-        long pointsBytes = randomLongBetween(0, 100_000);
+        final int numSegments = randomIntBetween(1, 100);
+        final int totalFields = randomIntBetween(1, 100);
+        final long liveDocsBytes = randomLongBetween(0, 100_000);
+        final long pointsBytes = randomLongBetween(0, 100_000);
         ShardHeapEstimator estimator = adaptiveEstimator(0.0, 0L);
         var m = metrics(
             0,
@@ -137,8 +174,7 @@ public class ShardHeapEstimatorTests extends ESTestCase {
             UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
             MetricQuality.EXACT
         );
-        long expected = ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + (long) numSegments * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes()
-            + (long) totalFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + liveDocsBytes + pointsBytes;
+        long expected = getAdaptiveEstimateExcludingPostings(numSegments, totalFields, liveDocsBytes, pointsBytes, 0.0);
         assertThat(estimator.computeShardHeapUsage(m), equalTo(expected));
     }
 
@@ -148,9 +184,7 @@ public class ShardHeapEstimatorTests extends ESTestCase {
         double extraRatio = 0.25;
         ShardHeapEstimator estimator = adaptiveEstimator(extraRatio, 0L);
         var m = metrics(0, numSegments, totalFields, 0, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.EXACT);
-        long baseEstimate = ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + (long) numSegments * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes()
-            + (long) totalFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes();
-        long expected = baseEstimate + (long) (baseEstimate * extraRatio);
+        long expected = getAdaptiveEstimateExcludingPostings(numSegments, totalFields, 0, 0, extraRatio);
         assertThat(estimator.computeShardHeapUsage(m), equalTo(expected));
     }
 
@@ -327,5 +361,54 @@ public class ShardHeapEstimatorTests extends ESTestCase {
         ShardHeapEstimator estimator = new ShardHeapEstimator(ByteSizeValue.ZERO, 0.0, 0L, true, false);
         var m = metrics(0, 0, 0, postings, 0, 0, selfReportedOverhead, MetricQuality.EXACT);
         assertThat(estimator.getEffectiveShardPostingsInBytes(m), equalTo(0L));
+    }
+
+    // --- helpers ---
+
+    private static StatelessMemoryMetricsService.ShardMemoryMetrics metrics(
+        long mappingSizeInBytes,
+        int numSegments,
+        int totalFields,
+        long postingsInMemoryBytes,
+        long liveDocsBytes,
+        long pointsInMemoryBytes,
+        long shardMemoryOverheadBytes,
+        MetricQuality metricQuality
+    ) {
+        return new StatelessMemoryMetricsService.ShardMemoryMetrics(
+            mappingSizeInBytes,
+            numSegments,
+            totalFields,
+            postingsInMemoryBytes,
+            liveDocsBytes,
+            pointsInMemoryBytes,
+            shardMemoryOverheadBytes,
+            0L,
+            metricQuality,
+            randomIdentifier(),
+            System.nanoTime()
+        );
+    }
+
+    /** Estimator with a fixed per-shard overhead and no self-reported overhead. */
+    private static ShardHeapEstimator fixedEstimator(ByteSizeValue fixedOverhead) {
+        return new ShardHeapEstimator(fixedOverhead, 0.0, 0L, false, false);
+    }
+
+    /** Estimator using the adaptive formula with no extra ratio, no min threshold, no self-reported overhead, postings excluded. */
+    private static ShardHeapEstimator adaptiveEstimator(double extraRatio, long minThreshold) {
+        return new ShardHeapEstimator(ByteSizeValue.ZERO, extraRatio, minThreshold, false, false);
+    }
+
+    private static long getAdaptiveEstimateExcludingPostings(
+        long numSegments,
+        long totalFields,
+        long liveDocsBytes,
+        long pointsBytes,
+        double adaptiveExtraOverheadRatio
+    ) {
+        long unadjustedEstimate = ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + numSegments * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes()
+            + totalFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + liveDocsBytes + pointsBytes;
+        return (long) (unadjustedEstimate + (unadjustedEstimate * adaptiveExtraOverheadRatio));
     }
 }

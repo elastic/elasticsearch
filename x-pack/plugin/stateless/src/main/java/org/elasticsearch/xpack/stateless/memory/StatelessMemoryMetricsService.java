@@ -138,12 +138,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
 
     private volatile ByteSizeValue fixedShardMemoryOverhead;
     private final boolean selfReportedShardMemoryOverheadEnabled;
-    // The memory overhead of each IndexShard instance used in the adaptive estimate
-    public static final ByteSizeValue ADAPTIVE_SHARD_MEMORY_OVERHEAD = ByteSizeValue.ofKb(75);
-    // The memory overhead of each Lucene segment, including maps for postings, doc_values, and stored_fields producers
-    public static final ByteSizeValue ADAPTIVE_SEGMENT_MEMORY_OVERHEAD = ByteSizeValue.ofKb(55);
-    // The memory overhead of each field found in Lucene segments
-    public static final ByteSizeValue ADAPTIVE_FIELD_MEMORY_OVERHEAD = ByteSizeValue.ofBytes(1024);
 
     // visible for testing
     public static final long INDEX_MEMORY_OVERHEAD = ByteSizeValue.ofKb(350).getBytes();

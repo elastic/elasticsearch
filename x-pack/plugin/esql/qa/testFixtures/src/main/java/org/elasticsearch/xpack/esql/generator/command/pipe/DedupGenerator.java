@@ -40,10 +40,13 @@ public class DedupGenerator implements CommandGenerator {
             DataType dt = DataType.fromTypeName(c.type());
             if (dt != null
                 && (dt == DataType.AGGREGATE_METRIC_DOUBLE
+                    || dt == DataType.DATE_PERIOD
                     || dt == DataType.DATE_RANGE
+                    || dt == DataType.DOUBLE_RANGE
                     || dt == DataType.EXPONENTIAL_HISTOGRAM
-                    || dt == DataType.TDIGEST
                     || dt == DataType.PARTIAL_AGG
+                    || dt == DataType.TDIGEST
+                    || dt == DataType.TIME_DURATION
                     || dt.isCounter())) {
                 return EMPTY_DESCRIPTION;
             }

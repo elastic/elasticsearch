@@ -12,6 +12,7 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -22,20 +23,22 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
@@ -46,6 +49,9 @@ import java.util.function.Supplier;
 /// released when the recovery's [RecoveryListener] completes.
 /// The max number of concurrent recovery slots is controlled by the [#INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING]
 /// dynamic setting.
+///
+/// Dispatch is also subject to the node's recovery gates: while they block, no queued recovery is dispatched, and [#doFillSlots]
+/// registers a listener with the [RecoveryGateMonitor] so dispatch resumes as soon as they allow recoveries again.
 public final class ThrottlingRecoveryService extends AbstractLifecycleComponent implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(ThrottlingRecoveryService.class);
@@ -64,13 +70,22 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
     private final Executor executor;
     private final ThreadContext threadContext;
+    private final ThreadPool threadPool;
     private final ProjectResolver projectResolver;
     private final ClusterService clusterService;
     private final RecoverySchedulingListener schedulingListener;
+    private final RecoveryGateMonitor recoveryGateMonitor;
+    private final AtomicReference<BlockedState> blockedState = new AtomicReference<>();
 
     private int maxConcurrentRecoveries;
     private int runningRecoveries = 0;
-    private final Deque<PendingRecovery> pendingRecoveries = new ArrayDeque<>();
+
+    private static final Comparator<PendingRecovery> RECOVERY_ORDERING =
+        // Order first by the recovery priority in the recovery state, then by using PriorityComparator on the index metadata:
+        // (If there are multiple queue entries with the same recovery priority for the same index, execution order will be arbirary.)
+        Comparator.<PendingRecovery, Integer>comparing(recovery -> recovery.recoveryState().getRecoveryPriority().ordinal())
+            .thenComparing(PendingRecovery::indexMetadata, PriorityComparator.getIndexMetadataComparator());
+    private final PriorityQueue<PendingRecovery> pendingRecoveries = new PriorityQueue<>(RECOVERY_ORDERING);
 
     /// Records allocation IDs that have been directly cancelled by the master, including those for recoveries that have
     /// already started (i.e. are not in [#pendingRecoveries]).
@@ -81,13 +96,16 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         ThreadPool threadPool,
         ProjectResolver projectResolver,
         ClusterService clusterService,
-        RecoverySchedulingListener schedulingListener
+        RecoverySchedulingListener schedulingListener,
+        RecoveryGateMonitor recoveryGateMonitor
     ) {
         this.executor = threadPool.generic();
         this.threadContext = threadPool.getThreadContext();
+        this.threadPool = threadPool;
         this.projectResolver = projectResolver;
         this.schedulingListener = schedulingListener;
         this.clusterService = clusterService;
+        this.recoveryGateMonitor = recoveryGateMonitor;
     }
 
     @Override
@@ -102,19 +120,27 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         ProjectId projectId,
         RecoveryListener recoveryListener,
         RecoveryState recoveryState,
+        IndexMetadata indexMetadata,
         String allocationId,
         RecoveryStats stats,
         Consumer<RecoveryListener> task
     ) {
         final Supplier<ThreadContext.StoredContext> context = restorableContextForProject(projectId);
+        final ShardId shardId = recoveryState.getShardId();
         final PendingRecovery pendingRecovery;
         final boolean serviceClosed;
         synchronized (this) {
             serviceClosed = isClosed();
-            if (serviceClosed || cancelledAllocationIds.remove(allocationId) != null) {
+            if (serviceClosed || cancelledAllocationIds.containsKey(allocationId)) {
+                final ShardId cancelled = cancelledAllocationIds.get(allocationId);
+                assert serviceClosed || cancelled.equals(shardId)
+                    : "mismatch between cached cancellation [" + cancelled + "] and enqueue recovery: [" + recoveryState + "]";
                 pendingRecovery = null;
             } else {
-                pendingRecovery = new PendingRecovery(recoveryState, allocationId, stats, task, recoveryListener, context);
+                pendingRecovery = new PendingRecovery(recoveryState, indexMetadata, allocationId, stats, task, recoveryListener, context);
+                // Note that the PendingRecovery captures the IndexMetadata that was passed in when the recovery was enqueued, so it does
+                // not respond to changes in index.priority and reorder the queue. If we wanted that, we would need to maintain a collection
+                // of listeners (see IndexService.addMetadataListener) which are mapped to the queued entries, and remove and re-add them.
                 pendingRecoveries.add(pendingRecovery);
                 stats.targetRecoveryQueued(recoveryState.getRecoverySource().getType());
             }
@@ -282,8 +308,20 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         return lifecycle.stoppedOrClosed();
     }
 
-    /// Drains the pending queue up to the max slot capacity
+    /// Evaluates the recovery gates and drains the pending queue up to the max slot capacity, forking to the generic executor so
+    /// dispatch is not run on the cluster state applier thread. Called on every enqueue, slot release and recovery gate callback.
     private void fillSlots() {
+        // generic thread pool is unbounded and does not reject
+        executor.execute(this::doFillSlots);
+    }
+
+    private void doFillSlots() {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+        final RecoveryGate.Decision decision = recoveryGateMonitor.evaluate();
+        if (decision.mayRun() == false) {
+            onRecoveriesBlocked(decision);
+            return;
+        }
         final List<PendingRecovery> recoveriesToDispatch = new ArrayList<>();
         synchronized (this) {
             if (isClosed()) {
@@ -303,6 +341,47 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             }
             logger.trace("dispatched recovery: {}", recovery.recoveryState());
             schedulingListener.onRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
+        }
+    }
+
+    /// Handles a blocked decision observed by [#fillSlots]: a transition into blocked state reports the block and registers a
+    /// callback that resumes dispatch once the gates allow recoveries again.
+    private void onRecoveriesBlocked(RecoveryGate.Decision decision) {
+        assert decision.mayRun() == false;
+        if (isClosed()) {
+            return;
+        }
+        if (blockedState.compareAndSet(null, new BlockedState(decision.gateName(), threadPool.relativeTimeInMillis()))) {
+            logger.info("recovery dispatch blocked by gate [{}]: {}", decision.gateName(), decision.reason());
+            try {
+                schedulingListener.onRecoveriesBlocked(decision.gateName());
+            } finally {
+                recoveryGateMonitor.addCallback(RecoveryGate.Outcome.RUN, this::onRecoveriesUnblocked);
+            }
+        } else {
+            logger.debug("recovery dispatch still blocked by gate [{}]: {}", decision.gateName(), decision.reason());
+        }
+    }
+
+    /// Fired by the [RecoveryGateMonitor] once the gates allow recoveries again: reports how long dispatch was held and resumes it.
+    private void onRecoveriesUnblocked() {
+        if (isClosed()) {
+            return;
+        }
+        final BlockedState state = blockedState.get();
+        assert state != null : "resume callback fired without a recorded block";
+        try {
+            final long blockedTimeMillis = threadPool.relativeTimeInMillis() - state.sinceMillis();
+            logger.info(
+                "resuming recoveries held for [{}] (initially blocked by gate [{}])",
+                TimeValue.timeValueMillis(blockedTimeMillis),
+                state.gateName()
+            );
+            schedulingListener.onRecoveriesUnblocked(blockedTimeMillis);
+        } finally {
+            blockedState.set(null);
+            // no need to fork: the recovery gate monitor fires callbacks on the generic pool already
+            doFillSlots();
         }
     }
 
@@ -355,6 +434,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// at dispatch time, such that aborting a queued-but-never-dispatched task does not decrement a slot that was never taken.
     private record PendingRecovery(
         RecoveryState recoveryState,
+        IndexMetadata indexMetadata,
         String allocationId,
         RecoveryStats stats,
         Consumer<RecoveryListener> task,
@@ -385,4 +465,6 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             task.accept(listener);
         }
     }
+
+    private record BlockedState(String gateName, long sinceMillis) {}
 }

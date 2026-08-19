@@ -16,6 +16,7 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.S3RequestLog;
@@ -95,6 +96,10 @@ public class InteractiveFixtureManual extends ESRestTestCase {
         // Basic cluster settings
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
+        // This runner builds its own cluster rather than going through Clusters, so it pins the federation gate the
+        // shared builder would have applied. The data source and dataset routes this fixture exists to drive by hand
+        // are registered only while that gate is on.
+        .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
         // Disable ML to avoid native code loading issues in some environments
         .setting("xpack.ml.enabled", "false")
         // S3 client configuration for accessing the S3HttpFixture

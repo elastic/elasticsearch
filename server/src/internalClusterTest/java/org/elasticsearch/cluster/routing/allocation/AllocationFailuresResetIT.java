@@ -30,7 +30,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -57,29 +56,29 @@ public class AllocationFailuresResetIT extends ESIntegTestCase {
         internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node).setNewDelegate(new IndexEventListener() {});
     }
 
-    private void awaitShardAllocMaxRetries() throws Exception {
+    private void awaitShardAllocMaxRetries() {
         var maxRetries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(internalCluster().getDefaultSettings());
-        assertBusy(() -> {
-            var state = safeGet(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute()).getState();
+        awaitClusterState(state -> {
             var index = state.getRoutingTable().index(INDEX);
-            assertNotNull(index);
+            if (index == null) {
+                return false;
+            }
             var shard = index.shard(SHARD).primaryShard();
-            assertNotNull(shard);
-            var unassigned = shard.unassignedInfo();
-            assertNotNull(unassigned);
-            assertEquals(maxRetries.intValue(), unassigned.failedAllocations());
+            if (shard == null || shard.unassignedInfo() == null) {
+                return false;
+            }
+            return maxRetries.intValue() == shard.unassignedInfo().failedAllocations();
         });
     }
 
-    private void awaitShardAllocSucceed() throws Exception {
-        assertBusy(() -> {
-            var state = safeGet(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute()).getState();
+    private void awaitShardAllocSucceed() {
+        awaitClusterState(state -> {
             var index = state.getRoutingTable().index(INDEX);
-            assertNotNull(index);
+            if (index == null) {
+                return false;
+            }
             var shard = index.shard(SHARD).primaryShard();
-            assertNotNull(shard);
-            assertTrue(shard.assignedToNode());
-            assertTrue(shard.started());
+            return shard != null && shard.assignedToNode() && shard.started();
         });
     }
 
@@ -123,11 +122,9 @@ public class AllocationFailuresResetIT extends ESIntegTestCase {
         ensureGreen(INDEX);
         // await all relocation attempts are exhausted
         var maxAttempts = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
-        assertBusy(() -> {
-            var state = safeGet(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute()).getState();
+        awaitClusterState(state -> {
             var shard = state.routingTable().index(INDEX).shard(SHARD).primaryShard();
-            assertThat(shard, notNullValue());
-            assertThat(shard.relocationFailureInfo().failedRelocations(), equalTo(maxAttempts));
+            return shard != null && shard.relocationFailureInfo().failedRelocations() == maxAttempts;
         });
         // ensure the shard remain started
         var state = safeGet(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute()).getState();
@@ -147,11 +144,9 @@ public class AllocationFailuresResetIT extends ESIntegTestCase {
                 )
             );
             internalCluster().startNode();
-            assertBusy(() -> {
-                var stateAfterNodeJoin = internalCluster().clusterService().state();
-                var relocatedShard = stateAfterNodeJoin.routingTable().index(INDEX).shard(SHARD).primaryShard();
-                assertThat(relocatedShard, notNullValue());
-                assertThat(stateAfterNodeJoin.nodes().get(relocatedShard.currentNodeId()).getName(), not(equalTo(node1)));
+            awaitClusterState(cs -> {
+                var relocatedShard = cs.routingTable().index(INDEX).shard(SHARD).primaryShard();
+                return relocatedShard != null && cs.nodes().get(relocatedShard.currentNodeId()).getName().equals(node1) == false;
             });
             mockLog.assertAllExpectationsMatched();
         }

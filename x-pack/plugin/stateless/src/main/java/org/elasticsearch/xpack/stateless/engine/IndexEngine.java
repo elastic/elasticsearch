@@ -23,6 +23,7 @@ import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -42,6 +43,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.ElasticsearchMergeScheduler;
 import org.elasticsearch.index.engine.ElasticsearchReaderManager;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineCreationFailureException;
 import org.elasticsearch.index.engine.EngineException;
@@ -80,6 +82,7 @@ import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -89,7 +92,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -354,7 +356,7 @@ public class IndexEngine extends InternalEngine {
     }
 
     @Override
-    protected LongConsumer translogPersistedSeqNoConsumer() {
+    protected Consumer<LongsRef> translogPersistedSeqNosConsumer() {
         return seqNo -> {};
     }
 
@@ -363,11 +365,11 @@ public class IndexEngine extends InternalEngine {
         return false;
     }
 
-    public LongConsumer objectStorePersistedSeqNoConsumer() {
+    public Consumer<LongsRef> objectStorePersistedSeqNoConsumer() {
         return seqNo -> {
             final LocalCheckpointTracker tracker = getLocalCheckpointTracker();
             if (tracker != null) {
-                tracker.markSeqNoAsPersisted(seqNo);
+                tracker.markSeqNosAsPersisted(seqNo);
             }
         };
     }
@@ -517,6 +519,22 @@ public class IndexEngine extends InternalEngine {
             documentParsingReporter.onIndexingCompleted(parsedDocument);
         }
         return result;
+    }
+
+    @Override
+    public List<IndexResult> indexBatch(EngineBatch engineBatch) throws IOException {
+        checkNoNewOperationsWhileHollow();
+        List<Index> operations = engineBatch.batch().materializeIndexOps();
+        for (Index operation : operations) {
+            documentParsingReporter.onParsingCompleted(operation.parsedDoc());
+        }
+        List<IndexResult> results = super.indexBatch(engineBatch);
+        for (int i = 0; i < results.size(); i++) {
+            if (results.get(i).getResultType() == Result.Type.SUCCESS) {
+                documentParsingReporter.onIndexingCompleted(operations.get(i).parsedDoc());
+            }
+        }
+        return results;
     }
 
     @Override
@@ -896,6 +914,8 @@ public class IndexEngine extends InternalEngine {
     // For cleanup after resharding
     public void deleteUnownedDocuments(ShardSplittingQuery query) throws Exception {
         super.deleteByQuery(query);
+        // Bypasses ES delete ops (no seqno); bump force-merge UUID so getShardStateId changes.
+        onShardContentChanged();
     }
 
     @Override
@@ -994,6 +1014,8 @@ public class IndexEngine extends InternalEngine {
     @Override
     protected MergePolicy wrapMergePolicy(MergePolicy mergePolicy) {
         return new OneMergeWrappingMergePolicy(mergePolicy, oneMerge -> new MergePolicy.OneMerge(oneMerge) {
+            private volatile boolean isComplete = false;
+
             @Override
             public CodecReader wrapForMerge(CodecReader reader) throws IOException {
                 return oneMerge.wrapForMerge(reader);
@@ -1005,12 +1027,23 @@ public class IndexEngine extends InternalEngine {
                     return true;
                 }
 
+                // No need to check if the merge should be skipped if it's already finished.
+                if (isComplete) {
+                    return super.isAborted();
+                }
+
                 if (shouldSkipMerge()) {
                     // If a merge is considered to be aborted due to running relocation, we want to keep that for
                     // the entire merge lifecycle even if the relocation is canceled to avoid any inconsistencies.
                     setAborted();
                 }
                 return super.isAborted();
+            }
+
+            @Override
+            public void mergeFinished(boolean success, boolean segmentDropped) throws IOException {
+                isComplete = true;
+                super.mergeFinished(success, segmentDropped);
             }
         });
     }

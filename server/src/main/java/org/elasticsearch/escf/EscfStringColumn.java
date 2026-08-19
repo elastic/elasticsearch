@@ -25,7 +25,7 @@ final class EscfStringColumn extends AbstractVarColumn {
     }
 
     @Override
-    byte kind() {
+    public byte kind() {
         return EscfColumnKind.STRING;
     }
 

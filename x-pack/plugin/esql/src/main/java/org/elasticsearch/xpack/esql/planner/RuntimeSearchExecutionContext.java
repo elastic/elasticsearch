@@ -70,7 +70,15 @@ public final class RuntimeSearchExecutionContext extends SearchExecutionContext 
         for (String name : fieldNames) {
             fields.put(name, new TextFieldMapper.TextFieldType(name, true, false, tsi, false, false, null, Map.of(), false, false));
         }
-        IndexAnalyzers analyzers = IndexAnalyzers.of(Map.of(DEFAULT_ANALYZER_KEY, searchAnalyzer));
+        // The registry answers two questions with the one analyzer this synthetic context has:
+        // QueryStringQueryParser needs a "default" entry, and query builders carrying an explicit analyzer
+        // option (e.g. match with {"analyzer": "whitespace"}) validate the name against getIndexAnalyzers()
+        // before use, so the analyzer is registered under its own name as well.
+        IndexAnalyzers analyzers = IndexAnalyzers.of(
+            DEFAULT_ANALYZER_KEY.equals(searchAnalyzer.name())
+                ? Map.of(DEFAULT_ANALYZER_KEY, searchAnalyzer)
+                : Map.of(DEFAULT_ANALYZER_KEY, searchAnalyzer, searchAnalyzer.name(), searchAnalyzer)
+        );
         return new RuntimeSearchExecutionContext(fields, analyzers, searchAnalyzer);
     }
 

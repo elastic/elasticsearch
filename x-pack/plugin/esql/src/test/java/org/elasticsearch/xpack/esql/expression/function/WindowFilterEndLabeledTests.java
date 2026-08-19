@@ -201,7 +201,7 @@ public class WindowFilterEndLabeledTests extends AbstractConfigurationFunctionTe
         Expression window = args.get(0);
         Expression bucketSize = args.get(1);
         Expression timestamp = args.get(2);
-        Bucket bucket = new Bucket(source, timestamp, bucketSize, null, null, configuration, 0L, Rounding.RoundingConvention.UP);
+        Bucket bucket = new Bucket(source, timestamp, bucketSize, null, null, null, configuration, 0L, Rounding.RoundingConvention.UP);
         return new WindowFilter(source, window, bucket, timestamp);
     }
 

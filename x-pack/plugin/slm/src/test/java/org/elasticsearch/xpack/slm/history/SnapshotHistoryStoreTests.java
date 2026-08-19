@@ -73,9 +73,7 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void stopClusterServiceAndThreadPool() throws Exception {
         clusterService.stop();
         threadPool.shutdownNow();
     }

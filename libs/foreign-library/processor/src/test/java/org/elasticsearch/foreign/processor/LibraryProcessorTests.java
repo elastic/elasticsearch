@@ -158,6 +158,31 @@ public class LibraryProcessorTests extends ProcessorTestCase {
     }
 
     /**
+     * The {@link org.elasticsearch.foreign.Critical.UnsupportedFallback} sentinel satisfies the required
+     * {@code fallbackAdapter} without a real adapter class.
+     */
+    public void testUnsupportedFallbackSentinel() throws Exception {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.Critical;
+            @LibrarySpecification(name = "testlib")
+            public interface GatedLib {
+                @Function("native_fn")
+                @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
+                long fn(MemorySegment dst, long dstCap);
+            }
+            """;
+
+        CompilationResult result = compile("test.GatedLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        assertNotNull(result.loadClassNoInit("test.GatedLib$Impl"));
+    }
+
+    /**
      * A {@code @LibrarySpecification} annotation on a non-abstract class should emit an error.
      */
     public void testAnnotationOnClassEmitsError() {
@@ -335,5 +360,641 @@ public class LibraryProcessorTests extends ProcessorTestCase {
         assertFalse("Expected compilation to fail when all platforms are listed in unavailableOn", result.success());
         boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("never be natively loaded"));
         assertTrue("Expected error about all platforms listed but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * {@code @CaptureSystemError} names a single error channel, but {@code errno} and {@code GetLastError}
+     * are distinct: a library reachable on both a POSIX platform and Windows cannot resolve which one
+     * to capture, so this must be a compile error. Here the library leaves any POSIX platform (Darwin
+     * aarch64) available alongside Windows.
+     */
+    public void testSystemErrorOnCrossPlatformLibraryEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Platform;
+            import org.elasticsearch.foreign.CaptureSystemError;
+            @LibrarySpecification(
+                name = "testlib",
+                unavailableOn = { Platform.LINUX_X64, Platform.LINUX_AARCH64, Platform.DARWIN_X64 }
+            )
+            public interface BadLib {
+                @CaptureSystemError
+                @Function("native_fn")
+                int fn(int x);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail when @CaptureSystemError spans both platform families", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("@CaptureSystemError") && msg.contains("both"));
+        assertTrue("Expected error about unresolvable @CaptureSystemError mechanism but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * A {@code @StructFactory} method must not be annotated with {@code @CaptureSystemError} —
+     * struct factories don't perform native calls that could set a system-error value.
+     */
+    public void testSystemErrorOnStructFactoryEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructFactory;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.CaptureSystemError;
+            @LibrarySpecification
+            public interface BadLib {
+                @StructSpecification
+                interface Point {
+                    int x();
+                }
+
+                @CaptureSystemError
+                @StructFactory
+                Point newPoint();
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail when @StructFactory has @CaptureSystemError", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("must not have @CaptureSystemError"));
+        assertTrue("Expected error about @StructFactory with @CaptureSystemError but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * {@code @CaptureSystemError} on a Windows-only library (every POSIX platform listed in
+     * {@code unavailableOn}) resolves to the {@code GetLastError} channel and must compile clean.
+     */
+    public void testSystemErrorOnWindowsOnlyLibraryCompilesClean() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Platform;
+            import org.elasticsearch.foreign.CaptureSystemError;
+            @LibrarySpecification(
+                name = "testlib",
+                unavailableOn = {
+                    Platform.LINUX_X64,
+                    Platform.LINUX_AARCH64,
+                    Platform.DARWIN_X64,
+                    Platform.DARWIN_AARCH64
+                }
+            )
+            public interface GoodLib {
+                @CaptureSystemError
+                @Function("native_fn")
+                int fn(int x);
+            }
+            """;
+
+        CompilationResult result = compile("test.GoodLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+    }
+
+    /**
+     * {@code @CaptureSystemError} on a POSIX-only library ({@code WINDOWS_X64} listed in
+     * {@code unavailableOn}) resolves to the {@code errno} channel and must compile clean.
+     */
+    public void testSystemErrorOnPosixLibraryCompilesClean() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Platform;
+            import org.elasticsearch.foreign.CaptureSystemError;
+            @LibrarySpecification(name = "testlib", unavailableOn = { Platform.WINDOWS_X64 })
+            public interface GoodLib {
+                @CaptureSystemError
+                @Function("native_fn")
+                int fn(int x);
+            }
+            """;
+
+        CompilationResult result = compile("test.GoodLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+    }
+
+    /**
+     * A {@code @StructSpecification} interface that does NOT declare {@code extends Addressable}
+     * must compile cleanly — the processor no longer requires it.
+     */
+    public void testStructInterfaceWithoutAddressableCompilesClean() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            @LibrarySpecification
+            public interface CleanStructLib {
+                @StructSpecification
+                interface RLimit {
+                    long rlim_cur();
+                    long rlim_max();
+                }
+
+                @Function("getrlimit")
+                int getrlimit(int resource, RLimit rlimit);
+            }
+            """;
+
+        CompilationResult result = compile("test.CleanStructLib", source);
+        assertTrue("Expected compilation to succeed without extends Addressable but got errors: " + result.errors(), result.success());
+        assertTrue("Expected no processor errors", result.errors().isEmpty());
+    }
+
+    /**
+     * A {@code @StructSpecification} interface with an {@code @InlineArrayField} getter-only method
+     * must compile cleanly and produce a model.
+     */
+    public void testInlineArrayFieldGetterOnlyCompilesClean() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineArrayField;
+            @LibrarySpecification
+            public interface InlineArrayLib {
+                @StructSpecification
+                interface SockAddr {
+                    short sa_family();
+                    @InlineArrayField(length = 14)
+                    byte sa_data(int index);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.InlineArrayLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        assertTrue("Expected no processor errors", result.errors().isEmpty());
+    }
+
+    /**
+     * A {@code @StructSpecification} interface with an {@code @InlineArrayField} getter and setter pair
+     * must compile cleanly.
+     */
+    public void testInlineArrayFieldGetterSetterCompilesClean() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineArrayField;
+            @LibrarySpecification
+            public interface InlineArrayLib {
+                @StructSpecification
+                interface SunPath {
+                    @InlineArrayField(length = 108)
+                    byte sun_path(int index);
+                    @InlineArrayField(length = 108)
+                    void sun_path(int index, byte value);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.InlineArrayLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        assertTrue("Expected no processor errors", result.errors().isEmpty());
+    }
+
+    /**
+     * A {@code @StructSpecification} interface with an {@code @InlineStringField} getter-only method
+     * must compile cleanly.
+     */
+    public void testInlineStringFieldGetterOnlyCompilesClean() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineStringField;
+            @LibrarySpecification
+            public interface InlineStringLib {
+                @StructSpecification
+                interface UnixAddr {
+                    short sa_family();
+                    @InlineStringField(length = 108)
+                    String sun_path();
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.InlineStringLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        assertTrue("Expected no processor errors", result.errors().isEmpty());
+    }
+
+    /**
+     * A {@code @StructSpecification} interface with an {@code @InlineStringField} getter and setter
+     * must compile cleanly.
+     */
+    public void testInlineStringFieldGetterSetterCompilesClean() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineStringField;
+            @LibrarySpecification
+            public interface InlineStringLib {
+                @StructSpecification
+                interface UnixAddr {
+                    short sa_family();
+                    @InlineStringField(length = 108)
+                    String sun_path();
+                    @InlineStringField(length = 108)
+                    void sun_path(String value);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.InlineStringLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        assertTrue("Expected no processor errors", result.errors().isEmpty());
+    }
+
+    /**
+     * {@code @WideString} applied to a non-{@code String} parameter must emit an error — the
+     * annotation only makes sense for {@code String} params, which the framework encodes/decodes.
+     */
+    public void testWideStringOnNonStringParamEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.WideString;
+            @LibrarySpecification
+            public interface BadLib {
+                @Function("native_fn")
+                int fn(@WideString int x);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail with @WideString on non-String parameter", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("@WideString may only be applied to String parameters"));
+        assertTrue("Expected error about @WideString on non-String parameter but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * {@code @WideString} on a library whose {@code unavailableOn} lists {@code WINDOWS_X64} must
+     * emit an error — a wide-string parameter implies the method must be usable on Windows. A control
+     * case with no {@code unavailableOn} restriction must compile clean.
+     */
+    public void testWideStringRequiresWindowsAvailability() {
+        String badSource = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.Platform;
+            import org.elasticsearch.foreign.WideString;
+            @LibrarySpecification(unavailableOn = { Platform.WINDOWS_X64 })
+            public interface BadLib {
+                @Function("native_fn")
+                int fn(@WideString String name);
+            }
+            """;
+
+        CompilationResult badResult = compile("test.BadLib", badSource);
+        assertFalse("Expected compilation to fail with @WideString unavailable on Windows", badResult.success());
+        boolean hasError = badResult.errors().stream().anyMatch(msg -> msg.contains("lists WINDOWS_X64 in unavailableOn"));
+        assertTrue("Expected error about WINDOWS_X64 in unavailableOn but got: " + badResult.errors(), hasError);
+
+        String goodSource = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.WideString;
+            @LibrarySpecification
+            public interface GoodLib {
+                @Function("native_fn")
+                int fn(@WideString String name);
+            }
+            """;
+
+        CompilationResult goodResult = compile("test.GoodLib", goodSource);
+        assertTrue(
+            "Expected compilation to succeed for @WideString without unavailableOn restriction but got errors: " + goodResult.errors(),
+            goodResult.success()
+        );
+    }
+
+    /**
+     * A {@code @StructFactory} method must not carry {@code @WideString} on any parameter.
+     */
+    public void testWideStringOnStructFactoryEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructFactory;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.WideString;
+            @LibrarySpecification
+            public interface BadLib {
+                @StructSpecification
+                interface Point {
+                    int x();
+                }
+
+                @StructFactory
+                Point newPoint(@WideString String name);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail with @WideString on @StructFactory parameter", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("must not have @WideString on any parameter"));
+        assertTrue("Expected error about @WideString on @StructFactory but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * A {@code @StructSpecification} interface with a {@code @InlineStringField(wide = true)} getter
+     * and setter (even length) must compile cleanly.
+     */
+    public void testWideInlineStringFieldCompilesClean() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineStringField;
+            @LibrarySpecification
+            public interface InlineStringLib {
+                @StructSpecification
+                interface WinStruct {
+                    @InlineStringField(length = 16, wide = true)
+                    String name();
+                    @InlineStringField(length = 16, wide = true)
+                    void name(String value);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.InlineStringLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        assertTrue("Expected no processor errors", result.errors().isEmpty());
+    }
+
+    /**
+     * {@code @InlineStringField(wide = true)} with an odd {@code length} must emit an error, since
+     * each UTF-16LE code unit is 2 bytes and the field must also hold a 2-byte NUL terminator.
+     */
+    public void testWideInlineStringFieldRequiresEvenLength() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineStringField;
+            @LibrarySpecification
+            public interface BadLib {
+                @StructSpecification
+                interface BadStruct {
+                    @InlineStringField(length = 15, wide = true)
+                    String name();
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail with odd length wide field", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("requires an even length"));
+        assertTrue("Expected error about even length but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * {@code @InlineStringField(wide = true)} on a library whose {@code unavailableOn} lists
+     * {@code WINDOWS_X64} must emit an error — a wide field implies the struct must be usable on Windows.
+     */
+    public void testWideInlineStringFieldRequiresWindowsAvailability() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineStringField;
+            import org.elasticsearch.foreign.Platform;
+            @LibrarySpecification(unavailableOn = { Platform.WINDOWS_X64 })
+            public interface BadLib {
+                @StructSpecification
+                interface BadStruct {
+                    @InlineStringField(length = 16, wide = true)
+                    String name();
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail with wide field unavailable on Windows", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("lists WINDOWS_X64 in unavailableOn"));
+        assertTrue("Expected error about WINDOWS_X64 in unavailableOn but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * A {@code @InlineStringField} getter and setter that disagree on {@code wide} must emit an error.
+     */
+    public void testWideInlineStringFieldGetterSetterMismatchEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineStringField;
+            @LibrarySpecification
+            public interface BadLib {
+                @StructSpecification
+                interface BadStruct {
+                    @InlineStringField(length = 16)
+                    String name();
+                    @InlineStringField(length = 16, wide = true)
+                    void name(String value);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail when getter and setter disagree on wide", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("disagree on wide="));
+        assertTrue("Expected error about disagreeing wide= but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * {@code @InlineArrayField} with a non-positive {@code length} must emit an error.
+     */
+    public void testInlineArrayFieldNonPositiveLengthEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineArrayField;
+            @LibrarySpecification
+            public interface BadLib {
+                @StructSpecification
+                interface BadStruct {
+                    @InlineArrayField(length = 0)
+                    byte data(int index);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail with zero length", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("positive length"));
+        assertTrue("Expected error about positive length but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * {@code @InlineArrayField} applied to a non-primitive return type must emit an error.
+     */
+    public void testInlineArrayFieldNonPrimitiveReturnTypeEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineArrayField;
+            @LibrarySpecification
+            public interface BadLib {
+                @StructSpecification
+                interface BadStruct {
+                    @InlineArrayField(length = 4)
+                    String data(int index);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail with non-primitive return type", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("primitive type"));
+        assertTrue("Expected error about primitive type but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * {@code @InlineStringField} with a non-String return type must emit an error.
+     */
+    public void testInlineStringFieldNonStringReturnTypeEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineStringField;
+            @LibrarySpecification
+            public interface BadLib {
+                @StructSpecification
+                interface BadStruct {
+                    @InlineStringField(length = 16)
+                    int notAString();
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail with non-String return type", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("must return String"));
+        assertTrue("Expected error about String return type but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * A method with both {@code @InlineArrayField} and {@code @InlineStringField} must emit an error
+     * (mixing annotations is forbidden).
+     */
+    public void testMixingInlineAnnotationsEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineArrayField;
+            import org.elasticsearch.foreign.InlineStringField;
+            @LibrarySpecification
+            public interface BadLib {
+                @StructSpecification
+                interface BadStruct {
+                    @InlineArrayField(length = 4)
+                    @InlineStringField(length = 4)
+                    byte data(int index);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail when mixing inline annotations", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("more than one"));
+        assertTrue("Expected error about mixing annotations but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * An {@code @InlineArrayField} getter/setter pair with mismatched lengths must emit an error.
+     */
+    public void testInlineArrayFieldMismatchedLengthEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineArrayField;
+            @LibrarySpecification
+            public interface BadLib {
+                @StructSpecification
+                interface BadStruct {
+                    @InlineArrayField(length = 4)
+                    byte data(int index);
+                    @InlineArrayField(length = 8)
+                    void data(int index, byte value);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail with mismatched lengths", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("mismatched lengths"));
+        assertTrue("Expected error about mismatched lengths but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * A getter and setter for the same scalar field that are separated by another field declaration
+     * must emit an error. Non-adjacent pairs would silently reorder struct fields, breaking the
+     * native memory layout.
+     */
+    public void testNonAdjacentGetterSetterEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            @LibrarySpecification
+            public interface BadLib {
+                @StructSpecification
+                interface Mixed {
+                    int a();
+                    int b();
+                    void a(int v);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail when getter and setter are not adjacent", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("adjacent"));
+        assertTrue("Expected error about non-adjacent getter/setter but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * The same adjacency rule applies to {@code @InlineArrayField}: getter and setter must be
+     * declared next to each other.
+     */
+    public void testNonAdjacentInlineArrayFieldEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.InlineArrayField;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            @LibrarySpecification
+            public interface BadLib {
+                @StructSpecification
+                interface Mixed {
+                    @InlineArrayField(length = 4)
+                    byte data(int index);
+                    short other();
+                    @InlineArrayField(length = 4)
+                    void data(int index, byte value);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail when @InlineArrayField getter/setter are not adjacent", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("adjacent"));
+        assertTrue("Expected error about non-adjacent @InlineArrayField but got: " + result.errors(), hasError);
     }
 }

@@ -50,6 +50,7 @@ tasks.named("yamlRestTest").configure {
     'ml/change_point_agg/Test change_point with missing buckets_path',
     'ml/change_point_agg/Test change_point with bad buckets_path',
     'ml/change_point_agg/Test change_point with too few buckets',
+    'ml/change_point_agg/Test change_point honors gap_policy over sparse buckets',
     'ml/custom_all_field/Test querying custom all field',
     'ml/datafeeds_crud/Test delete datafeed with missing id',
     'ml/datafeeds_crud/Test put datafeed referring to missing job_id',

@@ -48,8 +48,11 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.DeferredRegexExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -1214,7 +1217,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testDedup() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         LogicalPlan plan = query("FROM foo | DEDUP");
         Dedup dedup = as(plan, Dedup.class);
         UnresolvedRelation relation = as(dedup.child(), UnresolvedRelation.class);
@@ -1222,37 +1224,28 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testDedupAfterProcessingCommands() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         LogicalPlan plan = query("FROM foo | EVAL x = a + 1 | WHERE b > 0 | DEDUP");
         Dedup dedup = as(plan, Dedup.class);
         as(dedup.child(), Filter.class);
     }
 
     public void testDedupChained() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         LogicalPlan plan = query("FROM foo | DEDUP | LIMIT 10");
         Limit limit = as(plan, Limit.class);
         as(limit.child(), Dedup.class);
     }
 
     public void testDedupOnRow() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         assertEqualsIgnoringIds(new Dedup(EMPTY, PROCESSING_CMD_INPUT), processingCommand("DEDUP"));
     }
 
     public void testDedupRejectsArguments() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         expectThrows(ParsingException.class, containsString("extraneous input 'a' expecting"), () -> query("FROM foo | DEDUP a"));
         expectThrows(ParsingException.class, containsString("extraneous input '*' expecting"), () -> query("FROM foo | DEDUP *"));
     }
 
-    public void testDedupNotInReleaseBuild() {
-        assumeFalse("only runs on release build", Build.current().isSnapshot());
-        expectThrows(ParsingException.class, containsString("mismatched input 'DEDUP'"), () -> query("FROM foo | DEDUP"));
-    }
-
     public void testHighlightOnFields() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title, body");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("highlight_"));
@@ -1267,7 +1260,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRequiresQueryAndOnClause() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         // Query and ON are currently required by grammar.
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT"));
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\""));
@@ -1275,7 +1268,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightCustomPrefix() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT prefix = \"h_\" MATCH(title, \"x\") ON title, body");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("h_"));
@@ -1285,7 +1278,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightEmptyPrefixParses() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         // Empty prefix overwrites the source column name.
         LogicalPlan plan = query("FROM foo | HIGHLIGHT prefix = \"\" \"elasticsearch\" ON content");
         Highlight highlight = as(plan, Highlight.class);
@@ -1295,7 +1288,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightFieldNamedPrefix() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON prefix");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("highlight_"));
@@ -1313,7 +1306,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsUnknownModifier() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("Invalid modifier [bogus] in HIGHLIGHT, expected [prefix]"),
@@ -1322,7 +1315,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightWithOptions() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query(
             "FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"fragment_size\": 150, \"number_of_fragments\": 2 }"
         );
@@ -1332,7 +1325,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightAcceptsAllOptions() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("""
             FROM foo | HIGHLIGHT "elasticsearch" ON title WITH {
               "pre_tags": ["<b>"], "post_tags": ["</b>"], "encoder": "html",
@@ -1345,7 +1338,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsUnknownOption() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("Invalid option [bogus] in HIGHLIGHT"),
@@ -1353,8 +1346,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
+    public void testHighlightRejectsMapOptionValue() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        expectThrows(
+            ParsingException.class,
+            containsString("Invalid value for option [pre_tags] in HIGHLIGHT, expected a constant, found [{ \"tag\": \"<b>\" }]"),
+            () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"pre_tags\": { \"tag\": \"<b>\" } }")
+        );
+    }
+
     public void testHighlightAcceptsFunctionQuery() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT MATCH(title, \"x\") ON title");
         Highlight highlight = as(plan, Highlight.class);
         UnresolvedFunction match = as(highlight.query(), UnresolvedFunction.class);
@@ -1364,7 +1366,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightTerminatesInsideFork() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("""
             FROM foo
             | FORK ( HIGHLIGHT MATCH(title, "x") ON title )
@@ -1378,12 +1380,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsWildcardFields() {
-        assumeTrue("requires HIGHLIGHT_V5 capability", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON *"));
     }
 
     public void testHighlightNotInReleaseBuild() {
-        assumeFalse("only runs on release build", EsqlCapabilities.Cap.HIGHLIGHT_V5.isEnabled());
+        assumeFalse("only runs on release build", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("mismatched input 'HIGHLIGHT'"),
@@ -1669,13 +1671,117 @@ public class StatementParserTests extends AbstractStatementParserTests {
         RLike rlike = (RLike) filter.condition();
         assertEquals(".*bar.*", rlike.pattern().asJavaRegex());
 
-        expectError("from a | where foo like 12", "no viable alternative at input 'foo like 12'");
-        expectError("from a | where foo rlike 12", "no viable alternative at input 'foo rlike 12'");
-
         expectError(
             "from a | where foo like \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"",
             "line 1:16: Invalid pattern for LIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
                 + "[Invalid sequence - escape character is not followed by special wildcard char]"
+        );
+    }
+
+    public void testLikeRLikeConstantExpression() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        // At parse time, a non-literal RHS produces an DeferredRegexExpression placeholder.
+        // The optimizer folds the pattern and ReplaceDeferredRegex converts it to WildcardLike/RLike.
+        LogicalPlan cmd = processingCommand("where foo like concat(\"pre\", \"fix*\")");
+        assertEquals(Filter.class, cmd.getClass());
+        assertEquals(DeferredRegexExpression.class, ((Filter) cmd).condition().getClass());
+        assertEquals(DeferredRegexExpression.Variant.LIKE, ((DeferredRegexExpression) ((Filter) cmd).condition()).variant());
+
+        cmd = processingCommand("where foo rlike concat(\"pre\", \".*\")");
+        assertEquals(Filter.class, cmd.getClass());
+        assertEquals(DeferredRegexExpression.class, ((Filter) cmd).condition().getClass());
+        assertEquals(DeferredRegexExpression.Variant.RLIKE, ((DeferredRegexExpression) ((Filter) cmd).condition()).variant());
+
+        // Integer literals parse as DeferredRegexExpression too, but the query still fails:
+        // post-optimization verification rejects non-string patterns (see OptimizerVerificationTests).
+        cmd = processingCommand("where foo like 12");
+        assertEquals(Filter.class, cmd.getClass());
+        assertEquals(DeferredRegexExpression.class, ((Filter) cmd).condition().getClass());
+        assertEquals(DeferredRegexExpression.Variant.LIKE, ((DeferredRegexExpression) ((Filter) cmd).condition()).variant());
+
+        cmd = processingCommand("where foo rlike 12");
+        assertEquals(Filter.class, cmd.getClass());
+        assertEquals(DeferredRegexExpression.class, ((Filter) cmd).condition().getClass());
+        assertEquals(DeferredRegexExpression.Variant.RLIKE, ((DeferredRegexExpression) ((Filter) cmd).condition()).variant());
+    }
+
+    public void testLikeRLikeConstantExpressionComposition() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        // The single-value LIKE/RLIKE grammar rule now takes a primaryExpression, which composes with the
+        // surrounding boolean operators exactly like the old stringOrParameter form.
+        Filter and = (Filter) processingCommand("where foo like concat(\"a\", \"*\") and bar > 2");
+        And andCond = as(and.condition(), And.class);
+        assertEquals(DeferredRegexExpression.class, andCond.left().getClass());
+        assertEquals(GreaterThan.class, andCond.right().getClass());
+
+        // A literal RHS still takes the parse-time fast path (WildcardLike), while a constant expression
+        // on the other side of the OR becomes an DeferredRegexExpression placeholder.
+        Filter or = (Filter) processingCommand("where foo like \"a*\" or bar rlike concat(\"b\", \".*\")");
+        Or orCond = as(or.condition(), Or.class);
+        assertEquals(WildcardLike.class, orCond.left().getClass());
+        assertEquals(DeferredRegexExpression.class, orCond.right().getClass());
+
+        Filter not = (Filter) processingCommand("where not (foo like concat(\"a\", \"*\"))");
+        Not notCond = as(not.condition(), Not.class);
+        assertEquals(DeferredRegexExpression.class, notCond.field().getClass());
+    }
+
+    public void testLikeRLikeConstantExpressionCast() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        // A cast expression (`::`) is a primaryExpression, so it is accepted and deferred to the optimizer as
+        // an DeferredRegexExpression. Whether it ultimately succeeds depends on the folded value/type, which
+        // is exercised in OptimizerVerificationTests.
+        for (String pattern : new String[] { "\"abc\"::keyword", "12::keyword", "last_name::keyword" }) {
+            Filter cmd = (Filter) processingCommand("where foo like " + pattern);
+            assertEquals(DeferredRegexExpression.class, cmd.condition().getClass());
+            assertEquals(DeferredRegexExpression.Variant.LIKE, ((DeferredRegexExpression) cmd.condition()).variant());
+        }
+    }
+
+    public void testLikeRLikeConstantExpressionParentheses() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        // Behavior change: a single parenthesized string now binds to the single-value #likeExpression rule
+        // (which precedes #likeListExpression), so it produces a WildcardLike rather than a one-element list.
+        Filter single = (Filter) processingCommand("where foo like (\"a*\")");
+        WildcardLike like = as(single.condition(), WildcardLike.class);
+        assertEquals("a*", like.pattern().pattern());
+
+        // Two-or-more elements still match the list rule.
+        Filter list = (Filter) processingCommand("where foo like (\"a*\", \"b*\")");
+        assertEquals(WildcardLikeList.class, list.condition().getClass());
+
+        // A parenthesized non-literal expression is deferred to the optimizer.
+        Filter paren = (Filter) processingCommand("where foo like (concat(\"a\", \"*\"))");
+        assertEquals(DeferredRegexExpression.class, paren.condition().getClass());
+    }
+
+    public void testLikeRLikeConstantExpressionFieldReference() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        // A field reference on the RHS parses as an DeferredRegexExpression; it is rejected later as
+        // non-foldable (see OptimizerVerificationTests).
+        for (String pattern : new String[] { "last_name", "some.nested.field" }) {
+            Filter cmd = (Filter) processingCommand("where foo like " + pattern);
+            assertEquals(DeferredRegexExpression.class, cmd.condition().getClass());
+        }
+    }
+
+    public void testLikeRLikeConstantExpressionParseErrors() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        // Binary operators are not part of primaryExpression, so they are not accepted on the RHS without parentheses.
+        expectError("from a | where foo like \"a\" + \"b\"", "mismatched input '+' expecting {<EOF>, '|', 'and', '::', 'or'}");
+        // Missing RHS.
+        expectError("from a | where foo like", "no viable alternative at input 'foo like'");
+        // A bare wildcard token is not a valid expression.
+        expectError("from a | where foo like *", "no viable alternative at input 'foo like *'");
+        // Array literals are not valid scalar patterns; the correct multi-pattern form is LIKE ("p1", "p2").
+        // Without this check the list would silently fold to a garbled hex-string that matches nothing.
+        expectError(
+            "from a | where foo like [\"Geo*\", \"Ab*\"]",
+            "Invalid pattern for LIKE [\"Geo*\",\"Ab*\"]: expected a scalar string, not a list"
+        );
+        expectError(
+            "from a | where foo rlike [\"geo.*\", \"ab.*\"]",
+            "Invalid pattern for RLIKE [\"geo.*\",\"ab.*\"]: expected a scalar string, not a list"
         );
     }
 

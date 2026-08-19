@@ -14,6 +14,7 @@ import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -36,7 +37,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLo
 /**
  * Reduce a multivalued field to a single valued field containing the average value.
  */
-public class MvAvg extends AbstractMultivalueFunction {
+public class MvAvg extends AbstractMultivalueFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvAvg", MvAvg::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvAvg.class).unary(MvAvg::new).name("mv_avg");
 

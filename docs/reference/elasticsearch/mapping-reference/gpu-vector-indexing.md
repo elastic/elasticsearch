@@ -1,13 +1,10 @@
 ---
 applies_to:
-  stack:
+  stack: preview 9.3, ga 9.4
 navigation_title: "GPU vector indexing"
 ---
 
 # GPU accelerated vector indexing
-```{applies_to}
-stack: preview 9.3, ga 9.4
-```
 
 {{es}} can use GPU acceleration to significantly speed up the indexing of
 dense vectors. GPU indexing is based on the
@@ -23,7 +20,7 @@ GPU vector indexing requires the following:
 
 * An [Enterprise subscription](https://www.elastic.co/subscriptions)
 * A supported NVIDIA GPU (Ampere architecture or better, compute capability
-  >= 8.0) with a minimum 8GB of GPU memory
+  \>= 8.0) with a minimum 8GB of GPU memory
 * GPU driver, CUDA and
   [cuVS runtime libraries](https://docs.rapids.ai/api/cuvs/stable/build/)
   installed on the node. Refer to the

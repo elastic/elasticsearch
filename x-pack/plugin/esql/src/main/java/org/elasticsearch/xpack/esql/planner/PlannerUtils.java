@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.planner;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -20,7 +19,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -50,7 +52,6 @@ import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -102,7 +103,9 @@ public class PlannerUtils {
      * {@code HIGHLIGHT} ({@link org.elasticsearch.xpack.esql.plan.logical.Highlight}, {@link HighlightQueryBuilders}) and
      * {@code TOP_SNIPPETS} ({@link org.elasticsearch.xpack.esql.evaluator.EvalMapper}).
      *
-     * @return the resolved {@link Analyzer}, or {@code null} when {@code analyzerName} is {@code null} (no override requested)
+     * @return the resolved analyzer as a {@link NamedAnalyzer} carrying the position increment gap the analyzer would
+     *         have on a mapped text field, or {@code null} when {@code analyzerName} is {@code null} (no override
+     *         requested)
      * @throws InvalidArgumentException if the registry is unavailable, the analyzer fails to load, or no analyzer is
      *                                  registered under {@code analyzerName}
      */
@@ -124,6 +127,12 @@ public class PlannerUtils {
         }
         if (analyzer == null) {
             throw new InvalidArgumentException("[{}] is not a registered analyzer", analyzerName);
+        }
+        if (analyzer instanceof NamedAnalyzer == false) {
+            // Node-level plugin analyzers (AnalysisPlugin#getAnalyzers) resolve to bare Lucene analyzers: the registry
+            // bakes the text-field position increment gap only into prebuilt analyzers. Wrap them the way index
+            // mappings do, so multi-value analysis keeps the gap the same analyzer would have on a mapped field.
+            analyzer = new NamedAnalyzer(analyzerName, AnalyzerScope.GLOBAL, analyzer, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP);
         }
         return analyzer;
     }
@@ -385,7 +394,6 @@ public class PlannerUtils {
         if (esFilter == null) {
             return plan;
         }
-        warnIfFilterIgnoredForExternalSources(plan);
         return plan.transformUp(FragmentExec.class, f -> {
             var fragmentFilter = f.esFilter();
             // TODO: have an ESFilter and push down to EsQueryExec / EsSource
@@ -395,30 +403,6 @@ public class PlannerUtils {
             LOGGER.debug("Fold filter {} to EsQueryExec", filter);
             return f.withFilter(filter);
         });
-    }
-
-    /**
-     * The DSL request filter is only ever composed into {@code EsSourceExec} during local planning
-     * (see {@link #localPlan}); it is never applied to {@code ExternalSourceExec} reads. Warn loudly so
-     * users relying on a non-empty request filter over an external/dataset source know it was silently
-     * ignored, rather than getting unfiltered results with no indication anything is wrong.
-     */
-    private static void warnIfFilterIgnoredForExternalSources(PhysicalPlan plan) {
-        List<String> datasets = plan.collect(FragmentExec.class::isInstance)
-            .stream()
-            .map(FragmentExec.class::cast)
-            .flatMap(f -> f.fragment().collect(ExternalRelation.class::isInstance).stream())
-            .map(ExternalRelation.class::cast)
-            .map(r -> r.datasetName() != null ? r.datasetName() : r.sourcePath())
-            .distinct()
-            .toList();
-        if (datasets.isEmpty() == false) {
-            HeaderWarning.addWarning(
-                "The filter in the ES|QL query request is not applied to external dataset(s) [{}]; "
-                    + "use a WHERE clause to filter rows from external datasets instead",
-                String.join(", ", datasets)
-            );
-        }
     }
 
     public static PhysicalPlan localPlan(
@@ -629,6 +613,7 @@ public class PlannerUtils {
             case TDIGEST -> ElementType.TDIGEST;
             case DENSE_VECTOR -> ElementType.FLOAT;
             case DATE_RANGE -> ElementType.LONG_RANGE;
+            case DOUBLE_RANGE -> ElementType.DOUBLE_RANGE;
             case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT -> throw EsqlIllegalArgumentException
                 .illegalDataType(dataType);
         };

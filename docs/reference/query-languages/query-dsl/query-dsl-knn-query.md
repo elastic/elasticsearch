@@ -10,10 +10,10 @@ applies_to:
 # Knn query [query-dsl-knn-query]
 
 
-Finds the *k* nearest vectors to a query vector, as measured by a similarity metric. *knn* query finds nearest vectors through approximate search on indexed `dense_vector`s or [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) fields which use `dense_vector` under the hood. For `dense_vector` fields, you can also use the [top level knn section](docs-content://solutions/search/vector/knn.md) of a search request.
+Finds the *k* nearest vectors to a query vector, as measured by a similarity metric. The `knn` query finds nearest vectors through approximate search on indexed [`dense_vector`](/reference/elasticsearch/mapping-reference/dense-vector.md), [`semantic`](/reference/elasticsearch/mapping-reference/semantic-field.md), or [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) fields that use dense vectors. For `dense_vector` fields, you can also use the [top-level `knn` section](docs-content://solutions/search/vector/knn.md) of a search request.
 
 ::::{note}
-The top-level `knn` option does not support `semantic_text` fields. To run a kNN search on a `semantic_text` field, use the `knn` query described on this page. You can also query `semantic_text` fields using a [`match` query](/reference/query-languages/query-dsl/query-dsl-match-query.md), which is the simplest approach.
+The top-level `knn` option does not support `semantic` or `semantic_text` fields. To run a kNN search on either field type, use the `knn` query described on this page. For text query input, you can also use a [`match` query](/reference/query-languages/query-dsl/query-dsl-match-query.md), which is the simplest approach.
 ::::
 
 ## Example request [knn-query-ex-request]
@@ -108,7 +108,7 @@ PUT my-image-index
 ## Top-level parameters for `knn` [knn-query-top-level-parameters]
 
 `field`
-:   (Required, string) The name of the vector field to search against. Must be a [`dense_vector` field with indexing enabled](/reference/elasticsearch/mapping-reference/dense-vector.md#index-vectors-knn-search), or a [`semantic_text` field](/reference/elasticsearch/mapping-reference/semantic-text.md) with a compatible dense vector {{infer}} model.
+:   (Required, string) The name of the vector field to search against. Must be a [`dense_vector` field with indexing enabled](/reference/elasticsearch/mapping-reference/dense-vector.md#index-vectors-knn-search), a [`semantic` field](/reference/elasticsearch/mapping-reference/semantic-field.md), or a [`semantic_text` field](/reference/elasticsearch/mapping-reference/semantic-text.md) with a compatible dense vector {{infer}} model.
 
 $$$knn-query-query-vector$$$ `query_vector`
 :   (Optional, array of floats or string) Query vector. Must have the same number of dimensions as the vector field you are searching against.
@@ -133,6 +133,16 @@ $$$knn-query-query-vector-builder$$$ `query_vector_builder`
 
 `visit_percentage` {applies_to}`stack: ga 9.2`
 :   (Optional, float) The percentage of vectors to explore per shard while doing knn search with `bbq_disk`. Must be between 0 and 100.  0 will default to using `num_candidates` for calculating the percent visited. Increasing `visit_percentage` tends to improve the accuracy of the final results.  If `visit_percentage` is set for `bbq_disk`, `num_candidates` is ignored. Defaults to ~1% per shard for every 1 million vectors.
+
+
+`near_real_time` {applies_to}`stack: ga 9.5`
+:   (Optional, boolean) Controls whether approximate kNN search includes vectors from data that was indexed recently but not yet fully optimized for search.
+    
+    - When `true`, kNN search can include vectors from newly indexed data, even if {{es}} has not finished optimizing them yet.
+   -  When `false`, kNN search skips vectors that are not yet fully optimized. Indexing throughput is higher on large vector workloads, but newly indexed documents won't appear in kNN results immediately.
+    
+    Defaults to `true` for [`standard`](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) index mode and `false` for [`vectordb_document`](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-modes).
+    Refer to [Near-real-time kNN](docs-content://solutions/search/vector/knn.md#near-real-time-knn) for an example of how to override the default behavior.
 
 
 `filter`
@@ -352,14 +362,13 @@ word and have "paragraph.language" set to "EN":
 
 Note that nested `knn` only supports `score_mode=max`.
 
-## Knn query on a semantic_text field [knn-query-with-semantic-text]
+## Knn query on an inference field [knn-query-with-semantic-text]
 
 ::::{note}
-The top-level `knn` search option does not support `semantic_text` fields. Use the `knn` query shown below to run a kNN search on a `semantic_text` field which uses `dense_vector` under the hood. For simpler use cases, you can also use a [`match` query](/reference/query-languages/query-dsl/query-dsl-match-query.md) directly on the `semantic_text` field.
+The top-level `knn` search option does not support `semantic` or `semantic_text` fields. Use the `knn` query shown below to run a kNN search on an inference field that uses dense vectors. For text query input, you can also use a [`match` query](/reference/query-languages/query-dsl/query-dsl-match-query.md) directly on the field.
 ::::
 
-Elasticsearch supports knn queries over a [
-`semantic_text` field](/reference/elasticsearch/mapping-reference/semantic-text.md).
+Elasticsearch supports `knn` queries over [`semantic`](/reference/elasticsearch/mapping-reference/semantic-field.md) fields and [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) fields that use dense vectors.
 
 Here is an example using the `query_vector_builder`:
 
@@ -386,6 +395,8 @@ provided as it can be inferred from the `semantic_text` field mapping.
 
 Knn search using query vectors over `semantic_text` fields is also supported,
 with no change to the API.
+
+For `semantic` fields, use the [`embedding`](#knn-query-builder-embedding) query vector builder for text or multimodal input, or provide a compatible raw `query_vector`. The `inference_id` can be inferred from the field mapping. Refer to [Query a `semantic` field](/reference/elasticsearch/mapping-reference/semantic-field-reference.md#query-semantic-field) for an example.
 
 ## Build query vectors for knn search
 
@@ -438,17 +449,17 @@ For [`dense_vector`](/reference/elasticsearch/mapping-reference/dense-vector.md)
       For an example request, refer to [`text_embedding`](#text-embedding-builder). For a broader overview of semantic kNN search, refer to [Perform semantic search](docs-content://solutions/search/vector/knn.md#knn-semantic-search).
 
 $$$knn-query-builder-embedding$$$ `embedding` {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
-:   Build the query vector by generating an embedding from text or a base64-encoded image. This enables multimodal search, where different types of input can be used to generate a vector and retrieve similar documents. For an example, refer to [`embedding`](#embedding-builder).
+:   Build the query vector by generating an embedding from text, image, audio, video, or PDF input. This enables multimodal search, where different types of input can be used to generate a vector and retrieve similar documents. For an example, refer to [`embedding`](#embedding-builder).
 
       **Parameters for `embedding`**:
 
         `inference_id`
-        :   (Required, string) The ID of the {{infer}} service used to generate the embedding. Must reference an {{infer}} service configured with the `embedding` task type.
+        :   (Optional, string) The ID of the {{infer}} endpoint used to generate the embedding. It must reference an endpoint configured with the `embedding` task type. When the query targets only inference fields, Elasticsearch can infer this value from the field mapping(s). Specify it when querying a `dense_vector` field.
 
         `input`
         :   (Required, string, object, or array) The input used to generate the query vector. You can provide the input in one of the following formats:
 
-            - Single object: A single multimodal input (text or image). For an example, refer to [single input object](#embedding-example-single-object).
+            - Single object: A single multimodal input. For an example, refer to [single input object](#embedding-example-single-object).
 
             - Array of objects: Multiple inputs. These are combined into a single embedding. For an example, refer to [multiple inputs](#embedding-example-array-input).
 

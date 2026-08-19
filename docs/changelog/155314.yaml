@@ -1,5 +1,5 @@
 area: Inference
 issues: []
 pr: 155314
-summary: "[Inference API] Fix Anthropic translation to Unified schema"
+summary: Fix Anthropic translation to the unified schema
 type: bug

@@ -115,6 +115,8 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
      */
     private static void assertLiteralNotInInnerTsAgg(LogicalPlan plan, String name) {
         Holder<TimeSeriesAggregate> tsHolder = new Holder<>();
+        // forEachDown overwrites the holder on each match; safe here because each tested plan
+        // contains exactly one TimeSeriesAggregate.
         plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
         assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
         assertThat(

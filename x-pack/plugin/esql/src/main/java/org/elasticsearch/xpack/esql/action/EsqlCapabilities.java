@@ -3704,7 +3704,7 @@ public class EsqlCapabilities {
 
         /**
          * Fix for {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate} placing
-         * constant literal aggregates (e.g. {@code metric_type = "mongodb"}) in the inner {@code TimeSeriesAggregate}
+         * constant literal aggregates (e.g. {@code metric_type = "cost"}) in the inner {@code TimeSeriesAggregate}
          * instead of the outer {@code Aggregate}. Without this fix the outer aggregate does not produce the literal
          * column, causing {@code Plan [...] optimized incorrectly due to missing references} after
          * {@code CombineProjections} drops it.

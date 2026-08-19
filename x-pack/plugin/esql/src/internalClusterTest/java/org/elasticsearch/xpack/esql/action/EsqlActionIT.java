@@ -132,6 +132,23 @@ import static org.hamcrest.Matchers.nullValue;
 public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     long epoch = System.currentTimeMillis();
 
+    // Column indices for EXPLAIN output rows — derived from Explain.OUTPUT_ATTRIBUTES so any
+    // reordering of the attribute list breaks here at class-load time rather than silently.
+    private static final int EXPLAIN_COL_CLUSTER = explainColIndex("cluster");
+    private static final int EXPLAIN_COL_NODE = explainColIndex("node");
+    private static final int EXPLAIN_COL_ROLE = explainColIndex("role");
+    private static final int EXPLAIN_COL_TYPE = explainColIndex("type");
+    private static final int EXPLAIN_COL_PLAN = explainColIndex("plan");
+
+    private static int explainColIndex(String name) {
+        for (int i = 0; i < Explain.OUTPUT_ATTRIBUTES.size(); i++) {
+            if (name.equals(Explain.OUTPUT_ATTRIBUTES.get(i).name())) {
+                return i;
+            }
+        }
+        throw new IllegalStateException("No column named '" + name + "' in EXPLAIN output attributes");
+    }
+
     @Before
     public void setupIndex() throws IOException {
         createAndPopulateIndex("test");
@@ -2732,9 +2749,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
             String explainLocalPhysicalPlan = null;
             for (List<Object> row : values) {
-                String role = (String) row.get(Explain.COL_ROLE);
-                String type = (String) row.get(Explain.COL_TYPE);
-                String plan = (String) row.get(Explain.COL_PLAN);
+                String role = (String) row.get(EXPLAIN_COL_ROLE);
+                String type = (String) row.get(EXPLAIN_COL_TYPE);
+                String plan = (String) row.get(EXPLAIN_COL_PLAN);
 
                 if ("data".equals(role) && "localPhysicalPlan".equals(type)) {
                     explainLocalPhysicalPlan = plan;
@@ -2839,8 +2856,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             // Remote-cluster rows (cluster != "") are excluded: this test has no CCS setup.
             Set<String> nodeNames = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
             for (List<Object> row : values) {
-                if ("".equals(row.get(Explain.COL_CLUSTER))) {
-                    assertThat("node column should be a valid cluster node", nodeNames, hasItem((String) row.get(Explain.COL_NODE)));
+                if ("".equals(row.get(EXPLAIN_COL_CLUSTER))) {
+                    assertThat("node column should be a valid cluster node", nodeNames, hasItem((String) row.get(EXPLAIN_COL_NODE)));
                 }
             }
         }
@@ -2905,10 +2922,10 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 String localPlanNodeName = null;
 
                 for (List<Object> row : values) {
-                    String node = (String) row.get(Explain.COL_NODE);
-                    String role = (String) row.get(Explain.COL_ROLE);
-                    String type = (String) row.get(Explain.COL_TYPE);
-                    String plan = (String) row.get(Explain.COL_PLAN);
+                    String node = (String) row.get(EXPLAIN_COL_NODE);
+                    String role = (String) row.get(EXPLAIN_COL_ROLE);
+                    String type = (String) row.get(EXPLAIN_COL_TYPE);
+                    String plan = (String) row.get(EXPLAIN_COL_PLAN);
 
                     if ("data".equals(role) && "localPhysicalPlan".equals(type)) {
                         explainLocalPhysicalPlan = plan;
@@ -3000,9 +3017,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 int dataNodePlanCount = 0;
 
                 for (List<Object> row : values) {
-                    String role = (String) row.get(Explain.COL_ROLE);
-                    String type = (String) row.get(Explain.COL_TYPE);
-                    String plan = (String) row.get(Explain.COL_PLAN);
+                    String role = (String) row.get(EXPLAIN_COL_ROLE);
+                    String type = (String) row.get(EXPLAIN_COL_TYPE);
+                    String plan = (String) row.get(EXPLAIN_COL_PLAN);
 
                     if ("coordinator".equals(role)) {
                         if ("parsedPlan".equals(type)) {
@@ -3144,9 +3161,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 int dataNodePlanCount = 0;
 
                 for (List<Object> row : values) {
-                    String role = (String) row.get(Explain.COL_ROLE);
-                    String type = (String) row.get(Explain.COL_TYPE);
-                    String plan = (String) row.get(Explain.COL_PLAN);
+                    String role = (String) row.get(EXPLAIN_COL_ROLE);
+                    String type = (String) row.get(EXPLAIN_COL_TYPE);
+                    String plan = (String) row.get(EXPLAIN_COL_PLAN);
 
                     if ("coordinator".equals(role)) {
                         if ("parsedPlan".equals(type)) {
@@ -3259,14 +3276,14 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             boolean hasDataNodePlan = false;
             String subplanLogical = null;
             for (List<Object> row : values) {
-                String role = (String) row.get(Explain.COL_ROLE);
-                String type = (String) row.get(Explain.COL_TYPE);
+                String role = (String) row.get(EXPLAIN_COL_ROLE);
+                String type = (String) row.get(EXPLAIN_COL_TYPE);
                 if ("coordinator".equals(role)) {
                     coordinatorTypes.add(type);
                 } else if ("subplan-0".equals(role)) {
                     subplan0Types.add(type);
                     if ("logicalPlan".equals(type)) {
-                        subplanLogical = (String) row.get(Explain.COL_PLAN);
+                        subplanLogical = (String) row.get(EXPLAIN_COL_PLAN);
                     }
                 } else if ("data".equals(role)) {
                     hasDataNodePlan = true;
@@ -3303,25 +3320,25 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             String subplan0Logical = null;
             String subplan1Logical = null;
             for (List<Object> row : values) {
-                String role = (String) row.get(Explain.COL_ROLE);
-                String type = (String) row.get(Explain.COL_TYPE);
+                String role = (String) row.get(EXPLAIN_COL_ROLE);
+                String type = (String) row.get(EXPLAIN_COL_TYPE);
                 switch (role) {
                     case "coordinator" -> {
                         coordinatorTypes.add(type);
                         if ("optimizedLogicalPlan".equals(type)) {
-                            optimizedLogicalPlan = (String) row.get(Explain.COL_PLAN);
+                            optimizedLogicalPlan = (String) row.get(EXPLAIN_COL_PLAN);
                         }
                     }
                     case "subplan-0" -> {
                         subplan0Types.add(type);
                         if ("logicalPlan".equals(type)) {
-                            subplan0Logical = (String) row.get(Explain.COL_PLAN);
+                            subplan0Logical = (String) row.get(EXPLAIN_COL_PLAN);
                         }
                     }
                     case "subplan-1" -> {
                         subplan1Types.add(type);
                         if ("logicalPlan".equals(type)) {
-                            subplan1Logical = (String) row.get(Explain.COL_PLAN);
+                            subplan1Logical = (String) row.get(EXPLAIN_COL_PLAN);
                         }
                     }
                     case "data", "node_reduce", "final" -> {
@@ -3378,14 +3395,14 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 String optimizedLogicalPlan = null;
                 String parsedPlan = null;
                 for (List<Object> row : values) {
-                    String role = (String) row.get(Explain.COL_ROLE);
-                    String type = (String) row.get(Explain.COL_TYPE);
+                    String role = (String) row.get(EXPLAIN_COL_ROLE);
+                    String type = (String) row.get(EXPLAIN_COL_TYPE);
                     if ("coordinator".equals(role)) {
                         coordinatorTypes.add(type);
                         if ("optimizedLogicalPlan".equals(type)) {
-                            optimizedLogicalPlan = (String) row.get(Explain.COL_PLAN);
+                            optimizedLogicalPlan = (String) row.get(EXPLAIN_COL_PLAN);
                         } else if ("parsedPlan".equals(type)) {
-                            parsedPlan = (String) row.get(Explain.COL_PLAN);
+                            parsedPlan = (String) row.get(EXPLAIN_COL_PLAN);
                         }
                     }
                 }

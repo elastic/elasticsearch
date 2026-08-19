@@ -496,9 +496,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.RestartIT
   method: testRestart {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/155609
-- class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
-  method: testMultiValueViolationRestoredIdenticallyAcrossSourceModes
-  issue: https://github.com/elastic/elasticsearch/issues/155610
 - class: org.elasticsearch.xpack.slm.SLMStatDisruptionIT
   method: testCurrentlyRunningSnapshotNotRecordedAsFailure
   issue: https://github.com/elastic/elasticsearch/issues/155621
@@ -705,9 +702,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:PARQUET_DATASET}
   issue: https://github.com/elastic/elasticsearch/issues/156789
-- class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
-  method: testFallbackMultiValueViolationRestoredIdenticallyAcrossSourceModes
-  issue: https://github.com/elastic/elasticsearch/issues/156830
 - class: org.elasticsearch.xpack.logsdb.qa.StandardVersusLogsdbFieldLevelSecurityChallengeRestIT
   method: testFieldLevelSecuritySourceEquivalence
   issue: https://github.com/elastic/elasticsearch/issues/156629

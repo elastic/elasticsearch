@@ -556,7 +556,8 @@ public class Verifier {
             || plan instanceof Filter
             || plan instanceof OrderBy
             || plan instanceof Limit
-            || plan instanceof Aggregate;
+            // TS's aggregate is a TimeSeriesAggregate; its interaction with unmapped dimensions is out of scope for the STATS support.
+            || (plan instanceof Aggregate && plan instanceof TimeSeriesAggregate == false);
     }
 
     /**

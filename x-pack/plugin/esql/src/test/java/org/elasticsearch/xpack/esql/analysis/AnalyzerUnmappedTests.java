@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -1477,7 +1478,9 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             Tuple.tuple("| GROK first_name \"%{WORD:a}\"", "GROK"),
             Tuple.tuple("| MV_EXPAND first_name", "MV_EXPAND"),
             Tuple.tuple("| FORK (WHERE emp_no > 1) (WHERE emp_no < 100)", "FORK"),
-            Tuple.tuple("| EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code", "LOOKUP JOIN")
+            Tuple.tuple("| EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code", "LOOKUP JOIN"),
+            // Allowing Aggregate must not allow INLINE STATS: it wraps its Aggregate in an InlineStats, which stays off the allow-list.
+            Tuple.tuple("| INLINE STATS m = MAX(salary) BY languages", "INLINE STATS")
         )) {
             test().addLanguagesLookup()
                 .statementError(
@@ -1509,6 +1512,21 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     public void testLoadAllModeAllowsStats() {
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | STATS c = COUNT(*) BY languages"));
         assertThat(Expressions.names(plan.output()), equalTo(List.of("c", "languages")));
+    }
+
+    /**
+     * {@code TS}'s aggregate is a {@link TimeSeriesAggregate}, i.e. an {@link Aggregate} subclass, so allowing STATS must not let it
+     * through the allow-list. It reports itself as STATS because that is its telemetry label.
+     */
+    public void testLoadAllModeRejectsTimeSeriesAggregate() {
+        test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
+            .statementError(
+                setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
+                containsString(
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT "
+                        + "and STATS commands; [STATS] is not supported yet"
+                )
+            );
     }
 
     /**

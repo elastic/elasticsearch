@@ -19,7 +19,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.activity.ActivityLogger;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
+import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -37,6 +40,8 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
@@ -49,6 +54,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
 import org.elasticsearch.xpack.esql.querylog.EsqlStreamLogContextBuilder;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -57,7 +63,9 @@ import org.elasticsearch.xpack.esql.view.ViewResolver;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -220,92 +228,109 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         String sessionId = getOrCreateSessionID(task);
         AtomicBoolean streamStarted = new AtomicBoolean(false);
         AtomicBoolean outputRunSeen = new AtomicBoolean(false);
+        AtomicReference<Map<NameId, Map<String, Object>>> columnMetadataRef = new AtomicReference<>();
 
-        PlanRunner planRunner = (role, plan, configuration, foldCtx, planTimeProfile, resultListener) -> {
-            if (role == PlanRunner.Role.INTERMEDIATE) {
-                computeService.execute(
-                    sessionId,
-                    (CancellableTask) task,
-                    flags,
-                    plan,
-                    configuration,
-                    foldCtx,
-                    executionInfo,
-                    planTimeProfile,
-                    resultListener
-                );
-                return;
+        PlanRunner planRunner = new PlanRunner() {
+            @Override
+            public void columnMetadata(Map<NameId, Map<String, Object>> columnMetadata) {
+                columnMetadataRef.set(columnMetadata);
             }
 
-            if (outputRunSeen.compareAndSet(false, true) == false) {
-                throw new IllegalStateException("a streaming query may only run one OUTPUT plan; got a second one");
-            }
-
-            List<ColumnInfoImpl> columns = buildColumns(plan.output());
-
-            Consumer<boolean[]> startCompute = nullColumns -> {
-                try {
-                    StreamingOutputExec streamingPlan = new StreamingOutputExec(plan, publisher);
-                    request.streamStartListener().onResponse(new EsqlStreamQueryAction.StreamStart(columns, publisher, nullColumns));
-                    Exception startFailure = publisher.failure();
-                    if (startFailure != null) {
-                        resultListener.onFailure(startFailure);
-                        return;
-                    }
-                    streamStarted.set(true);
+            @Override
+            public void run(
+                Role role,
+                PhysicalPlan plan,
+                Configuration configuration,
+                FoldContext foldCtx,
+                PlanTimeProfile planTimeProfile,
+                ActionListener<Result> resultListener
+            ) {
+                if (role == PlanRunner.Role.INTERMEDIATE) {
                     computeService.execute(
                         sessionId,
                         (CancellableTask) task,
                         flags,
-                        streamingPlan,
+                        plan,
                         configuration,
                         foldCtx,
                         executionInfo,
                         planTimeProfile,
                         resultListener
                     );
-                } catch (Exception e) {
-                    resultListener.onFailure(e);
+                    return;
                 }
-            };
 
-            if (request.dropNullColumns()) {
-                boolean[] noColumnsDropped = new boolean[columns.size()];
-                AttributeMap<Attribute> aliasSources = collectAliasSources(plan);
-                String[] fieldNames = resolveIndexFieldNames(plan.output(), aliasSources);
-                Set<String> indexNames = collectIndexNames(plan);
-                Set<String> indexFieldNames = new HashSet<>();
-                for (String name : fieldNames) {
-                    if (name != null) {
-                        indexFieldNames.add(name);
-                    }
+                if (outputRunSeen.compareAndSet(false, true) == false) {
+                    throw new IllegalStateException("a streaming query may only run one OUTPUT plan; got a second one");
                 }
-                if (indexFieldNames.isEmpty() || indexNames.isEmpty()) {
-                    startCompute.accept(noColumnsDropped);
-                } else {
-                    FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest();
-                    fieldCapsRequest.indices(indexNames.toArray(String[]::new));
-                    fieldCapsRequest.fields(indexFieldNames.toArray(String[]::new));
-                    fieldCapsRequest.includeEmptyFields(false);
-                    fieldCapsRequest.indicesOptions(IndexResolver.DEFAULT_OPTIONS);
-                    fieldCapsRequest.returnLocalAll(false);
-                    fieldCapsRequest.filters("-nested");
-                    client.execute(TransportFieldCapabilitiesAction.TYPE, fieldCapsRequest, ActionListener.wrap(response -> {
-                        Set<String> nonEmptyFields = response.get().keySet();
-                        boolean[] nullColumns = new boolean[fieldNames.length];
-                        for (int i = 0; i < fieldNames.length; i++) {
-                            if (fieldNames[i] != null && nonEmptyFields.contains(fieldNames[i]) == false) {
-                                nullColumns[i] = true;
-                            }
+
+                assert columnMetadataRef.get() != null : "columnMetadata() must be called before run() for the OUTPUT plan";
+                List<ColumnInfoImpl> columns = buildColumns(plan.output(), columnMetadataRef.get());
+
+                Consumer<boolean[]> startCompute = nullColumns -> {
+                    try {
+                        StreamingOutputExec streamingPlan = new StreamingOutputExec(plan, publisher);
+                        request.streamStartListener().onResponse(new EsqlStreamQueryAction.StreamStart(columns, publisher, nullColumns));
+                        Exception startFailure = publisher.failure();
+                        if (startFailure != null) {
+                            resultListener.onFailure(startFailure);
+                            return;
                         }
-                        startCompute.accept(nullColumns);
-                    }, ex -> {
-                        logger.warn("drop_null_columns: failed to check for empty fields; all columns will be shown", ex);
+                        streamStarted.set(true);
+                        computeService.execute(
+                            sessionId,
+                            (CancellableTask) task,
+                            flags,
+                            streamingPlan,
+                            configuration,
+                            foldCtx,
+                            executionInfo,
+                            planTimeProfile,
+                            resultListener
+                        );
+                    } catch (Exception e) {
+                        resultListener.onFailure(e);
+                    }
+                };
+
+                if (request.dropNullColumns()) {
+                    boolean[] noColumnsDropped = new boolean[columns.size()];
+                    AttributeMap<Attribute> aliasSources = collectAliasSources(plan);
+                    String[] fieldNames = resolveIndexFieldNames(plan.output(), aliasSources);
+                    Set<String> indexNames = collectIndexNames(plan);
+                    Set<String> indexFieldNames = new HashSet<>();
+                    for (String name : fieldNames) {
+                        if (name != null) {
+                            indexFieldNames.add(name);
+                        }
+                    }
+                    if (indexFieldNames.isEmpty() || indexNames.isEmpty()) {
                         startCompute.accept(noColumnsDropped);
-                    }));
+                    } else {
+                        FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest();
+                        fieldCapsRequest.indices(indexNames.toArray(String[]::new));
+                        fieldCapsRequest.fields(indexFieldNames.toArray(String[]::new));
+                        fieldCapsRequest.includeEmptyFields(false);
+                        fieldCapsRequest.indicesOptions(IndexResolver.DEFAULT_OPTIONS);
+                        fieldCapsRequest.returnLocalAll(false);
+                        fieldCapsRequest.filters("-nested");
+                        client.execute(TransportFieldCapabilitiesAction.TYPE, fieldCapsRequest, ActionListener.wrap(response -> {
+                            Set<String> nonEmptyFields = response.get().keySet();
+                            boolean[] nullColumns = new boolean[fieldNames.length];
+                            for (int i = 0; i < fieldNames.length; i++) {
+                                if (fieldNames[i] != null && nonEmptyFields.contains(fieldNames[i]) == false) {
+                                    nullColumns[i] = true;
+                                }
+                            }
+                            startCompute.accept(nullColumns);
+                        }, ex -> {
+                            logger.warn("drop_null_columns: failed to check for empty fields; all columns will be shown", ex);
+                            startCompute.accept(noColumnsDropped);
+                        }));
+                    }
+                } else {
+                    startCompute.accept(null);
                 }
-            } else {
-                startCompute.accept(null);
             }
         };
 
@@ -334,7 +359,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 markPartialFromCompletionInfo(versionedResult.inner());
                 resultRef.set(versionedResult.inner());
                 long tookMillis = executionInfo.overallTook() != null ? executionInfo.overallTook().millis() : 0L;
-                List<String> warnings = extractWarnings();
+                List<String> warnings = footerWarnings(threadPool.getThreadContext(), versionedResult.inner().completionInfo());
                 publisher.completeWithFooter(tookMillis, warnings, executionInfo.isPartial());
                 planExecutor.metrics().recordTook(tookMillis);
                 listener.onResponse(ActionResponse.Empty.INSTANCE);
@@ -348,23 +373,17 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         );
     }
 
-    static List<ColumnInfoImpl> buildColumns(List<Attribute> output) {
+    static List<ColumnInfoImpl> buildColumns(List<Attribute> output, Map<NameId, Map<String, Object>> columnMetadata) {
         return output.stream().map(c -> {
             List<String> originalTypes = null;
             if (c instanceof UnsupportedAttribute ua) {
                 originalTypes = new ArrayList<>(ua.originalTypes());
                 Collections.sort(originalTypes);
             }
-            return new ColumnInfoImpl(c.name(), c.dataType(), originalTypes, null);
+            return new ColumnInfoImpl(c.name(), c.dataType(), originalTypes, columnMetadata.get(c.id()));
         }).toList();
     }
 
-    /**
-     * Maps every {@code Alias.toAttribute()} in the plan to the alias' child, when that child is an
-     * Attribute, so RENAME/EVAL/aliased-STATS-BY columns can be traced back to an index field.
-     * Mirrors {@link #collectIndexNames}' explicit descent into {@link FragmentExec#fragment()},
-     * which {@link org.elasticsearch.xpack.esql.plan.QueryPlan#forEachExpressionDown} does not reach.
-     */
     static AttributeMap<Attribute> collectAliasSources(PhysicalPlan plan) {
         AttributeMap.Builder<Attribute> builder = AttributeMap.builder();
         plan.forEachExpressionDown(Alias.class, alias -> {
@@ -372,8 +391,6 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 builder.put(alias.toAttribute(), attr);
             }
         });
-        // forEachExpressionDown does not descend into FragmentExec.fragment() (a LogicalPlan property,
-        // not a physical plan child), so we mirror collectIndexNames' explicit descent.
         plan.forEachDown(FragmentExec.class, frag -> frag.fragment().forEachExpressionDown(Alias.class, alias -> {
             if (alias.child() instanceof Attribute attr) {
                 builder.put(alias.toAttribute(), attr);
@@ -382,15 +399,6 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         return builder.build();
     }
 
-    /**
-     * Per output position, the index field name whose index-wide emptiness faithfully implies the
-     * column is all null, or {@code null} when no such conclusion can be drawn.
-     * <p>
-     * A {@code null} entry means the column cannot be assessed via field_caps: it is either a
-     * computed expression (EVAL with a function, aggregation result, etc.), an enrich column, or
-     * a field type for which the field_caps emptiness signal is unreliable (text,
-     * {@code index:false doc_values:false} fields, {@code aggregate_metric_double}).
-     */
     static String[] resolveIndexFieldNames(List<Attribute> output, AttributeMap<Attribute> aliasSources) {
         String[] fieldNames = new String[output.size()];
         for (int i = 0; i < output.size(); i++) {
@@ -423,13 +431,12 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         }
     }
 
-    private List<String> extractWarnings() {
-        return threadPool.getThreadContext()
-            .getResponseHeaders()
-            .getOrDefault("Warning", List.of())
-            .stream()
-            .map(w -> HeaderWarning.extractWarningValueFromWarningHeader(w, false))
-            .toList();
+    static List<String> footerWarnings(ThreadContext threadContext, DriverCompletionInfo completionInfo) {
+        LinkedHashSet<String> warnings = new LinkedHashSet<>(completionInfo.warnings());
+        for (String header : threadContext.getResponseHeaders().getOrDefault("Warning", List.of())) {
+            warnings.add(HeaderWarning.decodeAndUnescape(HeaderWarning.extractWarningValueFromWarningHeader(header, false)));
+        }
+        return List.copyOf(warnings);
     }
 
     protected Executor externalBlobStoreExecutor() {

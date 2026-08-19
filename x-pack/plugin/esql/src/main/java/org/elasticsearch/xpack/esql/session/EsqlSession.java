@@ -199,6 +199,8 @@ public class EsqlSession {
             PlanTimeProfile planTimeProfile,
             ActionListener<Result> listener
         );
+
+        default void columnMetadata(Map<NameId, Map<String, Object>> columnMetadata) {}
     }
 
     private static final TransportVersion LOOKUP_JOIN_CCS = TransportVersion.fromName("lookup_join_ccs");
@@ -575,6 +577,7 @@ public class EsqlSession {
                                     QuerySettings.COLUMN_METADATA.get(finalConfiguration.resolvedSettings())
                                 )
                             );
+                            planRunner.columnMetadata(columnMetadata.get());
                             executeOptimizedPlan(
                                 request,
                                 executionInfo,
@@ -631,11 +634,6 @@ public class EsqlSession {
             ? createExplainListener(listener, optimizedPlan, planTimeProfile, configuration, planRunner)
             : listener;
 
-        // In explain mode the real query executes only to collect profile data; its pages are discarded
-        // by createExplainListener and only the assembled explain table is returned via finishExplain.
-        // Force INTERMEDIATE for all execution runs so streaming runners do not write query rows to the
-        // socket. finishExplain uses the original planRunner directly with PlanRunner.Role.OUTPUT.
-        // The role parameter passed in is deliberately ignored — the point is to suppress output streaming.
         PlanRunner executionRunner = explainContext != null
             ? (role, plan, cfg, foldCtx, profile, l) -> planRunner.run(PlanRunner.Role.INTERMEDIATE, plan, cfg, foldCtx, profile, l)
             : planRunner;

@@ -365,6 +365,73 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         );
     }
 
+    public void testBucketColumnMetadataAgreesWithQueryEndpoint() throws IOException {
+        initBucketIndex();
+        String esql = "SET column_metadata=true; FROM stream-bucket-test | STATS c = COUNT(*) BY b = BUCKET(date, 1 month) | SORT b";
+
+        // Guard: confirm /_query actually emits _meta for the BUCKET column before comparing with the stream
+        Map<String, Object> queryResponse = query(esql);
+        List<Map<String, Object>> queryColumns = columnList(queryResponse, "columns");
+        Map<String, Object> bColumn = queryColumns.stream()
+            .filter(col -> "b".equals(col.get("name")))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("column 'b' not found in /_query response"));
+        assertNotNull("/_query must emit _meta.bucket for BUCKET column 'b'", bColumn.get("_meta"));
+
+        assertStreamAgreesWithQuery(esql, true);
+    }
+
+    public void testApproximationExtraColumnsAgreeWithQueryEndpoint() throws IOException {
+        initBucketIndex();
+        String esql = "SET approximation=true; FROM stream-bucket-test | STATS count = COUNT(*)";
+
+        Map<String, Object> queryResponse = query(esql);
+        List<Map<String, Object>> queryColumns = columnList(queryResponse, "columns");
+        assertEquals("/_query with approximation=true must return 3 columns", 3, queryColumns.size());
+        assertEquals("second column must be the CI column", "_approximation_confidence_interval(count)", queryColumns.get(1).get("name"));
+        assertEquals("third column must be the certified column", "_approximation_certified(count)", queryColumns.get(2).get("name"));
+        assertNotNull("CI column must carry _meta.approximation from /_query", queryColumns.get(1).get("_meta"));
+        assertNotNull("certified column must carry _meta.approximation from /_query", queryColumns.get(2).get("_meta"));
+
+        assertStreamAgreesWithQuery(esql, true);
+    }
+
+    private void initBucketIndex() throws IOException {
+        Request createIndex = new Request("PUT", "/stream-bucket-test");
+        createIndex.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "date":  { "type": "date" },
+                  "value": { "type": "integer" }
+                }
+              }
+            }
+            """);
+        assertOK(client().performRequest(createIndex));
+
+        Request bulk = new Request("POST", "/_bulk?index=stream-bucket-test&refresh=true");
+        bulk.setJsonEntity("""
+            {"index": {}}
+            {"date": "1985-01-15", "value": 10}
+            {"index": {}}
+            {"date": "1985-01-20", "value": 20}
+            {"index": {}}
+            {"date": "1985-02-10", "value": 30}
+            {"index": {}}
+            {"date": "1985-02-25", "value": 40}
+            {"index": {}}
+            {"date": "1985-03-05", "value": 50}
+            {"index": {}}
+            {"date": "1985-03-15", "value": 60}
+            {"index": {}}
+            {"date": "1985-04-01", "value": 70}
+            {"index": {}}
+            {"date": "1985-04-20", "value": 80}
+            """);
+        assertOK(client().performRequest(bulk));
+    }
+
     private void assertStreamAgreesWithQuery(String esql) throws IOException {
         assertStreamAgreesWithQuery(esql, true);
     }
@@ -375,15 +442,21 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
 
     private void assertStreamAgreesWithQuery(String esql, boolean orderedRows) throws IOException {
         Map<String, Object> queryResponse = query(esql);
-        List<String> queryAllColumns = columnNames(queryResponse, "all_columns");
-        List<String> queryColumns = columnNames(queryResponse, "columns");
+        List<Map<String, Object>> queryAllColumns = columnList(queryResponse, "all_columns");
+        List<Map<String, Object>> queryColumns = columnList(queryResponse, "columns");
 
         List<Map<String, Object>> lines = stream(streamBody(esql, AGREEMENT_PAGE_SIZE), "drop_null_columns=true");
         Map<String, Object> streamHeader = lines.get(0);
-        List<String> streamAllColumns = columnNames(streamHeader, "all_columns");
-        List<String> streamColumns = columnNames(streamHeader, "columns");
+        List<Map<String, Object>> streamAllColumns = columnList(streamHeader, "all_columns");
+        List<Map<String, Object>> streamColumns = columnList(streamHeader, "columns");
 
+        assertEquals(
+            "all_columns count must agree between /_query and /_query/stream for: " + esql,
+            queryAllColumns.size(),
+            streamAllColumns.size()
+        );
         assertEquals("all_columns must agree between /_query and /_query/stream for: " + esql, queryAllColumns, streamAllColumns);
+        assertEquals("columns count must agree between /_query and /_query/stream for: " + esql, queryColumns.size(), streamColumns.size());
         assertEquals("columns must agree between /_query and /_query/stream for: " + esql, queryColumns, streamColumns);
 
         List<List<Object>> queryRows = rows(queryResponse);

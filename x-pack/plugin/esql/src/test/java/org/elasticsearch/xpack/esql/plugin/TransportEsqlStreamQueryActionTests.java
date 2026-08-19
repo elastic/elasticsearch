@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
@@ -18,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -45,7 +49,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             "myField",
             new EsField("myField", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
         );
-        List<ColumnInfoImpl> columns = TransportEsqlStreamQueryAction.buildColumns(List.of(attr));
+        List<ColumnInfoImpl> columns = TransportEsqlStreamQueryAction.buildColumns(List.of(attr), Map.of());
         assertEquals(1, columns.size());
         assertEquals("myField", columns.get(0).name());
         assertEquals(DataType.KEYWORD, columns.get(0).type());
@@ -58,7 +62,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             "badField",
             new UnsupportedEsField("badField", List.of("geo_shape", "dense_vector"))
         );
-        List<ColumnInfoImpl> columns = TransportEsqlStreamQueryAction.buildColumns(List.of(attr));
+        List<ColumnInfoImpl> columns = TransportEsqlStreamQueryAction.buildColumns(List.of(attr), Map.of());
         assertEquals(1, columns.size());
         List<String> originalTypes = columns.get(0).originalTypes();
         assertNotNull(originalTypes);
@@ -67,7 +71,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
 
     public void testBuildColumnsReferenceAttribute() {
         ReferenceAttribute attr = new ReferenceAttribute(Source.EMPTY, "derived", DataType.LONG);
-        List<ColumnInfoImpl> columns = TransportEsqlStreamQueryAction.buildColumns(List.of(attr));
+        List<ColumnInfoImpl> columns = TransportEsqlStreamQueryAction.buildColumns(List.of(attr), Map.of());
         assertEquals(1, columns.size());
         assertEquals("derived", columns.get(0).name());
         assertEquals(DataType.LONG, columns.get(0).type());
@@ -82,7 +86,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         );
         UnsupportedAttribute unsupported = new UnsupportedAttribute(Source.EMPTY, "u", new UnsupportedEsField("u", List.of("object")));
         ReferenceAttribute ref = new ReferenceAttribute(Source.EMPTY, "r", DataType.DOUBLE);
-        List<ColumnInfoImpl> columns = TransportEsqlStreamQueryAction.buildColumns(List.of(field, unsupported, ref));
+        List<ColumnInfoImpl> columns = TransportEsqlStreamQueryAction.buildColumns(List.of(field, unsupported, ref), Map.of());
         assertEquals(3, columns.size());
         assertEquals("f", columns.get(0).name());
         assertNull(columns.get(0).originalTypes());
@@ -90,6 +94,18 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         assertNotNull(columns.get(1).originalTypes());
         assertEquals("r", columns.get(2).name());
         assertNull(columns.get(2).originalTypes());
+    }
+
+    public void testBuildColumnsWithColumnMetadata() {
+        ReferenceAttribute a = new ReferenceAttribute(Source.EMPTY, "a", DataType.LONG);
+        ReferenceAttribute b = new ReferenceAttribute(Source.EMPTY, "b", DataType.DATE_NANOS);
+        Map<String, Object> meta = Map.of("bucket", Map.of("unit", "month", "interval", 1));
+        Map<NameId, Map<String, Object>> columnMetadata = Map.of(b.id(), meta);
+
+        List<ColumnInfoImpl> columns = TransportEsqlStreamQueryAction.buildColumns(List.of(a, b), columnMetadata);
+        assertEquals(2, columns.size());
+        assertNull("column without metadata entry must have null _meta", columns.get(0).meta());
+        assertEquals("column with metadata entry must have its _meta populated", meta, columns.get(1).meta());
     }
 
     public void testCollectAliasSourcesEmptyForLeafPlan() {
@@ -335,6 +351,63 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         Result partialResult = new Result(List.of(), List.of(), Map.of(), EsqlTestUtils.TEST_CFG, partialCompletion, executionInfo);
         TransportEsqlStreamQueryAction.markPartialFromCompletionInfo(partialResult);
         assertTrue("is_partial must be true when completionInfo.partial() is true", executionInfo.isPartial());
+    }
+
+    public void testFooterWarningsFromCompletionInfoOnly() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        DriverCompletionInfo completionInfo = new DriverCompletionInfo(
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            List.of(),
+            List.of(),
+            Map.of(),
+            false,
+            Set.of("eval failure: bad value")
+        );
+        List<String> result = TransportEsqlStreamQueryAction.footerWarnings(threadContext, completionInfo);
+        assertEquals(List.of("eval failure: bad value"), result);
+    }
+
+    public void testFooterWarningsFromThreadContextOnly() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.addResponseHeader("Warning", HeaderWarning.formatWarning("No limit defined, adding default limit of [1000]"));
+        List<String> result = TransportEsqlStreamQueryAction.footerWarnings(threadContext, DriverCompletionInfo.EMPTY);
+        assertEquals(List.of("No limit defined, adding default limit of [1000]"), result);
+    }
+
+    public void testFooterWarningsMergedAndDeduplicated() {
+        String sharedWarning = "evaluation of [to_int(x)] failed";
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.addResponseHeader("Warning", HeaderWarning.formatWarning(sharedWarning));
+        DriverCompletionInfo completionInfo = new DriverCompletionInfo(
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            List.of(),
+            List.of(),
+            Map.of(),
+            false,
+            Set.of(sharedWarning)
+        );
+        List<String> result = TransportEsqlStreamQueryAction.footerWarnings(threadContext, completionInfo);
+        assertEquals("duplicate warning must appear only once", 1, result.size());
+        assertEquals(sharedWarning, result.get(0));
+    }
+
+    public void testFooterWarningsEscapedHeaderIsDecoded() {
+        String rawMessage = "field \"x\" has value 100\\200";
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.addResponseHeader("Warning", HeaderWarning.formatWarning(rawMessage));
+        List<String> result = TransportEsqlStreamQueryAction.footerWarnings(threadContext, DriverCompletionInfo.EMPTY);
+        assertEquals(1, result.size());
+        assertEquals("escaped characters in header warning must be decoded", rawMessage, result.get(0));
     }
 
     public void testMarkPartialFromCompletionInfoLeavesNonPartialUnchanged() {

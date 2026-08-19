@@ -43,6 +43,14 @@ import java.util.concurrent.atomic.AtomicReference;
  *   - One line per page: {@code {"values":[[...],...]}}
  *   - Last line: {@code {"took":N,"is_partial":false,"warnings":["..."]}}
  *   - On error: {@code {"error":{"type":"...","reason":"..."},"status":N}}
+ *
+ * <p>Each logical unit maps to one {@link ChunkedRestResponseBodyPart}. The columns, footer and error
+ * parts each emit a single small NDJSON line and therefore intentionally ignore the {@code sizeHint}
+ * argument to {@code encodeChunk}. The page part respects {@code sizeHint}: because {@code page_size}
+ * is a row count chosen by the client and per-row JSON width is unbounded, a single page can exceed the
+ * target chunk size, so its rows are serialized incrementally across multiple {@code encodeChunk} calls.
+ * Pages are never coalesced across parts: the next page is only available via an async {@code request(1)}
+ * call, and buffering to fill a chunk would contradict the client's chosen {@code page_size}.</p>
  */
 public class EsqlStreamResponseListener implements ActionListener<ActionResponse.Empty> {
 
@@ -288,7 +296,27 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         private final Page page;
         private final List<ColumnInfoImpl> cols;
         private final boolean[] nullColumns;
-        private boolean encoded = false;
+
+        // Resume state across encodeChunk calls.
+        // target is the current chunk's output stream; set at the top of each encodeChunk and nulled
+        // before returning so that out never writes to a stream that has already been moved/closed.
+        private RecyclerBytesStreamOutput target;
+        private final OutputStream out = new OutputStream() {
+            @Override
+            public void write(int b) throws IOException {
+                target.write(b);
+            }
+
+            @Override
+            public void write(byte[] b, int off, int len) throws IOException {
+                target.write(b, off, len);
+            }
+        };
+        private XContentBuilder builder;           // created on the first encodeChunk; survives across calls
+        private PositionToXContent[] converters;   // built once on the first encodeChunk
+        private BytesRef scratch;                  // built once on the first encodeChunk
+        private int nextRow = 0;                   // resume cursor into the page
+        private boolean encoded = false;           // true only after the last row has been written
 
         NdjsonPageBodyPart(Page page, List<ColumnInfoImpl> cols, boolean[] nullColumns) {
             this.page = page;
@@ -313,43 +341,84 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
 
         @Override
         public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
-            if (inFlightPage.compareAndSet(page, null) == false) {
+            if (inFlightPage.get() != page) {
                 throw new IllegalStateException("in-flight page was already released; the response is torn down");
             }
-            final RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+            final RecyclerBytesStreamOutput chunkStream = new RecyclerBytesStreamOutput(recycler);
+            target = chunkStream;
             try {
                 final int rowCount = page.getPositionCount();
                 final int colCount = cols.size();
-                final BytesRef scratch = new BytesRef();
-                final PositionToXContent[] converters = new PositionToXContent[colCount];
-                for (int c = 0; c < colCount; c++) {
-                    if (nullColumns == null || nullColumns[c] == false) {
-                        converters[c] = PositionToXContent.positionToXContent(cols.get(c), page.getBlock(c), ZoneOffset.UTC, scratch);
+                if (builder == null) {
+                    // First chunk: build converters and open the JSON structure.
+                    scratch = new BytesRef();
+                    converters = new PositionToXContent[colCount];
+                    for (int c = 0; c < colCount; c++) {
+                        if (nullColumns == null || nullColumns[c] == false) {
+                            converters[c] = PositionToXContent.positionToXContent(cols.get(c), page.getBlock(c), ZoneOffset.UTC, scratch);
+                        }
                     }
-                }
-                writeJson(out, builder -> {
+                    builder = XContentFactory.jsonBuilder(out);
                     builder.startObject();
                     builder.startArray("values");
-                    for (int row = 0; row < rowCount; row++) {
-                        builder.startArray();
-                        for (int col = 0; col < colCount; col++) {
-                            if (converters[col] != null) {
-                                converters[col].positionToXContent(builder, channel.request(), row);
-                            }
+                }
+                // Emit rows until the chunk reaches sizeHint. builder.flush() pushes Jackson's
+                // internal write buffer through out into chunkStream so that size() is accurate
+                // to the row just written. Without it size() only advances in ~8 KB steps (Jackson's
+                // internal buffer size), so the effective minimum chunk is ~8 KB regardless of
+                // sizeHint. Measuring after the row (not before) guarantees at least one row per
+                // call, so a part with a tiny sizeHint still makes forward progress.
+                while (nextRow < rowCount) {
+                    builder.startArray();
+                    for (int col = 0; col < colCount; col++) {
+                        if (converters[col] != null) {
+                            converters[col].positionToXContent(builder, channel.request(), nextRow);
                         }
-                        builder.endArray();
                     }
                     builder.endArray();
+                    nextRow++;
+                    builder.flush();
+                    if (chunkStream.size() >= sizeHint) {
+                        break;
+                    }
+                }
+                if (nextRow == rowCount) {
+                    // Final chunk: close the JSON structure, then write the NDJSON newline.
+                    // builder.close() flushes Jackson's internal buffer into chunkStream and must
+                    // precede chunkStream.write(NEWLINE) so the newline follows the JSON, not precedes it.
+                    builder.endArray();
                     builder.endObject();
-                });
-                out.write(NEWLINE);
-                encoded = true;
-                return out.moveToBytesReference();
+                    builder.close();
+                    builder = null;
+                    chunkStream.write(NEWLINE);
+                    encoded = true;
+                }
+                final var result = chunkStream.moveToBytesReference();
+                target = null;
+                return result;
             } catch (Exception e) {
                 logger.error("failure encoding page chunk", e);
-                IOUtils.closeWhileHandlingException(out);
+                encoded = true; // part is dead; never re-enter it
+                // Close builder before chunkStream: builder.close() flushes through out into target
+                // (chunkStream); closing chunkStream first would return its pages to the recycler,
+                // making any subsequent flush a use-after-recycle.
+                if (builder != null) {
+                    IOUtils.closeWhileHandlingException(builder);
+                    builder = null;
+                }
+                IOUtils.closeWhileHandlingException(chunkStream);
+                target = null;
+                releasePage();
                 throw e;
             } finally {
+                if (encoded) {
+                    releasePage();
+                }
+            }
+        }
+
+        private void releasePage() {
+            if (inFlightPage.compareAndSet(page, null)) {
                 page.releaseBlocks();
             }
         }

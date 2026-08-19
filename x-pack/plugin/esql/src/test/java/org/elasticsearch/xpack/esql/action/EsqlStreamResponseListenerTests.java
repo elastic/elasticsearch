@@ -14,6 +14,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -38,11 +39,13 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 
 public class EsqlStreamResponseListenerTests extends ESTestCase {
@@ -275,6 +278,61 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testLargePageSplitsAcrossChunks() throws IOException {
+        final int rowCount = 50;
+        Subscribed s = subscribe(simpleColumns(), null, rowCount);
+        ChunkedRestResponseBodyPart columnsPart = s.response().chunkedContent();
+        encodeBodyPart(columnsPart);
+
+        final int valueLength = 300;
+        Page page = buildLargePage(rowCount, valueLength);
+        ChunkedRestResponseBodyPart pagePart = nextPart(columnsPart, () -> s.producer().addPage(page));
+
+        List<ReleasableBytesReference> refs = new ArrayList<>();
+        int chunkCount = 0;
+        while (pagePart.isPartComplete() == false) {
+            refs.add(pagePart.encodeChunk(1024, BytesRefRecycler.NON_RECYCLING_INSTANCE));
+            chunkCount++;
+        }
+        assertThat("large page must encode in more than one chunk", chunkCount, greaterThan(1));
+
+        String json = CompositeBytesReference.of(refs.toArray(new BytesReference[0])).utf8ToString().strip();
+        Map<String, Object> parsed = parseJson(json);
+        refs.forEach(ReleasableBytesReference::close);
+
+        List<List<Object>> values = (List<List<Object>>) parsed.get("values");
+        assertThat("all rows must be present after multi-chunk reassembly", values.size(), equalTo(rowCount));
+        for (int i = 0; i < rowCount; i++) {
+            assertThat("row " + i + " must have the correct id", values.get(i).get(0), equalTo(i));
+        }
+
+        nextPart(pagePart, () -> {
+            s.producer().finish();
+            s.publisher().completeWithFooter(0L, List.of(), false);
+        });
+        s.response().close();
+    }
+
+    public void testReleaseAfterPartialEncodeThrows() throws IOException {
+        final int rowCount = 50;
+        Subscribed s = subscribe(simpleColumns(), null, rowCount);
+        ChunkedRestResponseBodyPart columnsPart = s.response().chunkedContent();
+        encodeBodyPart(columnsPart);
+
+        Page page = buildLargePage(rowCount, 300);
+        ChunkedRestResponseBodyPart pagePart = nextPart(columnsPart, () -> s.producer().addPage(page));
+        assertFalse("page part must not be complete before any encoding", pagePart.isPartComplete());
+
+        pagePart.encodeChunk(1024, BytesRefRecycler.NON_RECYCLING_INSTANCE).close();
+        assertFalse("page part must still be incomplete after one partial chunk", pagePart.isPartComplete());
+
+        s.response().close();
+        assertThat("all page blocks must be released after close", blockFactory.breaker().getUsed(), equalTo(0L));
+
+        expectThrows(IllegalStateException.class, () -> pagePart.encodeChunk(1024, BytesRefRecycler.NON_RECYCLING_INSTANCE));
+    }
+
     public void testSubscribeBeforeSendResponseClosesEventLoopRace() throws IOException {
         PageStreamPublisher publisher = new PageStreamPublisher(1);
         PageStreamPublisher.Producer producer = publisher.registerProducer();
@@ -362,7 +420,11 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
     ) {}
 
     private Subscribed subscribe(List<ColumnInfoImpl> columns, boolean[] nullColumns) {
-        PageStreamPublisher publisher = new PageStreamPublisher(1);
+        return subscribe(columns, nullColumns, 1);
+    }
+
+    private Subscribed subscribe(List<ColumnInfoImpl> columns, boolean[] nullColumns, int pageSize) {
+        PageStreamPublisher publisher = new PageStreamPublisher(pageSize);
         PageStreamPublisher.Producer producer = publisher.registerProducer();
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
         EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel);
@@ -406,6 +468,22 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         nameBuilder.appendBytesRef(new BytesRef(name));
         Block nameBlock = nameBuilder.build();
         return new Page(idBlock, nameBlock);
+    }
+
+    private Page buildLargePage(int rowCount, int valueLength) {
+        int[] ids = new int[rowCount];
+        for (int i = 0; i < rowCount; i++) {
+            ids[i] = i;
+        }
+        Block idBlock = blockFactory.newIntArrayVector(ids, rowCount).asBlock();
+        BytesRefBlock.Builder nameBuilder = blockFactory.newBytesRefBlockBuilder(rowCount);
+        byte[] value = new byte[valueLength];
+        Arrays.fill(value, (byte) 'x');
+        BytesRef valueRef = new BytesRef(value);
+        for (int i = 0; i < rowCount; i++) {
+            nameBuilder.appendBytesRef(valueRef);
+        }
+        return new Page(idBlock, nameBuilder.build());
     }
 
     private static BytesReference encodeBodyPart(ChunkedRestResponseBodyPart part) throws IOException {

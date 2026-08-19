@@ -364,9 +364,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
   method: testInfoParameters {class org.elasticsearch.xpack.esql.plan.physical.MergeExec}
   issue: https://github.com/elastic/elasticsearch/issues/155683
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: initializationError
-  issue: https://github.com/elastic/elasticsearch/issues/156737
 - class: org.elasticsearch.join.ParentChildClientYamlTestSuiteIT
   method: test {yaml=/20_parent_join/join field named _type is not returned as root metadata}
   issue: https://github.com/elastic/elasticsearch/issues/156742

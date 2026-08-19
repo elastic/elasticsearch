@@ -71,6 +71,7 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
         });
         PlainActionFuture<InputStream> future = new PlainActionFuture<>();
 
+        // Measure time around the method call to confirm the reported read time is reasonable
         final long timeBeforeMethodCallNanos = System.nanoTime();
 
         meteringCacheBlobReader.getRangeInputStream(randomInt(), size, future);
@@ -83,6 +84,7 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
         } else {
             int limit = randomIntBetween(1, size);
             try (var is = Streams.limitStream(meteredInputStream, limit)) {
+                // consume up to a limit (partially) and close the underlying input stream
                 Streams.consumeFully(is);
             }
             assertEquals(limit, bytesReadHolder.get().longValue());

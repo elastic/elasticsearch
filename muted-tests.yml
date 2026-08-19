@@ -785,3 +785,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/395_binary_doc_values_search/Test keyword range uses indexed byte ordering for binary doc values}
   issue: https://github.com/elastic/elasticsearch/issues/157314
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
+  method: testDeleteIndexDuringReshard
+  issue: https://github.com/elastic/elasticsearch-team/issues/3964

@@ -128,13 +128,17 @@ import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTask;
 import org.hamcrest.Matcher;
 import org.junit.Assert;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -5228,6 +5232,188 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             case 2 -> indexRouting.deleteShard(id, routing);
             default -> throw new AssertionError("invalid option");
         };
+    }
+
+    /**
+     * Verifies that deleting an index mid-reshard leaves no dangling cluster state and no orphaned
+     * commit blobs for either the source or target shard (as tracked by
+     * {@link org.elasticsearch.xpack.stateless.commits.StatelessCommitService}).
+     * <p>
+     * Three interception points are covered randomly per run. Run the test repeatedly (or in CI
+     * where seeds vary) to exercise all three:
+     * <ul>
+     *   <li><b>CLONE mid-copy</b> — the index is deleted while {@code copyShard()} is actively
+     *       writing a blob to the target shard's location in the object store. This is the critical
+     *       case: blobs written by {@code copyShard()}/{@code copyCommit()} bypass
+     *       {@code ShardCommitState} tracking and are only cleaned up if the production path
+     *       handles them explicitly.</li>
+     *   <li><b>HANDOFF</b> — the index is deleted while the target shard state machine is
+     *       transitioning to HANDOFF (CLONE phase is complete, target shard blobs exist).</li>
+     *   <li><b>SPLIT</b> — same as HANDOFF but at the SPLIT transition.</li>
+     * </ul>
+     */
+    public void testDeleteIndexDuringReshard() throws Exception {
+        // Master and index nodes must be separate: TransportUpdateSplitTargetShardStateAction is a
+        // MasterNodeAction sent index→master; addSendBehavior never fires when roles share a node.
+        // 100ms consistency interval speeds up tracked-blob cleanup vs. the default 5s tick.
+        // Stale-index GC is disabled so it cannot delete orphaned blobs before the test observes them.
+        final Settings fastConsistency = Settings.builder()
+            .put(StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(), "100ms")
+            .put(ObjectStoreGCTask.STALE_INDICES_GC_ENABLED_SETTING.getKey(), false)
+            .build();
+        final Settings indexNodeSettings = Settings.builder()
+            .put(SplitTargetService.RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT.getKey(), "200ms")
+            .put(fastConsistency)
+            // MOCK type is required so that setNodeRepositoryStrategy() can install the copy hook.
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+            .build();
+        final String masterNode = startMasterOnlyNode(fastConsistency);
+        final String indexNode = startIndexNode(indexNodeSettings);
+        startSearchNode(fastConsistency);
+        ensureStableCluster(3);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+        indexDocs(indexName, 100);
+
+        final Index index = resolveIndex(indexName);
+        final ShardId sourceShardId = new ShardId(index, 0);
+        final ShardId targetShardId = new ShardId(index, 1);
+        final CountDownLatch deleteCompleted = new CountDownLatch(1);
+
+        final IndexReshardingState.Split.TargetShardState stateIntercept = randomFrom(
+            IndexReshardingState.Split.TargetShardState.CLONE,
+            IndexReshardingState.Split.TargetShardState.HANDOFF,
+            IndexReshardingState.Split.TargetShardState.SPLIT);
+        final boolean cloneMidCopy = stateIntercept == IndexReshardingState.Split.TargetShardState.CLONE;
+        logger.info("testDeleteIndexDuringReshard: intercept=[{}]", cloneMidCopy ? "CLONE_MID_COPY" : stateIntercept);
+
+        if (cloneMidCopy) {
+            // Filter by OperationPurpose.RESHARDING: copyShard/copyCommit use this purpose exclusively,
+            // so unrelated background copies cannot trigger the latch prematurely.
+            final CountDownLatch copyBlocked = new CountDownLatch(1);
+            final CountDownLatch copyWritten = new CountDownLatch(1);
+            // blobObserved keeps the hook thread inside copyBlob() until the blob-existence assertion
+            // below completes. Without it the reshard loop advances to ensureNotCancelled() and
+            // triggers cleanup concurrently, making the assertion vacuous.
+            final CountDownLatch blobObserved = new CountDownLatch(1);
+            final AtomicBoolean firstReshard = new AtomicBoolean(true);
+            setNodeRepositoryStrategy(indexNode, new StatelessMockRepositoryStrategy() {
+                @Override
+                public void blobContainerCopyBlob(
+                    CheckedRunnable<IOException> originalRunnable,
+                    OperationPurpose purpose,
+                    BlobContainer sourceBlobContainer,
+                    String sourceBlobName,
+                    String blobName,
+                    long blobSize
+                ) throws IOException {
+                    if (purpose == OperationPurpose.RESHARDING
+                        && StatelessCompoundCommit.startsWithBlobPrefix(blobName)
+                        && firstReshard.compareAndSet(true, false)) {
+                        copyBlocked.countDown();
+                        safeAwait(deleteCompleted); // Intentionally blocks until the delete is ACK'd
+                        try {
+                            super.blobContainerCopyBlob(
+                                originalRunnable,
+                                purpose,
+                                sourceBlobContainer,
+                                sourceBlobName,
+                                blobName,
+                                blobSize
+                            );
+                        } finally {
+                            copyWritten.countDown();
+                        }
+                        safeAwait(blobObserved); // hold until the test has observed the blob
+                    } else {
+                        super.blobContainerCopyBlob(originalRunnable, purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                    }
+                }
+            });
+            // ReshardIndexRequest is acknowledged immediately; resharding proceeds asynchronously.
+            client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+            safeAwait(copyBlocked);
+
+            try {
+                try {
+                    assertAcked(client(masterNode).admin().indices().delete(new DeleteIndexRequest(indexName)).actionGet());
+                } finally {
+                    deleteCompleted.countDown(); // always unblock the reshard thread
+                }
+                // The blob is untracked by ShardCommitState (recovery never completed); without
+                // explicit cleanup it would remain until stale-index GC runs (8h, disabled here).
+                safeAwait(copyWritten);
+                assertThat(
+                    "Expected at least one commit blob for target shard [" + targetShardId + "] after mid-copy write",
+                    listBlobsTermAndGenerations(targetShardId),
+                    org.hamcrest.Matchers.not(org.hamcrest.Matchers.empty())
+                );
+            } finally {
+                blobObserved.countDown(); // always release the reshard thread
+            }
+        } else {
+            // Block the HANDOFF or SPLIT state transition (index→master) so we can delete while
+            // CLONE-phase blobs are written but the state advance is still pending.
+            final CountDownLatch stateReached = new CountDownLatch(1);
+            final AtomicBoolean firstStateTransition = new AtomicBoolean(true);
+            MockTransportService.getInstance(indexNode).addSendBehavior((connection, requestId, action, request, options) -> {
+                if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
+                    var actual = MasterNodeRequestHelper.unwrapTermOverride(request);
+                    if (actual instanceof SplitStateRequest r
+                        && r.getNewTargetShardState() == stateIntercept
+                        && firstStateTransition.compareAndSet(true, false)) {
+                        stateReached.countDown();
+                        safeAwait(deleteCompleted); // Intentionally blocks the transport send
+                    }
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+            // ReshardIndexRequest is acknowledged immediately; resharding proceeds asynchronously.
+            client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+            safeAwait(stateReached);
+
+            // CLONE is complete: the state machine writes blobs before sending the state-transition
+            // message we are blocking, so they must be present now.
+            try {
+                assertThat(
+                    "Expected commit blobs for target shard [" + targetShardId + "] at " + stateIntercept + " interception",
+                    listBlobsTermAndGenerations(targetShardId),
+                    org.hamcrest.Matchers.not(org.hamcrest.Matchers.empty())
+                );
+                assertAcked(client(masterNode).admin().indices().delete(new DeleteIndexRequest(indexName)).actionGet());
+            } finally {
+                deleteCompleted.countDown(); // always unblock the transport hook
+            }
+        }
+
+        // Target shard: no orphaned commit blobs. For CLONE_MID_COPY this is the critical
+        // assertion — blobs written by copyShard() bypass ShardCommitState; without explicit
+        // cleanup they would remain until stale-index GC runs (8h, disabled in this test).
+        assertNoOrphanedCommitBlobs(targetShardId);
+
+        // Source shard: no orphaned commit blobs. Cleanup goes through StatelessCommitCleaner's
+        // async consistency check, which fires every 100 ms (set above).
+        assertNoOrphanedCommitBlobs(sourceShardId);
+
+        // Re-create with the same name to verify no stale state from the deleted index interferes.
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+    }
+
+    private void assertNoOrphanedCommitBlobs(ShardId shardId) throws Exception {
+        // 3s gives 30 chances at the 100ms consistency interval; also caps the wait on the
+        // expected-failure path (target shard, no fix yet) to 3s instead of the default 10s.
+        assertBusy(() -> {
+            Set<PrimaryTermAndGeneration> blobs;
+            try {
+                blobs = listBlobsTermAndGenerations(shardId);
+            } catch (NoSuchFileException e) {
+                return; // shard directory removed — no commit blobs remain
+            }
+            assertTrue("Orphaned commit blobs for shard [" + shardId + "]: " + blobs, blobs.isEmpty());
+        }, 3, TimeUnit.SECONDS);
     }
 
     private void waitForReshardCompletion(String indexName) {

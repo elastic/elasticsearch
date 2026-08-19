@@ -10,14 +10,22 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.Before;
 import org.mockito.Mockito;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.hamcrest.MockitoHamcrest.argThat;
 
 public class ProblemTrackerTests extends ESTestCase {
 
@@ -157,6 +165,146 @@ public class ProblemTrackerTests extends ESTestCase {
         assertFalse(problemTracker.hasProblems());
     }
 
+    private static final String PARENT_SEARCH_SHARDS_BREAKER_PREFIX =
+        "[parent] Data too large, data for [indices:admin/search/search_shards] would be ";
+
+    public void testParentCircuitBreakerExtractionProblemShouldAuditActionableGuidance() {
+        CircuitBreakingException parentCircuitBreaker = createParentCircuitBreaker("[100/100b]", 100L);
+
+        problemTracker.reportExtractionProblem(new DatafeedJob.ExtractionProblemException(0L, parentCircuitBreaker));
+
+        assertParentCircuitBreakerAudit();
+        assertTrue(problemTracker.hasProblems());
+    }
+
+    public void testSearchPhaseParentCircuitBreakerShouldAuditActionableGuidance() {
+        CircuitBreakingException parentCircuitBreaker = createParentCircuitBreaker("[100/100b]", 100L);
+        SearchPhaseExecutionException searchPhaseExecutionException = new SearchPhaseExecutionException(
+            "query",
+            "all shards failed",
+            new ShardSearchFailure[] { new ShardSearchFailure(parentCircuitBreaker) }
+        );
+
+        problemTracker.reportExtractionProblem(new DatafeedJob.ExtractionProblemException(0L, searchPhaseExecutionException));
+
+        assertParentCircuitBreakerAudit();
+    }
+
+    public void testSearchPhaseParentCircuitBreakerCauseWithoutShardFailuresShouldAuditActionableGuidance() {
+        CircuitBreakingException parentCircuitBreaker = createParentCircuitBreaker("[100/100b]", 100L);
+        SearchPhaseExecutionException searchPhaseExecutionException = new SearchPhaseExecutionException(
+            "query",
+            "all shards failed",
+            parentCircuitBreaker,
+            ShardSearchFailure.EMPTY_ARRAY
+        );
+
+        problemTracker.reportExtractionProblem(new DatafeedJob.ExtractionProblemException(0L, searchPhaseExecutionException));
+
+        assertParentCircuitBreakerAudit();
+    }
+
+    public void testSearchPhaseParentCircuitBreakerNotFirstShardFailureShouldAuditActionableGuidance() {
+        CircuitBreakingException parentCircuitBreaker = createParentCircuitBreaker("[200/200b]", 200L);
+        SearchPhaseExecutionException searchPhaseExecutionException = new SearchPhaseExecutionException(
+            "query",
+            "all shards failed",
+            new ShardSearchFailure[] {
+                new ShardSearchFailure(new ElasticsearchException("shard unavailable")),
+                new ShardSearchFailure(parentCircuitBreaker) }
+        );
+
+        problemTracker.reportExtractionProblem(new DatafeedJob.ExtractionProblemException(0L, searchPhaseExecutionException));
+
+        assertParentCircuitBreakerAudit();
+    }
+
+    public void testNonParentCircuitBreakerExtractionProblemShouldPreserveOriginalMessage() {
+        CircuitBreakingException requestCircuitBreaker = new CircuitBreakingException(
+            "[request] Data too large, data for [search] would be [100/100b], which is larger than the limit of [90/90b]",
+            CircuitBreaker.Durability.TRANSIENT
+        );
+
+        problemTracker.reportExtractionProblem(new DatafeedJob.ExtractionProblemException(0L, requestCircuitBreaker));
+
+        verify(auditor).error("foo", "Datafeed is encountering errors extracting data: " + requestCircuitBreaker.getMessage());
+        assertThat(requestCircuitBreaker.getMessage(), not(containsString("usually transient")));
+    }
+
+    public void testCyclicCauseChainShouldTerminateWithoutParentCircuitBreaker() {
+        RuntimeException cycleRoot = new RuntimeException("cycle-root");
+        RuntimeException cycleTail = new CyclicCauseException("cycle-tail", cycleRoot);
+        cycleRoot.initCause(cycleTail);
+
+        assertNull(ProblemTracker.findParentCircuitBreaker(cycleRoot));
+    }
+
+    public void testCyclicCauseChainWithParentBreakerShouldStillFindParentCircuitBreaker() {
+        CircuitBreakingException parentCircuitBreaker = createParentCircuitBreaker("[100/100b]", 100L);
+        RuntimeException cycleTail = new CyclicCauseException("cycle-tail", parentCircuitBreaker);
+        parentCircuitBreaker.initCause(cycleTail);
+
+        assertSame(parentCircuitBreaker, ProblemTracker.findParentCircuitBreaker(parentCircuitBreaker));
+    }
+
+    public void testCyclicCauseChainWithParentBreakerShouldAuditActionableGuidance() {
+        CircuitBreakingException parentCircuitBreaker = createParentCircuitBreaker("[100/100b]", 100L);
+        RuntimeException cycleTail = new CyclicCauseException("cycle-tail", parentCircuitBreaker);
+        parentCircuitBreaker.initCause(cycleTail);
+
+        problemTracker.reportExtractionProblem(new DatafeedJob.ExtractionProblemException(0L, parentCircuitBreaker));
+
+        assertParentCircuitBreakerAudit();
+    }
+
+    public void testParentCircuitBreakerWithDifferentByteCountsShouldAuditOncePerEpisode() {
+        CircuitBreakingException firstTrip = createParentCircuitBreaker("[100/100b]", 100L);
+        CircuitBreakingException secondTrip = createParentCircuitBreaker("[200/200b]", 200L);
+
+        problemTracker.reportExtractionProblem(new DatafeedJob.ExtractionProblemException(0L, firstTrip));
+        problemTracker.reportExtractionProblem(new DatafeedJob.ExtractionProblemException(0L, secondTrip));
+
+        verify(auditor, times(1)).error(eq("foo"), eq(expectedParentCircuitBreakerAudit(firstTrip.getMessage())));
+
+        problemTracker.finishReport();
+        problemTracker.finishReport();
+
+        CircuitBreakingException thirdTrip = createParentCircuitBreaker("[300/300b]", 300L);
+        problemTracker.reportExtractionProblem(new DatafeedJob.ExtractionProblemException(0L, thirdTrip));
+
+        verify(auditor, times(1)).error(eq("foo"), eq(expectedParentCircuitBreakerAudit(firstTrip.getMessage())));
+        verify(auditor, times(1)).error(eq("foo"), eq(expectedParentCircuitBreakerAudit(thirdTrip.getMessage())));
+    }
+
+    private void assertParentCircuitBreakerAudit() {
+        verify(auditor).error(
+            eq("foo"),
+            argThat(
+                allOf(
+                    containsString("usually transient"),
+                    containsString("needs no action"),
+                    containsString("not advanced"),
+                    containsString("retries it automatically"),
+                    containsString("datafeed's"),
+                    containsString("Data too large"),
+                    containsString("search_shards")
+                )
+            )
+        );
+    }
+
+    private static String expectedParentCircuitBreakerAudit(String circuitBreakerDetails) {
+        return Messages.getMessage(
+            Messages.JOB_AUDIT_DATAFEED_DATA_EXTRACTION_ERROR,
+            Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_PARENT_CIRCUIT_BREAKER, circuitBreakerDetails)
+        );
+    }
+
+    private static CircuitBreakingException createParentCircuitBreaker(String wantedSize, long bytesWanted) {
+        String message = PARENT_SEARCH_SHARDS_BREAKER_PREFIX + wantedSize + ", which is larger than the limit of [90/90b]";
+        return new CircuitBreakingException(message, bytesWanted, 90L, CircuitBreaker.Durability.TRANSIENT);
+    }
+
     private static DatafeedJob.ExtractionProblemException createExtractionProblem(String error, String cause) {
         Exception causeException = new RuntimeException(cause);
         Exception wrappedException = new TestWrappedException(error, causeException);
@@ -173,6 +321,21 @@ public class ProblemTrackerTests extends ESTestCase {
 
         TestWrappedException(String message, Throwable cause) {
             super(message, cause);
+        }
+    }
+
+    private static class CyclicCauseException extends RuntimeException {
+
+        private final Throwable cycleCause;
+
+        CyclicCauseException(String message, Throwable cycleCause) {
+            super(message);
+            this.cycleCause = cycleCause;
+        }
+
+        @Override
+        public Throwable getCause() {
+            return cycleCause;
         }
     }
 }

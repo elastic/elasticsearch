@@ -306,7 +306,6 @@ public final class EscfBatchScatterer implements Releasable {
         }
     }
 
-
     private void releaseInFlight() {
         // discard() on a builder is idempotent after finish() (the stream is already moved/nulled).
         for (int p = 0; p < builders.length; p++) {

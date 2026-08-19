@@ -16,6 +16,7 @@
 | date_range {applies_to}`stack: preview 9.5.0` | boolean |
 | dense_vector | boolean |
 | double | boolean |
+| double_range {applies_to}`stack: preview 9.6.0` | boolean |
 | exponential_histogram | boolean |
 | flattened {applies_to}`stack: preview 9.5.0` | boolean |
 | geo_point | boolean |

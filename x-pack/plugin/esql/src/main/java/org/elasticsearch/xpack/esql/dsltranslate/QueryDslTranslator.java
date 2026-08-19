@@ -74,11 +74,30 @@ import java.util.function.Supplier;
  * <p>The supported subset is the structural floor: {@code bool}, {@code term}, {@code terms}, {@code range},
  * {@code exists}, {@code match_all}/{@code match_none}, and {@code match}/{@code match_phrase}/{@code multi_match} as
  * equality on an exact-typed field. We never mis-translate anything outside it — an unhonored option, or an analyzed
- * {@code text}-field construct. The translator is <em>fail-closed</em>: a construct outside the supported subset raises
- * {@link TranslationUnsupportedException}, which propagates out to the caller. The translator only reports; the caller
- * picks what happens next (a query function errors, the request filter turns it into a 400).
+ * {@code text}-field construct. {@link #translate} is a <em>collecting walk</em>: every unsupported leaf is recorded
+ * rather than thrown. The translator only reports; the caller picks what happens next (fail the query, emit a warning,
+ * or apply the translatable subset).
  */
 public final class QueryDslTranslator {
+
+    /**
+     * A DSL clause that could not be translated — the specific offending {@link QueryBuilder} node and the construct
+     * name. Reported at leaf granularity: if {@code C OR D} fails because {@code D} is a wildcard, the clause is
+     * {@code D}, not {@code C OR D}.
+     */
+    public record UnsupportedClause(org.elasticsearch.index.query.QueryBuilder clause, String construct) {}
+
+    /**
+     * The result of a full translation. {@link #applied()} is the translatable subset of the filter — equal to or
+     * looser than the original, never tighter; {@link #unsupported()} lists every clause that could not be translated
+     * (leaf-level, all of them). A fully-supported filter has an empty {@link #unsupported()} and the same
+     * {@link #applied()} the old single-expression path produced.
+     */
+    public record TranslationResult(Expression applied, List<UnsupportedClause> unsupported) {
+        public boolean isComplete() {
+            return unsupported.isEmpty();
+        }
+    }
 
     private final Function<String, Expression> fieldBinder;
     private final Set<String> fieldNames;
@@ -86,8 +105,6 @@ public final class QueryDslTranslator {
     private final long nowInMillis;
 
     /**
-     * A fail-closed translator: an unsupported construct raises {@link TranslationUnsupportedException}.
-     *
      * @param fieldBinder   resolves a DSL field name to the ES|QL expression standing for it on this source — the
      *                      source's attribute when the field exists, {@link Literal#NULL} when it does not.
      * @param fieldNames    every field the source has, used to expand a {@code multi_match}'s field patterns (a bare
@@ -103,15 +120,128 @@ public final class QueryDslTranslator {
         this.nowInMillis = configuration.absoluteStartedTimeInMillis();
     }
 
-    /** Translate a DSL query into an ES|QL boolean predicate. */
-    public Expression translate(QueryBuilder query) {
-        return dispatch(query);
+    /**
+     * Translate a DSL query into a {@link TranslationResult}. The translation is a collecting walk: every
+     * unsupported leaf is recorded in {@link TranslationResult#unsupported()} rather than thrown on the first miss.
+     * {@link TranslationResult#applied()} is the translatable subset of the filter — always equal to or looser than
+     * the original (never tighter), so applying it can only over-fetch, never exclude a row the full filter would
+     * have matched. A fully-supported filter returns an empty {@link TranslationResult#unsupported()} and the same
+     * expression the old single-return path would have produced.
+     */
+    public TranslationResult translate(QueryBuilder query) {
+        List<UnsupportedClause> unsupported = new ArrayList<>();
+        Expression applied = collectingDispatch(query, unsupported);
+        // A failed top-level leaf returns null; the safe subset of "nothing translated" is no filter at all.
+        return new TranslationResult(applied == null ? Literal.TRUE : applied, unsupported);
+    }
+
+    private Expression collectingDispatch(QueryBuilder query, List<UnsupportedClause> unsupported) {
+        if (query instanceof BoolQueryBuilder bool) {
+            return collectingBool(bool, unsupported);
+        }
+        try {
+            return dispatch(query);
+        } catch (TranslationUnsupportedException e) {
+            unsupported.add(new UnsupportedClause(query, e.construct()));
+            return null;
+        }
+    }
+
+    /**
+     * Collecting walk of a bool (top-level or nested — the policy is the same at every depth). Never returns
+     * {@code null}: the result is the AND of the arms that translated (possibly {@link Literal#TRUE} when none did),
+     * always equal to or looser than the original bool. Failures accumulate in {@code unsupported}.
+     *
+     * <p>The invariant is that a dropped arm only ever <em>loosens</em> the result — the applied expression may
+     * over-fetch but never excludes a row the original bool would have matched. That drives every per-arm rule:
+     * a failed {@code must}/{@code filter} arm is simply omitted; a {@code must_not} arm is all-or-nothing (a
+     * {@code NOT} over a partial arm would over-exclude); a required {@code should} group is dropped whole if any
+     * arm fails (a partial OR would exclude rows matching only the dropped arms).
+     */
+    private Expression collectingBool(BoolQueryBuilder bool, List<UnsupportedClause> unsupported) {
+        // B1: catch parseBoolOptions failures but continue — must/filter arms are still valid AND conjuncts
+        // regardless of which bool-level option failed. Two conditions are tracked separately because their
+        // failure modes are orthogonal:
+        // - adjustPureNegativeSafe: false when adjust_pure_negative=false on a pure-negative bool (match
+        // NOTHING). Translating must_not arms as NOT-logic in that shape is semantic inversion. Computed
+        // directly from the bool's fields so a minimum_should_match failure elsewhere never suppresses a
+        // valid NOT conjunct.
+        // - boolOptionsOk: false when parseBoolOptions throws for any reason (msm or adjust_pure_negative).
+        // Guards the should block only; must_not is guarded by adjustPureNegativeSafe.
+
+        // False only when adjust_pure_negative=false on a pure-negative bool (no must/filter/should):
+        // that shape matches NOTHING, so NOT(arm) would be semantic inversion. Any other shape is safe.
+        boolean adjustPureNegativeSafe = bool.adjustPureNegative()
+            || bool.must().isEmpty() == false
+            || bool.filter().isEmpty() == false
+            || bool.should().isEmpty() == false
+            || bool.mustNot().isEmpty();
+        Integer requiredShould = null;
+        boolean boolOptionsOk = true;
+        try {
+            requiredShould = parseBoolOptions(bool);
+        } catch (TranslationUnsupportedException e) {
+            unsupported.add(new UnsupportedClause(bool, e.construct()));
+            boolOptionsOk = false;
+        }
+        List<Expression> conjuncts = new ArrayList<>();
+        for (QueryBuilder q : bool.must()) {
+            Expression e = collectingDispatch(q, unsupported);
+            if (e != null) conjuncts.add(e);
+        }
+        for (QueryBuilder q : bool.filter()) {
+            Expression e = collectingDispatch(q, unsupported);
+            if (e != null) conjuncts.add(e);
+        }
+        if (adjustPureNegativeSafe) {
+            // must_not: all-or-nothing per arm — NOT(partial) would over-exclude, so skip the whole NOT if any arm fails.
+            for (QueryBuilder q : bool.mustNot()) {
+                List<UnsupportedClause> armUnsupported = new ArrayList<>();
+                Expression e = collectingDispatch(q, armUnsupported);
+                if (armUnsupported.isEmpty()) {
+                    conjuncts.add(new Not(Source.EMPTY, e));
+                } else {
+                    unsupported.addAll(armUnsupported);
+                }
+            }
+        }
+        if (boolOptionsOk && bool.should().isEmpty() == false) {
+            boolean hasMustOrFilter = bool.must().isEmpty() == false || bool.filter().isEmpty() == false;
+            // The DSL default is 1 when the bool carries no must/filter, and 0 otherwise — must_not does NOT count
+            // towards that (a bool of must_not + should still requires one should clause to match). Crucially, an
+            // EXPLICIT minimum_should_match of 0 does NOT make a should-only bool match everything: Lucene still needs
+            // one optional clause when there is no required (must/filter) clause, so msm=0 only drops the should group
+            // when a must/filter is present. (msm=1 always requires one; msm=0 and the unset default coincide.)
+            boolean shouldIsRequired = (requiredShould != null && requiredShould == 1) || hasMustOrFilter == false;
+            if (shouldIsRequired) {
+                List<Expression> disjuncts = new ArrayList<>(bool.should().size());
+                boolean anyArmFailed = false;
+                for (QueryBuilder q : bool.should()) {
+                    // Per-arm list: a completely-failed nested bool returns Literal.TRUE (non-null), so a null
+                    // check cannot distinguish a failed arm from a legitimate match_all. armUnsupported.isEmpty()
+                    // is the correct signal.
+                    List<UnsupportedClause> armUnsupported = new ArrayList<>();
+                    Expression e = collectingDispatch(q, armUnsupported);
+                    if (armUnsupported.isEmpty()) {
+                        disjuncts.add(e);
+                    } else {
+                        unsupported.addAll(armUnsupported);
+                        anyArmFailed = true;
+                    }
+                }
+                // A partial OR would exclude rows that matched only the dropped arms — a tighter filter than the
+                // original, breaking the loosen-only invariant — so drop the whole group when any arm failed.
+                if (anyArmFailed == false) {
+                    conjuncts.add(orAll(disjuncts));
+                }
+            }
+            // B2: non-required should arms gate scoring, not matching, so the filter is semantically complete
+            // without them — they are not translated and their failures are not reported.
+        }
+        return conjuncts.isEmpty() ? Literal.TRUE : andAll(conjuncts);
     }
 
     private Expression dispatch(QueryBuilder query) {
-        if (query instanceof BoolQueryBuilder bool) {
-            return bool(bool);
-        }
         if (query instanceof TermQueryBuilder term) {
             return term(term);
         }
@@ -348,6 +478,14 @@ public final class QueryDslTranslator {
         return orAll(disjuncts);
     }
 
+    private static Expression andAll(List<Expression> conjuncts) {
+        Expression and = conjuncts.get(0);
+        for (int i = 1; i < conjuncts.size(); i++) {
+            and = new And(Source.EMPTY, and, conjuncts.get(i));
+        }
+        return and;
+    }
+
     /**
      * Fold disjuncts into a <em>balanced</em> {@code OR} tree. A left-leaning chain is one level deep per disjunct, and
      * a {@code terms} clause routinely carries hundreds of values — that is precisely what Lucene's terms query is built
@@ -418,7 +556,12 @@ public final class QueryDslTranslator {
         return checkedLeaf(field, new MvIntersects(Source.EMPTY, field, listLiteralFor(field, values)));
     }
 
-    private Expression bool(BoolQueryBuilder bool) {
+    /**
+     * Validates and extracts the bool-level options that affect translation. Returns the effective
+     * {@code requiredShould} value (null if not set). Throws {@link TranslationUnsupportedException} for any option
+     * outside the supported subset, so callers can catch it and record a single failure at the bool level.
+     */
+    private static Integer parseBoolOptions(BoolQueryBuilder bool) {
         // How many should-clauses must match. Only two values have a faithful image as a plain OR: 1 (at least one
         // should clause is required) and 0 (should is optional, so in a filter context it drops out). Anything else
         // ("2", "50%", ...) needs real n-of-m counting, which an OR cannot express.
@@ -437,7 +580,6 @@ public final class QueryDslTranslator {
                 throw new TranslationUnsupportedException("bool[minimum_should_match=" + msm + "]");
             }
         }
-
         // adjust_pure_negative=false makes a bool with ONLY must_not clauses match NOTHING (Lucene omits the implicit
         // match-all that the default true adds). We model the default; a pure-negative bool with the flag off would be a
         // silent over-match (we would emit NOT-of-the-excluded), so reject it. The flag has no effect in any other shape.
@@ -448,45 +590,7 @@ public final class QueryDslTranslator {
             && bool.should().isEmpty()) {
             throw new TranslationUnsupportedException("bool[adjust_pure_negative=false]");
         }
-
-        // must/filter are conjuncts; each must_not child sits under a NOT; should folds to an OR (required per msm below).
-        List<Expression> conjuncts = new ArrayList<>();
-        for (QueryBuilder q : bool.must()) {
-            conjuncts.add(dispatch(q));
-        }
-        for (QueryBuilder q : bool.filter()) {
-            conjuncts.add(dispatch(q));
-        }
-        for (QueryBuilder q : bool.mustNot()) {
-            conjuncts.add(new Not(Source.EMPTY, dispatch(q)));
-        }
-
-        if (bool.should().isEmpty() == false) {
-            List<Expression> disjuncts = new ArrayList<>(bool.should().size());
-            for (QueryBuilder q : bool.should()) {
-                disjuncts.add(dispatch(q));
-            }
-            Expression or = orAll(disjuncts);
-            // The DSL default is 1 when the bool carries no must/filter, and 0 otherwise — must_not does NOT count
-            // towards that (a bool of must_not + should still requires one should clause to match). Crucially, an
-            // EXPLICIT minimum_should_match of 0 does NOT make a should-only bool match everything: Lucene still needs
-            // one optional clause when there is no required (must/filter) clause, so msm=0 only drops the should group
-            // when a must/filter is present. (msm=1 always requires one; msm=0 and the unset default coincide.)
-            boolean hasMustOrFilter = bool.must().isEmpty() == false || bool.filter().isEmpty() == false;
-            boolean shouldIsRequired = (requiredShould != null && requiredShould == 1) || hasMustOrFilter == false;
-            if (shouldIsRequired) {
-                conjuncts.add(or);
-            }
-        }
-
-        if (conjuncts.isEmpty()) {
-            return Literal.TRUE;
-        }
-        Expression and = conjuncts.get(0);
-        for (int i = 1; i < conjuncts.size(); i++) {
-            and = new And(Source.EMPTY, and, conjuncts.get(i));
-        }
-        return and;
+        return requiredShould;
     }
 
     private Expression range(RangeQueryBuilder range) {

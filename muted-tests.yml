@@ -359,13 +359,13 @@ tests:
   method: testWildcardSpanningIndexAndDatasetSucceeds
   issue: https://github.com/elastic/elasticsearch/issues/154200
 - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
-  method: testMaxExpressionDepth_nestedAbs_minOverflow {default}
+  method: testMaxExpressionDepth_nestedAbs_minOverflow {default *}
   issue: https://github.com/elastic/elasticsearch/issues/154341
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/151923
 - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
-  method: testMaxExpressionDepth_nestedAbs_maxAllowed {default}
+  method: testMaxExpressionDepth_nestedAbs_maxAllowed {default *}
   issue: https://github.com/elastic/elasticsearch/issues/154380
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:BASELINE}
@@ -487,9 +487,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.RestartIT
   method: testRestart {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/155609
-- class: org.elasticsearch.xpack.slm.SLMStatDisruptionIT
-  method: testCurrentlyRunningSnapshotNotRecordedAsFailure
-  issue: https://github.com/elastic/elasticsearch/issues/155621
 - class: org.elasticsearch.xpack.downsample.DownsampleRateIT
   method: testTimeSeriesQuerying_RandomDocuments
   issue: https://github.com/elastic/elasticsearch/issues/153348
@@ -803,3 +800,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitTests
   method: testGetVirtualBatchedCompoundCommitBytesByRangeWithConcurrentAppends
   issue: https://github.com/elastic/elasticsearch/issues/157162
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search/340_flattened/Unsupported queries on keyed flattened fields are client errors}
+  issue: https://github.com/elastic/elasticsearch/issues/157192

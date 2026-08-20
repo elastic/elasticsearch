@@ -305,6 +305,10 @@ public final class DatafeedManager {
 
             final String datafeedId = request.getUpdate().getId();
             final DatafeedUpdate update = request.getUpdate();
+            if (Boolean.TRUE.equals(update.getForceRekeying()) && (crossProjectMlEnabled() == false || hasCpsCredential == false)) {
+                listener.onFailure(DatafeedConfig.forceRekeyingRequiresCpsAndCloudAuthException());
+                return;
+            }
             datafeedConfigProvider.getDatafeedConfig(datafeedId, null, listener.delegateFailureAndWrap((l, configBuilder) -> {
                 try {
                     final DatafeedConfig current = configBuilder.build();
@@ -312,7 +316,8 @@ public final class DatafeedManager {
                         crossProjectMlEnabled(),
                         hasCpsCredential,
                         current.getCloudInternalCredential() != null,
-                        update.affectsCrossProjectSearchSurface(current)
+                        update.affectsCrossProjectSearchSurface(current),
+                        Boolean.TRUE.equals(update.getForceRekeying())
                     );
                     CredentialTransitions.Intent intent = CredentialTransitions.decideForUpdate(ctx);
                     UpdateDatafeedAction.Request effectiveRequest = maybeDefaultProjectRoutingForMigration(request, current, intent);
@@ -540,6 +545,7 @@ public final class DatafeedManager {
             CredentialTransitions.TransitionContext ctx = new CredentialTransitions.TransitionContext(
                 crossProjectMlEnabled(),
                 hasCpsCredential,
+                false,
                 false,
                 false
             );

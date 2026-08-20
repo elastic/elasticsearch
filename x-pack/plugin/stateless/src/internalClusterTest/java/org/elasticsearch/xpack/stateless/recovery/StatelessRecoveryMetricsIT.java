@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils;
 import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessSearchNodeRecoveryMetricsCollector;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -442,7 +443,7 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
         {
             var metric = getSingleRecordedMetric(
                 plugin::getLongCounterMeasurement,
-                StatelessRecoveryMetricsCollector.RECOVERY_BYTES_WARMED_FROM_INDEXING_METRIC
+                StatelessSearchNodeRecoveryMetricsCollector.RECOVERY_BYTES_WARMED_FROM_INDEXING_METRIC
             );
             warmedBytes = metric.getLong() > 0;
             assertRecoveryMetricAttributes(metric, false);
@@ -450,7 +451,7 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
         {
             var metric = getSingleRecordedMetric(
                 plugin::getLongCounterMeasurement,
-                StatelessRecoveryMetricsCollector.RECOVERY_BYTES_READ_FROM_INDEXING_METRIC
+                StatelessSearchNodeRecoveryMetricsCollector.RECOVERY_BYTES_READ_FROM_INDEXING_METRIC
             );
             readBytes = metric.getLong() > 0;
             assertRecoveryMetricAttributes(metric, false);

@@ -363,6 +363,120 @@ public class LibraryProcessorTests extends ProcessorTestCase {
     }
 
     /**
+     * {@code @CaptureSystemError} names a single error channel, but {@code errno} and {@code GetLastError}
+     * are distinct: a library reachable on both a POSIX platform and Windows cannot resolve which one
+     * to capture, so this must be a compile error. Here the library leaves any POSIX platform (Darwin
+     * aarch64) available alongside Windows.
+     */
+    public void testSystemErrorOnCrossPlatformLibraryEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Platform;
+            import org.elasticsearch.foreign.CaptureSystemError;
+            @LibrarySpecification(
+                name = "testlib",
+                unavailableOn = { Platform.LINUX_X64, Platform.LINUX_AARCH64, Platform.DARWIN_X64 }
+            )
+            public interface BadLib {
+                @CaptureSystemError
+                @Function("native_fn")
+                int fn(int x);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail when @CaptureSystemError spans both platform families", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("@CaptureSystemError") && msg.contains("both"));
+        assertTrue("Expected error about unresolvable @CaptureSystemError mechanism but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * A {@code @StructFactory} method must not be annotated with {@code @CaptureSystemError} —
+     * struct factories don't perform native calls that could set a system-error value.
+     */
+    public void testSystemErrorOnStructFactoryEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructFactory;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.CaptureSystemError;
+            @LibrarySpecification
+            public interface BadLib {
+                @StructSpecification
+                interface Point {
+                    int x();
+                }
+
+                @CaptureSystemError
+                @StructFactory
+                Point newPoint();
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail when @StructFactory has @CaptureSystemError", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("must not have @CaptureSystemError"));
+        assertTrue("Expected error about @StructFactory with @CaptureSystemError but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * {@code @CaptureSystemError} on a Windows-only library (every POSIX platform listed in
+     * {@code unavailableOn}) resolves to the {@code GetLastError} channel and must compile clean.
+     */
+    public void testSystemErrorOnWindowsOnlyLibraryCompilesClean() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Platform;
+            import org.elasticsearch.foreign.CaptureSystemError;
+            @LibrarySpecification(
+                name = "testlib",
+                unavailableOn = {
+                    Platform.LINUX_X64,
+                    Platform.LINUX_AARCH64,
+                    Platform.DARWIN_X64,
+                    Platform.DARWIN_AARCH64
+                }
+            )
+            public interface GoodLib {
+                @CaptureSystemError
+                @Function("native_fn")
+                int fn(int x);
+            }
+            """;
+
+        CompilationResult result = compile("test.GoodLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+    }
+
+    /**
+     * {@code @CaptureSystemError} on a POSIX-only library ({@code WINDOWS_X64} listed in
+     * {@code unavailableOn}) resolves to the {@code errno} channel and must compile clean.
+     */
+    public void testSystemErrorOnPosixLibraryCompilesClean() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Platform;
+            import org.elasticsearch.foreign.CaptureSystemError;
+            @LibrarySpecification(name = "testlib", unavailableOn = { Platform.WINDOWS_X64 })
+            public interface GoodLib {
+                @CaptureSystemError
+                @Function("native_fn")
+                int fn(int x);
+            }
+            """;
+
+        CompilationResult result = compile("test.GoodLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+    }
+
+    /**
      * A {@code @StructSpecification} interface that does NOT declare {@code extends Addressable}
      * must compile cleanly — the processor no longer requires it.
      */
@@ -495,6 +609,207 @@ public class LibraryProcessorTests extends ProcessorTestCase {
         CompilationResult result = compile("test.InlineStringLib", source);
         assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
         assertTrue("Expected no processor errors", result.errors().isEmpty());
+    }
+
+    /**
+     * {@code @WideString} applied to a non-{@code String} parameter must emit an error — the
+     * annotation only makes sense for {@code String} params, which the framework encodes/decodes.
+     */
+    public void testWideStringOnNonStringParamEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.WideString;
+            @LibrarySpecification
+            public interface BadLib {
+                @Function("native_fn")
+                int fn(@WideString int x);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail with @WideString on non-String parameter", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("@WideString may only be applied to String parameters"));
+        assertTrue("Expected error about @WideString on non-String parameter but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * {@code @WideString} on a library whose {@code unavailableOn} lists {@code WINDOWS_X64} must
+     * emit an error — a wide-string parameter implies the method must be usable on Windows. A control
+     * case with no {@code unavailableOn} restriction must compile clean.
+     */
+    public void testWideStringRequiresWindowsAvailability() {
+        String badSource = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.Platform;
+            import org.elasticsearch.foreign.WideString;
+            @LibrarySpecification(unavailableOn = { Platform.WINDOWS_X64 })
+            public interface BadLib {
+                @Function("native_fn")
+                int fn(@WideString String name);
+            }
+            """;
+
+        CompilationResult badResult = compile("test.BadLib", badSource);
+        assertFalse("Expected compilation to fail with @WideString unavailable on Windows", badResult.success());
+        boolean hasError = badResult.errors().stream().anyMatch(msg -> msg.contains("lists WINDOWS_X64 in unavailableOn"));
+        assertTrue("Expected error about WINDOWS_X64 in unavailableOn but got: " + badResult.errors(), hasError);
+
+        String goodSource = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.WideString;
+            @LibrarySpecification
+            public interface GoodLib {
+                @Function("native_fn")
+                int fn(@WideString String name);
+            }
+            """;
+
+        CompilationResult goodResult = compile("test.GoodLib", goodSource);
+        assertTrue(
+            "Expected compilation to succeed for @WideString without unavailableOn restriction but got errors: " + goodResult.errors(),
+            goodResult.success()
+        );
+    }
+
+    /**
+     * A {@code @StructFactory} method must not carry {@code @WideString} on any parameter.
+     */
+    public void testWideStringOnStructFactoryEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructFactory;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.WideString;
+            @LibrarySpecification
+            public interface BadLib {
+                @StructSpecification
+                interface Point {
+                    int x();
+                }
+
+                @StructFactory
+                Point newPoint(@WideString String name);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail with @WideString on @StructFactory parameter", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("must not have @WideString on any parameter"));
+        assertTrue("Expected error about @WideString on @StructFactory but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * A {@code @StructSpecification} interface with a {@code @InlineStringField(wide = true)} getter
+     * and setter (even length) must compile cleanly.
+     */
+    public void testWideInlineStringFieldCompilesClean() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineStringField;
+            @LibrarySpecification
+            public interface InlineStringLib {
+                @StructSpecification
+                interface WinStruct {
+                    @InlineStringField(length = 16, wide = true)
+                    String name();
+                    @InlineStringField(length = 16, wide = true)
+                    void name(String value);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.InlineStringLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        assertTrue("Expected no processor errors", result.errors().isEmpty());
+    }
+
+    /**
+     * {@code @InlineStringField(wide = true)} with an odd {@code length} must emit an error, since
+     * each UTF-16LE code unit is 2 bytes and the field must also hold a 2-byte NUL terminator.
+     */
+    public void testWideInlineStringFieldRequiresEvenLength() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineStringField;
+            @LibrarySpecification
+            public interface BadLib {
+                @StructSpecification
+                interface BadStruct {
+                    @InlineStringField(length = 15, wide = true)
+                    String name();
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail with odd length wide field", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("requires an even length"));
+        assertTrue("Expected error about even length but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * {@code @InlineStringField(wide = true)} on a library whose {@code unavailableOn} lists
+     * {@code WINDOWS_X64} must emit an error — a wide field implies the struct must be usable on Windows.
+     */
+    public void testWideInlineStringFieldRequiresWindowsAvailability() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineStringField;
+            import org.elasticsearch.foreign.Platform;
+            @LibrarySpecification(unavailableOn = { Platform.WINDOWS_X64 })
+            public interface BadLib {
+                @StructSpecification
+                interface BadStruct {
+                    @InlineStringField(length = 16, wide = true)
+                    String name();
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail with wide field unavailable on Windows", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("lists WINDOWS_X64 in unavailableOn"));
+        assertTrue("Expected error about WINDOWS_X64 in unavailableOn but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * A {@code @InlineStringField} getter and setter that disagree on {@code wide} must emit an error.
+     */
+    public void testWideInlineStringFieldGetterSetterMismatchEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.InlineStringField;
+            @LibrarySpecification
+            public interface BadLib {
+                @StructSpecification
+                interface BadStruct {
+                    @InlineStringField(length = 16)
+                    String name();
+                    @InlineStringField(length = 16, wide = true)
+                    void name(String value);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail when getter and setter disagree on wide", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("disagree on wide="));
+        assertTrue("Expected error about disagreeing wide= but got: " + result.errors(), hasError);
     }
 
     /**
@@ -681,5 +996,242 @@ public class LibraryProcessorTests extends ProcessorTestCase {
         assertFalse("Expected compilation to fail when @InlineArrayField getter/setter are not adjacent", result.success());
         boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("adjacent"));
         assertTrue("Expected error about non-adjacent @InlineArrayField but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * {@code @Upcall} is only valid on a single-abstract-method interface. Two abstract methods
+     * means the type can't be reduced to a single upcall stub.
+     */
+    public void testUpcallOnNonFunctionalInterfaceEmitsError() {
+        String source = """
+            package test;
+            import java.lang.foreign.Arena;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.Upcall;
+            @Upcall
+            interface NotFunctional {
+                int a();
+                int b();
+            }
+            @LibrarySpecification(name = "testlib")
+            public interface BadLib {
+                @Function("native_fn")
+                void fn(NotFunctional cb);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail when @Upcall is on a non-functional interface", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("must be annotated with @FunctionalInterface"));
+        assertTrue("Expected error about missing @FunctionalInterface but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * A SAM parameter or return type outside the supported scalar/{@code MemorySegment} set (e.g.
+     * {@code String}) is a compile error — nested marshaling inside a callback isn't supported.
+     */
+    public void testUpcallSamWithUnsupportedTypeEmitsError() {
+        String source = """
+            package test;
+            import java.lang.foreign.Arena;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.Upcall;
+            @Upcall
+            @FunctionalInterface
+            interface StringCallback {
+                void call(String s);
+            }
+            @LibrarySpecification(name = "testlib")
+            public interface BadLib {
+                @Function("native_fn")
+                void fn(StringCallback cb);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail when the SAM has an unsupported parameter type", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("unsupported type"));
+        assertTrue("Expected error about unsupported SAM type but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * A callback parameter requires {@code @Function}; a {@code @StructFactory} method never performs
+     * a native call, so an {@code @Upcall}-typed parameter there is a compile error.
+     */
+    public void testUpcallParamOnStructFactoryEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructFactory;
+            import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.Upcall;
+            @Upcall
+            @FunctionalInterface
+            interface IntCallback {
+                int call(int x);
+            }
+            @LibrarySpecification(name = "testlib")
+            public interface BadLib {
+                @StructSpecification
+                interface Point {
+                    int x();
+                }
+
+                @StructFactory
+                Point newPoint(IntCallback cb);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail when @StructFactory has an @Upcall-typed parameter", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("must not have an @Upcall-typed parameter"));
+        assertTrue("Expected error about @Upcall on @StructFactory but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * {@code Arena} is a framework-consumed marker, not a real native return value; returning it
+     * from a {@code @Function} method must be rejected the same way any other unsupported return
+     * type is, rather than silently classifying it and crashing later in code generation.
+     */
+    public void testFunctionMethodCannotReturnArena() {
+        String source = """
+            package test;
+            import java.lang.foreign.Arena;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            @LibrarySpecification(name = "testlib")
+            public interface BadLib {
+                @Function("native_fn")
+                Arena fn(int x);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail when a @Function method returns Arena", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("Unsupported return type"));
+        assertTrue("Expected error about unsupported return type but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * An {@code @Upcall}-typed return value has no meaning for a native downcall (there is nothing
+     * to install a stub for on the way out); it must be rejected the same way any other unsupported
+     * return type is.
+     */
+    public void testFunctionMethodCannotReturnUpcallType() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.Upcall;
+            @Upcall
+            @FunctionalInterface
+            interface IntCallback {
+                int call(int x);
+            }
+            @LibrarySpecification(name = "testlib")
+            public interface BadLib {
+                @Function("native_fn")
+                IntCallback fn(int x);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail when a @Function method returns an @Upcall type", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("Unsupported return type"));
+        assertTrue("Expected error about unsupported return type but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * An {@code @Upcall} interface that inherits an abstract method from a non-{@code @Upcall}
+     * superinterface is not a {@code @FunctionalInterface} and must be rejected; the requirement
+     * for {@code @FunctionalInterface} is the gate that prevents such types from slipping through.
+     */
+    public void testUpcallWithInheritedAbstractMethodEmitsError() {
+        String source = """
+            package test;
+            import java.lang.foreign.Arena;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.Upcall;
+            interface OtherBase {
+                int other(int x);
+            }
+            @Upcall
+            interface Sub extends OtherBase {
+                int call(int x);
+            }
+            @LibrarySpecification(name = "testlib")
+            public interface BadLib {
+                @Function("native_fn")
+                void fn(Sub cb);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail when the @Upcall type has an inherited second abstract method", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("must be annotated with @FunctionalInterface"));
+        assertTrue("Expected error about missing @FunctionalInterface but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * Composing the {@code @WideString} marshaling path with the upcall stub path is non-trivial and
+     * no current or planned binding needs both, so a method combining a {@code String} parameter with
+     * an {@code @Upcall}-typed parameter is rejected with a compile error instead of supported.
+     */
+    public void testUpcallWithStringParamEmitsError() {
+        String source = """
+            package test;
+            import java.lang.foreign.Arena;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.Upcall;
+            @Upcall
+            @FunctionalInterface
+            interface IntCallback {
+                int call(int x);
+            }
+            @LibrarySpecification(name = "testlib")
+            public interface BadLib {
+                @Function("native_fn")
+                void fn(IntCallback cb, String s);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+        assertFalse("Expected compilation to fail when an @Upcall parameter is combined with a String parameter", result.success());
+        boolean hasError = result.errors()
+            .stream()
+            .anyMatch(msg -> msg.contains("combines an @Upcall-typed parameter with a String parameter"));
+        assertTrue("Expected error about combining @Upcall with String but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * The positive control: a {@code @Function} method with an {@code @Upcall}-typed callback
+     * parameter and ordinary scalar parameters must compile without any errors or warnings.
+     */
+    public void testUpcallWithScalarParamsCompilesClean() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.Upcall;
+            @Upcall
+            @FunctionalInterface
+            interface IntComparator {
+                int compare(int a, int b);
+            }
+            @LibrarySpecification(name = "testlib")
+            public interface GoodLib {
+                @Function("native_fn")
+                void fn(IntComparator cmp, int count);
+            }
+            """;
+
+        CompilationResult result = compile("test.GoodLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        assertTrue("Expected no processor errors", result.errors().isEmpty());
+        assertTrue("Expected no processor warnings", result.warnings().isEmpty());
     }
 }

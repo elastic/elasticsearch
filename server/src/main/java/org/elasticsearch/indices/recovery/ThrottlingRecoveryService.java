@@ -356,15 +356,25 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         return lifecycle.stoppedOrClosed();
     }
 
+    private boolean isBlocked() {
+        return blockedState.get() != null;
+    }
+
     /// Evaluates the recovery gates and drains the pending queue up to the max slot capacity, forking to the generic executor so
     /// dispatch is not run on the cluster state applier thread. Called on every enqueue, slot release and recovery gate callback.
     private void fillSlots() {
+        if (isBlocked()) {
+            return;
+        }
         // generic thread pool is unbounded and does not reject
         executor.execute(this::doFillSlots);
     }
 
     private void doFillSlots() {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+        if (isBlocked()) {
+            return;
+        }
         final RecoveryGate.Decision decision = recoveryGateMonitor.evaluate();
         if (decision.mayRun() == false) {
             onRecoveriesBlocked(decision);

@@ -59,6 +59,7 @@
 "Red when all replicas are unassigned on a stateless cluster":
   - requires:
       cluster_features: "gte_v8.7.0"
+      test_runner_features: contains
       reason: "the API path changed in 8.7"
 
   - do:

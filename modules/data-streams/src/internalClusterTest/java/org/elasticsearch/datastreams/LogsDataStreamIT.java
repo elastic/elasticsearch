@@ -62,7 +62,7 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
 
     @Before
     public void setLogsMode() {
-        logsMode = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean() ? IndexMode.LOGSDB_COLUMNAR : IndexMode.LOGSDB;
+        logsMode = randomBoolean() ? IndexMode.LOGSDB_COLUMNAR : IndexMode.LOGSDB;
     }
 
     private static final String LOGS_OR_STANDARD_MAPPING = """

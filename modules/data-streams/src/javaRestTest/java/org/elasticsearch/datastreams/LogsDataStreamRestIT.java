@@ -52,7 +52,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
     private static final ExternalResource randomizeColumnarRule = new ExternalResource() {
         @Override
         protected void before() {
-            columnarEnabled = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+            columnarEnabled = randomBoolean();
         }
     };
 

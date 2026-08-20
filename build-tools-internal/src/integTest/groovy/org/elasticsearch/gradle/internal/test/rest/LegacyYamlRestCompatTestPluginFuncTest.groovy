@@ -77,7 +77,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
             import org.elasticsearch.gradle.testclusters.TestDistribution;
 
             dependencies {
-               yamlRestTestImplementation "junit:junit:4.12"
+               yamlRestTestImplementation "junit:junit:4.13"
             }
 
             // can't actually spin up test cluster from this test
@@ -198,7 +198,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
             import org.elasticsearch.gradle.testclusters.TestDistribution;
 
             dependencies {
-               yamlRestTestImplementation "junit:junit:4.12"
+               yamlRestTestImplementation "junit:junit:4.13"
             }
             tasks.named("yamlRestCompatTestTransform").configure({ task ->
               task.skipTest("test/test/two", "This is a test to skip test two")

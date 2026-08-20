@@ -2076,6 +2076,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .stats(fileSplit.offset(), statsStripeSize, splitIsFileFinal)
                         .statsColumnScope(statsColumnScope)
                         .informationalWarningSink(bufferedInformationalWarningSink(state.buffer))
+                        .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
                         .build();
                     pages = fileReader.read(obj, ctx);
                 }
@@ -2261,6 +2262,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .maxRecordBytes(maxRecordBytes)
                     .statsColumnScope(statsColumnScope)
                     .informationalWarningSink(bufferedInformationalWarningSink(state.buffer))
+                    .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
                     .build();
                 pages = fileReader.read(obj, ctx);
             }
@@ -2397,6 +2399,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .maxRecordBytes(maxRecordBytes)
                         .statsColumnScope(statsColumnScope)
                         .informationalWarningSink(bufferedInformationalWarningSink(buffer))
+                        .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
                         .build();
                     opened = reader.read(storageObject, ctx);
                 }
@@ -2800,6 +2803,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 CompressionDelegatingFormatReader cdr = (CompressionDelegatingFormatReader) reader;
                 SegmentableFormatReader seg = resolveSegmentableReader(reader);
                 DecompressionCodec codec = cdr.codec();
+                // Shared by both the codec's native-footprint accounting and the coordinator's chunk
+                // buffers, so the whole streaming pipeline reports against a single breaker.
+                var streamingBreaker = producerBlockFactory != null
+                    ? producerBlockFactory.breaker()
+                    : new NoopCircuitBreaker("streaming-parse");
                 // Route through the production decorator so every failure path releases both the codec's
                 // native handle (e.g. the PanamaZstdInputStream Arena) and the raw connection without
                 // draining it. DecompressingStorageObject.newStream() wraps raw in UncloseableInputStream
@@ -2808,7 +2816,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // first (releasing the Arena) then aborts raw through the provider's abort path (S3
                 // ResponseInputStream.abort()), keeping both codecs with and without JDK Cleaner support
                 // on equal footing and matching the abort-chain contract tested in StorageObjectAbortChainTests.
-                DecompressingStorageObject decompressing = new DecompressingStorageObject(obj, codec);
+                DecompressingStorageObject decompressing = new DecompressingStorageObject(obj, codec, streamingBreaker);
                 InputStream stream = decompressing.newStream();
                 try {
                     return StreamingParallelParsingCoordinator.parallelRead(
@@ -2828,7 +2836,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         statsColumnScope,
                         new StreamingParallelParsingCoordinator.WarningSinks(partialResultsWarningSink, warningSink),
                         streamingSegmentatorAdmission,
-                        producerBlockFactory != null ? producerBlockFactory.breaker() : new NoopCircuitBreaker("streaming-parse")
+                        streamingBreaker
                     );
                 } catch (Exception e) {
                     try {

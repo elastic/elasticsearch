@@ -15,7 +15,7 @@ import java.util.Optional;
 
 /**
  * A Gradle-free snapshot of one project in the build, captured from that project's <em>own</em> configured
- * model (see {@link FlakinessProjectResolve}). It is the authoritative unit the pure {@link RefResolver}
+ * model (see {@link FlakinessProjectResolvePlugin}). It is the authoritative unit the pure {@link RefResolver}
  * operates on.
  *
  * <p>Keeping this a plain record (no Gradle types) is deliberate: it is what lets the resolution logic be
@@ -25,7 +25,7 @@ import java.util.Optional;
  *
  * <p>It deliberately carries no {@code Test}-task facts: those cannot be snapshotted at plain configuration
  * time (see {@link TestTaskInfo}), and realizing them is expensive enough that a project only pays for it
- * once it has claimed a ref (see {@link FlakinessProjectResolve#ownsAnyRef}).
+ * once it has claimed a ref (see {@link FlakinessProjectResolvePlugin#ownsAnyRef}).
  *
  * @param projectPath  Gradle project path, e.g. {@code :x-pack:plugin:esql}
  * @param projectDir   absolute project directory (used for authoritative path-&gt;project resolution)

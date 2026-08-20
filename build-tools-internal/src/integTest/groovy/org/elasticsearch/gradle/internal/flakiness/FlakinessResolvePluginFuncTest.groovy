@@ -41,11 +41,11 @@ import groovy.json.JsonSlurper
  *   <li>{@code :untouched} - owns none of the refs.</li>
  * </ul>
  *
- * <p>Each subproject registers the task via the exact snippet
- * {@link org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin} uses
- * ({@link FlakinessProjectResolve#register}). Applying the full {@code ElasticsearchTestBasePlugin} in the
- * lightweight TestKit harness is impractical (it drags in entitlements, test-rerun, etc.); the real plugin's
- * apply path is instead verified by a full-build run (see JAVA_RESOLVER_NOTES.md Verification).
+ * <p>Each subproject applies {@link FlakinessProjectResolvePlugin} directly - the same plugin
+ * {@link org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin} applies to every test project, so the
+ * registration path under test is the real one. Applying the full {@code ElasticsearchTestBasePlugin} in the
+ * lightweight TestKit harness is impractical (it drags in entitlements, test-rerun, etc.); that outer wiring is
+ * instead verified by a full-build run (see JAVA_RESOLVER_NOTES.md Verification).
  *
  * <p>The three invocations mirror the three Gradle phases of the Buildkite orchestration step: the
  * unqualified resolve, a plain compile of the task paths the projects emitted, then scan.
@@ -58,11 +58,12 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
     }
 
     def setup() {
-        // A subproject build script that applies the java plugin and registers its own resolve task exactly
-        // as ElasticsearchTestBasePlugin does under -Pflakiness.resolve.
+        // A subproject build script that applies the java plugin plus the per-project flakiness plugin, exactly
+        // as ElasticsearchTestBasePlugin does. The plugin self-gates on -Pflakiness.resolve, so the invocations
+        // below that omit the property (the plain compile) simply never see the task.
         def register = """
             plugins { id 'java' }
-            org.elasticsearch.gradle.internal.flakiness.FlakinessProjectResolve.register(project, 'flakiness-refs.json', 2)
+            pluginManager.apply(org.elasticsearch.gradle.internal.flakiness.FlakinessProjectResolvePlugin)
         """
 
         subProject(":app") << register
@@ -236,16 +237,16 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
     }
 
     private Object projectTargets(String project) {
-        new JsonSlurper().parse(file("${FlakinessProjectResolve.TARGETS_DIR}/${project}.json"))
+        new JsonSlurper().parse(file("${FlakinessProjectResolvePlugin.TARGETS_DIR}/${project}.json"))
     }
 
     private List<String> compileTasksOf(String project) {
-        file("${FlakinessProjectResolve.TARGETS_DIR}/${project}.compile-tasks.txt").text.readLines().findAll { it.trim() }
+        file("${FlakinessProjectResolvePlugin.TARGETS_DIR}/${project}.compile-tasks.txt").text.readLines().findAll { it.trim() }
     }
 
     /** What the orchestration shell does: concatenate every project's compile task list. */
     private List<String> allCompileTasks() {
-        file(FlakinessProjectResolve.TARGETS_DIR).listFiles()
+        file(FlakinessProjectResolvePlugin.TARGETS_DIR).listFiles()
             .findAll { it.name.endsWith(".compile-tasks.txt") }
             .collectMany { it.text.readLines() }
             .findAll { it.trim() }

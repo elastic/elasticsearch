@@ -25,7 +25,7 @@ import java.util.Set;
  * resolver consumes. They read only the project passed in - never a sibling, parent, or root - so they
  * introduce no cross-project access.
  *
- * <p>They are called from {@link FlakinessProjectResolve}'s model provider, i.e. at configuration-cache store
+ * <p>They are called from {@link FlakinessProjectResolvePlugin}'s model provider, i.e. at configuration-cache store
  * time, which is what makes the {@code Test}-task facts post-mutation correct (see
  * {@link #testTaskSnapshot}).
  */
@@ -43,7 +43,7 @@ public final class FlakinessProjectModel {
 
     /**
      * Snapshot this project's {@code Test} tasks. <b>Invoked at configuration-cache store time only</b> (from
-     * {@link FlakinessProjectResolve#snapshot}); that is the whole point:
+     * {@link FlakinessProjectResolvePlugin#snapshot}); that is the whole point:
      * <ul>
      *   <li>iterating {@code tasks.withType(Test)} <em>realizes</em> the tasks, which runs every pending
      *       {@code configureEach}/{@code named} configuration action on them - including
@@ -55,7 +55,7 @@ public final class FlakinessProjectModel {
      * </ul>
      * Realizing tasks is the cost we pay for that correctness; it is gated behind {@code -Pflakiness.resolve}
      * and bounded to the projects that actually own a resolved ref, because
-     * {@link FlakinessProjectResolve#ownsAnyRef} runs first and short-circuits everything else
+     * {@link FlakinessProjectResolvePlugin#ownsAnyRef} runs first and short-circuits everything else
      * (JAVA_RESOLVER_NOTES.md P7).
      *
      * <p>Sorted by task name so the model - and therefore the emitted plan - is reproducible.

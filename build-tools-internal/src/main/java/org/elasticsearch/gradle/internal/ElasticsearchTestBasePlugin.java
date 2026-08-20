@@ -13,9 +13,7 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
 
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
-import org.elasticsearch.gradle.internal.flakiness.FlakinessProjectResolve;
-import org.elasticsearch.gradle.internal.flakiness.FlakinessResolvePlugin;
-import org.elasticsearch.gradle.internal.flakiness.TestTaskSelector;
+import org.elasticsearch.gradle.internal.flakiness.FlakinessProjectResolvePlugin;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
 import org.elasticsearch.gradle.internal.test.SimpleCommandLineArgumentProvider;
@@ -68,6 +66,9 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
         project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
         var buildParams = loadBuildParams(project);
         project.getPluginManager().apply(InternalTestRerunPlugin.class);
+        // Registers this project's own flakinessResolveProject task, but only under -Pflakiness.resolve; the
+        // plugin is inert otherwise. See FlakinessProjectResolvePlugin for why the model is captured lazily.
+        project.getPluginManager().apply(FlakinessProjectResolvePlugin.class);
         project.getPluginManager().apply(GradleTestPolicySetupPlugin.class);
         // for fips mode check
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
@@ -257,38 +258,6 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
         });
         configureJavaBaseModuleOptions(project);
         configureEntitlements(project);
-        registerFlakinessResolve(project);
-    }
-
-    /**
-     * Register this project's own {@code flakinessResolveProject} task, but only when the flakiness resolve
-     * step enabled it via {@code -Pflakiness.resolve} (so a normal build pays nothing).
-     *
-     * <p>The task is invoked unqualified, so it runs in every project registering it and each project decides
-     * for itself whether it owns any ref - cheaply, without realizing its {@code Test} tasks unless it does
-     * (see {@link FlakinessProjectResolve}). It reads only this project's own model, so it is
-     * isolated-projects-clean, and it carries that model through a task input, so it is
-     * configuration-cache-compatible.
-     */
-    private static void registerFlakinessResolve(Project project) {
-        if (project.hasProperty(FlakinessResolvePlugin.ENABLE_PROPERTY) == false) {
-            return;
-        }
-        FlakinessProjectResolve.register(
-            project,
-            stringProperty(project, FlakinessResolvePlugin.REFS_PROPERTY, FlakinessResolvePlugin.DEFAULT_REFS),
-            intProperty(project, FlakinessResolvePlugin.TASK_CAP_PROPERTY, TestTaskSelector.DEFAULT_TASK_CAP)
-        );
-    }
-
-    private static String stringProperty(Project project, String name, String defaultValue) {
-        Object v = project.findProperty(name);
-        return v == null ? defaultValue : v.toString();
-    }
-
-    private static int intProperty(Project project, String name, int defaultValue) {
-        Object v = project.findProperty(name);
-        return v == null ? defaultValue : Integer.parseInt(v.toString());
     }
 
     /**

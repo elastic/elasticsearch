@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
 /**
  * The <b>per-project</b> resolve task: it resolves {@code flakiness-refs.json} against <em>only its own
  * project's</em> model and writes that project's share of the answer. It is registered in every project with
- * test sources and invoked unqualified, so each project self-selects (see {@link FlakinessProjectResolve}).
+ * test sources and invoked unqualified, so each project self-selects (see {@link FlakinessProjectResolvePlugin}).
  *
  * <h2>How the model reaches the action</h2>
  * The project's whole model arrives as a single {@code @Input} string ({@link #getProjectModelJson()}), which
@@ -45,7 +45,7 @@ import java.util.stream.Collectors;
  * empty result; that is the cheap path the unqualified, run-everywhere invocation depends on.
  *
  * <h2>Outputs</h2>
- * Two files under the shared {@link FlakinessProjectResolve#TARGETS_DIR}, named after this project:
+ * Two files under the shared {@link FlakinessProjectResolvePlugin#TARGETS_DIR}, named after this project:
  * <ul>
  *   <li>{@code <project>.json} - a {@link FlakinessJson.ProjectTargetsFile}, carrying each resolved target
  *       together with the <em>index</em> of the ref that produced it. The index is what lets
@@ -140,6 +140,9 @@ public abstract class FlakinessResolveProjectTask extends DefaultTask {
             for (int i = 0; i < refs.size(); i++) {
                 // One ref at a time so each target can be attributed to its ref; the per-ref "unresolved"
                 // verdict is intentionally ignored here (see class javadoc) and recomputed globally by scan.
+                // TODO jozala - how does it filter the tests are in the right task (is it mapped with the directories?) - check the CSV
+                // tests (do they break the assumption?)
+                // TODO jozala - maybe I can check the Gradle test task if it can resolve the test classes that are used by that test???
                 for (BaseTarget target : resolver.resolve(List.of(refs.get(i))).targets()) {
                     resolved.add(new FlakinessJson.RefTarget(i, target));
                 }

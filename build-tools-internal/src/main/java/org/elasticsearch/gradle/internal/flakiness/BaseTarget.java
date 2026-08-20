@@ -16,7 +16,7 @@ import java.util.List;
 /**
  * A resolved base target: the project/sourceSet/kind a {@link FlakinessRef} was resolved to, before
  * bytecode enrichment. It is fully authoritative - every field is derived from the owning project's real
- * configured model (captured by {@link FlakinessProjectResolve}), including the exact {@code compileTaskPath} the
+ * configured model (captured by {@link FlakinessProjectResolvePlugin}), including the exact {@code compileTaskPath} the
  * compile step must run, the {@code outputDir} the scan step must scan, and the {@code runnableTasks} that
  * actually re-run this target.
  *

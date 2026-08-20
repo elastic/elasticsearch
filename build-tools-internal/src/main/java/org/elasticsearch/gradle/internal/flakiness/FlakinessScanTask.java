@@ -52,7 +52,7 @@ public abstract class FlakinessScanTask extends DefaultTask {
 
     /**
      * The per-project {@code <project>.json} files written by {@code flakinessResolveProject}, collected from
-     * {@link FlakinessProjectResolve#TARGETS_DIR}. A project that owns no ref writes an empty one, so an
+     * {@link FlakinessProjectResolvePlugin#TARGETS_DIR}. A project that owns no ref writes an empty one, so an
      * absent file simply means that project's resolve task never ran.
      */
     @InputFiles
@@ -115,6 +115,9 @@ public abstract class FlakinessScanTask extends DefaultTask {
         FlakinessJson.BaseTargetsFile merged = FlakinessTargets.merge(refs, perProject);
         List<BaseTarget> targets = merged.targets();
 
+        // TODO jozala - what to do if abstract class and concrete class are in different projects?
+        // TODO jozala - Maybe compile everything? Another approach can be to find all projects that depend on the project that has abstract
+        // class.
         ClassHierarchyScanner scanner = ClassHierarchyScanner.scan(scanDirs(targets));
         FlakinessPlan plan = PlanBuilder.build(targets, merged.unresolved(), scanner, getSubclassCap().get(), getTaskCap().get());
 

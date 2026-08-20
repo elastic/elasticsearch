@@ -37,7 +37,7 @@ import java.util.regex.Pattern;
  * {@code Test} tasks that really run the target's source-set output (so a project that disables the bare
  * conventional task - bwc, packaging - resolves to its real tasks or to a precise skip reason, instead of
  * silently emitting a task Gradle reports {@code SKIPPED}). The {@code Test}-task facts are supplied by a
- * per-project lookup. {@link FlakinessProjectResolve} deliberately passes an <em>empty</em> lookup when it
+ * per-project lookup. {@link FlakinessProjectResolvePlugin} deliberately passes an <em>empty</em> lookup when it
  * only needs to know whether this project owns a ref, so the ownership probe realizes no {@code Test} task.
  *
  * <p>Two resolution paths:

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.flakiness;
 
+import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.Directory;
 import org.gradle.api.plugins.JavaPluginExtension;
@@ -20,8 +21,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Registers the per-project resolve task ({@code flakinessResolveProject}) on every project that has test
- * sources. The task is invoked <b>unqualified</b> ({@code ./gradlew -Pflakiness.resolve flakinessResolveProject}),
+ * The per-project half of flakiness resolution: registers {@code flakinessResolveProject} on the project it is
+ * applied to. Applied to every test project by
+ * {@link org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin}; the root-project half - just
+ * {@code flakinessScan} - is {@link FlakinessResolvePlugin}.
+ *
+ * <p>Like {@link FlakinessResolvePlugin}, it is gated on {@code -Pflakiness.resolve}
+ * ({@link FlakinessProperties#enabled}) and returns immediately from {@link #apply} without it, so a normal
+ * build pays nothing beyond instantiating the plugin.
+ *
+ * <p>The task is invoked <b>unqualified</b> ({@code ./gradlew -Pflakiness.resolve flakinessResolveProject}),
  * so Gradle runs it in every project that registered it and each project decides <em>for itself</em> whether
  * it owns any of the refs - there is no caller-side project guessing and no cross-project access.
  *
@@ -67,7 +76,7 @@ import java.util.List;
  * isolated-projects-clean. The repo root comes from {@code ProjectLayout.getSettingsDirectory()}, the
  * isolation-safe replacement for {@code Project.getRootDir()}.
  */
-public final class FlakinessProjectResolve {
+public class FlakinessProjectResolvePlugin implements Plugin<Project> {
 
     public static final String TASK_NAME = "flakinessResolveProject";
 
@@ -89,13 +98,15 @@ public final class FlakinessProjectResolve {
 
     private static final String BWC_TEST_PLUGIN = "elasticsearch.bwc-test";
 
-    private FlakinessProjectResolve() {}
+    @Override
+    public void apply(Project project) {
+        if (FlakinessProperties.enabled(project) == false) {
+            return; // inert unless explicitly enabled by the resolve/scan Buildkite steps
+        }
 
-    /**
-     * Register {@code flakinessResolveProject} on this project. Callers must have already checked the
-     * {@code -Pflakiness.resolve} gate, so a normal build never even reaches here.
-     */
-    public static void register(Project project, String refsPath, int taskCap) {
+        String refsPath = FlakinessProperties.refsPath(project);
+        int taskCap = FlakinessProperties.taskCap(project);
+
         Directory repoRoot = project.getLayout().getSettingsDirectory();
         Provider<String> refsJson = project.getProviders().fileContents(repoRoot.file(refsPath)).getAsText();
 
@@ -131,6 +142,7 @@ public final class FlakinessProjectResolve {
         return stripped.isEmpty() ? "root" : stripped;
     }
 
+    // TODO jozala - Gradle Tooling API - check if it can help with gathering data about the test tasks in a project without realizing them.
     /**
      * Snapshot this project's flakiness model, but only in full if this project actually owns one of the refs
      * (see the class javadoc). Invoked from the provider above, i.e. at configuration-cache store time, which

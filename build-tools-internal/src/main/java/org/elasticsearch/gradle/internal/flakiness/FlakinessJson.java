@@ -43,7 +43,7 @@ public final class FlakinessJson {
 
     /**
      * One project's whole flakiness model, carried as a task {@code @Input} string (see
-     * {@link FlakinessProjectResolve}). Task inputs are the channel that survives the configuration-cache
+     * {@link FlakinessProjectResolvePlugin}). Task inputs are the channel that survives the configuration-cache
      * boundary, which is why the model travels this way rather than through shared mutable state.
      *
      * <p>{@code Path} components round-trip through Jackson's built-in {@code java.nio.file.Path} handlers

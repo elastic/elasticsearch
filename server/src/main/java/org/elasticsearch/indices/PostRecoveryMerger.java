@@ -26,10 +26,7 @@ import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardLongFieldRange;
-import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -133,39 +130,21 @@ public class PostRecoveryMerger {
         }
 
         final var shardId = shardRouting.shardId();
-        return new RecoveryListener() {
-            @Override
-            public void onRecoveryDone(
-                RecoveryState state,
-                ShardLongFieldRange timestampMillisFieldRange,
-                ShardLongFieldRange eventIngestedMillisFieldRange
-            ) {
-                if (delayRangeSeconds != null) {
-                    /// We jitter this value to try to space out merges started by this mechanism even more
-                    /// so that they compete less for resources.
-                    /// See comment for [PostRecoveryMerger#POST_RECOVERY_MERGER_DELAY].
-                    long actualDelay = Randomness.get().nextLong(delayRangeSeconds.v1(), delayRangeSeconds.v2());
-                    scheduler.schedule(
-                        () -> postRecoveryMergeRunner.enqueueTask(new PostRecoveryMerge(shardId)),
-                        actualDelay,
-                        TimeUnit.SECONDS
-                    );
-                } else {
-                    postRecoveryMergeRunner.enqueueTask(new PostRecoveryMerge(shardId));
-                }
-                recoveryListener.onRecoveryDone(state, timestampMillisFieldRange, eventIngestedMillisFieldRange);
+        return RecoveryListener.runBeforeDone(recoveryListener, () -> {
+            if (delayRangeSeconds != null) {
+                /// We jitter this value to try to space out merges started by this mechanism even more
+                /// so that they compete less for resources.
+                /// See comment for [PostRecoveryMerger#POST_RECOVERY_MERGER_DELAY].
+                long actualDelay = Randomness.get().nextLong(delayRangeSeconds.v1(), delayRangeSeconds.v2());
+                scheduler.schedule(
+                    () -> postRecoveryMergeRunner.enqueueTask(new PostRecoveryMerge(shardId)),
+                    actualDelay,
+                    TimeUnit.SECONDS
+                );
+            } else {
+                postRecoveryMergeRunner.enqueueTask(new PostRecoveryMerge(shardId));
             }
-
-            @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                recoveryListener.onRecoveryFailure(e, sendShardFailure);
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                recoveryListener.onRecoveryAborted();
-            }
-        };
+        });
     }
 
     class PostRecoveryMerge implements ActionListener<Releasable> {

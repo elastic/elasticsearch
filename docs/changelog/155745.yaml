@@ -1,5 +1,5 @@
 area: Search
 issues: []
 pr: 155745
-summary: Fail request instead of node on deep aggregations
+summary: Fail the request instead of the node on deeply nested aggregations
 type: bug

@@ -100,6 +100,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.CertificateIdentity;
 import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -2784,14 +2785,83 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(e, is(rejectedExecutionException));
     }
 
-    public void testCreationFailsIfAuthenticationIsCloudApiKey() throws InterruptedException {
+    public void testCreationSucceedsIfAuthenticationIsCloudApiKey() {
         final Authentication authentication = AuthenticationTestHelper.randomCloudApiKeyAuthentication();
+        final User cloudApiKeyUser = authentication.getEffectiveSubject().getUser();
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);
+        final Set<RoleDescriptor> userRoleDescriptors = Set.of(
+            new RoleDescriptor("cloud_user_role", new String[] { "monitor" }, null, null)
+        );
+
+        final ApiKeyService service = createApiKeyService(Settings.EMPTY);
+        when(client.prepareIndex(anyString())).thenReturn(new IndexRequestBuilder(client));
+        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client));
+        when(client.threadPool()).thenReturn(threadPool);
+        final AtomicReference<AssertionError> asyncFailure = new AtomicReference<>();
+        doAnswer(inv -> {
+            final Object[] args = inv.getArguments();
+            final BulkRequest bulkRequest = (BulkRequest) args[1];
+            @SuppressWarnings("unchecked")
+            final ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) args[2];
+            assertThat(bulkRequest.numberOfActions(), is(1));
+            assertThat(bulkRequest.requests().get(0), instanceOf(IndexRequest.class));
+
+            final IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
+            final Map<String, Object> indexDoc = XContentHelper.convertToMap(indexRequest.source(), true, XContentType.JSON).v2();
+            try {
+                @SuppressWarnings("unchecked")
+                final Map<String, Object> creator = (Map<String, Object>) indexDoc.get("creator");
+                assertThat(creator, notNullValue());
+                assertThat(creator.get("principal"), equalTo(cloudApiKeyUser.principal()));
+                assertThat(creator.get("realm"), equalTo(AuthenticationField.CLOUD_API_KEY_REALM_NAME));
+                assertThat(creator.get("realm_type"), equalTo(AuthenticationField.CLOUD_API_KEY_REALM_TYPE));
+                assertThat(creator.get("metadata"), equalTo(cloudApiKeyUser.metadata()));
+                assertThat(creator.containsKey("realm_domain"), is(false));
+
+                @SuppressWarnings("unchecked")
+                final Map<String, Object> limitedBy = (Map<String, Object>) indexDoc.get("limited_by_role_descriptors");
+                assertThat(limitedBy, notNullValue());
+                assertThat(limitedBy.keySet(), contains("cloud_user_role"));
+            } catch (AssertionError failure) {
+                asyncFailure.set(failure);
+            }
+            final IndexResponse indexResponse = new IndexResponse(
+                new ShardId(INTERNAL_SECURITY_MAIN_INDEX_7, randomAlphaOfLength(22), randomIntBetween(0, 1)),
+                createApiKeyRequest.getId(),
+                randomLongBetween(1, 99),
+                randomLongBetween(1, 99),
+                randomIntBetween(1, 99),
+                true
+            );
+            listener.onResponse(
+                new BulkResponse(
+                    new BulkItemResponse[] { BulkItemResponse.success(randomInt(), DocWriteRequest.OpType.INDEX, indexResponse) },
+                    randomLongBetween(0, 100)
+                )
+            );
+            return null;
+        }).when(client).execute(eq(TransportBulkAction.TYPE), any(BulkRequest.class), any());
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        service.createApiKey(authentication, createApiKeyRequest, userRoleDescriptors, future);
+        final CreateApiKeyResponse createApiKeyResponse = future.actionGet();
+        if (asyncFailure.get() != null) {
+            throw asyncFailure.get();
+        }
+        assertThat(createApiKeyResponse.getId(), equalTo(createApiKeyRequest.getId()));
+    }
+
+    public void testCrossClusterApiKeyCreationFailsIfAuthenticationIsCloudApiKey() throws IOException {
+        final Authentication authentication = AuthenticationTestHelper.randomCloudApiKeyAuthentication();
+        final CreateCrossClusterApiKeyRequest createCrossClusterApiKeyRequest = CreateCrossClusterApiKeyRequest.withNameAndAccess(
+            randomAlphaOfLengthBetween(3, 8),
+            randomCrossClusterApiKeyAccessField()
+        );
         ApiKeyService service = createApiKeyService(Settings.EMPTY);
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
-        service.createApiKey(authentication, createApiKeyRequest, Set.of(), future);
+        service.createApiKey(authentication, createCrossClusterApiKeyRequest, Set.of(), future);
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, future);
-        assertThat(iae.getMessage(), equalTo("creating elasticsearch api keys using cloud api keys is not supported"));
+        assertThat(iae.getMessage(), equalTo("cross-cluster API keys cannot be created with a cloud API key"));
     }
 
     public void testCachedApiKeyValidationWillNotBeBlockedByUnCachedApiKey() throws IOException, ExecutionException, InterruptedException {

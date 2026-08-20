@@ -14,7 +14,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -528,7 +527,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 mapperMetrics.sourceFieldMetrics(),
                 mappingLookup.getMapping().ignoredSourceFormat()
             )
-            : mappingLookup.newSourceLoader(sourceFilter, mapperMetrics.sourceFieldMetrics());
+            : mappingLookup.newSourceLoader(sourceFilter, mapperMetrics.sourceFieldMetrics(), null);
         StoredFieldLoader storedFieldLoader = buildStoredFieldLoader(storedFieldSet, fetchSourceContext, loader);
         LeafStoredFieldLoader leafStoredFieldLoader = storedFieldLoader.getLoader(docIdAndVersion.reader.getContext(), null);
         try {
@@ -602,7 +601,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         BytesReference sourceBytes = null;
         if (mapperService.mappingLookup().isSourceEnabled() && fetchSourceContext.fetchSource()) {
-            Source source = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId })
+            Source source = loader.leaf(docIdAndVersion.reader.getContext(), new int[] { docIdAndVersion.docId })
                 .source(leafStoredFieldLoader, docIdAndVersion.docId);
 
             SourceFilter filter = fetchSourceContext.filter();
@@ -690,33 +689,40 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         if (shouldExcludeVectorsFromSource(indexSettings, fetchSourceContext) == false) {
             return Tuple.tuple(fetchSourceContext, null);
         }
-        var fetchFieldsAut = fetchFieldsContext != null && fetchFieldsContext.fields().size() > 0
-            ? new CharacterRunAutomaton(
-                Regex.simpleMatchToAutomaton(fetchFieldsContext.fields().stream().map(f -> f.field).toArray(String[]::new))
-            )
-            : null;
-        var inferenceFieldsAut = mappingLookup.inferenceFields().size() > 0
-            ? new CharacterRunAutomaton(
-                Regex.simpleMatchToAutomaton(mappingLookup.inferenceFields().keySet().stream().map(f -> f + "*").toArray(String[]::new))
-            )
+        // Quick check first whether the mapping contains a vector field at all, since there is otherwise nothing to exclude.
+        final Set<String> vectorFields = mappingLookup.vectorEmbeddingFields();
+        if (vectorFields.isEmpty()) {
+            return Tuple.tuple(fetchSourceContext, null);
+        }
+        // The requested patterns are matched one at a time rather than compiled into a single automaton. Compiling only pays off when
+        // many strings are tested against it, and the strings tested here are just the vector fields, of which there are few. The
+        // request, on the other hand, can carry thousands of patterns, which is expensive to compile and can exceed the
+        // determinization limit outright.
+        final String[] fetchFieldsPatterns = fetchFieldsContext == null
+            ? null
+            : fetchFieldsContext.fields().stream().map(f -> f.field).toArray(String[]::new);
+        // The inference field patterns are derived from the mapping rather than the request, so their number is bounded by the number
+        // of semantic text fields. Regex#simpleMatcher picks the cheapest strategy for them.
+        var inferenceFieldsMatcher = mappingLookup.inferenceFields().size() > 0
+            ? Regex.simpleMatcher(mappingLookup.inferenceFields().keySet().stream().map(f -> f + "*").toArray(String[]::new))
             : null;
 
         SourceFilter filter = fetchSourceContext != null ? fetchSourceContext.filter() : null;
 
         List<String> lateExcludes = new ArrayList<>();
-        var excludes = mappingLookup.getFullNameToFieldType().values().stream().filter(MappedFieldType::isVectorEmbedding).filter(f -> {
+        var excludes = vectorFields.stream().filter(f -> {
             // Keep the vector fields that are explicitly included and not explicitly excluded
-            if (filter != null && filter.isExplicitlyIncluded(f.name())) {
-                return filter.isPathFiltered(f.name(), false);
+            if (filter != null && filter.isExplicitlyIncluded(f)) {
+                return filter.isPathFiltered(f, false);
             }
             // Exclude the field specified by the `fields` option
-            if (fetchFieldsAut != null && fetchFieldsAut.run(f.name())) {
-                lateExcludes.add(f.name());
+            if (Regex.simpleMatch(fetchFieldsPatterns, f)) {
+                lateExcludes.add(f);
                 return false;
             }
             // Exclude vectors from semantic text fields, as they are processed separately
-            return inferenceFieldsAut == null || inferenceFieldsAut.run(f.name()) == false;
-        }).map(MappedFieldType::name).toList();
+            return inferenceFieldsMatcher == null || inferenceFieldsMatcher.test(f) == false;
+        }).toList();
 
         var sourceFilter = excludes.isEmpty() ? null : new SourceFilter(new String[] {}, excludes.toArray(String[]::new));
         if (lateExcludes.size() > 0) {

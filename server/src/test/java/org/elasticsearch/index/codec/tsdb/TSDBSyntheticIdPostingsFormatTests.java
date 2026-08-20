@@ -102,7 +102,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     public record Doc(long timestamp, String hostName, String metricField, Integer metricValue, int version, int routing) {}
 
     public void testTerms() throws IOException {
-        runTest((writer, parser) -> {
+        runTest((writer, ctx) -> {
 
             final var now = Instant.now();
             final int routing = randomNonNegativeInt();
@@ -118,7 +118,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                 docsPerSegments[segment] = randomIntBetween(1, 100);
                 for (int doc = 0; doc < docsPerSegments[segment]; doc++) {
                     writer.addDocument(
-                        parser.parse(
+                        ctx.parser().parse(
                             new Doc(
                                 randomBoolean()
                                     ? now.minus(doc, ChronoUnit.MINUTES).toEpochMilli()
@@ -504,7 +504,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     }
 
     public void testSoftUpdateResolvesEveryIdAcrossSegments() throws IOException {
-        runTest((writer, parser) -> {
+        runTest((writer, ctx) -> {
             final int routing = randomNonNegativeInt();
             // Matches the failing shard: ~7000 docs over consecutive milliseconds, 4 time series, flushed in irregular batches
             final int totalToIndex = randomIntBetween(5000, 8000);
@@ -514,7 +514,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             int untilFlush = randomIntBetween(1000, 2500);
             for (int doc = 0; doc < totalToIndex; doc++) {
                 var testDoc = new Doc(timestamp++, "vm-dev0" + randomInt(3), "cpu-load", randomInt(), 1, routing);
-                writer.addDocument(parser.parse(testDoc));
+                writer.addDocument(ctx.parser().parse(testDoc));
                 docs.add(testDoc);
                 if (--untilFlush == 0) {
                     writer.flush();
@@ -544,7 +544,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                 );
                 writer.softUpdateDocument(
                     new Term(IdFieldMapper.NAME, uidEncodedSyntheticId(previousDoc)),
-                    parser.parse(updatedDoc),
+                    ctx.parser().parse(updatedDoc),
                     Lucene.newSoftDeletesField()
                 );
                 if (--untilRefresh == 0) {
@@ -565,8 +565,8 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     }
 
     public void testSeekCeilWithTimestampAboveTsidMaxAcrossSkipperBlocks() throws IOException {
-        runTest((writer, parser) -> {
-            var segment = indexMultiBlockSegment(writer, parser);
+        runTest((writer, ctx) -> {
+            var segment = indexMultiBlockSegment(writer, ctx.parser());
             try (var reader = DirectoryReader.open(writer)) {
                 assertThat(reader.leaves(), hasSize(1));
                 var leaf = reader.leaves().getFirst().reader();
@@ -590,13 +590,17 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     }
 
     public void testSortedDeleteTermsResolveAcrossSkipperBlocks() throws IOException {
-        runTest((writer, parser) -> {
-            var segment = indexMultiBlockSegment(writer, parser);
+        runTest((writer, ctx) -> {
+            var segment = indexMultiBlockSegment(writer, ctx.parser());
             var deletes = new ArrayList<>(segment.ids());
             deletes.add(segment.idInTimestampGap());
             Collections.shuffle(deletes, random());
             for (var uid : deletes) {
-                writer.softUpdateDocument(new Term(IdFieldMapper.NAME, uid), syntheticIdTombstone(uid), Lucene.newSoftDeletesField());
+                writer.softUpdateDocument(
+                    new Term(IdFieldMapper.NAME, uid),
+                    syntheticIdTombstone(uid, ctx.useDocValuesSkipper()),
+                    Lucene.newSoftDeletesField()
+                );
             }
             try (var reader = DirectoryReader.open(writer)) {
                 assertThat("the sorted delete-term walk dropped deletes", reader.numDocs(), equalTo(0));
@@ -694,7 +698,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             }
         }
 
-        runTest(directory, (writer, parser) -> {
+        runTest(directory, (writer, ctx) -> {
             // Last version of docs, keyed by their synthetic id term
             final var finalDocs = new TreeMap<BytesRef, Doc>();
 
@@ -704,7 +708,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
 
             for (int i = 0; i < randomlyOrderedDocs.size(); i++) {
                 var doc = randomlyOrderedDocs.get(i);
-                writer.addDocument(parser.parse(doc));
+                writer.addDocument(ctx.parser().parse(doc));
 
                 var uid = uidEncodedSyntheticId(doc);
                 assertThat(finalDocs.put(uid, doc), nullValue());
@@ -724,9 +728,9 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
 
                     Term uidTerm = new Term(IdFieldMapper.NAME, uid);
                     if (randomBoolean()) {
-                        writer.softUpdateDocuments(uidTerm, List.of(parser.parse(updatedDoc)), Lucene.newSoftDeletesField());
+                        writer.softUpdateDocuments(uidTerm, List.of(ctx.parser().parse(updatedDoc)), Lucene.newSoftDeletesField());
                     } else {
-                        writer.softUpdateDocument(uidTerm, parser.parse(updatedDoc), Lucene.newSoftDeletesField());
+                        writer.softUpdateDocument(uidTerm, ctx.parser().parse(updatedDoc), Lucene.newSoftDeletesField());
                     }
                     finalDocs.put(uid, updatedDoc);
                 }
@@ -749,7 +753,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
      * tests, the tests use the default mappers and default index sort configuration to parse and to index documents. We think this is the
      * best way to stay close to the default options of time-series indices, while keeping it light enough for unit tests.
      */
-    private static void runTest(CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test) throws IOException {
+    private static void runTest(CheckedBiConsumer<IndexWriter, TestContext, IOException> test) throws IOException {
         final var directory = newDirectory();
         // Checking the index on close requires to support Terms#getMin()/getMax() methods on invalid (or incomplete) terms, something
         // that is not supported in TSDBSyntheticIdFieldsProducer today.
@@ -759,7 +763,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         runTest(directory, test);
     }
 
-    private static void runTest(Directory directory, CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test) throws IOException {
+    private static void runTest(Directory directory, CheckedBiConsumer<IndexWriter, TestContext, IOException> test) throws IOException {
         final var indexName = randomIdentifier();
         final var indexSettings = buildIndexSettings(indexName);
         final var mapperService = buildMapperService(indexSettings);
@@ -780,7 +784,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             indexWriterConfig.setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH);
 
             try (var writer = new IndexWriter(directory, indexWriterConfig)) {
-                test.accept(writer, documentParser);
+                test.accept(writer, new TestContext(documentParser, indexSettings.useDocValuesSkipper()));
             }
         }
     }
@@ -859,6 +863,8 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     private interface TestDocParser {
         Iterable<? extends IndexableField> parse(Doc doc) throws IOException;
     }
+
+    private record TestContext(TestDocParser parser, boolean useDocValuesSkipper) {}
 
     /**
      * Builds a parser for test documents that produces the required Lucene fields for synthetic id to work.
@@ -1090,11 +1096,11 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         return id;
     }
 
-    private static Iterable<? extends IndexableField> syntheticIdTombstone(BytesRef uid) {
+    private static Iterable<? extends IndexableField> syntheticIdTombstone(BytesRef uid, boolean useDocValuesSkipper) {
         var tombstone = ParsedDocument.deleteTombstone(
             // Must match the _seq_no field shape of the parsed documents, see buildIndexSettings
             SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY,
-            true,
+            useDocValuesSkipper,
             true,
             false,
             Uid.decodeId(uid.bytes, uid.offset, uid.length),

@@ -26,12 +26,14 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -725,6 +727,232 @@ public class ES819TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTe
         assertThat(message, (double) sizes.windowOnlyBytes(), closeTo(sizes.todayBytes(), sizes.todayBytes() * 0.15));
         // Combining the larger window with zstd level 3 should meaningfully shrink storage.
         assertThat(message, sizes.windowPlusLevelBytes(), lessThan((long) (sizes.todayBytes() * 0.75)));
+    }
+
+    /**
+     * The other half of the trade-off measured by {@link #testLargeBinaryBlobZstdWindow}: what a wider
+     * compression block costs on the read and write side. A reader instance caches exactly one decompressed
+     * block, so the cost of a read depends entirely on the access pattern:
+     *
+     * <ul>
+     *   <li><b>full scan</b> — every block is decompressed once and fully consumed, so a wider block is
+     *       amortized and should be roughly neutral.</li>
+     *   <li><b>one session</b> — with an index sort on the session key a session's blobs are contiguous, so
+     *       they share blocks and behave like a small scan. This is the session-replay access pattern.</li>
+     *   <li><b>random single doc</b> — a cold reader per lookup pays a full block decompression to return one
+     *       ~256 KB value, so a 4 MB block is the worst case (~16x read amplification).</li>
+     * </ul>
+     *
+     * This is a measurement, not a pass/fail assertion: timings are logged and only correctness (bytes
+     * actually returned) is asserted, since wall-clock in a parallel test run is far too noisy to gate on.
+     */
+    public void testLargeBinaryBlobZstdWindowReadAndWriteCost() throws IOException {
+        final String binaryField = "body.text._original";
+        final String sessionField = "session";
+        final String idField = "id";
+        final int targetBlobBytes = 256 * 1024;
+        // Fixed rather than randomized: these numbers are compared across configurations, so the corpus has
+        // to be identical for all three.
+        final int numDocs = 256;
+        final int numSessions = 16;
+        final int randomLookups = 256;
+        final int repeats = 3;
+
+        final Random random = random();
+        final String[] vocabulary = buildJsonSkeletonVocabulary(1200, random);
+        final byte[][] blobs = new byte[numDocs][];
+        final String[] sessions = new String[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            sessions[i] = "session-" + (i % numSessions);
+            blobs[i] = buildSessionReplayBlob(vocabulary, random, targetBlobBytes, sessions[i], i);
+        }
+
+        final int[] lookupDocs = new int[randomLookups];
+        for (int i = 0; i < randomLookups; i++) {
+            lookupDocs[i] = random.nextInt(numDocs);
+        }
+
+        record Config(String label, BinaryDVCompressionMode mode, int blockBytes) {}
+        final List<Config> configs = List.of(
+            new Config("today       (zstd-1, 512KB)", BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1, 512 * 1024),
+            new Config("window-only (zstd-1,   4MB)", BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1, 4 * 1024 * 1024),
+            new Config("window+lvl  (zstd-3,   4MB)", BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_3, 4 * 1024 * 1024)
+        );
+
+        // Two passes over every configuration, logging only the second. Indexing and merging happen once per
+        // configuration, so without a warm-up the first configuration measured absorbs all the JIT cost and
+        // looks artificially slow on the write path.
+        for (int pass = 0; pass < 2; pass++) {
+            final boolean measured = pass == 1;
+            for (Config config : configs) {
+                measureReadAndWriteCost(
+                    config.label(),
+                    config.mode(),
+                    config.blockBytes(),
+                    binaryField,
+                    sessionField,
+                    idField,
+                    blobs,
+                    sessions,
+                    lookupDocs,
+                    targetBlobBytes,
+                    repeats,
+                    measured
+                );
+            }
+        }
+    }
+
+    /**
+     * One configuration's worth of {@link #testLargeBinaryBlobZstdWindowReadAndWriteCost}. Logs nothing unless
+     * {@code measured} is set, so the caller can run a discarded warm-up pass first.
+     */
+    private void measureReadAndWriteCost(
+        String label,
+        BinaryDVCompressionMode mode,
+        int blockBytes,
+        String binaryField,
+        String sessionField,
+        String idField,
+        byte[][] blobs,
+        String[] sessions,
+        int[] lookupDocs,
+        int targetBlobBytes,
+        int repeats,
+        boolean measured
+    ) throws IOException {
+        final int numDocs = blobs.length;
+        final int randomLookups = lookupDocs.length;
+        {
+            var dvFormat = new ES819Version3TSDBDocValuesFormat(
+                mode,
+                blockBytes,
+                ES819Version3TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT
+            );
+            var writerConfig = new IndexWriterConfig();
+            writerConfig.setIndexSort(new Sort(new SortField(sessionField, SortField.Type.STRING, false)));
+            writerConfig.setMergePolicy(new LogByteSizeMergePolicy());
+            writerConfig.setCodec(TestUtil.alwaysDocValuesFormat(dvFormat));
+
+            // A plain on-disk directory, not newDirectory(): the randomized mock wrappers add enough
+            // overhead and variance to swamp the differences being measured here.
+            try (Directory dir = new MMapDirectory(createTempDir())) {
+                long writeNanos = System.nanoTime();
+                try (IndexWriter writer = new IndexWriter(dir, writerConfig)) {
+                    for (int i = 0; i < numDocs; i++) {
+                        Document d = new Document();
+                        d.add(new NumericDocValuesField(idField, i));
+                        d.add(new SortedDocValuesField(sessionField, new BytesRef(sessions[i])));
+                        d.add(new BinaryDocValuesField(binaryField, new BytesRef(blobs[i])));
+                        writer.addDocument(d);
+                    }
+                    writer.commit();
+                    writeNanos = System.nanoTime() - writeNanos;
+
+                    long mergeNanos = System.nanoTime();
+                    writer.forceMerge(1);
+                    writer.commit();
+                    mergeNanos = System.nanoTime() - mergeNanos;
+
+                    long dataBytes = 0;
+                    for (String name : dir.listAll()) {
+                        if (name.endsWith("." + ES819TSDBDocValuesFormat.DATA_EXTENSION)) {
+                            dataBytes += dir.fileLength(name);
+                        }
+                    }
+
+                    try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                        var leaf = reader.leaves().get(0).reader();
+
+                        // Full scan: one reader walked in doc order, so each block is decompressed once.
+                        long scanNanos = Long.MAX_VALUE;
+                        long scanBytes = 0;
+                        for (int r = 0; r < repeats; r++) {
+                            long start = System.nanoTime();
+                            long bytes = 0;
+                            BinaryDocValues dv = leaf.getBinaryDocValues(binaryField);
+                            for (int doc = 0; doc < leaf.maxDoc(); doc++) {
+                                assertTrue(dv.advanceExact(doc));
+                                bytes += dv.binaryValue().length;
+                            }
+                            scanNanos = Math.min(scanNanos, System.nanoTime() - start);
+                            scanBytes = bytes;
+                        }
+                        assertEquals("full scan should return the whole corpus", (long) numDocs * targetBlobBytes, scanBytes);
+
+                        // One session: contiguous under the index sort, read with a single cold reader —
+                        // the replay playback pattern.
+                        long sessionRuns = 0;
+                        long sessionNanos = Long.MAX_VALUE;
+                        for (int r = 0; r < repeats; r++) {
+                            long start = System.nanoTime();
+                            long runs = 0;
+                            SortedDocValues sessionDV = leaf.getSortedDocValues(sessionField);
+                            int doc = 0;
+                            while (doc < leaf.maxDoc()) {
+                                assertTrue(sessionDV.advanceExact(doc));
+                                int ord = sessionDV.ordValue();
+                                int runEnd = doc + 1;
+                                while (runEnd < leaf.maxDoc()) {
+                                    assertTrue(sessionDV.advanceExact(runEnd));
+                                    if (sessionDV.ordValue() != ord) {
+                                        break;
+                                    }
+                                    runEnd++;
+                                }
+                                // Fresh reader per session: nothing is cached from a previous session.
+                                BinaryDocValues dv = leaf.getBinaryDocValues(binaryField);
+                                for (int d = doc; d < runEnd; d++) {
+                                    assertTrue(dv.advanceExact(d));
+                                    assertTrue(dv.binaryValue().length > 0);
+                                }
+                                runs++;
+                                doc = runEnd;
+                            }
+                            sessionNanos = Math.min(sessionNanos, System.nanoTime() - start);
+                            sessionRuns = runs;
+                        }
+
+                        // Random single-doc fetch: a fresh reader each time, so every lookup pays a full
+                        // cold block decompression. This is the pattern a wider block penalises.
+                        long randomNanos = Long.MAX_VALUE;
+                        for (int r = 0; r < repeats; r++) {
+                            long start = System.nanoTime();
+                            long bytes = 0;
+                            for (int lookupDoc : lookupDocs) {
+                                BinaryDocValues dv = leaf.getBinaryDocValues(binaryField);
+                                assertTrue(dv.advanceExact(lookupDoc));
+                                bytes += dv.binaryValue().length;
+                            }
+                            randomNanos = Math.min(randomNanos, System.nanoTime() - start);
+                            assertEquals((long) randomLookups * targetBlobBytes, bytes);
+                        }
+
+                        if (measured) {
+                            logger.info(
+                                Strings.format(
+                                    "%s dvd=%d bytes | write=%d ms merge=%d ms | scan(%d docs)=%.1f ms "
+                                        + "session(%d sessions)=%.1f ms per-session=%.2f ms random(%d cold lookups)=%.1f ms "
+                                        + "per-lookup=%.3f ms",
+                                    label,
+                                    dataBytes,
+                                    writeNanos / 1_000_000,
+                                    mergeNanos / 1_000_000,
+                                    numDocs,
+                                    scanNanos / 1_000_000.0,
+                                    sessionRuns,
+                                    sessionNanos / 1_000_000.0,
+                                    sessionNanos / 1_000_000.0 / sessionRuns,
+                                    randomLookups,
+                                    randomNanos / 1_000_000.0,
+                                    randomNanos / 1_000_000.0 / randomLookups
+                                )
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private record ZstdWindowSizes(long todayBytes, long windowOnlyBytes, long windowPlusLevelBytes) {}

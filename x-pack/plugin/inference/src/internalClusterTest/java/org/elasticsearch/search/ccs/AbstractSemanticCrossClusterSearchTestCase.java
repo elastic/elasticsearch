@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -62,6 +63,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.inference.integration.IntegrationTestUtils.createInferenceEndpoint;
+import static org.elasticsearch.xpack.inference.integration.IntegrationTestUtils.deleteInferenceEndpoint;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -75,6 +77,9 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
     protected static final String FULLY_QUALIFIED_REMOTE_INDEX_NAME = fullyQualifiedIndexName(REMOTE_CLUSTER, REMOTE_INDEX_NAME);
 
     protected static final List<String> QUERY_INDICES = List.of(LOCAL_INDEX_NAME, FULLY_QUALIFIED_REMOTE_INDEX_NAME);
+
+    // Cluster alias -> (inference ID -> task type), recording every inference endpoint created by setupCluster
+    private final Map<String, Map<String, TaskType>> createdInferenceEndpoints = new HashMap<>();
 
     @Override
     protected List<String> remoteClusterAlias() {
@@ -101,6 +106,18 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         return List.of(LocalStateInferencePlugin.class, TestInferenceServicePlugin.class, ReindexPlugin.class, FakeMlPlugin.class);
     }
 
+    @After
+    public void cleanUpInferenceEndpoints() {
+        // The base class cleanup only wipes user indices, not system indices, so inference endpoints survive between test methods when
+        // clusters are reused. Delete them explicitly so that the next test can re-create endpoints using the same inference IDs.
+        for (var clusterEntry : createdInferenceEndpoints.entrySet()) {
+            final Client client = client(clusterEntry.getKey());
+            for (var endpointEntry : clusterEntry.getValue().entrySet()) {
+                deleteInferenceEndpoint(client, endpointEntry.getValue(), endpointEntry.getKey());
+            }
+        }
+    }
+
     protected void setupTwoClusters(TestIndexInfo localIndexInfo, TestIndexInfo remoteIndexInfo) throws Exception {
         setupCluster(LOCAL_CLUSTER, localIndexInfo);
         setupCluster(REMOTE_CLUSTER, remoteIndexInfo);
@@ -125,6 +142,8 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
                 serviceSettings.put("element_type", endpointClusterState.elementType());
             }
 
+            // Record the endpoint before creating it so that a setup that fails partway through is still cleaned up
+            createdInferenceEndpoints.computeIfAbsent(clusterAlias, k -> new HashMap<>()).put(inferenceId, endpointClusterState.taskType());
             createInferenceEndpoint(client, endpointClusterState.taskType(), inferenceId, serviceSettings);
         }
 

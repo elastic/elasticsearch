@@ -16,13 +16,11 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.queries.GenericQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder;
-import org.junit.After;
 import org.junit.Before;
 
 import java.util.HashMap;
@@ -32,7 +30,6 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.inference.Utils.randomInferenceStringGroup;
-import static org.elasticsearch.xpack.inference.integration.IntegrationTestUtils.deleteInferenceEndpoint;
 
 public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticCrossClusterSearchTestCase {
     private static final String COMMON_INFERENCE_ID_FIELD = "common-inference-id-field";
@@ -71,17 +68,6 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
     @Before
     public void setupClusters() throws Exception {
         configureClusters();
-    }
-
-    @After
-    public void cleanup() {
-        // We need to explicitly delete the inference endpoints so that next test can re-create them with its own settings.
-        var embeddingTaskType = semanticFieldType.equals("semantic_text") ? TaskType.TEXT_EMBEDDING : TaskType.EMBEDDING;
-        deleteInferenceEndpoint(client(LOCAL_CLUSTER), embeddingTaskType, COMMON_INFERENCE_ID);
-        deleteInferenceEndpoint(client(LOCAL_CLUSTER), embeddingTaskType, LOCAL_INFERENCE_ID);
-
-        deleteInferenceEndpoint(client(REMOTE_CLUSTER), embeddingTaskType, COMMON_INFERENCE_ID);
-        deleteInferenceEndpoint(client(REMOTE_CLUSTER), embeddingTaskType, REMOTE_INFERENCE_ID);
     }
 
     public void testKnnQueryWithCcsMinimizeRoundTripsTrue() throws Exception {

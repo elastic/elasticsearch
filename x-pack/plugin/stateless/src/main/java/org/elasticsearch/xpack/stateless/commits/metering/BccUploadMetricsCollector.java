@@ -22,7 +22,8 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.OptionalDouble;
 
-/// Collects metrics for BCC uploads in stateless deployments.
+/// Centralizes BCC upload metric registration and state so [org.elasticsearch.xpack.stateless.commits.StatelessCommitService] can focus
+/// on commit lifecycle management.
 public class BccUploadMetricsCollector {
 
     public static final String BCC_TOTAL_SIZE_HISTOGRAM_METRIC = "es.bcc.total_size_in_megabytes.histogram";

@@ -773,6 +773,15 @@ public class InSubqueryResolverTests extends ESTestCase {
         );
     }
 
+    /**
+     * Multi-column IN subquery in a STATS BY grouping expression must be rejected.
+     */
+    public void testRejectsMultiColumnInSubqueryInStatsBy() {
+        checkMultiColumnInSubquery();
+        var e = expectThrows(VerificationException.class, () -> resolve("FROM main | STATS c = COUNT(*) BY (f1, f2) IN (FROM sub)"));
+        assertThat(e.getMessage(), containsString("IN subquery is not supported in [STATS c = COUNT(*) BY (f1, f2) IN (FROM sub)]"));
+    }
+
     // ---- negative: IN subquery in LIMIT BY ----
 
     public void testRejectsInSubqueryInLimitBy() {

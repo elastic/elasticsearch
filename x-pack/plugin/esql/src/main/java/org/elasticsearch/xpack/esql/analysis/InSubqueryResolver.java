@@ -261,15 +261,23 @@ public class InSubqueryResolver {
     public static LogicalPlan resolveInSubqueryInAggregate(Aggregate aggregate) {
         List<MarkJoinSpec> markJoins = new ArrayList<>();
         List<Alias> syntheticEvals = new ArrayList<>();
-        List<NamedExpression> newAggregates = new ArrayList<>(aggregate.aggregates().size());
-        for (NamedExpression ne : aggregate.aggregates()) {
+        List<? extends NamedExpression> origAggregates = aggregate.aggregates();
+        List<NamedExpression> newAggregates = null;
+        for (int i = 0; i < origAggregates.size(); i++) {
+            NamedExpression ne = origAggregates.get(i);
             if (ne instanceof Alias alias && alias.child() instanceof FilteredExpression filteredExpression) {
                 Expression newFilter = rewriteOrContextInSubqueries(filteredExpression.filter(), markJoins, syntheticEvals);
                 if (newFilter != filteredExpression.filter()) {
                     ne = alias.replaceChild(new FilteredExpression(filteredExpression.source(), filteredExpression.delegate(), newFilter));
+                    if (newAggregates == null) {
+                        newAggregates = new ArrayList<>(origAggregates.size());
+                        newAggregates.addAll(origAggregates.subList(0, i));
+                    }
                 }
             }
-            newAggregates.add(ne);
+            if (newAggregates != null) {
+                newAggregates.add(ne);
+            }
         }
 
         if (markJoins.isEmpty()) {
@@ -551,13 +559,11 @@ public class InSubqueryResolver {
     }
 
     private static void checkInSubqueryUsage(LogicalPlan plan, Failures failures) {
-        // Aggregates owned by an InlineStats keep the blanket rejection below; the identity set is safe because forEachDown is
-        // pre-order (the InlineStats is visited before its child Aggregate) and nothing is rewritten during verification.
+        // Collect InlineStats-owned Aggregates first so the validation pass below can skip them.
         Set<LogicalPlan> inlineStatsAggregates = Collections.newSetFromMap(new IdentityHashMap<>());
+        plan.forEachDown(InlineStats.class, inlineStats -> inlineStatsAggregates.add(inlineStats.aggregate()));
+
         plan.forEachDown(p -> {
-            if (p instanceof InlineStats inlineStats) {
-                inlineStatsAggregates.add(inlineStats.aggregate());
-            }
             if (p instanceof Filter filter) {
                 checkInSubqueryExpression(filter, filter.condition(), null, failures);
             } else if (p instanceof Aggregate aggregate && inlineStatsAggregates.contains(aggregate) == false) {
@@ -583,25 +589,21 @@ public class InSubqueryResolver {
      */
     private static void checkInAggregate(Aggregate aggregate, Failures failures) {
         for (Expression grouping : aggregate.groupings()) {
-            grouping.forEachDown(
-                InSubquery.class,
-                inSub -> failures.add(fail(inSub, "IN subquery is not supported in [{}]", aggregate.sourceText()))
-            );
+            grouping.forEachDown(Expression.class, e -> rejectInSubquery(e, aggregate, failures));
         }
         for (NamedExpression ne : aggregate.aggregates()) {
             if (ne instanceof Alias alias && alias.child() instanceof FilteredExpression filteredExpression) {
-                filteredExpression.delegate()
-                    .forEachDown(
-                        InSubquery.class,
-                        inSub -> failures.add(fail(inSub, "IN subquery is not supported in [{}]", aggregate.sourceText()))
-                    );
+                filteredExpression.delegate().forEachDown(Expression.class, e -> rejectInSubquery(e, aggregate, failures));
                 checkInSubqueryExpression(aggregate, filteredExpression.filter(), null, failures);
             } else {
-                ne.forEachDown(
-                    InSubquery.class,
-                    inSub -> failures.add(fail(inSub, "IN subquery is not supported in [{}]", aggregate.sourceText()))
-                );
+                ne.forEachDown(Expression.class, e -> rejectInSubquery(e, aggregate, failures));
             }
+        }
+    }
+
+    private static void rejectInSubquery(Expression e, Aggregate aggregate, Failures failures) {
+        if (e instanceof InSubquery || e instanceof MultiColumnInSubquery) {
+            failures.add(fail(e, "IN subquery is not supported in [{}]", aggregate.sourceText()));
         }
     }
 

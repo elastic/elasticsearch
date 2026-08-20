@@ -274,74 +274,72 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
      * subquery result, not the time-series source feeding this aggregation.
      */
     private void checkCommandsBeforeAggregation(LogicalPlan p, Failures failures) {
-        {
-            // reject `TS metrics | SORT BY ... | STATS ...`
-            if (p instanceof OrderBy orderBy) {
-                failures.add(
-                    fail(
-                        orderBy,
-                        "sorting [{}] between the time-series source and the first aggregation [{}] is not allowed",
-                        orderBy.sourceText(),
-                        this.sourceText()
-                    )
-                );
-            }
-            // reject `TS metrics | LIMIT ... | STATS ...`
-            if (p instanceof Limit limit) {
-                failures.add(
-                    fail(
-                        limit,
-                        "limiting [{}] the time-series source before the first aggregation [{}] is not allowed; "
-                            + "filter data with a WHERE command instead",
-                        limit.sourceText(),
-                        this.sourceText()
-                    )
-                );
-            }
-            // reject `TS metrics | LOOKUP JOIN ... | STATS ...`
-            if (p instanceof LookupJoin lookupJoin) {
-                failures.add(
-                    fail(
-                        lookupJoin,
-                        "lookup join [{}] in the time-series before the first aggregation [{}] is not allowed",
-                        lookupJoin.sourceText(),
-                        this.sourceText()
-                    )
-                );
-            }
-            // reject `TS metrics | ENRICH ... | STATS ...`
-            if (p instanceof Enrich enrich) {
-                failures.add(
-                    fail(
-                        enrich,
-                        "enrich [{}] in the time-series before the first aggregation [{}] is not allowed",
-                        enrich.sourceText(),
-                        this.sourceText()
-                    )
-                );
-            }
-            // reject `TS metrics | CHANGE POINT ... | STATS ...`
-            if (p instanceof ChangePoint changePoint) {
-                failures.add(
-                    fail(
-                        changePoint,
-                        "change_point [{}] in the time-series the first aggregation [{}] is not allowed",
-                        changePoint.sourceText(),
-                        this.sourceText()
-                    )
-                );
-            }
-            // reject `TS metrics | MV_EXPAND ... | STATS ...`
-            if (p instanceof MvExpand mvExpand) {
-                failures.add(
-                    fail(
-                        mvExpand,
-                        "mv_expand [{}] in the time-series before the first aggregation [{}] is not allowed",
-                        mvExpand.sourceText(),
-                        this.sourceText()
-                    )
-                );
-            }
+        // reject `TS metrics | SORT BY ... | STATS ...`
+        if (p instanceof OrderBy orderBy) {
+            failures.add(
+                fail(
+                    orderBy,
+                    "sorting [{}] between the time-series source and the first aggregation [{}] is not allowed",
+                    orderBy.sourceText(),
+                    this.sourceText()
+                )
+            );
+        }
+        // reject `TS metrics | LIMIT ... | STATS ...`
+        if (p instanceof Limit limit) {
+            failures.add(
+                fail(
+                    limit,
+                    "limiting [{}] the time-series source before the first aggregation [{}] is not allowed; "
+                        + "filter data with a WHERE command instead",
+                    limit.sourceText(),
+                    this.sourceText()
+                )
+            );
+        }
+        // reject `TS metrics | LOOKUP JOIN ... | STATS ...`
+        if (p instanceof LookupJoin lookupJoin) {
+            failures.add(
+                fail(
+                    lookupJoin,
+                    "lookup join [{}] in the time-series before the first aggregation [{}] is not allowed",
+                    lookupJoin.sourceText(),
+                    this.sourceText()
+                )
+            );
+        }
+        // reject `TS metrics | ENRICH ... | STATS ...`
+        if (p instanceof Enrich enrich) {
+            failures.add(
+                fail(
+                    enrich,
+                    "enrich [{}] in the time-series before the first aggregation [{}] is not allowed",
+                    enrich.sourceText(),
+                    this.sourceText()
+                )
+            );
+        }
+        // reject `TS metrics | CHANGE POINT ... | STATS ...`
+        if (p instanceof ChangePoint changePoint) {
+            failures.add(
+                fail(
+                    changePoint,
+                    "change_point [{}] in the time-series the first aggregation [{}] is not allowed",
+                    changePoint.sourceText(),
+                    this.sourceText()
+                )
+            );
+        }
+        // reject `TS metrics | MV_EXPAND ... | STATS ...`
+        if (p instanceof MvExpand mvExpand) {
+            failures.add(
+                fail(
+                    mvExpand,
+                    "mv_expand [{}] in the time-series before the first aggregation [{}] is not allowed",
+                    mvExpand.sourceText(),
+                    this.sourceText()
+                )
+            );
         }
         List<LogicalPlan> children = p instanceof AbstractSubqueryJoin subqueryJoin ? List.of(subqueryJoin.left()) : p.children();
         for (LogicalPlan child : children) {

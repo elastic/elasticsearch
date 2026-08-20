@@ -1020,7 +1020,8 @@ public class TranslogTests extends ESTestCase {
                     while (run.get() && idGenerator.get() < maxOps) {
                         long id = idGenerator.getAndIncrement();
                         final Translog.Operation op;
-                        // BATCH records are produced via Translog.add(IndexBatch); these tests cover the single-op path only.
+                        // BATCH records are produced via Translog.add(IndexOperationBatch.TranslogRecord); these tests cover the single-op
+                        // path only.
                         final Translog.Operation.Type[] singleOpTypes = {
                             Translog.Operation.Type.CREATE,
                             Translog.Operation.Type.INDEX,
@@ -2429,7 +2430,8 @@ public class TranslogTests extends ESTestCase {
                 downLatch.await();
                 for (int opCount = 0; opCount < opsPerThread; opCount++) {
                     Translog.Operation op;
-                    // BATCH records are produced via Translog.add(IndexBatch); these tests cover the single-op path only.
+                    // BATCH records are produced via Translog.add(IndexOperationBatch.TranslogRecord); these tests cover the single-op path
+                    // only.
                     final Translog.Operation.Type type = randomFrom(
                         Translog.Operation.Type.CREATE,
                         Translog.Operation.Type.INDEX,

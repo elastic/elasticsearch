@@ -41,7 +41,6 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
@@ -328,67 +327,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      * single operation variant.
      */
     private synchronized boolean assertNoSeqNumberConflict(IndexOperationBatch.TranslogRecord batch) throws IOException {
-        for (Translog.Operation op : batch.explode()) {
-            final Translog.Serialized operation;
-            try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())) {
-                Translog.writeHeaderWithSize(out, op);
-                final BytesReference source = op instanceof Translog.Index index ? index.source() : null;
-                operation = Translog.Serialized.create(out.bytes(), source, new CRC32());
-            }
-            assertNoSeqNumberConflict(op.seqNo(), operation);
-        }
-        return true;
-    }
-
-    /**
-     * Add a serialized {@link Translog.IndexBatch} record.
-     */
-    public Translog.Location addBatch(final Translog.Serialized operation, final Translog.IndexBatch batch) throws IOException {
-        long bufferedBytesBeforeAdd = this.bufferedBytes;
-        if (bufferedBytesBeforeAdd >= forceWriteThreshold) {
-            writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= forceWriteThreshold * 4);
-        }
-
-        final List<Translog.IndexBatch.Op> ops = batch.ops();
-        final Translog.Location location;
-        synchronized (this) {
-            ensureOpen();
-            if (buffer == null) {
-                buffer = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler());
-            }
-            assert bufferedBytes == buffer.size();
-            final long offset = totalOffset;
-            totalOffset += operation.length();
-            operation.writeToTranslogBuffer(buffer);
-
-            assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
-            assert maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
-
-            for (Translog.IndexBatch.Op op : ops) {
-                final long seqNo = op.seqNo();
-                minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
-                maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
-                nonFsyncedSequenceNumbers.add(seqNo);
-            }
-
-            operationCounter += ops.size();
-
-            assert assertNoSeqNumberConflict(batch);
-
-            location = new Translog.Location(generation, offset, operation.length());
-            // TODO: operationListener needs batch-aware support
-            bufferedBytes = buffer.size();
-        }
-
-        return location;
-    }
-
-    /**
-     * Batch variant of assertNoSeqNumberConflict
-     * Explode decodes the batch into one operation per entry and the assertion is then forwarded to the
-     * single operation variant.
-     */
-    private synchronized boolean assertNoSeqNumberConflict(Translog.IndexBatch batch) throws IOException {
         for (Translog.Operation op : batch.explode()) {
             final Translog.Serialized operation;
             try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())) {

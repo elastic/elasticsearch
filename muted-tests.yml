@@ -776,3 +776,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests
   method: testCreateAndRestorePartialSearchableSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/157256
+- class: org.elasticsearch.xpack.stateless.StatelessSearchIT
+  method: testRefreshOnBulkWithNewShardAllocation
+  issue: https://github.com/elastic/elasticsearch/issues/157260

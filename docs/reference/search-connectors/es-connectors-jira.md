@@ -120,16 +120,16 @@ The following configuration fields are required to set up the connector:
 `data_source`
 :   Dropdown to determine the Jira platform type: `Jira Cloud`, `Jira Server`, or `Jira Data Center`. Default value is `Jira Cloud`.
 
-`data_center_auth_method`
+`data_center_auth_method` {applies_to}`stack: ga 9.6`
 :   The authentication method for Jira Data Center: `Basic authentication` or `Personal access token`. Default value is `Basic authentication`.
 
 `data_center_username`
-:   The username of the account for Jira Data Center. This field is only available for `Basic authentication`.
+:   The username of the account for Jira Data Center. {applies_to}`stack: ga 9.6` This field is only available for `Basic authentication`.
 
 `data_center_password`
-:   The password of the account to be used for Jira Data Center. This field is only available for `Basic authentication`.
+:   The password of the account to be used for Jira Data Center. {applies_to}`stack: ga 9.6` This field is only available for `Basic authentication`.
 
-`data_center_personal_access_token`
+`data_center_personal_access_token` {applies_to}`stack: ga 9.6`
 :   The personal access token for Jira Data Center. This field is only available for `Personal access token`.
 
 `username`

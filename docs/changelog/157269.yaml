@@ -1,5 +1,5 @@
-area: Compute Engine
+area: ES|QL
 issues: []
 pr: 157269
-summary: Use `DocValueSkippers` to calculate values for `LuceneMinMaxOperator`
+summary: Use skipper metadata to shortcut calculating field min/max values
 type: enhancement

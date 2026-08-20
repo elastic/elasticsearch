@@ -143,6 +143,7 @@ public class DataStreamTimestampFieldMapperColumnarTests extends MapperServiceTe
         );
 
         // 2-doc batch; only doc 0 has a timestamp — doc 1 is absent in the sparse column.
+        // A sparse column fails the density check, so the fallback "missing" message is thrown.
         BatchMappingContext context = contextWithNDocs(mapperService, 2);
         context.setTimestamps(sparseTimestampData(2, 1_000_000L, 0));
 
@@ -150,7 +151,7 @@ public class DataStreamTimestampFieldMapperColumnarTests extends MapperServiceTe
             IllegalArgumentException.class,
             () -> DataStreamTimestampFieldMapper.ENABLED_INSTANCE.postColumnarParse(context)
         );
-        assertThat(ex.getMessage(), equalTo("document [1] is missing data stream timestamp field [" + DEFAULT_PATH + "]"));
+        assertThat(ex.getMessage(), equalTo("data stream timestamp field [" + DEFAULT_PATH + "] is missing"));
     }
 
     /** When all documents in the batch have a @timestamp value, postColumnarParse succeeds. */
@@ -187,6 +188,7 @@ public class DataStreamTimestampFieldMapperColumnarTests extends MapperServiceTe
         );
 
         // 3-doc batch; only docs 1 and 2 are present — doc 0 is absent.
+        // A sparse column fails the density check, so the fallback "missing" message is thrown.
         BatchMappingContext context = contextWithNDocs(mapperService, 3);
         context.setTimestamps(sparseTimestampData(3, 1_000_000L, 1, 2));
 
@@ -194,7 +196,7 @@ public class DataStreamTimestampFieldMapperColumnarTests extends MapperServiceTe
             IllegalArgumentException.class,
             () -> DataStreamTimestampFieldMapper.ENABLED_INSTANCE.postColumnarParse(context)
         );
-        assertThat(ex.getMessage(), equalTo("document [0] is missing data stream timestamp field [" + DEFAULT_PATH + "]"));
+        assertThat(ex.getMessage(), equalTo("data stream timestamp field [" + DEFAULT_PATH + "] is missing"));
     }
 
     /** A timestamp before the time-series window start is rejected. */

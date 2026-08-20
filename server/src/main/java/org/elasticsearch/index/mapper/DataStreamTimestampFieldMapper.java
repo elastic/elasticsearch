@@ -11,11 +11,13 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
+import org.apache.lucene.document.column.LongValuesCursor;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.escf.EscfLongColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.TimestampBounds;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
@@ -304,23 +306,25 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         // Unlike the row-based postParse (called per-document, failures isolated by the engine's
         // bulk loop), this method runs once for the entire batch. Any violation rejects the whole
         // batch. This is intentional: the columnar write path has no partial-commit mechanism.
-        final IndexSettings indexSettings = context.indexSettings();
-        boolean shouldValidateTimestamp = indexSettings.getMode().shouldValidateTimestamp();
-        TimestampBounds bounds = null;
-        boolean isDateNanos = false;
-        if (shouldValidateTimestamp) {
-            bounds = indexSettings.getTimestampBounds();
-            isDateNanos = context.mappingLookup().getMapper(DEFAULT_PATH).typeName().equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE);
+        EscfLongColumn timestamps = context.timestamps();
+        if (timestamps == null || timestamps.isDense() == false || timestamps.docCount() != context.docCount()) {
+            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is missing");
         }
 
-        final int docCount = context.docCount();
-        for (int doc = 0; doc < docCount; doc++) {
-            long timestamp = context.timestampAt(doc);
-            if (shouldValidateTimestamp) {
+        final IndexSettings indexSettings = context.indexSettings();
+        if (indexSettings.getMode().shouldValidateTimestamp()) {
+            TimestampBounds bounds = indexSettings.getTimestampBounds();
+            boolean isDateNanos = context.mappingLookup()
+                .getMapper(DEFAULT_PATH)
+                .typeName()
+                .equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE);
+            LongValuesCursor cursor = timestamps.longValuesCursor();
+            for (int doc = 0; doc < context.docCount(); doc++) {
+                long timestamp = cursor.nextLong();
                 try {
                     validateTimestampValue(bounds, timestamp, isDateNanos);
                 } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException("document [" + doc + "]: " + e.getMessage(), e);
+                    throw new IllegalArgumentException(Strings.format("document [%d]: %s", doc, e.getMessage()), e);
                 }
             }
         }

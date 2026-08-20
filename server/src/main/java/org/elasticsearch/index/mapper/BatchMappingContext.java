@@ -55,7 +55,7 @@ public final class BatchMappingContext {
     private DeduplicatingStringColumnAccumulator ignoredFields;
     /**
      * The mapped {@code @timestamp} column, published by {@code DateFieldMapper.mapColumnBatch}
-     * when it maps the data-stream timestamp field. Readable via {@link #timestampAt(int)} /
+     * when it maps the data-stream timestamp field. Readable via {@link #timestamps()} /
      * {@link #hasTimestamps()}; {@code null} before the column is mapped. Mirrors the per-document
      * side channel that {@link DataStreamTimestampFieldMapper} uses on the row path
      * ({@code DataStreamTimestampFieldMapper.storeTimestampValueForReuse}).
@@ -90,7 +90,7 @@ public final class BatchMappingContext {
 
     /**
      * Records the mapped {@code @timestamp} ESCF column so that {@code postColumnarParse} hooks
-     * can read per-document timestamp values via {@link #timestampAt(int)} without re-scanning
+     * can read per-document timestamp values via {@link #timestamps()} without re-scanning
      * the Lucene column list. Mirrors the row-path side channel
      * ({@code DataStreamTimestampFieldMapper.storeTimestampValueForReuse}). The data is the same
      * {@link EscfColumnData} that {@code DateFieldMapper.mapColumnBatch} already built; no copy
@@ -114,33 +114,19 @@ public final class BatchMappingContext {
     }
 
     /**
-     * Returns {@code true} when {@link #setTimestamps} has been called and timestamp
-     * values are available via {@link #timestampAt(int)}.
+     * Returns {@code true} when {@link #setTimestamps} has been called and the timestamp
+     * column is available via {@link #timestamps()}.
      */
     public boolean hasTimestamps() {
         return timestamps != null;
     }
 
     /**
-     * Returns the parsed {@code @timestamp} millisecond value for document {@code doc}.
-     *
-     * @throws IllegalArgumentException if no timestamp column was recorded (mirrors the row path's
-     *     "data stream timestamp field [@timestamp] is missing" error from
-     *     {@link DataStreamTimestampFieldMapper#extractTimestampValue})
-     * @throws IllegalArgumentException if document {@code doc} is absent in the timestamp column
+     * Returns the mapped {@code @timestamp} column, or {@code null} if no column has been recorded
+     * yet. Callers are responsible for density and size validation before iterating values.
      */
-    public long timestampAt(int doc) {
-        if (timestamps == null) {
-            throw new IllegalArgumentException(
-                "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is missing"
-            );
-        }
-        if (timestamps.isPresent(doc) == false) {
-            throw new IllegalArgumentException(
-                "document [" + doc + "] is missing data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "]"
-            );
-        }
-        return timestamps.getLongValue(doc);
+    public EscfLongColumn timestamps() {
+        return timestamps;
     }
 
     /**

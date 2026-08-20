@@ -101,23 +101,23 @@ public class DataStreamTimestampFieldMapperColumnarTests extends MapperServiceTe
 
     // ---- tests ---------------------------------------------------------------------------------
 
-    public void testHasTimestampsFalseBeforeRecord() throws IOException {
+    public void testTimestampsNullBeforeSet() throws IOException {
         MapperService mapperService = createMapperService(
             columnarSettings(),
             mapping(b -> b.startObject(DEFAULT_PATH).field("type", "date").endObject())
         );
         BatchMappingContext context = contextWithNDocs(mapperService, 1);
-        assertFalse(context.hasTimestamps());
+        assertNull(context.timestamps());
     }
 
-    public void testHasTimestampsTrueAfterRecord() throws IOException {
+    public void testTimestampsNotNullAfterSet() throws IOException {
         MapperService mapperService = createMapperService(
             columnarSettings(),
             mapping(b -> b.startObject(DEFAULT_PATH).field("type", "date").endObject())
         );
         BatchMappingContext context = contextWithNDocs(mapperService, 1);
         context.setTimestamps(denseTimestampData(1_000L));
-        assertTrue(context.hasTimestamps());
+        assertNotNull(context.timestamps());
     }
 
     /** When no @timestamp column was produced by mapColumnBatch, postColumnarParse throws. */

@@ -55,8 +55,8 @@ public final class BatchMappingContext {
     private DeduplicatingStringColumnAccumulator ignoredFields;
     /**
      * The mapped {@code @timestamp} column, published by {@code DateFieldMapper.mapColumnBatch}
-     * when it maps the data-stream timestamp field. Readable via {@link #timestamps()} /
-     * {@link #hasTimestamps()}; {@code null} before the column is mapped. Mirrors the per-document
+     * when it maps the data-stream timestamp field. Readable via {@link #timestamps()}, and will be
+     * {@code null} before the column is mapped. Mirrors the per-document
      * side channel that {@link DataStreamTimestampFieldMapper} uses on the row path
      * ({@code DataStreamTimestampFieldMapper.storeTimestampValueForReuse}).
      */
@@ -111,14 +111,6 @@ public final class BatchMappingContext {
             );
         }
         this.timestamps = (EscfLongColumn) EscfColumn.from(timestamps);
-    }
-
-    /**
-     * Returns {@code true} when {@link #setTimestamps} has been called and the timestamp
-     * column is available via {@link #timestamps()}.
-     */
-    public boolean hasTimestamps() {
-        return timestamps != null;
     }
 
     /**

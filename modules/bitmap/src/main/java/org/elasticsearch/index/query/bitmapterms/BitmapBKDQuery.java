@@ -9,10 +9,13 @@
 
 package org.elasticsearch.index.query.bitmapterms;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.PointValues.IntersectVisitor;
+import org.apache.lucene.index.PointValues.PointTree;
 import org.apache.lucene.index.PointValues.Relation;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
@@ -28,6 +31,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.DocIdSetBuilder;
+import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.RamUsageEstimator;
 
 import java.io.IOException;
@@ -40,6 +44,11 @@ import java.util.Objects;
  * The bitmap values are streamed in sorted order and merged with the BKD tree leaves, giving
  * O(N_index_leaves + N_bitmap_values) total work across the entire tree.
  * Based on {@link org.apache.lucene.search.PointInSetQuery}.
+ * <p>
+ * On a segment sorted by this field the merge's matches come out already in doc order, so they are
+ * streamed rather than collected; see {@link StreamingDocIdIterator}. Otherwise they are collected into a
+ * {@link DocIdSetBuilder} first, which is what puts them in order &mdash; and what stops a top-N consumer
+ * from finishing early, since it cannot reach its limit until the whole match set has been built.
  * <p>
  * The field's width lives entirely in the {@link BitmapValues}, so this handles {@code integer} and
  * {@code long} fields with one implementation: every comparison here is over the sortable-bytes
@@ -97,6 +106,32 @@ public class BitmapBKDQuery extends Query implements Accountable {
                     return null;
                 }
 
+                if (streams(reader, pointValues)) {
+                    // Both members below need it: cost() returns it, and the scan reports it as its own
+                    // DocIdSetIterator cost. Computing it inside cost() would only compute it twice.
+                    final long estimatedCost = estimateCost(pointValues.getDocCount(), segmentMin, segmentMax);
+                    return new ScorerSupplier() {
+                        @Override
+                        public Scorer get(long leadCost) throws IOException {
+                            // Opened here rather than per supplier, so a supplier asked only for its cost
+                            // reads neither structure and each scorer gets its own cursor over both.
+                            NumericDocValues docValues = DocValues.unwrapSingleton(DocValues.getSortedNumeric(reader, field));
+                            StreamingDocIdIterator scan = new StreamingDocIdIterator(
+                                pointValues.getPointTree(),
+                                docValues,
+                                reader.maxDoc(),
+                                estimatedCost
+                            );
+                            return new ConstantScoreScorer(score(), scoreMode, scan);
+                        }
+
+                        @Override
+                        public long cost() {
+                            return estimatedCost;
+                        }
+                    };
+                }
+
                 return new ScorerSupplier() {
                     long cost = -1;
 
@@ -119,11 +154,68 @@ public class BitmapBKDQuery extends Query implements Accountable {
                 };
             }
 
+            /**
+             * Only the streaming path reads doc values, to skip with, and those are updatable; the collecting
+             * path reads points alone, which cannot change under a cached entry. Testing the same predicate
+             * the scorer chooses with keeps a segment that collects from being withheld from the cache on the
+             * strength of a dependency it does not have.
+             */
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
-                return true;
+                PointValues pointValues;
+                try {
+                    pointValues = ctx.reader().getPointValues(field);
+                } catch (IOException e) {
+                    // This method cannot throw, and a segment whose points will not read is in no state to
+                    // have its results cached either.
+                    return false;
+                }
+                return pointValues == null || streams(ctx.reader(), pointValues) == false || DocValues.isCacheable(ctx, field);
             }
         };
+    }
+
+    /**
+     * Whether this segment's matches come out of the tree walk in doc order, so they can be streamed rather
+     * than collected. Under an ascending index sort they do; single-valued only, which is what
+     * {@code size() == getDocCount()} says, since index sort places a multi-valued document by one of its
+     * values and another of them can sit in a far later cell while the document sits early.
+     */
+    private boolean streams(LeafReader reader, PointValues pointValues) {
+        return SegmentSort.ascendingBy(reader, field) && pointValues.size() == pointValues.getDocCount();
+    }
+
+    /**
+     * Rough per-segment cost for the streaming path, from segment metadata alone: the bitmap's cardinality
+     * scaled by the average documents per distinct value, clamped to the segment's doc count. That factor is
+     * not 1 just because the field is single-valued &mdash; that bounds values per document, not documents
+     * per value, and many documents may share one. Spreading the documents evenly across the segment's value
+     * span is the only way to get it without reading the tree, since BKD records no distinct-value count.
+     * <p>
+     * {@link PointValues#estimateDocCount} is more accurate and is what the collecting path uses, but it
+     * walks the tree, and a bitmap of scattered values crosses most cells so that walk reaches nearly
+     * every leaf. The collecting path can afford it because it is about to traverse the tree anyway; the
+     * streaming path is built not to, and the built {@code DocIdSet} that would go on to report the true
+     * cost never exists.
+     * <p>
+     * Even spread is a crude assumption. A field holding dense ids plus one distant outlier has a span far
+     * wider than its populated range, which flattens the average to one document per value and makes the
+     * bitmap look more selective than it is.
+     */
+    private long estimateCost(int docCount, byte[] segmentMin, byte[] segmentMax) {
+        long lowest = values.decode(segmentMin, 0);
+        long highest = values.decode(segmentMax, 0);
+        // Inclusive bounds, hence the +1, and in floating point because a long field's span can exceed
+        // Long.MAX_VALUE -- Long.MIN_VALUE to Long.MAX_VALUE wraps to -1 in long arithmetic.
+        double span = (double) highest - (double) lowest + 1.0;
+        // Floored at one document per value, since a value the segment holds is carried by at least one.
+        // A sparser field than that divides below 1, and a zero would report the query as matching
+        // nothing -- which is the reading that makes a conjunction lead with this clause.
+        double avgDocsPerValue = Math.max(1.0, docCount / span);
+        // Clamped before multiplying, so neither factor exceeds the doc count and the product cannot
+        // overflow whatever cardinality the bitmap reports.
+        long cardinality = Math.min(values.cardinality(), docCount);
+        return Math.min(docCount, (long) (cardinality * avgDocsPerValue));
     }
 
     /**
@@ -134,14 +226,17 @@ public class BitmapBKDQuery extends Query implements Accountable {
      * <p>
      * This half decides <em>which cells match</em> and collects nothing, which is all
      * {@link PointValues#estimateDocCount} needs — it calls only {@link #compare}. Collecting the
-     * matched documents costs a {@link DocIdSetBuilder}, so that lives in
-     * {@link CollectingMergePointVisitor} and the cost estimate does not pay for it.
+     * matched documents costs somewhere to put them, so that lives in the subclasses:
+     * {@link CollectingMergePointVisitor} for the whole match set, and
+     * {@link BufferingMergePointVisitor} for one cell of it at a time.
      */
     private class MergePointVisitor implements IntersectVisitor {
         private final BitmapValues.PeekableIterator iterator;
         private final ArrayUtil.ByteArrayComparator comparator;
         /** The bitmap value being merged, encoded. Owned here, so nothing else can recycle it. */
         private final byte[] queryPoint;
+        /** {@link #queryPoint} decoded, so that a skip target can be compared without decoding it. */
+        private long queryValue;
         private boolean hasQueryPoint;
 
         MergePointVisitor() {
@@ -155,6 +250,7 @@ public class BitmapBKDQuery extends Query implements Accountable {
         private void takeQueryPoint() {
             hasQueryPoint = iterator.hasNext();
             if (hasQueryPoint) {
+                queryValue = iterator.peek();
                 iterator.encodePeek(queryPoint);
                 iterator.next();
             }
@@ -170,14 +266,28 @@ public class BitmapBKDQuery extends Query implements Accountable {
             takeQueryPoint();
         }
 
+        /**
+         * Jumps the bitmap cursor to {@code value}, so that every cell below it is then rejected by a
+         * single {@link #compare} rather than descended into. Unlike {@link #skipTo(byte[])} this is
+         * reached from outside the merge, where the cursor may already be at or past the target, so it
+         * checks before consuming — a blind {@code takeQueryPoint} would drop a value that still matches.
+         */
+        void skipTo(long value) {
+            if (hasQueryPoint == false || value <= queryValue) {
+                return;
+            }
+            iterator.advanceTo(value);
+            takeQueryPoint();
+        }
+
         @Override
         public void visit(int docID) {
-            throw new UnsupportedOperationException("this visitor does not collect; use " + CollectingMergePointVisitor.class);
+            throw new UnsupportedOperationException("this visitor does not collect; use one of its subclasses");
         }
 
         @Override
         public void visit(int docID, byte[] packedValue) {
-            throw new UnsupportedOperationException("this visitor does not collect; use " + CollectingMergePointVisitor.class);
+            throw new UnsupportedOperationException("this visitor does not collect; use one of its subclasses");
         }
 
         protected boolean matches(byte[] packedValue) {
@@ -266,6 +376,219 @@ public class BitmapBKDQuery extends Query implements Accountable {
             if (matches(packedValue)) {
                 adder.add(docIdSetIterator);
             }
+        }
+    }
+
+    /**
+     * Holds one cell's matching doc ids for {@link StreamingDocIdIterator} to hand out. Separate from
+     * {@link CollectingMergePointVisitor} because that one accumulates the whole match set before any of
+     * it is returned, which is precisely what the streaming path must not do; this one is emptied and
+     * refilled per cell, so its footprint stays a leaf's worth of points however large the match set
+     * grows.
+     */
+    private final class BufferingMergePointVisitor extends MergePointVisitor {
+        private int[] docs = new int[64];
+        private int size;
+        private int position;
+
+        /** Empties the buffer, so it only ever holds the cell currently being visited. */
+        void reset() {
+            size = 0;
+            position = 0;
+        }
+
+        boolean isEmpty() {
+            return position == size;
+        }
+
+        int next() {
+            return docs[position++];
+        }
+
+        /** The first buffered doc at or after {@code target}, or -1 once the buffer is drained. */
+        int advanceTo(int target) {
+            while (position < size) {
+                int doc = docs[position++];
+                if (doc >= target) {
+                    return doc;
+                }
+            }
+            return -1;
+        }
+
+        @Override
+        public void grow(int count) {
+            docs = ArrayUtil.grow(docs, size + count);
+        }
+
+        @Override
+        public void visit(int docID) {
+            if (size == docs.length) {
+                docs = ArrayUtil.grow(docs, size + 1);
+            }
+            docs[size++] = docID;
+        }
+
+        @Override
+        public void visit(IntsRef ref) {
+            grow(ref.length);
+            System.arraycopy(ref.ints, ref.offset, docs, size, ref.length);
+            size += ref.length;
+        }
+
+        @Override
+        public void visit(DocIdSetIterator docIdSetIterator) throws IOException {
+            for (int docID = docIdSetIterator.nextDoc(); docID != DocIdSetIterator.NO_MORE_DOCS; docID = docIdSetIterator.nextDoc()) {
+                visit(docID);
+            }
+        }
+
+        @Override
+        public void visit(int docID, byte[] packedValue) {
+            if (matches(packedValue)) {
+                visit(docID);
+            }
+        }
+
+        @Override
+        public void visit(DocIdSetIterator docIdSetIterator, byte[] packedValue) throws IOException {
+            if (matches(packedValue)) {
+                visit(docIdSetIterator);
+            }
+        }
+    }
+
+    /**
+     * Streams the merge's matches, for a segment whose values increase with its doc ids &mdash; the
+     * ascending index sort the caller checked for, which is what makes the walk emit doc ids in order.
+     * <p>
+     * The tree is walked through a {@link PointTree} cursor rather than
+     * {@link PointValues#intersect(IntersectVisitor)}, because that recurses and a recursion cannot be
+     * suspended between two documents; here the cursor's position in the tree <em>is</em> the resume point.
+     * Each step compares the current cell against the bitmap and does one of three things: steps over a
+     * cell the bitmap misses entirely, descends into an inner cell, or reads a leaf's matching doc ids into
+     * a buffer that {@link #nextDoc()} then hands out one at a time. Descending as far as the leaves rather
+     * than bulk-reading an inner cell that matches in full is what keeps that buffer to one leaf's points,
+     * however many documents an inner cell covers.
+     */
+    private final class StreamingDocIdIterator extends DocIdSetIterator {
+        private final PointTree tree;
+        private final BufferingMergePointVisitor visitor = new BufferingMergePointVisitor();
+        private final NumericDocValues docValues;
+        private final int maxDoc;
+        private final long cost;
+        /** Whether the walk has climbed back out of the root, leaving no cell left to visit. */
+        private boolean finished;
+        private int doc = -1;
+
+        StreamingDocIdIterator(PointTree tree, NumericDocValues docValues, int maxDoc, long cost) {
+            this.tree = tree;
+            this.docValues = docValues;
+            this.maxDoc = maxDoc;
+            this.cost = cost;
+        }
+
+        @Override
+        public int docID() {
+            return doc;
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            if (visitor.isEmpty() && nextCellWithMatches() == false) {
+                return doc = NO_MORE_DOCS;
+            }
+            return emit(visitor.next());
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            if (target >= maxDoc) {
+                // No document can satisfy this, and the doc values read below would be out of bounds.
+                return doc = NO_MORE_DOCS;
+            }
+            int buffered = visitor.advanceTo(target);
+            if (buffered != -1) {
+                return emit(buffered);
+            }
+            // The tree positions on a value quickly, but advance() is given a doc id and the tree holds no
+            // doc-id index to translate it with. Doc values do: the value this document carries, which under
+            // the index sort is a lower bound on every match from here on. Jumping the bitmap cursor there
+            // lets a single compare() reject each cell in between. Read forward only, since advance targets
+            // increase monotonically; a document with no value declines the jump and the walk proceeds.
+            if (docValues != null && docValues.advanceExact(target)) {
+                visitor.skipTo(docValues.longValue());
+            }
+            while (nextCellWithMatches()) {
+                buffered = visitor.advanceTo(target);
+                if (buffered != -1) {
+                    return emit(buffered);
+                }
+            }
+            return doc = NO_MORE_DOCS;
+        }
+
+        /**
+         * The one place a doc id leaves this iterator, so the ascending order the whole strategy rests on
+         * is asserted once rather than argued about per call site.
+         */
+        private int emit(int next) {
+            assert next > doc : "doc ids out of order: [" + next + "] after [" + doc + "]";
+            return doc = next;
+        }
+
+        /**
+         * Advances the walk to the next cell holding matches and buffers them. False once the tree is
+         * exhausted.
+         */
+        private boolean nextCellWithMatches() throws IOException {
+            while (finished == false) {
+                Relation relation = visitor.compare(tree.getMinPackedValue(), tree.getMaxPackedValue());
+                if (relation == Relation.CELL_OUTSIDE_QUERY) {
+                    moveToNextCell();
+                    continue;
+                }
+                if (tree.moveToChild()) {
+                    // Descend even when the whole cell matches, so that what is buffered is bounded by a
+                    // leaf's points rather than by however many documents an inner cell holds. The extra
+                    // comparisons are free: a child of a cell whose min equals its max has the same min
+                    // and max, so it takes the same branch without moving the bitmap cursor.
+                    continue;
+                }
+                visitor.reset();
+                if (relation == Relation.CELL_INSIDE_QUERY) {
+                    // Every point in the leaf matches, so its values need not be read back at all.
+                    tree.visitDocIDs(visitor);
+                } else {
+                    tree.visitDocValues(visitor);
+                }
+                // Stepped past now rather than on the next call, so the cursor always rests on work still
+                // to do and the buffer is never tied to where the cursor sits.
+                moveToNextCell();
+                if (visitor.isEmpty() == false) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Steps the pre-order walk past the current cell without descending into it, climbing to a parent
+         * whenever a cell has no further sibling. Skipping a whole subtree therefore costs no more than
+         * the one {@link MergePointVisitor#compare} that rejected it.
+         */
+        private void moveToNextCell() throws IOException {
+            while (tree.moveToSibling() == false) {
+                if (tree.moveToParent() == false) {
+                    finished = true;
+                    return;
+                }
+            }
+        }
+
+        @Override
+        public long cost() {
+            return cost;
         }
     }
 

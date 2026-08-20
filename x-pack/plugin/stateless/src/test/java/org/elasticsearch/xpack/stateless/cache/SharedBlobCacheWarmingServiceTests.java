@@ -2507,14 +2507,16 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 fakeNode.sharedCacheService.getRegionSize(),
                 randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
             );
-            appendCommitsToVbcc(vbcc, fakeNode.searchDirectory, indexCommits);
+            // Mirror recovery: build the BCC first, then a single updateCommit with file ranges.
+            for (StatelessCommitRef statelessCommitRef : indexCommits) {
+                assertTrue(vbcc.appendCommit(statelessCommitRef, randomBoolean(), null));
+            }
             vbcc.freeze();
 
-            // Force a single, known timestamp for every file in the recovered commit so the ShardWarmer's per-file resolution is
-            // deterministic regardless of which segment/region ends up being warmed.
             final StatelessCompoundCommit lastCommit = vbcc.getFrozenBatchedCompoundCommit().lastCompoundCommit();
             final var timestampRange = new StatelessCompoundCommit.TimestampFieldValueRange(knownTimestamp, knownTimestamp);
             final Map<String, BlobFileRanges> timestampOverride = new HashMap<>();
+            // Artificially stamp every file in the recovered commit with the same known timestamp so we can assert deterministically.
             for (var entry : lastCommit.commitFiles().entrySet()) {
                 timestampOverride.put(entry.getKey(), new BlobFileRanges(entry.getValue(), timestampRange));
             }

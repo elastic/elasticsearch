@@ -73,10 +73,9 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
  * <p>
  * Not supported in multi-project clusters, which replace the service account token store through
  * {@code SecurityExtension#getServiceAccountTokenStore} and so leave an account created here unable to hold a
- * credential; {@link org.elasticsearch.xpack.security.Security} correspondingly does not construct this store when the
- * project resolver supports multiple projects.
+ * credential.
  */
-public final class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.CacheInvalidator {
+public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.CacheInvalidator {
 
     /**
      * A node older than this resolves a service account's privileges from the built-in account of the same name and
@@ -110,6 +109,7 @@ public final class UserManagedServiceAccountStore implements CacheInvalidatorReg
     @Nullable
     private final InvalidationCountingCacheWrapper<String, CachedAccount> accountCache;
 
+    @SuppressWarnings("this-escape")
     public UserManagedServiceAccountStore(
         Settings settings,
         Client client,

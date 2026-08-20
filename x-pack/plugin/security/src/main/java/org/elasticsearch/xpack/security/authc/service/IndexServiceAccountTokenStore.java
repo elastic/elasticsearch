@@ -148,7 +148,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
         ActionListener<CreateServiceAccountTokenResponse> listener
     ) {
         final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
-        if (false == ServiceAccountService.isServiceAccountPrincipal(accountId.asPrincipal())) {
+        if (false == ServiceAccountService.isBuiltInServiceAccountPrincipal(accountId.asPrincipal())) {
             listener.onFailure(new IllegalArgumentException("service account [" + accountId + "] does not exist"));
             return;
         }
@@ -280,7 +280,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
      */
     void deleteBuiltInToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
         final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
-        if (false == ServiceAccountService.isServiceAccountPrincipal(accountId.asPrincipal())) {
+        if (false == ServiceAccountService.isBuiltInServiceAccountPrincipal(accountId.asPrincipal())) {
             listener.onResponse(false);
             return;
         }

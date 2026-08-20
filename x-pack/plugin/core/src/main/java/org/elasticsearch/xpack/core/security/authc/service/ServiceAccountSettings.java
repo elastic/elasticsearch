@@ -31,7 +31,7 @@ public final class ServiceAccountSettings {
      * whether to resolve the account's privileges from an inline role descriptor or from named roles, so it must be
      * set for every user-managed account. Also surfaced by {@code _authenticate}.
      */
-    public static final String USER_MANAGED_SERVICE_ACCOUNT_FIELD = "_managed_service_account";
+    public static final String USER_MANAGED_SERVICE_ACCOUNT_FIELD = "_user_managed_service_account";
 
     private ServiceAccountSettings() {}
 }

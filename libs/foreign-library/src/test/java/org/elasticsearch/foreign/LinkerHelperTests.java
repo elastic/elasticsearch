@@ -16,7 +16,6 @@ import org.junit.BeforeClass;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
-import java.util.Locale;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BOOLEAN;
@@ -32,7 +31,7 @@ public class LinkerHelperTests extends TestCase {
 
     @BeforeClass
     public static void loadWindowsLibraries() {
-        if (System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows")) {
+        if (Platform.current() == Platform.WINDOWS_X64) {
             System.loadLibrary("kernel32");
         }
     }
@@ -43,7 +42,7 @@ public class LinkerHelperTests extends TestCase {
      * (9) on POSIX platforms, making it a self-contained way to force a known errno value.
      */
     public void testSystemErrorReturnsCapturedErrnoAfterFailedCall() throws Throwable {
-        if (System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows")) {
+        if (Platform.current() == Platform.WINDOWS_X64) {
             // errno semantics for this symbol are POSIX-specific; skip on Windows.
             return;
         }
@@ -65,7 +64,7 @@ public class LinkerHelperTests extends TestCase {
      * on Windows, so this test is a no-op everywhere else.
      */
     public void testSystemErrorReturnsCapturedGetLastErrorAfterFailedCall() throws Throwable {
-        if (System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows") == false) {
+        if (Platform.current() != Platform.WINDOWS_X64) {
             // GetLastError capture state is Windows-only; skip everywhere else.
             return;
         }

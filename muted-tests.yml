@@ -514,9 +514,6 @@ tests:
 - class: org.elasticsearch.reindex.ReindexFailureTests
   method: testResponseOnSearchFailure
   issue: https://github.com/elastic/elasticsearch/issues/151064
-- class: org.elasticsearch.lucene.FullClusterRestartSystemIndexCompatibilityIT
-  method: testAsyncSearchIndexMigration {p0=9.6.0}
-  issue: https://github.com/elastic/elasticsearch/issues/155871
 - class: org.elasticsearch.xpack.esql.ccq.FederationOutgoingDatasetGateRestIT
   method: testDisabledLocalResolvesRemoteDatasetAsMissingIndex
   issue: https://github.com/elastic/elasticsearch/issues/155916

@@ -56,6 +56,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
@@ -2189,9 +2190,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 int defaultBits = isAsh ? DEFAULT_ASH_IVF_QUANTIZE_BITS : DEFAULT_BBQ_IVF_QUANTIZE_BITS;
                 int quantizeBits = XContentMapValues.nodeIntegerValue(quantizeBitsNode, defaultBits);
                 if (isAsh) {
-                    if ((quantizeBits == 1 || quantizeBits == 2 || quantizeBits == 3 || quantizeBits == 4 || quantizeBits == 8) == false) {
+                    if (IvfSegmentConfig.AshConfig.SUPPORTED_BITS_PER_DIM.contains(quantizeBits) == false) {
                         throw new IllegalArgumentException(
-                            "'bits' must be 1, 2, 3, 4 or 8 for ASH quantization, got: " + quantizeBits + " for field [" + fieldName + "]"
+                            "'bits' must be one of "
+                                + IvfSegmentConfig.AshConfig.SUPPORTED_BITS_PER_DIM
+                                + " for ASH quantization, got: "
+                                + quantizeBits
+                                + " for field ["
+                                + fieldName
+                                + "]"
                         );
                     }
                 } else {
@@ -2997,7 +3004,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("quantization_type 'ash' is only available in snapshot builds");
                 }
                 if (quantizationType == QuantizationType.ASH && Build.current().isSnapshot()) {
+                    var ashConfig = IvfSegmentConfig.AshConfig.of(
+                        bits,
+                        IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM,
+                        IvfSegmentConfig.AshConfig.DEFAULT_PROJECTED_DIMS_FRACTION
+                    );
                     return new ESNextDiskASHVectorsFormat(
+                        ashConfig,
                         clusterSize,
                         ESNextDiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                         elementType,
@@ -3007,10 +3020,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         flatIndexThreshold,
                         sliceField,
                         IvfFlushConfigSource.empty(),
-                        IvfMergeConfigResolver.useCodecDefault(),
-                        bits,
-                        ESNextDiskASHVectorsFormat.DEFAULT_PROJECTED_DIMS_FRACTION,
-                        ESNextDiskASHVectorsFormat.DEFAULT_QUERY_BITS_PER_DIM
+                        IvfMergeConfigResolver.useCodecDefault()
                     );
                 } else {
                     IvfMergeConfigResolver mergeConfigResolver = autoCalibrate

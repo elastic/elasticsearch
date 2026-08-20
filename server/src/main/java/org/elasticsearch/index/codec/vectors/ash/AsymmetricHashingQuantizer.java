@@ -10,12 +10,12 @@
 package org.elasticsearch.index.codec.vectors.ash;
 
 import org.elasticsearch.common.CheckedIntFunction;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
-import java.util.Set;
 import java.util.function.IntUnaryOperator;
 
 /**
@@ -55,9 +55,6 @@ public final class AsymmetricHashingQuantizer {
     private final long seed;
     private final AshSphericalScalarQuantizer quantizer;
 
-    /** Supported values for bits per dimension. */
-    public static final Set<Integer> SUPPORTED_BITS_PER_DIM = Set.of(1, 2, 3, 4, 8);
-
     /**
      * Creates an ASH quantizer with the given configuration.
      *
@@ -67,6 +64,9 @@ public final class AsymmetricHashingQuantizer {
      * @param nTrainingIterations number of Procrustes iterations (for LEARNED)
      * @param trainingFactor multiplier on dimension for training sample size
      * @param seed random seed
+     * @throws IllegalArgumentException if {@code bitsPerDim} is not in
+     *         {@link IvfSegmentConfig.AshConfig#SUPPORTED_BITS_PER_DIM} or
+     *         {@code projectedDimsFraction} is not in (0, 1]
      */
     public AsymmetricHashingQuantizer(
         float projectedDimsFraction,
@@ -79,8 +79,10 @@ public final class AsymmetricHashingQuantizer {
         if (projectedDimsFraction <= 0 || projectedDimsFraction > 1.0f) {
             throw new IllegalArgumentException("projectedDimsFraction must be in (0, 1]");
         }
-        if (bitsPerDim <= 0 || SUPPORTED_BITS_PER_DIM.contains(bitsPerDim) == false) {
-            throw new IllegalArgumentException("bitsPerDim must be one of " + SUPPORTED_BITS_PER_DIM + ", got: " + bitsPerDim);
+        if (bitsPerDim <= 0 || IvfSegmentConfig.AshConfig.SUPPORTED_BITS_PER_DIM.contains(bitsPerDim) == false) {
+            throw new IllegalArgumentException(
+                "bitsPerDim must be one of " + IvfSegmentConfig.AshConfig.SUPPORTED_BITS_PER_DIM + ", got: " + bitsPerDim
+            );
         }
         this.projectedDimsFraction = projectedDimsFraction;
         this.method = method;

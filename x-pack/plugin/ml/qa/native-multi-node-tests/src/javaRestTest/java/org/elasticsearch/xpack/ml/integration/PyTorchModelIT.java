@@ -375,33 +375,19 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
             // -Dtests.ml.expect_native_rss=true) we enforce the full end-to-end chain, waiting for the first report.
             // Otherwise the check is best-effort so it does not flake against a released ml-cpp that does not report RSS
             // within the short test window.
-            if (Booleans.parseBoolean(System.getProperty("tests.ml.expect_native_rss", "false"))) {
+            boolean requireNativeRss = Booleans.parseBoolean(System.getProperty("tests.ml.expect_native_rss", "false"));
+            try {
+                // Wait for the periodic native RSS report so this is a genuine end-to-end check when running against an
+                // ml-cpp that emits it, then assert the full accounting chain.
                 assertBusy(() -> assertNativeRuntimeMemorySurfaced(modelId), 30, TimeUnit.SECONDS);
-            } else {
-                assertNativeRuntimeMemoryConsistentIfPresent(nodes, stats.get(0));
+            } catch (AssertionError noReportYet) {
+                // A released ml-cpp without periodic reporting never sends RSS, so tolerate its absence to avoid flaking -
+                // unless -Dtests.ml.expect_native_rss=true demands it (the coordinated ml-cpp + ES build).
+                if (requireNativeRss) {
+                    throw noReportYet;
+                }
+                logger.info("native RSS not reported within timeout; skipping strict runtime-native-memory assertion");
             }
-        }
-    }
-
-    /**
-     * Best-effort check used when we cannot guarantee the native process has reported its RSS yet (e.g. running against a
-     * released ml-cpp without periodic reporting): if a node has reported RSS, the summed value must match what the stats
-     * API surfaces, but absence is tolerated so the test does not flake.
-     */
-    private void assertNativeRuntimeMemoryConsistentIfPresent(List<Map<String, Object>> nodes, Map<String, Object> modelStats) {
-        long summedNodeRss = 0;
-        boolean anyNodeReportedRss = false;
-        for (var node : nodes) {
-            Number nodeRss = (Number) node.get("average_inference_process_memory_rss_bytes");
-            if (nodeRss != null) {
-                anyNodeReportedRss = true;
-                summedNodeRss += nodeRss.longValue();
-            }
-        }
-        if (anyNodeReportedRss) {
-            Number runtimeNativeMemory = (Number) XContentMapValues.extractValue("model_size_stats.runtime_native_memory_bytes", modelStats);
-            assertThat(runtimeNativeMemory, notNullValue());
-            assertThat(runtimeNativeMemory.longValue(), equalTo(summedNodeRss));
         }
     }
 

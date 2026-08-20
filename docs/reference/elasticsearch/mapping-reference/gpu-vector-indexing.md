@@ -61,7 +61,7 @@ bundle cuvs-java 26.02 and require libcuvs 26.02 or later (26.04 is the tested
 version, as in the Dockerfile above). {{es}} 9.3 and 9.4 bundle cuvs-java 25.12
 and require libcuvs 25.12, available from
 `https://storage.googleapis.com/elasticsearch-cuvs-snapshots/libcuvs/libcuvs-25.12.0.tar.gz`
-(replace the libcuvs step above with a download and extraction of that archive
+(replace the libcuvs download step in the example Dockerfile with a download and extraction of that archive
 into `$LIBCUVS_DIR`).
 ::::
 
@@ -144,7 +144,7 @@ indexing is not being used, such as an unsupported environment, missing
 libraries, or an incompatible GPU.
 
 
-### GPU indexing is disabled with a `Version mismatch: outdated libcuvs_c` warning
+### GPU indexing is unavailable with a `Version mismatch: outdated libcuvs_c` warning
 
 If the node logs a warning like:
 
@@ -157,7 +157,7 @@ the libcuvs library on `LD_LIBRARY_PATH` is older than the `cuvs-java`
 version bundled with {{es}}. Install a libcuvs version that is at least the
 bundled `cuvs-java` version (see the note under the example Dockerfile) and
 restart the node. With `vectors.indexing.use_gpu: auto` (the default) the node
-starts and silently falls back to CPU indexing in this case; use
+starts and silently falls back to CPU indexing in this case. Use
 `vectors.indexing.use_gpu: true` to make the node fail to start instead.
 
 ### Node fails to start with `vectors.indexing.use_gpu: true`

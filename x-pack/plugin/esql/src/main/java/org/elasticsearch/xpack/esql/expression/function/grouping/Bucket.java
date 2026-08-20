@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -721,15 +722,48 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         if (from != null) {
             assert to != null : "Both from and to must be set";
             long b = ((Number) buckets.fold(foldContext)).longValue();
-            double f = ((Number) from.fold(foldContext)).doubleValue();
-            double t = ((Number) to.fold(foldContext)).doubleValue();
-            double precise = (t - f) / b;
+            double precise = numericRange(foldContext) / b;
             double nextPowerOfTen = Math.pow(10, Math.ceil(Math.log10(precise)));
             double halfPower = nextPowerOfTen / 2;
             return precise < halfPower ? halfPower : nextPowerOfTen;
         } else {
             return ((Number) buckets.fold(foldContext)).doubleValue();
         }
+    }
+
+    /**
+     * The width of the {@code from}..{@code to} range as a double. {@code unsigned_long} bounds fold to their
+     * sortable-encoded representation and must be decoded rather than read with a signed {@code doubleValue()}.
+     * When both bounds are unsigned_long the difference is computed exactly in BigInteger space first: decoding
+     * each side to a double separately can round away the entire range (doubles quantize in steps of up to 2048
+     * near 2^64).
+     */
+    private double numericRange(FoldContext foldContext) {
+        if (from.dataType() == DataType.UNSIGNED_LONG && to.dataType() == DataType.UNSIGNED_LONG) {
+            BigInteger f = NumericUtils.unsignedLongAsBigInteger(((Number) from.fold(foldContext)).longValue());
+            BigInteger t = NumericUtils.unsignedLongAsBigInteger(((Number) to.fold(foldContext)).longValue());
+            return t.subtract(f).doubleValue();
+        }
+        return foldNumericBound(foldContext, to) - foldNumericBound(foldContext, from);
+    }
+
+    /**
+     * The numeric {@code from} bound as a double, decoding sortable-encoded unsigned_long values.
+     */
+    public double numericRangeFrom(FoldContext foldContext) {
+        return foldNumericBound(foldContext, from);
+    }
+
+    /**
+     * The numeric {@code to} bound as a double, decoding sortable-encoded unsigned_long values.
+     */
+    public double numericRangeTo(FoldContext foldContext) {
+        return foldNumericBound(foldContext, to);
+    }
+
+    private static double foldNumericBound(FoldContext foldContext, Expression e) {
+        Number value = (Number) e.fold(foldContext);
+        return e.dataType() == DataType.UNSIGNED_LONG ? NumericUtils.unsignedLongToDouble(value.longValue()) : value.doubleValue();
     }
 
     // supported parameter type combinations (1st, 2nd, 3rd, 4th):

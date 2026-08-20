@@ -2203,8 +2203,8 @@ public class LocalExecutionPlanner {
             );
             case DOUBLE -> new InsertEmptyBucketsOperator.NumericCursorFactory(
                 bucket.getNumberRoundTo(foldCtx),
-                ((Number) Foldables.valueOf(foldCtx, bucket.from())).doubleValue(),
-                ((Number) Foldables.valueOf(foldCtx, bucket.to())).doubleValue()
+                bucket.numericRangeFrom(foldCtx),
+                bucket.numericRangeTo(foldCtx)
             );
             default -> throw new EsqlIllegalArgumentException("unexpected data type [{}]", bucket.dataType());
         };

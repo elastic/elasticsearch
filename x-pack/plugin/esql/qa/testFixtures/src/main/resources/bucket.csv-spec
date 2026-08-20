@@ -455,6 +455,8 @@ FROM employees
 ;
 
 bucketWithUnsignedLong
+required_capability: fix_bucket_unsigned_long_bounds
+
 FROM ul_logs
 | WHERE @timestamp >= "2017-11-10T20:30:00Z" AND @timestamp < "2017-11-10T20:35:00Z"
 | STATS ts = VALUES(@timestamp) BY bh = bucket(bytes_in, 20, 5480608687137202404, 17764691215469285192)
@@ -464,7 +466,7 @@ FROM ul_logs
            ts:date      |      bh:double
 2017-11-10T20:32:57.000Z|8.0E18
 2017-11-10T20:33:06.000Z|5.0E18
-2017-11-10T20:34:43.000Z|1.75E19
+2017-11-10T20:34:43.000Z|1.7E19
 ;
 
 bucketMultipleAndExpressions
@@ -1153,6 +1155,39 @@ ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
 bucketUnsignedLongFieldSpan
 ROW x = 100::unsigned_long
 | STATS c = COUNT(*) BY b = BUCKET(x, 50.)
+;
+
+c:long | b:double
+1      | 100.0
+;
+
+bucketUnsignedLongToBound
+required_capability: fix_bucket_unsigned_long_bounds
+
+ROW x = 100.0
+| STATS c = COUNT(*) BY b = BUCKET(x, 20, 0, 1000::unsigned_long)
+;
+
+c:long | b:double
+1      | 100.0
+;
+
+bucketUnsignedLongFromBound
+required_capability: fix_bucket_unsigned_long_bounds
+
+ROW x = 100.0
+| STATS c = COUNT(*) BY b = BUCKET(x, 20, 0::unsigned_long, 1000)
+;
+
+c:long | b:double
+1      | 100.0
+;
+
+bucketUnsignedLongBounds
+required_capability: fix_bucket_unsigned_long_bounds
+
+ROW x = 100::unsigned_long
+| STATS c = COUNT(*) BY b = BUCKET(x, 20, 0::unsigned_long, 100::unsigned_long)
 ;
 
 c:long | b:double

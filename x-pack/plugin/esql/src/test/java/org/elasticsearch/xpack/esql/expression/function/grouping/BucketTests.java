@@ -592,25 +592,18 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
     }
 
     /**
-     * An unsigned_long bound from the upper half of the range (&gt;= 2^63). Production folds unsigned_long
-     * bounds through their sortable-encoded representation with a signed {@code doubleValue()}; for upper-half
-     * values the encoding is a small non-negative long (2^63 -&gt; 0, 2^63 + 1000 -&gt; 1000), so these bounds
-     * fold to the exact same 0..1000 range the other numeric bounds use, keeping the expected span/results
-     * identical. Lower-half values fold to encoding artifacts; that established behavior is asserted
-     * end-to-end by the {@code bucketWithUnsignedLong} csv-spec test instead.
+     * An unsigned_long bound: 0 for {@code from}, 1000 for {@code to} — the same range the other numeric
+     * bounds use. Unsigned_long bounds fold through their sortable-encoded representation and are decoded by
+     * {@code Bucket} before computing the span, so they behave exactly like the other numeric bounds.
      */
     private static TestCaseSupplier.TypedData unsignedLongBound(String name) {
-        BigInteger value = BigInteger.ONE.shiftLeft(63);
-        if (name.equals("from") == false) {
-            value = value.add(BigInteger.valueOf(1000));
-        }
+        BigInteger value = name.equals("from") ? BigInteger.ZERO : BigInteger.valueOf(1000);
         return new TestCaseSupplier.TypedData(value, DataType.UNSIGNED_LONG, name).forceLiteral();
     }
 
     /**
      * 4-arg numeric BUCKET where at least one of from/to is unsigned_long. These resolve and behave like the
-     * other numeric bounds (see {@link #unsignedLongBound} for how the values are picked to keep the folded
-     * range exact). Registered before {@code anyNullIsNull} so the null-argument variants are generated too.
+     * other numeric bounds. Registered before {@code anyNullIsNull} so the null-argument variants are generated too.
      */
     private static void unsignedLongBoundsCases(List<TestCaseSupplier> suppliers) {
         for (DataType fieldType : NUMERIC_BOUNDS_WITH_UNSIGNED_LONG) {

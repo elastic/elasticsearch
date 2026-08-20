@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -45,6 +46,8 @@ public class DenseVectorExec extends InferenceExec {
     private final List<NamedExpression> fields;
     private final List<Attribute> generatedFields;
     private final TimeValue timeout;
+    private final org.elasticsearch.inference.DataType inputType;
+    private final TaskType endpointTaskType;
     private List<Attribute> lazyOutput;
 
     public DenseVectorExec(
@@ -53,12 +56,16 @@ public class DenseVectorExec extends InferenceExec {
         Expression inferenceId,
         List<NamedExpression> fields,
         List<Attribute> generatedFields,
-        TimeValue timeout
+        TimeValue timeout,
+        org.elasticsearch.inference.DataType inputType,
+        TaskType endpointTaskType
     ) {
         super(source, child, inferenceId);
         this.fields = fields;
         this.generatedFields = generatedFields;
         this.timeout = timeout;
+        this.inputType = inputType;
+        this.endpointTaskType = endpointTaskType;
     }
 
     public DenseVectorExec(StreamInput in) throws IOException {
@@ -68,7 +75,13 @@ public class DenseVectorExec extends InferenceExec {
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteableCollectionAsList(NamedExpression.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.getTransportVersion().supports(InferencePlan.ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readOptionalTimeValue() : null
+            in.getTransportVersion().supports(InferencePlan.ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readOptionalTimeValue() : null,
+            in.getTransportVersion().supports(InferencePlan.ESQL_DENSE_VECTOR_TYPE_OPTION)
+                ? org.elasticsearch.inference.DataType.fromString(in.readString())
+                : org.elasticsearch.inference.DataType.TEXT,
+            in.getTransportVersion().supports(InferencePlan.ESQL_DENSE_VECTOR_TYPE_OPTION) && in.readBoolean()
+                ? TaskType.fromStream(in)
+                : null
         );
     }
 
@@ -85,6 +98,15 @@ public class DenseVectorExec extends InferenceExec {
         if (out.getTransportVersion().supports(InferencePlan.ESQL_INFERENCE_ACCEPT_TIMEOUT)) {
             out.writeOptionalTimeValue(timeout);
         }
+        if (out.getTransportVersion().supports(InferencePlan.ESQL_DENSE_VECTOR_TYPE_OPTION)) {
+            out.writeString(inputType.name());
+            if (endpointTaskType == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                endpointTaskType.writeTo(out);
+            }
+        }
     }
 
     public List<NamedExpression> fields() {
@@ -99,14 +121,34 @@ public class DenseVectorExec extends InferenceExec {
         return timeout;
     }
 
+    /** Input modality selected by the {@code type} option. */
+    public org.elasticsearch.inference.DataType inputType() {
+        return inputType;
+    }
+
+    /** Task type of the resolved inference endpoint, used to route to the matching request shape. */
+    public TaskType endpointTaskType() {
+        return endpointTaskType;
+    }
+
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, DenseVectorExec::new, child(), inferenceId(), fields, generatedFields, timeout);
+        return NodeInfo.create(
+            this,
+            DenseVectorExec::new,
+            child(),
+            inferenceId(),
+            fields,
+            generatedFields,
+            timeout,
+            inputType,
+            endpointTaskType
+        );
     }
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new DenseVectorExec(source(), newChild, inferenceId(), fields, generatedFields, timeout);
+        return new DenseVectorExec(source(), newChild, inferenceId(), fields, generatedFields, timeout, inputType, endpointTaskType);
     }
 
     @Override
@@ -130,11 +172,13 @@ public class DenseVectorExec extends InferenceExec {
         DenseVectorExec other = (DenseVectorExec) o;
         return Objects.equals(fields, other.fields)
             && Objects.equals(generatedFields, other.generatedFields)
-            && Objects.equals(timeout, other.timeout);
+            && Objects.equals(timeout, other.timeout)
+            && inputType == other.inputType
+            && endpointTaskType == other.endpointTaskType;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), fields, generatedFields, timeout);
+        return Objects.hash(super.hashCode(), fields, generatedFields, timeout, inputType, endpointTaskType);
     }
 }

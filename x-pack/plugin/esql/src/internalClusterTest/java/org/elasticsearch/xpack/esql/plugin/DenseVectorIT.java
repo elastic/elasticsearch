@@ -24,6 +24,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -44,6 +45,7 @@ public class DenseVectorIT extends InferenceCommandIntegTestCase {
 
     private static final String TEST_INDEX = "test_dense_vector";
     private static final String DENSE_VECTOR_MODEL_ID = "test-dense-vector-model";
+    private static final String EMBEDDING_MODEL_ID = "test-embedding-model";
 
     /** Dimension count pinned on the second endpoint of the chained-clauses test, to tell its vectors apart from the first's. */
     private static final int SECOND_ENDPOINT_DIMENSIONS = 64;
@@ -56,11 +58,13 @@ public class DenseVectorIT extends InferenceCommandIntegTestCase {
         assumeTrue("DENSE_VECTOR is only enabled on snapshot builds", Build.current().isSnapshot());
         createAndPopulateTestIndex(TEST_INDEX);
         createTestInferenceEndpoint(DENSE_VECTOR_MODEL_ID, TaskType.TEXT_EMBEDDING, "text_embedding_test_service");
+        createTestInferenceEndpoint(EMBEDDING_MODEL_ID, TaskType.EMBEDDING, "text_embedding_test_service");
     }
 
     @After
     public void cleanup() {
         deleteTestInferenceEndpoint(DENSE_VECTOR_MODEL_ID, TaskType.TEXT_EMBEDDING);
+        deleteTestInferenceEndpoint(EMBEDDING_MODEL_ID, TaskType.EMBEDDING);
         cleanupClusterSettings(
             InferenceSettings.DENSE_VECTOR_ENABLED_SETTING,
             InferenceSettings.DENSE_VECTOR_ROW_LIMIT_SETTING,
@@ -79,6 +83,99 @@ public class DenseVectorIT extends InferenceCommandIntegTestCase {
         try (var resp = run(query)) {
             assertThat(resp.columns().stream().map(c -> c.name()).toList(), hasItem("title_dense_vector"));
             assertVectorsPresent(getValuesList(resp), 2);
+        }
+    }
+
+    public void testDenseVectorImageType() {
+        // A base64 data URI embedded through a multimodal (embedding) endpoint. The value produces a dense_vector column.
+        var query = String.format(Locale.ROOT, """
+            ROW input = "data:image/jpeg;base64,V2hvIGlzIFZpY3RvciBIdWdvPw=="
+            | DENSE_VECTOR input WITH { "inference_id": "%s", "type": "image" }
+            | KEEP input, input_dense_vector
+            """, EMBEDDING_MODEL_ID);
+
+        try (var resp = run(query)) {
+            assertThat(resp.columns().stream().map(c -> c.name()).toList(), hasItem("input_dense_vector"));
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(1));
+            assertThat(values.get(0).get(1), notNullValue());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDenseVectorImageAndTextTypesDiffer() {
+        // Differential check that the type option actually reaches the inference request. The same base64 data URI is
+        // embedded twice: as an image and as text. The embedding test service base64-decodes and negates image inputs, so
+        // the image vector must be the element-wise negation of the decoded text vector and must differ from embedding the
+        // raw data-URI string as text.
+        String base64Input = "data:image/jpeg;base64,V2hvIGlzIFZpY3RvciBIdWdvPw==";
+        String decodedText = "Who is Victor Hugo?";
+
+        List<Number> imageVector = firstVector(String.format(Locale.ROOT, """
+            ROW input = "%s"
+            | DENSE_VECTOR input WITH { "inference_id": "%s", "type": "image" }
+            | KEEP input_dense_vector
+            """, base64Input, EMBEDDING_MODEL_ID));
+
+        List<Number> rawStringAsTextVector = firstVector(String.format(Locale.ROOT, """
+            ROW input = "%s"
+            | DENSE_VECTOR input WITH { "inference_id": "%s", "type": "text" }
+            | KEEP input_dense_vector
+            """, base64Input, EMBEDDING_MODEL_ID));
+
+        List<Number> decodedTextVector = firstVector(String.format(Locale.ROOT, """
+            ROW input = "%s"
+            | DENSE_VECTOR input WITH { "inference_id": "%s", "type": "text" }
+            | KEEP input_dense_vector
+            """, decodedText, EMBEDDING_MODEL_ID));
+
+        // The decoded text embedded as text against the text_embedding endpoint yields the same vector as against the
+        // embedding endpoint: a text input embeds identically regardless of the endpoint's task type.
+        List<Number> decodedTextVectorTextEndpoint = firstVector(String.format(Locale.ROOT, """
+            ROW input = "%s"
+            | DENSE_VECTOR input WITH { "inference_id": "%s", "type": "text" }
+            | KEEP input_dense_vector
+            """, decodedText, DENSE_VECTOR_MODEL_ID));
+
+        // The type option changes behaviour: embedding the data-URI as an image differs from embedding it as text.
+        assertThat(imageVector, not(equalTo(rawStringAsTextVector)));
+
+        // Text embeds identically on a text_embedding and an embedding endpoint.
+        assertThat(decodedTextVector, equalTo(decodedTextVectorTextEndpoint));
+
+        // The image vector is the element-wise negation of the decoded-text vector.
+        assertThat(imageVector, hasSize(decodedTextVector.size()));
+        for (int i = 0; i < imageVector.size(); i++) {
+            assertThat(imageVector.get(i).floatValue(), equalTo(-decodedTextVector.get(i).floatValue()));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Number> firstVector(String query) {
+        try (var resp = run(query)) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(1));
+            return (List<Number>) values.get(0).get(0);
+        }
+    }
+
+    public void testDenseVectorTextRunsAgainstEmbeddingEndpoint() {
+        // A text field runs against a multimodal (embedding) endpoint, exercising the endpoint-driven routing branch: a
+        // text_embedding-shaped input is served by an embedding endpoint and produces a non-null vector.
+        var query = String.format(Locale.ROOT, """
+            FROM %s
+            | DENSE_VECTOR title WITH { "inference_id": "%s", "type": "text" }
+            | KEEP id, title_dense_vector
+            | LIMIT 5
+            """, TEST_INDEX, EMBEDDING_MODEL_ID);
+
+        try (var resp = run(query)) {
+            assertThat(resp.columns().stream().map(c -> c.name()).toList(), hasItem("title_dense_vector"));
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, not(empty()));
+            for (List<Object> row : values) {
+                assertThat(row.get(1), notNullValue());
+            }
         }
     }
 

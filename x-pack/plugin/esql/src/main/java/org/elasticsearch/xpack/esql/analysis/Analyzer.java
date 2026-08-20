@@ -2651,22 +2651,30 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan.withInferenceResolutionError(inferenceId, error);
             }
 
-            if (resolvedInference.taskType() != plan.taskType()) {
+            if (plan.acceptedTaskTypes().contains(resolvedInference.taskType()) == false) {
+                String accepted = plan.acceptedTaskTypes().size() == 1
+                    ? "[" + plan.acceptedTaskTypes().iterator().next() + "]"
+                    : plan.acceptedTaskTypes().toString();
                 String error = "cannot use inference endpoint ["
                     + inferenceId
                     + "] with task type ["
                     + resolvedInference.taskType()
                     + "] within a "
                     + plan.nodeName()
-                    + " command. Only inference endpoints with the task type ["
-                    + plan.taskType()
-                    + "] are supported.";
+                    + " command. Only inference endpoints with the task type "
+                    + accepted
+                    + " are supported.";
                 return plan.withInferenceResolutionError(inferenceId, error);
             }
 
             if (plan.isFoldable()) {
                 // Transform foldable InferencePlan to Eval with function call
                 return transformToEval(plan, inferenceId);
+            }
+
+            // DENSE_VECTOR routes text inputs by the endpoint's task type, so record it on the node for the planner.
+            if (plan instanceof DenseVector denseVector) {
+                return denseVector.withEndpointTaskType(resolvedInference.taskType());
             }
 
             return plan;

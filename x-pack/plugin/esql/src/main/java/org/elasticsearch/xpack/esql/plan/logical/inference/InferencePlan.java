@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> extends UnaryPlan
     implements
@@ -39,6 +40,7 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
 
     protected static final TransportVersion ESQL_INFERENCE_ROW_LIMIT = TransportVersion.fromName("esql_inference_row_limit");
     public static final TransportVersion ESQL_INFERENCE_ACCEPT_TIMEOUT = TransportVersion.fromName("esql_inference_accept_timeout");
+    public static final TransportVersion ESQL_DENSE_VECTOR_TYPE_OPTION = TransportVersion.fromName("esql_dense_vector_type_option");
 
     public static final String INFERENCE_ID_OPTION_NAME = "inference_id";
     public static final List<String> VALID_INFERENCE_OPTION_NAMES = List.of(INFERENCE_ID_OPTION_NAME);
@@ -103,6 +105,14 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
     }
 
     public abstract TaskType taskType();
+
+    /**
+     * The inference endpoint task types this plan can run against. Analysis rejects an endpoint whose task type is not in this set.
+     * Defaults to the single {@link #taskType()}; plans that accept more than one task type override this.
+     */
+    public Set<TaskType> acceptedTaskTypes() {
+        return Set.of(taskType());
+    }
 
     public abstract PlanType withInferenceId(Expression newInferenceId);
 

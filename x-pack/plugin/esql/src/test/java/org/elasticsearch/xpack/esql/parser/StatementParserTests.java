@@ -4558,6 +4558,50 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.timeout(), equalTo(TimeValue.timeValueSeconds(30)));
     }
 
+    public void testDenseVectorType() {
+        assumeDenseVectorCommandEnabled();
+        var text = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"text\" }"),
+            DenseVector.class
+        );
+        assertThat(text.inputType(), equalTo(org.elasticsearch.inference.DataType.TEXT));
+
+        var image = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"image\" }"),
+            DenseVector.class
+        );
+        assertThat(image.inputType(), equalTo(org.elasticsearch.inference.DataType.IMAGE));
+    }
+
+    public void testDenseVectorTypeIsCaseInsensitive() {
+        assumeDenseVectorCommandEnabled();
+        for (String value : List.of("image", "IMAGE", "Image", "iMaGe")) {
+            var plan = as(
+                processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"" + value + "\" }"),
+                DenseVector.class
+            );
+            assertThat(plan.inputType(), equalTo(org.elasticsearch.inference.DataType.IMAGE));
+        }
+    }
+
+    public void testDenseVectorDefaultType() {
+        assumeDenseVectorCommandEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.inputType(), equalTo(org.elasticsearch.inference.DataType.TEXT));
+    }
+
+    public void testDenseVectorInvalidType() {
+        assumeDenseVectorCommandEnabled();
+        expectError(
+            "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"audio\" }",
+            "Invalid value [audio] for option [type] in DENSE_VECTOR, expected one of [text, image]"
+        );
+        expectError(
+            "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"nonsense\" }",
+            "Invalid value [nonsense] for option [type] in DENSE_VECTOR, expected one of [text, image]"
+        );
+    }
+
     public void testDenseVectorDefaultTimeout() {
         assumeDenseVectorCommandEnabled();
         // When no timeout option is given, the plan carries a null timeout; the inference layer then applies its
@@ -4644,7 +4688,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assumeDenseVectorCommandEnabled();
         expectError(
             "FROM foo* | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"foo\" : 3 }",
-            "Invalid option [foo] in DENSE_VECTOR, expected one of [[inference_id, timeout]]"
+            "Invalid option [foo] in DENSE_VECTOR, expected one of [[inference_id, timeout, type]]"
         );
     }
 

@@ -94,6 +94,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.iplocation.api.IpDataLookup;
 import org.elasticsearch.iplocation.api.IpLocationConsumer;
 import org.elasticsearch.iplocation.api.IpLocationService;
@@ -152,6 +153,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
+import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
@@ -599,10 +601,16 @@ public class LocalExecutionPlanner {
 
         List<NamedExpression> fields = denseVector.fields();
         List<Attribute> generatedFields = denseVector.generatedFields();
+        org.elasticsearch.inference.DataType inputType = denseVector.inputType();
+        TaskType endpointTaskType = denseVector.endpointTaskType();
+        assert endpointTaskType != null : "endpoint task type must be resolved during analysis before planning DENSE_VECTOR";
 
-        // One TextEmbeddingOperator per input field: each embeds its field and appends its <field>_dense_vector column.
+        // One embedding operator per input field: each embeds its field and appends its <field>_dense_vector column.
         // Chained so the page accumulates all generated columns. Evaluators read from the growing layout; the original
         // input fields are never removed, so appending output columns doesn't disturb earlier channels.
+        // The request shape follows the endpoint's task type: a text_embedding endpoint takes a text embedding request; an
+        // embedding endpoint takes an embedding request carrying the typed input. Both warn, null the row, and continue on a
+        // per-row inference failure.
         PhysicalOperation operation = source;
         for (int i = 0; i < fields.size(); i++) {
             ExpressionEvaluator.Factory inputEvaluatorFactory = EvalMapper.toEvaluator(
@@ -612,18 +620,25 @@ public class LocalExecutionPlanner {
                 context.analysisRegistry()
             );
             Layout outputLayout = operation.layout.builder().append(generatedFields.get(i)).build();
-            operation = operation.with(
-                new TextEmbeddingOperator.Factory(
+            Operator.OperatorFactory operatorFactory = endpointTaskType == TaskType.TEXT_EMBEDDING
+                ? new TextEmbeddingOperator.Factory(
                     inferenceService,
                     inferenceId,
                     inputEvaluatorFactory,
                     denseVector.timeout(),
                     denseVector.source(),
-                    // The DENSE_VECTOR command tolerates per-row inference failures: warn, null the row, and continue.
                     true
-                ),
-                outputLayout
-            );
+                )
+                : new EmbeddingOperator.Factory(
+                    inferenceService,
+                    inferenceId,
+                    inputEvaluatorFactory,
+                    inputType,
+                    denseVector.timeout(),
+                    denseVector.source(),
+                    true
+                );
+            operation = operation.with(operatorFactory, outputLayout);
         }
 
         return operation;

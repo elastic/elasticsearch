@@ -161,6 +161,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.TestAnalyzer.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
@@ -4633,6 +4634,56 @@ public class AnalyzerTests extends ESTestCase {
         books().error(
             "FROM books | DENSE_VECTOR year WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
             containsString("DENSE_VECTOR field [year] must be [text] or [keyword], found [integer]")
+        );
+    }
+
+    public void testDenseVectorTextAcceptsTextEmbeddingEndpoint() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR title WITH { "inference_id" : "text-embedding-inference-id", "type" : "text" }
+            """);
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(TEXT_EMBEDDING_INFERENCE_ID)));
+    }
+
+    public void testDenseVectorTextAcceptsEmbeddingEndpoint() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR title WITH { "inference_id" : "embedding-inference-id", "type" : "text" }
+            """);
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(EMBEDDING_INFERENCE_ID)));
+    }
+
+    public void testDenseVectorImageAcceptsEmbeddingEndpoint() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR title WITH { "inference_id" : "embedding-inference-id", "type" : "image" }
+            """);
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inputType(), equalTo(org.elasticsearch.inference.DataType.IMAGE));
+        assertThat(denseVector.inferenceId(), equalTo(string(EMBEDDING_INFERENCE_ID)));
+    }
+
+    public void testDenseVectorImageRejectsTextEmbeddingEndpoint() {
+        assumeDenseVectorCommandEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"text-embedding-inference-id\", \"type\" : \"image\" }",
+            containsString(
+                "cannot use inference endpoint [text-embedding-inference-id] with task type [text_embedding] within a DenseVector "
+                    + "command. Only inference endpoints with the task type [embedding] are supported"
+            )
+        );
+    }
+
+    public void testDenseVectorRejectsCompletionEndpoint() {
+        assumeDenseVectorCommandEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"completion-inference-id\" }",
+            containsString("cannot use inference endpoint [completion-inference-id] with task type [completion] within a DenseVector")
         );
     }
 

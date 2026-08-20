@@ -34,7 +34,9 @@ public class DenseVectorSerializationTests extends AbstractLogicalPlanSerializat
             randomRowLimit(),
             fields,
             DenseVector.generatedAttributesFor(source, fields),
-            randomTimeout()
+            randomTimeout(),
+            randomInputType(),
+            randomEndpointTaskType()
         );
     }
 
@@ -46,8 +48,10 @@ public class DenseVectorSerializationTests extends AbstractLogicalPlanSerializat
         List<NamedExpression> fields = instance.fields();
         List<Attribute> generatedFields = instance.generatedAttributes();
         TimeValue timeout = instance.timeout();
+        org.elasticsearch.inference.DataType inputType = instance.inputType();
+        org.elasticsearch.inference.TaskType endpointTaskType = instance.endpointTaskType();
 
-        switch (between(0, 4)) {
+        switch (between(0, 6)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> inferenceId = randomValueOtherThan(inferenceId, this::randomInferenceId);
             case 2 -> rowLimit = randomValueOtherThan(rowLimit, this::randomRowLimit);
@@ -57,8 +61,28 @@ public class DenseVectorSerializationTests extends AbstractLogicalPlanSerializat
                 generatedFields = DenseVector.generatedAttributesFor(instance.source(), fields);
             }
             case 4 -> timeout = randomValueOtherThan(timeout, this::randomTimeout);
+            case 5 -> inputType = randomValueOtherThan(inputType, this::randomInputType);
+            case 6 -> endpointTaskType = randomValueOtherThan(endpointTaskType, this::randomEndpointTaskType);
         }
-        return new DenseVector(instance.source(), child, inferenceId, rowLimit, fields, generatedFields, timeout);
+        return new DenseVector(
+            instance.source(),
+            child,
+            inferenceId,
+            rowLimit,
+            fields,
+            generatedFields,
+            timeout,
+            inputType,
+            endpointTaskType
+        );
+    }
+
+    private org.elasticsearch.inference.DataType randomInputType() {
+        return randomFrom(org.elasticsearch.inference.DataType.TEXT, org.elasticsearch.inference.DataType.IMAGE);
+    }
+
+    private org.elasticsearch.inference.TaskType randomEndpointTaskType() {
+        return randomFrom(org.elasticsearch.inference.TaskType.TEXT_EMBEDDING, org.elasticsearch.inference.TaskType.EMBEDDING);
     }
 
     private Literal randomInferenceId() {

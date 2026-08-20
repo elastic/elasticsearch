@@ -16,6 +16,7 @@ import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.inference.AbstractDenseEmbeddingOperatorTestCase;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.hamcrest.Matcher;
@@ -31,7 +32,9 @@ public class EmbeddingOperatorTests extends AbstractDenseEmbeddingOperatorTestCa
             SIMPLE_INFERENCE_ID,
             evaluatorFactory(inputChannel),
             DataType.TEXT,
-            BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
+            BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING),
+            Source.EMPTY,
+            false
         );
     }
 
@@ -46,7 +49,9 @@ public class EmbeddingOperatorTests extends AbstractDenseEmbeddingOperatorTestCa
             SIMPLE_INFERENCE_ID,
             evaluatorFactory(inputChannel),
             DataType.IMAGE,
-            BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
+            BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING),
+            Source.EMPTY,
+            false
         );
 
         var runner = new TestDriverRunner().builder(driverContext());

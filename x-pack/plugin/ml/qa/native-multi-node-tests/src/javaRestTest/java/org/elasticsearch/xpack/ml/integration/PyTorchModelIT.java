@@ -392,11 +392,13 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
     }
 
     /**
-     * Enforces the full RSS accounting chain end to end: at least one node must have reported native RSS, and the
-     * per-node current/peak values must be surfaced (summed across nodes) as runtime_native_memory_bytes /
-     * peak_runtime_native_memory_bytes in model_size_stats, with the peak at least the current. Used only when the native
-     * process is known to emit periodic RSS, so a missing report fails (driving the surrounding assertBusy to retry)
-     * rather than being tolerated.
+     * Enforces the RSS accounting chain end to end. The native process's periodic report carries the OS peak RSS
+     * (high-water mark), which is available on every platform, whereas the current RSS is not reported on macOS
+     * ({@code CProcessStats::residentSetSize()} returns 0 there). We therefore use the peak as the "a measurement has
+     * arrived" signal so this assertion is portable: the summed per-node peak must be surfaced as
+     * peak_runtime_native_memory_bytes in model_size_stats, and where the current RSS is reported it must be surfaced as
+     * runtime_native_memory_bytes and never exceed the peak. A missing report fails (driving the surrounding assertBusy
+     * to retry) rather than being tolerated. Used only when the native process is known to emit periodic RSS.
      */
     @SuppressWarnings("unchecked")
     private void assertNativeRuntimeMemorySurfaced(String modelId) throws IOException {
@@ -410,25 +412,19 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
 
         long summedAvgRss = 0;
         long summedPeakRss = 0;
-        boolean anyNodeReportedRss = false;
         for (var node : nodes) {
             Number nodeAvgRss = (Number) node.get("average_inference_process_memory_rss_bytes");
             Number nodePeakRss = (Number) node.get("peak_inference_process_memory_rss_bytes");
             if (nodeAvgRss != null) {
-                anyNodeReportedRss = true;
                 summedAvgRss += nodeAvgRss.longValue();
-                if (nodePeakRss != null) {
-                    summedPeakRss += nodePeakRss.longValue();
-                }
+            }
+            if (nodePeakRss != null) {
+                summedPeakRss += nodePeakRss.longValue();
             }
         }
-        // Fail (not skip) so the surrounding assertBusy keeps polling until the periodic report arrives.
-        assertTrue("no node has reported native RSS yet", anyNodeReportedRss);
-        assertThat(summedAvgRss, greaterThan(0L));
-
-        Number runtimeNativeMemory = (Number) XContentMapValues.extractValue("model_size_stats.runtime_native_memory_bytes", stats.get(0));
-        assertThat(runtimeNativeMemory, notNullValue());
-        assertThat(runtimeNativeMemory.longValue(), equalTo(summedAvgRss));
+        // The peak RSS is reported on every platform, so use it as the signal that a measurement has arrived. Failing
+        // here (rather than skipping) drives the surrounding assertBusy to keep polling until the first report lands.
+        assertThat("native peak RSS not yet reported", summedPeakRss, greaterThan(0L));
 
         Number peakRuntimeNativeMemory = (Number) XContentMapValues.extractValue(
             "model_size_stats.peak_runtime_native_memory_bytes",
@@ -436,7 +432,18 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         );
         assertThat(peakRuntimeNativeMemory, notNullValue());
         assertThat(peakRuntimeNativeMemory.longValue(), equalTo(summedPeakRss));
-        assertThat(peakRuntimeNativeMemory.longValue(), greaterThanOrEqualTo(runtimeNativeMemory.longValue()));
+
+        Number runtimeNativeMemory = (Number) XContentMapValues.extractValue("model_size_stats.runtime_native_memory_bytes", stats.get(0));
+        if (summedAvgRss > 0) {
+            // Current RSS is reported on this platform (e.g. Linux): it must be surfaced and never exceed the peak.
+            assertThat(runtimeNativeMemory, notNullValue());
+            assertThat(runtimeNativeMemory.longValue(), equalTo(summedAvgRss));
+            assertThat(peakRuntimeNativeMemory.longValue(), greaterThanOrEqualTo(runtimeNativeMemory.longValue()));
+        } else {
+            // Current RSS is not supported on this platform (macOS): the API omits runtime_native_memory_bytes rather
+            // than implying the deployment is using no memory.
+            assertThat(runtimeNativeMemory, nullValue());
+        }
     }
 
     @SuppressWarnings("unchecked")

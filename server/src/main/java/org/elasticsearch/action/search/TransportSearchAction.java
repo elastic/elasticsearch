@@ -57,6 +57,8 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -71,6 +73,8 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.Index;
@@ -171,6 +175,22 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Property.NodeScope
     );
 
+    /**
+     * Opt-out for charging the request circuit breaker for the coordinating node's retained {@link SearchSourceBuilder}.
+     * The source is held for the whole search (it is re-serialized per shard), so a very large source can push a node
+     * to OOM without the breaker ever seeing it. Enabled by default; can be turned off dynamically if the accounting
+     * proves problematic in the field.
+     */
+    public static final Setting<Boolean> SEARCH_SOURCE_REQUEST_BREAKER_ENABLED = Setting.boolSetting(
+        "search.request_breaker.source.enabled",
+        true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /** Breaker label for the retained search source charge, surfaced in {@link CircuitBreakingException} messages. */
+    static final String SEARCH_SOURCE_BREAKER_LABEL = "<search_source>";
+
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final TransportService transportService;
@@ -193,6 +213,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final TimeValue forceConnectTimeoutSecs;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final ActivityLogger<SearchLogContext> activityLogger;
+    private volatile boolean chargeSearchSourceBreaker;
 
     @Inject
     public TransportSearchAction(
@@ -250,6 +271,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.client = client;
         this.usageService = usageService;
         this.forceConnectTimeoutSecs = settings.getAsTime("search.ccs.force_connect_timeout", null);
+        this.chargeSearchSourceBreaker = SEARCH_SOURCE_REQUEST_BREAKER_ENABLED.get(settings);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(SEARCH_SOURCE_REQUEST_BREAKER_ENABLED, enabled -> this.chargeSearchSourceBreaker = enabled);
         this.crossProjectModeDecider = crossProjectModeDecider;
         this.activityLogger = new QueryLogger<>(
             clusterService.getClusterSettings(),
@@ -2250,7 +2274,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]")
             );
             boolean success = false;
+            // Give-back for the retained-source breaker charge below. releaseOnce makes it idempotent so the
+            // success==false finally and the async action's completion listener cannot double-release.
+            Releasable sourceBreakerRelease = () -> {};
             try {
+                // Charge the request breaker once for the coordinating node's retained search source. This runs on the
+                // single non-prefilter pass, so can-match is intentionally left uncharged. A trip here throws before any
+                // fan-out (searchPhase.start()), and the finally gives the bytes back if we never hand off to the action.
+                // When the hatch is off the returned releasable is a no-op, so nothing is charged, registered or released.
+                sourceBreakerRelease = chargeSearchSource(chargeSearchSourceBreaker, circuitBreaker, searchRequest.source());
                 final AbstractSearchAsyncAction<?> searchPhase;
                 if (searchRequest.searchType() == DFS_QUERY_THEN_FETCH) {
                     searchPhase = new SearchDfsQueryThenFetchAsyncAction(
@@ -2303,14 +2335,35 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchRequestAttributes
                     );
                 }
+                // Release the source charge when the search finishes/fails/cancels, mirroring the result consumer.
+                searchPhase.addReleasable(sourceBreakerRelease);
                 success = true;
                 searchPhase.start();
             } finally {
                 if (success == false) {
+                    Releasables.close(sourceBreakerRelease);
                     queryResultConsumer.close();
                 }
             }
         }
+    }
+
+    /**
+     * Charges the request circuit breaker for the uncompressed serialized size of the retained search {@code source} and
+     * returns an idempotent {@link Releasable} that gives the bytes back on close. When {@code enabled} is false, or the
+     * source is {@code null} (default match_all), or the estimate is zero, this charges nothing and yields a no-op — so a
+     * disabled hatch can never half-charge. Throws {@link CircuitBreakingException} if the charge trips.
+     */
+    static Releasable chargeSearchSource(boolean enabled, CircuitBreaker circuitBreaker, SearchSourceBuilder source) {
+        if (enabled == false || source == null) {
+            return () -> {};
+        }
+        final long sourceBytes = DelayableWriteable.getUncompressedSerializedSize(source);
+        if (sourceBytes <= 0) {
+            return () -> {};
+        }
+        circuitBreaker.addEstimateBytesAndMaybeBreak(sourceBytes, SEARCH_SOURCE_BREAKER_LABEL);
+        return Releasables.releaseOnce(() -> circuitBreaker.addWithoutBreaking(-sourceBytes));
     }
 
     private static void validateAndResolveWaitForCheckpoint(

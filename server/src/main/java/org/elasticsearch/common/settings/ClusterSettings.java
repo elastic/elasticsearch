@@ -397,6 +397,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SearchService.PIT_RELOCATION_ENABLED,
         TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
         TransportSearchAction.DEFAULT_PRE_FILTER_SHARD_SIZE,
+        TransportSearchAction.SEARCH_SOURCE_REQUEST_BREAKER_ENABLED,
         RemoteClusterSettings.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
         RemoteClusterSettings.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
         RemoteClusterSettings.REMOTE_NODE_ATTRIBUTE,

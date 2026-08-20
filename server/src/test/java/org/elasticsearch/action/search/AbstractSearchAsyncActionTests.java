@@ -22,27 +22,34 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.index.store.StoreMetrics;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -86,6 +93,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -947,6 +955,143 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             retryCount::incrementAndGet,
             () -> groupFailureFired.set(true)
         );
+    }
+
+    /** A real request breaker with real-memory accounting off and a large limit, so charges never trip here. */
+    private static CircuitBreaker newRequestBreaker() {
+        Settings settings = Settings.builder().put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false).build();
+        return new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            settings,
+            List.of(),
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        ).getBreaker(CircuitBreaker.REQUEST);
+    }
+
+    private static SearchSourceBuilder sourceWithTerms() {
+        List<String> terms = new ArrayList<>();
+        for (int i = 0; i < 64; i++) {
+            terms.add(randomAlphaOfLength(16));
+        }
+        return new SearchSourceBuilder().query(new TermsQueryBuilder("field", terms));
+    }
+
+    /**
+     * The coordinator charges the request breaker for the retained search source and registers the give-back via
+     * {@link AbstractSearchAsyncAction#addReleasable}. These tests exercise that release seam on the three terminal paths
+     * (success, shard failure, cancellation) and assert the breaker returns to baseline each time.
+     */
+    public void testSearchSourceBreakerChargeReleasedOnSuccess() {
+        CircuitBreaker breaker = newRequestBreaker();
+        SearchRequest request = new SearchRequest().allowPartialSearchResults(true);
+        request.source(sourceWithTerms());
+        AtomicReference<SearchResponse> response = new AtomicReference<>();
+        ActionListener<SearchResponse> listener = ActionListener.wrap(response::set, e -> fail("onFailure should not be called"));
+        // No shards to search: start() bails with a successful empty response, exercising the success completion path.
+        ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(0);
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
+            request,
+            phaseResults,
+            listener,
+            false,
+            new AtomicLong(),
+            null,
+            null,
+            List.of(),
+            new SearchTask(
+                randomLong(),
+                randomAlphaOfLength(6),
+                randomAlphaOfLength(6),
+                () -> randomAlphaOfLength(6),
+                TaskId.EMPTY_TASK_ID,
+                Map.of()
+            )
+        );
+
+        Releasable release = TransportSearchAction.chargeSearchSource(true, breaker, request.source());
+        action.addReleasable(release);
+        assertThat(breaker.getUsed(), greaterThan(0L));
+
+        action.start();
+        assertNotNull(response.get());
+        assertThat("charge must be released when the search completes", breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testSearchSourceBreakerChargeReleasedOnShardFailure() {
+        CircuitBreaker breaker = newRequestBreaker();
+        SearchRequest request = new SearchRequest().allowPartialSearchResults(false);
+        request.source(sourceWithTerms());
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        ActionListener<SearchResponse> listener = ActionListener.wrap(r -> fail("onResponse should not be called"), exception::set);
+        int numFailures = randomIntBetween(1, 5);
+        ArraySearchPhaseResults<SearchPhaseResult> phaseResults = phaseResults(new HashSet<>(), new ArrayList<>(), numFailures);
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(request, phaseResults, listener, false, new AtomicLong());
+
+        Releasable release = TransportSearchAction.chargeSearchSource(true, breaker, request.source());
+        action.addReleasable(release);
+        assertThat(breaker.getUsed(), greaterThan(0L));
+
+        for (int i = 0; i < numFailures; i++) {
+            action.onShardFailure(
+                i,
+                new SearchShardTarget("node", new ShardId("index", "index-uuid", i), null),
+                new IllegalArgumentException()
+            );
+        }
+        action.sendSearchResponse(SearchResponseSections.EMPTY_WITH_TOTAL_HITS, phaseResults.results);
+        assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
+        assertThat("charge must be released on shard failure", breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testSearchSourceBreakerChargeReleasedOnCancellation() {
+        CircuitBreaker breaker = newRequestBreaker();
+        SearchRequest request = new SearchRequest().allowPartialSearchResults(false);
+        request.source(sourceWithTerms());
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        ActionListener<SearchResponse> listener = ActionListener.wrap(r -> fail("onResponse should not be called"), exception::set);
+        int numFailures = randomIntBetween(1, 5);
+        ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(numFailures);
+        var shardIterators = createShardIterators(numFailures);
+        SearchTask task = new SearchTask(
+            randomLong(),
+            randomAlphaOfLength(6),
+            randomAlphaOfLength(6),
+            () -> randomAlphaOfLength(6),
+            TaskId.EMPTY_TASK_ID,
+            Map.of()
+        );
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
+            request,
+            phaseResults,
+            listener,
+            false,
+            new AtomicLong(),
+            null,
+            null,
+            shardIterators,
+            task
+        );
+
+        Releasable release = TransportSearchAction.chargeSearchSource(true, breaker, request.source());
+        action.addReleasable(release);
+        assertThat(breaker.getUsed(), greaterThan(0L));
+
+        TaskCancelHelper.cancel(task, INTERNAL_PARTIAL_RESULTS_CANCEL_REASON);
+        for (int i = 0; i < numFailures; i++) {
+            SearchShardIterator shardIterator = shardIterators.get(i);
+            action.onShardFailure(
+                i,
+                new SearchShardTarget(
+                    shardIterator.getTargetNodeIds().getFirst(),
+                    shardIterator.shardId(),
+                    shardIterator.getClusterAlias()
+                ),
+                shardIterator,
+                new TaskCancelledException(INTERNAL_PARTIAL_RESULTS_CANCEL_REASON)
+            );
+        }
+        assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
+        assertThat("charge must be released on cancellation", breaker.getUsed(), equalTo(0L));
     }
 
     private static ArraySearchPhaseResults<SearchPhaseResult> phaseResults(

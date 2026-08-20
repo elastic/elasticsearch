@@ -49,7 +49,10 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -57,6 +60,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -71,6 +75,8 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesServiceTests.TestActionActionLoggingFieldsProvider;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
@@ -149,6 +155,7 @@ import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -2129,6 +2136,100 @@ public class TransportSearchActionTests extends ESTestCase {
         } finally {
             assertTrue(ESTestCase.terminate(threadPool));
         }
+    }
+
+    /**
+     * Builds a real request circuit breaker with real-memory accounting disabled so {@code getUsed()} reflects exactly the
+     * bytes reserved by {@link TransportSearchAction#chargeSearchSource}. The request limit is set low enough to force a
+     * child-breaker trip (parent stays high) so the trip message carries the {@code <search_source>} label.
+     */
+    private static CircuitBreaker newRequestBreaker(String requestLimit) {
+        // Real-memory accounting off so getUsed() reflects exactly the reserved bytes; leave the (percentage) total limit
+        // at its default to avoid the absolute-size deprecation warning that the test framework rejects.
+        Settings settings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), requestLimit)
+            .build();
+        HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            settings,
+            List.of(),
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        return service.getBreaker(CircuitBreaker.REQUEST);
+    }
+
+    private static SearchSourceBuilder sourceWithTerms(int count) {
+        List<String> terms = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            terms.add(randomAlphaOfLength(16));
+        }
+        return new SearchSourceBuilder().query(new TermsQueryBuilder("field", terms));
+    }
+
+    public void testChargeSearchSourceReservesAndReleasesRequestBreaker() {
+        CircuitBreaker breaker = newRequestBreaker("1gb");
+        SearchSourceBuilder source = sourceWithTerms(between(50, 100));
+        long expected = DelayableWriteable.getUncompressedSerializedSize(source);
+        assertThat(expected, greaterThan(0L));
+        assertThat(breaker.getUsed(), equalTo(0L));
+
+        Releasable release = TransportSearchAction.chargeSearchSource(true, breaker, source);
+        assertThat("source bytes must be charged at start", breaker.getUsed(), equalTo(expected));
+
+        release.close();
+        assertThat("charge must be released on completion", breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testChargeSearchSourceReleaseIsIdempotent() {
+        CircuitBreaker breaker = newRequestBreaker("1gb");
+        Releasable release = TransportSearchAction.chargeSearchSource(true, breaker, sourceWithTerms(between(5, 20)));
+        assertThat(breaker.getUsed(), greaterThan(0L));
+
+        release.close();
+        release.close(); // a double release (finally + async-action listener) must not drive the breaker negative
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testChargeSearchSourceWithNullSourceChargesNothing() {
+        CircuitBreaker breaker = newRequestBreaker("1gb");
+        Releasable release = TransportSearchAction.chargeSearchSource(true, breaker, null);
+        assertThat(breaker.getUsed(), equalTo(0L));
+        release.close();
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testChargeSearchSourceDisabledHatchChargesNothing() {
+        CircuitBreaker breaker = newRequestBreaker("1gb");
+        Releasable release = TransportSearchAction.chargeSearchSource(false, breaker, sourceWithTerms(between(50, 100)));
+        assertThat(breaker.getUsed(), equalTo(0L));
+        release.close();
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testChargeSearchSourceTripsBreakerBeforeFanOut() {
+        CircuitBreaker breaker = newRequestBreaker("100b");
+        SearchSourceBuilder source = sourceWithTerms(between(200, 400));
+        assertThat(DelayableWriteable.getUncompressedSerializedSize(source), greaterThan(100L));
+
+        CircuitBreakingException e = expectThrows(
+            CircuitBreakingException.class,
+            () -> TransportSearchAction.chargeSearchSource(true, breaker, source)
+        );
+        assertThat(e.getMessage(), containsString(TransportSearchAction.SEARCH_SOURCE_BREAKER_LABEL));
+        // a tripped charge must leave nothing reserved
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testSearchSourceRequestBreakerHatchDefaultsOnAndIsDynamic() {
+        assertTrue(TransportSearchAction.SEARCH_SOURCE_REQUEST_BREAKER_ENABLED.get(Settings.EMPTY));
+        assertTrue(TransportSearchAction.SEARCH_SOURCE_REQUEST_BREAKER_ENABLED.isDynamic());
+        assertFalse(
+            TransportSearchAction.SEARCH_SOURCE_REQUEST_BREAKER_ENABLED.get(
+                Settings.builder().put(TransportSearchAction.SEARCH_SOURCE_REQUEST_BREAKER_ENABLED.getKey(), false).build()
+            )
+        );
+        assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(TransportSearchAction.SEARCH_SOURCE_REQUEST_BREAKER_ENABLED));
     }
 
     public void testValidateAndResolveSearchSliceRoutingDefaultsToAllWhenEnabled() {

@@ -120,7 +120,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /hadoop-.*/, to: 'hadoop'
 }
 
-restTests.tasks.configureEach {
+restTests.configureEach {
   usesDefaultDistribution("to be triaged")
   buildParams.withFipsEnabledOnly(it)
   jvmArgs '--add-exports', 'java.security.jgss/sun.security.krb5=ALL-UNNAMED'

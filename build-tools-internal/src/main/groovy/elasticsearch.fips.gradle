@@ -111,7 +111,7 @@ if (buildParams.inFipsJvm) {
       }
 
       plugins.withType(RestTestBasePlugin) {
-        restTests.tasks.configureEach {
+        restTests.configureEach {
           inputs.files(extraFipsJarsConfiguration).withNormalizer(ClasspathNormalizer)
           nonInputProperties.systemProperty "tests.cluster.fips.jars.path", "${-> extraFipsJarsConfiguration.asPath}"
         }

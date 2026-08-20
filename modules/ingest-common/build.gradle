@@ -34,7 +34,7 @@ restResources {
   }
 }
 
-restTests.tasks.configureEach {
+restTests.configureEach {
   usesDefaultDistribution("to be triaged")
 }
 

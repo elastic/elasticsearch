@@ -46,7 +46,7 @@ plugins.withType(InternalJavaRestTestPlugin) {
     enabled = false
   }
 
-  restTests.tasks.configureEach {
+  restTests.configureEach {
     testClassesDirs = sourceSets.javaRestTest.output.classesDirs
     classpath = sourceSets.javaRestTest.runtimeClasspath
     if (integTestDistroProjects.contains(project.path) == false) {

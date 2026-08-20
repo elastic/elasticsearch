@@ -18,11 +18,13 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Sort;
@@ -34,6 +36,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesFormatTests;
@@ -44,15 +47,20 @@ import org.elasticsearch.index.codec.tsdb.TSDBDocValuesTestUtil;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockLoader.OptionalColumnAtATimeReader;
 import org.elasticsearch.index.mapper.TestBlock;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.lucene.queries.BinaryDocValuesContainsTermQuery;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
@@ -61,9 +69,13 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomUnicodeOfCodepointLengthBetween;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class ES819TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTests {
+
+    private static final Logger logger = LogManager.getLogger(ES819TSDBDocValuesFormatTests.class);
 
     private final Codec codec = new Elasticsearch93Lucene104Codec() {
 
@@ -666,5 +678,237 @@ public class ES819TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTe
                 );
             }
         }
+    }
+
+    /**
+     * POC for whether combining a larger binary doc values compression block ("window") with a higher zstd
+     * level meaningfully shrinks storage for large (~256 KB), mostly-unique-but-structurally-similar JSON blobs
+     * — the shape of session-replay {@code body.text._original} values written through LogsDB's text fallback
+     * field. The corpus reuses a shared vocabulary of small JSON fragments (mimicking the repeated
+     * tag/class-name/key "skeleton" of an rrweb/Kibana-like DOM snapshot) in a different random order per blob,
+     * plus a small unique tail (session, id, nonce), so most of the redundancy only becomes visible once a
+     * compression window spans many documents. Neither a bigger window at today's zstd level 1, nor today's
+     * small window at a higher zstd level, is expected to unlock that shared structure — only combining both.
+     */
+    public void testLargeBinaryBlobZstdWindow() throws IOException {
+        final String binaryField = "body.text._original";
+        final String sessionField = "session";
+        final String idField = "id";
+        final int targetBlobBytes = 256 * 1024;
+        final int vocabularySize = 1200;
+        final int numDocs = randomIntBetween(200, 320);
+        final int numSessions = Math.max(1, numDocs / 8);
+
+        final Random random = random();
+        final String[] vocabulary = buildJsonSkeletonVocabulary(vocabularySize, random);
+        final byte[][] blobs = new byte[numDocs][];
+        final String[] sessions = new String[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            sessions[i] = "session-" + (i % numSessions);
+            blobs[i] = buildSessionReplayBlob(vocabulary, random, targetBlobBytes, sessions[i], i);
+        }
+
+        final ZstdWindowSizes sizes = measureZstdWindowSizes(binaryField, sessionField, idField, blobs, sessions);
+
+        final String message = Strings.format(
+            "docs=%d blobBytes=%d today(zstd-1,512KB)=%d bytes window-only(zstd-1,4MB)=%d bytes " + "window+level(zstd-3,4MB)=%d bytes",
+            numDocs,
+            targetBlobBytes,
+            sizes.todayBytes(),
+            sizes.windowOnlyBytes(),
+            sizes.windowPlusLevelBytes()
+        );
+        logger.info(message);
+
+        // A bigger compression block without a higher zstd level should not meaningfully help: confirms the
+        // block-size threshold alone is not the lever.
+        assertThat(message, (double) sizes.windowOnlyBytes(), closeTo(sizes.todayBytes(), sizes.todayBytes() * 0.15));
+        // Combining the larger window with zstd level 3 should meaningfully shrink storage.
+        assertThat(message, sizes.windowPlusLevelBytes(), lessThan((long) (sizes.todayBytes() * 0.75)));
+    }
+
+    private record ZstdWindowSizes(long todayBytes, long windowOnlyBytes, long windowPlusLevelBytes) {}
+
+    /**
+     * Measures on-disk binary doc values size for {@code blobs} under today's format (zstd level 1, 512 KB
+     * blocks), a larger 4 MB block window at the same zstd level, and that same larger window at zstd level 3.
+     */
+    private ZstdWindowSizes measureZstdWindowSizes(
+        String binaryField,
+        String sessionField,
+        String idField,
+        byte[][] blobs,
+        String[] sessions
+    ) throws IOException {
+        final long todayBytes = indexAndMeasureBinaryDVSize(
+            new ES819Version3TSDBDocValuesFormat(
+                BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+                512 * 1024,
+                ES819Version3TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT
+            ),
+            binaryField,
+            sessionField,
+            idField,
+            blobs,
+            sessions
+        );
+        final long windowOnlyBytes = indexAndMeasureBinaryDVSize(
+            new ES819Version3TSDBDocValuesFormat(
+                BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+                4 * 1024 * 1024,
+                ES819Version3TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT
+            ),
+            binaryField,
+            sessionField,
+            idField,
+            blobs,
+            sessions
+        );
+        final long windowPlusLevelBytes = indexAndMeasureBinaryDVSize(
+            new ES819Version3TSDBDocValuesFormat(
+                BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_3,
+                4 * 1024 * 1024,
+                ES819Version3TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT
+            ),
+            binaryField,
+            sessionField,
+            idField,
+            blobs,
+            sessions
+        );
+        return new ZstdWindowSizes(todayBytes, windowOnlyBytes, windowPlusLevelBytes);
+    }
+
+    /**
+     * Indexes {@code blobs} as binary doc values under the given format, force-merges to a single segment, then
+     * verifies every value round-trips before summing the on-disk size of the binary doc values data files.
+     */
+    private long indexAndMeasureBinaryDVSize(
+        ES819Version3TSDBDocValuesFormat dvFormat,
+        String binaryField,
+        String sessionField,
+        String idField,
+        byte[][] blobs,
+        String[] sessions
+    ) throws IOException {
+        var config = new IndexWriterConfig();
+        config.setIndexSort(new Sort(new SortField(sessionField, SortField.Type.STRING, false)));
+        config.setMergePolicy(new LogByteSizeMergePolicy());
+        config.setCodec(TestUtil.alwaysDocValuesFormat(dvFormat));
+
+        List<Integer> writeOrder = new ArrayList<>(blobs.length);
+        for (int i = 0; i < blobs.length; i++) {
+            writeOrder.add(i);
+        }
+        Randomness.shuffle(writeOrder);
+
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, config)) {
+                for (int i : writeOrder) {
+                    Document d = new Document();
+                    d.add(new NumericDocValuesField(idField, i));
+                    d.add(new SortedDocValuesField(sessionField, new BytesRef(sessions[i])));
+                    d.add(new BinaryDocValuesField(binaryField, new BytesRef(blobs[i])));
+                    writer.addDocument(d);
+                }
+                writer.forceMerge(1);
+                writer.commit();
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertEquals("forceMerge(1) should leave a single segment", 1, reader.leaves().size());
+                LeafReaderContext leafContext = reader.leaves().get(0);
+                var leaf = leafContext.reader();
+                NumericDocValues idDV = leaf.getNumericDocValues(idField);
+                BinaryDocValues binaryDV = leaf.getBinaryDocValues(binaryField);
+                assertEquals(blobs.length, leaf.maxDoc());
+                for (int doc = 0; doc < leaf.maxDoc(); doc++) {
+                    assertTrue(idDV.advanceExact(doc));
+                    assertTrue(binaryDV.advanceExact(doc));
+                    int originalId = (int) idDV.longValue();
+                    assertEquals("round-trip mismatch for doc id " + originalId, new BytesRef(blobs[originalId]), binaryDV.binaryValue());
+                }
+            }
+
+            long totalBytes = 0;
+            for (String name : dir.listAll()) {
+                if (name.endsWith("." + ES819TSDBDocValuesFormat.DATA_EXTENSION)) {
+                    totalBytes += dir.fileLength(name);
+                }
+            }
+            return totalBytes;
+        }
+    }
+
+    /**
+     * Builds a vocabulary of small JSON fragments mimicking the repeated tag/class-name/key "skeleton" of an
+     * rrweb/Kibana-like DOM snapshot. Each {@link #buildSessionReplayBlob} call reuses this same vocabulary in a
+     * different random order, so the redundancy that matters lives mostly *across* documents rather than within
+     * a single one — matching why concatenating many real session-replay blobs into a wide zstd window (rather
+     * than compressing them individually) is what unlocks compression on the real data.
+     */
+    private static String[] buildJsonSkeletonVocabulary(int vocabularySize, Random random) {
+        final String[] tagNames = { "div", "span", "section", "button" };
+        // Most of each vocabulary entry is a sizeable "payload" that is fixed once per entry (e.g. a
+        // component's serialized attributes/inline styles/text run) so that, unlike the handful of short JSON
+        // keys wrapping it, it cannot be dedupe'd via trivial short-range matches within a single document —
+        // the only way to compress it away is for the exact same entry to recur elsewhere within reach of the
+        // compression window.
+        final int payloadLength = 1100;
+        String[] vocabulary = new String[vocabularySize];
+        for (int i = 0; i < vocabularySize; i++) {
+            String tag = tagNames[i % tagNames.length];
+            String payload = randomHex(random, payloadLength);
+            vocabulary[i] = "{\"type\":2,\"tagName\":\""
+                + tag
+                + "\",\"attributes\":{\"class\":\"euiFlexItem\",\"data-node-id\":\"n"
+                + i
+                + "\",\"payload\":\""
+                + payload
+                + "\"}},";
+        }
+        return vocabulary;
+    }
+
+    /**
+     * Builds a single ~{@code targetBytes} JSON blob out of a random ordering of {@code vocabulary} entries
+     * (simulating a session-replay DOM snapshot chunk), followed by a small unique tail (session, doc id, random
+     * nonce) so every blob is unique overall — matching how a real {@code body.text._original} value is a mostly
+     * shared skeleton plus session-specific bits.
+     */
+    private static byte[] buildSessionReplayBlob(String[] vocabulary, Random random, int targetBytes, String session, int id) {
+        List<Integer> order = new ArrayList<>(vocabulary.length);
+        for (int i = 0; i < vocabulary.length; i++) {
+            order.add(i);
+        }
+        Collections.shuffle(order, random);
+
+        StringBuilder sb = new StringBuilder(targetBytes + 256);
+        sb.append("{\"data\":{\"node\":[");
+        for (int idx : order) {
+            if (sb.length() >= targetBytes) {
+                break;
+            }
+            sb.append(vocabulary[idx]);
+        }
+
+        String tail = "],\"session\":\"" + session + "\",\"id\":" + id + ",\"nonce\":\"" + randomHex(random, 12) + "\"}}";
+        sb.setLength(Math.min(sb.length(), Math.max(0, targetBytes - tail.length())));
+        sb.append(tail);
+        while (sb.length() < targetBytes) {
+            sb.append('0');
+        }
+
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.US_ASCII);
+        assert bytes.length == targetBytes : bytes.length;
+        return bytes;
+    }
+
+    private static String randomHex(Random random, int length) {
+        StringBuilder sb = new StringBuilder(length);
+        for (int i = 0; i < length; i++) {
+            sb.append(Integer.toHexString(random.nextInt(16)));
+        }
+        return sb.toString();
     }
 }

@@ -15,7 +15,8 @@ import org.elasticsearch.index.codec.zstd.ZstdCompressionMode;
 public enum BinaryDVCompressionMode {
 
     NO_COMPRESS((byte) 0, null),
-    COMPRESSED_ZSTD_LEVEL_1((byte) 1, new ZstdCompressionMode(1));
+    COMPRESSED_ZSTD_LEVEL_1((byte) 1, new ZstdCompressionMode(1)),
+    COMPRESSED_ZSTD_LEVEL_3((byte) 2, new ZstdCompressionMode(3));
 
     public final byte code;
     private final CompressionMode compressionMode;

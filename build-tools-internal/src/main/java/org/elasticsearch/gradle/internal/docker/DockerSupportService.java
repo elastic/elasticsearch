@@ -304,25 +304,47 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         return values;
     }
 
+    // visible for testing
+    static Optional<String> resolveDockerExecutableFromPath(String pathEnv, String separator, List<String> executableNames) {
+        if (pathEnv == null || pathEnv.isEmpty()) {
+            return Optional.empty();
+        }
+
+        for (String dir : pathEnv.split(separator)) {
+            for (String executableName : executableNames) {
+                File candidate = new File(dir.trim(), executableName);
+                if (candidate.isFile() && candidate.canExecute()) {
+                    return Optional.of(candidate.getAbsolutePath());
+                }
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    private static List<String> dockerExecutableNames() {
+        return OS.current() == OS.WINDOWS ? List.of("docker.exe", "docker") : List.of("docker");
+    }
+
     /**
      * Resolves the Docker executable so it can be found even when PATH is minimal (e.g. Gradle
      * workers or IDE). Searches PATH first for an executable named "docker", then falls back to
-     * {@link #DOCKER_BINARIES}. Use this when invoking docker from tasks so the binary is found
-     * regardless of worker environment.
+     * {@link #DOCKER_BINARIES}. On Windows, prefers "docker.exe" because an extensionless Docker
+     * shim may not be executable by CreateProcess. Use this when invoking docker from tasks so the
+     * binary is found regardless of worker environment.
      *
      * @return the absolute path to the Docker CLI if found and executable, otherwise "docker".
      */
     public String getResolvedDockerExecutable() {
-        String pathEnv = System.getenv("PATH");
-        if (pathEnv != null && pathEnv.isEmpty() == false) {
-            String separator = System.getProperty("path.separator", ":");
-            for (String dir : pathEnv.split(separator)) {
-                File candidate = new File(dir.trim(), "docker");
-                if (candidate.isFile() && candidate.canExecute()) {
-                    return candidate.getAbsolutePath();
-                }
-            }
+        Optional<String> resolvedFromPath = resolveDockerExecutableFromPath(
+            System.getenv("PATH"),
+            System.getProperty("path.separator", ":"),
+            dockerExecutableNames()
+        );
+        if (resolvedFromPath.isPresent()) {
+            return resolvedFromPath.get();
         }
+
         for (String path : DOCKER_BINARIES) {
             File f = new File(path);
             if (f.isFile() && f.canExecute()) {

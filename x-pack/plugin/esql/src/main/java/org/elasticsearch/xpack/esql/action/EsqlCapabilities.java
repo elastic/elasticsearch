@@ -1612,6 +1612,12 @@ public class EsqlCapabilities {
         USAGE_CONTAINS_TOOK,
 
         /**
+         * Does the usage information for ESQL contain datasource telemetry (storage, query, discovery,
+         * parse counters and histograms, plus cluster-state inventory counts)?
+         */
+        USAGE_CONTAINS_DATASOURCES,
+
+        /**
          * Support loading of ip fields if they are not indexed.
          */
         LOADING_NON_INDEXED_IP_FIELDS,

@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -100,7 +101,14 @@ public class EsqlInfoTransportActionTests extends ESTestCase {
         when(mockNode.getId()).thenReturn("mocknode");
         when(clusterService.localNode()).thenReturn(mockNode);
 
-        var usageAction = new EsqlUsageTransportAction(transportService, clusterService, threadPool, mock(ActionFilters.class), client);
+        var usageAction = new EsqlUsageTransportAction(
+            transportService,
+            clusterService,
+            threadPool,
+            mock(ActionFilters.class),
+            client,
+            mock(ProjectResolver.class)
+        );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.localClusterStateOperation(mock(Task.class), null, null, future);
         EsqlFeatureSetUsage esqlUsage = (EsqlFeatureSetUsage) future.get().getUsage();

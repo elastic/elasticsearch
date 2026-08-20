@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.LongCounter;
@@ -145,11 +146,16 @@ public final class ExternalSourceMetrics {
 
     /**
      * No-op holder backed by {@link MeterRegistry#NOOP}, used where no node registry is available
-     * (decorators with no attached holder, tests) so call sites never branch on null.
+     * (decorators with no attached holder, tests) so call sites never branch on null. The
+     * {@link DataSourceUsageAccumulator} is null on this singleton so it never accumulates shared
+     * state across tests or unattached decorators.
      */
-    public static final ExternalSourceMetrics NOOP = new ExternalSourceMetrics(MeterRegistry.NOOP);
+    public static final ExternalSourceMetrics NOOP = new ExternalSourceMetrics(MeterRegistry.NOOP, null);
 
     private static final Logger logger = LogManager.getLogger(ExternalSourceMetrics.class);
+
+    @Nullable
+    private final DataSourceUsageAccumulator usageAccumulator;
 
     /**
      * Pre-built, immutable single-entry {@link #SCHEME_ATTRIBUTE} attribute maps for the closed canonical scheme
@@ -196,6 +202,16 @@ public final class ExternalSourceMetrics {
     private final LongCounter breakerTrippedTotal;
 
     public ExternalSourceMetrics(MeterRegistry meterRegistry) {
+        this(meterRegistry, null);
+    }
+
+    /**
+     * Creates a metrics holder that publishes to both the {@link MeterRegistry} (APM/OTLP) and the
+     * provided {@link DataSourceUsageAccumulator} (phone-home). Pass {@code null} for the accumulator
+     * to get APM-only behaviour (equivalent to the single-argument constructor).
+     */
+    public ExternalSourceMetrics(MeterRegistry meterRegistry, @Nullable DataSourceUsageAccumulator usageAccumulator) {
+        this.usageAccumulator = usageAccumulator;
         this.requestsTotal = meterRegistry.registerLongCounter(
             STORAGE_REQUESTS_TOTAL,
             "Object-store read requests on data objects scanned by ES|QL external data sources "
@@ -315,12 +331,16 @@ public final class ExternalSourceMetrics {
      */
     public void recordRequest(long durationMillis, long bytes, String scheme) {
         try {
-            Map<String, Object> attributes = schemeAttrs(scheme);
+            String canonical = canonicalScheme(scheme);
+            Map<String, Object> attributes = SCHEME_ATTRIBUTES.getOrDefault(canonical, Map.of(SCHEME_ATTRIBUTE, canonical));
             requestsTotal.incrementBy(1, attributes);
             if (bytes > 0) {
                 bytesReadTotal.incrementBy(bytes, attributes);
             }
             requestDuration.record(Math.max(0L, durationMillis), attributes);
+            if (usageAccumulator != null) {
+                usageAccumulator.recordRequest(accScheme(canonical), durationMillis, bytes);
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordRequest failed", e);
         }
@@ -329,7 +349,11 @@ public final class ExternalSourceMetrics {
     /** Records one automatic retry against the given storage {@code scheme}. Best-effort (self-guarded). */
     public void recordRetry(String scheme) {
         try {
-            retriesTotal.incrementBy(1, schemeAttrs(scheme));
+            String canonical = canonicalScheme(scheme);
+            retriesTotal.incrementBy(1, SCHEME_ATTRIBUTES.getOrDefault(canonical, Map.of(SCHEME_ATTRIBUTE, canonical)));
+            if (usageAccumulator != null) {
+                usageAccumulator.recordRetry();
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordRetry failed", e);
         }
@@ -341,7 +365,11 @@ public final class ExternalSourceMetrics {
      */
     public void recordError(String scheme) {
         try {
-            errorsTotal.incrementBy(1, schemeAttrs(scheme));
+            String canonical = canonicalScheme(scheme);
+            errorsTotal.incrementBy(1, SCHEME_ATTRIBUTES.getOrDefault(canonical, Map.of(SCHEME_ATTRIBUTE, canonical)));
+            if (usageAccumulator != null) {
+                usageAccumulator.recordError(accScheme(canonical));
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordError failed", e);
         }
@@ -353,7 +381,11 @@ public final class ExternalSourceMetrics {
      */
     public void recordThrottled(String scheme) {
         try {
-            throttledTotal.incrementBy(1, schemeAttrs(scheme));
+            String canonical = canonicalScheme(scheme);
+            throttledTotal.incrementBy(1, SCHEME_ATTRIBUTES.getOrDefault(canonical, Map.of(SCHEME_ATTRIBUTE, canonical)));
+            if (usageAccumulator != null) {
+                usageAccumulator.recordThrottled(accScheme(canonical));
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordThrottled failed", e);
         }
@@ -366,6 +398,9 @@ public final class ExternalSourceMetrics {
     public void recordReadStall(long millis, String scheme) {
         try {
             readStallDuration.record(Math.max(0L, millis), schemeAttrs(scheme));
+            if (usageAccumulator != null) {
+                usageAccumulator.recordReadStall(millis);
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordReadStall failed", e);
         }
@@ -393,6 +428,9 @@ public final class ExternalSourceMetrics {
             if (partial) {
                 queriesPartialTotal.incrementBy(1);
             }
+            if (usageAccumulator != null) {
+                usageAccumulator.recordQuery(accOutcome(outcome), durationMillis, partial);
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordQuery failed", e);
         }
@@ -405,6 +443,9 @@ public final class ExternalSourceMetrics {
     public void recordTimeToFirstRow(long millis, String scheme) {
         try {
             queryTimeToFirstRow.record(Math.max(0L, millis), schemeAttrs(scheme));
+            if (usageAccumulator != null) {
+                usageAccumulator.recordTimeToFirstRow(millis);
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordTimeToFirstRow failed", e);
         }
@@ -420,6 +461,9 @@ public final class ExternalSourceMetrics {
             discoveryDuration.record(Math.max(0L, durationMillis), attributes);
             discoveryFilesScanned.record(Math.max(0L, filesScanned), attributes);
             discoveryBytesScanned.record(Math.max(0L, bytesScanned), attributes);
+            if (usageAccumulator != null) {
+                usageAccumulator.recordDiscovery(durationMillis, filesScanned, bytesScanned);
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordDiscovery failed", e);
         }
@@ -429,6 +473,9 @@ public final class ExternalSourceMetrics {
     public void recordDiscoveryFailure() {
         try {
             discoveryFailuresTotal.incrementBy(1);
+            if (usageAccumulator != null) {
+                usageAccumulator.recordDiscoveryFailure();
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordDiscoveryFailure failed", e);
         }
@@ -445,6 +492,9 @@ public final class ExternalSourceMetrics {
                 parseRowsTotal.incrementBy(rows, attributes);
             }
             parseDuration.record(Math.max(0L, parseDurationMillis), attributes);
+            if (usageAccumulator != null) {
+                usageAccumulator.recordParse(rows, parseDurationMillis);
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordParse failed", e);
         }
@@ -457,6 +507,9 @@ public final class ExternalSourceMetrics {
     public void recordSplitsScanned(long splits, String scheme) {
         try {
             parseSplitsScanned.record(Math.max(0L, splits), schemeAttrs(scheme));
+            if (usageAccumulator != null) {
+                usageAccumulator.recordSplitsScanned(splits);
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordSplitsScanned failed", e);
         }
@@ -466,6 +519,9 @@ public final class ExternalSourceMetrics {
     public void recordPoolRejected() {
         try {
             readerPoolRejectedTotal.incrementBy(1);
+            if (usageAccumulator != null) {
+                usageAccumulator.recordPoolRejected();
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordPoolRejected failed", e);
         }
@@ -475,9 +531,21 @@ public final class ExternalSourceMetrics {
     public void recordBreakerTripped() {
         try {
             breakerTrippedTotal.incrementBy(1);
+            if (usageAccumulator != null) {
+                usageAccumulator.recordBreakerTripped();
+            }
         } catch (Exception e) {
             logger.trace("telemetry: recordBreakerTripped failed", e);
         }
+    }
+
+    /**
+     * Returns the phone-home accumulator, or {@code null} when this instance was constructed without one
+     * (including {@link #NOOP}). The stats layer uses this to populate the XPack usage payload.
+     */
+    @Nullable
+    public DataSourceUsageAccumulator usageAccumulator() {
+        return usageAccumulator;
     }
 
     /**
@@ -494,6 +562,27 @@ public final class ExternalSourceMetrics {
     /** Returns the pre-built {@link #OUTCOME_ATTRIBUTE} attribute map for {@code outcome} (a fresh map for any unknown). */
     private static Map<String, Object> outcomeAttrs(String outcome) {
         return OUTCOME_ATTRIBUTES.getOrDefault(outcome, Map.of(OUTCOME_ATTRIBUTE, outcome));
+    }
+
+    /**
+     * Returns the scheme token to pass to the {@link DataSourceUsageAccumulator}. APM emits unknown
+     * schemes lower-cased (to preserve observability without high cardinality), but the accumulator's
+     * {@link DataSourceUsageAccumulator#schemeIndex(String)} only accepts the six declared canonical
+     * values. Any scheme that is not one of those is bucketed to {@code "unknown"} here.
+     */
+    private static String accScheme(String canonical) {
+        return DataSourceUsageAccumulator.SCHEME_NAMES_SET.contains(canonical) ? canonical : "unknown";
+    }
+
+    /**
+     * Returns the outcome token to pass to the {@link DataSourceUsageAccumulator}. APM accepts any
+     * string for the outcome attribute, but the accumulator's
+     * {@link DataSourceUsageAccumulator#outcomeIndex(String)} only accepts the three declared values.
+     * Any unexpected outcome is bucketed to {@code "failure"} to avoid a divergence between APM
+     * counters (already incremented above the accumulator call) and phone-home counters.
+     */
+    private static String accOutcome(String outcome) {
+        return DataSourceUsageAccumulator.OUTCOME_NAMES_SET.contains(outcome) ? outcome : "failure";
     }
 
     /**

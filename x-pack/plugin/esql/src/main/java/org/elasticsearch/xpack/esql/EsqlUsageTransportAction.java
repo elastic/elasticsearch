@@ -10,8 +10,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -21,17 +26,24 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.esql.EsqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.plugin.EsqlStatsAction;
 import org.elasticsearch.xpack.esql.plugin.EsqlStatsRequest;
 import org.elasticsearch.xpack.esql.plugin.EsqlStatsResponse;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class EsqlUsageTransportAction extends XPackUsageFeatureTransportAction {
 
+    private static final Logger logger = LogManager.getLogger(EsqlUsageTransportAction.class);
+
     private final Client client;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public EsqlUsageTransportAction(
@@ -39,10 +51,12 @@ public class EsqlUsageTransportAction extends XPackUsageFeatureTransportAction {
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        Client client
+        Client client,
+        ProjectResolver projectResolver
     ) {
         super(XPackUsageFeatureAction.ESQL.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = client;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -63,8 +77,59 @@ public class EsqlUsageTransportAction extends XPackUsageFeatureTransportAction {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
             Counters mergedCounters = Counters.merge(countersPerNode);
+            addInventory(state, mergedCounters);
             EsqlFeatureSetUsage usage = new EsqlFeatureSetUsage(mergedCounters.toNestedMap());
             l.onResponse(new XPackUsageFeatureResponse(usage));
         }));
+    }
+
+    private void addInventory(ClusterState state, Counters counters) {
+        if (state == null) {
+            return;
+        }
+        try {
+            ProjectMetadata project = projectResolver.getProjectMetadata(state);
+            DataSourceMetadata dsMetadata = DataSourceMetadata.get(project);
+            DatasetMetadata datasetMetadata = DatasetMetadata.get(project);
+
+            counters.inc("datasources.config.datasources.count", dsMetadata.dataSources().size());
+            for (DataSource ds : dsMetadata.dataSources().values()) {
+                counters.inc("datasources.config.datasources.by_type." + canonicalType(ds.type()), 1);
+            }
+
+            counters.inc("datasources.config.datasets.count", datasetMetadata.datasets().size());
+            datasetMetadata.datasets().values().forEach(dataset -> {
+                DataSource parent = dsMetadata.get(dataset.dataSource().getName());
+                if (parent != null) {
+                    counters.inc("datasources.config.datasets.by_datasource_type." + canonicalType(parent.type()), 1);
+                }
+            });
+        } catch (Exception e) {
+            // Never let an inventory failure kill the /_xpack/usage response. Project metadata may be absent
+            // during bootstrap or in edge cases (failed migration, multi-project races); log and continue.
+            logger.debug("esql datasource inventory unavailable, skipping", e);
+        }
+    }
+
+    /**
+     * Known Elastic-defined datasource type identifiers. Anything else — including types registered by
+     * third-party plugins — is bucketed to {@code "unknown"} so the phone-home payload never carries
+     * arbitrary customer-controlled strings.
+     */
+    private static final Set<String> KNOWN_TYPES = Set.of("s3", "gcs", "azure", "http", "file", "csv");
+
+    /**
+     * Maps a datasource type string to a canonical token safe for phone-home emission. The type is
+     * constrained by the plugin validator registry at datasource-creation time (only plugin-registered
+     * identifiers can appear in cluster state), but third-party plugins could register non-Elastic
+     * identifiers, so we close the vocabulary here: known Elastic types pass through lower-cased;
+     * anything else becomes {@code "unknown"}.
+     */
+    private static String canonicalType(String type) {
+        if (type == null) {
+            return "unknown";
+        }
+        String lower = type.toLowerCase(Locale.ROOT);
+        return KNOWN_TYPES.contains(lower) ? lower : "unknown";
     }
 }

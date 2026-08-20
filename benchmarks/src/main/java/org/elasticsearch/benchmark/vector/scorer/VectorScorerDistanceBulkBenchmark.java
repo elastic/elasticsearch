@@ -68,7 +68,7 @@ public class VectorScorerDistanceBulkBenchmark {
         }
 
         queries = new float[numQueries][];
-        for (int i = 0; i < vectors.length; i++) {
+        for (int i = 0; i < queries.length; i++) {
             queries[i] = VectorTestUtils.randomFloatVector(random, dims);
         }
     }

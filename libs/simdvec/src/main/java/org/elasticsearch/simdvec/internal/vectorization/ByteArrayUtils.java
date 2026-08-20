@@ -9,8 +9,6 @@
 
 package org.elasticsearch.simdvec.internal.vectorization;
 
-import java.util.Arrays;
-
 import static org.apache.lucene.util.BitUtil.VH_LE_LONG;
 import static org.apache.lucene.util.BitUtil.VH_NATIVE_LONG;
 
@@ -90,7 +88,11 @@ final class ByteArrayUtils {
                     ;
             }
             if (i <= max) {
-                if (Arrays.mismatch(value, i + 1, i + termLength, term, termOffset + 1, termOffset + termLength) == -1) {
+                int j = i + 1;
+                int end = j + termLength - 1;
+                for (int k = termOffset + 1; j < end && value[j] == term[k]; j++, k++)
+                    ;
+                if (j == end) {
                     return true;
                 }
             }

@@ -2167,8 +2167,12 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
     /** Checks bytes between first and last (exclusive) since those were already verified by the SIMD masks. */
     private static boolean middleBytesMatch(byte[] value, int valuePos, byte[] term, int termOffset, int termLength) {
-        return termLength < 3
-            || Arrays.mismatch(value, valuePos + 1, valuePos + termLength - 1, term, termOffset + 1, termOffset + termLength - 1) == -1;
+        for (int k = 1; k < termLength - 1; k++) {
+            if (value[valuePos + k] != term[termOffset + k]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

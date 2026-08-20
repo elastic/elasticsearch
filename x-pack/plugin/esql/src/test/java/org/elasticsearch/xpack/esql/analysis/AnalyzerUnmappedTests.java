@@ -1513,12 +1513,20 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     /**
      * The {@code TS} command creates an {@link EsRelation} with {@link IndexMode#TIME_SERIES}, which is rejected by the allow-list.
-     * The error names the source command ({@code TS}), not the internal node type.
+     * The error names the source command ({@code TS}), not the internal node type. Tested both with and without a downstream STATS.
      */
     public void testLoadAllModeRejectsTimeSeriesCommand() {
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
             .statementError(
                 setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
+                containsString(
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT "
+                        + "and STATS commands; [TS] is not supported yet"
+                )
+            );
+        test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
+            .statementError(
+                setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"),
                 containsString(
                     "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT "
                         + "and STATS commands; [TS] is not supported yet"

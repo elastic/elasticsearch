@@ -58,7 +58,7 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                 t.dependsOn(resourcesTask);
                 t.setClasspath(sourceSet.getRuntimeClasspath().plus(sourceSet.getCompileClasspath()));
                 t.setTargetCompatibility(buildParams.getMinimumRuntimeVersion().getMajorVersion());
-                t.getBundledSignatures().set(BUNDLED_SIGNATURE_DEFAULTS);
+                t.setBundledSignatures(BUNDLED_SIGNATURE_DEFAULTS);
                 t.setSignaturesFiles(
                     project.files(
                         resourcesDir.toPath().resolve("forbidden/jdk-signatures.txt"),

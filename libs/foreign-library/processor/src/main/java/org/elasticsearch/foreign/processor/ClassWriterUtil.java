@@ -43,6 +43,10 @@ final class ClassWriterUtil {
     static final ClassDesc CD_MemoryLayoutVarHandles = ClassDesc.of(org.elasticsearch.foreign.MemoryLayoutVarHandles.class.getName());
     static final ClassDesc CD_Addressable = ClassDesc.of(org.elasticsearch.foreign.Addressable.class.getName());
 
+    // java.nio.charset types, used for @WideString / @InlineStringField(wide = true) codegen
+    static final ClassDesc CD_Charset = ClassDesc.of("java.nio.charset.Charset");
+    static final ClassDesc CD_StandardCharsets = ClassDesc.of("java.nio.charset.StandardCharsets");
+
     // Widely-used java.lang.foreign method type descriptors
     static final MethodTypeDesc MTD_structLayout = MethodTypeDesc.of(CD_StructLayout, CD_MemoryLayoutArray);
     static final MethodTypeDesc MTD_groupElement = MethodTypeDesc.of(CD_MemoryLayoutPathElement, CD_String);
@@ -119,6 +123,11 @@ final class ClassWriterUtil {
             case VOID -> throw new AssertionError("void cannot be a struct field type");
             default -> primitiveClassDesc(type);
         };
+    }
+
+    /** Pushes {@code StandardCharsets.UTF_16LE} onto the operand stack. */
+    static void emitPushUtf16LEConstant(CodeBuilder cb) {
+        cb.getstatic(CD_StandardCharsets, "UTF_16LE", CD_Charset);
     }
 
     /** Returns the specific {@code ValueLayout} subtype {@link ClassDesc} for a struct field's type. */

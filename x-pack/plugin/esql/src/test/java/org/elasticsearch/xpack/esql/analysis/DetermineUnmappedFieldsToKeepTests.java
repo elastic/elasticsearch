@@ -18,6 +18,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -88,10 +89,20 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNotKept(pattern, excl());
     }
 
-    public void testKeepExactName() {
-        UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP salary");
-        assertNotKept(pattern, excl());
-        assertNotKept(pattern, "unmapped_extra", "salary_bonus");
+    public void testKeepExactNameOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | KEEP salary");
+    }
+
+    public void testKeepExactNameBeforePatternOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | KEEP salary | KEEP sal*");
+    }
+
+    public void testKeepExactNameAfterPatternOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | KEEP first_name* | KEEP first_name");
+    }
+
+    public void testKeepThenDropOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | KEEP salary | DROP salary");
     }
 
     public void testKeepWildcardIgnoresMappedExactNameInSameCommand() {
@@ -174,10 +185,10 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
 
     public void testKeepThenDropRemovesAllMappedColumns() {
         // KEEP first* leaves only the mapped field "first_name"; DROP first_name* then removes it, so NO mapped
-        // column survives. This is still valid under LOAD_ALL — analysis must not fail: ResolvingProject always
-        // re-appends _unmapped_fields, so the projection is never empty, and unmapped source fields matching
-        // "first*" but not "first_name*" (e.g. "first_pet") are still kept. We cannot know at planning time
-        // whether such fields exist in _source, so erroring would be wrong.
+        // column survives. This is still valid under LOAD_ALL — analysis must not fail: the DROP wildcard still
+        // leaves unmapped source fields matching "first*" but not "first_name*" (e.g. "first_pet"), so the
+        // synthetic $$unmapped_fields column remains. We cannot know at planning time whether such fields exist
+        // in _source, so erroring would be wrong.
         UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP first* | DROP first_name*");
         assertKept(pattern, "first_pet", "first_grade");
         assertNotKept(pattern, "first_name_suffix", "unmapped_extra");
@@ -243,13 +254,11 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     /**
      * {@code _unmapped_fields} is not a reserved name: the synthetic column is called
      * {@link UnmappedFieldsAttribute#ATTRIBUTE_NAME}, which no query can spell. So a query referencing
-     * {@code _unmapped_fields} gets an ordinary source field demand-loaded as a keyword — which in turn puts
-     * the name into {@code EsRelation.output()} and therefore out of the expansion pattern.
+     * {@code _unmapped_fields} gets an ordinary source field demand-loaded as a keyword — which is an explicit
+     * column of the relation. A pattern-less KEEP of that name therefore yields no synthetic column at all.
      */
     public void testKeepUnmappedFieldsIsAnOrdinarySourceField() {
-        UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP _unmapped_fields");
-        assertNotKept(pattern, "_unmapped_fields", "unmapped_extra");
-        assertNotKept(pattern, excl());
+        assertNoUnmappedFieldsAttribute("FROM test | KEEP _unmapped_fields");
     }
 
     public void testDropUnmappedFieldsIsAnOrdinarySourceField() {
@@ -273,6 +282,17 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     private static void assertKept(UnmappedFieldsPattern pattern, String... names) {
         for (String name : names) {
             assertThat("expected [" + name + "] to be kept", pattern.matches(name), is(true));
+        }
+    }
+
+    private static void assertNoUnmappedFieldsAttribute(String query) {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll(query));
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            assertThat(
+                "expected no UnmappedFieldsAttribute on " + relation,
+                CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class),
+                empty()
+            );
         }
     }
 

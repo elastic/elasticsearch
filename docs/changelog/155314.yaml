@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 155314
+summary: Fix Anthropic translation to the unified schema
+type: bug

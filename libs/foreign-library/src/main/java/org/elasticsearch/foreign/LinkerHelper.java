@@ -25,14 +25,26 @@ import static java.lang.foreign.MemoryLayout.PathElement.groupElement;
  */
 public class LinkerHelper {
     private static final Linker LINKER = Linker.nativeLinker();
+    private static final boolean IS_WINDOWS = Platform.current() == Platform.WINDOWS_X64;
     private static final SymbolLookup SYMBOL_LOOKUP;
 
     static {
         // We first check the loader lookup, which contains libs loaded by System.load and System.loadLibrary.
         // If the symbol isn't found there, we fall back to the default lookup, which is "common libraries" for
-        // the platform, typically eg libc
+        // the platform, typically eg libc on POSIX. On Windows the default lookup covers ucrtbase.dll and
+        // ntdll.dll but not kernel32.dll, so we add an explicit kernel32 lookup on that platform.
         SymbolLookup loaderLookup = SymbolLookup.loaderLookup();
-        SYMBOL_LOOKUP = (name) -> loaderLookup.find(name).or(() -> LINKER.defaultLookup().find(name));
+        if (IS_WINDOWS) {
+            SymbolLookup kernel32 = kernel32Lookup();
+            SYMBOL_LOOKUP = name -> loaderLookup.find(name).or(() -> LINKER.defaultLookup().find(name)).or(() -> kernel32.find(name));
+        } else {
+            SYMBOL_LOOKUP = name -> loaderLookup.find(name).or(() -> LINKER.defaultLookup().find(name));
+        }
+    }
+
+    @SuppressWarnings("restricted") // SymbolLookup.libraryLookup is a restricted native-access method; kernel32 is an OS library.
+    private static SymbolLookup kernel32Lookup() {
+        return SymbolLookup.libraryLookup("kernel32.dll", Arena.global());
     }
 
     public static SymbolLookup defaultLookup() {
@@ -61,29 +73,66 @@ public class LinkerHelper {
         return LINKER.downcallHandle(functionAddress, functionDescriptor, options);
     }
 
-    public static final MemorySegment ERRNO_STATE = Arena.ofAuto().allocate(Linker.Option.captureStateLayout());
+    /**
+     * Shared capture-state buffer for {@code @CaptureSystemError} calls. A single segment is enough on
+     * any platform: {@link Linker.Option#captureStateLayout()} spans every capture state the platform
+     * supports, and only one system-error mechanism ({@code errno} on POSIX, {@code GetLastError} on
+     * Windows) is ever captured per platform.
+     */
+    private static final MemorySegment SYSTEM_ERROR_STATE = Arena.ofAuto().allocate(Linker.Option.captureStateLayout());
 
+    // errno is a valid capture-state group element on every platform (including the Windows CRT), so
+    // its VarHandle can resolve eagerly.
     private static final VarHandle ERRNO_VH = MemoryLayoutVarHandles.varHandleWithoutOffset(
         Linker.Option.captureStateLayout(),
         groupElement("errno")
     );
 
-    /**
-     * Returns the errno value captured by the most recent {@code @CaptureErrno} call on the
-     * current thread.
-     *
-     * @see <a href="https://man7.org/linux/man-pages/man3/errno.3.html">errno manpage</a>
-     */
-    public static int errno() {
-        return (int) ERRNO_VH.get(ERRNO_STATE);
+    // "GetLastError" is only a valid captureStateLayout() group element on Windows; resolving the
+    // VarHandle eagerly as a LinkerHelper field would fail LinkerHelper's own class-init on every
+    // other platform and permanently poison the class for unrelated callers. Holding it in a nested
+    // class defers that resolution until the Windows-only read path in systemError() touches it.
+    private static final class LastErrorHolder {
+        private static final VarHandle LAST_ERROR_VH = MemoryLayoutVarHandles.varHandleWithoutOffset(
+            Linker.Option.captureStateLayout(),
+            groupElement("GetLastError")
+        );
     }
 
+    /**
+     * Returns the operating system's last-error value captured by the most recent
+     * {@code @CaptureSystemError} call on the current thread — POSIX {@code errno}, or Win32
+     * {@code GetLastError} on Windows.
+     *
+     * @see <a href="https://man7.org/linux/man-pages/man3/errno.3.html">errno manpage</a>
+     * @see <a href="https://learn.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-getlasterror">GetLastError docs</a>
+     */
+    public static int systemError() {
+        VarHandle vh = IS_WINDOWS ? LastErrorHolder.LAST_ERROR_VH : ERRNO_VH;
+        return (int) vh.get(SYSTEM_ERROR_STATE);
+    }
+
+    /** Returns the shared system-error capture buffer. Used by generated {@code $Impl} classes. */
+    public static MemorySegment systemErrorState() {
+        return SYSTEM_ERROR_STATE;
+    }
+
+    /**
+     * Builds a downcall handle that captures the platform's system-error value ({@code errno} on
+     * POSIX, {@code GetLastError} on Windows) into the shared buffer, binding that buffer as the
+     * leading argument.
+     */
     @SuppressWarnings("restricted") // Linker.downcallHandle is a restricted native-access method; this helper exists to call it.
-    public static MethodHandle downcallHandleWithErrno(String function, FunctionDescriptor functionDescriptor, Linker.Option... options) {
+    public static MethodHandle downcallHandleWithSystemError(
+        String function,
+        FunctionDescriptor functionDescriptor,
+        Linker.Option... options
+    ) {
         Linker.Option[] allOptions = new Linker.Option[options.length + 1];
-        allOptions[0] = Linker.Option.captureCallState("errno");
+        allOptions[0] = Linker.Option.captureCallState(IS_WINDOWS ? "GetLastError" : "errno");
         System.arraycopy(options, 0, allOptions, 1, options.length);
-        return LINKER.downcallHandle(functionAddress(function), functionDescriptor, allOptions);
+        MethodHandle originalHandle = LINKER.downcallHandle(functionAddress(function), functionDescriptor, allOptions);
+        return MethodHandles.insertArguments(originalHandle, 0, SYSTEM_ERROR_STATE);
     }
 
     public static MethodHandle upcallHandle(

@@ -43,7 +43,7 @@ public final class PosixMethodHandleResolver implements MethodHandleResolver {
                 argLayouts.toArray(MemoryLayout[]::new)
             );
             MethodHandle handle = linker.downcallHandle(symbol.address(), extDesc, options);
-            // With @CaptureErrno, arg 0 is the errno-state segment; arg 1 is vers.
+            // With @CaptureSystemError, arg 0 is the errno-state segment; arg 1 is vers.
             return MethodHandles.insertArguments(handle, 1, STAT_VER);
         }
         return linker.downcallHandle(symbol.address(), descriptor, options);

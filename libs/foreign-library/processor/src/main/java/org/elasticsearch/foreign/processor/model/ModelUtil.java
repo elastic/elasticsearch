@@ -75,6 +75,20 @@ final class ModelUtil {
     }
 
     /**
+     * Returns the {@code boolean} value of the given annotation attribute, or {@code defaultValue} if the
+     * attribute is absent (not explicitly set, so the annotation's declared default applies) or not a
+     * {@code Boolean}.
+     */
+    static boolean annotationBooleanValue(AnnotationMirror mirror, String attribute, boolean defaultValue) {
+        for (var entry : mirror.getElementValues().entrySet()) {
+            if (entry.getKey().getSimpleName().contentEquals(attribute)) {
+                return entry.getValue().getValue() instanceof Boolean b ? b : defaultValue;
+            }
+        }
+        return defaultValue;
+    }
+
+    /**
      * Collects all annotation mirrors for a {@code @Repeatable} annotation on {@code element},
      * handling both the single-annotation form and the container-annotation form.
      */

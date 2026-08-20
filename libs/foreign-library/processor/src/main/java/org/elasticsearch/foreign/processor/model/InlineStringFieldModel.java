@@ -16,8 +16,15 @@ package org.elasticsearch.foreign.processor.model;
  * accessors call {@code MemorySegment.getString}/{@code setString} directly at the field offset.
  *
  * <p>A field may have a getter, a setter, or both — but at least one must be present.
+ *
+ * @param length total byte length of the fixed-size field, including any NUL terminator; always in bytes,
+ *        regardless of {@code wide}
+ * @param wide whether the field is UTF-16LE-encoded (e.g. a Windows {@code WCHAR name[N]}) rather than the
+ *        implicit UTF-8 default (e.g. a POSIX {@code char name[N]})
  */
-public record InlineStringFieldModel(String name, int length, boolean hasGetter, boolean hasSetter) implements StructFieldModel {
+public record InlineStringFieldModel(String name, int length, boolean wide, boolean hasGetter, boolean hasSetter)
+    implements
+        StructFieldModel {
     @Override
     public NativeType type() {
         return NativeType.BYTE;

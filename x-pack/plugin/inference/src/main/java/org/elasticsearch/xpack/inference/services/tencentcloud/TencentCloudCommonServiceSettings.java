@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.request.TencentCloudUtils;
@@ -64,6 +65,9 @@ public abstract class TencentCloudCommonServiceSettings extends FilteredXContent
             (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, defaultRateLimit).apply(p, null),
             new ParseField(RateLimitSettings.FIELD_NAME)
         );
+        // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.
+        // Declare it here as a no-op so the strict REQUEST parser does not reject it as an unknown field.
+        parser.declareString((b, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
     }
 
     /**

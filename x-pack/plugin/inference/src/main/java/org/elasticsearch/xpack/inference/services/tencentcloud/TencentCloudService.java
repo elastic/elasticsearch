@@ -216,7 +216,11 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
 
         for (var request : batchedRequests) {
             var action = embeddingsModel.accept(actionCreator, taskSettings);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(
+                new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                timeout,
+                request.listener()
+            );
         }
     }
 

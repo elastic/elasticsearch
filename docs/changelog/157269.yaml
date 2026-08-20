@@ -1,0 +1,5 @@
+area: Compute Engine
+issues: []
+pr: 157269
+summary: Use `DocValueSkippers` to calculate values for `LuceneMinMaxOperator`
+type: enhancement

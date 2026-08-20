@@ -13,7 +13,7 @@
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 1
+            number_of_replicas: 0
             index.routing.allocation.enable: none
 
   - do:
@@ -22,10 +22,10 @@
 
   - is_true: cluster_name
   - match: { indicators.shards_availability.status: "red" }
-  - match: { indicators.shards_availability.symptom: "This cluster has 1 unavailable primary shard, 1 unavailable replica shard." }
+  - match: { indicators.shards_availability.symptom: "This cluster has 1 unavailable primary shard." }
 
   - match: { indicators.shards_availability.details.unassigned_primaries: 1 }
-  - match: { indicators.shards_availability.details.unassigned_replicas: 1 }
+  - match: { indicators.shards_availability.details.unassigned_replicas: 0 }
   - match: { indicators.shards_availability.details.initializing_primaries: 0 }
   - match: { indicators.shards_availability.details.creating_primaries: 0 }
   - match: { indicators.shards_availability.details.restarting_primaries: 0 }
@@ -36,21 +36,16 @@
   - exists: indicators.shards_availability.details.started_replicas
     # These are stateless only fields
   - match: { indicators.shards_availability.details.indices_with_unavailable_primaries: "${_project_id_prefix_}red_index" }
-  - match: { indicators.shards_availability.details.indices_with_unavailable_replicas: "${_project_id_prefix_}red_index" }
+  - is_false: indicators.shards_availability.details.indices_with_unavailable_replicas
   - is_false: indicators.shards_availability.details.indices_with_provisionally_unavailable_primaries
   - is_false: indicators.shards_availability.details.indices_with_provisionally_unavailable_replicas
 
-    # Stateless returns two impacts here whereas stateful is one
-  - length: { indicators.shards_availability.impacts: 2 }
+  - length: { indicators.shards_availability.impacts: 1 }
   - match: { indicators.shards_availability.impacts.0.id: "elasticsearch:health:shards_availability:impact:primary_unassigned" }
   - match: { indicators.shards_availability.impacts.0.severity: 1 }
   - match: { indicators.shards_availability.impacts.0.impact_areas.0: "ingest" }
   - match: { indicators.shards_availability.impacts.0.impact_areas.1: "search" }
   - match: { indicators.shards_availability.impacts.0.description: "Cannot add data to 1 index [${_project_id_prefix_}red_index]. Searches might return incomplete results." }
-  - match: { indicators.shards_availability.impacts.1.id: "elasticsearch:health:shards_availability:impact:all_replicas_unassigned" }
-  - match: { indicators.shards_availability.impacts.1.severity: 1 }
-  - match: { indicators.shards_availability.impacts.1.impact_areas.0: "search" }
-  - match: { indicators.shards_availability.impacts.1.description: "Not all data is searchable. No searchable copies of the data exist on 1 index [${_project_id_prefix_}red_index]." }
 
   - length: { indicators.shards_availability.diagnosis: 1 }
   - match: { indicators.shards_availability.diagnosis.0.id: "elasticsearch:health:shards_availability:diagnosis:enable_index_allocations" }

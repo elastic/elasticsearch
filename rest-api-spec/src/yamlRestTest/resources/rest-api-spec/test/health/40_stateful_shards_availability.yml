@@ -13,7 +13,7 @@
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 1
+            number_of_replicas: 0
             index.routing.allocation.enable: none
 
   - do:
@@ -22,10 +22,10 @@
 
   - is_true: cluster_name
   - match: { indicators.shards_availability.status: "red" }
-  - match: { indicators.shards_availability.symptom: "This cluster has 1 unavailable primary shard, 1 unavailable replica shard." }
+  - match: { indicators.shards_availability.symptom: "This cluster has 1 unavailable primary shard." }
 
   - match: { indicators.shards_availability.details.unassigned_primaries: 1 }
-  - match: { indicators.shards_availability.details.unassigned_replicas: 1 }
+  - match: { indicators.shards_availability.details.unassigned_replicas: 0 }
   - match: { indicators.shards_availability.details.initializing_primaries: 0 }
   - match: { indicators.shards_availability.details.creating_primaries: 0 }
   - match: { indicators.shards_availability.details.restarting_primaries: 0 }

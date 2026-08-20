@@ -1,7 +1,92 @@
 version: 9.5.2
-released: false
-generated: 2026-08-19T00:38:07.272735262Z
+released: true
+generated: 2026-08-20T17:05:57.911278389Z
 changelogs:
+  - pr: 2841
+    summary: Better messaging regarding OOM process termination
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2846
+    summary: Report the actual memory usage of the autodetect process
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2848
+    summary: Improve adherence to memory limits for the bucket gatherer
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2863
+    summary: Update the PyTorch library to version 2.7.1
+    area: Machine Learning
+    type: upgrade
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2889
+    summary: Downgrade log severity for a batch of recoverable errors
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2894
+    summary: Better error handling regarding quantiles state documents
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2895
+    summary: Better handling of invalid JSON state documents
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3008
+    summary: Harden pytorch_inference with TorchScript model graph validation
+    area: Machine Learning
+    type: enhancement
+    issues:
+      - 2890
+    source_repo: elastic/ml-cpp
+  - pr: 3015
+    summary: Add EuroBERT and Jina v5 ops to graph validation allowlist
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3017
+    summary: Fix flaky CIoManagerTest/testFileIoGood test
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3078
+    summary: Reject TorchScript custom state hooks before load and forbid inductor::_reinterpret_tensor
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3080
+    summary: Reject non-native ABIs in ML seccomp filter (socketcall/getuid collision)
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3081
+    summary: Mark ML controller non-dumpable before accepting commands
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3090
+    summary: Fix flaky concurrent LFU cache count invariant under lock timeouts
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
   - pr: 3143
     summary: Fail gracefully when restoring a categorizer with an out-of-range token ID
     area: Machine Learning
@@ -9,41 +94,41 @@ changelogs:
     issues: []
     source_repo: elastic/ml-cpp
   - pr: 3149
-    summary: Fail closed on an incomplete TorchScript pre-load state hook scan
+    summary: Fail closed on incomplete `TorchScript` pre-load state-hook scan
     area: Machine Learning
     type: bug
     issues: []
     source_repo: elastic/ml-cpp
   - pr: 132434
-    summary: Fix `NullPointerException` in `LongComparator` caused by null `search_after` values
+    summary: Fix NullPointerException in LongComparator caused by null search_after values
     area: Search
     type: bug
     issues:
       - 132370
   - pr: 154607
-    summary: Translate unified tool-calling message blocks to the Anthropic format
+    summary: "[Inference API] Translate unified tool-calling message blocks to Anthropic format"
     area: Inference
     type: bug
     issues: []
   - pr: 155312
-    summary: Fix `TS` `STATS` aggregate aliases that collide with grouping keys
+    summary: Fix TS STATS aggregate aliases that collide with grouping keys
     area: ES|QL
     type: bug
     issues:
       - 153507
   - pr: 155314
-    summary: Fix Anthropic translation to the unified schema
+    summary: "[Inference API] Fix Anthropic translation to Unified schema"
     area: Inference
     type: bug
     issues: []
   - pr: 155580
-    summary: Fix nested and `mode`-based sorts on `integer` fields returning incorrect values on indices created before 8.19 or in 9.0.x
+    summary: Fix nested integer sort returning LONG sentinel and descending or "mode"-based sorts on multi-valued fields returned the wrong value  on pre-8.19/9.0.x indices
     area: Search
     type: bug
     issues:
       - 155243
   - pr: 155586
-    summary: Account for t-digest percentiles memory in the request circuit breaker
+    summary: ES|QL:Fix/tdigest percentiles circuit breaker
     area: ES|QL
     type: bug
     issues: []
@@ -54,7 +139,7 @@ changelogs:
     issues:
       - 148516
   - pr: 155623
-    summary: Fix `TS` queries that name a time bucket after the timestamp field
+    summary: Fix TS bucket named after timestamp field
     area: ES|QL
     type: bug
     issues: []
@@ -82,17 +167,17 @@ changelogs:
     type: bug
     issues: []
   - pr: 155745
-    summary: Fail the request instead of the node on deeply nested aggregations
+    summary: Fail request instead of node on deep aggregations
     area: Search
     type: bug
     issues: []
   - pr: 155908
-    summary: Ensure batched queries always return a response
+    summary: Add top-level catch to ensure batched queries always respond
     area: Search
     type: bug
     issues: []
   - pr: 156015
-    summary: Fix `DOT_PRODUCT` and `COSINE` score clamping in the BBQ vector scorer
+    summary: Fix DOT_PRODUCT and COSINE score clamping in BBQ vector scorer
     area: Vector Search
     type: bug
     issues:
@@ -101,12 +186,12 @@ changelogs:
       - 156009
       - 156012
   - pr: 156191
-    summary: Preserve headers when copying a transform configuration
+    summary: Preserve headers through Builder copy
     area: Transform
     type: bug
     issues: []
   - pr: 156203
-    summary: Upgrade the bundled JDK to 26.0.2
+    summary: Bump JDK to 26.0.2
     area: Infra/Core
     type: upgrade
     issues: []
@@ -122,13 +207,13 @@ changelogs:
     issues:
       - 156057
   - pr: 156287
-    summary: Fix duplicate field in the cumulative histogram reset document
+    summary: "Downsample: fix duplicate field in cumulative histogram reset doc"
     area: Downsampling
     type: bug
     issues:
       - 156276
   - pr: 156296
-    summary: Upgrade Bouncy Castle FIPS to 1.0.2.7 and 2.0.2
+    summary: Upgrade bc-fips version
     area: FIPS
     type: upgrade
     issues: []
@@ -139,12 +224,12 @@ changelogs:
     issues:
       - 138496
   - pr: 156368
-    summary: Upgrade Jackson to 2.21.5 for ES|QL and Arrow
+    summary: Bump ES|QL/Arrow Jackson to 2.21.5
     area: Security
     type: upgrade
     issues: []
   - pr: 156382
-    summary: Fix `IllegalStateException` when a truncated string cuts off in the middle of a JSON object
+    summary: Fix truncating JSON objects mid-object
     area: Infra/Core
     type: bug
     issues:
@@ -160,28 +245,28 @@ changelogs:
     type: bug
     issues: []
   - pr: 156604
-    summary: Fix incorrect results from Parquet predicate pushdown on multi-valued fields
+    summary: Fix MV-unsafe evaluator in Parquet late-mat filter
     area: ES|QL
     type: bug
     issues: []
   - pr: 156623
-    summary: Fix the `auto_calibrate` index option being rejected by a leftover experimental flag
+    summary: Remove the experimental flag for the `auto_calibrate` configuration
     area: Vector Search
     type: bug
     issues: []
   - pr: 156643
-    summary: Upgrade to Lucene 10.5.1
+    summary: Upgrade to lucene 10.5.1
     area: Mapping
     type: upgrade
     issues: []
   - pr: 156665
-    summary: Fix Google Vertex AI chat completion tool call argument serialization for non-string values
+    summary: Fix Google VertexAI chat completion tool call arguments serialization for non-string values
     area: Inference
     type: bug
     issues:
       - 156644
   - pr: 156683
-    summary: Count failed `_msearch` sub-search responses against the circuit breaker
+    summary: Count failed msearch sub-search responses against the circuit breaker
     area: Search
     type: bug
     issues: []

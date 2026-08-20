@@ -16,6 +16,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xpack.inference.queries.GenericQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder;
 import org.junit.Before;
@@ -420,6 +421,139 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
             searchRequestModifier
         );
 
+        // Query a field that has different inference ID values across clusters
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(
+                VARIABLE_INFERENCE_ID_FIELD,
+                new EmbeddingQueryVectorBuilder(null, randomInferenceStringGroup(), null),
+                10,
+                100,
+                10f,
+                null
+            ),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD))
+            ),
+            null,
+            searchRequestModifier
+        );
+
+        // Query a field that has mixed types across clusters
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(
+                MIXED_TYPE_FIELD_1,
+                new EmbeddingQueryVectorBuilder(LOCAL_INFERENCE_ID, randomInferenceStringGroup(), null),
+                10,
+                100,
+                10f,
+                null
+            ),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1))
+            ),
+            null,
+            searchRequestModifier
+        );
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(
+                MIXED_TYPE_FIELD_2,
+                new EmbeddingQueryVectorBuilder(LOCAL_INFERENCE_ID, randomInferenceStringGroup(), null),
+                10,
+                100,
+                10f,
+                null
+            ),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))
+            ),
+            null,
+            searchRequestModifier
+        );
+
+        // Query a field that has mixed types across clusters using a query vector
+        final VectorData queryVector = new VectorData(
+            generateDenseVectorFieldValue(384, DenseVectorFieldMapper.ElementType.FLOAT, -128.0f)
+        );
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_1, queryVector, 10, 100, 10f, null, null),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1))
+            ),
+            null,
+            searchRequestModifier
+        );
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_2, queryVector, 10, 100, 10f, null, null),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))
+            ),
+            null,
+            searchRequestModifier
+        );
+
+        // Query using index patterns
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(
+                COMMON_INFERENCE_ID_FIELD,
+                new EmbeddingQueryVectorBuilder(null, randomInferenceStringGroup(), null),
+                10,
+                100,
+                10f,
+                null
+            ),
+            List.of("local-*", fullyQualifiedIndexName("cluster_*", "remote-*")),
+            List.of(
+                new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))
+            ),
+            null,
+            searchRequestModifier
+        );
+
+        // Validate that a CCS knn query functions when only dense vector fields are queried
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(
+                DENSE_VECTOR_FIELD,
+                generateDenseVectorFieldValue(DENSE_VECTOR_FIELD_DIMENSIONS, DenseVectorFieldMapper.ElementType.FLOAT, 1.0f),
+                10,
+                100,
+                10f,
+                null,
+                null
+            ),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(DENSE_VECTOR_FIELD)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(DENSE_VECTOR_FIELD))
+            ),
+            null,
+            searchRequestModifier
+        );
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(
+                DENSE_VECTOR_FIELD,
+                generateDenseVectorFieldValue(DENSE_VECTOR_FIELD_DIMENSIONS, DenseVectorFieldMapper.ElementType.FLOAT, 1.0f),
+                10,
+                100,
+                10f,
+                null,
+                null
+            ),
+            List.of(FULLY_QUALIFIED_REMOTE_INDEX_NAME),
+            List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(DENSE_VECTOR_FIELD))),
+            null,
+            searchRequestModifier
+        );
     }
 
     private Map<String, Object> generateMapping(String inferenceId) {

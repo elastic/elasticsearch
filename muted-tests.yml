@@ -489,3 +489,6 @@ tests:
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
   method: testDeleteBackingIndexDuringForceMerge
   issue: https://github.com/elastic/elasticsearch/issues/157257
+- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
+  method: testUnreferencedCommitsAreReleasedAfterRecovery
+  issue: https://github.com/elastic/elasticsearch/issues/157299

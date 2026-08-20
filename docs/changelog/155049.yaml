@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 154811
+pr: 155049
+summary: Treat signed zero values consistently in ES|QL grouping
+type: bug

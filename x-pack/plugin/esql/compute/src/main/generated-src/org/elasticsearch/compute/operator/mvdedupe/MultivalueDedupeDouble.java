@@ -582,11 +582,11 @@ public class MultivalueDedupeDouble {
     }
 
     private void hashAdd(IntBlock.Builder builder, LongHashTable hash, double v) {
-        appendFound(builder, hash.add(Double.doubleToLongBits(v)));
+        appendFound(builder, hash.add(hashDouble(v)));
     }
 
     private long hashLookup(LongHashTable hash, double v) {
-        return hash.find(Double.doubleToLongBits(v));
+        return hash.find(hashDouble(v));
     }
 
     private void hashLookupSingle(IntBlock.Builder builder, LongHashTable hash, double v) {
@@ -600,6 +600,11 @@ public class MultivalueDedupeDouble {
 
     private void appendFound(IntBlock.Builder builder, long found) {
         builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(found)));
+    }
+
+    /** Canonicalizes signed zero before building an ES|QL double hash key. */
+    private static long hashDouble(double value) {
+        return Double.doubleToLongBits(value == 0.0d ? 0.0d : value);
     }
 
     private static boolean valuesEqual(double lhs, double rhs) {

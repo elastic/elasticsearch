@@ -53,6 +53,11 @@ final class DoubleBlockHash extends BlockHash {
      */
     private boolean seenNull;
 
+    /** Canonicalizes signed zero before building an ES|QL double hash key. */
+    private static long hashDouble(double value) {
+        return Double.doubleToLongBits(value == 0.0d ? 0.0d : value);
+    }
+
     DoubleBlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
@@ -90,7 +95,7 @@ final class DoubleBlockHash extends BlockHash {
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                long v = Double.doubleToLongBits(vector.getDouble(i));
+                long v = hashDouble(vector.getDouble(i));
                 builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v))));
             }
             return builder.build();
@@ -129,7 +134,7 @@ final class DoubleBlockHash extends BlockHash {
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                long v = Double.doubleToLongBits(vector.getDouble(i));
+                long v = hashDouble(vector.getDouble(i));
                 long found = hash.find(v);
                 if (found < 0) {
                     builder.appendNull();

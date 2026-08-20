@@ -46,7 +46,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     public static final DataStreamTimestampFieldMapper ENABLED_INSTANCE = new DataStreamTimestampFieldMapper(true);
     static final DataStreamTimestampFieldMapper DISABLED_INSTANCE = new DataStreamTimestampFieldMapper(false);
 
-    // For now the field shouldn't be useable in searches.
+    // For now the field shouldn't be usable in searches.
     // In the future it should act as an alias to the actual data stream timestamp field.
     public static final class TimestampFieldType extends MappedFieldType {
 
@@ -85,7 +85,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
         private final Parameter<Boolean> enabled = Parameter.boolParam("enabled", true, m -> toType(m).enabled, false)
             // this field mapper may be enabled but once enabled, may not be disabled
-            .setMergeValidator((previous, current, conflicts) -> (previous == current) || (previous == false && current));
+            .setMergeValidator((previous, current, ignored) -> (previous == current) || (previous == false && current));
 
         public Builder() {
             super(NAME);
@@ -111,7 +111,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> new Builder());
+    public static final TypeParser PARSER = new ConfigurableTypeParser(ignored -> new Builder());
 
     private final boolean enabled;
 
@@ -197,7 +197,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         // ignoring malformed values is disallowed (see previous check),
         // however if `index.mapping.ignore_malformed` has been set to true then
         // there is no way to disable ignore_malformed for the timestamp field mapper,
-        // other then not using 'index.mapping.ignore_malformed' at all.
+        // other than not using 'index.mapping.ignore_malformed' at all.
         // So by ignoring the ignore_malformed here, we allow index.mapping.ignore_malformed
         // index setting to be set to true and then turned off for the timestamp field mapper.
         // (ignore_malformed will here always be false, otherwise previous check would have failed)

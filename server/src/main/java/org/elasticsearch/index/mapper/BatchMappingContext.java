@@ -94,10 +94,10 @@ public final class BatchMappingContext {
      * the Lucene column list. Mirrors the row-path side channel
      * ({@code DataStreamTimestampFieldMapper.storeTimestampValueForReuse}). The data is the same
      * {@link EscfColumnData} that {@code DateFieldMapper.mapColumnBatch} already built; no copy
-     * is made. Multi-valued (array) timestamp columns are rejected the same way the row path
+     * is made. Multivalued (array) timestamp columns are rejected the same way the row path
      * rejects multiple values for the same document.
      *
-     * @throws IllegalArgumentException if called more than once or if the column is multi-valued
+     * @throws IllegalArgumentException if called more than once or if the column is multivalued
      */
     public void setTimestamps(EscfColumnData timestamps) {
         if (this.timestamps != null) {

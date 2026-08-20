@@ -396,7 +396,11 @@ public class SearchContextStats implements SearchStats {
                 PointValues values = lr.getPointValues(name);
                 return values == null || values.size() == values.getDocCount();
             };
-        } else if (fieldType instanceof KeywordFieldType) {
+        } else if (fieldType instanceof KeywordFieldType keywordFieldType) {
+            // NOTE: Terms cannot prove value cardinality for these keyword storage shapes.
+            if (keywordFieldType.usesMultivaluedBinaryDocValues() || keywordFieldType.indexType().hasTerms() == false) {
+                return false;
+            }
             tester = lr -> {
                 Terms terms = lr.terms(name);
                 return terms == null || terms.getSumDocFreq() == terms.getDocCount();

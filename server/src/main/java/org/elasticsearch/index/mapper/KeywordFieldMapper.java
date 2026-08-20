@@ -780,6 +780,15 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         /**
+         * Returns true when this field stores keyword values through binary doc values and can store
+         * more than one value for a document. Lucene term statistics do not describe value counts
+         * for this representation, so callers must load the field to count values.
+         */
+        public boolean usesMultivaluedBinaryDocValues() {
+            return usesBinaryDocValues && docValuesParams != null && docValuesParams.multiValue();
+        }
+
+        /**
          * Whether this field stores its (high-cardinality) binary doc values in document order with inline nulls
          * ({@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull}) rather than via a sidecar offsets field.
          */

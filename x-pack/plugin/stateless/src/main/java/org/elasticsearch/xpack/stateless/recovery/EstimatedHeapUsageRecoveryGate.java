@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless.recovery;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoveryGate;
@@ -42,15 +43,9 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate {
     /// cached.
     private static final TimeValue ESTIMATE_VALIDITY = TimeValue.timeValueSeconds(1);
 
-    private final Supplier<ClusterState> clusterStateSupplier;
-    private final ToLongFunction<ClusterState> estimatedHeapUsageBytes;
     private final long maxHeapBytes;
     private final EstimatedHeapSettings heapSettings;
-    private final LongSupplier relativeTimeInNanos;
-    private final long estimateValidityNanos;
-    private volatile EstimateSnapshot lastEstimate;
-
-    private record EstimateSnapshot(long estimatedBytes, long computedAtNanos) {}
+    private final SingleObjectCache<Long> estimateCache;
 
     /// Builds a gate wired to the node's real services and JVM max heap: the estimate is computed from the exact shard values the
     /// collector publishes to the master, fed through the master's own summation.
@@ -75,7 +70,7 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate {
                 // collect shard heap usage estimate from local node
                 shardsMappingSizeCollector.collectShardMappingSizes()
             ).totalHeapUsage(),
-            threadPool::relativeTimeInNanos,
+            threadPool::relativeTimeInMillis,
             ESTIMATE_VALIDITY
         );
     }
@@ -86,29 +81,24 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate {
         Supplier<ClusterState> clusterStateSupplier,
         long maxHeapBytes,
         ToLongFunction<ClusterState> estimatedHeapUsageBytes,
-        LongSupplier relativeTimeInNanos,
+        LongSupplier relativeTimeInMillis,
         TimeValue estimateValidity
     ) {
         assert maxHeapBytes >= 0 : "negative max heap size: " + maxHeapBytes;
-        this.clusterStateSupplier = clusterStateSupplier;
         this.maxHeapBytes = maxHeapBytes;
-        this.estimatedHeapUsageBytes = estimatedHeapUsageBytes;
         this.heapSettings = heapSettings;
-        this.relativeTimeInNanos = relativeTimeInNanos;
-        this.estimateValidityNanos = estimateValidity.nanos();
+        this.estimateCache = new SingleObjectCache<>(estimateValidity, 0L, relativeTimeInMillis) {
+            @Override
+            protected Long refresh() {
+                return estimatedHeapUsageBytes.applyAsLong(clusterStateSupplier.get());
+            }
+        };
     }
 
     /// The estimate this gate decides on: the last computed value while it is still within [#ESTIMATE_VALIDITY], else recomputed
     /// inline.
     long currentEstimateBytes() {
-        final EstimateSnapshot cached = lastEstimate;
-        final long nowNanos = relativeTimeInNanos.getAsLong();
-        if (cached != null && nowNanos - cached.computedAtNanos() < estimateValidityNanos) {
-            return cached.estimatedBytes();
-        }
-        final long estimatedBytes = estimatedHeapUsageBytes.applyAsLong(clusterStateSupplier.get());
-        lastEstimate = new EstimateSnapshot(estimatedBytes, nowNanos);
-        return estimatedBytes;
+        return estimateCache.getOrRefresh();
     }
 
     @Override

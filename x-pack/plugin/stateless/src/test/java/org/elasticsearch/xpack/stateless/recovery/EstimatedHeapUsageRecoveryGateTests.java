@@ -149,8 +149,8 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
     public void testReusesEstimateWithinValidityWindow() {
         final long maxHeap = randomMaxHeapBytes();
         final int watermarkPercent = between(2, 100);
-        final long validityNanos = randomLongBetween(1, TimeValue.timeValueSeconds(30).nanos());
-        final AtomicLong nowNanos = new AtomicLong();
+        final long validityMillis = randomLongBetween(1, 30_000);
+        final AtomicLong nowMillis = new AtomicLong();
         final AtomicLong estimate = new AtomicLong(bytesOf(maxHeap, between(0, watermarkPercent - 1)));
         final AtomicInteger computations = new AtomicInteger();
         final var gate = new EstimatedHeapUsageRecoveryGate(
@@ -161,17 +161,17 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
                 computations.incrementAndGet();
                 return estimate.get();
             },
-            nowNanos::get,
-            TimeValue.timeValueNanos(validityNanos)
+            nowMillis::get,
+            TimeValue.timeValueMillis(validityMillis)
         );
 
         assertRuns(gate); // computes at t=0
         estimate.set(bytesOf(maxHeap, between(watermarkPercent + 1, 200)));   // live estimate exceeds watermark
-        nowNanos.set(randomLongBetween(0, validityNanos - 1)); // anywhere inside the window
+        nowMillis.set(randomLongBetween(0, validityMillis)); // anywhere inside the window, inclusive
         assertRuns(gate); // cached estimate, no recompute, stale RUN
         assertThat(computations.get(), equalTo(1));
 
-        nowNanos.set(validityNanos); // exactly at expiry
+        nowMillis.set(validityMillis + 1); // strictly past expiry
         assertBlocks(gate); // decision follows the live value again
         assertThat(computations.get(), equalTo(2));
     }
@@ -194,7 +194,7 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
                 return bytesOf(maxHeap, usedPercent);
             },
             () -> 0L,
-            TimeValue.timeValueNanos(randomLongBetween(1, TimeValue.timeValueSeconds(30).nanos()))
+            TimeValue.timeValueMillis(randomLongBetween(1, 30_000))
         );
         assertRuns(gate); // fails open
 

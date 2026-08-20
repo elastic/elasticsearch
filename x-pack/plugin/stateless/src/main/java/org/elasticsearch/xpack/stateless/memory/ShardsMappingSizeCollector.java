@@ -359,8 +359,8 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
 
     /**
      * The current {@link ShardMappingSize} of every shard on this node whose stats are ready — exactly what this collector publishes
-     * to the master, and what the recovery gate's local estimate consumes, so the two cannot drift. Briefly takes each shard's
-     * engine-reset read lock; do not call on the cluster applier thread.
+     * to the master, and what the recovery gate's local estimate consumes. Briefly takes each shard's engine-reset read lock; do not
+     * call on the cluster applier thread.
      */
     public Map<ShardId, ShardMappingSize> collectShardMappingSizes() {
         final Map<ShardId, ShardMappingSize> shardMappingSizes = new HashMap<>();

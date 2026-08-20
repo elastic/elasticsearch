@@ -16,8 +16,10 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoveryGate;
 import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
+import org.elasticsearch.indices.recovery.TestRecoverySchedulingListener;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -29,15 +31,16 @@ import org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsService;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginIntegTestCase {
 
-    /// The recovery-gate machinery ships dark; [InternalSettingsPlugin] registers the enable flag so tests can turn it on.
+    /// Recovery gates are disabled by default; [InternalSettingsPlugin] registers the enable flag so tests can turn it on.
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
@@ -61,8 +64,9 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
 
         // Drop the node's estimate below the watermark: the gate opens and the monitor's periodic re-evaluation resumes the held
         // recovery
+        final CountDownLatch gateOpened = awaitGateOutcome(indexNodeName, RecoveryGate.Outcome.RUN);
         setWorkloadMemoryOverheadOverride(indexNodeName, 100);
-        assertBusy(() -> assertTrue(gateDecision(indexNodeName).mayRun()));
+        safeAwait(gateOpened);
         // shards are started
         ensureGreen(indexName);
     }
@@ -72,11 +76,12 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
         final String indexName = createIndexWithBlockedRecovery(indexNodeName);
 
         // The shared threshold setting is the operational kill switch for heap intervention: disabling it releases the gate too.
+        final CountDownLatch gateOpened = awaitGateOutcome(indexNodeName, RecoveryGate.Outcome.RUN);
         updateClusterSettings(
             Settings.builder()
                 .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), false)
         );
-        assertBusy(() -> assertTrue(gateDecision(indexNodeName).mayRun()));
+        safeAwait(gateOpened);
         // shards are started
         ensureGreen(indexName);
     }
@@ -178,30 +183,63 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
     /// Creates an index without waiting for it and asserts its recovery is deferred: the node's gate decides BLOCK and the
     /// index does not go green while the gate stays closed.
     private String createIndexWithBlockedRecovery(String indexNodeName) throws Exception {
-        assertBusy(() -> {
-            final RecoveryGate.Decision decision = gateDecision(indexNodeName);
-            assertFalse("expected the gate to block while the estimate exceeds the watermark", decision.mayRun());
-            assertEquals("estimated_heap", decision.gateName());
-        });
+        safeAwait(awaitGateOutcome(indexNodeName, RecoveryGate.Outcome.BLOCK));
+        final RecoveryGate.Decision decision = gateDecision(indexNodeName);
+        assertFalse("expected the gate to block while the estimate exceeds the watermark", decision.mayRun());
+        assertEquals("estimated_heap", decision.gateName());
 
         final String indexName = randomIdentifier();
         prepareCreate(indexName).setSettings(indexSettings(1, 0).build()).setWaitForActiveShards(ActiveShardCount.NONE).get();
-        assertBusy(() -> {
-            final RecoveryStats recoveryStats = recoveryStats(indexNodeName, indexName);
-            assertThat(recoveryStats.currentFromStoreQueued() + recoveryStats.currentAsTargetQueued(), equalTo(1));
-            assertThat(recoveryStats.currentFromStore() + recoveryStats.currentAsTarget(), equalTo(0));
-        });
+        awaitRecoveryStats(
+            indexNodeName,
+            indexName,
+            stats -> stats.currentFromStoreQueued() + stats.currentAsTargetQueued() == 1
+                && stats.currentFromStore() + stats.currentAsTarget() == 0
+        );
         ensureRed(indexName);
         return indexName;
     }
 
-    /// Null-safe lookups failing as assertions, so the enclosing assertBusy retries until the node has created the shard.
-    private RecoveryStats recoveryStats(String nodeName, String indexName) {
+    /// A latch released once the node's combined gate decision next evaluates to the given outcome; the monitor re-evaluates
+    /// periodically while the callback waits, so no external trigger is needed.
+    private CountDownLatch awaitGateOutcome(String nodeName, RecoveryGate.Outcome outcome) {
+        final CountDownLatch latch = new CountDownLatch(1);
+        internalCluster().getInstance(RecoveryGateMonitor.class, nodeName).addCallback(outcome, latch::countDown);
+        return latch;
+    }
+
+    /// Event-driven wait on the index's recovery stats: re-checked on every recovery scheduling change on the node (enqueue,
+    /// start, cancellation, completion) instead of polling.
+    private void awaitRecoveryStats(String nodeName, String indexName, Predicate<RecoveryStats> predicate) {
+        final CountDownLatch conditionLatch = new CountDownLatch(1);
+        final var schedulingListeners = internalCluster().getInstance(CompositeRecoverySchedulingListener.class, nodeName);
+        final var listener = new TestRecoverySchedulingListener() {
+            @Override
+            public void onRecoverySchedulingChange() {
+                final RecoveryStats recoveryStats = recoveryStatsOrNull(nodeName, indexName);
+                if (recoveryStats != null && predicate.test(recoveryStats)) {
+                    conditionLatch.countDown();
+                }
+            }
+        };
+        schedulingListeners.addListener(listener);
+        try {
+            // in case the condition was already met before the listener was registered
+            listener.onRecoverySchedulingChange();
+            safeAwait(conditionLatch);
+        } finally {
+            schedulingListeners.removeListener(listener);
+        }
+    }
+
+    /// Null until the node has created the shard; the scheduling listener re-checks on each event.
+    private RecoveryStats recoveryStatsOrNull(String nodeName, String indexName) {
         final var indexService = internalCluster().getInstance(IndicesService.class, nodeName).indexService(resolveIndex(indexName));
-        assertNotNull("index not created on [" + nodeName + "] yet", indexService);
+        if (indexService == null) {
+            return null;
+        }
         final var shard = indexService.getShardOrNull(0);
-        assertNotNull("shard not created on [" + nodeName + "] yet", shard);
-        return shard.recoveryStats();
+        return shard == null ? null : shard.recoveryStats();
     }
 
     /// Evaluates the node's [RecoveryGateMonitor] — the combined node-wide decision the recovery scheduler consults, covering the

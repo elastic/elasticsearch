@@ -70,10 +70,14 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
+import org.elasticsearch.index.mapper.OnFailureStoredValues;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
@@ -1063,6 +1067,125 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                 )
             ) {
                 assertEquals("{\"keep\":[3,1,2]}", syntheticSource(mapper, indexReader, doc.docs().size() - 1));
+            }
+        }
+    }
+
+    /**
+     * When a field survives an exact FLS grant, its {@code ._ignore_malformed} companion is re-mapped to the parent name so it survives
+     * too, but the companion's own {@code .counts} field is not - an exact grant of {@code keep} matches {@code keep} but not
+     * {@code keep._ignore_malformed.counts}, so the counts get dropped while the binary blob stays visible. The modern reader then decodes
+     * a multi-valued blob as a single plain-binary value, corrupting synthetic source. Both malformed values must round-trip intact.
+     */
+    public void testFilteredIgnoreMalformedCountsFollowParent() throws Exception {
+        IndexVersion indexVersion = IndexVersion.current();
+        Settings mapperSettings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.mapping.synthetic_source_keep", "arrays")
+            .build();
+        var indexSettings = createIndexSettings(indexVersion, mapperSettings);
+        var format = IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings);
+
+        DocumentMapper mapper = createMapperService(indexVersion, mapperSettings, mapping(b -> {
+            b.startObject("keep").field("type", "long").field("ignore_malformed", true).endObject();
+        })).documentMapper();
+
+        var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "keep" }, null));
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            ParsedDocument doc = mapper.parse(source(b -> b.array("keep", "aa", "bb")));
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            iw.addDocuments(doc.docs());
+            iw.close();
+            try (
+                DirectoryReader indexReader = FieldSubsetReader.wrap(
+                    wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                    filter,
+                    format,
+                    (fieldName) -> mapper.mappers().getFieldType(fieldName) != null
+                )
+            ) {
+                assertEquals("{\"keep\":[\"aa\",\"bb\"]}", syntheticSource(mapper, indexReader, doc.docs().size() - 1));
+            }
+        }
+    }
+
+    /**
+     * Each stored-value fallback companion ({@code ._original}, {@code ._ignore_malformed}, {@code ._on_failure}) is written as binary doc
+     * values with a sibling {@code .counts} field. When the parent survives an exact FLS grant, the binary blob and its {@code .counts}
+     * must stay visible together; dropping the counts alone makes the reader mis-decode a multi-valued blob as a single value.
+     */
+    public void testFilteredCompanionCountsFollowParent() throws Exception {
+        String counts = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        for (String suffix : List.of(
+            TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX,
+            IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX,
+            OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX
+        )) {
+            try (Directory dir = newDirectory()) {
+                try (IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(null))) {
+                    Document doc = new Document();
+                    String kept = randomAlphaOfLength(5);
+                    String dropped = randomAlphaOfLength(6);
+                    doc.add(new BinaryDocValuesField(kept + suffix, new BytesRef("v")));
+                    doc.add(new NumericDocValuesField(kept + suffix + counts, 2));
+                    doc.add(new BinaryDocValuesField(dropped + suffix, new BytesRef("v")));
+                    doc.add(new NumericDocValuesField(dropped + suffix + counts, 2));
+                    iw.addDocument(doc);
+
+                    var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { kept }, null));
+                    try (
+                        DirectoryReader ir = FieldSubsetReader.wrap(
+                            wrapInMockESDirectoryReader(DirectoryReader.open(iw)),
+                            filter,
+                            IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+                            (fieldName) -> false
+                        )
+                    ) {
+                        LeafReader leaf = ir.leaves().get(0).reader();
+                        // Granted field keeps both its companion binary and the companion's .counts sibling.
+                        assertNotNull(suffix + " binary should follow its granted parent", leaf.getBinaryDocValues(kept + suffix));
+                        assertNotNull(
+                            suffix + " counts should follow its base companion",
+                            leaf.getNumericDocValues(kept + suffix + counts)
+                        );
+                        // Ungranted field drops both.
+                        assertNull(leaf.getBinaryDocValues(dropped + suffix));
+                        assertNull(leaf.getNumericDocValues(dropped + suffix + counts));
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * A user-mapped field whose name happens to end like a companion's counts (".counts") must be filtered under its own name, never
+     * truncated to a parent. The isMapped guard already covers this: a real mapped field reports isMapped == true, so the companion
+     * re-mapping is skipped.
+     */
+    public void testMappedFieldEndingInCountsIsNotTruncated() throws Exception {
+        String counts = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        String mapped = "keep" + IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX + counts;
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(null))) {
+                Document doc = new Document();
+                doc.add(new NumericDocValuesField(mapped, 2));
+                iw.addDocument(doc);
+
+                var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { mapped }, null));
+                try (
+                    DirectoryReader ir = FieldSubsetReader.wrap(
+                        wrapInMockESDirectoryReader(DirectoryReader.open(iw)),
+                        filter,
+                        IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+                        (fieldName) -> true
+                    )
+                ) {
+                    LeafReader leaf = ir.leaves().get(0).reader();
+                    assertNotNull("a mapped field ending in .counts must not be truncated", leaf.getNumericDocValues(mapped));
+                }
             }
         }
     }

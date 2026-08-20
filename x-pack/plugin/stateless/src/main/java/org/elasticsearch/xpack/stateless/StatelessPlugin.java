@@ -1304,7 +1304,7 @@ public class StatelessPlugin extends Plugin
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        Releasables.close(sharedBlobCacheService.get());
+        Releasables.close(estimatedHeapUsageRecoveryGate.get(), sharedBlobCacheService.get());
         IOUtils.close(reshardSearchFilters.get());
         try {
             IOUtils.close(blobStoreHealthIndicator.get());

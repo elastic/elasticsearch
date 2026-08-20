@@ -289,6 +289,18 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
                 ),
             empty()
         );
+
+        gate.close();
+        assertFalse(
+            meterRegistry.getRecorder()
+                .getRegisteredMetrics(InstrumentType.LONG_GAUGE)
+                .contains(EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_METRIC)
+        );
+        assertFalse(
+            meterRegistry.getRecorder()
+                .getRegisteredMetrics(InstrumentType.LONG_GAUGE)
+                .contains(EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_METRIC)
+        );
     }
 
     public void testRecordsFailedEstimateComputation() {

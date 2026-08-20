@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.stateless.recovery;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.SingleObjectCache;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoveryGate;
@@ -38,7 +40,7 @@ import java.util.function.ToLongFunction;
 /// to the master ([ShardsMappingSizeCollector#collectShardMappingSizes]) — the same values that, once published, feed the estimates
 /// [EstimatedHeapUsageAllocationDecider] uses — through the master's own summation
 /// ([StatelessMemoryMetricsService#estimateNodeHeapUsage]).
-public class EstimatedHeapUsageRecoveryGate implements RecoveryGate {
+public class EstimatedHeapUsageRecoveryGate implements RecoveryGate, Releasable {
 
     private static final Logger logger = LogManager.getLogger(EstimatedHeapUsageRecoveryGate.class);
     static final String NAME = "estimated_heap";
@@ -210,5 +212,10 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate {
             );
         }
         return Decision.RUN;
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(estimatedHeapUsageMetric.gauge()::close, estimatedHeapUsageDeltaMetric.gauge()::close);
     }
 }

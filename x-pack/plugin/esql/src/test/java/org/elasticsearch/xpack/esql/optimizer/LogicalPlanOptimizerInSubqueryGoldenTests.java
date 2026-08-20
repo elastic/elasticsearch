@@ -745,4 +745,13 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
               OR (((salary, languages) IN (FROM employees | KEEP salary, languages)) IS NOT NULL AND languages < 5)
             """, STAGES);
     }
+
+    public void testCaseWithSingleColumnInSubqueryEqualsCoalesceWithMultiColumnInSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
+                 == COALESCE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), false)
+            """, STAGES);
+    }
 }

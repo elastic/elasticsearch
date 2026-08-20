@@ -1425,3 +1425,44 @@ emp_no:integer | job_positions:keyword
 10003          | null
 10004          | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]
 ;
+
+// CASE is true for emp_nos 10001-10005; COALESCE is true for (emp_no,languages) pairs 10001-10003.
+// Employees 10004 and 10005 have CASE=true but COALESCE=false, so they are excluded.
+// All other employees have CASE=false and COALESCE=false, so they pass.
+// Result: 3 (both true) + 95 (both false) = 98.
+caseWithSingleColumnInSubqueryEqualsCoalesceWithMultiColumnInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+required_capability: where_in_subquery_with_case_coalesce_is_null_deeply_nested
+
+FROM employees
+| WHERE CASE(emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 5 | KEEP emp_no), true, false)
+     == COALESCE((emp_no, languages) IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no, languages), false)
+| STATS c = COUNT(*)
+;
+
+c:long
+98
+;
+
+// Without SORT/LIMIT, the single-column subquery covers all emp_nos (CASE=true for every row).
+// The multi-column subquery covers all (emp_no, languages) pairs, but for the 10 employees
+// where languages IS NULL, (emp_no, null) IN (...) yields null, so COALESCE(null, false)=false.
+// Those 10 employees have CASE=true but COALESCE=false and are excluded.
+// The remaining 90 employees have CASE=true and COALESCE=true, so they pass.
+caseWithSingleColumnInSubqueryEqualsCoalesceWithMultiColumnInSubqueryWithNulls
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+required_capability: where_in_subquery_with_case_coalesce_is_null_deeply_nested
+
+FROM employees
+| WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
+     == COALESCE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), false)
+| STATS c = COUNT(*)
+;
+
+c:long
+90
+;

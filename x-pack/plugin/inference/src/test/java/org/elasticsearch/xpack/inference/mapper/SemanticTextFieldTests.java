@@ -25,6 +25,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
+import org.elasticsearch.inference.metadata.EndpointMetadataClusterState;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -210,7 +211,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             null,
             null,
             null,
-            endpointMetadata
+            EndpointMetadataClusterState.from(endpointMetadata)
         );
         final SemanticTextField semanticTextField = new SemanticTextField(
             useLegacyFormat,
@@ -230,7 +231,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             parser,
             new SemanticTextField.ParserContext(useLegacyFormat, NAME, parser.contentType())
         );
-        assertThat(parsed.inference().modelSettings().endpointMetadata(), equalTo(EndpointMetadata.EMPTY_INSTANCE));
+        assertThat(parsed.inference().modelSettings().endpointMetadata(), equalTo(EndpointMetadataClusterState.EMPTY_INSTANCE));
     }
 
     public static EmbeddingResults<?> combineMultimodalEmbeddings(List<? extends EmbeddingResults.Embedding<?>> embeddings) {

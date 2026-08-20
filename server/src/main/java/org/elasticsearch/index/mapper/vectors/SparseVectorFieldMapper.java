@@ -25,7 +25,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -88,8 +87,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
     static final IndexVersion SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION = IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT;
     static final IndexVersion SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X =
         IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X;
-
-    public static final NodeFeature SPARSE_VECTOR_INDEX_OPTIONS_FEATURE = new NodeFeature("sparse_vector.index_options_supported");
 
     private static SparseVectorFieldMapper toType(FieldMapper in) {
         return (SparseVectorFieldMapper) in;

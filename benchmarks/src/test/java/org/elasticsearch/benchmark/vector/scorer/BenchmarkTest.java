@@ -12,7 +12,6 @@ package org.elasticsearch.benchmark.vector.scorer;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.benchmark.vector.VectorImplementation;
-import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 import org.openjdk.jmh.annotations.Param;
@@ -22,7 +21,7 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Supplier;
+import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
@@ -99,45 +98,38 @@ public class BenchmarkTest extends ESTestCase {
         return implementations().stream().filter(i -> i != VectorImplementation.SCALAR).toList();
     }
 
-    public <V> void testSequential(
-        Supplier<V> vectorData,
-        CheckedBiFunction<V, VectorImplementation, VectorScorerBulkBenchmark, IOException> createBenchmark,
+    @FunctionalInterface
+    public interface CreateBenchmarkFunction<V> {
+        VectorScorerBulkBenchmark apply(V data, VectorImplementation impl, DataAccessPattern access) throws IOException;
+    }
+
+    public <V> void test(
+        Function<DataAccessPattern, V> vectorData,
+        CreateBenchmarkFunction<V> createBenchmark,
+        DataAccessPattern accessMode,
         float delta
     ) throws Exception {
-        V data = vectorData.get();
+        V data = vectorData.apply(accessMode);
         assertResultsEqual(
             implementations(),
-            impl -> createBenchmark.apply(data, impl),
-            List.of(VectorScorerBulkBenchmark::scoreMultipleSequential, VectorScorerBulkBenchmark::scoreMultipleSequentialBulk),
+            impl -> createBenchmark.apply(data, impl, accessMode),
+            List.of(VectorScorerBulkBenchmark::scoreMultiple, VectorScorerBulkBenchmark::scoreMultipleBulk),
             delta
         );
     }
 
-    public <V> void testRandom(
-        Supplier<V> vectorData,
-        CheckedBiFunction<V, VectorImplementation, VectorScorerBulkBenchmark, IOException> createBenchmark,
-        float delta
-    ) throws IOException {
-        V data = vectorData.get();
-        assertResultsEqual(
-            implementations(),
-            impl -> createBenchmark.apply(data, impl),
-            List.of(VectorScorerBulkBenchmark::scoreMultipleRandom, VectorScorerBulkBenchmark::scoreMultipleRandomBulk),
-            delta
-        );
-    }
-
-    public <V> void testQueryRandom(
-        Supplier<V> vectorData,
-        CheckedBiFunction<V, VectorImplementation, VectorScorerBulkBenchmark, IOException> createBenchmark,
+    public <V> void testQuery(
+        Function<DataAccessPattern, V> vectorData,
+        CreateBenchmarkFunction<V> createBenchmark,
+        DataAccessPattern accessMode,
         float delta
     ) throws IOException {
         assumeTrue("Only test with heap segments", supportsHeapSegments());
-        V data = vectorData.get();
+        V data = vectorData.apply(accessMode);
         assertResultsEqual(
             queryImplementations(),
-            impl -> createBenchmark.apply(data, impl),
-            List.of(VectorScorerBulkBenchmark::scoreQueryMultipleRandom, VectorScorerBulkBenchmark::scoreQueryMultipleRandomBulk),
+            impl -> createBenchmark.apply(data, impl, accessMode),
+            List.of(VectorScorerBulkBenchmark::scoreQueryMultiple, VectorScorerBulkBenchmark::scoreQueryMultipleBulk),
             delta
         );
     }

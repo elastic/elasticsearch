@@ -37,37 +37,37 @@ public class CompositeRecoverySchedulingListener implements RecoverySchedulingLi
     }
 
     @Override
-    public void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role) {
+    public void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {
         for (RecoverySchedulingListener listener : listeners) {
-            listener.onRecoveryQueued(type, role);
+            listener.onRecoveryQueued(type, role, priorityGroup);
         }
     }
 
     @Override
-    public void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {
+    public void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {
         for (RecoverySchedulingListener listener : listeners) {
-            listener.onQueuedRecoveryDiscarded(type, role);
+            listener.onQueuedRecoveryDiscarded(type, role, priorityGroup);
         }
     }
 
     @Override
-    public void onQueuedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {
+    public void onQueuedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {
         for (RecoverySchedulingListener listener : listeners) {
-            listener.onQueuedRecoveryCancelled(type, role);
+            listener.onQueuedRecoveryCancelled(type, role, priorityGroup);
         }
     }
 
     @Override
-    public void onRecoveryStarted(RecoverySource.Type type, RecoveryRole role) {
+    public void onRecoveryStarted(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {
         for (RecoverySchedulingListener listener : listeners) {
-            listener.onRecoveryStarted(type, role);
+            listener.onRecoveryStarted(type, role, priorityGroup);
         }
     }
 
     @Override
-    public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {
+    public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {
         for (RecoverySchedulingListener listener : listeners) {
-            listener.onRecoveryDequeuedAndStarted(type, role);
+            listener.onRecoveryDequeuedAndStarted(type, role, priorityGroup);
         }
     }
 
@@ -79,9 +79,9 @@ public class CompositeRecoverySchedulingListener implements RecoverySchedulingLi
     }
 
     @Override
-    public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+    public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {
         for (RecoverySchedulingListener listener : listeners) {
-            listener.onRecoveryCompleted(type, role);
+            listener.onRecoveryCompleted(type, role, priorityGroup);
         }
     }
 

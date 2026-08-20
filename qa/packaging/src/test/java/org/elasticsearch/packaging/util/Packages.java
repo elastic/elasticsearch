@@ -352,7 +352,7 @@ public class Packages {
             if (cursor.isEmpty() == false) {
                 cmd += " --after-cursor='" + this.cursor + "'";
             }
-            return sh.run(cmd);
+            return sh.runIgnoreExitCode(cmd);
         }
     }
 

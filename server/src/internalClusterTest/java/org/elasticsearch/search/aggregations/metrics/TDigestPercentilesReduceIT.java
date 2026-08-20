@@ -47,8 +47,9 @@ public class TDigestPercentilesReduceIT extends ESIntegTestCase {
         createPinnedIndex("z_remote", 1, nodes.get(1));
 
         // Each data shard holds fewer values than the HybridDigest threshold at which it switches from sorting to
-        // merging (20 * the default compression of 100), so that the switch, and the allocation it needs, happens
-        // while the two shard results are merged into each other during reduction.
+        // merging (20 * the default compression of 100), which their combined size crosses, so that the switch, and
+        // the allocation it needs, happens while the shard results are merged during reduction rather than while a
+        // single shard collects them.
         List<IndexRequestBuilder> docs = new ArrayList<>();
         for (int i = 0; i < 1500; i++) {
             docs.add(prepareIndex("a_local").setSource("value", i));

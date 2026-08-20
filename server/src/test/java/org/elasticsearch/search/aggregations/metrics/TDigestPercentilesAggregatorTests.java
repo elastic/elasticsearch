@@ -268,12 +268,12 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
         PercentilesAggregationBuilder aggBuilder = percentilesBuilder(DEFAULT_COMPRESSION);
 
         // A partial reduce over shard results that collected nothing emits HistogramUnionState.EMPTY, whose compression
-        // is hard-coded to 1.0 and therefore always below the request's. Feeding that partial back in ahead of the
-        // data-bearing shard results is what the coordinator does for shards local to it, and it used to make the
-        // reducer adopt a shard result as its accumulator. Both shard results read the same 1500 document index, which
-        // keeps each below the HybridDigest sorting-to-merging threshold of 20 * 100 = 2000 that their combined 3000
-        // values cross, so the allocating transition happens during reduction, against the already-closed preallocated
-        // breaker of the aggregation context that built the adopted result.
+        // is hard-coded to 1.0 and therefore always below the request's. The coordinator consumes partials ahead of raw
+        // shard results, so such a partial used to make the reducer adopt the first data-bearing result as its
+        // accumulator. Both shard results read the same 1500 document index, which keeps each below the HybridDigest
+        // sorting-to-merging threshold of 20 * 100 = 2000 that their combined 3000 values cross, so the allocating
+        // transition happens during reduction, against the already-closed preallocated breaker of the aggregation
+        // context that built the adopted result.
         withSequentialIndex(1500, reader -> {
             InternalAggregations emptyPartial = InternalAggregations.topLevelReduce(
                 List.of(InternalAggregations.from(List.of(emptyShardResult())), InternalAggregations.from(List.of(emptyShardResult()))),

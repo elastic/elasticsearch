@@ -143,9 +143,10 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
                 if (percentiles.state != null) {
                     // Accumulate into a state we own and that is backed by NOOP_BREAKER. Only the accumulator grows
                     // here, and growing an incoming shard result instead would charge its own breaker, which for a
-                    // locally reduced (never serialized) result is a PreallocatedCircuitBreaker the aggregation
-                    // context has already closed. Re-seeding on higher compression keeps the smaller-compression data
-                    // merged into the larger-compression state, so the result does not lose precision.
+                    // result that stayed on the coordinating node, and so was never serialized, is a
+                    // PreallocatedCircuitBreaker the aggregation context has already closed. Re-seeding on higher
+                    // compression keeps the smaller-compression data merged into the larger-compression state, so the
+                    // result does not lose precision.
                     if (merged == null || percentiles.state.compression() > merged.compression()) {
                         HistogramUnionState previous = merged;
                         merged = HistogramUnionState.createUsingParamsFrom(percentiles.state, HistogramUnionState.NOOP_BREAKER);

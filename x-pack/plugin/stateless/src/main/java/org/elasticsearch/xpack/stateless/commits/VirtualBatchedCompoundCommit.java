@@ -1110,7 +1110,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         /**
          * Acquires a local file reference (via {@link IndexDirectory#tryAcquireLocalFileRef}) if {@link #directory} is an
          * {@link IndexDirectory}. This keeps the file on disk even after {@code markAsUploaded} is called, so that
-         * {@link #openInput} can serve reads from local disk during the search-tier notification window.
+         * {@link Directory#openInput} with {@link IndexDirectory.PreferLocalHint} can serve reads from local disk during the
+         * search-tier notification window.
          */
         Releasable acquireLocalRef() {
             if (directory instanceof IndexDirectory indexDir) {
@@ -1119,27 +1120,13 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             return () -> {};
         }
 
-        /**
-         * Opens the file, preferring local disk (via {@link IndexDirectory#openInputPreferLocal}) when the directory is an
-         * {@link IndexDirectory} so that BCC chunk requests can be served directly from the indexing node's disk during the
-         * notification window. Falls back to the standard {@link Directory#openInput} (cache path) otherwise. In production
-         * the directory is always an {@link IndexDirectory}; the fallback exists for tests that supply a plain
-         * {@link Directory} implementation.
-         */
-        private IndexInput openInput(IOContext context) throws IOException {
-            if (directory instanceof IndexDirectory indexDir) {
-                return indexDir.openInputPreferLocal(filename, context);
-            }
-            return directory.openInput(filename, context);
-        }
-
         @Override
         public InputStream getInputStream(long offset, long length) throws IOException {
             long fileLength = directory.fileLength(filename);
             assert offset < fileLength : "offset [" + offset + "] more than file length [" + fileLength + "]";
             long fileBytesToRead = Math.min(length, fileLength - offset);
             var ioContext = filename.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : IOContext.DEFAULT;
-            IndexInput input = openInput(ioContext);
+            IndexInput input = directory.openInput(filename, ioContext.withHints(IndexDirectory.PreferLocalHint.INSTANCE));
             try {
                 input.seek(offset);
                 return new InputStreamIndexInput(input, fileBytesToRead) {
@@ -1162,7 +1149,9 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
          */
         @Override
         public InputStream getInputStream() throws IOException {
-            Store.VerifyingIndexInput input = new Store.VerifyingIndexInput(openInput(IOContext.READONCE));
+            Store.VerifyingIndexInput input = new Store.VerifyingIndexInput(
+                directory.openInput(filename, IOContext.READONCE.withHints(IndexDirectory.PreferLocalHint.INSTANCE))
+            );
             logger.trace("opening validating input for {}", filename);
 
             return new InputStreamIndexInput(input, input.length()) {

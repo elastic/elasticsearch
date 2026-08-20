@@ -76,6 +76,16 @@ public class IndexDirectory extends ByteSizeDirectory {
     private static final Logger logger = LogManager.getLogger(IndexDirectory.class);
 
     /**
+     * An {@link IOContext.FileOpenHint} that instructs {@link #openInput} to prefer reading from local disk even for files that have
+     * already been uploaded to the object store. Passed by
+     * {@link org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit} to serve BCC chunk requests directly from the
+     * indexing node's local disk during the search-tier notification window.
+     */
+    public enum PreferLocalHint implements IOContext.FileOpenHint {
+        INSTANCE
+    }
+
+    /**
      * Directory used to access files stored in the object store through the shared cache. Once a commit is uploaded to the object store,
      * its files should be accessed using this cache directory.
      */
@@ -233,6 +243,9 @@ public class IndexDirectory extends ByteSizeDirectory {
 
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
+        if (context.hints().contains(PreferLocalHint.INSTANCE)) {
+            return openInputPreferLocal(name, context);
+        }
         context = maybeAddStatelessAdviceHint(name, context);
 
         if (cacheDirectory.containsFile(name) == false) {
@@ -267,11 +280,12 @@ public class IndexDirectory extends ByteSizeDirectory {
 
     /**
      * Opens a file for reading, preferring local disk if the file is still locally available (regardless of upload status). This
-     * bypasses the normal {@link #openInput} routing that prevents local reads once a file is marked as uploaded. Used by
-     * {@link org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit} to serve BCC chunk requests directly from local
-     * disk during the notification window. Falls back to the blob store cache directory if the file is not locally available.
+     * bypasses the normal {@link #openInput} routing that prevents local reads once a file is marked as uploaded. Invoked by
+     * {@link #openInput} when the context carries a {@link PreferLocalHint}, which
+     * {@link org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit} uses to serve BCC chunk requests directly from
+     * local disk during the notification window. Falls back to the blob store cache directory if the file is not locally available.
      */
-    public IndexInput openInputPreferLocal(String name, IOContext context) throws IOException {
+    private IndexInput openInputPreferLocal(String name, IOContext context) throws IOException {
         boolean hasLocalRef;
         try (var ignored = readLock.acquire()) {
             var ref = localFiles.get(name);

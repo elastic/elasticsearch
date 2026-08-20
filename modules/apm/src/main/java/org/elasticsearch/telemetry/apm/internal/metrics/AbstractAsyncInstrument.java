@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.telemetry.apm;
+package org.elasticsearch.telemetry.apm.internal.metrics;
 
 import io.opentelemetry.api.metrics.Meter;
 
@@ -16,11 +16,11 @@ import org.elasticsearch.core.Nullable;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-public abstract class AbstractAsyncInstrument<T extends AutoCloseable> extends AbstractInstrument<T> implements AutoCloseable {
+abstract class AbstractAsyncInstrument<T extends AutoCloseable> extends AbstractInstrument<T> implements AutoCloseable {
 
     private final Consumer<AbstractInstrument<?>> deregisterFunc;
 
-    protected AbstractAsyncInstrument(Meter meter, Builder<T> builder, Consumer<AbstractInstrument<?>> deregisterFunc) {
+    AbstractAsyncInstrument(Meter meter, Builder<T> builder, Consumer<AbstractInstrument<?>> deregisterFunc) {
         super(meter, builder);
         this.deregisterFunc = deregisterFunc;
     }

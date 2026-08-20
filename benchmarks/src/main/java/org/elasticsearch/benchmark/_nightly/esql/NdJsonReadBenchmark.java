@@ -41,8 +41,8 @@ import java.util.concurrent.TimeUnit;
  * for ad-hoc reads, and the pattern the existing CSV benchmarks also follow.
  */
 @Fork(1)
-@Warmup(iterations = 3)
-@Measurement(iterations = 5)
+@Warmup(iterations = 3, time = 5, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 5, time = 5, timeUnit = TimeUnit.SECONDS)
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Thread)

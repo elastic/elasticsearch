@@ -18,6 +18,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
 import org.elasticsearch.columnar.substrate.ColumnIteratorWriter;
+import org.elasticsearch.columnar.substrate.MonotonicWriter;
 
 import java.io.IOException;
 
@@ -35,8 +36,6 @@ import java.io.IOException;
 public final class NumericColumnWriter {
 
     /** Monotonic block shift for the offset tables. */
-    static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
-
     private NumericColumnWriter() {}
 
     /**
@@ -80,23 +79,11 @@ public final class NumericColumnWriter {
         long numBlocks = (numValues + blockSize - 1) / blockSize;
         long valuesOffset = data.getFilePointer();
 
-        MonotonicWriter blockOffsets = new MonotonicWriter(
-            directory,
-            context,
-            data.getName(),
-            numBlocks + 1L,
-            DIRECT_MONOTONIC_BLOCK_SHIFT
-        );
+        MonotonicWriter blockOffsets = new MonotonicWriter(directory, context, data.getName(), numBlocks + 1L);
         MonotonicWriter valueAddresses = null;
         try {
             if (multiValued) {
-                valueAddresses = new MonotonicWriter(
-                    directory,
-                    context,
-                    data.getName(),
-                    numDocsWithField + 1L,
-                    DIRECT_MONOTONIC_BLOCK_SHIFT
-                );
+                valueAddresses = new MonotonicWriter(directory, context, data.getName(), numDocsWithField + 1L);
             }
 
             NumericBlockEncoder encoder = new NumericBlockEncoder(pipeline, blockSize);

@@ -140,6 +140,9 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=indices.put_alias/all_path_options/put alias with missing name}
   issue: https://github.com/elastic/elasticsearch/issues/156886
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:lookup-join.mvKeywordExpressionJoinWarningsFromRightSideWhenNotKept}
+  issue: https://github.com/elastic/elasticsearch/issues/157303
 
 # Examples:
 #

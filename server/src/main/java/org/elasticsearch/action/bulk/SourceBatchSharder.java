@@ -62,7 +62,7 @@ final class SourceBatchSharder implements Releasable {
         /** The request holding each routed row; null for rows that never reached routing. */
         private final IndexRequest[] items;
         /** One per concrete index the rows fanned out to, ordered by partition block. */
-        private final List<ConcreteIndexTarget> targets = new ArrayList<>();
+        private final List<ConcreteIndexTarget> targets = new ArrayList<>(2);
         /** Next free partition base; also the discard partition once every target is bound. */
         private int nextPartition = 0;
         private int lastRow = -1;
@@ -446,7 +446,12 @@ final class SourceBatchSharder implements Releasable {
         }
         EscfBatch[] parts = scatterer.scatter(group.source, partitionIds, partitionCount);
         if (hasUnrouted) {
-            // Close the discard bucket immediately; dropped rows are not indexed.
+            // Dropped rows are not indexed, and nothing reads them out of here: an item that needs its source
+            // for the failure store has already materialized it from the source batch, because the pre-routing
+            // redirect in BulkOperation#addDocumentToRedirectRequests runs before we ever scatter.
+            // TODO: keep this bucket instead of closing it once the source batch is released here to avoid
+            // holding both copies. It then becomes the only place the dropped rows still exist, so it must
+            // stay alive for the failure store.
             EscfBatch discardBucket = parts[discardPartition];
             if (discardBucket != null) {
                 discardBucket.close();

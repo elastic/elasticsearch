@@ -381,11 +381,17 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     ? null
                     : sharder.prepareRouting(batchItem, concreteIndex, indexRouting, project);
 
-                // TODO: This routing should maybe move into the helper class once we can calculate extract source routing from the
-                // source batch.
-                int shardId = encoders == null
-                    ? docWriteRequest.route(indexRouting)
-                    : encoders.routeAndEncode((IndexRequest) docWriteRequest, concreteIndex, indexRouting);
+                int shardId;
+                if (encoders == null) {
+                    shardId = docWriteRequest.route(indexRouting);
+                } else {
+                    // TODO: This routing should maybe move into the helper class once we can calculate extract source routing from the
+                    // source batch.
+                    shardId = encoders.tryEncodeAndRoute((IndexRequest) docWriteRequest, concreteIndex, indexRouting);
+                    if (shardId == BulkBatchEncoders.NOT_BATCHABLE) {
+                        shardId = docWriteRequest.route(indexRouting);
+                    }
+                }
                 docWriteRequest.postRoutingProcess(indexRouting);
                 // Record routing for pre-built-batch items after postRoutingProcess so the tsid/hash
                 // side effects (if any) are visible before we store the request.

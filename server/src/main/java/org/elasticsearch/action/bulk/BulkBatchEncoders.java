@@ -122,22 +122,6 @@ final class BulkBatchEncoders implements Releasable {
     }
 
     /**
-     * Routes {@code request}, encoding it into its destination shard's batch on the way. Falls back to
-     * plain {@link DocWriteRequest#route} when this helper has been disabled by an earlier failure or
-     * when the item turns out not to be batchable, so callers get a shard id either way.
-     *
-     * <p>The pre-scan in {@link BulkOperation#doRun()} guarantees every item is an {@link IndexRequest}
-     * with inline source and a known content type, so eligibility is not re-checked per item.
-     */
-    int routeAndEncode(IndexRequest request, Index concreteIndex, IndexRouting indexRouting) {
-        if (disabled) {
-            return request.route(indexRouting);
-        }
-        int shardId = tryEncodeAndRoute(request, concreteIndex, indexRouting);
-        return shardId == NOT_BATCHABLE ? request.route(indexRouting) : shardId;
-    }
-
-    /**
      * Encode {@code request} into the per-(concrete-index) encoder, compute its shard id (via the
      * routing strategy's extractor when applicable, falling back to
      * {@link IndexRouting#indexShard(IndexRequest)} otherwise), commit the staged row to the

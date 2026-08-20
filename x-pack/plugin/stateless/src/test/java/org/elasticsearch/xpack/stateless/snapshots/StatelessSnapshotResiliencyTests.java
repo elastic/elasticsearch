@@ -123,6 +123,7 @@ import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.TestStatelessCommitServiceForSnapshotResiliency;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
@@ -830,7 +831,17 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 threadPool,
                 settings
             );
-            this.statelessCommitService = new StatelessCommitService(
+            // The subclass forks the cleanup of upload task to a different thread pool. This is necessary because
+            // this test class runs SHARD_WRITE_THREAD_POOL threadpool tasks synchronously to avoid deadlocks due
+            // to the blocking call of future.get(), see InternalEngine#acquireLastIndexCommit(boolean).
+            // This can trigger a bug where a commit is marked for deletion but not yet deleted is exposed
+            // to a new round of deletion attempt, which would fail because it expects no commit is marked for
+            // deletion. Therefore, we fork the cleanup, which triggers the 2nd deletion attempt, to a different
+            // thread pool so that the first deletion completes first. This is OK since in production the whole
+            // upload runs on a different thread pool, i.e. SHARD_WRITE_THREAD_POOL, so that the cleanup would
+            // have been async.
+            // See also https://github.com/elastic/elasticsearch/issues/154731#issuecomment-5128551359
+            this.statelessCommitService = new TestStatelessCommitServiceForSnapshotResiliency(
                 settings,
                 objectStoreService,
                 clusterService,

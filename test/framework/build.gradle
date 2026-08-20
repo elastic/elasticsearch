@@ -29,7 +29,7 @@ dependencies {
   // This also avoids jarHell issues with different hamcrest related dependencies
   // like hamcrest and hamcrest-core
   api "org.hamcrest:hamcrest:${versions.hamcrest}"
-  api("junit:junit:${versions.junit}") {
+  api("junit:junit:${versions.junit4}") {
     exclude group: 'org.hamcrest', module: 'hamcrest-core'
   }
   api("org.apache.lucene:lucene-test-framework:${versions.lucene}") {
@@ -47,6 +47,9 @@ dependencies {
   api 'org.objenesis:objenesis:3.3'
 
   api "org.elasticsearch:mocksocket:${versions.mocksocket}"
+
+  // optional dependency
+  compileOnly project(":test:test-clusters")
 
   annotationProcessor "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   annotationProcessor "org.apache.logging.log4j:log4j-core:${versions.log4j}"

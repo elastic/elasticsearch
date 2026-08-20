@@ -39,7 +39,8 @@ public class MvDifferenceErrorTests extends ErrorsForCasesWithoutExamplesTestCas
             DataType.EXPONENTIAL_HISTOGRAM,
             DataType.HISTOGRAM,
             DataType.TDIGEST,
-            DataType.DATE_RANGE
+            DataType.DATE_RANGE,
+            DataType.DOUBLE_RANGE
         );
         if (unsupportedTypes.contains(signature.getFirst())
             || signature.getFirst() == DataType.NULL && unsupportedTypes.contains(signature.get(1))) {

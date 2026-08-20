@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 156643
+summary: Upgrade to Lucene 10.5.1
+type: upgrade

@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Abstract test case for IVF KNN sliced vector queries. Provides shared test infrastructure
  * for both float and byte vector sliced query implementations.
  */
-abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTestCase {
+public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTestCase {
 
     protected static final String SLICE_FIELD = "_slice";
 
@@ -60,8 +60,7 @@ abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTestCase {
     protected ESNextDiskBBQVectorsFormat format;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initFormat() throws Exception {
         format = new ESNextDiskBBQVectorsFormat(128, 4, SLICE_FIELD);
     }
 

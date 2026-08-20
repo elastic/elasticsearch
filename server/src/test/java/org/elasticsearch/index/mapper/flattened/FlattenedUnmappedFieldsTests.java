@@ -23,6 +23,7 @@ import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -70,6 +71,11 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
             }
         }
         return false;
+    }
+
+    @Before
+    public void testFeatureFlag() {
+        assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
     }
 
     public void testSettingRejectedOutsideColumnarMode() {

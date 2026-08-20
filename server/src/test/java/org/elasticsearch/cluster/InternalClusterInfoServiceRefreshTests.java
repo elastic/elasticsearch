@@ -35,6 +35,60 @@ import static org.mockito.Mockito.verify;
 
 public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
 
+    public void testPartitionSizeCollectorSuccessAndFailure() {
+        final Settings settings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                WriteLoadConstraintSettings.WriteLoadDeciderStatus.DISABLED
+            )
+            .build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
+        final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
+
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings)) {
+            final Map<String, Long> partitionSizes = Map.of("node-id", 1234L);
+            final AtomicBoolean failPartitionSizes = new AtomicBoolean();
+            final PartitionSizeCollector partitionSizeCollector = mock(PartitionSizeCollector.class);
+            doAnswer(invocation -> {
+                final ActionListener<Map<String, Long>> listener = invocation.getArgument(1);
+                if (failPartitionSizes.get()) {
+                    listener.onFailure(new IllegalStateException("simulated partition size failure"));
+                } else {
+                    listener.onResponse(partitionSizes);
+                }
+                return null;
+            }).when(partitionSizeCollector).collectHostedShardsPartitionSizes(any(), any());
+
+            final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(
+                settings,
+                new WriteLoadConstraintSettings(clusterService.getClusterSettings()),
+                clusterService,
+                threadPool,
+                new NoOpClient(threadPool),
+                EstimatedHeapUsageCollector.EMPTY,
+                CacheSizesAndCommitmentCollector.EMPTY,
+                partitionSizeCollector,
+                NodeUsageStatsForThreadPoolsCollector.EMPTY
+            );
+            // Refresh is a no-op if there are no listeners
+            clusterInfoService.addListener(ignored -> {});
+
+            // Success populates the ClusterInfo
+            ClusterInfo clusterInfo = refresh(clusterInfoService);
+            verify(partitionSizeCollector).collectHostedShardsPartitionSizes(any(), any());
+            assertThat(clusterInfo.getHostedShardsPartitionSizeByNodeId(), equalTo(partitionSizes));
+
+            // Failure returns an empty map
+            Mockito.clearInvocations(partitionSizeCollector);
+            failPartitionSizes.set(true);
+            clusterInfo = refresh(clusterInfoService);
+            verify(partitionSizeCollector).collectHostedShardsPartitionSizes(any(), any());
+            assertThat(clusterInfo.getHostedShardsPartitionSizeByNodeId(), equalTo(Map.of()));
+        }
+    }
+
     public void testCacheSizesAndCommitmentCollectorSuccessAndFailure() {
         final Settings settings = Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
@@ -80,6 +134,7 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
                 new NoOpClient(threadPool),
                 EstimatedHeapUsageCollector.EMPTY,
                 cacheSizesAndCommitmentCollector,
+                PartitionSizeCollector.EMPTY,
                 NodeUsageStatsForThreadPoolsCollector.EMPTY
             );
             // AsyncRefresh asserts that each refresh notifies at least one registered cluster info listener.

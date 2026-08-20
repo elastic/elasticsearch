@@ -11,7 +11,7 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description = 'Adds bitmap_terms query for efficient integer set matching using RoaringBitmap'
+  description = 'Adds bitmap_terms query for efficient integer and long set matching using RoaringBitmap'
   classname = 'org.elasticsearch.index.query.bitmapterms.BitmapPlugin'
 }
 

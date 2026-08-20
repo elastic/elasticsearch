@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 149996
-summary: Introduce `RecordSplitter` SPI
-type: enhancement

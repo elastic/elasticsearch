@@ -161,6 +161,24 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         }
     }
 
+    /**
+     * Copy constructor used to build a merge instance: shares everything with {@code other} but uses
+     * the provided flat vector readers.
+     */
+    protected IVFVectorsReader(IVFVectorsReader<E> other, GenericFlatVectorReaders genericReaders) {
+        this.state = other.state;
+        this.fieldInfos = other.fieldInfos;
+        this.fields = other.fields;
+        this.genericReaders = genericReaders;
+        this.centroidExtension = other.centroidExtension;
+        this.clusterExtension = other.clusterExtension;
+        this.versionDirectIo = other.versionDirectIo;
+        this.dynamicVisitRatio = other.dynamicVisitRatio;
+        this.versionMeta = other.versionMeta;
+        this.ivfCentroids = other.ivfCentroids;
+        this.ivfClusters = other.ivfClusters;
+    }
+
     public abstract CentroidIterator getCentroidIterator(
         FieldInfo fieldInfo,
         int numCentroids,
@@ -315,6 +333,21 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         }
         CodecUtil.checksumEntireFile(ivfCentroids);
         CodecUtil.checksumEntireFile(ivfClusters);
+    }
+
+    @Override
+    public final KnnVectorsReader getMergeInstance() throws IOException {
+        return mergeInstance(genericReaders.getMergeInstance());
+    }
+
+    /** Builds a merge instance of this reader backed by the given flat vector merge readers. */
+    protected abstract IVFVectorsReader<E> mergeInstance(GenericFlatVectorReaders genericReaders);
+
+    @Override
+    public final void finishMerge() throws IOException {
+        for (var reader : genericReaders.allReaders()) {
+            reader.finishMerge();
+        }
     }
 
     protected FlatVectorsReader getReaderForField(String field) {

@@ -1,13 +1,12 @@
-ExchangeSinkExec[[_tsid{m}#0, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#2, $$LASTOVERTIME_$1$values{r}#3, $$_timeseries$values{r}#4, $$cluster$values{r}#5, $$pod$values{r}#6],false]
-\_ProjectExec[[_tsid{m}#0, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#7, $$LASTOVERTIME_$1$values{r}#8, $$_timeseries$values{r}#9, $$cluster$values{r}#10, $$pod$values{r}#11]]
-  \_EvalExec[[_timeseries{f$}#12 AS _timeseries#9, cluster{f}#13 AS cluster#10, pod{f}#14 AS pod#11]]
-    \_FieldExtractExec[_timeseries{f$}#12]<[],[],[]>
-      \_ReadDimsExec[cluster{f}#13, pod{f}#14]<tsid=_tsid{m}#0>
-        \_TimeSeriesAggregateExec[[_tsid{m}#0, step{r}#1],[LASTOVERTIME(network.bytes_in{f}#15,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#16) AS LASTOVERTIME_$1#17, step{r}#1, FIRSTDOCID(_doc{f}#18,true[BOOLEAN],PT0S[TIME_DURATION]) AS _doc#19],INITIAL,[_tsid{m}#0, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#7, $$LASTOVERTIME_$1$values{r}#8, _doc{r}#20],336,BUCKET(@timestamp{f}#16,PT1H[TIME_DURATION]),BUCKET(@timestamp{f}#16,PT1H[TIME_DURATION])]
-          \_FieldExtractExec[_tsid{m}#0, network.bytes_in{f}#15]<[],[],[]>
-            \_EvalExec[[BUCKET(@timestamp{f}#16,PT1H[TIME_DURATION]) AS step#1]]
-              \_FieldExtractExec[@timestamp{f}#16]<[],[],[]>
-                \_EsQueryExec[k8s-downsampled], indexMode[standard], [_doc{f}#18], limit[], sort[] estimatedRowSize[44] queryBuilderAndTags [[QueryBuilderAndTags[query={
+ExchangeSinkExec[[_tsid{m}#0, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#2, $$LASTOVERTIME_$1$values{r}#3, $$_$packed_dims$values{r}#4],false]
+\_ProjectExec[[_tsid{m}#0, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#5, $$LASTOVERTIME_$1$values{r}#6, $$_$packed_dims$values{r}#7]]
+  \_PackDimsExec[[_timeseries{f$}#8, cluster{f}#9, pod{f}#10],$$_$packed_dims$values{r}#7]
+    \_ReadDimsExec[_timeseries{f$}#8, cluster{f}#9, pod{f}#10]<tsid=_tsid{m}#0>
+      \_TimeSeriesAggregateExec[[_tsid{m}#0, step{r}#1],[LASTOVERTIME(network.bytes_in{f}#11,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#12) AS LASTOVERTIME_$1#13, step{r}#1, FIRSTDOCID(_doc{f}#14,true[BOOLEAN],PT0S[TIME_DURATION]) AS _doc#15],INITIAL,[_tsid{m}#0, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#5, $$LASTOVERTIME_$1$values{r}#6, _doc{r}#16],186,BUCKET(@timestamp{f}#12,PT1H[TIME_DURATION])]
+        \_FieldExtractExec[_tsid{m}#0, network.bytes_in{f}#11]<[],[],[]>
+          \_EvalExec[[BUCKET(@timestamp{f}#12,PT1H[TIME_DURATION]) AS step#1]]
+            \_FieldExtractExec[@timestamp{f}#12]<[],[],[]>
+              \_EsQueryExec[k8s-downsampled], indexMode[standard], [_doc{f}#14], limit[], sort[] estimatedRowSize[44] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "bool" : {
     "must" : [
       {

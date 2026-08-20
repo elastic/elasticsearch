@@ -47,6 +47,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.LuceneBinaryColumn;
 import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.escf.NumberColumnTransform;
 import org.elasticsearch.index.IndexMode;
@@ -91,7 +92,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceProvider;
-import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
@@ -120,17 +120,6 @@ public class NumberFieldMapper extends FieldMapper {
 
     private static NumberFieldMapper toType(FieldMapper in) {
         return (NumberFieldMapper) in;
-    }
-
-    private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
-        if (indexSettings.getMode().isStrictColumnar() == false) {
-            return DocValuesParameter.Values.ENABLED_LOW_CARDINALITY;
-        }
-
-        boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
-        boolean nullability = FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
-        var onFailure = FieldMapper.resolveOnFailureSetting(indexSettings.getSettings());
-        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue, nullability, onFailure);
     }
 
     /**
@@ -271,7 +260,11 @@ public class NumberFieldMapper extends FieldMapper {
             this.scriptCompiler = Objects.requireNonNull(compiler);
             this.indexSettings = Objects.requireNonNull(indexSettings);
             this.docValuesParameters = DocValuesParameter.of(
-                defaultDocValuesParameters(indexSettings),
+                DocValuesParameter.defaultValues(
+                    indexSettings,
+                    DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
+                    DocValuesParameter.Values.Cardinality.LOW
+                ),
                 m -> toType(m).docValuesParameters(),
                 indexSettings.getMode().isStrictColumnar()
             );
@@ -366,7 +359,13 @@ public class NumberFieldMapper extends FieldMapper {
         @Deprecated
         public Builder docValues(boolean hasDocValues) {
             this.docValuesParameters.setValue(
-                hasDocValues ? defaultDocValuesParameters(indexSettings) : DocValuesParameter.Values.DISABLED_LOW_CARDINALITY
+                hasDocValues
+                    ? DocValuesParameter.defaultValues(
+                        indexSettings,
+                        DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
+                        DocValuesParameter.Values.Cardinality.LOW
+                    )
+                    : DocValuesParameter.Values.DISABLED_LOW_CARDINALITY
             );
             return this;
         }
@@ -2225,6 +2224,17 @@ public class NumberFieldMapper extends FieldMapper {
 
         abstract BlockLoader blockLoaderFromDocValues(String fieldName, boolean readInArrayOrder);
 
+        BlockLoader blockLoaderFromStoredFields(String fieldName) {
+            return switch (this) {
+                case BYTE, SHORT, INTEGER -> new BlockStoredFieldsReader.IntsFromNumbersBlockLoader(fieldName);
+                case LONG -> new BlockStoredFieldsReader.LongsFromNumbersBlockLoader(fieldName);
+                case HALF_FLOAT, FLOAT, DOUBLE -> new BlockStoredFieldsReader.DoublesFromNumbersBlockLoader(
+                    fieldName,
+                    value -> reduceToStoredPrecision(value.doubleValue())
+                );
+            };
+        }
+
         abstract BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup);
 
         abstract BlockLoader blockLoaderFromFallbackSyntheticSource(
@@ -2594,6 +2604,9 @@ public class NumberFieldMapper extends FieldMapper {
             if (blContext.blockLoaderFunctionConfig() != null) {
                 throw new UnsupportedOperationException("function fusing only supported for doc values");
             }
+            if (isStored()) {
+                return type.blockLoaderFromStoredFields(name());
+            }
             // columnar_stored pre-builds _source as a single blob; skip the per-field fallback loader.
             // Multi fields don't have fallback synthetic source.
             if (isSyntheticSource && blContext.mappingLookup().isSourceColumnarStored() == false && blContext.parentField(name()) == null) {
@@ -2849,25 +2862,34 @@ public class NumberFieldMapper extends FieldMapper {
             && dimension == false;
     }
 
-    // FieldType constants for the two SortedNumericDocValuesField variants emitted by dvFactory.addNumericField.
-    // The compat harness compares frozen FieldType, so the column must carry exactly the same type.
+    // FieldType constants for the Lucene field variants emitted by the columnar parse path.
+    // The compat harness compares frozen FieldType, so the column must carry exactly the same type
+    // as the corresponding field produced by the row-major path.
     private static final IndexableFieldType SORTED_NUMERIC_DV_FIELD_TYPE = SortedNumericDocValuesField.TYPE;
     private static final IndexableFieldType SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE = SortedNumericDocValuesField.indexedField("_sentinel", 0L)
         .fieldType();
+    // Match the field types produced by the indexed+DV branches in addLongFields / NumberType.addFields.
+    private static final IndexableFieldType LONG_FIELD_TYPE = new LongField("_sentinel", 0L, Field.Store.NO).fieldType();
+    private static final IndexableFieldType INT_FIELD_TYPE = new IntField("_sentinel", 0, Field.Store.NO).fieldType();
+    private static final IndexableFieldType FLOAT_FIELD_TYPE = new FloatField("_sentinel", 0f, Field.Store.NO).fieldType();
+    private static final IndexableFieldType DOUBLE_FIELD_TYPE = new DoubleField("_sentinel", 0.0, Field.Store.NO).fieldType();
+    // half_float uses a separate HalfFloatPoint (2-byte BKD points) alongside its doc-values column;
+    // LuceneHalfFloatPointColumn emits this type for the points column.
+    private static final IndexableFieldType HALF_FLOAT_POINT_FIELD_TYPE = new HalfFloatPoint("_sentinel", 0f).fieldType();
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        return indexSettings.getMode().isStrictColumnar()
+        // Neither doc_values.multi_value nor ignore_malformed is implemented by mapColumnBatch, but
+        // neither is rejected up front either: both only matter for documents the columnar path
+        // already refuses, and refusing late falls back to row path.
+        return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
             && docValuesParameters.enabled()
-            && docValuesParameters.multiValue() == false
-            && indexed == false
             && stored == false
             && indexTerms == false
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
             && multiFields().iterator().hasNext() == false
-            && dimension == false
-            && ignoreMalformed.value() == false
+            && (dimension == false || writeDimensionRouting == false)
             && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
     }
 
@@ -2885,25 +2907,39 @@ public class NumberFieldMapper extends FieldMapper {
             );
         }
         Long nullSortableLong = nullValue != null ? type.toSortableLong(nullValue) : null;
-        EscfColumnData outData = NumberColumnTransform.toSortableLongColumn(
-            source,
-            type,
-            coerce(),
-            BytesRefRecycler.NON_RECYCLING_INSTANCE,
-            nullSortableLong
-        );
-        IndexableFieldType columnFieldType = fieldType().indexType().hasDocValuesSkipper()
-            ? SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE
-            : SORTED_NUMERIC_DV_FIELD_TYPE;
-        ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), columnFieldType, numericKind(type)));
+        EscfColumnData outData = NumberColumnTransform.toSortableLongColumn(source, type, coerce(), ctx.recycler(), nullSortableLong);
+        if (fieldType().indexType().hasDocValuesSkipper()) {
+            ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, numericKind(type)));
+        } else if (indexed && type == NumberType.HALF_FLOAT) {
+            // half_float uses separate HalfFloatPoint (2-byte BKD) and SortedNumericDocValuesField,
+            // unlike other numeric types which use a combined field. Send one column for each.
+            ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.FLOAT));
+            EscfColumnData halfFloatPointData = NumberColumnTransform.toHalfFloatPointBinaryColumn(
+                EscfColumn.from(outData),
+                ctx.recycler()
+            );
+            ctx.addColumn(LuceneBinaryColumn.of(halfFloatPointData, fieldType().name(), HALF_FLOAT_POINT_FIELD_TYPE));
+        } else {
+            IndexableFieldType columnFieldType = indexed ? indexableFieldType(type) : SORTED_NUMERIC_DV_FIELD_TYPE;
+            ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), columnFieldType, numericKind(type)));
+        }
+    }
+
+    private static IndexableFieldType indexableFieldType(NumberType type) {
+        return switch (type) {
+            case BYTE, SHORT, INTEGER -> INT_FIELD_TYPE;
+            case FLOAT -> FLOAT_FIELD_TYPE;
+            case LONG -> LONG_FIELD_TYPE;
+            case DOUBLE -> DOUBLE_FIELD_TYPE;
+            case HALF_FLOAT -> throw new AssertionError("unreachable: indexed half_float is handled separately");
+        };
     }
 
     private static LongColumn.NumericKind numericKind(NumberType type) {
         return switch (type) {
             case BYTE, SHORT, INTEGER -> LongColumn.NumericKind.INT;
-            case HALF_FLOAT -> LongColumn.NumericKind.FLOAT;
+            case HALF_FLOAT, FLOAT -> LongColumn.NumericKind.FLOAT;
             case LONG -> LongColumn.NumericKind.LONG;
-            case FLOAT -> LongColumn.NumericKind.FLOAT;
             case DOUBLE -> LongColumn.NumericKind.DOUBLE;
         };
     }
@@ -2918,7 +2954,7 @@ public class NumberFieldMapper extends FieldMapper {
                 context.addIgnoredField(mappedFieldType.name());
                 if (isSyntheticSource) {
                     // Save a copy of the field so synthetic source can load it
-                    IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
+                    FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED);
                 }
                 return;
             } else {

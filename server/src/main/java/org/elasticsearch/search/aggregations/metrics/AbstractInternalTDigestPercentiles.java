@@ -142,7 +142,8 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
                 final AbstractInternalTDigestPercentiles percentiles = (AbstractInternalTDigestPercentiles) aggregation;
                 if (percentiles.state != null) {
                     if (merged == null) {
-                        merged = HistogramUnionState.createUsingParamsFrom(percentiles.state);
+                        // Shard results use NOOP_BREAKER after deserialization; the accumulator matches.
+                        merged = HistogramUnionState.createUsingParamsFrom(percentiles.state, HistogramUnionState.NOOP_BREAKER);
                     }
                     merged = merge(merged, percentiles.state);
                 }

@@ -1,5 +1,0 @@
-area: Data streams
-issues: []
-pr: 155251
-summary: Prevent setting `frozen_after` on failure store lifecycle policy both directly and via templates as this is not supported by the DLM lifecycle service
-type: bug

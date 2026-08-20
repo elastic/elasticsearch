@@ -40,8 +40,6 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
     static final String REMAINING_TOKENS = "x-ratelimit-remaining-tokens";
 
     protected static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
-    private static final String VALIDATION_ERROR_MESSAGE = "Received an input validation error response";
-
     private static final String OPENAI_SERVER_BUSY = "Received a server busy error status code";
 
     public OpenAiResponseHandler(String requestType, ResponseParser parseFunction, boolean canHandleStreamingResponses) {
@@ -58,43 +56,43 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
     }
 
     /**
-     * Handles failure status codes by throwing a RetryException.
+     * Handles failure status codes by returning a RetryException.
      * Only called when the HTTP response status code is not in the range [200, 300).
      *
      * The OpenAI API error codes are documented <a href="https://platform.openai.com/docs/guides/error-codes/api-errors">here</a>.
      * @param outboundRequest The originating request
      * @param result  The http response and body
-     * @throws RetryException Throws if status code is {@code >= 300 or < 200 }
+     * @return a RetryException describing the failure
      */
     @Override
-    public void handleFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
+    public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
         // handle error codes
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {
-            throw new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
+            return new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode == 503) {
-            throw new RetryException(true, buildError(OPENAI_SERVER_BUSY, outboundRequest, result));
+            return new RetryException(true, buildError(OPENAI_SERVER_BUSY, outboundRequest, result));
         } else if (statusCode > 500) {
-            throw new RetryException(false, buildError(SERVER_ERROR, outboundRequest, result));
+            return new RetryException(false, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode == 429) {
-            throw buildExceptionHandling429(outboundRequest, result);
+            return buildExceptionHandling429(outboundRequest, result);
         } else if (isContentTooLarge(result)) {
-            throw buildExceptionHandlingContentTooLarge(outboundRequest, result);
+            return buildExceptionHandlingContentTooLarge(outboundRequest, result);
         } else if (statusCode == 401) {
             outboundRequest.onAuthenticationFailure();
-            throw new RetryException(false, buildError(AUTHENTICATION, outboundRequest, result));
+            return new RetryException(false, buildError(AUTHENTICATION, outboundRequest, result));
         } else if (statusCode >= 300 && statusCode < 400) {
-            throw new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
+            return new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
         } else if (statusCode == 422) {
             // OpenAI does not return 422 at the time of writing, but Mistral does and follows most of OpenAI's format.
             // TODO: Revisit this in the future to decouple OpenAI and Mistral error handling.
-            throw new RetryException(false, buildError(VALIDATION_ERROR_MESSAGE, outboundRequest, result));
+            return new RetryException(false, buildError(VALIDATION_ERROR, outboundRequest, result));
         } else if (statusCode == 400) {
-            throw new RetryException(false, buildError(BAD_REQUEST, outboundRequest, result));
+            return new RetryException(false, buildError(BAD_REQUEST, outboundRequest, result));
         } else if (statusCode == 404) {
-            throw new RetryException(false, buildError(resourceNotFoundError(outboundRequest), outboundRequest, result));
+            return new RetryException(false, buildError(resourceNotFoundError(outboundRequest), outboundRequest, result));
         } else {
-            throw new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
+            return new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
         }
     }
 

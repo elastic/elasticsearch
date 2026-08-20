@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
@@ -293,10 +294,43 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
-     * Parse the field value using the provided {@link DocumentParserContext}.
+     * Whether this mapper consumes the whole group of schema leaves rooted at its own path rather than a single leaf of its own. Mappers
+     * whose source value is an object that the columnar encoder explodes into one dotted leaf per key — {@code flattened} is the first —
+     * cannot be resolved leaf by leaf, because no mapper exists at those descendant paths. A mapper returning {@code true} receives every
+     * such leaf in one call to {@link #mapColumnGroupBatch}, and those leaves are never handed to a leaf mapper.
+     * <p>
+     * This is orthogonal to {@link #supportsColumnarParse(IndexSettings)}: a group mapper must return {@code true} from both to
+     * participate in the columnar path.
      */
-    public void parse(DocumentParserContext context) throws IOException {
-        // Set when a multi_value=false violation is redirected to a failure column (on_failure=ignore) rather than thrown
+    public boolean resolvesColumnGroup() {
+        return false;
+    }
+
+    /**
+     * Maps all documents in a batch for a mapper that {@link #resolvesColumnGroup() resolves a column group}. Called once per field per
+     * batch in place of {@link #mapColumnBatch}, covering every schema leaf rooted below this field's path. Output columns are attached
+     * to {@code ctx} via {@link BatchMappingContext#addColumn}, exactly as for {@link #mapColumnBatch}.
+     *
+     * @param ctx          the batch mapping context; receives output columns via {@code addColumn}
+     * @param columns      the ESCF source columns owned by this mapper, in schema-leaf order
+     * @param relativeKeys {@code relativeKeys[i]} is {@code columns[i]}'s schema path with this field's path and the separating dot
+     *                     stripped — for {@code flattened} that is exactly the flattened key
+     */
+    public void mapColumnGroupBatch(BatchMappingContext ctx, EscfColumn[] columns, String[] relativeKeys) {
+        throw new UnsupportedOperationException(
+            "mapColumnGroupBatch not implemented for mapper [" + typeName() + "] on field [" + fullPath() + "]"
+        );
+    }
+
+    /**
+     * Parse the field value using the provided {@link DocumentParserContext}.
+     *
+     * @return {@link ParseResult.Indexed} on success, {@link ParseResult.Ignored} when the field was ignored
+     *         (e.g. {@code ignore_malformed} or {@code ignore_above}), or {@link ParseResult.MultiValueViolation} with
+     *         {@code multi_value=false, on_failure=ignore}.
+     */
+    public ParseResult parse(DocumentParserContext context) throws IOException {
+        boolean wasAlreadyIgnored = context.isFieldIgnored(fullPath());
         boolean redirectedToFailureColumn = false;
         try {
             if (builderParams.hasScript) {
@@ -310,7 +344,6 @@ public abstract class FieldMapper extends Mapper {
                     // A non-null value satisfies the [nullability=false] requirement for this Lucene doc.
                     context.markRequiredSatisfied(fullPath());
                 }
-
                 parseCreateField(context);
             }
         } catch (Exception e) {
@@ -321,12 +354,33 @@ public abstract class FieldMapper extends Mapper {
         if (builderParams.multiFields.mappers.length != 0) {
             doParseMultiFields(context);
         }
+        BytesRef mvvStash = context.takePendingMultiValueViolation(fullPath());
+        if (mvvStash != null) {
+            return new ParseResult.MultiValueViolation(mvvStash);
+        }
+        return resolveIgnoredResult(context, wasAlreadyIgnored);
+    }
+
+    /**
+     * Returns {@link ParseResult.Ignored} if the field was newly added to the ignored-fields set
+     * during parse (i.e. was not already there before), {@link ParseResult.Indexed} otherwise.
+     * Subclasses that override {@link #parse} directly should call this instead of duplicating the check.
+     */
+    protected final ParseResult resolveIgnoredResult(DocumentParserContext context, boolean wasAlreadyIgnored) {
+        if (wasAlreadyIgnored == false && context.isFieldIgnored(fullPath())) {
+            return ParseResult.IGNORED;
+        }
+        return ParseResult.INDEXED;
     }
 
     protected void doParseMultiFields(DocumentParserContext context) throws IOException {
         context.path().add(leafName());
         for (FieldMapper mapper : builderParams.multiFields.mappers) {
-            mapper.parse(context);
+            ParseResult result = mapper.parse(context);
+            if (result instanceof ParseResult.MultiValueViolation mvv
+                && (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored())) {
+                OnFailureStoredValues.storeEncoded(context, mapper.fullPath(), mvv.capturedValue());
+            }
         }
         context.path().remove();
     }
@@ -860,7 +914,11 @@ public abstract class FieldMapper extends Mapper {
             }
             context.path().add(mainField.leafName());
             for (FieldMapper mapper : mappers) {
-                mapper.parse(multiFieldContextSupplier.get());
+                ParseResult result = mapper.parse(multiFieldContextSupplier.get());
+                if (result instanceof ParseResult.MultiValueViolation mvv
+                    && (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored())) {
+                    OnFailureStoredValues.storeEncoded(context, mapper.fullPath(), mvv.capturedValue());
+                }
             }
             context.path().remove();
         }
@@ -1661,17 +1719,39 @@ public abstract class FieldMapper extends Mapper {
         }
 
         /**
-         * Variant of {@link #of(Values, Function, boolean)} that computes the default value lazily
-         * so it can depend on sibling multi-fields, which are only known after this parameter is
-         * constructed. The {@code subParameterDefaults} provides the {@code multi_value} default.
+         * Computes the default {@link Values} for a field given the index settings. Outside strict-columnar mode returns
+         * {@code nonColumnarDefault}; in strict-columnar mode returns enabled values with {@code columnarCardinality} and reads
+         * {@code multiValue}, {@code nullability}, and {@code onFailure} from the index-level settings.
          */
-        public static DocValuesParameter of(
-            Supplier<Values> defaultValueSupplier,
-            Values subParameterDefaults,
-            Function<FieldMapper, Values> initializer,
-            boolean supportsExtendedDocValues
+        public static Values defaultValues(IndexSettings indexSettings, Values nonColumnarDefault, Values.Cardinality columnarCardinality) {
+            if (indexSettings.getMode().isStrictColumnar() == false) {
+                return nonColumnarDefault;
+            }
+            boolean multiValue = DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
+            boolean nullability = DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
+            var onFailure = resolveOnFailureSetting(indexSettings.getSettings());
+            return new Values(true, columnarCardinality, multiValue, nullability, onFailure);
+        }
+
+        /**
+         * Variant of {@link #defaultValues(IndexSettings, Values, Values.Cardinality)} for the field types that only began
+         * honoring the index-level doc_values settings in {@code settingsHonoredSince}. Indices created before that version
+         * retain the legacy default (the settings are ignored: strict-columnar indices are enabled with permissive
+         * sub-parameter defaults), so their persisted mappings stay stable across re-parse and upgrade.
+         */
+        public static Values defaultValues(
+            IndexSettings indexSettings,
+            Values nonColumnarDefault,
+            Values.Cardinality columnarCardinality,
+            IndexVersion settingsHonoredSince
         ) {
-            return new DocValuesParameter(defaultValueSupplier, subParameterDefaults, initializer, supportsExtendedDocValues);
+            if (indexSettings.getIndexVersionCreated().onOrAfter(settingsHonoredSince)) {
+                return defaultValues(indexSettings, nonColumnarDefault, columnarCardinality);
+            }
+            if (indexSettings.getMode().isStrictColumnar() == false) {
+                return nonColumnarDefault;
+            }
+            return new Values(true, columnarCardinality, true, true, Values.OnFailure.FAIL);
         }
 
         private DocValuesParameter(Values defaultValue, Function<FieldMapper, Values> initializer, boolean supportsExtendedDocValues) {
@@ -2299,4 +2379,30 @@ public abstract class FieldMapper extends Mapper {
         }
     }
 
+    /**
+     * The outcome of a {@link FieldMapper#parse} call. {@link FallbackPostMapper} switches exhaustively on this to route to
+     * exactly one fallback destination.
+     */
+    public sealed interface ParseResult permits ParseResult.Indexed, ParseResult.Ignored, ParseResult.MultiValueViolation {
+
+        /** The value was parsed and indexed successfully; no fallback write is needed. */
+        record Indexed() implements ParseResult {}
+
+        /**
+         * The field was ignored during parsing (e.g. {@code ignore_malformed} or {@code ignore_above});
+         * the mapper wrote to its own fallback destination.
+         */
+        record Ignored() implements ParseResult {}
+
+        /**
+         * A {@code multi_value=false} constraint was violated. {@code capturedValue} holds the encoded
+         * violating token for storage in {@code ._on_failure}.
+         */
+        record MultiValueViolation(BytesRef capturedValue) implements ParseResult {}
+
+        /** Singleton for the common indexed result; avoids repeated allocation of a zero-field record. */
+        Indexed INDEXED = new Indexed();
+        /** Singleton for the common ignored result; avoids repeated allocation of a zero-field record. */
+        Ignored IGNORED = new Ignored();
+    }
 }

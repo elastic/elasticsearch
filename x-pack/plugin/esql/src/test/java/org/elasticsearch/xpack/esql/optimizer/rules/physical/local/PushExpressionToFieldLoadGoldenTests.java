@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
-import org.elasticsearch.TransportVersion;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
@@ -15,23 +17,36 @@ import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 import java.util.EnumSet;
 
 public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
+    private static final String DIMENSION_VALUES = "dimension_values";
+    private static final String ESQL_SUM_LONG_OVERFLOW_FIX = "esql_sum_long_overflow_fix";
+    private static final String PACK_DIMS_AGG = "pack_dims_agg";
+
+    private static final EnumSet<Stage> STAGES = EnumSet.of(
+        Stage.ANALYSIS,
+        Stage.LOGICAL_OPTIMIZATION,
+        Stage.PHYSICAL_OPTIMIZATION,
+        Stage.LOCAL_PHYSICAL_OPTIMIZATION,
+        Stage.NODE_REDUCE,
+        Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION
+    );
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public PushExpressionToFieldLoadGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
 
     public static final EsqlTestUtils.TestSearchStats SEARCH_STATS = new EsqlTestUtils.TestSearchStats();
 
     private void runGoldenTest(String query) {
-        runGoldenTest(
-            query,
-            EnumSet.of(
-                Stage.ANALYSIS,
-                Stage.LOGICAL_OPTIMIZATION,
-                Stage.PHYSICAL_OPTIMIZATION,
-                Stage.LOCAL_PHYSICAL_OPTIMIZATION,
-                Stage.NODE_REDUCE,
-                Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION
-            ),
-            SEARCH_STATS,
-            TransportVersion.current()
-        );
+        goldenTest(query).run();
+    }
+
+    private TestBuilder goldenTest(String query) {
+        return builder(query).stages(STAGES).searchStats(SEARCH_STATS);
     }
 
     public void testLengthInEval() {
@@ -52,10 +67,10 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
     }
 
     public void testLengthInStats() {
-        runGoldenTest("""
+        goldenTest("""
             FROM employees
             | STATS l = SUM(LENGTH(last_name))
-            """);
+            """).expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX).run();
     }
 
     public void testLengthInEvalAfterManyRenames() {
@@ -80,27 +95,27 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
     }
 
     public void testLengthPushdownZoo() {
-        runGoldenTest("""
+        goldenTest("""
             FROM employees
             | EVAL a1 = LENGTH(last_name), a2 = LENGTH(last_name), a3 = LENGTH(last_name),
                    a4 = abs(LENGTH(last_name)) + a1 + LENGTH(first_name) * 3
             | WHERE a1 > 1 and LENGTH(last_name) > 1
             | STATS l = SUM(LENGTH(last_name)) + AVG(a3) + SUM(LENGTH(first_name))
-            """);
+            """).expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX).run();
     }
 
     public void testLengthInStatsTwice() {
-        runGoldenTest("""
+        goldenTest("""
             FROM employees
             | STATS l = SUM(LENGTH(last_name)) + AVG(LENGTH(last_name))
-            """);
+            """).expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX).run();
     }
 
     public void testLengthTwoFields() {
-        runGoldenTest("""
+        goldenTest("""
             FROM employees
             | STATS last_name = SUM(LENGTH(last_name)), first_name = SUM(LENGTH(first_name))
-            """);
+            """).expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX).run();
     }
 
     // ---- Vector function push tests ----
@@ -174,20 +189,23 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
     }
 
     public void testAggregateMetricDoubleWithAvgAndOtherFunctions() {
-        runGoldenTest("""
+        goldenTest("""
             from k8s-downsampled
             | STATS s = sum(network.eth0.tx), a = avg(network.eth0.tx)
-            """);
+            """).expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX).run();
     }
 
     public void testAggregateMetricDoubleTSCommand() {
-        runGoldenTest("""
+        goldenTest("""
             TS k8s-downsampled |
             STATS m = max(max_over_time(network.eth0.tx)),
                   c = count(count_over_time(network.eth0.tx)),
                   a = avg(avg_over_time(network.eth0.tx))
             BY pod, time_bucket = BUCKET(@timestamp,5minute)
-            """);
+            """).expectationChangesAt(DIMENSION_VALUES)
+            .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
+            .expectationChangesAt(PACK_DIMS_AGG)
+            .run();
     }
 
     // ---- Reduction plan tests ----

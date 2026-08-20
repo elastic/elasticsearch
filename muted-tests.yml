@@ -574,9 +574,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerSubqueryTests
   method: testTSSubqueryWithConflictingTypesInUnionAll
   issue: https://github.com/elastic/elasticsearch/issues/156226
-- class: org.elasticsearch.xpack.stateless.recovery.StatelessRecoveryMetricsIT
-  method: testRecoveryMetricPublicationBytesReadToCache
-  issue: https://github.com/elastic/elasticsearch/issues/156228
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerSubqueryTests
   method: testTSSubqueryWithConflictingTypesAndExplicitCast
   issue: https://github.com/elastic/elasticsearch/issues/156229
@@ -779,3 +776,9 @@ tests:
 - class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=esql/290_unmapped_load_partial_keyword_convert/aggregate_metric_double cast on punk field}
   issue: https://github.com/elastic/elasticsearch/issues/157225
+- class: org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests
+  method: testCreateAndRestorePartialSearchableSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/157256
+- class: org.elasticsearch.xpack.stateless.StatelessSearchIT
+  method: testRefreshOnBulkWithNewShardAllocation
+  issue: https://github.com/elastic/elasticsearch/issues/157260

@@ -7,15 +7,18 @@
 
 package org.elasticsearch.xpack.inference.services.tencentcloud.embeddings;
 
-import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudCommonServiceSettings;
@@ -24,10 +27,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.common.parser.NumberParser.validatePositiveInteger;
+import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 
 /**
  * Settings for the TencentCloud embeddings service. Extends {@link TencentCloudCommonServiceSettings} and adds the
@@ -55,10 +59,7 @@ public class TencentCloudEmbeddingsServiceSettings extends TencentCloudCommonSer
 
     public static TencentCloudEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
-        var validationException = new ValidationException();
-        var settings = TencentCloudCommonServiceSettings.fromMap(map, context, parser, validationException);
-        validationException.throwIfValidationErrorsExist();
-        return settings;
+        return TencentCloudCommonServiceSettings.fromMap(map, context, parser);
     }
 
     @Nullable
@@ -111,32 +112,11 @@ public class TencentCloudEmbeddingsServiceSettings extends TencentCloudCommonSer
 
     @Override
     public TencentCloudEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var validationException = new ValidationException();
-
-        var extractedMaxInputTokens = extractOptionalPositiveInteger(
-            serviceSettings,
-            MAX_INPUT_TOKENS,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
-
-        var extractedRateLimitSettings = RateLimitSettings.of(
-            serviceSettings,
-            this.rateLimitSettings(),
-            validationException,
-            ConfigurationParseContext.REQUEST
-        );
-
-        validationException.throwIfValidationErrorsExist();
-
-        return new TencentCloudEmbeddingsServiceSettings(
-            this.modelId(),
-            this.region(),
-            extractedRateLimitSettings,
-            this.similarity(),
-            this.dimensions(),
-            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens()
-        );
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
+            return Update.PARSER.apply(xParser, null).mergeInto(this);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse TencentCloud embeddings service settings update", e);
+        }
     }
 
     /**
@@ -209,8 +189,41 @@ public class TencentCloudEmbeddingsServiceSettings extends TencentCloudCommonSer
         }
 
         @Override
-        protected TencentCloudEmbeddingsServiceSettings build() {
+        protected TencentCloudEmbeddingsServiceSettings build(String modelId, String region, RateLimitSettings rateLimitSettings) {
             return new TencentCloudEmbeddingsServiceSettings(modelId, region, rateLimitSettings, similarity, dimensions, maxInputTokens);
+        }
+    }
+
+    /**
+     * Parses an update request, which may only contain the mutable {@code max_input_tokens} and {@code rate_limit} fields. Including any
+     * immutable field (such as {@code model_id}, {@code region}, {@code dimensions}, or {@code similarity}) causes the strict parser to
+     * reject the request.
+     */
+    private static class Update extends TencentCloudCommonServiceSettings.CommonUpdate {
+
+        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
+
+        static {
+            TencentCloudCommonServiceSettings.declareCommonUpdatableFields(PARSER);
+            StatefulValue.declareNullable(PARSER, (update, value) -> update.maxInputTokens = value, p -> {
+                Integer value = p.intValue();
+                validatePositiveInteger(value, MAX_INPUT_TOKENS);
+                return value;
+            }, new ParseField(MAX_INPUT_TOKENS), ObjectParser.ValueType.INT_OR_NULL);
+        }
+
+        private StatefulValue<Integer> maxInputTokens = StatefulValue.undefined();
+
+        public TencentCloudEmbeddingsServiceSettings mergeInto(TencentCloudEmbeddingsServiceSettings existing) {
+            var updatedMaxInputTokens = applyUpdate(this.maxInputTokens, existing.maxInputTokens());
+            return new TencentCloudEmbeddingsServiceSettings(
+                existing.modelId(),
+                existing.region(),
+                mergedRateLimitSettings(existing),
+                existing.similarity(),
+                existing.dimensions(),
+                updatedMaxInputTokens
+            );
         }
     }
 }

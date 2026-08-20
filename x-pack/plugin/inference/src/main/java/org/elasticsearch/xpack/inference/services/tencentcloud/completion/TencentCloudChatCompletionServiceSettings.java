@@ -7,18 +7,22 @@
 
 package org.elasticsearch.xpack.inference.services.tencentcloud.completion;
 
-import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudCommonServiceSettings;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
 
 /**
  * Settings for the TencentCloud chat completion / completion service. Holds only the fields common to every TencentCloud
@@ -45,10 +49,7 @@ public class TencentCloudChatCompletionServiceSettings extends TencentCloudCommo
 
     public static TencentCloudChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
-        var validationException = new ValidationException();
-        var settings = TencentCloudCommonServiceSettings.fromMap(map, context, parser, validationException);
-        validationException.throwIfValidationErrorsExist();
-        return settings;
+        return TencentCloudCommonServiceSettings.fromMap(map, context, parser);
     }
 
     public TencentCloudChatCompletionServiceSettings(String modelId, String region, @Nullable RateLimitSettings rateLimitSettings) {
@@ -66,15 +67,11 @@ public class TencentCloudChatCompletionServiceSettings extends TencentCloudCommo
 
     @Override
     public TencentCloudChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var validationException = new ValidationException();
-        var extractedRateLimitSettings = RateLimitSettings.of(
-            serviceSettings,
-            this.rateLimitSettings(),
-            validationException,
-            ConfigurationParseContext.REQUEST
-        );
-        validationException.throwIfValidationErrorsExist();
-        return new TencentCloudChatCompletionServiceSettings(this.modelId(), this.region(), extractedRateLimitSettings);
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
+            return Update.PARSER.apply(xParser, null).mergeInto(this);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse TencentCloud chat completion service settings update", e);
+        }
     }
 
     @Override
@@ -84,11 +81,33 @@ public class TencentCloudChatCompletionServiceSettings extends TencentCloudCommo
 
     public static class Builder extends TencentCloudCommonServiceSettings.Builder<TencentCloudChatCompletionServiceSettings> {
         @Override
-        protected TencentCloudChatCompletionServiceSettings build() {
+        protected TencentCloudChatCompletionServiceSettings build(String modelId, String region, RateLimitSettings rateLimitSettings) {
             // When the rate_limit field is absent, the builder's rateLimitSettings stays null. Apply the chat-completion-specific
             // default (5 rpm) here rather than the general default applied by the base constructor.
             var rateLimit = rateLimitSettings != null ? rateLimitSettings : DEFAULT_CHAT_COMPLETION_RATE_LIMIT;
             return new TencentCloudChatCompletionServiceSettings(modelId, region, rateLimit);
+        }
+    }
+
+    /**
+     * Parses an update request, which may only contain the mutable {@code rate_limit} field. Including any immutable field (such as
+     * {@code model_id} or {@code region}) causes the strict parser to reject the request.
+     */
+    private static class Update extends TencentCloudCommonServiceSettings.CommonUpdate {
+
+        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
+
+        static {
+            TencentCloudCommonServiceSettings.declareCommonUpdatableFields(PARSER);
+        }
+
+        @Override
+        protected RateLimitSettings mergedRateLimitSettings(TencentCloudCommonServiceSettings existing) {
+            return applyUpdate(rateLimitSettings, existing.rateLimitSettings(), DEFAULT_CHAT_COMPLETION_RATE_LIMIT);
+        }
+
+        public TencentCloudChatCompletionServiceSettings mergeInto(TencentCloudChatCompletionServiceSettings existing) {
+            return new TencentCloudChatCompletionServiceSettings(existing.modelId(), existing.region(), mergedRateLimitSettings(existing));
         }
     }
 }

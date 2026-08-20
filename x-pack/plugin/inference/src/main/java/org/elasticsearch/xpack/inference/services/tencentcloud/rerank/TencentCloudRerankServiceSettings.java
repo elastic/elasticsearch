@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.tencentcloud.rerank;
 
-import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudCommonServiceSettings;
@@ -43,10 +45,7 @@ public class TencentCloudRerankServiceSettings extends TencentCloudCommonService
 
     public static TencentCloudRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
-        var validationException = new ValidationException();
-        var settings = TencentCloudCommonServiceSettings.fromMap(map, context, parser, validationException);
-        validationException.throwIfValidationErrorsExist();
-        return settings;
+        return TencentCloudCommonServiceSettings.fromMap(map, context, parser);
     }
 
     public TencentCloudRerankServiceSettings(String modelId, String region, @Nullable RateLimitSettings rateLimitSettings) {
@@ -64,15 +63,11 @@ public class TencentCloudRerankServiceSettings extends TencentCloudCommonService
 
     @Override
     public TencentCloudRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var validationException = new ValidationException();
-        var extractedRateLimitSettings = RateLimitSettings.of(
-            serviceSettings,
-            this.rateLimitSettings(),
-            validationException,
-            ConfigurationParseContext.REQUEST
-        );
-        validationException.throwIfValidationErrorsExist();
-        return new TencentCloudRerankServiceSettings(this.modelId(), this.region(), extractedRateLimitSettings);
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
+            return Update.PARSER.apply(xParser, null).mergeInto(this);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse TencentCloud rerank service settings update", e);
+        }
     }
 
     @Override
@@ -82,8 +77,25 @@ public class TencentCloudRerankServiceSettings extends TencentCloudCommonService
 
     public static class Builder extends TencentCloudCommonServiceSettings.Builder<TencentCloudRerankServiceSettings> {
         @Override
-        protected TencentCloudRerankServiceSettings build() {
+        protected TencentCloudRerankServiceSettings build(String modelId, String region, RateLimitSettings rateLimitSettings) {
             return new TencentCloudRerankServiceSettings(modelId, region, rateLimitSettings);
+        }
+    }
+
+    /**
+     * Parses an update request, which may only contain the mutable {@code rate_limit} field. Including any immutable field (such as
+     * {@code model_id} or {@code region}) causes the strict parser to reject the request.
+     */
+    private static class Update extends TencentCloudCommonServiceSettings.CommonUpdate {
+
+        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
+
+        static {
+            TencentCloudCommonServiceSettings.declareCommonUpdatableFields(PARSER);
+        }
+
+        public TencentCloudRerankServiceSettings mergeInto(TencentCloudRerankServiceSettings existing) {
+            return new TencentCloudRerankServiceSettings(existing.modelId(), existing.region(), mergedRateLimitSettings(existing));
         }
     }
 }

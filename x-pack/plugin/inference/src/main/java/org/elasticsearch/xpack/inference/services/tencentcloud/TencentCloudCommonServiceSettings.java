@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.tencentcloud;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -21,6 +20,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
@@ -28,9 +28,11 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.request.TencentCloudUtils;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
+import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
 
 /**
  * Abstract base for all TencentCloud task-specific service settings. Holds the fields shared across every TencentCloud task
@@ -42,7 +44,6 @@ import java.util.Objects;
  */
 public abstract class TencentCloudCommonServiceSettings extends FilteredXContentObject implements ServiceSettings {
 
-    public static final String NAME = "tencentcloud_service_settings";
     private static final String REGION = "region";
 
     // Default rate limit for TencentCloud AI Gateway (see docs).
@@ -68,49 +69,32 @@ public abstract class TencentCloudCommonServiceSettings extends FilteredXContent
     /**
      * Parses common settings from a map using the given parser, returning the fully constructed task-specific settings.
      *
-     * @param map                  the map to parse
-     * @param context              the context in which the parsing is done
-     * @param parser               the parser to use for parsing the settings
-     * @param validationException  the validation exception to populate in case of errors
-     * @param <T>                  the concrete settings type produced by the parser's builder
-     * @return the created settings, or {@code null} if a validation error occurred
+     * @param map     the map to parse
+     * @param context the context in which the parsing is done
+     * @param parser  the parser to use for parsing the settings
+     * @return the created settings
      */
     public static <T extends TencentCloudCommonServiceSettings> T fromMap(
         Map<String, Object> map,
         ConfigurationParseContext context,
-        ObjectParser<? extends Builder<T>, ConfigurationParseContext> parser,
-        ValidationException validationException
+        ObjectParser<? extends Builder<T>, ConfigurationParseContext> parser
     ) {
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
-            T settings = parser.apply(xParser, context).build();
-            // Validate region in REQUEST context.
-            if (context == ConfigurationParseContext.REQUEST) {
-                if (settings.region().isBlank()) {
-                    validationException.addValidationError(
-                        String.format(Locale.ROOT, "[%s] in [%s] must not be empty", REGION, ModelConfigurations.SERVICE_SETTINGS)
-                    );
-                    return null;
-                }
-            }
-            return settings;
-        } catch (ElasticsearchParseException e) {
-            validationException.addValidationError(e.getMessage());
-            return null;
+            return parser.apply(xParser, context).build();
         } catch (IOException e) {
-            validationException.addValidationError("Failed to parse TencentCloud service settings: " + e.getMessage());
-            return null;
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
         }
     }
 
     /**
      * Accumulates the parsed common fields on behalf of a concrete settings builder. Each task-specific builder extends this and
-     * contributes its own fields, implementing {@link #build()} to assemble the final settings object.
+     * contributes its own fields, implementing {@link #build(String, String, RateLimitSettings)} to assemble the final settings object.
      *
-     * @param <T> the task-specific settings type produced by {@link #build()}
+     * @param <T> the task-specific settings type produced by {@link #build(String, String, RateLimitSettings)}
      */
     public abstract static class Builder<T extends TencentCloudCommonServiceSettings> {
-        protected String modelId;
-        protected String region;
+        private String modelId;
+        private String region;
         protected RateLimitSettings rateLimitSettings;
 
         public void setModelId(String modelId) {
@@ -125,7 +109,44 @@ public abstract class TencentCloudCommonServiceSettings extends FilteredXContent
             this.rateLimitSettings = rateLimitSettings;
         }
 
-        protected abstract T build();
+        protected abstract T build(String modelId, String region, RateLimitSettings rateLimitSettings);
+
+        public final T build() {
+            validateStringIsNotNullOrEmpty(modelId, ServiceFields.MODEL_ID);
+            return build(modelId, region, rateLimitSettings);
+        }
+    }
+
+    /**
+     * Registers the common TencentCloud fields that may be changed by an update request. Only {@code rate_limit} is mutable; the
+     * immutable fields (such as {@code model_id} and {@code region}) are intentionally not declared so that a strict update parser
+     * rejects attempts to change them.
+     */
+    public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
+        StatefulValue.declareNullable(
+            parser,
+            (update, value) -> update.rateLimitSettings = value,
+            (p) -> RateLimitSettings.createParser(false, null).apply(p, null),
+            new ParseField(RateLimitSettings.FIELD_NAME),
+            ObjectParser.ValueType.OBJECT_OR_NULL
+        );
+    }
+
+    /**
+     * Common fields parsed from an update request. Because settings are immutable, each subclass builds the new instance itself,
+     * calling {@link #mergedRateLimitSettings(TencentCloudCommonServiceSettings)} to resolve the shared fields.
+     */
+    public static class CommonUpdate {
+
+        protected StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();
+
+        /**
+         * Resolves the rate limit settings to use after applying the update following the tri-state convention: an omitted field keeps
+         * the current value, an explicit null resets the field to the default rate limit, and a present value replaces the current one.
+         */
+        protected RateLimitSettings mergedRateLimitSettings(TencentCloudCommonServiceSettings existing) {
+            return applyUpdate(rateLimitSettings, existing.rateLimitSettings(), DEFAULT_RATE_LIMIT_SETTINGS);
+        }
     }
 
     private final String modelId;

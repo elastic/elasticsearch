@@ -1099,7 +1099,8 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         @Override
         public FieldAndFormat embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
             // The vector type this field produces is determined by the inference endpoint's task type. When there are no model settings
-            // the field has never seen inference results, so there is nothing to fetch and nothing to validate.
+            // the field has no indexed values and has never seen inference results from the endpoint; the fetcher will short-circuit at
+            // fetch time and return empty.
             if (vectorType != null && modelSettings != null) {
                 VectorType producedVectorType = VectorType.fromTaskType(modelSettings.taskType());
                 if (producedVectorType == null) {

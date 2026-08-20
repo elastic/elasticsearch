@@ -1253,8 +1253,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private LogicalPlan resolveDenseVector(DenseVector p, List<Attribute> childrenOutput) {
             // Resolve the input fields once. Re-running is a no-op and the plan converges: after the first pass
-            // generatedFields is populated (or the field list is empty), so we return the same instance, even while the
-            // inference id resolves.
+            // generatedFields is populated (or the field list is empty), so later analyzer iterations return the same instance.
             if (p.generatedAttributes().isEmpty() == false || p.fields().isEmpty()) {
                 return p;
             }
@@ -1266,10 +1265,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (NamedExpression field : p.fields()) {
                 if (field instanceof UnresolvedAttribute ua) {
                     // explicitly-named field -> keep all matches; an unknown column or a non-text type fails verification
-                    for (NamedExpression resolved : resolveAgainstList(ua, childrenOutput)) {
-                        if (resolved instanceof Attribute a && a.resolved()) {
-                            if (seen.add(a.id())) {
-                                resolvedFields.add(a);
+                    for (Attribute resolved : resolveAgainstList(ua, childrenOutput)) {
+                        if (resolved.resolved()) {
+                            if (seen.add(resolved.id())) {
+                                resolvedFields.add(resolved);
                             }
                         } else {
                             // keep unresolved results so verification can report the unknown column

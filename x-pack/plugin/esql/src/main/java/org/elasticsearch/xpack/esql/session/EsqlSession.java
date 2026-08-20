@@ -398,7 +398,7 @@ public class EsqlSession {
         ResolvedSettings resolved = QuerySettings.resolve(
             request.requestSettings(),
             statement,
-            SettingsValidationContext.from(remoteClusterService)
+            SettingsValidationContext.from(crossProjectModeDecider)
         );
         if (explainContext == null) {
             gatherSettingsMetrics(request, statement);
@@ -419,7 +419,7 @@ public class EsqlSession {
             (query, viewName) -> parser.parseView(
                 query,
                 request.params(),
-                SettingsValidationContext.from(remoteClusterService),
+                SettingsValidationContext.from(crossProjectModeDecider),
                 inferenceService.inferenceSettings(),
                 viewName
             ).plan(),
@@ -1266,7 +1266,7 @@ public class EsqlSession {
     }
 
     private EsqlStatement parse(EsqlQueryRequest request) {
-        return request.parse(parser, SettingsValidationContext.from(remoteClusterService), inferenceService.inferenceSettings());
+        return request.parse(parser, SettingsValidationContext.from(crossProjectModeDecider), inferenceService.inferenceSettings());
     }
 
     /**

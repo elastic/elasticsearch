@@ -248,7 +248,7 @@ public class PlanExecutor {
         usageService.getProjectRoutingUsageHolder()
             .recordEsql(
                 executionInfo.getProjectRoutingInfo(),
-                planTelemetry.settings().containsKey("project_routing"),
+                planTelemetry.settings().containsKey("PROJECT_ROUTING"),
                 executionInfo.isHasLinkedProjects()
             );
         listener.onResponse(x);

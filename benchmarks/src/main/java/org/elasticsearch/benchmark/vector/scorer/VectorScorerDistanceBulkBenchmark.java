@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.benchmark.vector.scorer;
 
-import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;

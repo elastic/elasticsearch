@@ -76,7 +76,7 @@ final class ColumnarSourceWriter {
             }, SourceFieldMetrics.NOOP, mapping.ignoredSourceFormat());
 
             ReusableColumnarStoredLeafReader leafReader = new ReusableColumnarStoredLeafReader();
-            SourceLoader.Leaf leaf = sourceLoader.leaf(leafReader, DOC_IDS);
+            SourceLoader.Leaf leaf = sourceLoader.leaf(leafReader.getContext(), DOC_IDS);
             perThread = new PerThreadResources(sourceLoader, fieldLoader, leaf, leafReader);
             cachedColumnarPerThread.set(perThread);
         }

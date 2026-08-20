@@ -57,7 +57,7 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
          *
          * @param bytesRead The number of bytes in this chunk
          */
-        default void onBytesRead(int bytesRead) {}
+        void onBytesRead(int bytesRead);
 
         /**
          * Notify that a stream was consumed.
@@ -67,7 +67,7 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
          * @param totalBytesRead Total bytes read
          * @param timeToReadNanos The time between the first byte being read and the stream being closed (in nanoseconds)
          */
-        default void onReadCompleted(int totalBytesRead, long timeToReadNanos) {}
+        void onReadCompleted(int totalBytesRead, long timeToReadNanos);
     }
 
     /**

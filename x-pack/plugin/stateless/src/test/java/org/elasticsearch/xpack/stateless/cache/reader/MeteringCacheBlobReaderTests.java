@@ -41,6 +41,11 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
                 public void onBytesRead(int bytesRead) {
                     capturedBytes.add(bytesRead);
                 }
+
+                @Override
+                public void onReadCompleted(final int totalBytesRead, final long timeToReadNanos) {
+                    // ignore
+                }
             }
         );
 
@@ -63,6 +68,11 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
         var bytesReadHolder = new SetOnce<Integer>();
         var readTimeNanosHolder = new SetOnce<Long>();
         var meteringCacheBlobReader = new MeteringCacheBlobReader(cacheBlobReader, new MeteringCacheBlobReader.ReadCompleteCallback() {
+            @Override
+            public void onBytesRead(final int bytesRead) {
+                // ignore
+            }
+
             @Override
             public void onReadCompleted(int bytesRead, long timeToReadNanos) {
                 bytesReadHolder.set(bytesRead);
@@ -110,6 +120,11 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
             public void onBytesRead(int bytesRead) {
                 throw callbackException;
             }
+
+            @Override
+            public void onReadCompleted(final int totalBytesRead, final long timeToReadNanos) {
+                // ignore
+            }
         };
         final var meteringCacheBlobReader = new MeteringCacheBlobReader(createFakeCacheBlobReader(), throwingCallback);
         try (MockLog mockLog = MockLog.capture(MeteringCacheBlobReader.class)) {
@@ -134,8 +149,13 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
 
     @TestLogging(value = "org.elasticsearch.xpack.stateless.cache.reader.MeteringCacheBlobReader:DEBUG", reason = "test debug log message")
     public void testExceptionIsLoggedAtDebugWhenReadCompletedCallbackThrows() throws IOException {
-        RuntimeException callbackException = new RuntimeException("Callback exception");
-        MeteringCacheBlobReader.ReadCompleteCallback throwingReadCompleteCallback = new MeteringCacheBlobReader.ReadCompleteCallback() {
+        final var callbackException = new RuntimeException("Callback exception");
+        final var throwingReadCompleteCallback = new MeteringCacheBlobReader.ReadCompleteCallback() {
+            @Override
+            public void onBytesRead(final int bytesRead) {
+                // ignore
+            }
+
             @Override
             public void onReadCompleted(int bytesRead, long timeToReadNanos) {
                 throw callbackException;

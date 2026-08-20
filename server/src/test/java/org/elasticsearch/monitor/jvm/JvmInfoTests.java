@@ -12,6 +12,8 @@ package org.elasticsearch.monitor.jvm;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+
 public class JvmInfoTests extends ESTestCase {
 
     public void testUseG1GC() {
@@ -23,6 +25,10 @@ public class JvmInfoTests extends ESTestCase {
         } else {
             assertEquals("unknown", JvmInfo.jvmInfo().useG1GC());
         }
+    }
+
+    public void testDirectMemoryMax() {
+        assertThat(JvmInfo.jvmInfo().getMem().getDirectMemoryMax().getBytes(), greaterThanOrEqualTo(0L));
     }
 
     private boolean isG1GCEnabled() {

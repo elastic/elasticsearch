@@ -9,7 +9,6 @@ package org.elasticsearch.compute.data.arrow;
 
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.IntVector;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -27,7 +26,7 @@ public class CircuitBreakerAllocationListenerTests extends ESTestCase {
     }
 
     private BufferAllocator allocator(CircuitBreaker breaker) {
-        return new RootAllocator(new CircuitBreakerAllocationListener(breaker), Long.MAX_VALUE, requestSize -> requestSize);
+        return DirectBufferAllocationManager.createRootAllocator(new CircuitBreakerAllocationListener(breaker), Long.MAX_VALUE);
     }
 
     public void testAllocationWithinLimitSucceeds() {

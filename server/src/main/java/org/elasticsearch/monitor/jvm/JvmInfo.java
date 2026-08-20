@@ -503,6 +503,10 @@ public class JvmInfo implements ReportingService.Info {
             return ByteSizeValue.ofBytes(heapMax);
         }
 
+        public ByteSizeValue getDirectMemoryMax() {
+            return ByteSizeValue.ofBytes(directMemoryMax);
+        }
+
         public ByteSizeValue getTotalMax() {
             return ByteSizeValue.ofBytes(heapMax + nonHeapMax + directMemoryMax);
         }

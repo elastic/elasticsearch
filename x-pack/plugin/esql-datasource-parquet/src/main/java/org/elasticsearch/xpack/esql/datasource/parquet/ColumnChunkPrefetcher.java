@@ -119,7 +119,17 @@ final class ColumnChunkPrefetcher {
         Set<String> projectedColumns,
         BufferAllocator allocator
     ) {
-        List<CoalescedRangeReader.ByteRange> ranges = computeColumnChunkRanges(block, projectedColumns);
+        return prefetchAsync(storageObject, block, projectedColumns, allocator, Long.MAX_VALUE);
+    }
+
+    static CompletableFuture<PrefetchedChunks> prefetchAsync(
+        StorageObject storageObject,
+        BlockMetaData block,
+        Set<String> projectedColumns,
+        BufferAllocator allocator,
+        long maxBytesPerColumn
+    ) {
+        List<CoalescedRangeReader.ByteRange> ranges = computeColumnChunkRanges(block, projectedColumns, maxBytesPerColumn);
         if (ranges.isEmpty()) {
             return CompletableFuture.completedFuture(new PrefetchedChunks(new TreeMap<>(), () -> {}));
         }
@@ -176,7 +186,11 @@ final class ColumnChunkPrefetcher {
      * what {@link CoalescedRangeReader#readCoalesced} will allocate.
      */
     static long computePrefetchBytes(BlockMetaData block, Set<String> projectedColumns) {
-        List<CoalescedRangeReader.ByteRange> ranges = computeColumnChunkRanges(block, projectedColumns);
+        return computePrefetchBytes(block, projectedColumns, Long.MAX_VALUE);
+    }
+
+    static long computePrefetchBytes(BlockMetaData block, Set<String> projectedColumns, long maxBytesPerColumn) {
+        List<CoalescedRangeReader.ByteRange> ranges = computeColumnChunkRanges(block, projectedColumns, maxBytesPerColumn);
         if (ranges.isEmpty()) {
             return 0;
         }
@@ -196,6 +210,14 @@ final class ColumnChunkPrefetcher {
      * starting position and total size in the file metadata.
      */
     static List<CoalescedRangeReader.ByteRange> computeColumnChunkRanges(BlockMetaData block, Set<String> projectedColumns) {
+        return computeColumnChunkRanges(block, projectedColumns, Long.MAX_VALUE);
+    }
+
+    static List<CoalescedRangeReader.ByteRange> computeColumnChunkRanges(
+        BlockMetaData block,
+        Set<String> projectedColumns,
+        long maxBytesPerColumn
+    ) {
         List<CoalescedRangeReader.ByteRange> ranges = new ArrayList<>();
         for (ColumnChunkMetaData col : block.getColumns()) {
             if (projectedColumns != null && projectedColumns.contains(col.getPath().toDotString()) == false) {
@@ -204,7 +226,8 @@ final class ColumnChunkPrefetcher {
             long startPos = col.getStartingPos();
             long totalSize = col.getTotalSize();
             if (totalSize > 0) {
-                ranges.add(new CoalescedRangeReader.ByteRange(startPos, totalSize));
+                long length = maxBytesPerColumn > 0 ? Math.min(totalSize, maxBytesPerColumn) : totalSize;
+                ranges.add(new CoalescedRangeReader.ByteRange(startPos, length));
             }
         }
         return ranges;

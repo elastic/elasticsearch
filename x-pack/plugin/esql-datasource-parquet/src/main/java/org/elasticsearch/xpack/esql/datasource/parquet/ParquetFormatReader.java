@@ -139,6 +139,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     private final Map<String, String> declaredDateFormats;
     /** Physical names of declared-type columns (licensed to narrow toward their target); see {@link #withDeclaredTypeColumns}. */
     private final Set<String> declaredTypeColumns;
+    /**
+     * Live compressed-bytes budget for one prefetch granule (first window per column under LIMIT,
+     * and the byte-based prefetch-depth ceiling). Independent of the row-group macro-split target
+     * even though the number currently matches.
+     */
+    private final long heldBytesCap;
     // Shared across all iterators created by this reader: holds lazy decompressor instances and
     // pays the per-codec init cost once. The factory is stateless across files/row groups.
     private final PlainCompressionCodecFactory codecFactory = new PlainCompressionCodecFactory();
@@ -269,11 +275,33 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     public ParquetFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, FilterCompat.NOOP, null, false, true, true, null, Map.of(), Set.of());
+        this(
+            blockFactory,
+            FilterCompat.NOOP,
+            null,
+            false,
+            true,
+            true,
+            null,
+            Map.of(),
+            Set.of(),
+            OptimizedParquetColumnIterator.DEFAULT_HELD_BYTES_CAP
+        );
     }
 
     ParquetFormatReader(BlockFactory blockFactory, boolean optimizedReader) {
-        this(blockFactory, FilterCompat.NOOP, null, false, optimizedReader, true, null, Map.of(), Set.of());
+        this(
+            blockFactory,
+            FilterCompat.NOOP,
+            null,
+            false,
+            optimizedReader,
+            true,
+            null,
+            Map.of(),
+            Set.of(),
+            OptimizedParquetColumnIterator.DEFAULT_HELD_BYTES_CAP
+        );
     }
 
     private ParquetFormatReader(
@@ -285,7 +313,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         boolean lateMaterializationEnabled,
         DynamicThreshold dynamicThreshold,
         Map<String, String> declaredDateFormats,
-        Set<String> declaredTypeColumns
+        Set<String> declaredTypeColumns,
+        long heldBytesCap
     ) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
@@ -296,6 +325,25 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         this.dynamicThreshold = dynamicThreshold;
         this.declaredDateFormats = declaredDateFormats;
         this.declaredTypeColumns = declaredTypeColumns;
+        this.heldBytesCap = heldBytesCap;
+    }
+
+    ParquetFormatReader withHeldBytesCap(long heldBytesCap) {
+        if (heldBytesCap <= 0) {
+            throw new IllegalArgumentException("heldBytesCap must be positive, got [" + heldBytesCap + "]");
+        }
+        return new ParquetFormatReader(
+            blockFactory,
+            pushedFilter,
+            pushedExpressions,
+            forceBaselinePath,
+            optimizedReader,
+            lateMaterializationEnabled,
+            dynamicThreshold,
+            declaredDateFormats,
+            declaredTypeColumns,
+            heldBytesCap
+        );
     }
 
     /**
@@ -313,7 +361,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             lateMaterializationEnabled,
             dynamicThreshold,
             declaredDateFormats,
-            declaredTypeColumns
+            declaredTypeColumns,
+            heldBytesCap
         );
     }
 
@@ -329,7 +378,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 lateMaterializationEnabled,
                 dynamicThreshold,
                 declaredDateFormats,
-                declaredTypeColumns
+                declaredTypeColumns,
+                heldBytesCap
             );
         }
         if (pushedFilter instanceof ParquetPushedExpressions exprs) {
@@ -342,7 +392,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 lateMaterializationEnabled,
                 dynamicThreshold,
                 declaredDateFormats,
-                declaredTypeColumns
+                declaredTypeColumns,
+                heldBytesCap
             );
         }
         return this;
@@ -359,7 +410,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             lateMaterializationEnabled,
             threshold,
             declaredDateFormats,
-            declaredTypeColumns
+            declaredTypeColumns,
+            heldBytesCap
         );
     }
 
@@ -384,7 +436,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             lateMaterializationEnabled,
             dynamicThreshold,
             Map.copyOf(physicalNameToPattern),
-            declaredTypeColumns
+            declaredTypeColumns,
+            heldBytesCap
         );
     }
 
@@ -410,7 +463,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             lateMaterializationEnabled,
             dynamicThreshold,
             declaredDateFormats,
-            Set.copyOf(physicalDeclaredColumns)
+            Set.copyOf(physicalDeclaredColumns),
+            heldBytesCap
         );
     }
 
@@ -432,7 +486,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 newLateMat,
                 dynamicThreshold,
                 declaredDateFormats,
-                declaredTypeColumns
+                declaredTypeColumns,
+                heldBytesCap
             );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
@@ -1651,7 +1706,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 reader,
                 context.projectedColumns(),
                 context.batchSize(),
-                NO_LIMIT,
+                context.rowLimit(),
                 context.resolvedAttributes(),
                 // The deferred extractor scopes itself to the file's full footer rather than the
                 // range-filtered subset, so the produced extractor can resolve any file-global
@@ -1991,7 +2046,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 resolveDynamicThresholdColumn(fileSchema, dynamicThreshold),
                 counters,
                 errorPolicy,
-                warningSink
+                warningSink,
+                heldBytesCap
             );
             // Constructor succeeded — iterator now owns preloadedMetadata. Set the flag after
             // construction so that a throw inside the constructor does not suppress cleanup.

@@ -29,6 +29,12 @@ public final class RangeReadContext {
     @Nullable
     private final Consumer<String> informationalWarningSink;
     /**
+     * Remaining row budget for this split ({@link FormatReader#NO_LIMIT} when unbounded).
+     * Threaded from the producer so range-aware readers can clip prefetch the same way
+     * whole-file {@link FormatReadContext#rowLimit()} already does.
+     */
+    private final int rowLimit;
+    /**
      * Opaque file-level context, single-writer/single-reader, carried by the owning producer across successive readRange calls.
      */
     @Nullable
@@ -59,6 +65,28 @@ public final class RangeReadContext {
         ErrorPolicy errorPolicy,
         @Nullable Consumer<String> informationalWarningSink
     ) {
+        this(
+            projectedColumns,
+            batchSize,
+            rangeStart,
+            rangeEnd,
+            resolvedAttributes,
+            errorPolicy,
+            informationalWarningSink,
+            FormatReader.NO_LIMIT
+        );
+    }
+
+    public RangeReadContext(
+        List<String> projectedColumns,
+        int batchSize,
+        long rangeStart,
+        long rangeEnd,
+        List<Attribute> resolvedAttributes,
+        ErrorPolicy errorPolicy,
+        @Nullable Consumer<String> informationalWarningSink,
+        int rowLimit
+    ) {
         this.projectedColumns = projectedColumns;
         this.batchSize = batchSize;
         this.rangeStart = rangeStart;
@@ -66,6 +94,7 @@ public final class RangeReadContext {
         this.resolvedAttributes = resolvedAttributes;
         this.errorPolicy = errorPolicy;
         this.informationalWarningSink = informationalWarningSink;
+        this.rowLimit = rowLimit;
     }
 
     public List<String> projectedColumns() {
@@ -104,6 +133,10 @@ public final class RangeReadContext {
     @Nullable
     public Consumer<String> informationalWarningSink() {
         return informationalWarningSink;
+    }
+
+    public int rowLimit() {
+        return rowLimit;
     }
 
     @Nullable

@@ -257,8 +257,22 @@ final class PrefetchedRowGroupBuilder {
             // byte-based loop can spuriously continue into bytes that belong to the next column.
             // parquet-mr uses the same value-count termination in ColumnChunkPageReadStore.
             while (valueCount < totalValues) {
-                PageHeader header = Util.readPageHeader(stream);
+                if (stream.available() <= 0) {
+                    break;
+                }
+                PageHeader header;
+                try {
+                    header = Util.readPageHeader(stream);
+                } catch (IOException e) {
+                    if (valueCount > 0) {
+                        break;
+                    }
+                    throw e;
+                }
                 int compressedPageSize = header.getCompressed_page_size();
+                if (stream.available() < compressedPageSize) {
+                    break;
+                }
                 ByteBuffer payload = stream.readPayload(compressedPageSize);
 
                 if (header.type == PageType.DICTIONARY_PAGE) {
@@ -281,6 +295,15 @@ final class PrefetchedRowGroupBuilder {
                     pages.add(new PrefetchedPageReader.CompressedPage(page, -1L));
                     valueCount += page.getValueCount();
                 }
+            }
+            if (valueCount == 0 && totalValues > 0) {
+                throw new IllegalArgumentException(
+                    "Truncated column chunk for ["
+                        + column.getPath().toDotString()
+                        + "] in row group ["
+                        + rowGroupOrdinal
+                        + "] contained no data pages"
+                );
             }
             return new PrefetchedPageReader(decompressor, allocator, pages, dictPage, valueCount);
         } catch (IOException e) {
@@ -527,8 +550,22 @@ final class PrefetchedRowGroupBuilder {
 
         @Override
         public PageHeaderStream openStream(long fileOffset, long totalLength, String columnPath) {
-            ByteBuffer slice = slice(fileOffset, (int) totalLength, columnPath, -1);
-            return new ByteBufferPageHeaderStream(slice);
+            Map.Entry<Long, ColumnChunkPrefetcher.PrefetchedChunk> entry = chunks.floorEntry(fileOffset);
+            ColumnChunkPrefetcher.PrefetchedChunk chunk = entry == null ? null : entry.getValue();
+            if (chunk == null || fileOffset < chunk.offset() || fileOffset >= chunk.offset() + chunk.length()) {
+                throw new IllegalStateException(
+                    "prefetched data does not cover offset="
+                        + fileOffset
+                        + " length="
+                        + totalLength
+                        + " column="
+                        + columnPath
+                        + " rowGroup="
+                        + rowGroupOrdinal
+                );
+            }
+            long available = chunk.offset() + chunk.length() - fileOffset;
+            return new ByteBufferPageHeaderStream(slice(fileOffset, (int) Math.min(totalLength, available), columnPath, -1));
         }
     }
 

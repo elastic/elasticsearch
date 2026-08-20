@@ -71,6 +71,16 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         assertThat(ranges.get(2), equalTo(new CoalescedRangeReader.ByteRange(1100, 200)));
     }
 
+    public void testComputeColumnChunkRangesCapsFirstWindow() {
+        BlockMetaData block = createBlockWithColumns(new ColMeta("tall", 100, 50_000), new ColMeta("small", 50_200, 100));
+
+        List<CoalescedRangeReader.ByteRange> ranges = ColumnChunkPrefetcher.computeColumnChunkRanges(block, null, 4096);
+
+        assertThat(ranges.size(), equalTo(2));
+        assertThat(ranges.get(0), equalTo(new CoalescedRangeReader.ByteRange(100, 4096)));
+        assertThat(ranges.get(1), equalTo(new CoalescedRangeReader.ByteRange(50_200, 100)));
+    }
+
     public void testComputeColumnChunkRangesWithProjection() {
         BlockMetaData block = createBlockWithColumns(
             new ColMeta("col_a", 100, 500),

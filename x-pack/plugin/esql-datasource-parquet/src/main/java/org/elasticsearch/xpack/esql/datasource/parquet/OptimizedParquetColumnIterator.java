@@ -227,16 +227,17 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private final CompressionCodecFactory codecFactory;
     private int rowBudget;
     /**
-     * Async prefetches allowed ahead of the consumed row group. Initialized from
-     * {@link #computePrefetchDepth} based on projected column size (1-3), then adapted
-     * at runtime: grows by {@link #PREFETCH_DEPTH_GROWTH} on stall detection (the
-     * prefetch future was not ready when consumed), shrinks by 1 after
-     * {@link #SHRINK_AFTER_NO_STALLS} consecutive no-stall row groups. Growth is
-     * suppressed when the circuit breaker exceeds {@link #BREAKER_GROWTH_THRESHOLD}
-     * utilization. Bounded by [{@link #prefetchDepthFloor}, {@link #MAX_PREFETCH_DEPTH}].
+     * Async prefetches allowed ahead of the consumed row group. Starts at
+     * {@link #prefetchDepthFloor} (1), grows by {@link #PREFETCH_DEPTH_GROWTH} on stall,
+     * shrinks after {@link #SHRINK_AFTER_NO_STALLS} consecutive no-stalls. Growth is
+     * suppressed when the circuit breaker exceeds {@link #BREAKER_GROWTH_THRESHOLD} and
+     * is capped at {@link #prefetchDepthCeiling} so queued compressed bytes stay within
+     * {@link #heldBytesCap}.
      */
     private int prefetchDepth;
     private final int prefetchDepthFloor;
+    private final int prefetchDepthCeiling;
+    private final long heldBytesCap;
     private int consecutiveNoStalls;
     private final ArrayDeque<PendingPrefetch> pendingPrefetches = new ArrayDeque<>();
     /**
@@ -373,7 +374,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         ColumnDescriptor sortColumnDescriptor,
         ParquetReaderCounters counters,
         ErrorPolicy errorPolicy,
-        @Nullable Consumer<String> warningSink
+        @Nullable Consumer<String> warningSink,
+        long heldBytesCap
     ) {
         this.errorPolicy = errorPolicy;
         this.warningSink = warningSink;
@@ -437,7 +439,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             projectionOnlyColumnPaths,
             fileLocation
         );
-        this.prefetchDepthFloor = computePrefetchDepth(reader.getRowGroups(), this.projectedColumnPaths);
+        this.heldBytesCap = heldBytesCap;
+        long projectedBytes = projectedColumnBytes(reader.getRowGroups(), this.projectedColumnPaths);
+        this.prefetchDepthFloor = 1;
+        this.prefetchDepthCeiling = computePrefetchDepthCeiling(projectedBytes, heldBytesCap);
         this.prefetchDepth = this.prefetchDepthFloor;
 
         reader.setRequestedSchema(projectedSchema);
@@ -454,6 +459,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             return;
         }
         if (dynamicThreshold != null && dynamicThreshold.noFurtherCandidates()) {
+            return;
+        }
+        if (rowBudget != FormatReader.NO_LIMIT && rowBudget <= 0) {
             return;
         }
         int startOrdinal = nextSurvivingRowGroupOrdinal(0);
@@ -477,6 +485,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         Set<String> phaseColumns = useTwoPhase ? predicateColumnPaths : projectedColumnPaths;
         int nextOrdinal = fromOrdinal;
         while (pendingPrefetches.size() < prefetchDepth && nextOrdinal < rowGroups.size()) {
+            if (rowBudget != FormatReader.NO_LIMIT && rowBudget <= 0) {
+                break;
+            }
+            if (limitPrefetchCovered()) {
+                break;
+            }
             if (dynamicThreshold != null && dynamicThreshold.noFurtherCandidates()) {
                 break;
             }
@@ -485,7 +499,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 nextOrdinal = nextSurvivingRowGroupOrdinal(nextOrdinal + 1);
                 continue;
             }
-            long prefetchBytes = ColumnChunkPrefetcher.computePrefetchBytes(nextBlock, phaseColumns);
+            long prefetchBytes = ColumnChunkPrefetcher.computePrefetchBytes(nextBlock, phaseColumns, prefetchMaxBytesPerColumn());
             if (prefetchBytes <= 0) {
                 nextOrdinal = nextSurvivingRowGroupOrdinal(nextOrdinal + 1);
                 continue;
@@ -519,7 +533,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                         blockFactory.arrowAllocator()
                     );
                 } else {
-                    future = ColumnChunkPrefetcher.prefetchAsync(storageObject, nextBlock, phaseColumns, blockFactory.arrowAllocator());
+                    future = ColumnChunkPrefetcher.prefetchAsync(
+                        storageObject,
+                        nextBlock,
+                        phaseColumns,
+                        blockFactory.arrowAllocator(),
+                        prefetchMaxBytesPerColumn()
+                    );
                 }
                 pendingPrefetches.addLast(new PendingPrefetch(nextOrdinal, future));
             } catch (Exception e) {
@@ -528,6 +548,28 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             }
             nextOrdinal = nextSurvivingRowGroupOrdinal(nextOrdinal + 1);
         }
+    }
+
+    private boolean unfilteredLimit() {
+        return rowBudget != FormatReader.NO_LIMIT && lateMaterialization == false;
+    }
+
+    private long prefetchMaxBytesPerColumn() {
+        return unfilteredLimit() ? heldBytesCap : Long.MAX_VALUE;
+    }
+
+    private boolean limitPrefetchCovered() {
+        if (unfilteredLimit() == false) {
+            return false;
+        }
+        long rows = 0;
+        if (rowGroupOrdinal >= 0) {
+            rows += rowsRemainingInGroup;
+        }
+        for (PendingPrefetch pending : pendingPrefetches) {
+            rows += reader.getRowGroups().get(pending.ordinal()).getRowCount();
+        }
+        return rows >= rowBudget;
     }
 
     private boolean rowGroupDominatedByThreshold(BlockMetaData block) {
@@ -740,22 +782,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         return ParquetColumnDecoding.isUnsignedInt64(sortColumnPrimitiveType) ? ParquetColumnDecoding.encodeUnsignedLong(raw) : null;
     }
 
-    private static final long DEEPER_PREFETCH_BYTES = 32_000_000L;
-    private static final long SHALLOW_PREFETCH_BYTES = 8_000_000L;
+    static final long DEFAULT_HELD_BYTES_CAP = 32L * 1024 * 1024;
     private static final int MAX_PREFETCH_DEPTH = 8;
     private static final int PREFETCH_DEPTH_GROWTH = 2;
     private static final int SHRINK_AFTER_NO_STALLS = 3;
     private static final double BREAKER_GROWTH_THRESHOLD = 0.75;
 
-    /**
-     * Computes the initial (floor) prefetch depth from the projected byte footprint of the
-     * first row group. This value serves as the floor for the adaptive depth — the runtime
-     * stall detector may increase depth up to {@link #MAX_PREFETCH_DEPTH} but never below
-     * this byte-based result.
-     */
-    private static int computePrefetchDepth(List<BlockMetaData> rowGroups, Set<String> projectedColumnPaths) {
+    static long projectedColumnBytes(List<BlockMetaData> rowGroups, Set<String> projectedColumnPaths) {
         if (rowGroups.isEmpty()) {
-            return 1;
+            return 0L;
         }
         BlockMetaData block = rowGroups.get(0);
         long projectedBytes = 0;
@@ -764,22 +799,18 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 projectedBytes += col.getTotalSize();
             }
         }
-        // Larger projected sizes need deeper prefetch: an S3 GET for a 20MB string column takes
-        // ~200ms while decode takes ~10ms, so single-ahead can't hide the latency. The circuit
-        // breaker caps actual memory regardless of depth.
-        //
-        // Two-phase note: under two-phase the queued prefetches carry only predicate columns, so
-        // the actual queued bytes are a fraction of {@code projectedBytes}. We intentionally keep
-        // the depth sized on the full projection footprint because the synchronous Phase-2 fetch
-        // we issue inside {@code advanceRowGroup} is what dominates per-row-group latency under
-        // two-phase, and a deeper queue lets Phase 1 of the next row group overlap that wait.
-        if (projectedBytes > DEEPER_PREFETCH_BYTES) {
-            return 3;
+        return projectedBytes;
+    }
+
+    static int computePrefetchDepthCeiling(long projectedBytes, long heldBytesCap) {
+        if (projectedBytes <= 0) {
+            return MAX_PREFETCH_DEPTH;
         }
-        if (projectedBytes > SHALLOW_PREFETCH_BYTES) {
-            return 2;
+        long fit = heldBytesCap / projectedBytes;
+        if (fit < 1) {
+            return 1;
         }
-        return 1;
+        return (int) Math.min(MAX_PREFETCH_DEPTH, fit);
     }
 
     /**
@@ -981,6 +1012,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
         if (rowBudget != FormatReader.NO_LIMIT && rowBudget <= 0) {
             exhausted = true;
+            releaseHeldIo();
             return false;
         }
         // Under two-phase, drain leading fully-filtered batches before deciding: the source-row
@@ -1010,7 +1042,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
         if (dynamicThreshold != null && dynamicThreshold.noFurtherCandidates()) {
             exhausted = true;
-            cancelPendingPrefetch();
+            releaseHeldIo();
             return false;
         }
         try {
@@ -1083,8 +1115,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 int nextOrdinal = nextSurvivingRowGroupOrdinal(rowGroupOrdinal + 1);
                 if (nextOrdinal >= reader.getRowGroups().size()) {
                     exhausted = true;
-                    cancelPendingPrefetch();
-                    releaseCurrentReservation();
+                    releaseHeldIo();
                     logIteratorDiagnostics();
                     return false;
                 }
@@ -1344,6 +1375,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         long rowsConsumed = 0;
         try {
             while (rowsConsumed < rowGroupRowCount) {
+                if (rowBudget != FormatReader.NO_LIMIT && totalSurvivors >= rowBudget) {
+                    break;
+                }
                 int rowsToRead = (int) Math.min(batchSize, rowGroupRowCount - rowsConsumed);
                 BatchPredicateResult batch = decodePredicateBatch(rowsToRead, (int) rowsConsumed, globalSurvivors);
                 predicateBatches.add(batch.compactedPredicateBlocks);
@@ -1788,9 +1822,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     /**
      * Adjusts {@link #prefetchDepth} based on whether the consumed prefetch future was already
      * complete. A stall ({@code wasReady == false}) means the consumer outpaced the producer —
-     * grow depth by {@link #PREFETCH_DEPTH_GROWTH} unless the circuit breaker is under pressure.
-     * Sustained no-stalls mean the queue is deep enough — shrink by 1 after
-     * {@link #SHRINK_AFTER_NO_STALLS} consecutive hits.
+     * grow depth by {@link #PREFETCH_DEPTH_GROWTH} unless the circuit breaker is under pressure
+     * or {@link #prefetchDepthCeiling} is already reached. Sustained no-stalls mean the queue is
+     * deep enough — shrink by 1 after {@link #SHRINK_AFTER_NO_STALLS} consecutive hits.
      */
     // Package-private for testing
     void adaptPrefetchDepth(boolean wasReady) {
@@ -1801,7 +1835,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             }
         } else {
             if (breakerPressure() < BREAKER_GROWTH_THRESHOLD) {
-                prefetchDepth = Math.min(prefetchDepth + PREFETCH_DEPTH_GROWTH, MAX_PREFETCH_DEPTH);
+                prefetchDepth = Math.min(prefetchDepth + PREFETCH_DEPTH_GROWTH, prefetchDepthCeiling);
             }
             consecutiveNoStalls = 0;
         }
@@ -1820,6 +1854,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     // Visible for testing
     int prefetchDepth() {
         return prefetchDepth;
+    }
+
+    // Visible for testing
+    int prefetchDepthCeiling() {
+        return prefetchDepthCeiling;
     }
 
     /**
@@ -2480,16 +2519,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
     @Override
     public void close() throws IOException {
-        cancelPendingPrefetch();
         try {
-            closeTwoPhaseState();
-            closePageColumnReaders();
-            if (rowGroup != null) {
-                rowGroup.close();
-                rowGroup = null;
-            }
+            releaseHeldIo();
         } finally {
-            releaseCurrentReservation();
             try {
                 if (preloadedMetadata != null) {
                     preloadedMetadata.close();
@@ -2497,6 +2529,24 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             } finally {
                 reader.close();
             }
+        }
+    }
+
+    private void releaseHeldIo() {
+        try {
+            closeTwoPhaseState();
+            closePageColumnReaders();
+            if (rowGroup != null) {
+                try {
+                    rowGroup.close();
+                } catch (Exception e) {
+                    logger.warn("Failed to close row-group store for [{}] in [{}]", rowGroupOrdinal, fileLocation, e);
+                }
+                rowGroup = null;
+            }
+        } finally {
+            cancelPendingPrefetch();
+            releaseCurrentReservation();
         }
     }
 

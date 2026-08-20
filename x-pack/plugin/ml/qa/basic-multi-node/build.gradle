@@ -12,9 +12,13 @@ dependencies {
 }
 
 tasks.named("javaRestTest").configure {
-  usesDefaultDistribution("ml basic multi node tests require the ml plugin and the trial license from the default distribution")
-  // Both IT classes share a single 3-node cluster (see Clusters#CLUSTER), mirroring the single cluster the
-  // legacy testClusters setup created for this task. A shared cluster requires serial execution.
+  // Verified by experiment, not assumed: on INTEG_TEST the nodes fail to boot on the unregistered
+  // xpack.monitoring / slm / indices.lifecycle settings, and once those are dropped the master hits
+  // "expected [index.lifecycle.name] to be private" while installing the ML index templates.
+  usesDefaultDistribution("ML index templates need ILM, and the cluster sets monitoring/SLM/ILM settings")
+
+  // Both IT classes share one 3-node cluster (see Clusters#CLUSTER). Sharing is per-JVM, so parallel forks
+  // would each start their own cluster and negate the saving; measured 71s serial+shared vs 85-91s parallel.
   maxParallelForks = 1
 }
 

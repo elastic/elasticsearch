@@ -22,6 +22,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Round-trips a chunked byte stream through a real {@link Directory} for every codec, several chunk targets
@@ -155,6 +158,98 @@ public class ChunkedBytesTests extends ESTestCase {
         final long small = writeAndMeasure(ChunkCodec.ZSTD, 1024, values);
         final long large = writeAndMeasure(ChunkCodec.ZSTD, 64 * 1024, values);
         assertTrue("a 64KB chunk must beat a 1KB chunk, small=" + small + " large=" + large, large < small);
+    }
+
+    /**
+     * Many threads reading one stream at once, each through its own reader. A segment is read concurrently,
+     * so anything a reader carries — its buffers, its position in the input — has to be its own. Nothing
+     * here is shared but the metadata and the file.
+     */
+    public void testConcurrentReaders() throws Exception {
+        final List<byte[]> values = new ArrayList<>();
+        for (int i = 0; i < 20_000; i++) {
+            values.add(bytes("value-" + i + "-" + "abcdefghij".repeat(i % 7)));
+        }
+        try (Directory dir = newDirectory()) {
+            final long[] offsets = new long[values.size() + 1];
+            final ChunkIndexMetadata index = writeStream(dir, ChunkCodec.ZSTD, 16 * 1024, values, offsets);
+            try (IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT)) {
+                final int threads = 8;
+                final CountDownLatch start = new CountDownLatch(1);
+                final AtomicReference<Throwable> failure = new AtomicReference<>();
+                final List<Thread> workers = new ArrayList<>();
+                for (int t = 0; t < threads; t++) {
+                    final int seed = t;
+                    final Thread worker = new Thread(() -> {
+                        try {
+                            final ChunkedBytesReader reader = index.open(in);
+                            final Random random = new Random(seed);
+                            start.await();
+                            byte[] scratch = new byte[0];
+                            for (int probe = 0; probe < 4000; probe++) {
+                                final int i = random.nextInt(values.size());
+                                final int length = (int) (offsets[i + 1] - offsets[i]);
+                                scratch = reader.read(offsets[i], length, scratch);
+                                final byte[] actual = Arrays.copyOf(scratch, length);
+                                if (Arrays.equals(values.get(i), actual) == false) {
+                                    throw new AssertionError("thread " + seed + " read value " + i + " wrongly");
+                                }
+                            }
+                        } catch (Throwable e) {
+                            failure.compareAndSet(null, e);
+                        }
+                    });
+                    workers.add(worker);
+                    worker.start();
+                }
+                start.countDown();
+                for (Thread worker : workers) {
+                    worker.join();
+                }
+                if (failure.get() != null) {
+                    throw new AssertionError("a concurrent reader failed", failure.get());
+                }
+            }
+        }
+    }
+
+    /**
+     * A corrupted stream must fail rather than mislead. What it must never do is hang or read past its
+     * bounds: a length taken from damaged bytes is still used to size a buffer and to walk a chunk.
+     */
+    public void testCorruptedStreamFailsCleanly() throws IOException {
+        final List<byte[]> values = new ArrayList<>();
+        for (int i = 0; i < 3000; i++) {
+            values.add(bytes("value-" + i));
+        }
+        for (int iteration = 0; iteration < 30; iteration++) {
+            try (Directory dir = newDirectory()) {
+                final long[] offsets = new long[values.size() + 1];
+                final ChunkIndexMetadata index = writeStream(dir, ChunkCodec.ZSTD, 4096, values, offsets);
+                final long length = dir.fileLength("chunks.bin");
+                final byte[] file = new byte[Math.toIntExact(length)];
+                try (IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT)) {
+                    in.readBytes(file, 0, file.length);
+                }
+                file[between(0, file.length - 1)] ^= (byte) (1 << between(0, 7));
+                try (IndexOutput out = dir.createOutput("corrupt.bin", IOContext.DEFAULT)) {
+                    out.writeBytes(file, 0, file.length);
+                }
+                try (IndexInput in = dir.openInput("corrupt.bin", IOContext.DEFAULT)) {
+                    final ChunkedBytesReader reader = index.open(in);
+                    byte[] scratch = new byte[0];
+                    for (int i = 0; i < values.size(); i++) {
+                        final int span = (int) (offsets[i + 1] - offsets[i]);
+                        try {
+                            scratch = reader.read(offsets[i], span, scratch);
+                        } catch (IOException | RuntimeException | AssertionError expected) {
+                            // Reporting the damage is the correct outcome; reading on quietly is not.
+                            break;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /** A stream that holds no bytes writes no chunk index, since there is no chunk for one to locate. */

@@ -4482,4 +4482,45 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(snapshot.getEsqlQueriesTotal(), equalTo(0L));
         assertThat(snapshot.getEsqlProjectRoutingFailures(), equalTo(0L));
     }
+
+    public void testProjectRoutingFailureWithLocalApiKey() {
+        var origin = createRandomProjectWithAlias(randomAlphaOfLengthBetween(5, 10));
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            var callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
+            // local API key can only access the origin project
+            callback.onResponse(new TargetProjects(origin));
+            return null;
+        }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
+        when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
+        when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
+
+        var emptyResultResolver = new ProjectRoutingResolver() {
+            @Override
+            public void validate(String projectRouting, ProjectMetadata projectMetadata) {}
+
+            @Override
+            public TargetProjects resolve(String projectRouting, ProjectMetadata projectMetadata, TargetProjects authorizedProjects) {
+                return TargetProjects.EMPTY;
+            }
+        };
+
+        authorizationService = createCpsAuthorizationService(emptyResultResolver, new UsageService());
+        var authentication = Authentication.newApiKeyAuthentication(
+            AuthenticationResult.success(new User(randomAlphaOfLengthBetween(3, 8)), Map.of(API_KEY_ID_KEY, randomAlphaOfLength(20))),
+            randomAlphaOfLengthBetween(3, 8)
+        );
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        var request = new ResolveIndexAction.Request(
+            new String[] { randomAlphanumericOfLength(8) },
+            ResolveIndexAction.Request.DEFAULT_INDICES_OPTIONS,
+            null,
+            "_alias:linked"
+        );
+        var ex = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> authorize(authentication, ResolveIndexAction.NAME, request, true, null)
+        );
+        assertThat(ex.getMessage(), containsString("Elasticsearch API keys cannot access linked projects"));
+    }
 }

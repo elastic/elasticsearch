@@ -701,13 +701,17 @@ public class AuthorizationService {
             return;
         }
         auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
-        if (ex instanceof IndexNotFoundException
+        if (ex instanceof NoMatchingProjectException && authentication.isApiKey()) {
+            listener.onFailure(
+                actionDenied(authentication, authzInfo, action, request, "because Elasticsearch API keys cannot access linked projects", ex)
+            );
+        } else if (ex instanceof IndexNotFoundException
             || ex instanceof NoMatchingProjectException
             || ex instanceof NoSuchRemoteClusterException) {
-            listener.onFailure(ex);
-        } else {
-            listener.onFailure(actionDenied(authentication, authzInfo, action, request, ex));
-        }
+                listener.onFailure(ex);
+            } else {
+                listener.onFailure(actionDenied(authentication, authzInfo, action, request, ex));
+            }
     }
 
     /**

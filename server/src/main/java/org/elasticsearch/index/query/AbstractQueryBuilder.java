@@ -439,6 +439,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
             // Counts nested QueryBuilders.
             int clauseCount;
             final int maxClauses = IndexSearcher.getMaxClauseCount(); // snapshot; avoid concurrent mutation
+
             @Override
             public <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException {
                 if (categoryClass.equals(QueryBuilder.class)) {

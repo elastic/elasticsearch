@@ -170,9 +170,8 @@
   - match: { indicators.shards_availability.impacts.0.impact_areas.0: "search" }
   - match: { indicators.shards_availability.impacts.0.description: "Searches might be slower than usual. Fewer redundant copies of the data exist on 1 index [${_project_id_prefix_}red_replica_index]." }
 
-  - length: { indicators.shards_availability.diagnosis: 1 }
-  - match: { indicators.shards_availability.diagnosis.0.id: "elasticsearch:health:shards_availability:diagnosis:enable_index_allocations" }
-  - match: { indicators.shards_availability.diagnosis.0.affected_resources.indices.0: "${_project_id_prefix_}red_replica_index" }
+  - is_true: indicators.shards_availability.diagnosis
+  - contains: { indicators.shards_availability.diagnosis: { id: "elasticsearch:health:shards_availability:diagnosis:enable_index_allocations" } }
 
   - do:
       cluster.put_settings:

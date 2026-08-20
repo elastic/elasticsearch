@@ -2812,17 +2812,16 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     try {
                         // For NdJson with Dynamic.FALSE the reader receives the full declared
                         // schema (all 3 columns). `department` is absent from every record, so
-                        // NdJsonPageDecoder null-fills it and fires absentInRecordMessage
-                        // ("is absent in some records") on the first occurrence, NOT
-                        // absentDeclaredColumnMessage ("is not present") — the latter is for
-                        // formats where the column is absent from the file schema itself.
+                        // NdJsonPageDecoder emits absentDeclaredColumnMessage ("is not present")
+                        // at close() — a column absent from all records is effectively absent
+                        // from the file, so the file-level message is the accurate one.
                         internalCluster().getInstance(TransportService.class)
                             .getThreadPool()
                             .getThreadContext()
                             .getResponseHeaders()
                             .getOrDefault("Warning", List.of())
                             .stream()
-                            .filter(w -> w.contains("declared column [department] is absent in some records"))
+                            .filter(w -> w.contains("declared column [department] is not present"))
                             .forEach(warnings::add);
                     } finally {
                         latch.countDown();
@@ -2840,7 +2839,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         if (queryFailure.get() != null) {
             throw queryFailure.get();
         }
-        assertThat("the absent declared column must emit an absentInRecordMessage Warning header on NDJSON", warnings, not(empty()));
+        assertThat("the absent declared column must emit an absentDeclaredColumnMessage Warning header on NDJSON", warnings, not(empty()));
     }
 
     public void testDeclaredTypeConflictingWithPhysicalParquetTypeRejected() throws Exception {

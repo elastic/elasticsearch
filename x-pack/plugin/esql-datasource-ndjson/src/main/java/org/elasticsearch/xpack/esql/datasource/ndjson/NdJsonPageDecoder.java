@@ -225,8 +225,13 @@ public class NdJsonPageDecoder implements Closeable {
     // What blocks got a value on the current line? Needed because Block.Builder doesn't provide
     // the number of positions that were added.
     private final BitSet blockTracker;
-    /** Tracks which projected columns have already triggered an absent-declared-column warning. */
-    private BitSet absentColumnWarned;
+    /**
+     * Tracks which projected columns have been seen non-null in at least one committed record. Used at {@link #close()}
+     * to emit {@link SkipWarnings#absentInRecordMessage} for columns that were always null (entirely absent from the
+     * file). We do NOT warn for columns absent from individual records but present in others: that is normal sparse
+     * NdJson data and not an error condition.
+     */
+    private BitSet columnEverNonNull;
     /** Informational warning sink for absent declared columns; {@code null} when no sink is wired. */
     @Nullable
     private Consumer<String> absentColumnWarningSink;
@@ -701,7 +706,7 @@ public class NdJsonPageDecoder implements Closeable {
         this.blockTracker = new BitSet(projectedAttributes.size());
         if (warningSink != null) {
             this.absentColumnWarningSink = warningSink;
-            this.absentColumnWarned = new BitSet(projectedAttributes.size());
+            this.columnEverNonNull = new BitSet(projectedAttributes.size());
         }
         this.initialSliceStart = sourceOffset;
         this.rowPositionSlot = SyntheticColumns.rowPositionIndexInAttributes(projectedAttributes);
@@ -862,22 +867,11 @@ public class NdJsonPageDecoder implements Closeable {
         recordChargedToBudget = true;
     }
 
-    /**
-     * Emits one informational warning for column {@code idx} the first time it is null-filled
-     * because the JSON record does not contain that field. Subsequent null-fills for the same
-     * column (same file) are suppressed here; the informational-warning budget at the caller
-     * deduplicates the same message across files and queries.
-     */
-    private void warnAbsentColumnIfNeeded(int idx) {
-        if (absentColumnWarningSink == null || absentColumnWarned.get(idx)) {
-            return;
+    /** Records that column {@code idx} was seen non-null in a committed record. */
+    private void markColumnSeen(int idx) {
+        if (columnEverNonNull != null) {
+            columnEverNonNull.set(idx);
         }
-        Attribute attr = projectedAttributes.get(idx);
-        if (attr.dataType() == DataType.NULL || attr.dataType() == DataType.UNSUPPORTED) {
-            return;
-        }
-        absentColumnWarned.set(idx);
-        absentColumnWarningSink.accept(SkipWarnings.absentInRecordMessage(attr.name()));
     }
 
     /**
@@ -1098,7 +1092,8 @@ public class NdJsonPageDecoder implements Closeable {
             for (int i = 0; i < blockBuilders.length; i++) {
                 if (blockTracker.get(i) == false) {
                     blockBuilders[i].appendNull();
-                    warnAbsentColumnIfNeeded(i);
+                } else {
+                    markColumnSeen(i);
                 }
             }
         }
@@ -1213,7 +1208,8 @@ public class NdJsonPageDecoder implements Closeable {
                 for (int i = 0; i < rowScratch.length; i++) {
                     if (blockTracker.get(i) == false) {
                         rowScratch[i].appendNull();
-                        warnAbsentColumnIfNeeded(i);
+                    } else {
+                        markColumnSeen(i);
                     }
                 }
                 appendDecodedScratchRow(blockBuilders, rowScratch);
@@ -1357,6 +1353,23 @@ public class NdJsonPageDecoder implements Closeable {
 
     @Override
     public void close() throws IOException {
+        // Emit absent-column warnings for columns that were declared but never appeared in any committed
+        // record. We wait until close() because we need to see all records before we can distinguish
+        // "always absent" (warn) from "absent in some records but present in others" (normal sparse data,
+        // do not warn). Only fires when at least one record was processed — an empty file has no null-fills.
+        // A column absent from every record is effectively absent from the file, so we use
+        // absentDeclaredColumnMessage rather than absentInRecordMessage for accuracy and to deduplicate
+        // cleanly with Parquet/SAI warnings for the same column via InformationalWarningBudget.
+        if (absentColumnWarningSink != null && totalRowCount > 0) {
+            for (int i = 0; i < projectedAttributes.size(); i++) {
+                if (columnEverNonNull.get(i) == false) {
+                    Attribute attr = projectedAttributes.get(i);
+                    if (attr.dataType() != DataType.NULL && attr.dataType() != DataType.UNSUPPORTED) {
+                        absentColumnWarningSink.accept(SkipWarnings.absentDeclaredColumnMessage(attr.name()));
+                    }
+                }
+            }
+        }
         // input may be null on the byte-array fast path; IOUtils.close tolerates null entries.
         // We also close `parser` so its internal buffers (small but real) are released on the byte-array
         // path, where there is no `input` to close. AUTO_CLOSE_SOURCE is disabled on the shared

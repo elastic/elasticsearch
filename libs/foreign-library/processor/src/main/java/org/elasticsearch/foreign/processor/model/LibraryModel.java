@@ -187,7 +187,7 @@ public record LibraryModel(
 
             StructModel structModel = kind == ElementKind.RECORD
                 ? StructSpecParser.fromRecord(typeElement, supportedPlatforms, messager)
-                : StructSpecParser.fromInterface(typeElement, structSimpleNames, supportedPlatforms, env, messager);
+                : StructSpecParser.fromInterface(typeElement, structSimpleNames, supportedPlatforms, unavailableOn, env, messager);
             if (structModel == null) {
                 hasError = true;
             } else {

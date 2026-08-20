@@ -527,7 +527,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 mapperMetrics.sourceFieldMetrics(),
                 mappingLookup.getMapping().ignoredSourceFormat()
             )
-            : mappingLookup.newSourceLoader(sourceFilter, mapperMetrics.sourceFieldMetrics());
+            : mappingLookup.newSourceLoader(sourceFilter, mapperMetrics.sourceFieldMetrics(), null);
         StoredFieldLoader storedFieldLoader = buildStoredFieldLoader(storedFieldSet, fetchSourceContext, loader);
         LeafStoredFieldLoader leafStoredFieldLoader = storedFieldLoader.getLoader(docIdAndVersion.reader.getContext(), null);
         try {
@@ -601,7 +601,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         BytesReference sourceBytes = null;
         if (mapperService.mappingLookup().isSourceEnabled() && fetchSourceContext.fetchSource()) {
-            Source source = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId })
+            Source source = loader.leaf(docIdAndVersion.reader.getContext(), new int[] { docIdAndVersion.docId })
                 .source(leafStoredFieldLoader, docIdAndVersion.docId);
 
             SourceFilter filter = fetchSourceContext.filter();

@@ -32,8 +32,8 @@ public interface ESVectorUtilSupport {
     /** Calculates the dot product of the given float arrays. */
     float dotProduct(float[] a, float[] b);
 
-    /** Calculates the dot product over {@code [offset, offset + length)}. */
-    float dotProduct(float[] a, float[] b, int offset, int length);
+    /** Calculates the dot product over {@code [[ab]Offset, [ab]Offset + length)}. */
+    float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length);
 
     /**
      * L2-normalizes {@code v[offset:offset + length)} in place. A zero prefix is a no-op.
@@ -83,36 +83,13 @@ public interface ESVectorUtilSupport {
 
     int ipByteBit(byte[] q, byte[] d);
 
-    float ipFloatBit(float[] q, byte[] d);
+    float ipFloatBit(float[] q, int qOffset, byte[] d, int dOffset, int qLength);
 
     float ipFloatByte(float[] q, byte[] d);
-
-    float calculateOSQLoss(
-        float[] target,
-        float lowerInterval,
-        float upperInterval,
-        float step,
-        float invStep,
-        float norm2,
-        float lambda,
-        int[] quantize
-    );
-
-    void calculateOSQGridPoints(float[] target, int[] quantize, int points, float[] pts);
-
-    void centerAndCalculateOSQStatsEuclidean(float[] target, float[] centroid, float[] centered, float[] stats);
-
-    void centerAndCalculateOSQStatsDp(float[] target, float[] centroid, float[] centered, float[] stats);
-
-    void centerAndCalculateOSQStatsEuclidean(byte[] target, byte[] centroid, float[] centered, float[] stats);
-
-    void centerAndCalculateOSQStatsDp(byte[] target, byte[] centroid, float[] centered, float[] stats);
 
     float soarDistance(float[] v1, float[] centroid, float[] originalResidual, float soarLambda, float rnorm);
 
     float soarDistance(byte[] v1, byte[] centroid, float[] originalResidual, float soarLambda, float rnorm);
-
-    int quantizeVectorWithIntervals(float[] vector, int[] quantize, float lowInterval, float upperInterval, byte bit);
 
     void dotProductBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances);
 
@@ -184,9 +161,9 @@ public interface ESVectorUtilSupport {
 
     void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches);
 
-    void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest);
+    void linearCombination(float scaleOther, float[] other, int otherOffset, float scaleDest, float[] dest, int destOffset, int length);
 
-    void linearCombination(float scaleOther, float[] other, float[] dest);
+    void linearCombination(float scaleOther, float[] other, int otherOffset, float[] dest, int destOffset, int length);
 
     void linearCombination(float scaleOther, byte[] other, float scaleDest, float[] dest);
 

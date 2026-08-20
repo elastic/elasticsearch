@@ -1,0 +1,5 @@
+area: FIPS
+issues: []
+pr: 156296
+summary: Upgrade Bouncy Castle FIPS to 1.0.2.7 and 2.0.2
+type: upgrade

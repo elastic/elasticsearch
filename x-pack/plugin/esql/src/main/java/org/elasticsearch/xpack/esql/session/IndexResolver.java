@@ -20,7 +20,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -48,6 +47,7 @@ import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
@@ -408,11 +408,11 @@ public class IndexResolver {
         }
 
         boolean allEmpty = true;
-        Map<String, IndexMode> indexNameWithModes = Maps.newMapWithExpectedSize(indexResponses.size());
+        Map<String, IndexProperties> indexProperties = Maps.newMapWithExpectedSize(indexResponses.size());
         Map<String, List<String>> concreteIndices = Maps.newHashMapWithExpectedSize(8);
         for (FieldCapabilitiesIndexResponse ir : indexResponses) {
             allEmpty &= ir.get().isEmpty();
-            indexNameWithModes.put(ir.getIndexName(), ir.getIndexMode());
+            indexProperties.put(ir.getIndexName(), new IndexProperties(ir.getIndexMode(), ir.getNumberOfShards()));
             var split = RemoteClusterAware.splitIndexName(ir.getIndexName());
             concreteIndices.computeIfAbsent(split.getClusterGroupingKey(), k -> new ArrayList<>()).add(split.indexExpression());
         }
@@ -423,10 +423,11 @@ public class IndexResolver {
         // mapping index will generate no columns (important) for a query like FROM empty-mapping-index, whereas an empty result here but
         // for fields that do not exist in the index (but the index has a mapping) will result in "VerificationException Unknown column"
         // errors.
+        var resolvedProperties = allEmpty ? Map.<String, IndexProperties>of() : indexProperties;
         var index = new EsIndex(
             indexPattern,
             rootFields,
-            allEmpty ? Map.of() : indexNameWithModes,
+            resolvedProperties,
             // instead of using indexSplitter we could use original indices from
             // FieldCapabilitiesResponse#resolvedLocally and FieldCapabilitiesResponse#resolvedRemotely
             // once all remotes support it (v9.3+)
@@ -434,7 +435,7 @@ public class IndexResolver {
             concreteIndices
         );
         var failures = EsqlCCSUtils.groupFailuresPerCluster(fieldsInfo.caps.getFailures());
-        return IndexResolution.valid(index, indexNameWithModes.keySet(), failures);
+        return IndexResolution.valid(index, indexProperties.keySet(), failures);
     }
 
     private record IndexFieldCapabilitiesWithSourceHash(List<IndexFieldCapabilities> fieldCapabilities, String indexMappingHash) {}

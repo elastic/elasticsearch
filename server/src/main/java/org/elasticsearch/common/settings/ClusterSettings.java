@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.allocation.TransportGetAllocationS
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
+import org.elasticsearch.action.bulk.PreResolvedUpdates;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
@@ -280,6 +281,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         IncrementalBulkService.INCREMENTAL_BULK,
         IncrementalBulkService.REQUEST_TIMEOUT,
         ShardBatchIndexer.BATCH_INDEXING,
+        PreResolvedUpdates.PRE_RESOLVE_BULK_UPDATES,
         RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
         RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,
         RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING,
@@ -670,6 +672,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
         IndicesClusterStateService.CONCURRENT_SHARD_CLOSE_LIMIT,
         IngestSettings.GROK_WATCHDOG_INTERVAL,
         IngestSettings.GROK_WATCHDOG_MAX_EXECUTION_TIME,
+        IngestSettings.MAX_PIPELINES,
+        IngestSettings.MAX_PIPELINE_SIZE,
+        IngestSettings.MAX_TOTAL_METADATA_SIZE,
         TDigestExecutionHint.SETTING,
         MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT_SETTING,
         MergePolicyConfig.DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT_SETTING,

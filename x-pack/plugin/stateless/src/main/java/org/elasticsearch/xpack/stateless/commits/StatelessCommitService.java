@@ -72,7 +72,7 @@ import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitC
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
-import org.elasticsearch.xpack.stateless.commits.metering.BccUploadMetricsCollector;
+import org.elasticsearch.xpack.stateless.commits.metering.BccUploadMetrics;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -248,7 +248,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final long bccUploadSlowLogThresholdMillis;
     private final boolean useInternalFilesReplicatedContent;
     private final int cacheRegionSizeInBytes;
-    private final BccUploadMetricsCollector metricsCollector;
+    private final BccUploadMetrics metrics;
 
     /**
      * An estimate of the maximum size in bytes that the header and replicated contents are likely to fill in a region. This is used when a
@@ -336,10 +336,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             useInternalFilesReplicatedContent ? "enabled" : "disabled",
             estimatedMaxHeaderSizeInBytes
         );
-        this.metricsCollector = new BccUploadMetricsCollector(
-            telemetryProvider,
-            STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE.get(settings)
-        );
+        this.metrics = new BccUploadMetrics(telemetryProvider, STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE.get(settings));
     }
 
     public boolean useReplicatedRanges() {
@@ -477,7 +474,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     }
 
     public double getAverageCommitUploadThroughputMiBSec() {
-        return metricsCollector.getAverageUploadThroughputMiBSec();
+        return metrics.getAverageUploadThroughputMiBSec();
     }
 
     public Stream<? extends ShardCommitUploadStats> getShardCommitStats() {
@@ -829,7 +826,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             hotThreadsLogInterval,
             newUploadTaskListener(commitState, virtualBcc, blobReference)
         );
-        metricsCollector.recordBccUpload(
+        metrics.recordBccUpload(
             virtualBcc.getTotalSizeInBytes(),
             virtualBcc.size(),
             threadPool.relativeTimeInMillis() - virtualBcc.getCreationTimeInMillis(),
@@ -850,7 +847,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             @Override
             public void onResponse(BccUploadResult uploadResult) {
                 maybeLogSlowBccUpload(virtualBcc, uploadResult);
-                metricsCollector.recordUploadThroughput(uploadResult.uploadThroughputMiBPerSec());
+                metrics.recordUploadThroughput(uploadResult.uploadThroughputMiBPerSec());
                 commitState.pendingUploadBytes.addAndGet(-1 * virtualBcc.getTotalSizeInBytes());
                 final BatchedCompoundCommit uploadedBcc = uploadResult.batchedCompoundCommit();
                 try {

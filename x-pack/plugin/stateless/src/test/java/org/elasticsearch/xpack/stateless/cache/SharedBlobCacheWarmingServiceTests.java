@@ -74,7 +74,7 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitTestUtils;
-import org.elasticsearch.xpack.stateless.commits.metering.BccUploadMetricsCollector;
+import org.elasticsearch.xpack.stateless.commits.metering.BccUploadMetrics;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
@@ -2217,8 +2217,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         .filter(
                             measurement -> Double.compare(measurement.getDouble(), blobSpec.ratio()) == 0
                                 && measurement.attributes()
-                                    .get(BccUploadMetricsCollector.BCC_SIZE_ATTRIBUTE_KEY)
-                                    .equals(BccUploadMetricsCollector.bccSizeBucket(blobSpec.blobSize()))
+                                    .get(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY)
+                                    .equals(BccUploadMetrics.bccSizeBucket(blobSpec.blobSize()))
                         )
                         .count(),
                     is(1L)
@@ -2236,12 +2236,12 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 .thenComparing(Map.Entry::getValue);
             assertThat(
                 requestedBytesMeasurements.stream()
-                    .map(m -> Map.entry(m.getLong(), m.attributes().get(BccUploadMetricsCollector.BCC_SIZE_ATTRIBUTE_KEY).toString()))
+                    .map(m -> Map.entry(m.getLong(), m.attributes().get(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY).toString()))
                     .sorted(byValueThenBucket)
                     .toList(),
                 equalTo(
                     blobSpecs.stream()
-                        .map(spec -> Map.entry(spec.endOffset(), BccUploadMetricsCollector.bccSizeBucket(spec.blobSize())))
+                        .map(spec -> Map.entry(spec.endOffset(), BccUploadMetrics.bccSizeBucket(spec.blobSize())))
                         .sorted(byValueThenBucket)
                         .toList()
                 )

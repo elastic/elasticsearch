@@ -98,8 +98,8 @@ import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUF
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.stateless.commits.metering.BccUploadMetricsCollector.BCC_SIZE_ATTRIBUTE_KEY;
-import static org.elasticsearch.xpack.stateless.commits.metering.BccUploadMetricsCollector.bccSizeBucket;
+import static org.elasticsearch.xpack.stateless.commits.metering.BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY;
+import static org.elasticsearch.xpack.stateless.commits.metering.BccUploadMetrics.bccSizeBucket;
 
 public class SharedBlobCacheWarmingService {
 

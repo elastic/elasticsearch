@@ -24,7 +24,7 @@ import java.util.OptionalDouble;
 
 /// Centralizes BCC upload metric registration and state so [org.elasticsearch.xpack.stateless.commits.StatelessCommitService] can focus
 /// on commit lifecycle management.
-public class BccUploadMetricsCollector {
+public class BccUploadMetrics {
 
     public static final String BCC_TOTAL_SIZE_HISTOGRAM_METRIC = "es.bcc.total_size_in_megabytes.histogram";
     public static final String BCC_NUMBER_COMMITS_HISTOGRAM_METRIC = "es.bcc.number_of_commits.histogram";
@@ -46,7 +46,7 @@ public class BccUploadMetricsCollector {
     /// We use a slight recency biased value.
     private final ExponentiallyWeightedMovingAverage commitUploadThroughputMiBSec;
 
-    public BccUploadMetricsCollector(final TelemetryProvider telemetryProvider, final ByteSizeValue initialThroughput) {
+    public BccUploadMetrics(final TelemetryProvider telemetryProvider, final ByteSizeValue initialThroughput) {
         this.commitUploadThroughputMiBSec = new ExponentiallyWeightedMovingAverage(0.6, initialThroughput.getBytes());
         final var meterRegistry = telemetryProvider.getMeterRegistry();
         this.bccSizeInMegabytesHistogram = meterRegistry.registerLongHistogram(

@@ -11,6 +11,8 @@ package org.elasticsearch.foreign;
 
 import junit.framework.TestCase;
 
+import org.junit.BeforeClass;
+
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
@@ -27,6 +29,13 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
  * {@code ESTestCase} to keep the foreign-library module's test dependencies minimal.
  */
 public class LinkerHelperTests extends TestCase {
+
+    @BeforeClass
+    public static void loadWindowsLibraries() {
+        if (System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows")) {
+            System.loadLibrary("kernel32");
+        }
+    }
 
     /**
      * On POSIX, {@link LinkerHelper#systemError()} returns the {@code errno} value captured by a
@@ -61,7 +70,6 @@ public class LinkerHelperTests extends TestCase {
             return;
         }
 
-        System.loadLibrary("kernel32");
         MethodHandle closeHandle = LinkerHelper.downcallHandleWithSystemError("CloseHandle", FunctionDescriptor.of(JAVA_BOOLEAN, ADDRESS));
         boolean result = (boolean) closeHandle.invoke(MemorySegment.ofAddress(0xDEADBEEFL));
 

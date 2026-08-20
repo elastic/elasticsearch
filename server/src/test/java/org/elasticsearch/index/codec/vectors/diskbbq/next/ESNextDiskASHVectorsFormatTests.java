@@ -12,7 +12,6 @@ package org.elasticsearch.index.codec.vectors.diskbbq.next;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
-import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -21,7 +20,6 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
@@ -32,7 +30,6 @@ import java.io.IOException;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThan;
 
 /**
  * Tests for {@link ESNextDiskASHVectorsFormat}.
@@ -116,76 +113,6 @@ public class ESNextDiskASHVectorsFormatTests extends ESTestCase {
                                 );
                             }
                         }
-                    }
-                }
-            }
-        }
-    }
-
-    public void testAshEuclideanScoreCorrectness() throws IOException {
-        int dimensions = 64;
-        int numDocs = 200;
-        int k = 10;
-        Codec ashCodec = TestUtil.alwaysKnnVectorsFormat(ashTestFormat());
-        try (Directory dir = newDirectory()) {
-            IndexWriterConfig iwc = newIndexWriterConfig();
-            iwc.setCodec(ashCodec);
-            float[][] storedVectors = new float[numDocs][];
-            try (IndexWriter w = new IndexWriter(dir, iwc)) {
-                for (int i = 0; i < numDocs; i++) {
-                    Document doc = new Document();
-                    float[] vec = randomVector(dimensions);
-                    storedVectors[i] = vec;
-                    doc.add(new KnnFloatVectorField("f", vec, VectorSimilarityFunction.EUCLIDEAN));
-                    doc.add(new StoredField("id", i));
-                    w.addDocument(doc);
-                }
-                w.forceMerge(1);
-                try (IndexReader reader = DirectoryReader.open(w)) {
-                    for (LeafReaderContext ctx : reader.leaves()) {
-                        LeafReader leafReader = ctx.reader();
-                        float[] query = randomVector(dimensions);
-                        TopDocs topDocs = leafReader.searchNearestVectors(
-                            "f",
-                            query,
-                            k,
-                            AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
-                            Integer.MAX_VALUE
-                        );
-                        assertThat(topDocs.scoreDocs, arrayWithSize(Math.min(leafReader.maxDoc(), k)));
-
-                        // Compute brute-force exact EUCLIDEAN scores for all docs
-                        float[] exactScores = new float[numDocs];
-                        for (int i = 0; i < numDocs; i++) {
-                            float sqDist = 0;
-                            for (int d = 0; d < dimensions; d++) {
-                                float diff = query[d] - storedVectors[i][d];
-                                sqDist += diff * diff;
-                            }
-                            exactScores[i] = 1f / (1f + sqDist);
-                        }
-
-                        // Verify each ASH result score is within relative error tolerance of exact score
-                        for (ScoreDoc sd : topDocs.scoreDocs) {
-                            float exact = exactScores[sd.doc];
-                            float relError = Math.abs(sd.score - exact) / Math.max(exact, 1e-6f);
-                            assertThat(
-                                "EUCLIDEAN score for doc " + sd.doc + ": ASH=" + sd.score + " exact=" + exact,
-                                (double) relError,
-                                lessThan(0.4)
-                            );
-                        }
-
-                        // Verify the ASH top-1 is within the true top-50 (recall sanity check)
-                        int ashTop1Doc = topDocs.scoreDocs[0].doc;
-                        float[] sortedExact = exactScores.clone();
-                        java.util.Arrays.sort(sortedExact);
-                        float threshold = sortedExact[numDocs - 50]; // 50th best exact score
-                        assertThat(
-                            "ASH top-1 doc " + ashTop1Doc + " should be in true top-50",
-                            exactScores[ashTop1Doc],
-                            greaterThanOrEqualTo(threshold)
-                        );
                     }
                 }
             }

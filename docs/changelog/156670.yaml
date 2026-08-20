@@ -2,5 +2,5 @@ area: ES|QL
 issues:
  - 154463
 pr: 156670
-summary: Release `double_range` field type as tech preview
+summary: Add ES|QL support for `double_range` fields in technical preview
 type: enhancement

@@ -12,7 +12,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.index.codec.vectors.BFloat16;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
 import org.elasticsearch.nativeaccess.jdk.ScalarOperations;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.junit.AssumptionViolatedException;
@@ -24,12 +24,12 @@ public class VectorScorerBFloat16OperationBenchmarkTests extends BenchmarkTest {
     private final VectorSimilarityType function;
     private final double delta;
     private final int size;
-    private final VectorSimilarityFunctions.BFloat16QueryType queryType;
+    private final SimdVecLibrary.BFloat16QueryType queryType;
 
     public VectorScorerBFloat16OperationBenchmarkTests(
         VectorSimilarityType function,
         int size,
-        VectorSimilarityFunctions.BFloat16QueryType queryType
+        SimdVecLibrary.BFloat16QueryType queryType
     ) {
         this.function = function;
         this.size = size;

@@ -207,7 +207,7 @@ public final class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRe
             + allShards
             + ", routing:"
             + routing
-            + ", _slice:"
+            + ", slice:"
             + searchSlice;
     }
 

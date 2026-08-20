@@ -22,6 +22,7 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.io.LocalInputFile;
 import org.apache.parquet.io.LocalOutputFile;
 import org.apache.parquet.io.OutputFile;
@@ -58,6 +59,8 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -699,9 +702,142 @@ public class ParquetFormatReaderTests extends ESTestCase {
             // ParquetStorageObjectAdapter — statistics are part of the metadata contract, so assert
             // row count, byte size and per-column stats match, not just the schema.
             assertStatisticsEqual(syncMeta, asyncMeta);
+
+            FooterByteCache.Key key = FooterByteCache.Key.keyFor(asyncObject, asyncObject.length());
+            ParquetMetadata seeded = ParquetFormatReader.parsedFooterForTests(key);
+            assertNotNull("async tail parse must seed PARSED_FOOTERS", seeded);
+            // Fresh reader so footer_cache_misses starts at 0; PARSED_FOOTERS is JVM-wide.
+            ParquetFormatReader phase2 = new ParquetFormatReader(blockFactory);
+            phase2.discoverSplitRanges(asyncObject);
+            assertSame("Phase-2 loadFooter must reuse the Phase-1 instance", seeded, ParquetFormatReader.parsedFooterForTests(key));
+            assertEquals(0, phase2.statusSnapshot().footerCacheMisses());
+            assertEquals("discoverSplitRanges must go through loadFooter", 1, phase2.statusSnapshot().footerCacheHits());
+            try (
+                CloseableIterator<Page> iterator = phase2.readRange(
+                    asyncObject,
+                    new RangeReadContext(List.of("id", "name", "age"), 10, 0, parquetData.length, List.of(), ErrorPolicy.STRICT)
+                )
+            ) {
+                assertTrue(iterator.hasNext());
+                Page page = iterator.next();
+                assertEquals(1, page.getPositionCount());
+                assertEquals(7L, ((LongBlock) page.getBlock(0)).getLong(0));
+                BytesRef scratch = new BytesRef();
+                assertEquals("Alice", ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, scratch).utf8ToString());
+                assertEquals(30, ((IntBlock) page.getBlock(2)).getInt(0));
+            }
+            assertEquals("readRange over the seeded footer is a cache hit", 0, phase2.statusSnapshot().footerCacheMisses());
+            assertEquals("readRange loadFooter is a second hit", 2, phase2.statusSnapshot().footerCacheHits());
         } finally {
             probePool.shutdownNow();
         }
+    }
+
+    /**
+     * Globally staged Phase-1 {@code metadataAsync} then Phase-2 {@code discoverSplitRanges} must
+     * reuse the seeded parsed footer for every file that still fits in the 32-entry LRU. Not a
+     * COUNT(*) skip-path test — skip-eligible aggregates never call {@code discoverSplitRanges}.
+     */
+    public void testAsyncFooterParseSeedsParsedCacheWithinLruWindow() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        for (int n : new int[] { 8, ParsedFooterCache.DEFAULT_MAX_ENTRIES }) {
+            ParquetStorageObjectAdapter.clearFooterCacheForTests();
+            List<StorageObject> files = vpcGlob(parquetData, n);
+            ParquetFormatReader phase1 = new ParquetFormatReader(blockFactory);
+            for (StorageObject file : files) {
+                metadataAsyncDirect(phase1, file);
+            }
+            assertEquals("Phase-1 seed must not count as a loadFooter miss", 0, phase1.statusSnapshot().footerCacheMisses());
+            ParquetFormatReader phase2 = new ParquetFormatReader(blockFactory);
+            for (StorageObject file : files) {
+                phase2.discoverSplitRanges(file);
+            }
+            assertEquals("Phase-2 must hit the Phase-1 seed for N=" + n, 0, phase2.statusSnapshot().footerCacheMisses());
+            assertEquals("Phase-2 loadFooter must run for every file", n, phase2.statusSnapshot().footerCacheHits());
+        }
+    }
+
+    /**
+     * Encodes the 32-entry ceiling: after Phase-1 over {@code 6 * DEFAULT_MAX_ENTRIES} unique
+     * keys the LRU holds the newest 32. Same-order Phase-2 would evict those seeds on the first
+     * misses, so this discovers the last 32 (hits) vs the first 32 (misses) instead of asserting
+     * {@code ~N-32}.
+     */
+    public void testAsyncFooterParseLruCeilingEvictsOlderFiles() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        int window = ParsedFooterCache.DEFAULT_MAX_ENTRIES;
+        int n = window * 6;
+        assertTrue("ceiling test needs more files than the LRU", n > window);
+
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+        List<StorageObject> files = vpcGlob(parquetData, n);
+        ParquetFormatReader phase1Last = new ParquetFormatReader(blockFactory);
+        for (StorageObject file : files) {
+            metadataAsyncDirect(phase1Last, file);
+        }
+        ParquetFormatReader last32 = new ParquetFormatReader(blockFactory);
+        for (int i = n - window; i < n; i++) {
+            last32.discoverSplitRanges(files.get(i));
+        }
+        assertEquals("newest seeds must still be cached", 0, last32.statusSnapshot().footerCacheMisses());
+        assertEquals(window, last32.statusSnapshot().footerCacheHits());
+
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+        ParquetFormatReader phase1First = new ParquetFormatReader(blockFactory);
+        for (StorageObject file : files) {
+            metadataAsyncDirect(phase1First, file);
+        }
+        ParquetFormatReader first32 = new ParquetFormatReader(blockFactory);
+        for (int i = 0; i < window; i++) {
+            first32.discoverSplitRanges(files.get(i));
+        }
+        assertEquals("oldest Phase-1 seeds must have been evicted", window, first32.statusSnapshot().footerCacheMisses());
+        assertEquals(0, first32.statusSnapshot().footerCacheHits());
+    }
+
+    private byte[] createVpcFlowShapedParquet() throws IOException {
+        Types.MessageTypeBuilder builder = Types.buildMessage();
+        for (int i = 0; i < 10; i++) {
+            builder.required(PrimitiveType.PrimitiveTypeName.INT32).named("i32_" + i);
+        }
+        for (int i = 0; i < 5; i++) {
+            builder.required(PrimitiveType.PrimitiveTypeName.INT64).named("i64_" + i);
+        }
+        for (int i = 0; i < 5; i++) {
+            builder.required(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType()).named("s_" + i);
+        }
+        MessageType schema = builder.named("vpc_flow");
+        return createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            for (int i = 0; i < 10; i++) {
+                g.add("i32_" + i, i);
+            }
+            for (int i = 0; i < 5; i++) {
+                g.add("i64_" + i, (long) i);
+            }
+            for (int i = 0; i < 5; i++) {
+                g.add("s_" + i, "v" + i);
+            }
+            return List.of(g);
+        });
+    }
+
+    private List<StorageObject> vpcGlob(byte[] parquetData, int n) {
+        List<StorageObject> files = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            files.add(createStorageObject(parquetData, "memory://vpc/f" + i + ".parquet"));
+        }
+        return files;
+    }
+
+    /**
+     * Runs {@code metadataAsync} on the calling thread. {@code Runnable::run} is load-bearing
+     * for LRU tests: Phase-1 {@code put}s happen in file order, so "last 32" are the newest.
+     */
+    private static void metadataAsyncDirect(ParquetFormatReader reader, StorageObject object) {
+        PlainActionFuture<SourceMetadata> future = new PlainActionFuture<>();
+        reader.metadataAsync(object, Runnable::run, future);
+        future.actionGet(30, TimeUnit.SECONDS);
     }
 
     /** Asserts that two {@link SourceMetadata} carry identical row-count, byte-size and per-column statistics. */
@@ -6938,6 +7074,32 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertTrue(ParquetFormatReader.compareStatExtremum(astral, bmp) > 0);
         // Non-string extrema compare naturally.
         assertTrue("numeric extrema compare naturally", ParquetFormatReader.compareStatExtremum(5L, 10L) < 0);
+    }
+
+    /**
+     * A direct delegate leaks native memory until GC, so a revert must fail here rather than in a heap dump.
+     * Rationale in {@code ParquetFormatReader#readOptionsBuilder}. Asserted on both the type and the observable
+     * behaviour: {@code isDirect()} and {@code hasArray()} each flip on their own when the delegate changes.
+     */
+    public void testReadOptionsAllocatorIsHeapBackedAndBreakerAccounted() {
+        var breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(64));
+        var factory = new BlockFactory(breaker, blockFactory.bigArrays());
+        ParquetReadOptions options = new ParquetFormatReader(factory).readOptionsBuilder().build();
+
+        var allocator = options.getAllocator();
+        assertThat(allocator, instanceOf(CircuitBreakerByteBufferAllocator.class));
+        assertFalse("parquet's allocator must not be direct — its release() cannot free direct memory", allocator.isDirect());
+
+        long before = breaker.getUsed();
+        ByteBuffer buffer = allocator.allocate(128);
+        try {
+            assertTrue("a heap-backed delegate yields array-backed buffers", buffer.hasArray());
+            assertFalse(buffer.isDirect());
+            assertEquals("allocation must be charged to the request breaker", before + 128, breaker.getUsed());
+        } finally {
+            allocator.release(buffer);
+        }
+        assertEquals("release must return the full charge", before, breaker.getUsed());
     }
 
 }

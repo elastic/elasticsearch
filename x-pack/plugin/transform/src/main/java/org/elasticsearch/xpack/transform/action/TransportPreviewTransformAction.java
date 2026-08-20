@@ -142,6 +142,18 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             return;
         }
 
+        // Extract on the coordinating node, before the request is (possibly) redirected to a
+        // transform node — the AUTHENTICATING_CLOUD_TOKEN_THREAD_CONTEXT transient does not survive
+        // that transport hop. Carried on the request so the executing node can read it back below
+        // regardless of whether this request was redirected. Wrap the listener so the request (and
+        // the SecureString it may carry) is closed exactly once, on every terminal path including the
+        // redirect hop — Request.close() is null-safe when the caller is non-UIAM.
+        CloudCredential callerCredential = cloudCredentialManager.currentCallerCredential();
+        if (callerCredential != null) {
+            request.setCloudCredential(callerCredential);
+        }
+        final ActionListener<Response> releasingListener = ActionListener.releaseAfter(listener, request);
+
         boolean requiresRemote = request.getConfig().getSource().requiresRemoteCluster();
         if (TransformNodes.redirectToAnotherNodeIfNeeded(
             clusterState,
@@ -151,22 +163,13 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             actionName,
             request,
             Response::new,
-            listener
+            releasingListener
         )) {
             return;
         }
 
         final TransformConfig config = request.getConfig();
         final Function function = FunctionFactory.create(config);
-
-        // Capture the caller's UIAM cloud credential on the inbound transport thread, before the
-        // privilege/validation chain swaps thread contexts. Reading it late (inside getPreview)
-        // returns null once the secondary-auth context is gone, leaving cross-project field_caps
-        // dispatched without a credential. Wrap the listener so the SecureString is closed exactly
-        // once on every terminal path reachable after capture — success, validation failure, and
-        // privilege failure. ActionListener.releaseAfter is null-safe when the caller is non-UIAM.
-        final CloudCredential callerCredential = cloudCredentialManager.currentCallerCredential();
-        final ActionListener<Response> releasingListener = ActionListener.releaseAfter(listener, callerCredential);
 
         // <4> Validate transform query
         ActionListener<Boolean> validateConfigListener = ActionListener.wrap(
@@ -181,7 +184,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                 config.getSyncConfig(),
                 config.getSettings(),
                 request.previewAsIndexRequest(),
-                callerCredential,
+                request.getCloudCredential(),
                 releasingListener
             ),
             releasingListener::onFailure
@@ -243,9 +246,9 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         ActionListener<Response> listener
     ) {
         var rawClient = new ParentTaskAssigningClient(client, parentTaskId);
-        // callerCredential was captured at doExecute entry on the inbound transport thread, before the
-        // privilege/validation chain swaps thread contexts. Its SecureString is released by the
-        // releasingListener that wraps the outer listener; no further releaseAfter needed here.
+        // callerCredential is carried on the request (see doExecute) so it survives a redirect to
+        // another transform node. Its SecureString is released once by the releasingListener that
+        // wraps the request in doExecute; no further releaseAfter needed here.
         var parentTaskClient = cloudCredentialManager.wrapWithUiamIfPresent(rawClient, callerCredential);
 
         final var mappings = new SetOnce<Map<String, String>>();

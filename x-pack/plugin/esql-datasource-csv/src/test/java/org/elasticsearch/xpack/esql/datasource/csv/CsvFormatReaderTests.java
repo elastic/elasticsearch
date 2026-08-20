@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -28,10 +29,10 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -70,6 +71,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class CsvFormatReaderTests extends ESTestCase {
 
@@ -2940,17 +2943,32 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     public void testWithConfigSchemaSampleSizeZeroIsRejected() {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
-        expectThrows(QlIllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "0")));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> reader.withConfig(Map.of("schema_sample_size", "0"))
+        );
+        assertThat(e.getMessage(), containsString("schema_sample_size must be positive"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
     }
 
     public void testWithConfigSchemaSampleSizeNegativeIsRejected() {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
-        expectThrows(QlIllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "-1")));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> reader.withConfig(Map.of("schema_sample_size", "-1"))
+        );
+        assertThat(e.getMessage(), containsString("schema_sample_size must be positive"));
     }
 
     public void testWithConfigSchemaSampleSizeInvalidIsRejected() {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
-        expectThrows(IllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "abc")));
+        // Distinct from the out-of-range cases above: both are now IllegalArgumentException, so only the
+        // message separates "unparseable" from "parsed but rejected".
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> reader.withConfig(Map.of("schema_sample_size", "abc"))
+        );
+        assertThat(e.getMessage(), containsString("Invalid integer value [abc]"));
     }
 
     // --- Multi-value bracket syntax tests ---
@@ -6520,6 +6538,151 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * The names a later chunk binds against come from this reader's own metadata, read from the file's first
+     * chunk. They must be the file's columns in the file's order — not the declared schema's, and not
+     * reordered to match it.
+     * <p>
+     * Nothing else pins this. If metadata ever short-circuited to the configured schema — a plausible
+     * optimisation — every column of every multi-chunk declared headered file would bind to the wrong field,
+     * silently, and no other test would notice.
+     */
+    public void testMetadataReturnsFileOrderNamesForADeclaredConfiguredReader() throws Exception {
+        // File order deliberately differs from the declared order below.
+        StorageObject object = createStorageObject("first_name,emp_no,salary\nAlice,1,100\n");
+        List<Attribute> declared = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "emp_no", DataType.LONG)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredPathBinding(true)
+            .withSchema(declared);
+
+        List<String> names = reader.metadata(object).schema().stream().map(Attribute::name).toList();
+        assertEquals("metadata must describe the file, not the declaration", List.of("first_name", "emp_no", "salary"), names);
+    }
+
+    /**
+     * A chunk after the first cannot see the file's header, but it can still bind a declared schema by name
+     * when the header columns are handed to it. Without this a declared headered file large enough to be read
+     * in chunks fails every query.
+     */
+    public void testNonFirstChunkBindsDeclaredSchemaFromCarriedHeaderColumns() throws Exception {
+        // A chunk from the middle of the file: data rows only, no header in front of it.
+        StorageObject object = createStorageObject("1,Alice\n2,Bob\n");
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "first_name", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "emp_no", DataType.LONG)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(false)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .readSchema(readSchema)
+                    .fileHeaderColumns(List.of("emp_no", "first_name"))
+                    .build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals("Alice", ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()).utf8ToString());
+            assertEquals(1L, ((LongBlock) page.getBlock(1)).getLong(0));
+            assertEquals("Bob", ((BytesRefBlock) page.getBlock(0)).getBytesRef(1, new BytesRef()).utf8ToString());
+            assertEquals(2L, ((LongBlock) page.getBlock(1)).getLong(1));
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * A header cell padded inside its quotes binds the same way on a later chunk as on the first.
+     * <p>
+     * The first chunk derives its header names from the header line and trims them; a later chunk is handed
+     * names the reader's own metadata produced, which did not. A declaration for {@code value} then matched on
+     * the first chunk and silently null-filled on every other one — the same column read two ways in one file.
+     */
+    public void testCarriedHeaderColumnsAreNormalisedLikeTheFirstChunk() throws Exception {
+        StorageObject object = createStorageObject("1\n");
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "value", DataType.LONG));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(false)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .readSchema(readSchema)
+                    .fileHeaderColumns(List.of(" value "))
+                    .build()
+            )
+        ) {
+            Page page = it.next();
+            try {
+                assertFalse("a padded header name must still bind the declared column", page.getBlock(0).isNull(0));
+                assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * Binding is by name, not position: a declaration must follow its column even when the file orders the
+     * columns differently. Getting this wrong shifts every value into the wrong column silently.
+     */
+    public void testCarriedHeaderColumnsBindByNameNotPosition() throws Exception {
+        // File order is first_name,emp_no — the reverse of the declaration's order.
+        StorageObject object = createStorageObject("Alice,1\n");
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "emp_no", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "first_name", DataType.KEYWORD)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(false)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .readSchema(readSchema)
+                    .fileHeaderColumns(List.of("first_name", "emp_no"))
+                    .build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals("Alice", ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()).utf8ToString());
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * With no header columns to bind against there is nothing to fall back on but position, which would shift
+     * every column. Failing loudly is the correct outcome, and stays so.
+     */
+    public void testNonFirstChunkWithoutCarriedHeaderColumnsFailsLoudly() throws Exception {
+        StorageObject object = createStorageObject("1,Alice\n");
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "emp_no", DataType.LONG));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredPathBinding(true);
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(false).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        );
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("without the file's header columns"));
+    }
+
     /** A narrow declaration may name a column far to the right of a wide file — the classic ClickBench shape. */
     public void testDeclaredPathBindsColumnBeyondDeclarationWidth() throws Exception {
         StorageObject object = createStorageObject("a,b,c,d,e,f,g,h,i,999\n");
@@ -8172,11 +8335,11 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     /**
      * Regression: the Jackson hot data path enforces
-     * {@code max_record_size} via the upstream {@link CsvRecordCappingInputStream}. An oversized record
+     * {@code external_max_record_size} via the upstream {@link CsvRecordCappingInputStream}. An oversized record
      * trips the cap during the {@link java.io.BufferedReader} bulk fill (potentially before any individual
      * row has been emitted), the {@link CsvRecordTooLargeException} propagates as an {@link IOException},
      * and the outer {@code CsvBatchIterator.hasNext()} wraps it in a {@link RuntimeException} whose cause
-     * chain carries the original {@code "max_record_size [N]"} message.
+     * chain carries the original {@code "external_max_record_size [N]"} message.
      */
     public void testJacksonBulkPathPropagatesMaxRecordSizeError() {
         int maxRecordBytes = 32;
@@ -8205,7 +8368,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             rootCause = rootCause.getCause();
         }
         assertTrue("expected a CsvRecordTooLargeException in the cause chain, got: " + ex, rootCause instanceof CsvRecordTooLargeException);
-        assertThat(rootCause.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+        assertThat(rootCause.getMessage(), Matchers.containsString("external_max_record_size [" + maxRecordBytes + "]"));
     }
 
     /**
@@ -8251,7 +8414,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             "lenient policy must still abort with the cap exception in the cause chain, got: " + ex,
             rootCause instanceof CsvRecordTooLargeException
         );
-        assertThat(rootCause.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+        assertThat(rootCause.getMessage(), Matchers.containsString("external_max_record_size [" + maxRecordBytes + "]"));
     }
 
     /**
@@ -8259,7 +8422,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * direct-block kill-switch off ({@code withDirectBlockEnabled(false)}) AND the no-trim default,
      * {@code jacksonGrammarApplies()} is false, so a non-direct read reroutes onto the house per-record path
      * ({@code newCsvIterator} on {@link CsvLogicalRecordReader}) rather than the stream-fatal Jackson bulk
-     * path. That path enforces {@code max_record_size} via {@link CsvLogicalRecordReader#addBytes}, an exact
+     * path. That path enforces {@code external_max_record_size} via {@link CsvLogicalRecordReader#addBytes}, an exact
      * RECOVERABLE per-record check, so under a lenient policy the oversized record is skipped and the
      * surrounding rows read intact — the opposite of the trim=true bulk arm's destructive abort.
      */
@@ -8394,7 +8557,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             "inferred-schema reads must engage the fast path after sampling and enforce the per-record cap, got: " + ex,
             rootCause instanceof CsvRecordTooLargeException
         );
-        assertThat(rootCause.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+        assertThat(rootCause.getMessage(), Matchers.containsString("external_max_record_size [" + maxRecordBytes + "]"));
     }
 
     /**

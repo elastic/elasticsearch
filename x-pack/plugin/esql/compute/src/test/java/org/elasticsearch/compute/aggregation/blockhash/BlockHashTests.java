@@ -2169,6 +2169,47 @@ public class BlockHashTests extends BlockHashTestCase {
         }
     }
 
+    /**
+     * Final mode uses {@code reverseOutput == true}: the output key order is swapped to (timestamp, tsid). A chunked
+     * page (a strict subset of groups) must build a correct page-local tsid dictionary and then apply the reverse swap,
+     * so the tsid ends up as the second key block, is ordinal-encoded, and its page-local dictionary holds each
+     * referenced tsid exactly once.
+     */
+    public void testTimeSeriesBlockHashReverseOutputChunkedPageDeduplicatesTsids() {
+        BytesRef tsidA = new BytesRef("id-a");
+        BytesRef tsidB = new BytesRef("id-b");
+        int pairs = 10;
+        try (var hash = new TimeSeriesBlockHash(0, 1, true, false, blockFactory)) {
+            // Interleave two tsids across single-row pages so the tsid ordinals alternate by group id (A, B, A, B, ...).
+            for (int t = 0; t < pairs; t++) {
+                addSingleTsidRow(hash, tsidA, t);
+                addSingleTsidRow(hash, tsidB, t);
+            }
+            int totalGroups = 2 * pairs;
+            int pageSize = totalGroups - 1; // a strict subset, so we take the chunked page-local dictionary path
+            Block[] keys = null;
+            try (IntVector selected = blockFactory.newIntRangeVector(0, pageSize)) {
+                keys = hash.getKeys(selected);
+                // reverseOutput swaps the key order to (timestamp, tsid): the tsid is now the second key block.
+                assertThat(keys.length, equalTo(2));
+                BytesRefBlock tsids = (BytesRefBlock) keys[1];
+                BytesRef scratch = new BytesRef();
+                for (int p = 0; p < pageSize; p++) {
+                    assertThat(tsids.getBytesRef(p, scratch), equalTo(p % 2 == 0 ? tsidA : tsidB));
+                }
+                OrdinalBytesRefBlock ordinals = tsids.asOrdinals();
+                assertNotNull("a dense page should be ordinal-encoded", ordinals);
+                assertThat(
+                    "page-local dictionary must hold each referenced tsid once",
+                    ordinals.getDictionaryVector().getPositionCount(),
+                    equalTo(2)
+                );
+            } finally {
+                Releasables.close(keys);
+            }
+        }
+    }
+
     private void addSingleTsidRow(TimeSeriesBlockHash hash, BytesRef tsid, long timestamp) {
         try (
             BytesRefVector.Builder tsidBuilder = blockFactory.newBytesRefVectorBuilder(1);

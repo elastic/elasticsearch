@@ -60,10 +60,11 @@ import java.util.zip.GZIPOutputStream;
  *       never reaches the {@code ByteBuffer} overload, regardless of the allocator or the
  *       {@code useOffHeapDecryptBuffer} flag (which is a decryption-only flag). The decompressed
  *       page bytes on that path are therefore still allocated as a heap {@code byte[]} by the
- *       codec. Wiring {@code DirectByteBufferAllocator} into the read options still benefits
- *       this path: parquet-mr's other allocations that go through the read-options allocator
- *       (e.g. the page reader's {@code ByteBufferReleaser}) become direct, and our
- *       {@link CircuitBreakerByteBufferAllocator} wrapper accounts those allocations.
+ *       codec. The read-options allocator is therefore deliberately heap-backed (see
+ *       {@code ParquetFormatReader.readOptionsBuilder}): nothing on that path hands its buffers
+ *       to a native codec in place, so direct memory would buy no zero-copy while making release
+ *       depend on garbage collection. Our {@link CircuitBreakerByteBufferAllocator} wrapper still
+ *       accounts those allocations.
  *       Routing the non-prefetched decompression output through the {@code ByteBuffer} overload
  *       would require a parquet-mr change and is left as future work.</li>
  * </ul>
@@ -207,9 +208,10 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
         @Override
         public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
             byte[] out = UninitializedArrays.newByteArray(decompressedSize);
-            // Both production call sites (PrefetchedPageReader and ColumnChunkPageReadStore with
-            // DirectByteBufferAllocator) use the ByteBuffer overload, so this overload is not on
-            // the hot path. It is retained as a safety net for external callers or future use.
+            // PrefetchedPageReader (the optimized path) uses the ByteBuffer overload with Arrow
+            // buffers on both sides. This BytesInput overload is what everything else reaches:
+            // parquet-mr's ColumnChunkPageReadStore.readPage() on the baseline path, and
+            // ParquetFileReader.readDictionary during dictionary filtering on the optimized path.
             // Fast path: avoid BytesInput.toByteArray() for heap-buffer-backed inputs — the default
             // toByteArray() funnels through a sized ByteArrayOutputStream, adding one allocation
             // and one System.arraycopy that the JNI Snappy binding does not need.

@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.inference.external.http.retry;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
@@ -37,22 +37,26 @@ public abstract class BaseResponseHandler implements ResponseHandler {
     public static final String METHOD_NOT_ALLOWED = "Received a method not allowed status code";
 
     protected final String requestType;
-    protected final ResponseParser parseFunction;
+    protected final ResponseParser nonStreamingResponseParseFunction;
     private final Function<HttpResult, ErrorResponse> errorParseFunction;
     private final boolean canHandleStreamingResponses;
 
-    public BaseResponseHandler(String requestType, ResponseParser parseFunction, Function<HttpResult, ErrorResponse> errorParseFunction) {
-        this(requestType, parseFunction, errorParseFunction, false);
+    public BaseResponseHandler(
+        String requestType,
+        ResponseParser nonStreamingResponseParseFunction,
+        Function<HttpResult, ErrorResponse> errorParseFunction
+    ) {
+        this(requestType, nonStreamingResponseParseFunction, errorParseFunction, false);
     }
 
     public BaseResponseHandler(
         String requestType,
-        ResponseParser parseFunction,
+        ResponseParser nonStreamingResponseParseFunction,
         Function<HttpResult, ErrorResponse> errorParseFunction,
         boolean canHandleStreamingResponses
     ) {
         this.requestType = Objects.requireNonNull(requestType);
-        this.parseFunction = Objects.requireNonNull(parseFunction);
+        this.nonStreamingResponseParseFunction = Objects.requireNonNull(nonStreamingResponseParseFunction);
         this.errorParseFunction = Objects.requireNonNull(errorParseFunction);
         this.canHandleStreamingResponses = canHandleStreamingResponses;
     }
@@ -65,7 +69,7 @@ public abstract class BaseResponseHandler implements ResponseHandler {
     @Override
     public InferenceServiceResults parseResult(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
         try {
-            return parseFunction.apply(outboundRequest, result);
+            return nonStreamingResponseParseFunction.apply(outboundRequest, result);
         } catch (Exception e) {
             throw new RetryException(true, e);
         }
@@ -78,11 +82,11 @@ public abstract class BaseResponseHandler implements ResponseHandler {
 
     @Override
     public void validateResponse(ThrottlerManager throttlerManager, Logger logger, OutboundRequest outboundRequest, HttpResult result) {
-        checkForFailureStatusCode(outboundRequest, result);
+        if (result.isSuccessfulResponse() == false) {
+            throw buildFailureStatusCodeException(outboundRequest, result);
+        }
         checkForEmptyBody(throttlerManager, logger, outboundRequest, result);
     }
-
-    protected abstract void checkForFailureStatusCode(OutboundRequest outboundRequest, HttpResult result);
 
     protected ElasticsearchException buildError(String message, OutboundRequest outboundRequest, HttpResult result) {
         var errorEntityMsg = errorParseFunction.apply(result);

@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.TimestampBounds;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -280,6 +281,25 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
                     + Instant.ofEpochMilli(endTime)
             );
         }
+    }
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // postParse rejects a document with no @timestamp and, only for TIME_SERIES, validates it
+        // against the index time bounds. Neither runs columnar, but refusing whenever enabled is too
+        // blunt: IndexMode#createDefaultMapping enables this mapper on every logsdb_columnar index,
+        // data stream or not. Gating on the mode keeps the bounds check enforced where it applies.
+        //
+        // TODO(columnar): re-instate the missing-@timestamp rejection in postColumnarParse, once
+        // BatchMappingContext exposes the mapped timestamp column.
+        return enabled == false || indexSettings.getMode().shouldValidateTimestamp() == false;
+    }
+
+    @Override
+    public void postColumnarParse(BatchMappingContext context) throws IOException {
+        super.postColumnarParse(context);
+        // TODO: see the TODO on supportsColumnarParse — the missing-@timestamp check belongs here
+        // once the batch context exposes the mapped timestamp column.
     }
 
     @Override

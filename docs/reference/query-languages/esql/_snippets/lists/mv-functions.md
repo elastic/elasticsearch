@@ -10,12 +10,14 @@
 * [`MV_INTERSECTION`](../../functions-operators/mv-functions/mv_intersection.md) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
 * [`MV_INTERSECTS`](../../functions-operators/mv-functions/mv_intersects.md) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
 * [`MV_LAST`](../../functions-operators/mv-functions/mv_last.md)
+* [`MV_LIKE`](../../functions-operators/mv-functions/mv_like.md) {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 * [`MV_MAX`](../../functions-operators/mv-functions/mv_max.md)
 * [`MV_MEDIAN`](../../functions-operators/mv-functions/mv_median.md)
 * [`MV_MEDIAN_ABSOLUTE_DEVIATION`](../../functions-operators/mv-functions/mv_median_absolute_deviation.md)
 * [`MV_MIN`](../../functions-operators/mv-functions/mv_min.md)
 * [`MV_PERCENTILE`](../../functions-operators/mv-functions/mv_percentile.md)
 * [`MV_PSERIES_WEIGHTED_SUM`](../../functions-operators/mv-functions/mv_pseries_weighted_sum.md)
+* [`MV_RLIKE`](../../functions-operators/mv-functions/mv_rlike.md) {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 * [`MV_SORT`](../../functions-operators/mv-functions/mv_sort.md)
 * [`MV_SLICE`](../../functions-operators/mv-functions/mv_slice.md)
 * [`MV_SUM`](../../functions-operators/mv-functions/mv_sum.md)

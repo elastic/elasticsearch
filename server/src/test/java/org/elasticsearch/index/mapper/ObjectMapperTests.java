@@ -837,13 +837,14 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 }
                 b.endObject();
             }));
+            assertEquals(ObjectMapper.Subobjects.DISABLED, mapperService.documentMapper().mapping().getRoot().subobjects());
             assertNotNull(mapperService.fieldType("metrics.time"));
             assertNotNull(mapperService.fieldType("metrics.count"));
             assertNull(mapperService.mappingLookup().objectMappers().get("metrics"));
         }
     }
 
-    public void testStrictColumnarModesRejectSubobjectsParam() {
+    public void testStrictColumnarModesRejectSubobjectsTrueOnObjectField() {
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
@@ -856,7 +857,26 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 }
                 b.endObject();
             })));
-            assertThat(e.getMessage(), containsString("subobjects params are not supported in columnar mode"));
+            assertThat(e.getMessage(), containsString("subobjects [true] is not supported in columnar mode"));
+        }
+    }
+
+    public void testStrictColumnarModesAcceptSubobjectsFalseOnObjectFieldAsNoOp() throws Exception {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            final Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            final MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("metrics");
+                {
+                    b.field("subobjects", false);
+                    b.startObject("properties");
+                    b.startObject("time").field("type", "long").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+            assertEquals(ObjectMapper.Subobjects.DISABLED, mapperService.documentMapper().mapping().getRoot().subobjects());
+            assertNotNull(mapperService.fieldType("metrics.time"));
+            assertNull(mapperService.mappingLookup().objectMappers().get("metrics"));
         }
     }
 

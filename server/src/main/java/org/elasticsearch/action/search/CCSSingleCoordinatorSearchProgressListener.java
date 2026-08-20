@@ -10,18 +10,23 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static org.elasticsearch.action.search.AbstractSearchAsyncAction.INTERNAL_PARTIAL_RESULTS_CANCEL_REASON;
 
 /**
  * Use this progress listener for cross-cluster searches where a single
@@ -181,11 +186,20 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
                 took = null;
                 status = SearchResponse.Cluster.Status.RUNNING;
             }
-            return new SearchResponse.Cluster.Builder(v).setStatus(status)
+            SearchResponse.Cluster.Builder builder = new SearchResponse.Cluster.Builder(v).setStatus(status)
                 .setFailedShards(numFailedShards)
-                .setFailures(CollectionUtils.appendToCopy(v.getFailures(), new ShardSearchFailure(e, shardTarget)))
-                .setTook(took)
-                .build();
+                .setTook(took);
+            Optional<Throwable> maybeInternalCancel = ExceptionsHelper.unwrapCausesAndSuppressed(
+                e,
+                ex -> ex instanceof TaskCancelledException
+            );
+            // Do not include shard failures due to internal cancel
+            if (maybeInternalCancel.isEmpty()
+                || maybeInternalCancel.get().getMessage() == null
+                || maybeInternalCancel.get().getMessage().contains(INTERNAL_PARTIAL_RESULTS_CANCEL_REASON) == false) {
+                builder.setFailures(CollectionUtils.appendToCopy(v.getFailures(), new ShardSearchFailure(e, shardTarget)));
+            }
+            return builder.build();
         });
     }
 
@@ -207,30 +221,25 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
     public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
         Map<String, Integer> totalByClusterAlias = partitionCountsByClusterAlias(shards);
 
-        for (Map.Entry<String, Integer> entry : totalByClusterAlias.entrySet()) {
-            String clusterAlias = entry.getKey();
-            int successfulCount = entry.getValue();
-
+        for (String clusterAlias : totalByClusterAlias.keySet()) {
             clusters.swapCluster(clusterAlias, (k, v) -> {
                 SearchResponse.Cluster.Status status = v.getStatus();
                 if (status != SearchResponse.Cluster.Status.RUNNING) {
                     // don't swap in a new Cluster if the final state has already been set
                     return v;
                 }
-                TimeValue took = null;
-                int successfulShards = successfulCount + v.getSkippedShards();
+                int successfulShards = v.getSuccessfulShards();
                 if (successfulShards == v.getTotalShards()) {
                     status = v.isTimedOut() ? SearchResponse.Cluster.Status.PARTIAL : SearchResponse.Cluster.Status.SUCCESSFUL;
-                    took = new TimeValue(timeProvider.buildTookInMillis());
                 } else if (successfulShards + v.getFailedShards() == v.getTotalShards()) {
                     // Final shard, partial failure
                     status = SearchResponse.Cluster.Status.PARTIAL;
-                    took = new TimeValue(timeProvider.buildTookInMillis());
-                } else if (successfulShards == v.getSuccessfulShards()) {
-                    // Successful shard count is up to date, no update needed
+                } else {
                     return v;
                 }
-                return new SearchResponse.Cluster.Builder(v).setStatus(status).setSuccessfulShards(successfulShards).setTook(took).build();
+                return new SearchResponse.Cluster.Builder(v).setStatus(status)
+                    .setTook(new TimeValue(timeProvider.buildTookInMillis()))
+                    .build();
             });
         }
     }

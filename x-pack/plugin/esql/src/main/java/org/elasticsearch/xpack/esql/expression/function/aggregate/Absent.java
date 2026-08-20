@@ -78,6 +78,7 @@ public class Absent extends AggregateFunction implements SurrogateExpression, Ag
                 "date_range",
                 "dense_vector",
                 "double",
+                "double_range",
                 "flattened",
                 "geo_point",
                 "geo_shape",

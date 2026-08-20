@@ -174,6 +174,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
 
     public void testElasticFleetServerPrivileges() {
         final String allowedApplicationActionPattern = "example/custom/action/*";
+        final String apmActionPattern = "event:write";
         final String kibanaApplication = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
         final Role role = Role.buildFromRoleDescriptor(
             ElasticServiceAccounts.ACCOUNTS.get("elastic/fleet-server").roleDescriptor(),
@@ -245,7 +246,27 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(TransportMultiGetAction.NAME).test(profilingIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(profilingIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(profilingIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(RefreshAction.NAME).test(profilingIndex), is(false));
         assertThat(role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(profilingIndex), is(false));
+
+        List.of(
+            ".profiling-sq-leafframes-v" + randomAlphaOfLengthBetween(1, 20),
+            ".profiling-sq-executables-v" + randomAlphaOfLengthBetween(1, 20)
+        ).stream().map(this::mockIndexAbstraction).forEach(queueIndex -> {
+            assertThat(role.indices().allowedIndicesMatcher(TransportAutoPutMappingAction.TYPE.name()).test(queueIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(queueIndex), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(queueIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(queueIndex), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(queueIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(queueIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(queueIndex), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(queueIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(TransportMultiGetAction.NAME).test(queueIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(queueIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(queueIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(RefreshAction.NAME).test(queueIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(queueIndex), is(false));
+        });
 
         List.of("synthetics-" + randomAlphaOfLengthBetween(1, 20)).stream().map(this::mockIndexAbstraction).forEach(index -> {
             assertThat(role.indices().allowedIndicesMatcher(TransportAutoPutMappingAction.TYPE.name()).test(index), is(true));
@@ -304,8 +325,8 @@ public class ElasticServiceAccountsTests extends ESTestCase {
 
         final TransportRequest request = mock(TransportRequest.class);
         assertThat(role.cluster().check("cluster:admin/fleet/secrets/get", request, authentication), is(true));
-        assertThat(role.cluster().check("cluster:admin/fleet/secrets/post", request, authentication), is(false));
-        assertThat(role.cluster().check("cluster:admin/fleet/secrets/delete", request, authentication), is(false));
+        assertThat(role.cluster().check("cluster:admin/fleet/secrets/post", request, authentication), is(true));
+        assertThat(role.cluster().check("cluster:admin/fleet/secrets/delete", request, authentication), is(true));
 
         final IndexAbstraction apmSampledTracesIndex = mockIndexAbstraction("traces-apm.sampled-" + randomAlphaOfLengthBetween(1, 20));
         assertThat(role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(apmSampledTracesIndex), is(true));
@@ -347,6 +368,11 @@ public class ElasticServiceAccountsTests extends ESTestCase {
                     "*"
                 ),
             is(false)
+        );
+
+        assertThat(
+            role.application().grants(ApplicationPrivilegeTests.createPrivilege("apm", "event:write", apmActionPattern), "-"),
+            is(true)
         );
     }
 

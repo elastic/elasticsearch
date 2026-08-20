@@ -37,8 +37,10 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
@@ -160,7 +162,12 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         // Lookup join after INLINE STATS (coordinator-only) is not supported in CCS yet
         "Inline stats by and lookup join",
         // Lookup join after STATS (coordinator-only) is not supported in CCS yet
-        "Lookup join after stats by"
+        "Lookup join after stats by",
+        // The second LOOKUP JOIN (after STATS) is not supported in CCS yet.
+        // Previously passed accidentally: before #152845, Join#replaceChildren dropped the isRemote flag,
+        // so postOptimizationVerification never saw isRemote=true on this join.
+        // #152845 fixed the flag propagation, exposing that CCS LOOKUP JOIN after STATS is unsupported.
+        "Lookup join before and after stats by"
     );
 
     @Override
@@ -174,6 +181,14 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         }
         // Check all capabilities on the local cluster first.
         super.shouldSkipTest(testName);
+
+        // Slice tests need the slice dataset, which is not loaded when either cluster predates the current (renamed)
+        // slice parameter (see clusterHasCapability). Slice indexing is unreleased, so skip them in a bwc CCS cluster.
+        assumeFalse(
+            "Slice indexing is unreleased and unsupported on the older bwc cluster",
+            slicesSupportedByBothClusters() == false
+                && testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_SLICE.capabilityName())
+        );
 
         assumeTrue(
             "Local cluster must not support " + testCase.missingCapabilitiesLocalCluster + " for test " + testName,
@@ -316,6 +331,19 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         .collect(toSet());
 
     /**
+     * Indices ingested into <em>both</em> the local and the remote cluster: enrich source indices  and lookup indices
+     * (see {@link #twoClients}, which dispatches their {@code _bulk} requests to  both clusters). When such an index appears as a source
+     * inside a subquery it must be rewritten  to either local-only or the remote-only pattern rather than {@code *:index,index}; otherwise
+     * the union matches the identical rows on both clusters and double-counts them. This mirrors the {@code onlyRemotes} handling
+     * {@link #convertToRemoteIndices} applies to top-level FROM commands.
+     */
+    private static final Set<String> INDICES_ON_BOTH_CLUSTERS = Set.copyOf(
+        Stream.concat(LOOKUP_INDICES.stream(), ENRICH_POLICIES.values().stream().map(CsvTestsDataLoader.EnrichConfig::index))
+            .map(name -> name.toLowerCase(Locale.ROOT))
+            .collect(toSet())
+    );
+
+    /**
      * Creates a new mock client that dispatches every request to both the local and remote clusters, excluding _bulk, _query,
      *  and _inference requests :
      * - '_bulk' requests are randomly sent to either the local or remote cluster to populate data. Some spec tests, such as AVG,
@@ -416,6 +444,11 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
                 return "1:" + newPosition;
             }));
         }
+        // To make warnings optional for some version, uncomment this. Tests might also
+        // need changing, but that's fine.
+        // if (Clusters.bwcVersion().before(Version.V_9_6_0)) {
+        // testCase.makeWarningsOptional();
+        // }
         return testCase;
     }
 
@@ -472,11 +505,20 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected boolean clusterHasCapability(EsqlCapabilities.Cap capability) {
+        // Skip loading the slice dataset when a cluster predates the current (renamed) slice parameter: slice indexing
+        // is unreleased, so the older bwc cluster cannot ingest it via the `slice` bulk parameter.
+        if (capability == EsqlCapabilities.Cap.METADATA_SLICE && slicesSupportedByBothClusters() == false) {
+            return false;
+        }
         try {
             return super.clusterHasCapability(capability) && hasCapabilities(remoteClusterClient(), List.of(capability.capabilityName()));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static boolean slicesSupportedByBothClusters() {
+        return Version.min(Clusters.localClusterVersion(), Clusters.remoteClusterVersion()).before(Version.CURRENT) == false;
     }
 
     /**
@@ -485,7 +527,7 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
      */
     private static CsvSpecReader.CsvTestCase convertSubqueryToRemoteIndices(CsvSpecReader.CsvTestCase testCase) {
         String query = testCase.query;
-        testCase.query = EsqlTestUtils.convertSubqueryToRemoteIndices(query);
+        testCase.query = EsqlTestUtils.convertSubqueryToRemoteIndices(query, INDICES_ON_BOTH_CLUSTERS);
         return testCase;
     }
 }

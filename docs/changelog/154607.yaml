@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 154607
+summary: Translate unified tool-calling message blocks to the Anthropic format
+type: bug

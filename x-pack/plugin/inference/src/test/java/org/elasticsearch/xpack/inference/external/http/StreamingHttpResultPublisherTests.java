@@ -12,6 +12,8 @@ import org.apache.http.nio.ContentDecoder;
 import org.apache.http.nio.IOControl;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
@@ -53,21 +55,24 @@ import static org.mockito.Mockito.when;
 public class StreamingHttpResultPublisherTests extends ESTestCase {
     private static final byte[] message = "hello".getBytes(StandardCharsets.UTF_8);
     private static final long maxBytes = message.length;
+    private static final String INFERENCE_ENTITY_ID = "id";
+
     private ThreadPool threadPool;
     private HttpSettings settings;
     private final AtomicReference<Tuple<StreamingHttpResult, Exception>> result = new AtomicReference<>(null);
     private StreamingHttpResultPublisher publisher;
+    private TestCircuitBreakerWithTracking circuitBreaker;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createPublisher() throws Exception {
         threadPool = mock(ThreadPool.class);
         settings = mock(HttpSettings.class);
+        circuitBreaker = new TestCircuitBreakerWithTracking();
 
         when(threadPool.executor(UTILITY_THREAD_POOL_NAME)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(maxBytes));
+        when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(maxBytes + 1));
 
-        publisher = new StreamingHttpResultPublisher(threadPool, settings, listener());
+        publisher = new StreamingHttpResultPublisher(threadPool, settings, listener(), circuitBreaker, INFERENCE_ENTITY_ID);
     }
 
     private ActionListener<StreamingHttpResult> listener() {
@@ -75,9 +80,9 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void clearResult() throws Exception {
         result.set(null);
+        circuitBreaker.reset();
     }
 
     /**
@@ -88,7 +93,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     public void testFirstResponseCallsListener() throws IOException {
         var latch = new CountDownLatch(1);
         var listener = ActionTestUtils.<StreamingHttpResult>assertNoFailureListener(r -> latch.countDown());
-        publisher = new StreamingHttpResultPublisher(threadPool, settings, listener);
+        publisher = new StreamingHttpResultPublisher(threadPool, settings, listener, new TestCircuitBreaker(), INFERENCE_ENTITY_ID);
 
         publisher.responseReceived(mock(HttpResponse.class));
         publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
@@ -104,7 +109,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     public void testNonEmptyFirstResponseCallsListener() throws IOException {
         var latch = new CountDownLatch(1);
         var listener = ActionTestUtils.<StreamingHttpResult>assertNoFailureListener(r -> latch.countDown());
-        publisher = new StreamingHttpResultPublisher(threadPool, settings, listener);
+        publisher = new StreamingHttpResultPublisher(threadPool, settings, listener, new TestCircuitBreaker(), INFERENCE_ENTITY_ID);
 
         when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(9000));
         publisher.responseReceived(mock(HttpResponse.class));
@@ -596,7 +601,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     public void testReuseMlThread() throws ExecutionException, InterruptedException, TimeoutException {
         try {
             threadPool = spy(createThreadPool(inferenceUtilityExecutors()));
-            publisher = new StreamingHttpResultPublisher(threadPool, settings, listener());
+            publisher = new StreamingHttpResultPublisher(threadPool, settings, listener(), new TestCircuitBreaker(), INFERENCE_ENTITY_ID);
             var subscriber = new TestSubscriber();
             publisher.responseReceived(mock(HttpResponse.class));
             testPublisher().subscribe(subscriber);
@@ -636,7 +641,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
                 return executorServiceSpy;
             }).when(threadPool).executor(UTILITY_THREAD_POOL_NAME);
 
-            publisher = new StreamingHttpResultPublisher(threadPool, settings, listener());
+            publisher = new StreamingHttpResultPublisher(threadPool, settings, listener(), new TestCircuitBreaker(), INFERENCE_ENTITY_ID);
             publisher.responseReceived(mock(HttpResponse.class));
             publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
             // create an infinitely running Subscriber
@@ -710,6 +715,259 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         verify(threadPool, times(0)).executor(UTILITY_THREAD_POOL_NAME);
         subscriber.requestData();
         verify(threadPool, times(1)).executor(UTILITY_THREAD_POOL_NAME);
+    }
+
+    public void testConsumeContentTracksCircuitBreakerBytes() throws IOException {
+        var messageBytesLength = (long) message.length;
+        publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
+        assertThat("circuitBreaker should track input bytes on consumeContent", circuitBreaker.getTracked(), equalTo(messageBytesLength));
+    }
+
+    public void testFailedPublisherReleasesCircuitBreakerBytes() throws IOException {
+        publisher.responseReceived(mock(HttpResponse.class));
+        publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
+
+        assertThat(
+            "circuitBreaker should have tracked bytes after consuming content",
+            circuitBreaker.getTracked(),
+            equalTo((long) message.length)
+        );
+
+        var subscriber = new TestSubscriber();
+        testPublisher().subscribe(subscriber);
+
+        publisher.failed(new NullPointerException("test"));
+        subscriber.requestData();
+
+        assertThat("circuitBreaker should have 0 tracked bytes after the publisher failed", circuitBreaker.getTracked(), equalTo(0L));
+    }
+
+    public void testFailedBeforeSubscribeReleasesCircuitBreakerBytes() throws IOException {
+        publisher.responseReceived(mock(HttpResponse.class));
+        publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
+
+        assertThat(
+            "circuitBreaker should have tracked bytes after consuming content",
+            circuitBreaker.getTracked(),
+            equalTo((long) message.length)
+        );
+
+        // Apache fails the response before any subscriber has attached
+        var exception = new NullPointerException("test");
+        publisher.failed(exception);
+
+        assertThat(
+            "circuitBreaker should have 0 tracked bytes when the publisher fails without a subscriber",
+            circuitBreaker.getTracked(),
+            equalTo(0L)
+        );
+
+        // a late subscriber still receives the error, and the error path must not release bytes a second time
+        var subscriber = new TestSubscriber();
+        testPublisher().subscribe(subscriber);
+        subscriber.requestData();
+
+        assertThat("subscriber receives the exception", subscriber.throwable, is(exception));
+        assertThat("bytes should not be released twice", circuitBreaker.getTracked(), equalTo(0L));
+    }
+
+    public void testConsumeContentAfterErrorDeliveredDoesNotLeakCircuitBreakerBytes() throws IOException {
+        var exception = new NullPointerException("test");
+        var subscriber = subscribe();
+
+        publisher.failed(exception);
+        subscriber.requestData();
+        assertThat("subscriber received the terminal error", subscriber.throwable, is(exception));
+        assertThat("all tracked bytes were released with the error", circuitBreaker.getTracked(), equalTo(0L));
+
+        // Apache does not know about the delivered error and keeps streaming chunks
+        var ioControl = mock(IOControl.class);
+        publisher.consumeContent(contentDecoder(message), ioControl);
+
+        assertThat(
+            "chunks consumed after the terminal error must not stay charged on the circuit breaker",
+            circuitBreaker.getTracked(),
+            equalTo(0L)
+        );
+        verify(ioControl).shutdown();
+    }
+
+    public void testCancelRacingWithConsumeContentDoesNotLeakCircuitBreakerBytes() throws IOException {
+        publisher.responseReceived(mock(HttpResponse.class));
+        var subscriber = new TestSubscriber();
+        testPublisher().subscribe(subscriber);
+
+        // A ContentDecoder that fires subscription.cancel() mid-read
+        var cancelDuringRead = new ContentDecoder() {
+            boolean firstRead = true;
+
+            @Override
+            public int read(ByteBuffer byteBuffer) {
+                if (firstRead) {
+                    firstRead = false;
+                    subscriber.subscription.cancel();
+                    byteBuffer.put(message);
+                    return message.length;
+                }
+                return 0;
+            }
+
+            @Override
+            public boolean isCompleted() {
+                return true;
+            }
+        };
+
+        publisher.consumeContent(cancelDuringRead, mock(IOControl.class));
+
+        assertThat(
+            "bytes charged to the circuit breaker after cancelUpstream() raced past the guard must be released",
+            circuitBreaker.getTracked(),
+            equalTo(0L)
+        );
+    }
+
+    public void testCancelledSubscriberReleasesCircuitBreakerBytes() throws IOException {
+        publisher.responseReceived(mock(HttpResponse.class));
+        publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
+
+        assertThat(
+            "circuitBreaker should have tracked bytes after consuming content",
+            circuitBreaker.getTracked(),
+            equalTo((long) message.length)
+        );
+
+        var subscriber = new TestSubscriber();
+        testPublisher().subscribe(subscriber);
+        subscriber.subscription.cancel();
+
+        assertThat(
+            "circuitBreaker should have 0 tracked bytes after the subscriber was cancelled",
+            circuitBreaker.getTracked(),
+            equalTo(0L)
+        );
+    }
+
+    public void testPublisherCancelReleasesCircuitBreakerBytesOnDrain() throws IOException {
+        publisher.responseReceived(mock(HttpResponse.class));
+        publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
+
+        var subscriber = new TestSubscriber();
+        testPublisher().subscribe(subscriber);
+
+        publisher.cancel();
+
+        assertThat(
+            "circuitBreaker should still track bytes immediately after Apache cancelled",
+            circuitBreaker.getTracked(),
+            equalTo((long) message.length)
+        );
+
+        // Drains rest of the data in the queue
+        subscriber.requestData();
+
+        assertThat(
+            "circuitBreaker should have 0 tracked bytes after subscriber drains the queue",
+            circuitBreaker.getTracked(),
+            equalTo(0L)
+        );
+    }
+
+    public void testCompleteWithoutSubscriberReleasesCircuitBreakerBytes() throws IOException {
+        publisher.responseReceived(mock(HttpResponse.class));
+        publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
+
+        assertThat(
+            "circuitBreaker should track bytes consumed before subscribe",
+            circuitBreaker.getTracked(),
+            equalTo((long) message.length)
+        );
+
+        publisher.close();
+
+        assertThat(
+            "circuitBreaker bytes must be released when the stream completes without a subscriber",
+            circuitBreaker.getTracked(),
+            equalTo(0L)
+        );
+    }
+
+    public void testConsumeContentAfterErrorWithoutSubscriberShutsDownProducer() throws IOException {
+        publisher.responseReceived(mock(HttpResponse.class));
+        var exception = new NullPointerException("test");
+        publisher.failed(exception);
+
+        assertThat("circuitBreaker should be 0 after an error with no subscriber", circuitBreaker.getTracked(), equalTo(0L));
+
+        var ioControl = mock(IOControl.class);
+        publisher.consumeContent(contentDecoder(message), ioControl);
+        publisher.consumeContent(contentDecoder(message), ioControl);
+
+        verify(ioControl, times(2)).shutdown();
+        assertThat("circuitBreaker must remain at 0 — no bytes may be charged after the error", circuitBreaker.getTracked(), equalTo(0L));
+    }
+
+    public void testLateSubscriberAfterErrorStillReceivesError() throws IOException {
+        publisher.responseReceived(mock(HttpResponse.class));
+        var exception = new NullPointerException("test");
+        publisher.failed(exception);
+
+        var subscriber = new TestSubscriber();
+        testPublisher().subscribe(subscriber);
+        subscriber.requestData();
+
+        assertThat("late subscriber must receive the pending error", subscriber.throwable, is(exception));
+        assertThat("circuitBreaker must be 0 after error delivery", circuitBreaker.getTracked(), equalTo(0L));
+    }
+
+    public void testBufferFullWithoutSubscriberAbortsStreamAndReleasesBytes() throws IOException {
+        publisher.responseReceived(mock(HttpResponse.class));
+
+        var ioControl = mock(IOControl.class);
+        when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(maxBytes));
+
+        publisher.consumeContent(contentDecoder(message), ioControl);
+
+        assertThat(
+            "circuitBreaker bytes must be released after aborting a bufferFull stream without a subscriber",
+            circuitBreaker.getTracked(),
+            equalTo(0L)
+        );
+        verify(ioControl).shutdown();
+
+        var subscriber = new TestSubscriber();
+        testPublisher().subscribe(subscriber);
+        subscriber.requestData();
+
+        assertThat("late subscriber must receive the abort error", subscriber.throwable, instanceOf(IllegalStateException.class));
+        assertThat("circuitBreaker must stay at 0 after abort error delivery", circuitBreaker.getTracked(), equalTo(0L));
+    }
+
+    private static class TestCircuitBreakerWithTracking extends TestCircuitBreaker {
+        private long tracked;
+
+        TestCircuitBreakerWithTracking() {
+            super();
+            this.tracked = 0L;
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            this.tracked += bytes;
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            this.tracked += bytes;
+        }
+
+        public long getTracked() {
+            return tracked;
+        }
+
+        public void reset() {
+            this.tracked = 0L;
+        }
     }
 
     private static ContentDecoder contentDecoder(byte[] message) {

@@ -132,7 +132,7 @@ public final class LuceneMaxFactory extends LuceneOperator.Factory {
             contexts,
             queryFunction,
             dataPartitioning,
-            query -> LuceneSliceQueue.PartitioningStrategy.SHARD,
+            (ctx, query) -> LuceneSliceQueue.PartitioningStrategy.SHARD,
             LuceneOperator.SMALL_INDEX_BOUNDARY,
             taskConcurrency,
             limit,

@@ -1,6 +1,0 @@
-area: Network
-issues:
- - 152713
-pr: 153581
-summary: Fix remote write with audit request bodies
-type: bug

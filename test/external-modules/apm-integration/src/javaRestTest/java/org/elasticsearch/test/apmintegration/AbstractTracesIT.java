@@ -11,8 +11,6 @@ package org.elasticsearch.test.apmintegration;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
@@ -25,7 +23,6 @@ import java.util.TreeSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.emptyOrNullString;
@@ -43,7 +40,6 @@ import static org.hamcrest.Matchers.not;
  * </ul>
  */
 public abstract class AbstractTracesIT extends AbstractTelemetryIT {
-    private static final Logger logger = LogManager.getLogger(AbstractTracesIT.class);
 
     /**
      * After the root-span latch fires, wait briefly before asserting the span count.
@@ -85,18 +81,12 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
     static final Set<String> FORBIDDEN_SPAN_KEYS = Set.of("otel.attributes.http.request.body", "otel.attributes.http.response.body");
 
     /**
-     * Resource attribute keys every exporter implementation must produce. These are the legacy
-     * APM-agent metadata keys that downstream consumers depend on today; the OTel SDK swap is
-     * meant to be a drop-in replacement, so any future exporter must continue producing them or
-     * fail this assertion.
+     * Resource attribute keys this exporter must produce on the {@code GET /_nodes/stats} resource.
+     * Subclasses override to match their export path.
      */
-    static final Set<String> REQUIRED_RESOURCE_KEYS = Set.of(
-        "service.name",
-        "service.version",
-        "service.language.name",
-        "service.agent.name",
-        "service.agent.version"
-    );
+    protected Set<String> requiredResourceKeys() {
+        return Set.of("service.name", "service.version", "service.language.name", "service.agent.name", "service.agent.version");
+    }
 
     /**
      * Returns a cluster builder with settings common to all traces integration tests:
@@ -112,6 +102,25 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
             .setting("telemetry.metrics.enabled", "false");
     }
 
+    private ReceivedTelemetry.ReceivedSpan awaitRootSpan(String traceIdValue, String remoteParentSpanId, Map<String, String> extraHeaders)
+        throws Exception {
+        final String traceParentValue = "00-" + traceIdValue + "-" + remoteParentSpanId + "-01";
+        return apmServer().await(
+            ReceivedTelemetry.ReceivedSpan.class,
+            s -> "GET /_nodes/stats".equals(s.name()) && traceIdValue.equals(s.traceId()),
+            telemetryTimeout(),
+            () -> {
+                Request nodeStatsRequest = new Request("GET", "/_nodes/stats");
+                RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder()
+                    .addHeader(Task.TRACE_PARENT_HTTP_HEADER, traceParentValue);
+                extraHeaders.forEach(options::addHeader);
+                nodeStatsRequest.setOptions(options.build());
+                client().performRequest(nodeStatsRequest);
+                client().performRequest(new Request("GET", "/_flush_telemetry"));
+            }
+        );
+    }
+
     /**
      * Sends a request with a W3C {@code traceparent} header and asserts that the
      * corresponding root span is exported with the correct trace ID and remote parent span ID.
@@ -123,35 +132,8 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
     public void testRestRootSpanWithTraceParent() throws Exception {
         final String traceIdValue = "0af7651916cd43dd8448eb211c80319c";
         final String remoteParentSpanId = "b7ad6b7169203331";
-        final String traceParentValue = "00-" + traceIdValue + "-" + remoteParentSpanId + "-01";
 
-        CountDownLatch finished = new CountDownLatch(1);
-        AtomicReference<ReceivedTelemetry.ReceivedSpan> rootSpanRef = new AtomicReference<>();
-
-        // Filter only on name + traceId. parentSpanId is checked as an explicit assertion below so
-        // that a propagation bug produces an immediate failure message rather than a 40-second timeout.
-        Consumer<ReceivedTelemetry> messageConsumer = msg -> {
-            if (msg instanceof ReceivedTelemetry.ReceivedSpan s
-                && "GET /_nodes/stats".equals(s.name())
-                && traceIdValue.equals(s.traceId())) {
-                logger.info("Root span received: {}", s);
-                rootSpanRef.set(s);
-                finished.countDown();
-            }
-        };
-
-        apmServer().addMessageConsumer(messageConsumer);
-
-        Request nodeStatsRequest = new Request("GET", "/_nodes/stats");
-        nodeStatsRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.TRACE_PARENT_HTTP_HEADER, traceParentValue).build());
-        client().performRequest(nodeStatsRequest);
-        client().performRequest(new Request("GET", "/_flush_telemetry"));
-
-        assertTrue(
-            "GET /_nodes/stats span with traceId " + traceIdValue + " should be received within timeout",
-            finished.await(telemetryTimeout(), TimeUnit.SECONDS)
-        );
-        ReceivedTelemetry.ReceivedSpan rootSpan = rootSpanRef.get();
+        ReceivedTelemetry.ReceivedSpan rootSpan = awaitRootSpan(traceIdValue, remoteParentSpanId, Map.of());
         assertTrue("Root span should carry a parent span ID propagated from the traceparent header", rootSpan.parentSpanId().isPresent());
         assertEquals(
             "Root span parent span ID should match the remote parent from the traceparent header",
@@ -160,6 +142,14 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
         );
         assertNodeStatsRootSpanAttributes(rootSpan);
         assertNodeStatsResourceAttributes();
+    }
+
+    public void testElasticTracestateTranslatesToRepresentativeCount() throws Exception {
+        final String traceIdValue = "0af7651916cd43dd8448eb211c80319d";
+        final String remoteParentSpanId = "b7ad6b7169203332";
+
+        ReceivedTelemetry.ReceivedSpan rootSpan = awaitRootSpan(traceIdValue, remoteParentSpanId, Map.of(Task.TRACE_STATE, "es=s:0.125"));
+        assertEquals(8.0, ((Number) rootSpan.attributes().get("representative_count")).doubleValue(), 0.0001);
     }
 
     /**
@@ -204,8 +194,7 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
 
     /**
      * Asserts that the resource (telemetry source) that emitted the {@code GET /_nodes/stats} span
-     * carries every entry in {@link #REQUIRED_RESOURCE_KEYS}. Locks in the service / sdk attribute
-     * set every exporter must produce; the APM-agent path produces these via its
+     * carries every entry in {@link #requiredResourceKeys()}. The APM-agent path produces these via its
      * {@code metadata} intake event, the OTel SDK path produces them via the Resource on each
      * {@code ResourceSpans} batch.
      *
@@ -215,7 +204,7 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
     protected void assertNodeStatsResourceAttributes() throws Exception {
         assertBusy(() -> assertNotNull("no resource event observed yet", apmServer().resource()), 5, TimeUnit.SECONDS);
         ReceivedTelemetry.ReceivedResource resource = apmServer().resource();
-        assertContainsAll("nodes_stats resource attributes", REQUIRED_RESOURCE_KEYS, resource.attributes().keySet());
+        assertContainsAll("nodes_stats resource attributes", requiredResourceKeys(), resource.attributes().keySet());
     }
 
     /** Fail with a sorted list of the required keys missing from {@code observed}. */

@@ -140,12 +140,12 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
         try {
             for (ShardContext ctx : contexts.iterable()) {
                 if (PartitionedDocValues.canPartitionByTsidPrefix(ctx.searcher()) == false) {
-                    return limit -> q -> LuceneSliceQueue.PartitioningStrategy.SHARD;
+                    return limit -> (shardCtx, q) -> LuceneSliceQueue.PartitioningStrategy.SHARD;
                 }
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return limit -> q -> LuceneSliceQueue.PartitioningStrategy.TIME_SERIES;
+        return limit -> (shardCtx, q) -> LuceneSliceQueue.PartitioningStrategy.TIME_SERIES;
     }
 }

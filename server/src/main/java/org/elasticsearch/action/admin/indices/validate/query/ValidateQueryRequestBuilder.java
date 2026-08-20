@@ -68,7 +68,7 @@ public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilde
     }
 
     /**
-     * Sets slice-routing provenance and the user-provided {@code _slice} value.
+     * Sets slice-routing provenance and the user-provided {@code slice} value.
      */
     public ValidateQueryRequestBuilder setSearchSlice(@Nullable String searchSlice) {
         request.searchSlice(searchSlice);

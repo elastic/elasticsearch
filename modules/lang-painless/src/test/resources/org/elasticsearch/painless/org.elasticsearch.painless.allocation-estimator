@@ -11,6 +11,7 @@
 
 class org.elasticsearch.painless.AllocationEstimatorTestObject {
   ()
+  int staticAllocating(int) @allocates[class="org.elasticsearch.painless.AllocationEstimatorTestObject", method="staticAllocatingEstimate"]
   int negativeEstimated() @allocates[class="org.elasticsearch.painless.AllocationEstimatorTestObject", method="negativeEstimate"]
   int hugeEstimated() @allocates[class="org.elasticsearch.painless.AllocationEstimatorTestObject", method="hugeEstimate"]
   int constantAllocating() @allocates[class="org.elasticsearch.painless.AllocationEstimatorTestObject", method="constantEstimate"]

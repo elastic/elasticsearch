@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -63,6 +64,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -114,6 +116,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.SequencedMap;
 import java.util.Set;
 
@@ -461,6 +464,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
+    public Expression visitLogicalInMultiColumnSubquery(EsqlBaseParser.LogicalInMultiColumnSubqueryContext ctx) {
+        List<Expression> values = ctx.valueExpression().stream().map(this::expression).toList();
+        LogicalPlan subqueryPlan = visitSubquery(ctx.subquery());
+        Source source = source(ctx);
+        Expression e = new MultiColumnInSubquery(source, values, subqueryPlan);
+        return ctx.NOT() == null ? e : new Not(source, e);
+    }
+
+    @Override
     public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
         return visitRelation(source(ctx), SourceCommand.FROM, ctx.indexPatternAndMetadataFields());
     }
@@ -714,9 +726,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return input -> {
             boolean hasAggregate = input.anyMatch(p -> p instanceof Aggregate);
             boolean hasPromqlCommand = input.anyMatch(p -> p instanceof PromqlCommand);
-            boolean hasTimeSeries = input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode().isTsdb());
+            boolean hasTimeSeries = hasOuterTimeSeries(input);
             boolean hasInfoCommand = input.anyMatch(p -> p instanceof MetricsInfo || p instanceof TsInfo);
-
             if (hasAggregate == false && hasPromqlCommand == false && hasTimeSeries && hasInfoCommand == false) {
                 return new TimeSeriesAggregate(
                     source(ctx),
@@ -731,6 +742,31 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 return new Aggregate(source(ctx), input, stats.groupings(), stats.aggregates());
             }
         };
+    }
+
+    /**
+     * Returns {@code true} if {@code plan} (or any of its non-{@link Subquery}/{@link UnionAll} descendants) holds an
+     * {@link UnresolvedRelation} with a time-series {@link IndexMode}.
+     * <p>
+     * Traversal stops at {@link Subquery} and {@link UnionAll} boundaries so that a {@code TS} command nested inside a
+     * {@code FROM} subquery (e.g. {@code FROM (TS k8s), (FROM employees)}) does not cause the outer
+     * {@code STATS} to pick {@link TimeSeriesAggregate}.  The outer command is {@code FROM}, not
+     * {@code TS}, so time-series aggregate planning must not be triggered by a relation that is
+     * isolated inside an independent subquery.
+     */
+    private static boolean hasOuterTimeSeries(LogicalPlan plan) {
+        if (plan instanceof UnionAll || plan instanceof Subquery) {
+            return false;
+        }
+        if (plan instanceof UnresolvedRelation ur && ur.indexMode().isTsdb()) {
+            return true;
+        }
+        for (LogicalPlan child : plan.children()) {
+            if (hasOuterTimeSeries(child)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private ParserUtils.Stats stats(
@@ -881,7 +917,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             // If this is a remote-only ENRICH, any upstream LOOKUP JOINs need to be treated as remote-only, too.
             if (mode == Mode.REMOTE) {
-                child = child.transformDown(LookupJoin.class, lj -> new LookupJoin(lj.source(), lj.left(), lj.right(), lj.config(), true));
+                child = child.transformDown(
+                    LookupJoin.class,
+                    lj -> new LookupJoin(
+                        lj.source(),
+                        lj.left(),
+                        lj.right(),
+                        lj.config(),
+                        lj.executesOn() == ExecuteLocation.COORDINATOR ? ExecuteLocation.COORDINATOR : ExecuteLocation.REMOTE
+                    )
+                );
             }
 
             return new Enrich(
@@ -1081,7 +1126,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (rightPattern.contains(WILDCARD)) {
             throw new ParsingException(source(target), "invalid index pattern [{}], * is not allowed in LOOKUP JOIN", rightPattern);
         }
-        if (RemoteClusterAware.isRemoteIndexName(rightPattern)) {
+        var rightPatternSplit = RemoteClusterAware.splitIndexName(rightPattern);
+        var mode = Objects.equals(rightPatternSplit.clusterAlias(), "_coordinator") ? ExecuteLocation.COORDINATOR : ExecuteLocation.ANY;
+        if (rightPatternSplit.clusterAlias() != null && mode != ExecuteLocation.COORDINATOR) {
             throw new ParsingException(
                 source(target),
                 "invalid index pattern [{}], remote clusters are not supported with LOOKUP JOIN",
@@ -1098,7 +1145,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         UnresolvedRelation right = new UnresolvedRelation(
             source(target),
-            new IndexPattern(source(target.index), rightPattern),
+            new IndexPattern(source(target.index), rightPatternSplit.indexExpression()),
             false,
             emptyList(),
             IndexMode.LOOKUP,
@@ -1113,7 +1160,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             p,
             right,
             joinInfo.joinFields(),
-            Predicates.combineAndWithSource(joinInfo.joinExpressions(), source(condition))
+            Predicates.combineAndWithSource(joinInfo.joinExpressions(), source(condition)),
+            mode
         );
     }
 
@@ -1487,6 +1535,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 unknown.iterator().next(),
                 Highlight.validOptionNames()
             );
+        }
+        // Every HIGHLIGHT option takes a constant; the grammar also admits a nested map. Rejecting here keeps the source
+        // position: a non-literal value is not foldable, so analysis skips it and it would otherwise fail while folding
+        // on every data node, with no position to report.
+        for (Map.Entry<String, Expression> option : optionsMap.entrySet()) {
+            Expression value = option.getValue();
+            if (value instanceof Literal == false) {
+                throw new ParsingException(
+                    value.source(),
+                    "Invalid value for option [{}] in HIGHLIGHT, expected a constant, found [{}]",
+                    option.getKey(),
+                    value.sourceText()
+                );
+            }
         }
         return h.withOptions(options);
     }

@@ -530,6 +530,7 @@ Very Tall      | 2.0        | 2.1        | 20
 
 enrichDecadesStats
 required_capability: enrich_load
+required_capability: date_range_field_type_v6
 
 FROM employees
 | ENRICH decades_policy ON birth_date WITH birth_decade = decade, birth_description = description
@@ -650,12 +651,11 @@ IDR       |  Indore       |  POINT(75.8472 22.7167)  |  India      |  POINT(75.8
 // We had wrong layouts from ReplaceMissingFieldsWithNull in case of indices that had relevant fields for the query,
 // but were **missing the field we enrich on**.
 fieldsInOtherIndicesBug
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: enrich_load
 required_capability: fix_replace_missing_field_with_null_duplicate_name_id_in_layout
 required_capability: dense_vector_agg_metric_double_if_fns
 
-from *,-addresses_*,-keyword_languages_lookup,-date_nanos_union_types
+from *,-addresses_*,-keyword_languages_lookup,-message_language_code_lookup,-date_nanos_union_types
 | keep author.keyword, book_no, scalerank, street, bytes_in, @timestamp, abbrev, city_location, distance, description, birth_date, language_code, intersects, client_ip, event_duration, version
 | enrich languages_policy on author.keyword
 | sort book_no

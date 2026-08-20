@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -46,7 +47,7 @@ public class JoinTests extends ESTestCase {
         Row right = new Row(Source.EMPTY, rightFields);
 
         JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, leftAttributes, rightAttributes, null);
-        Join join = new Join(Source.EMPTY, left, right, joinConfig, false);
+        Join join = new Join(Source.EMPTY, left, right, joinConfig, ExecuteLocation.ANY);
 
         // matchfields are a subset of the left and right fields, so they don't contribute to the size of the references set.
         // assertEquals(2 * numMatchFields, join.references().size());
@@ -82,7 +83,7 @@ public class JoinTests extends ESTestCase {
         Row right = new Row(Source.EMPTY, rightFields);
 
         JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, leftAttributes, rightAttributes, null);
-        Join join = new Join(Source.EMPTY, left, right, joinConfig, false);
+        Join join = new Join(Source.EMPTY, left, right, joinConfig, ExecuteLocation.ANY);
         assertTrue(join.config().leftFields().stream().allMatch(ref -> ref.dataType().equals(DataType.INTEGER)));
 
         Join transformedJoin = (Join) join.transformExpressionsOnly(Attribute.class, attr -> attr.withDataType(DataType.BOOLEAN));

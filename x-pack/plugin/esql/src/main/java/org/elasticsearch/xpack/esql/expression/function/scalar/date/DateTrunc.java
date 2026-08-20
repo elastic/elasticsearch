@@ -16,6 +16,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -47,7 +48,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 
-public class DateTrunc extends EsqlConfigurationFunction {
+public class DateTrunc extends EsqlConfigurationFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DateTrunc",
@@ -321,6 +322,6 @@ public class DateTrunc extends EsqlConfigurationFunction {
     }
 
     public Bucket timeBucketSpecRef() {
-        return new Bucket(source(), field(), interval(), null, null, configuration());
+        return new Bucket(source(), field(), interval(), null, null, null, configuration());
     }
 }

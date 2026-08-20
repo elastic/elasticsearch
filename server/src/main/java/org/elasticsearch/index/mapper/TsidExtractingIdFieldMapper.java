@@ -44,6 +44,13 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         });
     }
 
+    @Override
+    BytesRef nestedIdentityTerm(DocumentParserContext context) {
+        // The _id is derived from the _tsid and @timestamp, which aren't parsed yet, so postParse propagates it to the
+        // nested documents (which it asserts start without an _id).
+        return null;
+    }
+
     private static final long SEED = 0;
 
     public static BytesRef createField(DocumentParserContext context, RoutingHashBuilder routingBuilder, BytesRef tsid) {

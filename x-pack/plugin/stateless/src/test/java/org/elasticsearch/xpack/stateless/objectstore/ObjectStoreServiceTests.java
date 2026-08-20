@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.objectstore;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.lucene.Lucene;
@@ -69,7 +71,9 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.client.NoOpNodeClient;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -108,6 +112,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
@@ -335,6 +340,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             BatchedCompoundCommit commit = testHarness.objectStoreService.readSearchShardState(
                 testHarness.objectStoreService.getProjectBlobContainer(testHarness.shardId),
                 dir,
+                dir.createMetadataReadDirectory(false),
                 1
             );
             if (commit != null) {
@@ -600,6 +606,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         testHarness.objectStoreService.readSearchShardState(
                             testHarness.objectStoreService.getProjectBlobContainer(testHarness.shardId),
                             SearchDirectory.unwrapDirectory(testHarness.searchStore.directory()),
+                            SearchDirectory.unwrapDirectory(testHarness.searchStore.directory()).createMetadataReadDirectory(false),
                             finalLatestBcc != null ? finalLatestBcc.primaryTermAndGeneration().primaryTerm() : 1
                         ),
                         equalTo(finalLatestBcc)
@@ -859,6 +866,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             BatchedCompoundCommit commit = node2.objectStoreService.readSearchShardState(
                 node2.objectStoreService.getProjectBlobContainer(destinationShardId),
                 dir,
+                dir.createMetadataReadDirectory(false),
                 primaryTerm
             );
             if (commit != null) {
@@ -1163,6 +1171,114 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 assertThat(deletedShardFiles.iterator().next(), startsWith("indices/" + testHarness.shardId.getIndex().getUUID()));
             });
 
+        }
+    }
+
+    @TestLogging(
+        reason = "test that non-slow and slow translog uploads log at DEBUG and WARN level respectively",
+        value = "org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService:DEBUG"
+    )
+    public void testTranslogUploadTimesLogLevels() throws Exception {
+        var time = new AtomicLong(0);
+        AtomicBoolean exceedThreshold = new AtomicBoolean(false);
+        final TimeValue slowTranslogUploadLogThreshold = TimeValue.timeValueMillis(10);
+
+        final long fastUploadDuration = randomLongBetween(0, slowTranslogUploadLogThreshold.millis() - 1);
+        final long slowUploadDuration = randomLongBetween(
+            slowTranslogUploadLogThreshold.millis() + 1,
+            slowTranslogUploadLogThreshold.millis() + 100
+        );
+
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(
+                        ObjectStoreService.OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING.getKey(),
+                        slowTranslogUploadLogThreshold
+                    )
+                    .build();
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                return new FilterBlobContainer(innerContainer) {
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
+                    }
+
+                    @Override
+                    public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+                        throws IOException {
+                        if (purpose == OperationPurpose.TRANSLOG) {
+                            if (exceedThreshold.get()) {
+                                time.addAndGet(slowUploadDuration);
+                            } else {
+                                time.addAndGet(fastUploadDuration);
+                            }
+                        }
+                        super.writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
+                    }
+                };
+            }
+
+            @Override
+            protected ThreadPool createThreadPool(Settings nodeSettings) {
+                return new TestThreadPool("test", nodeSettings, StatelessPlugin.statelessExecutorBuilders(nodeSettings, true)) {
+                    @Override
+                    public long relativeTimeInMillis() {
+                        return time.get();
+                    }
+                };
+            }
+        }) {
+            var objectStoreService = testHarness.objectStoreService;
+
+            // In case of no-delay, translog upload is fast and hence we log at DEBUG level
+            var future1 = new PlainActionFuture<Void>();
+            MockLog.assertThatLogger(() -> {
+                objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1 }), future1);
+                safeGet(future1);
+            },
+                ObjectStoreService.class,
+                new MockLog.SeenEventExpectation(
+                    "slow translog debug",
+                    ObjectStoreService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*translog file*uploaded in*ms*"
+                ),
+                new MockLog.UnseenEventExpectation(
+                    "slow translog warn",
+                    ObjectStoreService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*translog file*uploaded in*ms*"
+                )
+            );
+
+            exceedThreshold.set(true);
+
+            // In case of a delay that exceeds the slow translog upload threshold we log at WARN level
+            var future2 = new PlainActionFuture<Void>();
+            MockLog.assertThatLogger(() -> {
+                objectStoreService.uploadTranslogFile("translog-2", new BytesArray(new byte[] { 2 }), future2);
+                safeGet(future2);
+            },
+                ObjectStoreService.class,
+                new MockLog.UnseenEventExpectation(
+                    "slow translog debug",
+                    ObjectStoreService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*translog file*uploaded in*ms*"
+                ),
+                new MockLog.SeenEventExpectation(
+                    "slow translog warn",
+                    ObjectStoreService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*translog file*uploaded in*ms*"
+                )
+            );
         }
     }
 

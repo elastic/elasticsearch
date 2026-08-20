@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
@@ -207,7 +208,7 @@ public class TestAnalyzer {
         EsIndex noFieldsIndex = new EsIndex(
             noFieldsIndexName,
             Map.of(),
-            Map.of(noFieldsIndexName, IndexMode.STANDARD),
+            Map.of(noFieldsIndexName, new IndexProperties(IndexMode.STANDARD, 0)),
             Map.of("", List.of(noFieldsIndexName)),
             Map.of("", List.of(noFieldsIndexName))
         );
@@ -328,6 +329,14 @@ public class TestAnalyzer {
     }
 
     /**
+     * Adds the datenanos-k8s index with k8s-mappings-date_nanos.json in time series mode. It mirrors {@link #addK8s()}
+     * but carries a {@code date_nanos} {@code @timestamp}, so tests can exercise the date_nanos time-bucket/step path.
+     */
+    public TestAnalyzer addK8sDateNanos() {
+        return addIndex("datenanos-k8s", "k8s-mappings-date_nanos.json", IndexMode.TIME_SERIES);
+    }
+
+    /**
      * Adds the otel-metrics index, built programmatically to mirror what IndexResolver produces for a real
      * OTel TSDB index. In a real OTel index both the root-level alias (e.g. {@code cpu}) and the concrete
      * passthrough field (e.g. {@code attributes.cpu}) have {@code isAlias=false}; the mapping here reflects
@@ -365,7 +374,13 @@ public class TestAnalyzer {
         mapping.put("host.name", new KeywordEsField("host.name", Map.of(), true, 0, false, false, EsField.TimeSeriesFieldType.DIMENSION));
         mapping.put("metrics", new EsField("metrics", DataType.OBJECT, metricsChildren, false, EsField.TimeSeriesFieldType.NONE));
 
-        EsIndex otelMetrics = new EsIndex("otel-metrics", mapping, Map.of("otel-metrics", IndexMode.TIME_SERIES), Map.of(), Map.of());
+        EsIndex otelMetrics = new EsIndex(
+            "otel-metrics",
+            mapping,
+            Map.of("otel-metrics", new IndexProperties(IndexMode.TIME_SERIES, 0)),
+            Map.of(),
+            Map.of()
+        );
         return addIndex(otelMetrics);
     }
 
@@ -958,7 +973,13 @@ public class TestAnalyzer {
         var grouped = Arrays.stream(indexName.split(","))
             .collect(groupingBy(index -> RemoteClusterAware.splitIndexName(index).getClusterGroupingKey()));
         return IndexResolution.valid(
-            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), grouped, grouped)
+            new EsIndex(
+                indexName,
+                EsqlTestUtils.loadMapping(resource),
+                Map.of(indexName, new IndexProperties(indexMode, 0)),
+                grouped,
+                grouped
+            )
         );
     }
 

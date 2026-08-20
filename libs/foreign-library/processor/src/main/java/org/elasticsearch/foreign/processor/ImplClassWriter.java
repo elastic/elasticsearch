@@ -12,6 +12,7 @@ package org.elasticsearch.foreign.processor;
 import org.elasticsearch.foreign.LinkerHelper;
 import org.elasticsearch.foreign.LoaderHelper;
 import org.elasticsearch.foreign.processor.model.ArrayFieldModel;
+import org.elasticsearch.foreign.processor.model.BoundsCheckModel;
 import org.elasticsearch.foreign.processor.model.LibraryModel;
 import org.elasticsearch.foreign.processor.model.MethodModel;
 import org.elasticsearch.foreign.processor.model.NativeType;
@@ -27,7 +28,10 @@ import java.lang.constant.ClassDesc;
 import java.lang.constant.MethodTypeDesc;
 import java.lang.reflect.AccessFlag;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.annotation.processing.Filer;
 import javax.lang.model.element.TypeElement;
@@ -35,6 +39,7 @@ import javax.lang.model.element.TypeElement;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Addressable;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Arena;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_ArenaAdapter;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Charset;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayoutArray;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemorySegment;
@@ -43,14 +48,17 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Object;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_String;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_StructLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_VarHandle;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_boolean;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_long;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_void;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_ArenaAdapter_allocate;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_Arena_ofAuto;
-import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_byteSize;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.emitPushUtf16LEConstant;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.emitValueLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.primitiveClassDesc;
-import static org.elasticsearch.foreign.processor.model.LibraryModel.RESOLVER_INTERFACE_FQN;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.slotWidth;
+import static org.elasticsearch.foreign.processor.model.LibraryModel.MH_RESOLVER_INTERFACE_FQN;
+import static org.elasticsearch.foreign.processor.model.LibraryModel.SYMBOL_RESOLVER_INTERFACE_FQN;
 
 /**
  * Generates {@code <InterfaceName>$Impl} class files for {@code @LibrarySpecification}-annotated interfaces,
@@ -76,29 +84,43 @@ class ImplClassWriter {
     private static final ClassDesc CD_LinkerOption = ClassDesc.of("java.lang.foreign.Linker$Option");
     private static final ClassDesc CD_LinkerOptionArray = ClassDesc.ofDescriptor("[Ljava/lang/foreign/Linker$Option;");
     private static final ClassDesc CD_AssertionError = ClassDesc.of("java.lang.AssertionError");
-    private static final ClassDesc CD_Throwable = ClassDesc.of("java.lang.Throwable");
     private static final ClassDesc CD_Class = ClassDesc.of("java.lang.Class");
     private static final ClassDesc CD_Linker = ClassDesc.of("java.lang.foreign.Linker");
+    private static final ClassDesc CD_ResolvedSymbol = ClassDesc.of("org.elasticsearch.foreign.ResolvedSymbol");
     private static final ClassDesc CD_SymbolLookup = ClassDesc.of("java.lang.foreign.SymbolLookup");
     private static final ClassDesc CD_LinkerHelper = ClassDesc.of(LinkerHelper.class.getName());
     private static final ClassDesc CD_LinkerAdapter = ClassDesc.of("org.elasticsearch.foreign.adapter.LinkerAdapter"); // not a dependency
     private static final ClassDesc CD_LoaderHelper = ClassDesc.of(LoaderHelper.class.getName());
+    private static final ClassDesc CD_Objects = ClassDesc.of("java.util.Objects");
+    private static final ClassDesc CD_Math = ClassDesc.of("java.lang.Math");
+    private static final ClassDesc CD_IllegalArgumentException = ClassDesc.of("java.lang.IllegalArgumentException");
 
+    /**
+     * Name of the synthetic field holding the negated result of {@code Class.desiredAssertionStatus()},
+     * mirroring javac's own convention for source-level {@code assert} statements.
+     */
+    private static final String ASSERTIONS_DISABLED_FIELD = "$assertionsDisabled";
+
+    private static final MethodTypeDesc MTD_byteSize = MethodTypeDesc.of(CD_long);
+    private static final MethodTypeDesc MTD_checkFromIndexSize = MethodTypeDesc.of(CD_long, CD_long, CD_long, CD_long);
+    private static final MethodTypeDesc MTD_ceilDiv = MethodTypeDesc.of(CD_long, CD_long, CD_long);
+    private static final MethodTypeDesc MTD_desiredAssertionStatus = MethodTypeDesc.of(CD_boolean);
     private static final MethodTypeDesc MTD_FunctionDescriptor_ofVoid = MethodTypeDesc.of(CD_FunctionDescriptor, CD_MemoryLayoutArray);
     private static final MethodTypeDesc MTD_FunctionDescriptor_of = MethodTypeDesc.of(
         CD_FunctionDescriptor,
         CD_MemoryLayout,
         CD_MemoryLayoutArray
     );
-    private static final MethodTypeDesc MTD_downcallHandle_byAddress = MethodTypeDesc.of(
-        CD_MethodHandle,
-        CD_MemorySegment,
-        CD_FunctionDescriptor,
-        CD_LinkerOptionArray
-    );
     private static final MethodTypeDesc MTD_nativeLinker = MethodTypeDesc.of(CD_Linker);
     private static final MethodTypeDesc MTD_defaultLookup = MethodTypeDesc.of(CD_SymbolLookup);
-    private static final MethodTypeDesc MTD_resolve = MethodTypeDesc.of(CD_MemorySegment, CD_String, CD_SymbolLookup);
+    private static final MethodTypeDesc MTD_resolve = MethodTypeDesc.of(CD_ResolvedSymbol, CD_String, CD_SymbolLookup);
+    private static final MethodTypeDesc MTD_mhResolve = MethodTypeDesc.of(
+        CD_MethodHandle,
+        CD_ResolvedSymbol,
+        CD_FunctionDescriptor,
+        CD_Linker,
+        CD_LinkerOptionArray
+    );
     private static final MethodTypeDesc MTD_adaptCritical = MethodTypeDesc.of(
         CD_MethodHandle,
         CD_Lookup,
@@ -106,11 +128,19 @@ class ImplClassWriter {
         CD_Class,
         CD_String
     );
+    private static final MethodTypeDesc MTD_unsupportedFallback = MethodTypeDesc.of(CD_MethodHandle, CD_MethodHandle, CD_String);
     private static final MethodTypeDesc MTD_MemorySegmentAdapter_getString = MethodTypeDesc.of(CD_String, CD_MemorySegment, CD_long);
     private static final MethodTypeDesc MTD_Arena_ofConfined = MethodTypeDesc.of(CD_Arena);
     private static final MethodTypeDesc MTD_Arena_close = MethodTypeDesc.of(CD_void);
     private static final MethodTypeDesc MTD_MemorySegmentAdapter_allocateString = MethodTypeDesc.of(CD_MemorySegment, CD_Arena, CD_String);
-    private static final MethodTypeDesc MTD_critical = MethodTypeDesc.of(CD_LinkerOptionArray);
+    private static final MethodTypeDesc MTD_MemorySegmentAdapter_allocateString_charset = MethodTypeDesc.of(
+        CD_MemorySegment,
+        CD_Arena,
+        CD_String,
+        CD_Charset
+    );
+    private static final MethodTypeDesc MTD_criticalWith = MethodTypeDesc.of(CD_LinkerOptionArray, CD_LinkerOptionArray);
+    private static final MethodTypeDesc MTD_captureState = MethodTypeDesc.of(CD_MemorySegment);
 
     private final Filer filer;
     private final int classFileVersion;
@@ -129,40 +159,66 @@ class ImplClassWriter {
         // Generate $Pack for record structs and $Impl for interface structs
         for (StructModel struct : model.structs()) {
             switch (struct) {
-                case StructRecordModel r -> packWriter.generate(model, r, sourceElement);
-                case StructInterfaceModel i -> structImplWriter.generate(model, i, sourceElement);
+                case StructRecordModel r -> packWriter.generate(model, struct, sourceElement);
+                case StructInterfaceModel i -> structImplWriter.generate(model, struct, sourceElement);
             }
         }
 
         ClassDesc generatedDesc = ClassDesc.of(model.implQualifiedName());
-        ClassDesc interfaceDesc = ClassDesc.of(model.qualifiedName());
+        ClassDesc superDesc = ClassDesc.of(model.qualifiedName());
         List<MethodModel> nativeMethods = model.methods();
 
         // Collect only non-struct-factory methods (methods with @Function)
         List<MethodModel> functionMethods = nativeMethods.stream().filter(m -> m.isStructFactory() == false).toList();
 
+        // Prefix used to build struct interface class descriptors (e.g. "pkg.LibName$StructName")
+        String libraryPrefix = model.packageName().isEmpty() ? model.simpleName() : model.packageName() + "." + model.simpleName();
+
+        // Disambiguate MethodHandle field names: single-name groups keep <name>$mh;
+        // collision groups (same Java method name) use <name>$0$mh, <name>$1$mh, etc.
+        Map<MethodModel, String> fieldNames = computeFieldNames(functionMethods);
+
         byte[] classBytes = ClassFile.of().build(generatedDesc, cb -> {
             cb.withVersion(classFileVersion, 0);
             cb.withFlags(AccessFlag.FINAL, AccessFlag.SUPER);
-            cb.withSuperclass(CD_Object);
-            cb.withInterfaceSymbols(interfaceDesc);
+            if (model.isAbstractClass()) {
+                cb.withSuperclass(superDesc);
+            } else {
+                cb.withSuperclass(CD_Object);
+                cb.withInterfaceSymbols(superDesc);
+            }
 
             // MethodHandle fields: one per @Function method
             for (var nm : functionMethods) {
                 cb.withField(
-                    nm.methodHandleFieldName(),
+                    fieldNames.get(nm),
                     CD_MethodHandle,
                     fb -> fb.withFlags(AccessFlag.PRIVATE, AccessFlag.STATIC, AccessFlag.FINAL)
                 );
             }
 
-            // <clinit>: load the library and initialize each MethodHandle field
+            // Backs the `assert`s emitted for @VectorSegment/@MatrixSegment(aligned = true) checks.
+            cb.withField(
+                ASSERTIONS_DISABLED_FIELD,
+                CD_boolean,
+                fb -> fb.withFlags(AccessFlag.PRIVATE, AccessFlag.STATIC, AccessFlag.FINAL)
+            );
+
+            // <clinit>: load the library, resolve the assertions flag, and initialize each MethodHandle field
             cb.withMethodBody("<clinit>", MethodTypeDesc.of(CD_void), ClassFile.ACC_STATIC, clinit -> {
                 if (model.libraryName().isEmpty() == false) {
                     emitLoadLibrary(clinit, model.libraryName());
                 }
+                emitAssertionsDisabledInit(clinit, generatedDesc);
                 for (var nm : functionMethods) {
-                    emitMhFieldInit(clinit, generatedDesc, nm, model.symbolResolverClassName());
+                    emitMhFieldInit(
+                        clinit,
+                        generatedDesc,
+                        nm,
+                        model.symbolResolverClassName(),
+                        model.methodHandleResolverClassName(),
+                        fieldNames.get(nm)
+                    );
                 }
                 clinit.return_();
             });
@@ -170,19 +226,19 @@ class ImplClassWriter {
             // <init>: package-private no-arg constructor
             cb.withMethodBody("<init>", MethodTypeDesc.of(CD_void), 0, init -> {
                 init.aload(0);
-                init.invokespecial(CD_Object, "<init>", MethodTypeDesc.of(CD_void));
+                init.invokespecial(model.isAbstractClass() ? superDesc : CD_Object, "<init>", MethodTypeDesc.of(CD_void));
                 init.return_();
             });
 
             // @Function method implementations
             for (var nm : functionMethods) {
-                emitNativeFunctionMethod(cb, generatedDesc, nm);
+                emitNativeFunctionMethod(cb, generatedDesc, nm, fieldNames.get(nm), libraryPrefix);
             }
 
             // @StructFactory method implementations
             for (var nm : nativeMethods) {
                 if (nm.isStructFactory()) {
-                    emitStructFactoryMethod(cb, model, nm);
+                    emitStructFactoryMethod(cb, model, nm, libraryPrefix);
                 }
             }
         });
@@ -190,6 +246,35 @@ class ImplClassWriter {
         try (var os = filer.createClassFile(model.implQualifiedName(), sourceElement).openOutputStream()) {
             os.write(classBytes);
         }
+    }
+
+    /**
+     * Computes the {@code MethodHandle} field name for each {@code @Function} method. Methods
+     * whose Java name is unique within {@code functionMethods} keep the existing {@code <name>$mh}
+     * form. Methods that share a Java name with at least one other method are disambiguated by
+     * declaration-order ordinal: {@code <name>$0$mh}, {@code <name>$1$mh}, etc.
+     */
+    private static Map<MethodModel, String> computeFieldNames(List<MethodModel> functionMethods) {
+        // Count how many methods share each Java name to detect collisions.
+        Map<String, Integer> nameCount = new HashMap<>();
+        for (var nm : functionMethods) {
+            nameCount.merge(nm.methodName(), 1, Integer::sum);
+        }
+
+        Map<MethodModel, String> fieldNames = new IdentityHashMap<>();
+        Map<String, Integer> nameOrdinal = new HashMap<>();
+        for (var nm : functionMethods) {
+            String fieldName;
+            if (nameCount.get(nm.methodName()) == 1) {
+                fieldName = nm.methodName() + "$mh";
+            } else {
+                int ordinal = nameOrdinal.getOrDefault(nm.methodName(), 0);
+                nameOrdinal.put(nm.methodName(), ordinal + 1);
+                fieldName = nm.methodName() + "$" + ordinal + "$mh";
+            }
+            fieldNames.put(nm, fieldName);
+        }
+        return fieldNames;
     }
 
     // -------------------------------------------------------------------------
@@ -202,18 +287,47 @@ class ImplClassWriter {
     }
 
     /**
-     * Resolves the native symbol via {@link org.elasticsearch.foreign.SymbolResolver} and stores
-     * the resulting {@code MethodHandle} in the static {@code <name>$mh} field. Handles
-     * {@code @CaptureErrno}, {@code @Variadic}, and {@code @Critical} options.
+     * Initializes {@link #ASSERTIONS_DISABLED_FIELD} exactly as javac does for a source-level
+     * {@code assert} statement — {@code $assertionsDisabled = !GeneratedClass.class.desiredAssertionStatus();}
+     */
+    private static void emitAssertionsDisabledInit(CodeBuilder cb, ClassDesc generatedDesc) {
+        cb.ldc(generatedDesc);
+        cb.invokevirtual(CD_Class, "desiredAssertionStatus", MTD_desiredAssertionStatus);
+        var enabled = cb.newLabel();
+        var stored = cb.newLabel();
+        cb.ifne(enabled); // desiredAssertionStatus() true -> assertions enabled
+        cb.iconst_1(); // disabled = true
+        cb.goto_(stored);
+        cb.labelBinding(enabled);
+        cb.iconst_0(); // disabled = false
+        cb.labelBinding(stored);
+        cb.putstatic(generatedDesc, ASSERTIONS_DISABLED_FIELD, CD_boolean);
+    }
+
+    /**
+     * Resolves the native symbol via {@link org.elasticsearch.foreign.SymbolResolver} and
+     * {@link org.elasticsearch.foreign.MethodHandleResolver}, then stores the resulting
+     * {@code MethodHandle} in the static field identified by {@code fieldName}. Handles {@code @CaptureSystemError},
+     * {@code @Variadic}, and {@code @Critical} options.
      *
      * <p>The generated bytecode is equivalent to:
      * <pre>{@code
-     * MemorySegment addr = resolver.resolve(symbolName, LinkerHelper.defaultLookup());
-     * foo$mh = Linker.nativeLinker().downcallHandle(addr, descriptor, options);
+     * ResolvedSymbol sym = new SymbolResolver().resolve(symbolName, LinkerHelper.defaultLookup());
+     * foo$mh = new MethodHandleResolver().resolve(sym, descriptor, Linker.nativeLinker(), options);
      * }</pre>
      */
-    private static void emitMhFieldInit(CodeBuilder cb, ClassDesc generatedDesc, MethodModel nm, String symbolResolverClassName) {
+    private static void emitMhFieldInit(
+        CodeBuilder cb,
+        ClassDesc generatedDesc,
+        MethodModel nm,
+        String symbolResolverClassName,
+        String methodHandleResolverClassName,
+        String fieldName
+    ) {
         boolean hasFallbackAdapter = nm.fallbackAdapterClassName() != null;
+        // For @Critical methods with no fallback adapter (using the Critical.UnsupportedFallback sentinel)
+        // we need to call LinkerAdapter.unsupportedFallback()
+        boolean isUnsupportedFallback = nm.isCritical() && hasFallbackAdapter == false;
 
         // For @Critical methods with a fallback adapter we need to call
         // LinkerAdapter.adaptCritical(lookup, rawHandle, adapterClass, methodName). Stack-prep
@@ -222,30 +336,43 @@ class ImplClassWriter {
             cb.invokestatic(CD_MethodHandles, "lookup", MethodTypeDesc.of(CD_Lookup));
         }
 
-        // Linker.nativeLinker() -> linker
-        cb.invokestatic(CD_Linker, "nativeLinker", MTD_nativeLinker, true);
+        // new MethodHandleResolver() -> mhResolver
+        ClassDesc mhResolverDesc = ClassDesc.of(methodHandleResolverClassName);
+        cb.new_(mhResolverDesc);
+        cb.dup();
+        cb.invokespecial(mhResolverDesc, "<init>", MethodTypeDesc.of(CD_void));
 
-        // resolver.resolve(symbolName, LinkerHelper.defaultLookup()) -> resolvedSymbol
+        // new SymbolResolver().resolve(symbolName, LinkerHelper.defaultLookup()) -> resolvedSymbol
         ClassDesc resolverDesc = ClassDesc.of(symbolResolverClassName);
         cb.new_(resolverDesc);
         cb.dup();
         cb.invokespecial(resolverDesc, "<init>", MethodTypeDesc.of(CD_void));
         cb.ldc(nm.cSymbol());
         cb.invokestatic(CD_LinkerHelper, "defaultLookup", MTD_defaultLookup);
-        cb.invokeinterface(ClassDesc.of(RESOLVER_INTERFACE_FQN), "resolve", MTD_resolve);
+        cb.invokeinterface(ClassDesc.of(SYMBOL_RESOLVER_INTERFACE_FQN), "resolve", MTD_resolve);
 
-        // linker.downcallHandle(resolvedSymbol, descriptor, options)
+        // descriptor
         emitFunctionDescriptor(cb, nm.returnType(), nm.paramTypes());
+
+        // Linker.nativeLinker()
+        cb.invokestatic(CD_Linker, "nativeLinker", MTD_nativeLinker, true);
+
+        // options
         emitLinkerOptions(cb, nm);
-        cb.invokeinterface(CD_Linker, "downcallHandle", MTD_downcallHandle_byAddress);
+
+        // mhResolver.resolve(resolvedSymbol, descriptor, linker, options) -> MethodHandle
+        cb.invokeinterface(ClassDesc.of(MH_RESOLVER_INTERFACE_FQN), "resolve", MTD_mhResolve);
 
         if (hasFallbackAdapter) {
             cb.ldc(ClassDesc.of(nm.fallbackAdapterClassName()));
             cb.ldc(nm.methodName());
             cb.invokestatic(CD_LinkerAdapter, "adaptCritical", MTD_adaptCritical);
+        } else if (isUnsupportedFallback) {
+            cb.ldc(nm.methodName());
+            cb.invokestatic(CD_LinkerAdapter, "unsupportedFallback", MTD_unsupportedFallback);
         }
 
-        cb.putstatic(generatedDesc, nm.methodHandleFieldName(), CD_MethodHandle);
+        cb.putstatic(generatedDesc, fieldName, CD_MethodHandle);
     }
 
     private static void emitFunctionDescriptor(CodeBuilder cb, NativeType returnType, List<NativeType> paramTypes) {
@@ -271,43 +398,27 @@ class ImplClassWriter {
     }
 
     /**
-     * Emits the {@code Linker.Option[]} array passed to {@code linker.downcallHandle}. For
-     * {@code @Critical} the array is built by {@code LinkerAdapter.critical()}. Otherwise the
-     * array is assembled inline with a {@code captureCallState("errno")} entry for
-     * {@code @CaptureErrno} and/or a {@code firstVariadicArg(N)} entry for {@code @Variadic}
-     * (empty when neither applies).
+     * Emits the {@code Linker.Option[]} array passed to {@code linker.downcallHandle}.
+     *
+     * <p>The array is assembled inline with a {@code captureCallState(...)} entry for
+     * {@code @CaptureSystemError} — {@code "errno"} or {@code "GetLastError"} depending on the
+     * method's resolved {@link MethodModel.CapturedError} channel — and/or a
+     * {@code firstVariadicArg(N)} entry for {@code @Variadic}. When the method is {@code @Critical},
+     * that array (possibly empty) is passed to {@code LinkerAdapter.criticalWith()}, which prepends
+     * the critical option on JDK 22+ and returns the array unchanged on JDK 21.
      */
     private static void emitLinkerOptions(CodeBuilder cb, MethodModel nm) {
-        if (nm.isCritical()) {
-            cb.invokestatic(CD_LinkerAdapter, "critical", MTD_critical);
-            return;
-        }
-        boolean captureErrno = nm.capturesErrno();
+        MethodModel.CapturedError capturedError = nm.capturedError();
+        boolean capture = capturedError != MethodModel.CapturedError.NONE;
         boolean variadic = nm.firstVariadicArg() >= 0;
-        int size = (captureErrno ? 1 : 0) + (variadic ? 1 : 0);
+        boolean critical = nm.isCritical();
+
+        int size = (capture ? 1 : 0) + (variadic ? 1 : 0);
         cb.loadConstant(size);
         cb.anewarray(CD_LinkerOption);
         int idx = 0;
-        if (captureErrno) {
-            // Linker.Option.captureCallState is declared as varargs (String...), so its actual
-            // JVM descriptor is ([Ljava/lang/String;)Ljava/lang/foreign/Linker$Option;. Build the
-            // one-element array explicitly. Linker.Option is an interface, so invokestatic must
-            // mark isInterface=true.
-            cb.dup();
-            cb.loadConstant(idx++);
-            cb.iconst_1();
-            cb.anewarray(CD_String);
-            cb.dup();
-            cb.iconst_0();
-            cb.ldc("errno");
-            cb.aastore();
-            cb.invokestatic(
-                CD_LinkerOption,
-                "captureCallState",
-                MethodTypeDesc.of(CD_LinkerOption, ClassDesc.ofDescriptor("[Ljava/lang/String;")),
-                true
-            );
-            cb.aastore();
+        if (capture) {
+            emitCaptureCallStateOption(cb, idx++, captureStateName(capturedError));
         }
         if (variadic) {
             cb.dup();
@@ -316,27 +427,85 @@ class ImplClassWriter {
             cb.invokestatic(CD_LinkerOption, "firstVariadicArg", MethodTypeDesc.of(CD_LinkerOption, ClassDesc.ofDescriptor("I")), true);
             cb.aastore();
         }
+
+        if (critical) {
+            cb.invokestatic(CD_LinkerAdapter, "criticalWith", MTD_criticalWith);
+        }
+    }
+
+    /**
+     * Emits {@code arr[idx] = Linker.Option.captureCallState(stateName)} onto an array already on
+     * the stack. {@code Linker.Option.captureCallState} is declared as varargs ({@code String...}),
+     * so its actual JVM descriptor is {@code ([Ljava/lang/String;)Ljava/lang/foreign/Linker$Option;}.
+     * Build the one-element array explicitly. {@code Linker.Option} is an interface, so
+     * {@code invokestatic} must mark {@code isInterface=true}.
+     */
+    private static void emitCaptureCallStateOption(CodeBuilder cb, int idx, String stateName) {
+        cb.dup();
+        cb.loadConstant(idx);
+        cb.iconst_1();
+        cb.anewarray(CD_String);
+        cb.dup();
+        cb.iconst_0();
+        cb.ldc(stateName);
+        cb.aastore();
+        cb.invokestatic(
+            CD_LinkerOption,
+            "captureCallState",
+            MethodTypeDesc.of(CD_LinkerOption, ClassDesc.ofDescriptor("[Ljava/lang/String;")),
+            true
+        );
+        cb.aastore();
+    }
+
+    /** The {@code Linker.Option.captureCallState} group element name for the resolved capture channel. */
+    private static String captureStateName(MethodModel.CapturedError capturedError) {
+        return switch (capturedError) {
+            case ERRNO -> "errno";
+            case GET_LAST_ERROR -> "GetLastError";
+            case NONE -> throw new AssertionError("no capture state name for NONE");
+        };
+    }
+
+    /**
+     * Pushes the shared system-error capture segment onto the stack — as the leading
+     * {@code invokeExact} argument that receives the captured {@code errno}/{@code GetLastError} value.
+     * A single buffer serves both channels (only one is live per platform). Emits nothing for
+     * {@link MethodModel.CapturedError#NONE}.
+     */
+    private static void emitCaptureStateSegment(CodeBuilder cb, MethodModel.CapturedError capturedError) {
+        if (capturedError != MethodModel.CapturedError.NONE) {
+            cb.invokestatic(CD_LinkerHelper, "systemErrorState", MTD_captureState);
+        }
     }
 
     // -------------------------------------------------------------------------
     // Method body generation
     // -------------------------------------------------------------------------
 
-    private static void emitNativeFunctionMethod(ClassBuilder cb, ClassDesc generatedDesc, MethodModel nm) {
-        cb.withMethodBody(nm.methodName(), buildJavaMethodDesc(nm), ClassFile.ACC_PUBLIC, code -> {
+    private static void emitNativeFunctionMethod(
+        ClassBuilder cb,
+        ClassDesc generatedDesc,
+        MethodModel nm,
+        String fieldName,
+        String libraryPrefix
+    ) {
+        int accessFlag = nm.isProtected() ? ClassFile.ACC_PROTECTED : ClassFile.ACC_PUBLIC;
+        cb.withMethodBody(nm.methodName(), buildJavaMethodDesc(nm, libraryPrefix), accessFlag, code -> {
+            emitBoundsChecks(code, generatedDesc, nm);
             boolean hasStringParams = nm.paramTypes().contains(NativeType.STRING);
             if (hasStringParams) {
-                emitNativeFunctionMethodWithStringParams(code, generatedDesc, nm);
+                emitNativeFunctionMethodWithStringParams(code, generatedDesc, nm, fieldName);
             } else {
                 code.trying(tryBlock -> {
-                    emitInvokeExact(tryBlock, generatedDesc, nm);
+                    emitInvokeExact(tryBlock, generatedDesc, nm, fieldName);
                     emitTypedReturn(tryBlock, nm.returnType());
                 }, catchBuilder -> catchBuilder.catchingAll(catchBlock -> {
                     // throw new AssertionError(t) — stack on entry: [t]
                     catchBlock.new_(CD_AssertionError);
                     catchBlock.dup_x1();
                     catchBlock.swap();
-                    catchBlock.invokespecial(CD_AssertionError, "<init>", MethodTypeDesc.of(CD_void, CD_Throwable));
+                    catchBlock.invokespecial(CD_AssertionError, "<init>", MethodTypeDesc.of(CD_void, CD_Object));
                     catchBlock.athrow();
                 }));
             }
@@ -344,9 +513,171 @@ class ImplClassWriter {
     }
 
     /**
+     * Emits the fixed {@code Objects.checkFromIndexSize(0L, <shape>, segment.byteSize())} template for
+     * every {@code @VectorSegment}/{@code @MatrixSegment}-annotated parameter, in parameter order, at
+     * the very top of the method body — before the try block, so a failing check propagates its own
+     * {@link IndexOutOfBoundsException} rather than being wrapped in {@link AssertionError}.
+     */
+    private static void emitBoundsChecks(CodeBuilder cb, ClassDesc generatedDesc, MethodModel nm) {
+        List<NativeType> paramTypes = nm.paramTypes();
+        int[] slots = computeParamSlots(paramTypes);
+        for (BoundsCheckModel check : nm.boundsChecks()) {
+            switch (check) {
+                case BoundsCheckModel.VectorSegmentCheck v -> emitVectorSegmentCheck(cb, generatedDesc, paramTypes, slots, v);
+                case BoundsCheckModel.MatrixSegmentCheck m -> emitMatrixSegmentCheck(cb, generatedDesc, paramTypes, slots, m);
+            }
+        }
+    }
+
+    /** Computes the local-variable slot of each parameter (slot 0 is {@code this}). */
+    private static int[] computeParamSlots(List<NativeType> paramTypes) {
+        int[] slots = new int[paramTypes.size()];
+        int slot = 1;
+        for (int i = 0; i < paramTypes.size(); i++) {
+            slots[i] = slot;
+            slot += slotWidth(paramTypes.get(i));
+        }
+        return slots;
+    }
+
+    /**
+     * Emits {@code Objects.checkFromIndexSize(0L, ceil(count * elementBits / 8), segment.byteSize())},
+     * plus an alignment {@code assert} when {@link BoundsCheckModel.VectorSegmentCheck#aligned()}. The
+     * byte size is rounded up so a sub-byte packed vector always has enough whole bytes to hold every
+     * element (e.g. {@code 6} 2-bit elements need {@code ceil(12/8) = 2} bytes, not {@code 1}).
+     */
+    private static void emitVectorSegmentCheck(
+        CodeBuilder cb,
+        ClassDesc generatedDesc,
+        List<NativeType> paramTypes,
+        int[] slots,
+        BoundsCheckModel.VectorSegmentCheck check
+    ) {
+        cb.lconst_0();
+        emitLongParamLoad(cb, paramTypes.get(check.countParamIndex()), slots[check.countParamIndex()]);
+        cb.ldc((long) check.elementBits());
+        cb.lmul();
+        emitCeilDivBy8(cb);
+        emitCheckFromIndexSize(cb, slots[check.segParamIndex()]);
+        if (check.aligned()) {
+            emitAlignmentAssert(cb, generatedDesc, slots[check.segParamIndex()], check.elementBits() / 8);
+        }
+    }
+
+    /**
+     * Emits code checking {@code segment.byteSize() < rows * rowBytes}, where
+     * {@code rowBytes = ceil(cols * elementBits / 8) + paddingBytes}, plus an alignment {@code assert}
+     * when {@link BoundsCheckModel.MatrixSegmentCheck#aligned()}. A 2D segment is treated as {@code rows}
+     * independently packed vectors, so each row's byte size is rounded up to whole bytes before the
+     * per-row padding is added and the whole thing is multiplied by {@code rows}.
+     */
+    private static void emitMatrixSegmentCheck(
+        CodeBuilder cb,
+        ClassDesc generatedDesc,
+        List<NativeType> paramTypes,
+        int[] slots,
+        BoundsCheckModel.MatrixSegmentCheck check
+    ) {
+        // fromIndex arg for checkFromIndexSize
+        cb.lconst_0();
+
+        emitLongParamLoad(cb, paramTypes.get(check.colsParamIndex()), slots[check.colsParamIndex()]);
+        cb.ldc((long) check.elementBits());
+        cb.lmul();
+        emitCeilDivBy8(cb);
+        if (check.hasPaddingBytes()) {
+            emitPaddingBytesRelationalCheck(cb, paramTypes, slots, check);
+            emitLongParamLoad(cb, paramTypes.get(check.paddingBytesParamIndex()), slots[check.paddingBytesParamIndex()]);
+            cb.ladd();
+        }
+        emitLongParamLoad(cb, paramTypes.get(check.rowsParamIndex()), slots[check.rowsParamIndex()]);
+        cb.lmul();
+        emitCheckFromIndexSize(cb, slots[check.segParamIndex()]);
+        if (check.aligned()) {
+            emitAlignmentAssert(cb, generatedDesc, slots[check.segParamIndex()], check.elementBits() / 8);
+        }
+    }
+
+    /** Emits {@code if (paddingBytes < 0) throw new IllegalArgumentException(...)}. Stack-neutral. */
+    private static void emitPaddingBytesRelationalCheck(
+        CodeBuilder cb,
+        List<NativeType> paramTypes,
+        int[] slots,
+        BoundsCheckModel.MatrixSegmentCheck check
+    ) {
+        var paddingOk = cb.newLabel();
+        emitLongParamLoad(cb, paramTypes.get(check.paddingBytesParamIndex()), slots[check.paddingBytesParamIndex()]);
+        cb.lconst_0();
+        cb.lcmp();
+        cb.ifge(paddingOk); // paddingBytes >= 0, ok
+        cb.new_(CD_IllegalArgumentException);
+        cb.dup();
+        cb.ldc("paddingBytes must be >= 0");
+        cb.invokespecial(CD_IllegalArgumentException, "<init>", MethodTypeDesc.of(CD_void, CD_String));
+        cb.athrow();
+        cb.labelBinding(paddingOk);
+    }
+
+    /** Converts a bit count on the stack into a whole-byte count, rounding up: {@code Math.ceilDiv(bits, 8)}. */
+    private static void emitCeilDivBy8(CodeBuilder cb) {
+        cb.ldc(8L);
+        cb.invokestatic(CD_Math, "ceilDiv", MTD_ceilDiv);
+    }
+
+    /** Stack on entry: {@code [0L, size]}. Pushes {@code segment.byteSize()}, calls the check, discards the result. */
+    private static void emitCheckFromIndexSize(CodeBuilder cb, int segSlot) {
+        cb.aload(segSlot);
+        cb.invokeinterface(CD_MemorySegment, "byteSize", MTD_byteSize);
+        cb.invokestatic(CD_Objects, "checkFromIndexSize", MTD_checkFromIndexSize);
+        cb.pop2();
+    }
+
+    /**
+     * Emits {@code assert segment.address() % alignment == 0}, gated by
+     * {@link #ASSERTIONS_DISABLED_FIELD} exactly like a source-level {@code assert} statement would
+     * compile — skipped entirely under normal execution, zero production cost, and throwing
+     * {@link AssertionError} only when assertions are enabled and the segment is misaligned.
+     */
+    private static void emitAlignmentAssert(CodeBuilder cb, ClassDesc generatedDesc, int segSlot, int alignment) {
+        var skip = cb.newLabel();
+        cb.getstatic(generatedDesc, ASSERTIONS_DISABLED_FIELD, CD_boolean);
+        cb.ifne(skip);
+        cb.aload(segSlot);
+        cb.invokeinterface(CD_MemorySegment, "address", MethodTypeDesc.of(CD_long));
+        cb.ldc((long) alignment);
+        cb.lrem();
+        cb.lconst_0();
+        cb.lcmp();
+        cb.ifeq(skip); // remainder == 0 -> aligned, skip the throw
+        cb.new_(CD_AssertionError);
+        cb.dup();
+        cb.ldc("segment not aligned to " + alignment + "-byte boundary");
+        cb.invokespecial(CD_AssertionError, "<init>", MethodTypeDesc.of(CD_void, CD_Object));
+        cb.athrow();
+        cb.labelBinding(skip);
+    }
+
+    /** Loads an {@code int}/{@code long} parameter and widens it to {@code long} on the stack. */
+    private static void emitLongParamLoad(CodeBuilder cb, NativeType type, int slot) {
+        switch (type) {
+            case INT -> {
+                cb.iload(slot);
+                cb.i2l();
+            }
+            case LONG -> cb.lload(slot);
+            case SHORT, BYTE, BOOLEAN, FLOAT, DOUBLE, ADDRESS, STRING, VOID -> throw new AssertionError(
+                "shape check operand must be int or long, got: " + type
+            );
+        }
+    }
+
+    /**
      * Generates a method body that marshals {@code String} parameters to native memory before the call.
      * Opens a confined {@code Arena} per call, allocates each {@code String} param via
-     * {@code MemorySegmentUtil.allocateString}, and closes the arena in both normal and exception paths.
+     * {@code MemorySegmentAdapter.allocateString}, and closes the arena in both normal and exception paths.
+     * Parameters annotated {@code @WideString} (per {@link MethodModel#wideStringParamIndices()}) are
+     * allocated via the charset-aware {@code allocateString(Arena, String, Charset)} overload with
+     * {@code StandardCharsets.UTF_16LE}; all other {@code String} params use the plain UTF-8 overload.
      *
      * <p>Local variable layout (slots):
      * <ul>
@@ -357,14 +688,19 @@ class ImplClassWriter {
      *   <li>last slot (if non-void return): the return value from invokeExact</li>
      * </ul>
      */
-    private static void emitNativeFunctionMethodWithStringParams(CodeBuilder code, ClassDesc generatedDesc, MethodModel nm) {
+    private static void emitNativeFunctionMethodWithStringParams(
+        CodeBuilder code,
+        ClassDesc generatedDesc,
+        MethodModel nm,
+        String fieldName
+    ) {
         List<NativeType> paramTypes = nm.paramTypes();
         NativeType returnType = nm.returnType();
 
         // Compute where params end and arena+marshaled-string locals begin.
         int paramSlotsEnd = 1; // slot 0 = this
         for (NativeType t : paramTypes) {
-            paramSlotsEnd += (t == NativeType.LONG || t == NativeType.DOUBLE) ? 2 : 1;
+            paramSlotsEnd += slotWidth(t);
         }
         int arenaSlot = paramSlotsEnd;
 
@@ -377,11 +713,13 @@ class ImplClassWriter {
         code.astore(arenaSlot);
 
         code.trying(tryBlock -> {
-            // Marshal each String param: MemorySegment $sN = MemorySegmentUtil.allocateString(arena, strN)
+            // Marshal each String param: MemorySegment $sN = MemorySegmentAdapter.allocateString(arena, strN)
             int slot = 1;
             int marshaledSlot = arenaSlot + 1;
+            int paramIndex = 0;
             for (NativeType paramType : paramTypes) {
                 if (paramType == NativeType.STRING) {
+                    boolean wide = nm.wideStringParamIndices().contains(paramIndex);
                     var notNull = tryBlock.newLabel();
                     var end = tryBlock.newLabel();
                     tryBlock.aload(slot);
@@ -391,19 +729,23 @@ class ImplClassWriter {
                     tryBlock.labelBinding(notNull);
                     tryBlock.aload(arenaSlot);
                     tryBlock.aload(slot);
-                    tryBlock.invokestatic(CD_MemorySegmentAdapter, "allocateString", MTD_MemorySegmentAdapter_allocateString);
+                    if (wide) {
+                        emitPushUtf16LEConstant(tryBlock);
+                        tryBlock.invokestatic(CD_MemorySegmentAdapter, "allocateString", MTD_MemorySegmentAdapter_allocateString_charset);
+                    } else {
+                        tryBlock.invokestatic(CD_MemorySegmentAdapter, "allocateString", MTD_MemorySegmentAdapter_allocateString);
+                    }
                     tryBlock.labelBinding(end);
                     tryBlock.astore(marshaledSlot);
                     marshaledSlot++;
                 }
-                slot += (paramType == NativeType.LONG || paramType == NativeType.DOUBLE) ? 2 : 1;
+                slot += slotWidth(paramType);
+                paramIndex++;
             }
 
             // Push method handle, then all params (String params → their marshaled MemorySegment slots)
-            tryBlock.getstatic(generatedDesc, nm.methodHandleFieldName(), CD_MethodHandle);
-            if (nm.capturesErrno()) {
-                tryBlock.getstatic(CD_LinkerHelper, "ERRNO_STATE", CD_MemorySegment);
-            }
+            tryBlock.getstatic(generatedDesc, fieldName, CD_MethodHandle);
+            emitCaptureStateSegment(tryBlock, nm.capturedError());
             slot = 1;
             marshaledSlot = arenaSlot + 1;
             for (NativeType paramType : paramTypes) {
@@ -437,7 +779,7 @@ class ImplClassWriter {
             catchBlock.new_(CD_AssertionError);
             catchBlock.dup_x1();
             catchBlock.swap();
-            catchBlock.invokespecial(CD_AssertionError, "<init>", MethodTypeDesc.of(CD_void, CD_Throwable));
+            catchBlock.invokespecial(CD_AssertionError, "<init>", MethodTypeDesc.of(CD_void, CD_Object));
             catchBlock.athrow();
         }));
     }
@@ -467,15 +809,13 @@ class ImplClassWriter {
     }
 
     /**
-     * Invokes the native function through its downcall MethodHandle. Prepends {@code ERRNO_STATE}
-     * when {@code @CaptureErrno} is present.
+     * Invokes the native function through its downcall MethodHandle. When {@code @CaptureSystemError}
+     * is present, prepends the shared capture-state segment from {@code LinkerHelper.systemErrorState()}.
      */
-    private static void emitInvokeExact(CodeBuilder cb, ClassDesc generatedDesc, MethodModel nm) {
-        cb.getstatic(generatedDesc, nm.methodHandleFieldName(), CD_MethodHandle);
+    private static void emitInvokeExact(CodeBuilder cb, ClassDesc generatedDesc, MethodModel nm, String fieldName) {
+        cb.getstatic(generatedDesc, fieldName, CD_MethodHandle);
 
-        if (nm.capturesErrno()) {
-            cb.getstatic(CD_LinkerHelper, "ERRNO_STATE", CD_MemorySegment);
-        }
+        emitCaptureStateSegment(cb, nm.capturedError());
 
         int slot = 1;
         for (var paramType : nm.paramTypes()) {
@@ -491,28 +831,17 @@ class ImplClassWriter {
      */
     private static int emitLoadParam(CodeBuilder cb, NativeType paramType, int slot) {
         switch (paramType) {
-            case INT, SHORT, BYTE, BOOLEAN -> {
-                cb.iload(slot);
-                return 1;
-            }
-            case LONG -> {
-                cb.lload(slot);
-                return 2;
-            }
-            case FLOAT -> {
-                cb.fload(slot);
-                return 1;
-            }
-            case DOUBLE -> {
-                cb.dload(slot);
-                return 2;
-            }
-            case ADDRESS -> {
-                cb.aload(slot);
-                return 1;
-            }
+            case INT, SHORT, BYTE, BOOLEAN -> cb.iload(slot);
+            case LONG -> cb.lload(slot);
+            case FLOAT -> cb.fload(slot);
+            case DOUBLE -> cb.dload(slot);
+            case ADDRESS -> cb.aload(slot);
             case ADDRESSABLE -> {
-                // Convert Addressable -> long: null becomes 0L, otherwise call segment().address()
+                // Convert Addressable -> long: null becomes 0L, otherwise call segment().address().
+                // Cast to Addressable first so the JVM verifier accepts the invokeinterface regardless
+                // of whether the static param type is Addressable or a struct interface that may not
+                // declare extends Addressable. The runtime type is always the generated $Impl, which
+                // implements Addressable, so the cast never fails.
                 var notNull = cb.newLabel();
                 var end = cb.newLabel();
                 cb.aload(slot);
@@ -521,13 +850,14 @@ class ImplClassWriter {
                 cb.goto_(end);
                 cb.labelBinding(notNull);
                 cb.aload(slot);
+                cb.checkcast(CD_Addressable);
                 cb.invokeinterface(CD_Addressable, "segment", MethodTypeDesc.of(CD_MemorySegment));
                 cb.invokeinterface(CD_MemorySegment, "address", MethodTypeDesc.of(CD_long));
                 cb.labelBinding(end);
-                return 1;
             }
             default -> throw new AssertionError("Unhandled param type: " + paramType);
         }
+        return slotWidth(paramType);
     }
 
     private static void emitTypedReturn(CodeBuilder cb, NativeType returnType) {
@@ -573,12 +903,19 @@ class ImplClassWriter {
     // -------------------------------------------------------------------------
 
     /**
-     * Generates the body for a {@code @StructFactory} method. The factory allocates a native
-     * struct instance and populates its {@code @ArrayField} pointer + length field from the
-     * supplied element array.
+     * Generates the body for a {@code @StructFactory} method. For simple factories (no
+     * {@code @ArrayField}), emits {@code new StructName$Impl()}. For array-backed factories,
+     * allocates a native struct instance and populates its {@code @ArrayField} pointer + length
+     * field from the supplied element array.
      */
-    private static void emitStructFactoryMethod(ClassBuilder cb, LibraryModel model, MethodModel nm) {
-        // Resolve the target struct and its array field from the model
+    private static void emitStructFactoryMethod(ClassBuilder cb, LibraryModel model, MethodModel nm, String libraryPrefix) {
+        if (nm.packedElementSimpleName() == null) {
+            emitSimpleStructFactoryMethod(cb, nm, libraryPrefix);
+            return;
+        }
+
+        // Resolve the target struct and its array field from the model. Only field shape is used
+        // below, which is platform-independent.
         StructModel targetStruct = model.structs()
             .stream()
             .filter(s -> s.simpleName().equals(nm.structReturnSimpleName()))
@@ -596,7 +933,7 @@ class ImplClassWriter {
         }).findFirst().orElseThrow(() -> new AssertionError("Missing length field " + arrayField.lengthFieldName())).type();
 
         // Class descriptors for the generated struct types
-        String prefix = model.packageName().isEmpty() ? model.simpleName() : model.packageName() + "." + model.simpleName();
+        String prefix = libraryPrefix;
         ClassDesc structImplDesc = ClassDesc.of(prefix + "$" + nm.structReturnSimpleName() + "$Impl");
         ClassDesc packDesc = ClassDesc.of(prefix + "$" + nm.packedElementSimpleName() + "$Pack");
         ClassDesc elementRecordDesc = ClassDesc.of(prefix + "$" + nm.packedElementSimpleName());
@@ -606,7 +943,7 @@ class ImplClassWriter {
         // Method descriptor: (ElementType[]) -> StructInterface
         MethodTypeDesc methodDesc = MethodTypeDesc.of(structInterfaceDesc, elementArrayDesc);
 
-        cb.withMethodBody(nm.methodName(), methodDesc, ClassFile.ACC_PUBLIC, code -> {
+        cb.withMethodBody(nm.methodName(), methodDesc, nm.isProtected() ? ClassFile.ACC_PROTECTED : ClassFile.ACC_PUBLIC, code -> {
             // slot 0 = this, slot 1 = elements (ElementType[])
             // result = new SockFProg$Impl()
             code.new_(structImplDesc);
@@ -682,26 +1019,55 @@ class ImplClassWriter {
         });
     }
 
+    /**
+     * Generates the body for a simple {@code @StructFactory} method (no {@code @ArrayField}).
+     * Emits {@code return new StructName$Impl()}.
+     */
+    private static void emitSimpleStructFactoryMethod(ClassBuilder cb, MethodModel nm, String libraryPrefix) {
+        ClassDesc structImplDesc = ClassDesc.of(libraryPrefix + "$" + nm.structReturnSimpleName() + "$Impl");
+        ClassDesc structInterfaceDesc = ClassDesc.of(libraryPrefix + "$" + nm.structReturnSimpleName());
+        MethodTypeDesc methodDesc = MethodTypeDesc.of(structInterfaceDesc);
+
+        cb.withMethodBody(nm.methodName(), methodDesc, ClassFile.ACC_PUBLIC, code -> {
+            code.new_(structImplDesc);
+            code.dup();
+            code.invokespecial(structImplDesc, "<init>", MethodTypeDesc.of(CD_void));
+            code.areturn();
+        });
+    }
+
     // -------------------------------------------------------------------------
     // Descriptor helpers
     // -------------------------------------------------------------------------
 
     /** Builds the Java-facing method descriptor, using Java types for all parameters and the return type. */
-    private static MethodTypeDesc buildJavaMethodDesc(MethodModel nm) {
+    private static MethodTypeDesc buildJavaMethodDesc(MethodModel nm, String libraryPrefix) {
+        List<NativeType> paramTypes = nm.paramTypes();
+        List<String> paramStructNames = nm.paramStructSimpleNames();
         List<ClassDesc> paramDescs = new ArrayList<>();
-        for (var paramType : nm.paramTypes()) {
-            paramDescs.add(javaClassDesc(paramType));
+        for (int i = 0; i < paramTypes.size(); i++) {
+            paramDescs.add(javaClassDescForParam(paramTypes.get(i), paramStructNames.get(i), libraryPrefix));
         }
         return MethodTypeDesc.of(javaClassDesc(nm.returnType()), paramDescs);
     }
 
+    private static ClassDesc javaClassDescForParam(NativeType paramType, String structSimpleName, String libraryPrefix) {
+        if (paramType == NativeType.ADDRESSABLE && structSimpleName != null) {
+            // Param is a struct interface that may not extend Addressable; use the struct interface type
+            // in the Java method descriptor so callers can pass the struct directly.
+            return ClassDesc.of(libraryPrefix + "$" + structSimpleName);
+        }
+        return javaClassDesc(paramType);
+    }
+
     /**
-     * Builds the native-side descriptor for {@code MethodHandle.invokeExact}. When {@code @CaptureErrno}
-     * is present, prepends {@code MemorySegment} (for {@code ERRNO_STATE}).
+     * Builds the native-side descriptor for {@code MethodHandle.invokeExact}. When
+     * {@code @CaptureSystemError} is present, prepends {@code MemorySegment} (obtained at call-time
+     * from {@code LinkerHelper.systemErrorState()}).
      */
     private static MethodTypeDesc buildInvokeExactDesc(MethodModel nm) {
         List<ClassDesc> paramDescs = new ArrayList<>();
-        if (nm.capturesErrno()) {
+        if (nm.capturedError() != MethodModel.CapturedError.NONE) {
             paramDescs.add(CD_MemorySegment);
         }
         for (var paramType : nm.paramTypes()) {
@@ -728,5 +1094,4 @@ class ImplClassWriter {
             default -> primitiveClassDesc(type);
         };
     }
-
 }

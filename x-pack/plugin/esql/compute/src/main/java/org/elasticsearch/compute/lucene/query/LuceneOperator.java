@@ -51,6 +51,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -166,7 +167,7 @@ public abstract class LuceneOperator extends SourceOperator {
             IndexedByShardId<? extends ShardContext> contextsByShardId,
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
-            Function<Query, LuceneSliceQueue.PartitioningStrategy> autoStrategy,
+            BiFunction<ShardContext, Query, LuceneSliceQueue.PartitioningStrategy> autoStrategy,
             int docThresholdForAutoStrategy,
             int taskConcurrency,
             int limit,
@@ -197,7 +198,7 @@ public abstract class LuceneOperator extends SourceOperator {
             IndexedByShardId<? extends ShardContext> contextsByShardId,
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
-            Function<Query, LuceneSliceQueue.PartitioningStrategy> autoStrategy,
+            BiFunction<ShardContext, Query, LuceneSliceQueue.PartitioningStrategy> autoStrategy,
             int docThresholdForAutoStrategy,
             int taskConcurrency,
             int limit,
@@ -221,7 +222,8 @@ public abstract class LuceneOperator extends SourceOperator {
                 taskConcurrency,
                 scoreModeFunction,
                 leafSplitGuard,
-                minDocsPerSlice
+                minDocsPerSlice,
+                singleValueQueryWarnings
             );
             this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
             this.needsScore = needsScore;

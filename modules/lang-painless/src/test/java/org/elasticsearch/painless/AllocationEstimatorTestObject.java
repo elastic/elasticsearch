@@ -46,6 +46,16 @@ public class AllocationEstimatorTestObject {
         return n;
     }
 
+    /** Static method allowlisted with a per-argument estimator; used as a static-method reference target for PR 8. */
+    public static int staticAllocating(int n) {
+        return n;
+    }
+
+    /** Estimator for {@link #staticAllocating(int)}: matches the static Java signature and scales with the argument. */
+    public static long staticAllocatingEstimate(int n) {
+        return 16L * n;
+    }
+
     /** Instance method allowlisted with {@code @allocates}; used to exercise the {@code def}-dispatch constant charge. */
     public int constantAllocating() {
         return 0;

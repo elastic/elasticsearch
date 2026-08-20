@@ -10,19 +10,21 @@
 package org.elasticsearch.telemetry.metric;
 
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalLong;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * The consuming long gauge only returns a value to APM if a value has been set since it was last polled.
+ * Optional attributes may be attached when setting a value and are reported with that value on the next poll.
+ * <p>
+ * Prefer this type when the value changes infrequently. Each {@link #set} allocates a measurement holder, so for
+ * values that are updated frequently use {@link LongGauge} (or {@link LongGaugeMetric}) instead.
  *
  * @param value The holder of the current value of the gauge.
  * @param gauge The gauge being published to
- * @param noValue The "no value" value, which is used to signify that the gauge has not been set since last polled.
  */
-public record ConsumingLongGaugeMetric(AtomicLong value, LongGauge gauge, long noValue) {
-
-    private static final long DEFAULT_NO_VALUE = Long.MIN_VALUE;
+public record ConsumingLongGaugeMetric(AtomicReference<LongWithAttributes> value, LongGauge gauge) {
 
     /**
      * Create a "consuming" long gauge
@@ -34,37 +36,32 @@ public record ConsumingLongGaugeMetric(AtomicLong value, LongGauge gauge, long n
      * @return The created gauge.
      */
     public static ConsumingLongGaugeMetric create(MeterRegistry meterRegistry, String name, String description, String unit) {
-        return create(meterRegistry, name, description, unit, DEFAULT_NO_VALUE);
-    }
-
-    /**
-     * Create a "consuming" long gauge
-     *
-     * @param meterRegistry The {@link MeterRegistry} to register the gauge with.
-     * @param name The name of the gauge.
-     * @param description The description of the gauge.
-     * @param unit The unit of the gauge.
-     * @param noValue The value to signify that the gauge has not been set.
-     * @return The created gauge.
-     */
-    public static ConsumingLongGaugeMetric create(MeterRegistry meterRegistry, String name, String description, String unit, long noValue) {
-        final AtomicLong value = new AtomicLong(noValue);
+        final AtomicReference<LongWithAttributes> value = new AtomicReference<>();
         return new ConsumingLongGaugeMetric(value, meterRegistry.registerLongsGauge(name, description, unit, () -> {
-            final var currentValue = value.getAndSet(noValue);
-            return currentValue == noValue ? List.of() : List.of(new LongWithAttributes(currentValue));
-        }), noValue);
-    }
-
-    public void set(long l) {
-        assert l != noValue : "Would set value to NO_VALUE for consuming gauge, specify a different value";
-        value.set(l);
+            final var currentValue = value.getAndSet(null);
+            return currentValue == null ? List.of() : List.of(currentValue);
+        }));
     }
 
     /**
-     * Get the current value, if it's not the {@link #noValue} value.
+     * Set the gauge value with no attributes. The value is reported on the next poll and then cleared.
      */
-    public OptionalLong getIfPresent() {
-        final long currentValue = value.get();
-        return currentValue == noValue ? OptionalLong.empty() : OptionalLong.of(currentValue);
+    public void set(long l) {
+        set(l, Map.of());
+    }
+
+    /**
+     * Set the gauge value and attributes. Both are reported together on the next poll and then cleared.
+     * Use an empty map when there are no attributes. The attributes map is copied at set-time so later
+     * mutation of the caller's map does not affect the measurement.
+     */
+    public void set(long l, Map<String, Object> attributes) {
+        value.set(new LongWithAttributes(l, Map.copyOf(attributes)));
+    }
+
+    // visible for tests
+    OptionalLong getValueIfPresent() {
+        final LongWithAttributes currentValue = value.get();
+        return currentValue == null ? OptionalLong.empty() : OptionalLong.of(currentValue.value());
     }
 }

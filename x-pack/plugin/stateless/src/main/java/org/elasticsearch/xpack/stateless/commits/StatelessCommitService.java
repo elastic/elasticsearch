@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -42,6 +43,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
@@ -64,12 +66,15 @@ import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
+import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
@@ -110,6 +115,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.core.Strings.format;
@@ -212,11 +218,20 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
+    /// We use an optimistic default value of 1 Gb/sec to run unrestricted on a fresh node.
+    /// This is loosely based on the fact that a node provides at least 15 Gigabit max network throughput (which is about ~1.7 GiB).
+    public static final Setting<ByteSizeValue> STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE = Setting.byteSizeSetting(
+        "stateless.upload.average_throughput_initial_value",
+        ByteSizeValue.ofGb(1),
+        Setting.Property.NodeScope
+    );
+
     public static final String BCC_TOTAL_SIZE_HISTOGRAM_METRIC = "es.bcc.total_size_in_megabytes.histogram";
     public static final String BCC_NUMBER_COMMITS_HISTOGRAM_METRIC = "es.bcc.number_of_commits.histogram";
     public static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
     public static final String BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC = "es.bcc.timestamp_range.histogram";
     public static final String BCC_MISSING_TIMESTAMP_METRIC = "es.bcc.missing_timestamp.total";
+    public static final String BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC = "es.bcc.average_upload_throughput.current";
     public static final String BCC_SIZE_ATTRIBUTE_KEY = "es_bcc_size";
 
     private final ClusterService clusterService;
@@ -241,6 +256,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private Scheduler.Cancellable scheduledShardInactivityMonitorFuture;
     private final TimeValue virtualBccUploadMaxAge;
     private final TimeValue gcpListenerTranslogSyncTimeout;
+    private final ExponentiallyWeightedMovingAverage commitUploadThroughputMiBSec;
     private final ScheduledUploadMonitor scheduledUploadMonitor;
     private final int bccMaxAmountOfCommits;
     private final long bccUploadMaxSizeInBytes;
@@ -253,6 +269,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final LongHistogram bccAgeHistogram;
     private final DoubleHistogram bccTimestampRangeHistogram;
     private final LongCounter bccMissingTimestampCounter;
+    private final DoubleGauge averageCommitUploadThroughputGauge;
 
     /**
      * An estimate of the maximum size in bytes that the header and replicated contents are likely to fill in a region. This is used when a
@@ -260,7 +277,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * as the header and replicated content, in which case there is no need to replicate content for that file.
      */
     private final int estimatedMaxHeaderSizeInBytes;
-    private volatile boolean isNodeShuttingDown;
 
     public StatelessCommitService(
         Settings settings,
@@ -317,13 +333,27 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.shardInactivityMonitor = new ShardInactivityMonitor();
         this.virtualBccUploadMaxAge = STATELESS_UPLOAD_VBCC_MAX_AGE.get(settings);
         this.gcpListenerTranslogSyncTimeout = STATELESS_GCP_LISTENER_TRANSLOG_SYNC_TIMEOUT.get(settings);
+        /// `alpha` determines how much older data points influence the average, a value of 1 means that the mean is equal
+        /// to the latest data point.
+        /// We use a slight recency biased value.
+        this.commitUploadThroughputMiBSec = new ExponentiallyWeightedMovingAverage(
+            0.6,
+            STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE.get(settings).getBytes()
+        );
         this.scheduledUploadMonitor = new ScheduledUploadMonitor(
             threadPool,
             threadPool.generic(),
             STATELESS_UPLOAD_MONITOR_INTERVAL.get(settings)
         );
         this.bccMaxAmountOfCommits = STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.get(settings);
-        this.bccUploadMaxSizeInBytes = STATELESS_UPLOAD_MAX_SIZE.get(settings).getBytes();
+        final var bccUploadMaxSize = STATELESS_UPLOAD_MAX_SIZE.get(settings);
+        this.bccUploadMaxSizeInBytes = bccUploadMaxSize.getBytes();
+        logger.info(
+            "delayed upload with [max_commits={}], [max_size={}], [max_age={}]",
+            bccMaxAmountOfCommits,
+            bccUploadMaxSize.getStringRep(),
+            virtualBccUploadMaxAge.getStringRep()
+        );
         this.bccUploadMaxIoRetries = STATELESS_UPLOAD_MAX_IO_ERROR_RETRIES.get(settings).intValue();
         this.bccUploadSlowLogThresholdMillis = STATELESS_UPLOAD_SLOW_LOG_THRESHOLD.get(settings).millis();
         this.useInternalFilesReplicatedContent = STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.get(settings);
@@ -366,6 +396,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 BCC_MISSING_TIMESTAMP_METRIC,
                 "Number of uploaded batched compound commits where none of the compound commits have a @timestamp range",
                 "count"
+            );
+        this.averageCommitUploadThroughputGauge = telemetryProvider.getMeterRegistry()
+            .registerDoubleGauge(
+                BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC,
+                "moving average of batch compound commit upload throughput",
+                "MiB/s",
+                () -> new DoubleWithAttributes(commitUploadThroughputMiBSec.getAverage())
             );
     }
 
@@ -501,6 +538,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public void markCommitDeleted(ShardId shardId, long generation) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         commitState.markCommitDeleted(generation);
+    }
+
+    public double getAverageCommitUploadThroughputMiBSec() {
+        return commitUploadThroughputMiBSec.getAverage();
+    }
+
+    public Stream<? extends ShardCommitUploadStats> getShardCommitStats() {
+        return shardsCommitsStates.values().stream().filter(scs -> scs.isClosed() == false);
     }
 
     @Override
@@ -816,36 +861,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
     }
 
-    private ActionListener<BccUploadResult> copyToTargets(
-        ActionListener<BccUploadResult> afterCopyListener,
-        ShardCommitState commitState,
-        VirtualBatchedCompoundCommit virtualBcc
-    ) {
-        // ES-12456 This listener is called by the upload task and holds its thread.
-        // This means we aren't running multiple copies concurrently but also we aren't starving other shard
-        // uploads. We may want to revisit this.
-        return new ActionListener<BccUploadResult>() {
-            @Override
-            public void onResponse(BccUploadResult uploadResult) {
-                for (final ShardId targetShardId : commitState.getSplitTargets()) {
-                    try {
-                        objectStoreService.copyCommit(virtualBcc, targetShardId);
-                    } catch (Exception e) {
-                        logger.warn("failed to copy target batched compound commit", e);
-                        afterCopyListener.onFailure(e);
-                        return;
-                    }
-                }
-                afterCopyListener.onResponse(uploadResult);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                afterCopyListener.onFailure(e);
-            }
-        };
-    }
-
     private void createAndRunCommitUpload(
         ShardCommitState commitState,
         VirtualBatchedCompoundCommit virtualBcc,
@@ -910,17 +925,111 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         VirtualBatchedCompoundCommit virtualBcc,
         ShardCommitState.BlobReference blobReference
     ) {
-        return ActionListener.runAfter(copyToTargets(new ActionListener<>() {
+        return new ActionListener<>() {
             @Override
             public void onResponse(BccUploadResult uploadResult) {
                 maybeLogSlowBccUpload(virtualBcc, uploadResult);
+                commitUploadThroughputMiBSec.addValue(uploadResult.uploadThroughputMiBPerSec());
+                commitState.pendingUploadBytes.addAndGet(-1 * virtualBcc.getTotalSizeInBytes());
                 final BatchedCompoundCommit uploadedBcc = uploadResult.batchedCompoundCommit();
                 try {
-                    // Use the largest translog release file from all CCs to release translog files for cleaning
+                    // Use the largest translog release file from all CCs to release translog files for cleaning.
+                    // markBccUploaded fires the local-upload generation listeners, allowing the next upload to
+                    // start immediately without waiting for copies to split targets to complete.
                     commitState.markBccUploaded(
                         uploadedBcc,
                         virtualBcc.getLastPendingCompoundCommit().getCommitReference().getTranslogReleaseEndFile()
                     );
+                } catch (Exception e) {
+                    // TODO: we should assert false here once we fix ES-8336
+                    logger.warn(
+                        () -> format(
+                            "%s failed to mark BCC [%s] as uploaded",
+                            virtualBcc.getShardId(),
+                            virtualBcc.getPrimaryTermAndGeneration().generation()
+                        ),
+                        e
+                    );
+                    cleanup();
+                    return;
+                }
+                // Copies to split targets and search-node notification are dispatched after markBccUploaded
+                // so that the next upload can start concurrently. Both are still gated on copy completion
+                // from the outside world's perspective: the fully-uploaded generation listeners (used for
+                // flush) and sendNewUploadedCommitNotification fire only after copies finish.
+                // We use the upload thread pool rather than the copy pool to avoid depleting it, since this
+                // is conceptually upload work spread across multiple locations. (ES-12456)
+                final long ccGeneration = uploadedBcc.lastCompoundCommit().generation();
+                final Set<ShardId> splitTargets = commitState.getSplitTargets();
+                if (splitTargets.isEmpty()) {
+                    afterCopies(commitState, blobReference, uploadedBcc, ccGeneration);
+                } else {
+                    // Acquire a permit so that objectStoreService.doClose() waits for in-flight copies before
+                    // closing the blob store, mirroring the implicit drain the old synchronous copy code provided.
+                    final Releasable copyPermit;
+                    try {
+                        copyPermit = objectStoreService.acquireCopyPermit();
+                    } catch (Exception e) {
+                        // Service is already shutting down; treat the same as a closed shard.
+                        cleanup();
+                        return;
+                    }
+                    // Serialise copies via a per-shard single-slot runner so that
+                    // fireUploadedGenerationListeners is always called in generation order.
+                    // (ES-12456)
+                    commitState.splitTargetCopyExecutor.execute(() -> {
+                        try {
+                            for (ShardId targetShardId : splitTargets) {
+                                long retryDelayMs = 10L;
+                                while (commitState.isClosed() == false) {
+                                    try {
+                                        objectStoreService.copyCommit(virtualBcc, targetShardId);
+                                        break;
+                                    } catch (Exception e) {
+                                        if (commitState.isClosed()) {
+                                            cleanup();
+                                            return;
+                                        }
+                                        final long delayMs = retryDelayMs;
+                                        logger.warn(
+                                            () -> format(
+                                                "%s failed to copy commit [%s] to split target [%s], retrying in [%s]",
+                                                virtualBcc.getShardId(),
+                                                virtualBcc.getPrimaryTermAndGeneration().generation(),
+                                                targetShardId,
+                                                TimeValue.timeValueMillis(delayMs)
+                                            ),
+                                            e
+                                        );
+                                        try {
+                                            Thread.sleep(delayMs);
+                                        } catch (InterruptedException ie) {
+                                            Thread.currentThread().interrupt();
+                                        }
+                                        retryDelayMs = Math.min(30_000L, retryDelayMs * 2);
+                                    }
+                                }
+                                if (commitState.isClosed()) {
+                                    cleanup();
+                                    return;
+                                }
+                            }
+                            afterCopies(commitState, blobReference, uploadedBcc, ccGeneration);
+                        } finally {
+                            copyPermit.close();
+                        }
+                    });
+                }
+            }
+
+            private void afterCopies(
+                ShardCommitState commitState,
+                ShardCommitState.BlobReference blobReference,
+                BatchedCompoundCommit uploadedBcc,
+                long ccGeneration
+            ) {
+                commitState.fireUploadedGenerationListeners(ccGeneration);
+                try {
                     commitState.sendNewUploadedCommitNotification(blobReference, uploadedBcc);
                 } catch (Exception e) {
                     // TODO: we should assert false here once we fix ES-8336
@@ -932,6 +1041,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         ),
                         e
                     );
+                } finally {
+                    cleanup();
                 }
             }
 
@@ -965,6 +1076,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         e
                     );
                 }
+                cleanup();
             }
 
             private boolean assertClosedOrRejectionFailure(final Exception e) {
@@ -976,10 +1088,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     || e instanceof ShardNotFoundException : closed + " vs " + e;
                 return true;
             }
-        }, commitState, virtualBcc), () -> {
-            IOUtils.closeWhileHandlingException(virtualBcc);
-            blobReference.decRef();
-        });
+
+            private void cleanup() {
+                IOUtils.closeWhileHandlingException(virtualBcc);
+                blobReference.decRef();
+            }
+        };
     }
 
     private void maybeLogSlowBccUpload(VirtualBatchedCompoundCommit virtualBcc, BccUploadResult uploadResult) {
@@ -1078,10 +1192,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     public boolean isShardDeletingIndex(ShardId shardId) {
         return getSafe(shardsCommitsStates, shardId).isDeletingIndex();
-    }
-
-    public boolean isNodeShuttingDown() {
-        return isNodeShuttingDown;
     }
 
     public void unregister(ShardId shardId) {
@@ -1270,7 +1380,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return getSafe(shardsCommitsStates, shardId);
     }
 
-    class ShardCommitState implements IndexEngineLocalReaderListener, CommitBCCResolver {
+    class ShardCommitState implements IndexEngineLocalReaderListener, CommitBCCResolver, ShardCommitUploadStats {
         private static final long EMPTY_GENERATION_NOTIFIED_SENTINEL = -1;
 
         private enum State {
@@ -1297,6 +1407,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // uploaded which is then removed from pendingUploadBccGenerations.
         private volatile VirtualBatchedCompoundCommit currentVirtualBcc = null;
         private final Map<Long, VirtualBatchedCompoundCommit> pendingUploadBccGenerations = new ConcurrentHashMap<>();
+        private AtomicLong pendingUploadBytes = new AtomicLong(0);
         private volatile BatchedCompoundCommit latestUploadedBcc = null;
         // NOTE When moving a VBCC through its lifecycle, we must update it first in the new state before remove it from the old state.
         // That is, we must first add it to the `pendingUploadBccGenerations` before un-assigning it from `currentVirtualBcc`,
@@ -1311,7 +1422,22 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          */
         private final ShardLocalCommitsTracker shardLocalCommitsTracker;
 
+        /**
+         * Listeners notified when the local BCC upload completes. Used internally for upload sequencing
+         * (so the next upload can start as soon as the previous local upload finishes, without waiting
+         * for copies to split targets). See {@link #addListenerForLocalUploadedGeneration}.
+         */
+        private List<Tuple<Long, ActionListener<Void>>> localUploadedGenerationListeners = null;
+        /**
+         * Listeners notified when the BCC is fully uploaded, including copies to any split targets.
+         * This is the externally-visible "uploaded" event. See {@link #addListenerForUploadedGeneration}.
+         */
         private List<Tuple<Long, ActionListener<Void>>> generationListeners = null;
+        /**
+         * The highest CC generation for which the upload is fully complete (local upload + copies to
+         * split targets). Updated by {@link #fireUploadedGenerationListeners}.
+         */
+        private long latestFullyUploadedCcGeneration = -1L;
         private List<Consumer<UploadedBccInfo>> uploadedBccConsumers = null;
         private volatile long recoveredGeneration = -1;
         private volatile long recoveredPrimaryTerm = -1;
@@ -1358,6 +1484,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private Set<PrimaryTermAndGeneration> previousReferencedBccs = null;
 
         private final Set<ShardId> copyTargets = ConcurrentHashMap.newKeySet();
+        /**
+         * Serialises copies to split targets (one at a time, in submission order) so that
+         * {@link #fireUploadedGenerationListeners} is always called in generation order.
+         */
+        private final Executor splitTargetCopyExecutor;
 
         // Visible for testing
         ShardCommitState(
@@ -1369,6 +1500,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             Runnable triggerTranslogReplicator
         ) {
             this.shardId = shardId;
+            this.splitTargetCopyExecutor = new ThrottledTaskRunner(
+                "copy-to-split-targets[" + shardId + "]",
+                1,
+                threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL)
+            ).asExecutor();
             this.allocationPrimaryTerm = allocationPrimaryTerm;
             this.inititalizingNoSearchSupplier = inititalizingNoSearchSupplier;
             this.mappingLookupSupplier = mappingLookupSupplier;
@@ -1567,6 +1703,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // * There should be no translog files to release for a recovering shard.
             // * We do not need to get the translog release end file from the commit user data.
             handleUploadedBcc(recoveredBcc, false, -1);
+            // Recovered commits are already fully present in the object store; fire generation
+            // listeners immediately so that callers of addListenerForUploadedGeneration do not
+            // wait indefinitely for an upload that will never happen for these generations.
+            fireUploadedGenerationListeners(recoveredBcc.lastCompoundCommit().generation());
         }
 
         public void setTrackedSearchNodesPerCommitOnRelocationTarget(
@@ -1672,6 +1812,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 long length = Math.min(request.getLength(), vbcc.getTotalSizeInBytes() - request.getOffset());
                 vbcc.getBytesByRange(request.getOffset(), length, output);
             }
+        }
+
+        @Override
+        public ShardId shardId() {
+            return shardId;
+        }
+
+        @Override
+        public long pendingUploadBytes() {
+            return pendingUploadBytes.get();
         }
 
         private Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBcc() {
@@ -1864,6 +2014,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     expectedVirtualBcc.getPrimaryTermAndGeneration().generation(),
                     expectedVirtualBcc
                 );
+                pendingUploadBytes.addAndGet(expectedVirtualBcc.getTotalSizeInBytes());
                 assert previous == null : "expected null, but got " + previous;
                 // reset after add to pending list so that vbcc is always visible as either pending or current
                 currentVirtualBcc = null;
@@ -2044,7 +2195,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // We use two synchronized blocks to ensure:
             // 1. Listeners are completed outside the synchronized blocks
             // 2. BCC upload consumers are triggered in generation order
-            // 3. latestUploadedBcc, pendingUploadBccGenerations and generationListeners
+            // 3. latestUploadedBcc, pendingUploadBccGenerations and localUploadedGenerationListeners
             // are updated in a single synchronized block to avoid racing
 
             final List<ActionListener<UploadedBccInfo>> listenersToFire = new ArrayList<>();
@@ -2117,9 +2268,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     var removed = pendingUploadBccGenerations.remove(newBccGeneration);
                     assert removed != null : newBccGeneration + "not found";
                 }
-                if (generationListeners != null) {
+                if (localUploadedGenerationListeners != null) {
                     List<Tuple<Long, ActionListener<Void>>> listenersToReregister = null;
-                    for (Tuple<Long, ActionListener<Void>> tuple : generationListeners) {
+                    for (Tuple<Long, ActionListener<Void>> tuple : localUploadedGenerationListeners) {
                         Long generation = tuple.v1();
                         if (newGeneration >= generation) {
                             listenersToFire.add(tuple.v2().map(c -> null));
@@ -2130,7 +2281,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                             listenersToReregister.add(tuple);
                         }
                     }
-                    generationListeners = listenersToReregister;
+                    localUploadedGenerationListeners = listenersToReregister;
                 }
             }
 
@@ -2225,7 +2376,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             } else {
                 long vbccGeneration = optVBCC.get().getPrimaryTermAndGeneration().generation();
                 logger.trace("{} waiting for commit [{}] to finish before uploading commit [{}]", shardId, vbccGeneration, generation);
-                addListenerForUploadedGeneration(vbccGeneration, uploadListener.delegateFailure((unusedListener, unusedResponse) -> {
+                addListenerForLocalUploadedGeneration(vbccGeneration, uploadListener.delegateFailure((unusedListener, unusedResponse) -> {
                     assert pendingUploadBccGenerations.containsKey(vbccGeneration) == false
                         : "missingGeneration [" + vbccGeneration + "] still in " + pendingUploadBccGenerations.keySet();
                     runUploadWhenCommitIsReady(uploadListener, generation);
@@ -2442,7 +2593,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             synchronized (this) {
                 if (isClosed()) {
                     completeListenerClosed = true;
-                } else if (getMaxUploadedGeneration() >= generation) {
+                } else if (latestFullyUploadedCcGeneration >= generation) {
                     // TODO: different listeners may want ccGen or bccGen and should be handled separately. See also ES-8261
                     // Location already visible, just call the listener
                     completeListenerSuccess = true;
@@ -2472,6 +2623,72 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         /**
+         * Register a listener that is invoked once the local BCC upload for the given generation has
+         * completed. Unlike {@link #addListenerForUploadedGeneration}, this does <em>not</em> wait for
+         * copies to split targets. Used internally to sequence uploads without blocking on copies.
+         */
+        private void addListenerForLocalUploadedGeneration(long generation, ActionListener<Void> listener) {
+            boolean completeListenerSuccess = false;
+            boolean completeListenerClosed = false;
+            synchronized (this) {
+                if (isClosed()) {
+                    completeListenerClosed = true;
+                } else if (getMaxUploadedGeneration() >= generation) {
+                    completeListenerSuccess = true;
+                } else {
+                    List<Tuple<Long, ActionListener<Void>>> listeners = localUploadedGenerationListeners;
+                    ActionListener<Void> contextPreservingListener = ContextPreservingActionListener.wrapPreservingContext(
+                        listener,
+                        threadPool.getThreadContext()
+                    );
+                    if (listeners == null) {
+                        listeners = new ArrayList<>();
+                    }
+                    listeners.add(new Tuple<>(generation, contextPreservingListener));
+                    localUploadedGenerationListeners = listeners;
+                }
+            }
+
+            if (completeListenerClosed) {
+                if (relocated) {
+                    listener.onFailure(new UnavailableShardsException(shardId, "shard relocated"));
+                } else {
+                    listener.onFailure(new AlreadyClosedException("shard [" + shardId + "] has already been closed"));
+                }
+            } else if (completeListenerSuccess) {
+                listener.onResponse(null);
+            }
+        }
+
+        /**
+         * Notifies all listeners registered via {@link #addListenerForUploadedGeneration} for generations
+         * up to and including {@code ccGeneration}. Called after the local upload and any copies to split
+         * targets are complete.
+         */
+        void fireUploadedGenerationListeners(long ccGeneration) {
+            final List<ActionListener<Void>> listenersToFire = new ArrayList<>();
+            synchronized (this) {
+                latestFullyUploadedCcGeneration = Math.max(latestFullyUploadedCcGeneration, ccGeneration);
+                if (generationListeners != null) {
+                    List<Tuple<Long, ActionListener<Void>>> remaining = null;
+                    for (var tuple : generationListeners) {
+                        if (latestFullyUploadedCcGeneration >= tuple.v1()) {
+                            listenersToFire.add(tuple.v2());
+                        } else {
+                            if (remaining == null) {
+                                remaining = new ArrayList<>();
+                            }
+                            remaining.add(tuple);
+                        }
+                    }
+                    generationListeners = remaining;
+                }
+            }
+            // It is OK for generation listeners to be completed out of generation order.
+            ActionListener.onResponse(listenersToFire, null);
+        }
+
+        /**
          * Register a consumer that is invoked everytime a new commit has been uploaded to the object store
          * @param consumer the consumer
          */
@@ -2487,22 +2704,25 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         private List<ActionListener<Void>> closeAndGetListeners() {
-            List<Tuple<Long, ActionListener<Void>>> listenersToFail;
+            List<Tuple<Long, ActionListener<Void>>> localListenersToFail;
+            List<Tuple<Long, ActionListener<Void>>> fullListenersToFail;
             synchronized (this) {
                 if (isClosed()) {
                     return Collections.emptyList();
                 }
                 state = State.CLOSED;
-                listenersToFail = generationListeners;
+                localListenersToFail = localUploadedGenerationListeners;
+                localUploadedGenerationListeners = null;
+                fullListenersToFail = generationListeners;
                 generationListeners = null;
                 uploadedBccConsumers = null;
             }
 
-            if (listenersToFail != null) {
-                return listenersToFail.stream().map(Tuple::v2).collect(Collectors.toList());
-            } else {
-                return Collections.emptyList();
-            }
+            Stream<ActionListener<Void>> local = localListenersToFail != null
+                ? localListenersToFail.stream().map(Tuple::v2)
+                : Stream.empty();
+            Stream<ActionListener<Void>> full = fullListenersToFail != null ? fullListenersToFail.stream().map(Tuple::v2) : Stream.empty();
+            return Stream.concat(local, full).collect(Collectors.toList());
         }
 
         private void close() {
@@ -3370,9 +3590,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         try {
-            if (event.state().metadata().nodeShutdowns().contains(event.state().nodes().getLocalNodeId())) {
-                isNodeShuttingDown = true;
-            }
             if (event.nodesDelta().removed()) {
                 var removedNodeIds = event.nodesDelta().removedNodes().stream().map(node -> node.getId()).collect(Collectors.toSet());
                 for (var shardCommitState : shardsCommitsStates.values()) {
@@ -3521,8 +3738,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return OptionalDouble.of(((double) max - (double) min) / 60_000d);
     }
 
-    // visible for testing
-    static String bccSizeBucket(long totalSizeBytes) {
+    public static String bccSizeBucket(long totalSizeBytes) {
         assert totalSizeBytes > 0 : "was " + totalSizeBytes;
         if (totalSizeBytes <= ByteSizeUnit.MB.toBytes(16)) {
             return "<=16MiB";

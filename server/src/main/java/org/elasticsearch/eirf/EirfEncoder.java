@@ -14,11 +14,11 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.sourcebatch.LeafSink;
+import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
 import org.elasticsearch.sourcebatch.SourceBatchEncoder;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.sourcebatch.SourceValueType;
@@ -339,10 +339,10 @@ public class EirfEncoder implements SourceBatchEncoder {
             boolean rawTextMode = firePathSink && sink.passRawText();
             switch (token) {
                 case START_ARRAY -> {
-                    PackedArray arr = parseArray(parser, scratch);
-                    scratch.typeBytes[colIdx] = arr.arrayType;
-                    scratch.varData[colIdx] = new BytesArray(arr.packed);
-                    scratch.totalVarSize += arr.packed.length;
+                    SourceBatchEncodeHelper.PackedArray arr = parseArray(parser, scratch);
+                    scratch.typeBytes[colIdx] = arr.arrayType();
+                    scratch.varData[colIdx] = new BytesArray(arr.packed());
+                    scratch.totalVarSize += arr.packed().length;
                     scratch.varColumnCount++;
                     if (firePathSink) {
                         sink.onArrayLeaf(colIdx, encoder.columnPath(colIdx));
@@ -440,30 +440,11 @@ public class EirfEncoder implements SourceBatchEncoder {
     }
 
     /**
-     * The inline array bytes and their {@code FIXED_ARRAY} / {@code UNION_ARRAY} kind, as produced by
-     * {@link #packArray} and {@link #parseArray}.
-     */
-    // TODO: move to SourceBatch package
-    public record PackedArray(byte arrayType, byte[] packed) {}
-
-    /**
-     * Packs the array the parser is positioned at (just after {@code START_ARRAY}) into inline array
-     * bytes. A public seam over {@link #parseArray} for other batch encoders that store heterogeneous
-     * or object-bearing arrays inline.
-     */
-    // TODO: move to SourceBatch package
-    public static PackedArray packArray(XContentParser parser) throws IOException {
-        return parseArray(parser, null);
-    }
-
-    /**
      * Parses an array from the parser (positioned after START_ARRAY) and packs it into
      * either FIXED_ARRAY (all elements same type) or UNION_ARRAY (mixed types) format.
-     *
-     * @param scratch if non-null, array element buffers are borrowed from scratch to avoid allocation.
-     *                Null is passed for recursive calls where the buffers are already in use.
+     * Array element buffers are borrowed from scratch when available to avoid allocation.
      */
-    private static PackedArray parseArray(XContentParser parser, ScratchBuffers scratch) throws IOException {
+    private static SourceBatchEncodeHelper.PackedArray parseArray(XContentParser parser, ScratchBuffers scratch) throws IOException {
         byte[] elemTypes;
         long[] elemNumeric;
         Object[] elemVar;
@@ -495,13 +476,16 @@ public class EirfEncoder implements SourceBatchEncoder {
                 switch (token) {
                     case START_OBJECT -> {
                         elemTypes[count] = SourceValueType.KEY_VALUE;
-                        elemVar[count] = serializeKeyValue(parser);
+                        elemVar[count] = SourceBatchEncodeHelper.serializeKeyValue(parser);
                         forceUnion = true;
                     }
                     case START_ARRAY -> {
-                        PackedArray nested = parseArray(parser, scratch);
-                        elemTypes[count] = nested.arrayType;
-                        elemVar[count] = nested.packed;
+                        // Nested arrays: scratch buffers are already null at this point (borrowed=true
+                        // nulls them above), so the recursive call always allocates fresh — equivalent
+                        // to calling SourceBatchEncodeHelper.parseArray(parser) directly.
+                        SourceBatchEncodeHelper.PackedArray nested = SourceBatchEncodeHelper.packArray(parser);
+                        elemTypes[count] = nested.arrayType();
+                        elemVar[count] = nested.packed();
                         forceUnion = true;
                     }
                     case VALUE_STRING -> {
@@ -568,13 +552,13 @@ public class EirfEncoder implements SourceBatchEncoder {
             byte[] packed;
             byte arrayType;
             if (useFixed) {
-                packed = packFixedArray(sharedType, elemNumeric, elemVar, count);
+                packed = SourceBatchEncodeHelper.packFixedArray(sharedType, elemNumeric, elemVar, count);
                 arrayType = SourceValueType.FIXED_ARRAY;
             } else {
-                packed = packUnionArray(elemTypes, elemNumeric, elemVar, count);
+                packed = SourceBatchEncodeHelper.packUnionArray(elemTypes, elemNumeric, elemVar, count);
                 arrayType = SourceValueType.UNION_ARRAY;
             }
-            return new PackedArray(arrayType, packed);
+            return new SourceBatchEncodeHelper.PackedArray(arrayType, packed);
         } finally {
             if (scratch != null) {
                 Arrays.fill(elemVar, 0, count, null);
@@ -582,177 +566,6 @@ public class EirfEncoder implements SourceBatchEncoder {
                 scratch.arrayElemNumeric = elemNumeric;
                 scratch.arrayElemVar = elemVar;
             }
-        }
-    }
-
-    /**
-     * Packs a union array: per element: type(1) + data. No count byte — byte length terminates.
-     */
-    public static byte[] packUnionArray(byte[] elemTypes, long[] elemNumeric, Object[] elemVar, int count) {
-        int size = 0;
-        for (int i = 0; i < count; i++) {
-            size += 1; // type byte
-            size += elemDataSize(elemTypes[i], elemVar[i]);
-        }
-
-        // TODO: Eventually expose a recycler here and use a recycling bytes stream output instance
-        byte[] packed = new byte[size];
-        int pos = 0;
-        for (int i = 0; i < count; i++) {
-            packed[pos++] = elemTypes[i];
-            pos = writeElemData(packed, pos, elemTypes[i], elemNumeric[i], elemVar[i]);
-        }
-        return packed;
-    }
-
-    /**
-     * Packs a fixed array: element_type(1) + per element: data only. No count byte — byte length terminates.
-     */
-    public static byte[] packFixedArray(byte sharedType, long[] elemNumeric, Object[] elemVar, int count) {
-        int size = 1; // shared type byte
-        for (int i = 0; i < count; i++) {
-            size += elemDataSize(sharedType, elemVar[i]);
-        }
-
-        byte[] packed = new byte[size];
-        packed[0] = sharedType;
-        int pos = 1;
-        for (int i = 0; i < count; i++) {
-            pos = writeElemData(packed, pos, sharedType, elemNumeric[i], elemVar[i]);
-        }
-        return packed;
-    }
-
-    private static int elemDataSize(byte type, Object varData) {
-        return switch (type) {
-            case SourceValueType.INT, SourceValueType.FLOAT -> 4;
-            case SourceValueType.LONG, SourceValueType.DOUBLE -> 8;
-            case SourceValueType.STRING -> {
-                XContentString.UTF8Bytes str = (XContentString.UTF8Bytes) varData;
-                yield 4 + (str != null ? str.length() : 0);
-            }
-            case SourceValueType.KEY_VALUE, SourceValueType.UNION_ARRAY, SourceValueType.FIXED_ARRAY -> {
-                byte[] bytes = (byte[]) varData;
-                yield 4 + bytes.length; // 4-byte length prefix + payload
-            }
-            default -> 0; // NULL, TRUE, FALSE
-        };
-    }
-
-    private static int writeElemData(byte[] packed, int pos, byte type, long numeric, Object var) {
-        switch (type) {
-            case SourceValueType.INT, SourceValueType.FLOAT -> {
-                ByteUtils.writeIntLE((int) numeric, packed, pos);
-                pos += 4;
-            }
-            case SourceValueType.LONG, SourceValueType.DOUBLE -> {
-                ByteUtils.writeLongLE(numeric, packed, pos);
-                pos += 8;
-            }
-            case SourceValueType.STRING -> {
-                XContentString.UTF8Bytes str = (XContentString.UTF8Bytes) var;
-                int len = str.length();
-                ByteUtils.writeIntLE(len, packed, pos);
-                pos += 4;
-                System.arraycopy(str.bytes(), str.offset(), packed, pos, len);
-                pos += len;
-            }
-            case SourceValueType.KEY_VALUE, SourceValueType.UNION_ARRAY, SourceValueType.FIXED_ARRAY -> {
-                byte[] bytes = (byte[]) var;
-                ByteUtils.writeIntLE(bytes.length, packed, pos);
-                pos += 4;
-                System.arraycopy(bytes, 0, packed, pos, bytes.length);
-                pos += bytes.length;
-            }
-        }
-        return pos;
-    }
-
-    /**
-     * Serializes an object from the parser into KEY_VALUE binary format.
-     * Parser must be positioned after START_OBJECT.
-     */
-    public static byte[] serializeKeyValue(XContentParser parser) throws IOException {
-        // TODO: Eventually expose a recycler here and use a recycling instance
-        BytesStreamOutput out = new BytesStreamOutput(64);
-
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token != XContentParser.Token.FIELD_NAME) {
-                throw new IllegalStateException("Expected FIELD_NAME but got " + token);
-            }
-            byte[] keyBytes = parser.currentName().getBytes(StandardCharsets.UTF_8);
-            token = parser.nextToken(); // value token
-
-            // key_length(i32) + key_bytes
-            out.writeIntLE(keyBytes.length);
-            out.writeBytes(keyBytes, 0, keyBytes.length);
-
-            // type(1) + value_data
-            writeElementValue(out, parser, token);
-        }
-
-        return BytesReference.toBytes(out.bytes());
-    }
-
-    /**
-     * Writes a single element value (type byte + data) into the output stream.
-     */
-    private static void writeElementValue(BytesStreamOutput out, XContentParser parser, XContentParser.Token token) throws IOException {
-        switch (token) {
-            case VALUE_STRING -> {
-                XContentString.UTF8Bytes str = parser.optimizedText().bytes();
-                out.writeByte(SourceValueType.STRING);
-                out.writeIntLE(str.length());
-                out.writeBytes(str.bytes(), str.offset(), str.length());
-            }
-            case VALUE_NUMBER -> {
-                XContentParser.NumberType numType = parser.numberType();
-                switch (numType) {
-                    case INT, LONG -> {
-                        long val = parser.longValue();
-                        if (val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE) {
-                            out.writeByte(SourceValueType.INT);
-                            out.writeIntLE((int) val);
-                        } else {
-                            out.writeByte(SourceValueType.LONG);
-                            out.writeLongLE(val);
-                        }
-                    }
-                    case FLOAT, DOUBLE -> {
-                        double val = parser.doubleValue();
-                        float fval = (float) val;
-                        if ((double) fval == val) {
-                            out.writeByte(SourceValueType.FLOAT);
-                            out.writeIntLE(Float.floatToRawIntBits(fval));
-                        } else {
-                            out.writeByte(SourceValueType.DOUBLE);
-                            out.writeLongLE(Double.doubleToRawLongBits(val));
-                        }
-                    }
-                    default -> {
-                        XContentString.UTF8Bytes str = parser.optimizedText().bytes();
-                        out.writeByte(SourceValueType.STRING);
-                        out.writeIntLE(str.length());
-                        out.writeBytes(str.bytes(), str.offset(), str.length());
-                    }
-                }
-            }
-            case VALUE_BOOLEAN -> out.writeByte(parser.booleanValue() ? SourceValueType.TRUE : SourceValueType.FALSE);
-            case VALUE_NULL -> out.writeByte(SourceValueType.NULL);
-            case START_OBJECT -> {
-                byte[] nested = serializeKeyValue(parser);
-                out.writeByte(SourceValueType.KEY_VALUE);
-                out.writeIntLE(nested.length);
-                out.writeBytes(nested, 0, nested.length);
-            }
-            case START_ARRAY -> {
-                PackedArray arr = parseArray(parser, null);
-                out.writeByte(arr.arrayType);
-                out.writeIntLE(arr.packed.length);
-                out.writeBytes(arr.packed, 0, arr.packed.length);
-            }
-            default -> throw new IllegalStateException("Unexpected token: " + token);
         }
     }
 

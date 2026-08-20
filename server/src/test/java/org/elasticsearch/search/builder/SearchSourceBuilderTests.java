@@ -10,6 +10,7 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageLongCounter;
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.common.ParsingException;
@@ -82,6 +83,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
@@ -90,6 +92,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 
 public class SearchSourceBuilderTests extends AbstractSearchTestCase {
@@ -161,7 +164,8 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
         Map<String, VectorType> embeddingsFields = new LinkedHashMap<>();
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
-            String field = randomAlphaOfLengthBetween(5, 10);
+            // Add a prefix to guarantee no field name collision with fetch fields
+            String field = "embedding_" + randomAlphaOfLengthBetween(5, 10);
             VectorType vectorType = randomVectorType();
             embeddingsFields.put(field, vectorType);
             original.fetchEmbeddingsField(field, vectorType);
@@ -169,6 +173,9 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
         List<FieldAndFormat> expectedFetchFields = originalFetchFields == null ? new ArrayList<>() : new ArrayList<>(originalFetchFields);
         embeddingsFields.keySet().forEach(f -> expectedFetchFields.add(new FieldAndFormat(f, null)));
+
+        // The fixture must be a legal search source; in particular the fetch fields and embeddings fields must not overlap
+        assertNull(original.validate(null, false, false));
 
         for (int i = 0; i < 20; i++) {
             TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(
@@ -185,6 +192,56 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             assertThat(original.fetchFields(), equalTo(originalFetchFields));
             assertThat(original.fetchEmbeddingsFields(), equalTo(embeddingsFields));
         }
+    }
+
+    /**
+     * Fetch fields and embeddings fields are resolved into the same fetch fields context, which is keyed on field name, so an overlap
+     * between them is rejected. Fetch fields are patterns, so the overlap check must account for wildcards.
+     */
+    public void testFetchFieldsAndEmbeddingsFieldsOverlap() {
+        BiFunction<List<String>, List<String>, ActionRequestValidationException> validate = (fetchFields, embeddingsFields) -> {
+            SearchSourceBuilder source = new SearchSourceBuilder();
+            fetchFields.forEach(source::fetchField);
+            // The requested vector type has no bearing on the overlap check
+            embeddingsFields.forEach(f -> source.fetchEmbeddingsField(f, randomVectorType()));
+            return source.validate(null, false, false);
+        };
+
+        // An exact name match is rejected
+        ActionRequestValidationException exactMatch = validate.apply(List.of("my_field"), List.of("my_field"));
+        assertNotNull(exactMatch);
+        assertThat(
+            exactMatch.getMessage(),
+            containsString("[fields] entry [my_field] cannot overlap with the requested embeddings field [my_field]")
+        );
+
+        // A fetch field pattern that matches an embeddings field is rejected
+        ActionRequestValidationException prefixPattern = validate.apply(List.of("my_*"), List.of("my_field"));
+        assertNotNull(prefixPattern);
+        assertThat(
+            prefixPattern.getMessage(),
+            containsString("[fields] entry [my_*] cannot overlap with the requested embeddings field [my_field]")
+        );
+
+        assertNotNull(validate.apply(List.of("*"), List.of("my_field")));
+        assertNotNull(validate.apply(List.of("my_*_vector"), List.of("my_dense_vector")));
+
+        // Every overlapping pair is reported, not just the first
+        ActionRequestValidationException multipleOverlaps = validate.apply(List.of("*"), List.of("first_field", "second_field"));
+        assertNotNull(multipleOverlaps);
+        assertThat(multipleOverlaps.validationErrors(), hasSize(2));
+        assertThat(multipleOverlaps.getMessage(), containsString("embeddings field [first_field]"));
+        assertThat(multipleOverlaps.getMessage(), containsString("embeddings field [second_field]"));
+
+        // Distinct field names are accepted, whether the fetch field is a literal or a pattern
+        assertNull(validate.apply(List.of("other_field"), List.of("my_field")));
+        assertNull(validate.apply(List.of("other_*"), List.of("my_field")));
+        // A literal fetch field does not match on prefix
+        assertNull(validate.apply(List.of("my"), List.of("my_field")));
+
+        // Either option on its own is accepted
+        assertNull(validate.apply(List.of("my_field"), List.of()));
+        assertNull(validate.apply(List.of(), List.of("my_field")));
     }
 
     public void testShallowCopy() {

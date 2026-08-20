@@ -1229,6 +1229,11 @@ public class SharedBlobCacheWarmingService {
 
         double timeoutMs;
         final String context;
+        // The decision below is per-shard whereas the two heuristics above assume all shards opt with the same heuristic
+        // this is an inherent problem of the fact that, during relocation, we don't know apriori all the shards that are going
+        // to be relocated between two given nodes, so we can't know which of the two heuristics is more suitable overall.
+        // Though the per-shard local decision here is OKish, because it's all relative to the remaining deadline and shards,
+        // so the impact of currently choosing a different heuristic from previous (or future) relocating shards is partially mitigated
         if (dataVolumeMs > equalShareMs) {
             timeoutMs = dataVolumeMs;
             context = "relocation source shutting down (data volume proportional share of remaining time to capped grace deadline)";

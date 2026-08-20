@@ -12,6 +12,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
@@ -32,6 +33,7 @@ import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -128,7 +130,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
     @Override
     protected void doExecute(Task task, EsqlResolveFieldsRequest request, final ActionListener<EsqlResolveFieldsResponse> listener) {
         // doResolveWithFieldCaps(task, request, listener);
-        doResolve(task, request, listener);
+        searchCoordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doResolve(task, request, l)));
     }
 
     private void doResolve(Task task, EsqlResolveFieldsRequest request, ActionListener<EsqlResolveFieldsResponse> listener) {
@@ -149,7 +151,14 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
         final OriginalIndices localIndices = remoteIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
         var response = new EsqlResolveFieldsResponseBuilder(clusterService.state().getMinTransportVersion());
-        try (var resultListener = new RefCountingListener(listener.delegateFailureAndWrap((l, r) -> l.onResponse(response.build())))) {
+        try (
+            var resultListener = new RefCountingListener(
+                new ThreadedActionListener<>(
+                    searchCoordinationExecutor,
+                    listener.delegateFailureAndWrap((l, r) -> l.onResponse(response.build()))
+                )
+            )
+        ) {
             try {
                 // local resolutions
                 if (localIndices != null) {

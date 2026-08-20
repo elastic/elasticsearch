@@ -31,18 +31,12 @@ public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollec
 
     public void testBasicSerialization() throws IOException, ParseException {
         GeometryValidator validator = GeographyValidator.instance(true);
-        assertEquals(
+        assertSerialization(
+            validator,
+            true,
             "GEOMETRYCOLLECTION (POINT (20.0 10.0),POINT EMPTY)",
-            WellKnownText.toWKT(new GeometryCollection<Geometry>(Arrays.asList(new Point(20, 10), Point.EMPTY)))
+            new GeometryCollection<Geometry>(Arrays.asList(new Point(20, 10), Point.EMPTY))
         );
-
-        assertEquals(
-            new GeometryCollection<Geometry>(Arrays.asList(new Point(20, 10), Point.EMPTY)),
-            WellKnownText.fromWKT(validator, true, "GEOMETRYCOLLECTION (POINT (20.0 10.0),POINT EMPTY)")
-        );
-
-        assertEquals("GEOMETRYCOLLECTION EMPTY", WellKnownText.toWKT(GeometryCollection.EMPTY));
-        assertEquals(GeometryCollection.EMPTY, WellKnownText.fromWKT(validator, true, "GEOMETRYCOLLECTION EMPTY)"));
     }
 
     @SuppressWarnings("ConstantConditions")

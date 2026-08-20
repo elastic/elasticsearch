@@ -292,6 +292,9 @@ public class InSubqueryResolver {
         for (MarkJoinSpec mj : markJoins) {
             child = new MarkJoin(mj.source, child, mj.subquery, mj.config, mj.markAttribute);
         }
+        // Invariant: markJoins is non-empty iff at least one FilteredExpression filter was rewritten,
+        // which is the only code path that initializes newAggregates.
+        assert newAggregates != null;
         return aggregate.with(child, aggregate.groupings(), newAggregates);
     }
 
@@ -623,6 +626,8 @@ public class InSubqueryResolver {
             } else {
                 failures.add(fail(expr, "IN subquery is not supported within other expressions [{}]", outerExpr.sourceText()));
             }
+            // Do not recurse: children of a rejected InSubquery cannot produce actionable errors.
+            return;
         }
         Expression newOuterExpr = outerExpr == null
             && expr instanceof And == false

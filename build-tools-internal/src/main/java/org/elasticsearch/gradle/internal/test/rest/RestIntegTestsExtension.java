@@ -12,11 +12,13 @@ package org.elasticsearch.gradle.internal.test.rest;
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask;
 import org.gradle.api.Action;
 import org.gradle.api.Project;
-import org.gradle.api.tasks.TaskCollection;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -26,7 +28,7 @@ import java.util.Set;
  *
  * <pre>{@code
  * // Groovy — configure all rest integ test tasks in this project
- * restTests.tasks.configureEach {
+ * restTests.configureEach {
  *     systemProperty 'my.prop', 'value'
  * }
  *
@@ -45,7 +47,7 @@ import java.util.Set;
  * <p>
  * No task-creation ordering is required: {@link RestTestBasePlugin} registers its
  * {@link #configureEach} handler at plugin-apply time, so it always runs before any
- * build-script {@code restTests.tasks.configureEach} closure and before a task's own
+ * build-script {@code restTests.configureEach} closure and before a task's own
  * {@code register} action (Gradle executes container {@code configureEach} actions in
  * registration order and the {@code register} action last).
  */
@@ -53,6 +55,7 @@ public class RestIntegTestsExtension {
 
     private final Project project;
     private final Set<String> restTestTaskNames = new HashSet<>();
+    private final List<TaskProvider<Test>> restTestTaskProviders = new ArrayList<>();
 
     public RestIntegTestsExtension(Project project) {
         this.project = project;
@@ -62,9 +65,9 @@ public class RestIntegTestsExtension {
      * Applies {@code action} to all current and future REST integ {@link Test} tasks.
      * <p>
      * Uses a plain {@code withType(Test).configureEach} on the task container (not a
-     * {@code matching()} sub-collection) so that, when registered by {@link RestTestBasePlugin}
-     * at apply time, it runs before the task's own register action and before any build-script
-     * {@code restTests.tasks.configureEach} closures.
+     * {@code matching()} sub-collection, which would eagerly realize tasks) so that, when
+     * registered by {@link RestTestBasePlugin} at apply time, it runs before the task's own
+     * register action and before any build-script {@code restTests.configureEach} closures.
      */
     public void configureEach(Action<? super Test> action) {
         project.getTasks().withType(Test.class).configureEach(task -> {
@@ -75,19 +78,20 @@ public class RestIntegTestsExtension {
     }
 
     /**
-     * Returns a live {@link TaskCollection} of all REST integ {@link Test} tasks.
+     * Returns the {@link TaskProvider}s of all REST integ {@link Test} tasks registered via
+     * {@link #register(String, Action)}, without realizing any task.
      * <p>
-     * Groovy build scripts should use this collection directly for additional
-     * {@code configureEach} closures so that Gradle's native collection handling
-     * sets the closure delegate to each task:
+     * Suitable for wiring task dependencies lazily:
      * <pre>{@code
-     * restTests.tasks.configureEach {
-     *     usesDefaultDistribution("reason")
+     * tasks.named("check").configure {
+     *     dependsOn(restTests.tasks)
      * }
      * }</pre>
+     * To configure the tasks, use {@link #configureEach(Action)} instead, which also covers
+     * {@link StandaloneRestIntegTestTask}-based tasks not registered through this extension.
      */
-    public TaskCollection<Test> getTasks() {
-        return project.getTasks().withType(Test.class).matching(this::isRestIntegTest);
+    public List<TaskProvider<Test>> getTasks() {
+        return Collections.unmodifiableList(restTestTaskProviders);
     }
 
     /**
@@ -97,7 +101,9 @@ public class RestIntegTestsExtension {
      */
     public TaskProvider<Test> register(String name, Action<? super Test> action) {
         restTestTaskNames.add(name);
-        return project.getTasks().register(name, Test.class, action);
+        TaskProvider<Test> provider = project.getTasks().register(name, Test.class, action);
+        restTestTaskProviders.add(provider);
+        return provider;
     }
 
     private boolean isRestIntegTest(Test task) {

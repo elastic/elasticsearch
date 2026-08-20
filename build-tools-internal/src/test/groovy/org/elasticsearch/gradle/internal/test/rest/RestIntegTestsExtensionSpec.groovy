@@ -70,17 +70,20 @@ class RestIntegTestsExtensionSpec extends Specification {
         !configured.contains("plainTest")
     }
 
-    def "getTasks returns only enrolled REST integ test tasks"() {
+    def "getTasks returns providers of enrolled REST integ test tasks without realizing them"() {
         given:
-        extension.register("yamlRestTest") {}
-        extension.register("javaRestTest") {}
+        boolean realized = false
+        extension.register("yamlRestTest") { realized = true }
+        extension.register("javaRestTest") { realized = true }
         project.tasks.register("unitTest", Test.class) {}
 
         when:
         def restTasks = extension.getTasks().collect { it.name }
 
         then:
-        restTasks.containsAll(["yamlRestTest", "javaRestTest"])
+        // TaskProvider.getName() does not realize the task
+        realized == false
+        restTasks == ["yamlRestTest", "javaRestTest"]
         !restTasks.contains("unitTest")
     }
 

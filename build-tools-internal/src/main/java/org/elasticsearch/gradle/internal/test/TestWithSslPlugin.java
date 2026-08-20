@@ -63,7 +63,6 @@ public class TestWithSslPlugin implements Plugin<Project> {
             // Tell the tests we're running with ssl enabled
             project.getExtensions()
                 .getByType(RestIntegTestsExtension.class)
-                .getTasks()
                 .configureEach(runner -> runner.systemProperty("tests.ssl.enabled", "true"));
         });
         project.getPlugins().withType(LegacyJavaRestTestPlugin.class).configureEach(restTestPlugin -> {
@@ -74,7 +73,6 @@ public class TestWithSslPlugin implements Plugin<Project> {
             // Tell the tests we're running with ssl enabled
             project.getExtensions()
                 .getByType(RestIntegTestsExtension.class)
-                .getTasks()
                 .configureEach(runner -> runner.systemProperty("tests.ssl.enabled", "true"));
         });
 

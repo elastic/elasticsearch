@@ -26,7 +26,7 @@ dependencies {
   internalClusterTestImplementation project(':modules:reindex')
 }
 
-restTests.tasks.configureEach {
+restTests.configureEach {
   usesDefaultDistribution("to be triaged")
 }
 

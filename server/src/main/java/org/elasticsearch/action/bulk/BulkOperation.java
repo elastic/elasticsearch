@@ -72,6 +72,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -434,39 +435,54 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
         String nodeId = clusterService.localNode().getId();
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
-        try (RefCountingRunnable bulkItemRequestCompleteRefCount = new RefCountingRunnable(onRequestsCompleted)) {
+        final AtomicReference<Exception> synchronousDispatchFailure = new AtomicReference<>();
+        final Runnable onBulkItemRequestsFinishedOrFailure = () -> {
+            final Exception failure = synchronousDispatchFailure.get();
+            if (failure == null) {
+                onRequestsCompleted.run();
+            } else {
+                onFailure(failure);
+            }
+        };
+        try (RefCountingRunnable bulkItemRequestCompleteRefCount = new RefCountingRunnable(onBulkItemRequestsFinishedOrFailure)) {
             for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
                 final ShardId shardId = entry.getKey();
                 final List<BulkItemRequest> requests = entry.getValue();
+                final Releasable releaseOnFinish = bulkItemRequestCompleteRefCount.acquire();
+                try {
+                    // Get effective shardCount for shardId and pass it on as parameter to new BulkShardRequest
+                    var indexMetadata = project.getIndexSafe(shardId.getIndex());
+                    SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
 
-                // Get effective shardCount for shardId and pass it on as parameter to new BulkShardRequest
-                var indexMetadata = project.getIndexSafe(shardId.getIndex());
-                SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
+                    BulkShardRequest bulkShardRequest = new BulkShardRequest(
+                        shardId,
+                        splitShardCountSummary,
+                        bulkRequest.getRefreshPolicy(),
+                        requests.toArray(new BulkItemRequest[0]),
+                        bulkRequest.isSimulated()
+                    );
 
-                BulkShardRequest bulkShardRequest = new BulkShardRequest(
-                    shardId,
-                    splitShardCountSummary,
-                    bulkRequest.getRefreshPolicy(),
-                    requests.toArray(new BulkItemRequest[0]),
-                    bulkRequest.isSimulated()
-                );
+                    SourceBatch shardBatch = shardBatches.get(shardId);
+                    if (shardBatch != null) {
+                        bulkShardRequest.setBulkShardBatch(new BulkShardBatch(shardBatch));
+                    }
 
-                SourceBatch shardBatch = shardBatches.get(shardId);
-                if (shardBatch != null) {
-                    bulkShardRequest.setBulkShardBatch(new BulkShardBatch(shardBatch));
+                    if (indexMetadata.getInferenceFields().isEmpty() == false) {
+                        bulkShardRequest.setInferenceFieldMap(indexMetadata.getInferenceFields());
+                    }
+                    bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
+                    bulkShardRequest.timeout(bulkRequest.timeout());
+                    bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
+                    if (task != null) {
+                        bulkShardRequest.setParentTask(nodeId, task.getId());
+                    }
+                    boolean redactSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings());
+                    executeBulkShardRequest(bulkShardRequest, project.id(), releaseOnFinish, redactSeqNo);
+                } catch (Exception e) {
+                    synchronousDispatchFailure.set(e);
+                    releaseOnFinish.close();
+                    break;
                 }
-
-                if (indexMetadata.getInferenceFields().isEmpty() == false) {
-                    bulkShardRequest.setInferenceFieldMap(indexMetadata.getInferenceFields());
-                }
-                bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
-                bulkShardRequest.timeout(bulkRequest.timeout());
-                bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
-                if (task != null) {
-                    bulkShardRequest.setParentTask(nodeId, task.getId());
-                }
-                boolean redactSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings());
-                executeBulkShardRequest(bulkShardRequest, project.id(), bulkItemRequestCompleteRefCount.acquire(), redactSeqNo);
             }
         }
         closeBatchEncoders();

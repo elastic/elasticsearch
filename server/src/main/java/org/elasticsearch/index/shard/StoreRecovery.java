@@ -639,6 +639,7 @@ public final class StoreRecovery {
             if (indexShard.hasTranslog() == false) {
                 if (isReadOnlyVerified(indexShard.indexSettings().getIndexMetadata())) {
                     Translog.deleteAll(translogLocation);
+                    store.checkAndPatchLocalCheckpoint();
                 }
                 return;
             }

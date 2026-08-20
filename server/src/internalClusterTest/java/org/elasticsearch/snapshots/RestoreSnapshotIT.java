@@ -30,8 +30,12 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.FileRestoreContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
@@ -1190,5 +1194,44 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertThat(restoreResponseNoMatch.getRestoreInfo().failedShards(), equalTo(0));
         assertTrue("Original index name should exist when pattern doesn't match", indexExists(indexName));
+    }
+
+    /**
+     * Round-trip test for {@link RestoreService#readShardSnapshotCommitInfo}: index a known number of docs,
+     * snapshot, then read the per-shard commit userdata directly from the repository and assert the exact
+     * {@code local_checkpoint} and {@code max_seq_no} values.
+     */
+    public void testLoadShardSnapshotCommitInfoReturnsExpectedSeqNos() throws Exception {
+        final String indexName = "test-commit-info-index";
+        final String repoName = "test-commit-info-repo";
+        final String snapshotName = "test-commit-info-snap";
+        final int numDocs = randomIntBetween(10, 50);
+
+        createRepository(repoName, "fs");
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        for (int i = 0; i < numDocs; i++) {
+            prepareIndex(indexName).setId(Integer.toString(i)).setSource("field", i).get();
+        }
+        flushAndRefresh(indexName);
+
+        createSnapshot(repoName, snapshotName, Collections.singletonList(indexName));
+
+        final BlobStoreRepository repository = getRepositoryOnMaster(repoName);
+        final RepositoryData repositoryData = getRepositoryData(repoName);
+        final SnapshotId snapshotId = repositoryData.getSnapshotIds()
+            .stream()
+            .filter(s -> snapshotName.equals(s.getName()))
+            .findFirst()
+            .orElseThrow();
+        final IndexId indexId = repositoryData.resolveIndexId(indexName);
+
+        final SequenceNumbers.CommitInfo commitInfo = RestoreService.readShardSnapshotCommitInfo(repository, indexId, 0, snapshotId);
+
+        // Single-shard index, no concurrent writers: every doc's seq_no is durable in the commit by snapshot time.
+        // The first doc gets seq_no 0, so after numDocs writes both lcp and max_seq_no must equal numDocs - 1.
+        assertThat(commitInfo.localCheckpoint(), equalTo(commitInfo.maxSeqNo()));
+        assertThat(commitInfo.maxSeqNo(), equalTo((long) numDocs - 1));
     }
 }

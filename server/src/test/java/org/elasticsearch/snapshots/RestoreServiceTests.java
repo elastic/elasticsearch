@@ -23,11 +23,13 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -337,6 +339,76 @@ public class RestoreServiceTests extends ESTestCase {
         // Test multiple matches accumulating
         result = RestoreService.safeRenameIndex("a-b-c", "-", "_");
         assertEquals("a_b_c", result);
+    }
+
+    /**
+     * Tests that {@link RestoreService#prepareForReadOnlyRestore} automatically adds write block and verified_read_only
+     * for read-only compatible indices (e.g. 7.x indices restored on 9.x) that were snapshotted without those flags.
+     */
+    public void testPrepareForReadOnlyRestore() {
+        // A 7.x index without write block or verified_read_only (snapshot taken on N-2 directly)
+        var indexCreated = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.MINIMUM_COMPATIBLE)
+        );
+        var indexMetadata = IndexMetadata.builder("test-index")
+            .settings(indexSettings(indexCreated, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random())))
+            .build();
+
+        assertFalse(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(indexMetadata.getSettings()));
+
+        var result = RestoreService.prepareForReadOnlyRestore(
+            indexMetadata,
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE
+        );
+
+        assertTrue(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(result.getSettings()));
+        assertTrue(result.getSettings().getAsBoolean("index.verified_read_only", false));
+    }
+
+    /**
+     * Tests that {@link RestoreService#prepareForReadOnlyRestore} does not modify indices that are already verified
+     * read-only (e.g. snapshot taken on N-1 after adding write block via the API).
+     */
+    public void testPrepareForReadOnlyRestoreAlreadyVerified() {
+        var indexCreated = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.MINIMUM_COMPATIBLE)
+        );
+        var indexMetadata = IndexMetadata.builder("test-index")
+            .settings(
+                indexSettings(indexCreated, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
+                    .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
+                    .put("index.verified_read_only", true)
+            )
+            .build();
+
+        var result = RestoreService.prepareForReadOnlyRestore(
+            indexMetadata,
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE
+        );
+
+        assertSame("already verified index should not be modified", indexMetadata, result);
+    }
+
+    /**
+     * Tests that {@link RestoreService#prepareForReadOnlyRestore} does not modify fully compatible indices.
+     */
+    public void testPrepareForReadOnlyRestoreFullyCompatible() {
+        var indexCreated = IndexVersionUtils.randomVersionBetween(IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
+        var indexMetadata = IndexMetadata.builder("test-index")
+            .settings(indexSettings(indexCreated, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random())))
+            .build();
+
+        var result = RestoreService.prepareForReadOnlyRestore(
+            indexMetadata,
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE
+        );
+
+        assertSame("fully compatible index should not be modified", indexMetadata, result);
     }
 
     private static SnapshotInfo createSnapshotInfo(Snapshot snapshot, Boolean includeGlobalState) {

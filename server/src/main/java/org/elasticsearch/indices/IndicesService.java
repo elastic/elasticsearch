@@ -1025,7 +1025,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     listener.onRecoveryAborted();
                     return;
                 }
-                final var releaseStoreRef = Releasables.releaseOnce(store::decRef);
+                final var releaseStoreRef = Releasables.assertOnce(Releasables.releaseOnce(store::decRef));
                 try {
                     indexShard.startRecovery(
                         recoveryState,

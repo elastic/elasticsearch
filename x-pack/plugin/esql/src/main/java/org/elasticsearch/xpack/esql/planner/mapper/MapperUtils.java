@@ -317,8 +317,7 @@ public class MapperUtils {
                 aggMode,
                 intermediateAttributes,
                 null,
-                ts.timeBucket(),
-                ts.outputTimeBucket()
+                ts.timeBucket()
             );
             case SampledAggregate sample -> new SampledAggregateExec(
                 sample.source(),

@@ -1537,6 +1537,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 Highlight.validOptionNames()
             );
         }
+        // Every HIGHLIGHT option takes a constant; the grammar also admits a nested map. Rejecting here keeps the source
+        // position: a non-literal value is not foldable, so analysis skips it and it would otherwise fail while folding
+        // on every data node, with no position to report.
+        for (Map.Entry<String, Expression> option : optionsMap.entrySet()) {
+            Expression value = option.getValue();
+            if (value instanceof Literal == false) {
+                throw new ParsingException(
+                    value.source(),
+                    "Invalid value for option [{}] in HIGHLIGHT, expected a constant, found [{}]",
+                    option.getKey(),
+                    value.sourceText()
+                );
+            }
+        }
         return h.withOptions(options);
     }
 

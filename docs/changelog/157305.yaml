@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 157305
+summary: Limit query clause count at parse time
+type: feature

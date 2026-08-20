@@ -1,0 +1,6 @@
+area: Infra/Core
+issues:
+ - 141442
+pr: 157295
+summary: Bump jackson to 2.21.6
+type: upgrade

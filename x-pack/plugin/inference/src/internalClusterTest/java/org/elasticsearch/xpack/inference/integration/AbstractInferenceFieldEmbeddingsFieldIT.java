@@ -23,7 +23,6 @@ import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.builder.EmbeddingsField;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -42,6 +41,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.empty;
@@ -153,31 +153,26 @@ abstract class AbstractInferenceFieldEmbeddingsFieldIT extends ESIntegTestCase {
             VectorType expectedVectorType = getExpectedVectorType(inferenceField);
             String message = describe(inferenceField);
 
+            assertEmbeddingsFields(message, indexName, singletonMap(fieldName, null), List.of(Map.of(fieldName, expectedVectorType)));
             assertEmbeddingsFields(
                 message,
                 indexName,
-                List.of(new EmbeddingsField(fieldName, null)),
+                Map.of(fieldName, expectedVectorType),
                 List.of(Map.of(fieldName, expectedVectorType))
             );
             assertEmbeddingsFields(
                 message,
                 indexName,
-                List.of(new EmbeddingsField(fieldName, expectedVectorType)),
-                List.of(Map.of(fieldName, expectedVectorType))
-            );
-            assertEmbeddingsFields(
-                message,
-                indexName,
-                List.of(new EmbeddingsField(fieldName, randomValueOtherThan(expectedVectorType, () -> randomFrom(VectorType.values())))),
+                Map.of(fieldName, randomValueOtherThan(expectedVectorType, () -> randomFrom(VectorType.values()))),
                 List.of(Map.of())
             );
         }
 
         if (inferenceFields.size() > 1) {
-            List<EmbeddingsField> embeddingsFields = new ArrayList<>();
+            Map<String, VectorType> embeddingsFields = new HashMap<>();
             Map<String, VectorType> expectedFields = new HashMap<>();
             for (InferenceFieldConfig inferenceField : inferenceFields) {
-                embeddingsFields.add(new EmbeddingsField(inferenceField.fieldName(), null));
+                embeddingsFields.put(inferenceField.fieldName(), null);
                 expectedFields.put(inferenceField.fieldName(), getExpectedVectorType(inferenceField));
             }
 
@@ -194,19 +189,19 @@ abstract class AbstractInferenceFieldEmbeddingsFieldIT extends ESIntegTestCase {
             VectorType expectedVectorType = getExpectedVectorType(inferenceField);
             String message = describe(inferenceField);
 
-            assertEmbeddingsFields(message, indexName, List.of(new EmbeddingsField(fieldName, null)), List.of());
-            assertEmbeddingsFields(message, indexName, List.of(new EmbeddingsField(fieldName, expectedVectorType)), List.of());
+            assertEmbeddingsFields(message, indexName, singletonMap(fieldName, null), List.of());
+            assertEmbeddingsFields(message, indexName, Map.of(fieldName, expectedVectorType), List.of());
             assertEmbeddingsFields(
                 message,
                 indexName,
-                List.of(new EmbeddingsField(fieldName, randomValueOtherThan(expectedVectorType, () -> randomFrom(VectorType.values())))),
+                Map.of(fieldName, randomValueOtherThan(expectedVectorType, () -> randomFrom(VectorType.values()))),
                 List.of()
             );
         }
 
         if (inferenceFields.size() > 1) {
-            List<EmbeddingsField> embeddingsFields = new ArrayList<>();
-            inferenceFields.forEach(f -> embeddingsFields.add(new EmbeddingsField(f.fieldName(), null)));
+            Map<String, VectorType> embeddingsFields = new HashMap<>();
+            inferenceFields.forEach(f -> embeddingsFields.put(f.fieldName(), null));
 
             assertEmbeddingsFields("Fetching all inference fields", indexName, embeddingsFields, List.of());
         }
@@ -242,13 +237,11 @@ abstract class AbstractInferenceFieldEmbeddingsFieldIT extends ESIntegTestCase {
     void assertEmbeddingsFields(
         String message,
         String index,
-        List<EmbeddingsField> requestedFields,
+        Map<String, VectorType> requestedFields,
         List<Map<String, VectorType>> expectedFieldsPerHit
     ) throws Exception {
         SearchSourceBuilder source = new SearchSourceBuilder();
-        for (EmbeddingsField field : requestedFields) {
-            source.fetchEmbeddingsField(field);
-        }
+        requestedFields.forEach(source::fetchEmbeddingsField);
 
         // Use the coordinating-only node so that fetched embeddings fields are serialized
         // over the wire (data node → coordinating node), exercising transport serialization.

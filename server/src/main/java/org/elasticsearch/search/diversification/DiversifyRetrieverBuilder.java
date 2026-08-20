@@ -23,7 +23,6 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.builder.EmbeddingsField;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.diversification.mmr.MMRResultDiversificationContext;
 import org.elasticsearch.search.rank.RankDoc;
@@ -325,7 +324,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         // Diversification only needs each hit's score and the embeddings from the diversification field. The source builder created by
         // the base class already suppresses _source and stored fields, so nothing else has to be turned off here.
         return super.finalizeSourceBuilder(
-            sourceBuilder.trackScores(true).fetchEmbeddingsField(new EmbeddingsField(diversificationField, VectorType.DENSE_VECTOR))
+            sourceBuilder.trackScores(true).fetchEmbeddingsField(diversificationField, VectorType.DENSE_VECTOR)
         );
     }
 

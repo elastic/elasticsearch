@@ -87,6 +87,7 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
@@ -96,7 +97,6 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
-import org.elasticsearch.search.builder.EmbeddingsField;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SubSearchSourceBuilder;
@@ -2239,13 +2239,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         if (source.fetchEmbeddingsFields().isEmpty() == false) {
             List<FieldAndFormat> fields = new ArrayList<>();
-            for (EmbeddingsField embeddingsField : source.fetchEmbeddingsFields()) {
-                MappedFieldType fieldType = searchExecutionContext.getFieldType(embeddingsField.field());
+            for (Map.Entry<String, VectorType> embeddingsField : source.fetchEmbeddingsFields().entrySet()) {
+                MappedFieldType fieldType = searchExecutionContext.getFieldType(embeddingsField.getKey());
                 if (fieldType == null) {
                     // Unmapped on this shard — skip, consistent with how the `fields` option treats unmapped fields.
                     continue;
                 }
-                FieldAndFormat fieldAndFormat = fieldType.embeddingsFieldAndFormat(embeddingsField.vectorType());
+                FieldAndFormat fieldAndFormat = fieldType.embeddingsFieldAndFormat(embeddingsField.getValue());
                 if (fieldAndFormat == null) {
                     // The field cannot produce embeddings of the requested type — skip, as with an unmapped field.
                     continue;

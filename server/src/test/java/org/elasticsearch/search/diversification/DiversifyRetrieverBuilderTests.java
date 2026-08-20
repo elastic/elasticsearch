@@ -46,7 +46,6 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.builder.EmbeddingsField;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
@@ -68,7 +67,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Predicate;
 
 public class DiversifyRetrieverBuilderTests extends ESTestCase {
@@ -317,7 +315,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         assertFalse(source.storedFields().fetchFields());
         assertNull(source.fetchSource());
 
-        assertEquals(Set.of(new EmbeddingsField("dense_vector_field", VectorType.DENSE_VECTOR)), source.fetchEmbeddingsFields());
+        assertEquals(Map.of("dense_vector_field", VectorType.DENSE_VECTOR), source.fetchEmbeddingsFields());
         assertTrue(source.trackScores());
     }
 

@@ -32,6 +32,7 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.LinearDecayFunctionBuilder;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -76,7 +77,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -87,7 +88,7 @@ import java.util.function.ToLongFunction;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
@@ -158,15 +159,16 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             }
         }
 
-        List<EmbeddingsField> embeddingsFields = new ArrayList<>();
+        Map<String, VectorType> embeddingsFields = new LinkedHashMap<>();
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
-            EmbeddingsField field = EmbeddingsFieldTests.randomEmbeddingsField();
-            embeddingsFields.add(field);
-            original.fetchEmbeddingsField(field);
+            String field = randomAlphaOfLengthBetween(5, 10);
+            VectorType vectorType = randomVectorType();
+            embeddingsFields.put(field, vectorType);
+            original.fetchEmbeddingsField(field, vectorType);
         }
 
         List<FieldAndFormat> expectedFetchFields = originalFetchFields == null ? new ArrayList<>() : new ArrayList<>(originalFetchFields);
-        embeddingsFields.forEach(f -> expectedFetchFields.add(new FieldAndFormat(f.field(), null)));
+        embeddingsFields.keySet().forEach(f -> expectedFetchFields.add(new FieldAndFormat(f, null)));
 
         for (int i = 0; i < 20; i++) {
             TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(
@@ -175,13 +177,13 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             SearchSourceBuilder copy = copyBuilder(original, oldVersion);
 
             // embeddings fields are not sent to old nodes
-            assertThat(copy.fetchEmbeddingsFields(), empty());
+            assertThat(copy.fetchEmbeddingsFields(), anEmptyMap());
             // they are downgraded to plain fetch fields (in insertion order, without their vector type)
             assertThat(copy.fetchFields(), equalTo(expectedFetchFields));
 
             // writeTo must not mutate the builder it serializes
             assertThat(original.fetchFields(), equalTo(originalFetchFields));
-            assertThat(original.fetchEmbeddingsFields(), equalTo(new LinkedHashSet<>(embeddingsFields)));
+            assertThat(original.fetchEmbeddingsFields(), equalTo(embeddingsFields));
         }
     }
 
@@ -211,10 +213,14 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         if (randomBoolean()) {
             int numEmbeddingsFields = randomIntBetween(1, 5);
             for (int i = 0; i < numEmbeddingsFields; i++) {
-                builder.fetchEmbeddingsField(EmbeddingsFieldTests.randomEmbeddingsField());
+                builder.fetchEmbeddingsField(randomAlphaOfLengthBetween(5, 10), randomVectorType());
             }
         }
         return builder;
+    }
+
+    private static VectorType randomVectorType() {
+        return randomBoolean() ? null : randomFrom(VectorType.values());
     }
 
     private SearchSourceBuilder copyBuilder(SearchSourceBuilder original) throws IOException {

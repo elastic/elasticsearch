@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchService;
@@ -67,11 +68,10 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
@@ -217,7 +217,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private boolean skipInnerHits = false;
 
-    private Set<EmbeddingsField> fetchEmbeddingsFields = new LinkedHashSet<>();
+    private Map<String, VectorType> fetchEmbeddingsFields = new LinkedHashMap<>();
 
     /**
      * Constructs a new search source builder.
@@ -281,7 +281,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
         skipInnerHits = in.readBoolean();
         if (in.getTransportVersion().supports(SEARCH_SOURCE_EMBEDDINGS_FIELDS)) {
-            fetchEmbeddingsFields = new LinkedHashSet<>(in.readCollectionAsList(EmbeddingsField::new));
+            fetchEmbeddingsFields = new LinkedHashMap<>(
+                in.readOrderedMap(StreamInput::readString, i -> i.readOptionalEnum(VectorType.class))
+            );
         }
     }
 
@@ -296,8 +298,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             // Write embeddings fields to fetch fields so we can attempt to get them, even if not in embeddings format. This is
             // essentially a "best effort" BwC approach, as we cannot control the format the fetched fields will use.
             fetchFieldsToWrite = fetchFields == null ? new ArrayList<>() : new ArrayList<>(fetchFields);
-            for (EmbeddingsField embeddingsField : fetchEmbeddingsFields) {
-                fetchFieldsToWrite.add(new FieldAndFormat(embeddingsField.field(), null));
+            for (String embeddingsField : fetchEmbeddingsFields.keySet()) {
+                fetchFieldsToWrite.add(new FieldAndFormat(embeddingsField, null));
             }
         }
 
@@ -358,7 +360,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalNamedWriteable(rankBuilder);
         out.writeBoolean(skipInnerHits);
         if (out.getTransportVersion().supports(SEARCH_SOURCE_EMBEDDINGS_FIELDS)) {
-            out.writeCollection(fetchEmbeddingsFields);
+            out.writeMap(fetchEmbeddingsFields, StreamOutput::writeOptionalEnum);
         }
     }
 
@@ -1026,18 +1028,22 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
-     * Adds a field whose embeddings should be returned as part of the search response.
+     * Adds a field whose embeddings should be returned as part of the search response. If the field has already been added, the vector
+     * type from this call replaces the previous one.
+     *
+     * @param vectorType the vector type the field is expected to produce, or {@code null} to accept whichever type it produces
      */
-    public SearchSourceBuilder fetchEmbeddingsField(EmbeddingsField field) {
-        fetchEmbeddingsFields.add(field);
+    public SearchSourceBuilder fetchEmbeddingsField(String field, @Nullable VectorType vectorType) {
+        fetchEmbeddingsFields.put(field, vectorType);
         return this;
     }
 
     /**
-     * Gets the fields whose embeddings should be returned as part of the search response.
+     * Gets the fields whose embeddings should be returned as part of the search response, mapped to the vector type each field is
+     * expected to produce. A {@code null} value means any vector type is accepted.
      */
-    public Set<EmbeddingsField> fetchEmbeddingsFields() {
-        return Collections.unmodifiableSet(fetchEmbeddingsFields);
+    public Map<String, VectorType> fetchEmbeddingsFields() {
+        return Collections.unmodifiableMap(fetchEmbeddingsFields);
     }
 
     /**

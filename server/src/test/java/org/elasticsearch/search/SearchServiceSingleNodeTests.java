@@ -98,7 +98,6 @@ import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.builder.EmbeddingsField;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -3277,7 +3276,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * Tests that {@code SearchService#parseSource} correctly resolves {@link EmbeddingsField}s into a
+     * Tests that {@code SearchService#parseSource} correctly resolves embeddings fields into a
      * {@link FetchFieldsContext}, and silently skips unmapped fields and fields whose vector type does not
      * match the requested one.
      */
@@ -3288,48 +3287,41 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(resolveFetchFields("emb_test", source -> {}), nullValue());
 
         // dense_vector with no vector type → resolved to FieldAndFormat(dense, null).
-        assertThat(
-            resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField(new EmbeddingsField("dense", null))),
-            contains(new FieldAndFormat("dense", null))
-        );
+        assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("dense", null)), contains(new FieldAndFormat("dense", null)));
 
         // dense_vector with explicit DENSE_VECTOR type → same result.
         assertThat(
-            resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField(new EmbeddingsField("dense", VectorType.DENSE_VECTOR))),
+            resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)),
             contains(new FieldAndFormat("dense", null))
         );
 
         // sparse_vector with explicit SPARSE_VECTOR type → resolved.
         assertThat(
-            resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField(new EmbeddingsField("sparse", VectorType.SPARSE_VECTOR))),
+            resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("sparse", VectorType.SPARSE_VECTOR)),
             contains(new FieldAndFormat("sparse", null))
         );
 
         // dense_vector field requested as SPARSE_VECTOR → type mismatch, skipped, no context.
-        assertThat(
-            resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField(new EmbeddingsField("dense", VectorType.SPARSE_VECTOR))),
-            nullValue()
-        );
+        assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("dense", VectorType.SPARSE_VECTOR)), nullValue());
 
         // keyword field produces no embeddings → skipped, no context.
-        assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField(new EmbeddingsField("keyword", null))), nullValue());
+        assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("keyword", null)), nullValue());
 
         // Unmapped field → skipped, no context.
-        assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField(new EmbeddingsField("unmapped", null))), nullValue());
+        assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("unmapped", null)), nullValue());
 
         // Mix: unmapped skipped, dense resolved → only dense in result.
         assertThat(
             resolveFetchFields(
                 "emb_test",
-                s -> s.fetchEmbeddingsField(new EmbeddingsField("unmapped", null))
-                    .fetchEmbeddingsField(new EmbeddingsField("dense", VectorType.DENSE_VECTOR))
+                s -> s.fetchEmbeddingsField("unmapped", null).fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)
             ),
             contains(new FieldAndFormat("dense", null))
         );
     }
 
     /**
-     * Tests that when both an explicit {@code fields} request and {@link EmbeddingsField}s are present,
+     * Tests that when both an explicit {@code fields} request and embeddings fields are present,
      * {@code SearchService#parseSource} prepends the resolved embeddings fields before the user-supplied
      * fields, and leaves the pre-existing context unchanged when all embeddings fields are skipped.
      */
@@ -3338,28 +3330,19 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
         // embeddings field resolved → placed before user fields in the merged list.
         assertThat(
-            resolveFetchFields(
-                "emb_test",
-                s -> s.fetchField("keyword").fetchEmbeddingsField(new EmbeddingsField("dense", VectorType.DENSE_VECTOR))
-            ),
+            resolveFetchFields("emb_test", s -> s.fetchField("keyword").fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)),
             contains(new FieldAndFormat("dense", null), new FieldAndFormat("keyword", null))
         );
 
         // embeddings field skipped (type mismatch) → pre-existing fetchFieldsContext is left intact.
         assertThat(
-            resolveFetchFields(
-                "emb_test",
-                s -> s.fetchField("keyword").fetchEmbeddingsField(new EmbeddingsField("dense", VectorType.SPARSE_VECTOR))
-            ),
+            resolveFetchFields("emb_test", s -> s.fetchField("keyword").fetchEmbeddingsField("dense", VectorType.SPARSE_VECTOR)),
             contains(new FieldAndFormat("keyword", null))
         );
 
         // same embeddings field and user field → merged list contains the entry twice (no deduplication).
         assertThat(
-            resolveFetchFields(
-                "emb_test",
-                s -> s.fetchField("dense").fetchEmbeddingsField(new EmbeddingsField("dense", VectorType.DENSE_VECTOR))
-            ),
+            resolveFetchFields("emb_test", s -> s.fetchField("dense").fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)),
             contains(new FieldAndFormat("dense", null), new FieldAndFormat("dense", null))
         );
     }

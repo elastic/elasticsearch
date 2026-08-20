@@ -59,7 +59,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesRequestCacheUtils;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
@@ -128,6 +127,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertScrollResponsesAndHitCount;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -156,18 +156,6 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
 
         public TestStatelessPlugin(Settings settings) {
             super(settings);
-        }
-
-        @Override
-        public Collection<Object> createComponents(PluginServices services) {
-            final Collection<Object> components = super.createComponents(services);
-            components.add(
-                new PluginComponentBinding<>(
-                    StatelessCommitService.class,
-                    components.stream().filter(c -> c instanceof TestStatelessCommitService).findFirst().orElseThrow()
-                )
-            );
-            return components;
         }
 
         @Override
@@ -461,7 +449,14 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
 
     // TODO move this test to a separate test class for refresh cost optimization
     public void testDifferentiateForFlushByRefresh() {
-        final String indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
+        final String indexNode = startIndexNode(
+            Settings.builder()
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+                // Ensure no upload triggered by commit number or size since this test needs to control flushes explicitly
+                .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100)
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), "1g")
+                .build()
+        );
         startSearchNode();
         final String indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
@@ -475,7 +470,7 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
         final var statelessCommitService = indexEngine.getStatelessCommitService();
 
         final long initialGeneration = indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
-        assertThat(statelessCommitService.getMaxGenerationToUploadForFlush(shardId), equalTo(initialGeneration));
+        assertThat(statelessCommitService.getMaxPendingOrUploadedGeneration(shardId), equalTo(initialGeneration));
 
         // External refresh does not change the max generation to upload
         logger.info("--> external refresh");
@@ -483,7 +478,7 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
         client().admin().indices().prepareRefresh().get(TimeValue.timeValueSeconds(10));
         final long externalRefreshedGeneration = indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
         assertThat(externalRefreshedGeneration, greaterThan(initialGeneration));
-        assertThat(statelessCommitService.getMaxGenerationToUploadForFlush(shardId), equalTo(initialGeneration));
+        assertThat(statelessCommitService.getMaxPendingOrUploadedGeneration(shardId), equalTo(initialGeneration));
 
         // Scheduled refresh does not change the max generation to upload
         logger.info("--> external refresh");
@@ -493,7 +488,7 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
         future.actionGet(TimeValue.timeValueSeconds(10));
         final long scheduledRefreshedGeneration = indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
         assertThat(scheduledRefreshedGeneration, greaterThan(externalRefreshedGeneration));
-        assertThat(statelessCommitService.getMaxGenerationToUploadForFlush(shardId), equalTo(initialGeneration));
+        assertThat(statelessCommitService.getMaxPendingOrUploadedGeneration(shardId), equalTo(initialGeneration));
 
         // Refresh by RTG does not change max generation to upload
         logger.info("--> refresh by RTG");
@@ -502,7 +497,7 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
         client().prepareGet(indexName, "does-not-exist").setRealtime(true).get(TimeValue.timeValueSeconds(10));
         final long rtgRefreshedGeneration = indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
         assertThat(rtgRefreshedGeneration, greaterThan(scheduledRefreshedGeneration));
-        assertThat(statelessCommitService.getMaxGenerationToUploadForFlush(shardId), equalTo(initialGeneration));
+        assertThat(statelessCommitService.getMaxPendingOrUploadedGeneration(shardId), equalTo(initialGeneration));
 
         // Flush updates the max generation
         logger.info("--> flush");
@@ -511,7 +506,7 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
 
         final long flushGeneration = indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
         assertThat(flushGeneration, greaterThan(rtgRefreshedGeneration));
-        assertThat(statelessCommitService.getMaxGenerationToUploadForFlush(shardId), equalTo(flushGeneration));
+        assertThat(statelessCommitService.getMaxPendingOrUploadedGeneration(shardId), equalTo(flushGeneration));
     }
 
     // TODO move this test to a separate test class for refresh cost optimization
@@ -543,12 +538,12 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
         // A flush that does not force nor wait, it will return immediately.
         client().admin().indices().prepareFlush().setForce(false).setWaitIfOngoing(false).get(TimeValue.timeValueSeconds(10));
         // The flush sets a flag to notify the thread that holds flush lock to set max upload gen. But does not do it on its own.
-        assertThat(statelessCommitService.getMaxGenerationToUploadForFlush(shardId), equalTo(initialGeneration));
+        assertThat(statelessCommitService.getMaxPendingOrUploadedGeneration(shardId), equalTo(initialGeneration));
 
         // Unblock the refresh thread which should see the upload flag and set max upload gen accordingly
         barrier.await();
         refreshThread.join();
-        assertThat(statelessCommitService.getMaxGenerationToUploadForFlush(shardId), equalTo(initialGeneration + 1));
+        assertThat(statelessCommitService.getMaxPendingOrUploadedGeneration(shardId), equalTo(initialGeneration + 1));
         assertThat(statelessCommitService.getCurrentVirtualBcc(shardId), nullValue());
     }
 
@@ -568,7 +563,7 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
         final var statelessCommitService = (TestStatelessCommitService) indexEngine.getStatelessCommitService();
 
         final long initialGeneration = indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
-        assertThat(statelessCommitService.getMaxGenerationToUploadForFlush(shardId), equalTo(initialGeneration));
+        assertThat(statelessCommitService.getMaxPendingOrUploadedGeneration(shardId), equalTo(initialGeneration));
 
         // A flusher
         final boolean force = randomBoolean();
@@ -610,7 +605,7 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
             }
             final long generation = indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
             assertThat(generation, greaterThan(previousGeneration));
-            final long maxGenerationToUploadDueToFlush = statelessCommitService.getMaxGenerationToUploadForFlush(shardId);
+            final long maxGenerationToUploadDueToFlush = statelessCommitService.getMaxPendingOrUploadedGeneration(shardId);
             assertThat(maxGenerationToUploadDueToFlush, allOf(greaterThan(previousGeneration), lessThanOrEqualTo(generation)));
             final int newCount = statelessCommitService.invocationCounters.get(shardId).get();
             if (newCount > count + 2) {
@@ -685,7 +680,7 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
         // All commits are uploaded
         assertThat(statelessCommitService.getCurrentVirtualBcc(shardId), nullValue());
         // The concurrent freeze thread ensures every generation for upload
-        assertBusy(() -> assertThat(statelessCommitService.getMaxGenerationToUploadForFlush(shardId), equalTo(currentGeneration.get())));
+        assertBusy(() -> assertThat(statelessCommitService.getMaxPendingOrUploadedGeneration(shardId), equalTo(currentGeneration.get())));
         shouldStop.set(true);
         thread.join();
     }

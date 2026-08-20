@@ -296,6 +296,47 @@ public class OrcPushedExpressionsTests extends ESTestCase {
         assertEquals(TypeDescription.Category.LONG, map.get("event.id"));
     }
 
+    // -------------------- Declared-retype physical-type guard (F-PUSH-KW) --------------------
+
+    public void testDeclaredKeywordOverPhysicalLongDeclinesPushdown() {
+        // A STRING leaf over a physical LONG mis-prunes (ORC stringifies the integer stats, so
+        // == "42" is tested lexicographically against stringified integer bounds). The guard drops
+        // the only conjunct -> no SearchArgument.
+        TypeDescription schema = TypeDescription.createStruct().addField("code", TypeDescription.createLong());
+        assertNull(toSearchArgument(schema, eq("code", DataType.KEYWORD, new BytesRef("42"))));
+    }
+
+    public void testDeclaredIntegerOverPhysicalStringDeclinesPushdown() {
+        TypeDescription schema = TypeDescription.createStruct().addField("s", TypeDescription.createString());
+        assertNull(toSearchArgument(schema, eq("s", DataType.INTEGER, 42)));
+    }
+
+    public void testGenuineColumnsStillPushAfterGuard() {
+        TypeDescription longSchema = TypeDescription.createStruct().addField("code", TypeDescription.createLong());
+        assertNotNull("long over physical LONG still pushes", toSearchArgument(longSchema, lt("code", DataType.LONG, 42L)));
+        TypeDescription strSchema = TypeDescription.createStruct().addField("s", TypeDescription.createString());
+        assertNotNull(
+            "keyword over physical STRING still pushes",
+            toSearchArgument(strSchema, eq("s", DataType.KEYWORD, new BytesRef("x")))
+        );
+    }
+
+    public void testMismatchedConjunctDroppedCompatibleLeafKept() {
+        // Two pushed filters: keyword-over-long (dropped) and keyword-over-string (kept).
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("code", TypeDescription.createLong())
+            .addField("name", TypeDescription.createString());
+        SearchArgument sarg = toSearchArgument(
+            schema,
+            eq("code", DataType.KEYWORD, new BytesRef("42")),
+            eq("name", DataType.KEYWORD, new BytesRef("bob"))
+        );
+        assertNotNull(sarg);
+        String repr = sarg.toString();
+        assertTrue("compatible name leaf is pushed", repr.contains("name"));
+        assertFalse("mis-typed code leaf must not be pushed", repr.contains("code"));
+    }
+
     // -------------------- Helpers --------------------
 
     private static TypeDescription nestedKeywordSchema() {
@@ -316,6 +357,40 @@ public class OrcPushedExpressionsTests extends ESTestCase {
                     .addField("action", TypeDescription.createString())
                     .addField("id", TypeDescription.createLong())
             );
+    }
+
+    /**
+     * IS NULL must NOT push over a column whose declared coercion can decode a present cell to null (a format parse
+     * failure). ORC prunes IS NULL against the raw nullCount, which does not count decode-minted nulls, so pushing
+     * it drops the matching rows — the same hole closed on parquet.
+     */
+    public void testIsNullDeclinesOverDecodeCanNullColumn() {
+        TypeDescription schema = TypeDescription.createStruct().addField("ts", TypeDescription.createLong());
+        SearchArgument sarg = new OrcPushedExpressions(List.of(new IsNull(SOURCE, field("ts", DataType.DATETIME)))).toSearchArgument(
+            schema,
+            java.util.Set.of("ts")
+        );
+        assertNull("IS NULL over a declared-coerced column must decline", sarg);
+    }
+
+    /** IS NOT NULL only over-includes (decode never turns a physical null into a value), so it still pushes. */
+    public void testIsNotNullStillPushesOverDecodeCanNullColumn() {
+        TypeDescription schema = TypeDescription.createStruct().addField("ts", TypeDescription.createLong());
+        SearchArgument sarg = new OrcPushedExpressions(List.of(new IsNotNull(SOURCE, field("ts", DataType.DATETIME)))).toSearchArgument(
+            schema,
+            java.util.Set.of("ts")
+        );
+        assertNotNull("IS NOT NULL over a declared-coerced column stays pushable", sarg);
+    }
+
+    /** A plain column (not decode-can-null) keeps its IS NULL pushdown. */
+    public void testIsNullStillPushesOverPlainColumn() {
+        TypeDescription schema = TypeDescription.createStruct().addField("ts", TypeDescription.createLong());
+        SearchArgument sarg = new OrcPushedExpressions(List.of(new IsNull(SOURCE, field("ts", DataType.LONG)))).toSearchArgument(
+            schema,
+            java.util.Set.of()
+        );
+        assertNotNull("IS NULL over a plain column still pushes", sarg);
     }
 
     private static SearchArgument toSearchArgument(TypeDescription schema, Expression... exprs) {

@@ -15,6 +15,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.benchmark.vector.VectorImplementation;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Param;
@@ -105,10 +106,10 @@ public class VectorScorerFloat32BulkBenchmark extends VectorScorerBulkBenchmark 
 
             vectorData = new float[numVectors][];
             for (int v = 0; v < numVectors; v++) {
-                vectorData[v] = randomFloatArray(random, dims);
+                vectorData[v] = VectorTestUtils.randomFloatVector(random, dims);
             }
 
-            queryVector = randomFloatArray(random, dims);
+            queryVector = VectorTestUtils.randomFloatVector(random, dims);
         }
 
         @Override

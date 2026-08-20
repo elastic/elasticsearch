@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.spatial.index.mapper;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -16,7 +14,6 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -34,14 +31,7 @@ import java.util.Objects;
 
 public class ShapeFieldBlockLoaderTests extends BlockLoaderTestCase {
     public ShapeFieldBlockLoaderTests(Params params) {
-        super("shape", List.of(new ShapeDataSourceHandler()), params);
-    }
-
-    // TODO: there is a potential bug in AbstractShapeGeometryFieldMapper.supportsParsingObject() that breaks synthetic source for shapes
-    // in columnar mode. So for now, exclude columnar from these tests.
-    @ParametersFactory(argumentFormatting = "preference=%s")
-    public static List<Object[]> args() {
-        return BlockLoaderTestCase.args().stream().filter(a -> ((Params) a[0]).indexMode() != IndexMode.COLUMNAR).toList();
+        super("shape", List.of(new ShapeDataSourceHandler(params.indexMode())), params);
     }
 
     @Override

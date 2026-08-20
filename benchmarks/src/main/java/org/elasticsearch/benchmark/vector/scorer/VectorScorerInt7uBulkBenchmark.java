@@ -12,8 +12,9 @@ package org.elasticsearch.benchmark.vector.scorer;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.elasticsearch.benchmark.vector.VectorImplementation;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Param;
@@ -45,13 +46,13 @@ public class VectorScorerInt7uBulkBenchmark extends VectorScorerBulkBenchmark {
     public VectorSimilarityType function;
 
     private static class ScalarDotProduct implements UpdateableRandomVectorScorer {
-        private final QuantizedByteVectorValues values;
+        private final LegacyQuantizedByteVectorValues values;
         private final float scoreCorrectionConstant;
 
         private byte[] queryVector;
         private float queryVectorCorrectionConstant;
 
-        private ScalarDotProduct(QuantizedByteVectorValues values, float scoreCorrectionConstant) {
+        private ScalarDotProduct(LegacyQuantizedByteVectorValues values, float scoreCorrectionConstant) {
             this.values = values;
             this.scoreCorrectionConstant = scoreCorrectionConstant;
         }
@@ -78,12 +79,12 @@ public class VectorScorerInt7uBulkBenchmark extends VectorScorerBulkBenchmark {
     }
 
     private static class ScalarSquareDistance implements UpdateableRandomVectorScorer {
-        private final QuantizedByteVectorValues values;
+        private final LegacyQuantizedByteVectorValues values;
         private final float scoreCorrectionConstant;
 
         private byte[] queryVector;
 
-        private ScalarSquareDistance(QuantizedByteVectorValues values, float scoreCorrectionConstant) {
+        private ScalarSquareDistance(LegacyQuantizedByteVectorValues values, float scoreCorrectionConstant) {
             this.values = values;
             this.scoreCorrectionConstant = scoreCorrectionConstant;
         }
@@ -123,7 +124,7 @@ public class VectorScorerInt7uBulkBenchmark extends VectorScorerBulkBenchmark {
                 offsets[v] = random.nextFloat();
             }
 
-            queryVector = randomFloatArray(random, dims);
+            queryVector = VectorTestUtils.randomFloatVector(random, dims);
         }
 
         @Override

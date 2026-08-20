@@ -19,8 +19,20 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 /// they care about.
 public interface RecoverySchedulingListener {
 
+    /// Listener that ignores every lifecycle event.
+    RecoverySchedulingListener NOOP = new RecoverySchedulingListener() {};
+
+    /// Called when a recovery is directly cancelled by the master node, before it even reached the queue.
+    default void onRecoveryCancelledBeforeQueuing(RecoverySource.Type type, RecoveryRole role) {}
+
     /// Called when a recovery is queued on this data node.
     default void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role) {}
+
+    /// Called when a queued recovery is discarded without having ever run.
+    default void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {}
+
+    /// Called when a queued recovery is directly cancelled by the master node, before it started running.
+    default void onQueuedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {}
 
     /// Called when a recovery has been dispatched for execution on this data node.
     default void onRecoveryStarted(RecoverySource.Type type, RecoveryRole role) {}
@@ -28,9 +40,17 @@ public interface RecoverySchedulingListener {
     /// Called when a previously queued recovery is dequeued and dispatched for execution on this data node.
     default void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {}
 
-    /// Called when a queued recovery is discarded without having ever run.
-    default void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {}
+    /// Called when started recovery is directly cancelled by the master node.
+    default void onStartedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {}
 
     /// Called when a running recovery finishes (success, failure or aborted).
     default void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {}
+
+    /// Called when this node starts holding new recoveries back due to a recovery gate; `gateName` identifies the gate. Paired with
+    /// [#onRecoveriesUnblocked].
+    default void onRecoveriesBlocked(String gateName) {}
+
+    /// Called when this node stops holding recoveries back, reporting how long the block lasted (ms). Carries no gate name: the gate
+    /// that started the block (reported by [#onRecoveriesBlocked]) is not necessarily the one that held it last.
+    default void onRecoveriesUnblocked(long blockedTimeMillis) {}
 }

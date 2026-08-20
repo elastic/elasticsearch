@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.watcher.transport.actions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -43,7 +43,7 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
         super(NAME);
     }
 
-    public static class Request extends LegacyActionRequest implements ToXContentObject {
+    public static class Request extends UntypedActionRequest implements ToXContentObject {
 
         public static final ParseField FROM_FIELD = new ParseField("from");
         public static final ParseField SIZE_FIELD = new ParseField("size");

@@ -8,12 +8,11 @@
 // integer-looking values like "10001".
 //
 // Authored as FROM <dataset>: the per-query CSV options that used to live in EXTERNAL ... WITH {...}
-// now live in a `dataset:` directive. On S3 the harness registers the dataset and runs FROM verbatim;
-// on the other backends it rebuilds the equivalent EXTERNAL query. Dataset names are distinct per
-// option set so each query's settings are unambiguous.
+// now live in a `dataset:` directive. The harness registers the dataset on every storage backend and
+// runs FROM verbatim. Dataset names are distinct per option set so each query's settings are unambiguous.
 
 headerRowFalse
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
 required_capability: datasource_file_readers_no_text_type
 dataset: employees_headerless: "{{employees}}" WITH {"header_row": false, "multi_value_syntax": "brackets"}
@@ -29,7 +28,7 @@ col1:keyword
 ;
 
 headerRowFalseWithCustomPrefix
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
 required_capability: datasource_file_readers_no_text_type
 dataset: employees_headerless_prefixed: "{{employees}}" WITH {"header_row": false, "column_prefix": "f", "multi_value_syntax": "brackets"}
@@ -55,7 +54,7 @@ f1:keyword
 // This case is FFW-specific: under UNION_BY_NAME the KEYWORD/INTEGER col0 mismatch has no safe
 // supertype and would (correctly) be rejected as an unmergeable schema.
 multiFileHeaderlessReadSchemaPreventsTypeDrift
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type

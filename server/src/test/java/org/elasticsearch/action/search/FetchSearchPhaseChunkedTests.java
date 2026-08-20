@@ -74,6 +74,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
+import java.util.function.LongConsumer;
 
 import static org.elasticsearch.action.search.FetchSearchPhaseTests.addProfiling;
 import static org.elasticsearch.action.search.FetchSearchPhaseTests.fetchProfile;
@@ -112,7 +113,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                 // Create the coordination action that will be called for chunked fetch
                 TransportFetchPhaseCoordinationAction fetchCoordinationAction = new TransportFetchPhaseCoordinationAction(
                     mockTransportService,
-                    new ActionFilters(Collections.emptySet()),
+                    ActionFilters.EMPTY,
                     new ActiveFetchPhaseTasks(),
                     newLimitedBreakerService(ByteSizeValue.ofMb(10)),
                     new NamedWriteableRegistry(Collections.emptyList())
@@ -195,7 +196,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                 AtomicBoolean chunkedFetchUsed = new AtomicBoolean(false);
                 TransportFetchPhaseCoordinationAction fetchCoordinationAction = new TransportFetchPhaseCoordinationAction(
                     mockTransportService,
-                    new ActionFilters(Collections.emptySet()),
+                    ActionFilters.EMPTY,
                     new ActiveFetchPhaseTasks(),
                     newLimitedBreakerService(ByteSizeValue.ofMb(10)),
                     new NamedWriteableRegistry(Collections.emptyList())
@@ -279,7 +280,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                 AtomicBoolean chunkedFetchUsed = new AtomicBoolean(false);
                 TransportFetchPhaseCoordinationAction fetchCoordinationAction = new TransportFetchPhaseCoordinationAction(
                     mockTransportService,
-                    new ActionFilters(Collections.emptySet()),
+                    ActionFilters.EMPTY,
                     new ActiveFetchPhaseTasks(),
                     newLimitedBreakerService(ByteSizeValue.ofMb(10)),
                     new NamedWriteableRegistry(Collections.emptyList())
@@ -362,7 +363,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
 
                 TransportFetchPhaseCoordinationAction fetchCoordinationAction = new TransportFetchPhaseCoordinationAction(
                     mockTransportService,
-                    new ActionFilters(Collections.emptySet()),
+                    ActionFilters.EMPTY,
                     new ActiveFetchPhaseTasks(),
                     newLimitedBreakerService(ByteSizeValue.ofMb(10)),
                     new NamedWriteableRegistry(Collections.emptyList())
@@ -702,7 +703,15 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
             Transport.Connection oldVersionConnection = withTransportVersion(delegateConnection, unsupportedVersion);
 
             PlainActionFuture<FetchSearchResult> future = new PlainActionFuture<>();
-            searchTransportService.sendExecuteFetch(oldVersionConnection, shardFetchRequest, mockSearchPhaseContext, shardTarget, future);
+            searchTransportService.sendExecuteFetch(
+                oldVersionConnection,
+                shardFetchRequest,
+                mockSearchPhaseContext,
+                shardTarget,
+                future,
+                bytes -> {},
+                bytes -> {}
+            );
 
             FetchSearchResult result = future.actionGet(10, TimeUnit.SECONDS);
             result.decRef();
@@ -813,7 +822,9 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                 ShardFetchSearchRequest request,
                 AbstractSearchAsyncAction<?> context,
                 SearchShardTarget shardTarget,
-                ActionListener<FetchSearchResult> listener
+                ActionListener<FetchSearchResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
             ) {
                 traditionalFetchUsed.set(true);
                 FetchSearchResult fetchResult = new FetchSearchResult();

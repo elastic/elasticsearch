@@ -110,6 +110,69 @@ public class RerankRequestTests extends AbstractBWCSerializationTestCase<RerankR
         }
     }
 
+    public void testParser_WithObjectArrayInputContainingImage() throws IOException {
+        var requestJson = Strings.format("""
+            {
+                "input": [
+                  {"type":"text", "format":"text", "value":"%s"},
+                  {"type":"image", "format":"base64", "value":"%s"}
+                ],
+                "query": {"type":"text", "format":"text", "value":"%s"}
+            }
+            """, INPUT_TEXT, TEST_DATA_URI, QUERY_TEXT);
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var request = RerankRequest.PARSER.apply(parser, null);
+            assertThat(
+                request.inputs(),
+                is(List.of(InferenceString.ofText(INPUT_TEXT), new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_DATA_URI)))
+            );
+            assertThat(request.query(), is(InferenceString.ofText(QUERY_TEXT)));
+            assertThat(request.topN(), is(nullValue()));
+            assertThat(request.returnDocuments(), is(nullValue()));
+            assertThat(request.taskSettings(), anEmptyMap());
+        }
+    }
+
+    public void testParser_WithImageInputAndQuery() throws IOException {
+        var requestJson = Strings.format("""
+            {
+                "input": {"type":"image", "format":"base64", "value":"%s"},
+                "query": {"type":"image", "format":"base64", "value":"%s"}
+            }
+            """, TEST_DATA_URI, TEST_DATA_URI);
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var request = RerankRequest.PARSER.apply(parser, null);
+            assertThat(request.inputs(), is(List.of(new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_DATA_URI))));
+            assertThat(request.query(), is(new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_DATA_URI)));
+            assertThat(request.topN(), is(nullValue()));
+            assertThat(request.returnDocuments(), is(nullValue()));
+            assertThat(request.taskSettings(), anEmptyMap());
+        }
+    }
+
+    public void testParser_WithMixedTextAndImageInputs() throws IOException {
+        var requestJson = Strings.format("""
+            {
+                "input": [
+                  {"type":"text", "value":"%s"},
+                  {"type":"image", "value":"%s"}
+                ],
+                "query": "%s"
+            }
+            """, INPUT_TEXT, TEST_DATA_URI, QUERY_TEXT);
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var request = RerankRequest.PARSER.apply(parser, null);
+            assertThat(
+                request.inputs(),
+                is(List.of(InferenceString.ofText(INPUT_TEXT), new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_DATA_URI)))
+            );
+            assertThat(request.query(), is(InferenceString.ofText(QUERY_TEXT)));
+            assertThat(request.topN(), is(nullValue()));
+            assertThat(request.returnDocuments(), is(nullValue()));
+            assertThat(request.taskSettings(), anEmptyMap());
+        }
+    }
+
     public void testParser_WithUnspecifiedFormats_UsesDefaults() throws IOException {
         var requestJson = Strings.format("""
             {
@@ -188,7 +251,10 @@ public class RerankRequestTests extends AbstractBWCSerializationTestCase<RerankR
             assertThat(
                 exception.getCause().getMessage(),
                 containsString(
-                    Strings.format("Field [input] contains unsupported [type] value [%s]. Supported values are [text]", unsupportedDataType)
+                    Strings.format(
+                        "Field [input] contains unsupported [type] value [%s]. Supported values are [text, image]",
+                        unsupportedDataType
+                    )
                 )
             );
         }
@@ -208,7 +274,10 @@ public class RerankRequestTests extends AbstractBWCSerializationTestCase<RerankR
             assertThat(
                 exception.getCause().getMessage(),
                 containsString(
-                    Strings.format("Field [query] contains unsupported [type] value [%s]. Supported values are [text]", unsupportedDataType)
+                    Strings.format(
+                        "Field [query] contains unsupported [type] value [%s]. Supported values are [text, image]",
+                        unsupportedDataType
+                    )
                 )
             );
         }

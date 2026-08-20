@@ -43,7 +43,14 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
         this.rawSortValues = rawSortValues;
         this.formattedSortValues = new Object[rawSortValues.length];
         for (int i = 0; i < rawSortValues.length; ++i) {
-            final Object v = sortValueFormats[i].formatSortValue(rawSortValues[i]);
+            final Object v;
+            try {
+                v = sortValueFormats[i].formatSortValue(rawSortValues[i]);
+            } catch (UnsupportedOperationException e) {
+                throw new IllegalArgumentException(
+                    "Field with doc value format [" + sortValueFormats[i].getWriteableName() + "] does not support sorting"
+                );
+            }
             assert v == null || v instanceof String || v instanceof Number || v instanceof Boolean || v instanceof Map
                 : v + " was not formatted";
             formattedSortValues[i] = v;

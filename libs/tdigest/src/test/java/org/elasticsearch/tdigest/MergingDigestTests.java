@@ -168,4 +168,89 @@ public class MergingDigestTests extends TDigestTests {
             assertTrue(td.quantile(0.99999) > 3_000_000);
         }
     }
+
+    /**
+     * Reproduces a bug where the MergingDigest algorithm could yield non-monotonic centroids
+     * due to floating point errors.
+     */
+    public void testCentroidsRemainSortedAfterMergingNearbyValues() {
+        Random rng = random();
+        for (int iter = 0; iter < 500; iter++) {
+            double compression = between(10, 100);
+            try (MergingDigest digest = MergingDigest.create(arrays(), compression)) {
+                // Simulate the downsampling merge: multiple source T-Digests contribute
+                // centroids with very similar means but varying weights. This is the pattern
+                // that triggers non-monotonic output from the unclamped weighted average.
+                int numClusters = between(3, 20);
+                for (int cluster = 0; cluster < numClusters; cluster++) {
+                    double center = rng.nextGaussian() * 1000;
+                    int numCentroids = between(20, 500);
+                    for (int c = 0; c < numCentroids; c++) {
+                        // Centroids within a few ULPs of each other
+                        double mean = center + rng.nextInt(10) * Math.ulp(center);
+                        long weight = between(1, 1_000_000);
+                        digest.add(mean, weight);
+                    }
+                }
+
+                double prev = Double.NEGATIVE_INFINITY;
+                int idx = 0;
+                for (Centroid c : digest.centroids()) {
+                    assertTrue(
+                        "Non-monotonic centroids at index "
+                            + idx
+                            + " (iteration "
+                            + iter
+                            + ", compression "
+                            + compression
+                            + "): "
+                            + prev
+                            + " > "
+                            + c.mean(),
+                        c.mean() >= prev
+                    );
+                    prev = c.mean();
+                    idx++;
+                }
+            }
+        }
+    }
+
+    /**
+     * Targeted test that forces the merge to process centroids with extreme weight ratios
+     * at nearly identical means, maximizing the chance of floating point errors.
+     */
+    public void testCentroidOrderWithExtremeWeightRatios() {
+        Random rng = random();
+        for (int iter = 0; iter < 500; iter++) {
+            try (MergingDigest digest = MergingDigest.create(arrays(), between(10, 50))) {
+                double base = 1.0 + rng.nextInt(1000);
+                // Add a spread of values so the digest has multiple cells
+                for (int i = 0; i < 100; i++) {
+                    digest.add(base + i * 0.001, 1);
+                }
+                // Now flood with centroids at nearly-identical means with huge weight variation.
+                // This triggers multiple merge rounds with alternating direction.
+                for (int batch = 0; batch < 50; batch++) {
+                    double clusterCenter = base + rng.nextDouble() * 0.1;
+                    for (int c = 0; c < 100; c++) {
+                        double mean = clusterCenter + rng.nextInt(5) * Math.ulp(clusterCenter);
+                        long weight = rng.nextBoolean() ? between(1, 10) : between(100_000, 10_000_000);
+                        digest.add(mean, weight);
+                    }
+                }
+
+                double prev = Double.NEGATIVE_INFINITY;
+                int idx = 0;
+                for (Centroid c : digest.centroids()) {
+                    assertTrue(
+                        "Non-monotonic centroids at index " + idx + " (iteration " + iter + "): " + prev + " > " + c.mean(),
+                        c.mean() >= prev
+                    );
+                    prev = c.mean();
+                    idx++;
+                }
+            }
+        }
+    }
 }

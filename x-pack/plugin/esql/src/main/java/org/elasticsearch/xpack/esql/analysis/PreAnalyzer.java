@@ -22,13 +22,16 @@ import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunct
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.util.ArrayList;
@@ -48,10 +51,12 @@ public class PreAnalyzer {
      */
     static final List<FunctionDefinition> INFERENCE_FUNCTION_DEFINITIONS = List.of(TextEmbedding.DEFINITION, Embedding.DEFINITION);
 
+    public record LookupIndexPattern(IndexPattern indexPattern, ExecuteLocation mode) {}
+
     public record PreAnalysis(
         Map<IndexPattern, IndexMode> indexes,
         List<Enrich> enriches,
-        List<IndexPattern> lookupIndices,
+        List<LookupIndexPattern> lookupIndices,
         Set<LinkedIndexPattern> linkedIndices,  // CPS only, patterns from local view names that could match remote indices
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
@@ -82,27 +87,34 @@ public class PreAnalyzer {
 
     protected PreAnalysis doPreAnalyze(LogicalPlan plan) {
         Map<IndexPattern, IndexMode> indexes = new HashMap<>();
-        List<IndexPattern> lookupIndices = new ArrayList<>();
         plan.forEachUp(UnresolvedRelation.class, p -> {
-            if (p.indexMode() == IndexMode.LOOKUP) {
-                lookupIndices.add(p.indexPattern());
-            } else if (indexes.containsKey(p.indexPattern()) == false || indexes.get(p.indexPattern()) == p.indexMode()) {
-                indexes.put(p.indexPattern(), p.indexMode());
-            } else {
-                IndexMode m1 = p.indexMode();
-                IndexMode m2 = indexes.get(p.indexPattern());
-                throw new IllegalStateException(
-                    "index pattern '" + p.indexPattern() + "' found with with different index mode: " + m2 + " != " + m1
-                );
+            if (p.indexMode() != IndexMode.LOOKUP) {
+                if (indexes.containsKey(p.indexPattern()) == false || indexes.get(p.indexPattern()) == p.indexMode()) {
+                    indexes.put(p.indexPattern(), p.indexMode());
+                } else {
+                    IndexMode m1 = p.indexMode();
+                    IndexMode m2 = indexes.get(p.indexPattern());
+                    throw new IllegalStateException(
+                        "index pattern '" + p.indexPattern() + "' found with with different index mode: " + m2 + " != " + m1
+                    );
+                }
+            }
+        });
+        List<LookupIndexPattern> lookupIndices = new ArrayList<>();
+        plan.forEachUp(LookupJoin.class, lj -> {
+            if (lj.right() instanceof UnresolvedRelation ur) {
+                lookupIndices.add(new LookupIndexPattern(ur.indexPattern(), lj.executesOn()));
             }
         });
 
-        // CPS: collect ViewShadowRelation patterns. Shadows live as siblings of the
-        // strict UnresolvedRelation inside per-resolution-level ViewUnionAlls (see ViewResolver).
-        // A LinkedHashSet preserves the order shadows were emitted in for deterministic test output;
-        // it also deduplicates so two shadows with the same indexPattern only produce one lenient call.
+        // CPS: collect ViewShadowRelation and DatasetShadowRelation patterns into one linked-indices set.
+        // View shadows ride inside ViewUnionAll, dataset shadows inside the plain UnionAll DatasetRewriter
+        // builds; both drive the same lenient flat field-caps pass (EsqlSession.preAnalyzeLinkedIndices),
+        // keyed by the shadow's LinkedIndexPattern. A LinkedHashSet preserves emission order for deterministic
+        // test output and deduplicates so two shadows with the same indexPattern only produce one lenient call.
         Set<LinkedIndexPattern> linkedIndexPatterns = new LinkedHashSet<>();
         plan.forEachUp(ViewShadowRelation.class, p -> linkedIndexPatterns.add(p.linkedIndexPattern()));
+        plan.forEachUp(DatasetShadowRelation.class, p -> linkedIndexPatterns.add(p.linkedIndexPattern()));
 
         List<Enrich> unresolvedEnriches = new ArrayList<>();
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
@@ -143,7 +155,7 @@ public class PreAnalyzer {
         Holder<Boolean> useAggregateMetricDoubleWhenNotSupported = new Holder<>(false);
         Holder<Boolean> useDenseVectorWhenNotSupported = new Holder<>(false);
         indexes.forEach((ip, mode) -> {
-            if (mode == IndexMode.TIME_SERIES) {
+            if (mode.isTsdb()) {
                 useAggregateMetricDoubleWhenNotSupported.set(true);
             }
         });

@@ -107,4 +107,18 @@ public interface IpLocationInfoCollector {
     void vpn(boolean val);
 
     void service(String service);
+
+    void anycast(boolean val);
+
+    void mobile(boolean val);
+
+    void satellite(boolean val);
+
+    void dmaCode(String code);
+
+    void geonameId(String id);
+
+    void asnChangedDate(String date);
+
+    void geoChangedDate(String date);
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.engine.translog;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -60,7 +61,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.LongConsumer;
+import java.util.function.Consumer;
 import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.core.Strings.format;
@@ -267,7 +268,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         Releasables.close(currentBuffer.getAndSet(null));
     }
 
-    public void register(ShardId shardId, long primaryTerm, LongConsumer persistedSeqNoConsumer) {
+    public void register(ShardId shardId, long primaryTerm, Consumer<LongsRef> persistedSeqNosConsumer) {
         logger.debug(() -> format("shard %s registered with translog replicator", shardId));
         var previous = shardSyncStates.put(
             shardId,
@@ -275,7 +276,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 shardId,
                 primaryTerm,
                 () -> currentPrimaryTerm.applyAsLong(shardId),
-                persistedSeqNoConsumer,
+                persistedSeqNosConsumer,
                 threadPool.getThreadContext()
             )
         );
@@ -697,6 +698,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         private final AtomicLong currentGeneration = new AtomicLong(0);
         private final PriorityQueue<UploadTranslogTask> ongoingUploads = new PriorityQueue<>();
+        private boolean closed = false;
 
         private final AtomicLong validateClusterStateGeneration = new AtomicLong(0);
         private final PriorityQueue<ValidateClusterStateForUploadTask> ongoingValidateClusterState = new PriorityQueue<>();
@@ -705,8 +707,12 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         private void markUploadStarting(final UploadTranslogTask uploadTranslogTask) {
             synchronized (ongoingUploads) {
-                ongoingUploads.add(uploadTranslogTask);
+                if (closed) {
+                    uploadTranslogTask.cancel(new ElasticsearchException("Node shutting down"));
+                    return;
+                }
 
+                ongoingUploads.add(uploadTranslogTask);
                 BlobTranslogFileImpl translogFile = uploadTranslogTask.translogFile;
                 CompoundTranslogMetadata metadata = uploadTranslogTask.translog.metadata();
                 for (Map.Entry<ShardId, ShardSyncState.SyncMarker> entry : metadata.syncedLocations().entrySet()) {
@@ -967,6 +973,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         public void close() {
             synchronized (ongoingUploads) {
+                closed = true;
                 // Don't remove. Just cancel since this only happens on shutdown.
                 ongoingUploads.forEach(r -> r.cancel(new ElasticsearchException("Node shutting down")));
             }

@@ -8,11 +8,11 @@ package org.elasticsearch.example.implicit;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider;
+import org.elasticsearch.xpack.core.security.authz.privilege.ResolvedApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
@@ -34,10 +34,9 @@ public class HelicarrierImplicitPrivilegesProvider implements ImplicitPrivileges
 
     @Override
     public Collection<RoleDescriptor.IndicesPrivileges> getImplicitIndicesPrivileges(
-        RoleDescriptor roleDescriptor,
-        Collection<ApplicationPrivilegeDescriptor> storedApplicationPrivileges
+        Collection<ResolvedApplicationPrivilege> applicationPrivileges
     ) {
-        if (roleGrantsAgentAction(roleDescriptor, storedApplicationPrivileges) == false) {
+        if (roleGrantsAgentAction(applicationPrivileges) == false) {
             return List.of();
         }
         return List.of(
@@ -51,41 +50,17 @@ public class HelicarrierImplicitPrivilegesProvider implements ImplicitPrivileges
     }
 
     /**
-     * True if the role's authorization on {@link #SHIELD_APP} includes {@link #AGENT_ACTION}. Pure
-     * action-pattern matching from two complementary sources:
-     *
-     * <ol>
-     *   <li><b>Stored-descriptor actions.</b> Each {@link ApplicationPrivilegeDescriptor} on the shield
-     *       application contributes its action patterns. This is the authoritative signal when the role
-     *       references a stored privilege by name (the descriptor is resolved upstream and its actions
-     *       describe what the role can actually invoke at authorization time).</li>
-     *   <li><b>Role-descriptor action patterns.</b> Each {@link RoleDescriptor.ApplicationResourcePrivileges}
-     *       entry whose application matches shield contributes its raw privilege strings. This covers the
-     *       case where every privilege name is itself an action pattern (e.g. {@code "*"} or
-     *       {@code "data:read/*"}); {@code NativePrivilegeStore#getPrivileges} short-circuits to an empty
-     *       descriptor set in that case, so the role descriptor is the only signal we have.</li>
-     * </ol>
+     * True if any resolved grant on {@link #SHIELD_APP} authorizes {@link #AGENT_ACTION}. The resolved
+     * {@link ApplicationPrivilege}'s predicate already covers both signals that used to be inspected separately: the
+     * action patterns of any stored privilege the role referenced by name, and any raw action patterns written directly
+     * under {@code privileges[]} (e.g. {@code "*"} or {@code "data:read/*"}).
      */
-    private static boolean roleGrantsAgentAction(
-        RoleDescriptor roleDescriptor,
-        Collection<ApplicationPrivilegeDescriptor> storedApplicationPrivileges
-    ) {
-        for (ApplicationPrivilegeDescriptor apd : storedApplicationPrivileges) {
-            if (!SHIELD_APP.equals(apd.getApplication())) {
-                continue;
-            }
-            if (Automatons.predicate(apd.getActions()).test(AGENT_ACTION)) {
-                return true;
-            }
-        }
-        for (RoleDescriptor.ApplicationResourcePrivileges arp : roleDescriptor.getApplicationPrivileges()) {
-            final Predicate<String> appMatches = arp.getApplication().contains("*")
-                ? Automatons.predicate(arp.getApplication())
-                : arp.getApplication()::equals;
-            if (appMatches.test(SHIELD_APP) == false) {
-                continue;
-            }
-            if (Automatons.predicate(Arrays.asList(arp.getPrivileges())).test(AGENT_ACTION)) {
+    private static boolean roleGrantsAgentAction(Collection<ResolvedApplicationPrivilege> applicationPrivileges) {
+        for (ResolvedApplicationPrivilege resolved : applicationPrivileges) {
+            final ApplicationPrivilege privilege = resolved.privilege();
+            final String application = privilege.getApplication();
+            final Predicate<String> appMatches = application.contains("*") ? Automatons.predicate(application) : application::equals;
+            if (appMatches.test(SHIELD_APP) && privilege.predicate().test(AGENT_ACTION)) {
                 return true;
             }
         }

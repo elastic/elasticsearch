@@ -193,6 +193,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -647,6 +648,16 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
+     * Returns a predicate that is {@code true} for shards open on this node.
+     */
+    public Predicate<ShardId> hasShardPredicate() {
+        return shardId -> {
+            final IndexService indexService = indexService(shardId.getIndex());
+            return indexService != null && indexService.hasShard(shardId.id());
+        };
+    }
+
+    /**
      * Creates a new {@link IndexService} for the given metadata.
      *
      * @param indexMetadata          the index metadata to create the index for
@@ -698,7 +709,7 @@ public class IndicesService extends AbstractLifecycleComponent
                                     // we finish loading analyzers from resources here
                                     // during shard recovery in the generic thread pool,
                                     // as this may require longer running operations and blocking calls
-                                    indexShard.mapperService().reloadSearchAnalyzers(getAnalysis(), null, false);
+                                    indexShard.mapperService().reloadSearchAnalyzers(getAnalysis(), null, false, null);
                                 }
                                 reloaded = true;
                             }
@@ -724,6 +735,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 indexingMemoryController
             );
         }
+        indexService.getIndexSettings().warnIfMergeSchedulerMaxThreadCountClamped();
         boolean success = false;
         try {
             if (writeDanglingIndices && nodeWriteDanglingIndicesInfo) {
@@ -995,32 +1007,32 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
         throttlingRecoveryService.enqueue(
+            projectId,
             recoveryListener,
             recoveryState,
+            indexService.getMetadata(),
+            shardRouting.allocationId().getId(),
             indexShard.recoveryStats(),
-            listener -> projectResolver.executeOnProject(
-                projectId,
-                () -> indexShard.startRecovery(
-                    recoveryState,
-                    recoveryTargetService,
-                    postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, listener),
-                    repositoriesService,
-                    (mapping, l) -> {
-                        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
-                            : "mapping update consumer only required by local shards recovery";
-                        AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
-                            // concrete index - no name clash, it uses uuid
-                            .setConcreteIndex(shardRouting.index())
-                            .source(mapping.source().string(), XContentType.JSON);
-                        client.execute(
-                            TransportAutoPutMappingAction.TYPE,
-                            putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
-                            new RefCountAwareThreadedActionListener<>(threadPool.generic(), l.map(ignored -> null))
-                        );
-                    },
-                    this,
-                    clusterStateVersion
-                )
+            listener -> indexShard.startRecovery(
+                recoveryState,
+                recoveryTargetService,
+                postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, listener),
+                repositoriesService,
+                (mapping, l) -> {
+                    assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
+                        : "mapping update consumer only required by local shards recovery";
+                    AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
+                        // concrete index - no name clash, it uses uuid
+                        .setConcreteIndex(shardRouting.index())
+                        .source(mapping.source().string(), XContentType.JSON);
+                    client.execute(
+                        TransportAutoPutMappingAction.TYPE,
+                        putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
+                        new RefCountAwareThreadedActionListener<>(threadPool.generic(), l.map(ignored -> null))
+                    );
+                },
+                this,
+                clusterStateVersion
             )
         );
     }
@@ -2061,32 +2073,21 @@ public class IndicesService extends AbstractLifecycleComponent
      * @return supplier to give the delta of all directory metrics. Must be called from the same thread as this method.
      */
     public Supplier<DirectoryMetrics> directoryMetricsDelta() {
-        return assertThread(buildDirectoryMetricsDelta());
+        return assertThread(buildDirectoryMetricsDelta(true));
     }
 
-    /**
-     * Like {@link #directoryMetricsDelta()}, but without the same-thread assertion on the returned supplier.
-     *
-     * <p>The delta supplier closes over the calling thread's thread-local metric
-     * instances and snapshots their values, then subtracts that snapshot from those same instances when invoked. It
-     * therefore always measures the reads performed on the thread that called this method, no matter which thread later
-     * invokes the supplier; the only requirement is a happens-before edge between those reads and the invocation. The
-     * thread-local is read once, on the calling thread, at capture time, so there is no racy thread-local access when
-     * the supplier is later invoked.
-     *
-     * <p>This is needed only by the chunked/streaming fetch path, where the baseline is captured on the search thread before
-     * {@code fetchPhase.execute(...)} forks, while the delta is read in the fetch-completion callback, which may run on
-     * a different thread.
-     *
-     * Use directoryMetricsDelta() whenever the supplier is consumed on the capturing thread, which should be the default.
-     */
-    public Supplier<DirectoryMetrics> captureDirectoryMetrics() {
-        return buildDirectoryMetricsDelta();
+    /** Like {@link #directoryMetricsDelta()} but excludes {@link StoreMetrics#NAME}; always measured regardless of feature flag. */
+    public Supplier<DirectoryMetrics> cacheMetricsDelta() {
+        return assertThread(buildDirectoryMetricsDelta(false));
     }
 
-    private Supplier<DirectoryMetrics> buildDirectoryMetricsDelta() {
+    private Supplier<DirectoryMetrics> buildDirectoryMetricsDelta(boolean includeStore) {
         DirectoryMetrics.Builder directoryMetricsBuilder = new DirectoryMetrics.Builder();
-        directoryMetricHolderMap.forEach((s, m) -> directoryMetricsBuilder.add(s, m.instance()));
+        directoryMetricHolderMap.forEach((s, m) -> {
+            if (includeStore || StoreMetrics.NAME.equals(s) == false) {
+                directoryMetricsBuilder.add(s, m.instance());
+            }
+        });
         return directoryMetricsBuilder.build().delta();
     }
 
@@ -2114,10 +2115,4 @@ public class IndicesService extends AbstractLifecycleComponent
         return Tuple.tuple(result, delta.get());
     }
 
-    /**
-     * Returns the store-level metrics instance for the current thread.
-     */
-    public StoreMetrics currentThreadStoreMetrics() {
-        return storeMetricHolder.instance();
-    }
 }

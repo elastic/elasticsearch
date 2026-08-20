@@ -416,16 +416,26 @@ public class MetricsInfoOperator implements Operator {
      * {@code DataStream#getDefaultIndexName}: {@code .ds-{name}-{yyyy.MM.dd}-{000001}}
      * (or the {@code .fs-} variant).
      * <p>
+     * Index management can prepend dash-terminated prefixes to a backing index when it is
+     * mounted or rewritten in place, for example {@code partial-} and {@code restored-}
+     * (searchable snapshots), {@code shrink-{uuid}-}, and {@code downsample-{interval}-}.
+     * These prefixes can also be chained, e.g. {@code partial-restored-shrink-{uuid}-.ds-...}.
+     * The optional {@code (?:.*-)?} group ignores any such prefix while still requiring the
+     * {@code .ds-}/{@code .fs-} marker, so the captured data-stream name is unaffected.
+     * <p>
      * Group 1 captures the data-stream name.
      */
-    private static final Pattern BACKING_INDEX_PATTERN = Pattern.compile("^\\.(?:ds|fs)-(.+)-\\d{4}\\.\\d{2}\\.\\d{2}-\\d{6}$");
+    private static final Pattern BACKING_INDEX_PATTERN = Pattern.compile("^(?:.*-)?\\.(?:ds|fs)-(.+)-\\d{4}\\.\\d{2}\\.\\d{2}-\\d{6}$");
 
     /**
      * Resolves the data-stream name from a concrete backing-index name.
      * <p>
      * If the name matches the standard format produced by
      * {@code DataStream#getDefaultIndexName} ({@code .ds-{name}-{yyyy.MM.dd}-{000001}}),
-     * the data-stream name is extracted. Otherwise the raw index name is returned unchanged.
+     * including any dash-terminated prefixes added when a backing index is mounted or
+     * rewritten (e.g. {@code partial-}, {@code restored-}, {@code shrink-{uuid}-},
+     * {@code downsample-{interval}-}), the data-stream name is extracted. Otherwise the
+     * raw index name is returned unchanged.
      * <p>
      * Handles cluster-alias prefixed names (e.g. {@code remote:.ds-k8s-2024.01.15-000001})
      * so that the output preserves the cluster qualifier (e.g. {@code remote:k8s}).

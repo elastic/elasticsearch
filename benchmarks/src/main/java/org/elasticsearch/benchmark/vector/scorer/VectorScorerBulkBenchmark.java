@@ -12,11 +12,11 @@ package org.elasticsearch.benchmark.vector.scorer;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.store.DirectoryType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -63,6 +63,9 @@ public abstract class VectorScorerBulkBenchmark {
     @Param({ "32", "64", "256", "1024" })
     public int bulkSize;
 
+    @Param({ "MMAP", "STATELESS_INDEX_LOCAL" })
+    public DirectoryType directoryType;
+
     public int numVectorsToScore;
 
     private Path path;
@@ -94,19 +97,11 @@ public abstract class VectorScorerBulkBenchmark {
         }
 
         abstract void writeVectorData(Directory directory) throws IOException;
-
-        static float[] randomFloatArray(Random random, int dims) {
-            float[] vec = new float[dims];
-            for (int i = 0; i < vec.length; i++) {
-                vec[i] = random.nextFloat();
-            }
-            return vec;
-        }
     }
 
     void setup(VectorData vectorData, int numVectors) throws IOException {
         path = Files.createTempDirectory("VectorBulkBenchmark");
-        dir = new MMapDirectory(path);
+        dir = directoryType.newDirectory(path);
         vectorData.writeVectorData(dir);
 
         numVectorsToScore = vectorData.numVectorsToScore;

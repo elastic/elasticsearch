@@ -11,16 +11,47 @@
           "type" : "boolean",
           "optional" : false,
           "description" : "Expression that can be null, a single value, or multiple values. If `null`, the function returns `null`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Expression that can be null, a single value, or multiple values. If `null`, the function returns `null`."
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
       "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Expression that can be null, a single value, or multiple values. If `null`, the function returns `null`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date"
     },
     {
       "params" : [
@@ -34,11 +65,30 @@
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
       "returnType" : "date"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Expression that can be null, a single value, or multiple values. If `null`, the function returns `null`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
     },
     {
       "params" : [
@@ -52,11 +102,30 @@
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
       "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Expression that can be null, a single value, or multiple values. If `null`, the function returns `null`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
     },
     {
       "params" : [
@@ -70,11 +139,30 @@
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
       "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Expression that can be null, a single value, or multiple values. If `null`, the function returns `null`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "integer"
     },
     {
       "params" : [
@@ -88,11 +176,30 @@
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
       "returnType" : "integer"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Expression that can be null, a single value, or multiple values. If `null`, the function returns `null`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "ip"
     },
     {
       "params" : [
@@ -106,11 +213,30 @@
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
       "returnType" : "ip"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Expression that can be null, a single value, or multiple values. If `null`, the function returns `null`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
     },
     {
       "params" : [
@@ -124,11 +250,30 @@
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
       "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Expression that can be null, a single value, or multiple values. If `null`, the function returns `null`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
     },
     {
       "params" : [
@@ -142,11 +287,30 @@
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
       "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Expression that can be null, a single value, or multiple values. If `null`, the function returns `null`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
     },
     {
       "params" : [
@@ -160,11 +324,67 @@
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
       "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Expression that can be null, a single value, or multiple values. If `null`, the function returns `null`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "unsigned_long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Expression that can be null, a single value, or multiple values. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "unsigned_long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Expression that can be null, a single value, or multiple values. If `null`, the function returns `null`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "version"
     },
     {
       "params" : [
@@ -178,7 +398,14 @@
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,

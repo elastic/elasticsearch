@@ -22,12 +22,12 @@ import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ES940v2DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
@@ -41,25 +41,6 @@ public class ES940v2DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCa
     @Override
     protected boolean supportsFloatVectorFallback() {
         return false;
-    }
-
-    @Before
-    @Override
-    public void setUp() throws Exception {
-        format = new ES940DiskBBQVectorsFormat(
-            ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_STRIPED,
-            64,
-            2,
-            DenseVectorFieldMapper.ElementType.FLOAT,
-            false,
-            null,
-            1,
-            false,
-            DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-            0,
-            ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4
-        );
-        super.setUp();
     }
 
     @Override
@@ -86,6 +67,21 @@ public class ES940v2DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCa
 
     @Override
     protected Codec getCodec() {
+        if (format == null) {
+            format = new ES940DiskBBQVectorsFormat(
+                ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_STRIPED,
+                64,
+                2,
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                false,
+                null,
+                1,
+                false,
+                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                0,
+                ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4
+            );
+        }
         return TestUtil.alwaysKnnVectorsFormat(format);
     }
 
@@ -99,7 +95,7 @@ public class ES940v2DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCa
             }
             var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
             long totalByteSize = offHeap.values().stream().mapToLong(Long::longValue).sum();
-            assertThat(offHeap.size(), equalTo(3));
+            assertThat(offHeap, aMapWithSize(3));
             assertThat(totalByteSize, equalTo(offHeap.values().stream().mapToLong(Long::longValue).sum()));
         } else {
             throw new AssertionError("unexpected:" + r.getClass());
@@ -110,4 +106,5 @@ public class ES940v2DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCa
     public void testAdvance() throws Exception {
         // TODO re-enable with hierarchical IVF, clustering as it is is flaky
     }
+
 }

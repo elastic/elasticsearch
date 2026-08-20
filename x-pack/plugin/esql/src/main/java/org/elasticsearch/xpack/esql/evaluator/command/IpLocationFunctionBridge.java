@@ -310,6 +310,41 @@ public final class IpLocationFunctionBridge {
         }
 
         @Override
+        public void anycast(boolean val) {
+            setBoolean(DatabaseProperty.ANYCAST, val);
+        }
+
+        @Override
+        public void mobile(boolean val) {
+            setBoolean(DatabaseProperty.MOBILE, val);
+        }
+
+        @Override
+        public void satellite(boolean val) {
+            setBoolean(DatabaseProperty.SATELLITE, val);
+        }
+
+        @Override
+        public void dmaCode(String code) {
+            setString(DatabaseProperty.DMA_CODE, code);
+        }
+
+        @Override
+        public void geonameId(String id) {
+            setString(DatabaseProperty.GEONAME_ID, id);
+        }
+
+        @Override
+        public void asnChangedDate(String date) {
+            setString(DatabaseProperty.ASN_CHANGED_DATE, date);
+        }
+
+        @Override
+        public void geoChangedDate(String date) {
+            setString(DatabaseProperty.GEO_CHANGED_DATE, date);
+        }
+
+        @Override
         public void registeredCountryIsoCode(String code) {
             setString(DatabaseProperty.REGISTERED_COUNTRY_ISO_CODE, code);
         }

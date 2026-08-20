@@ -14,6 +14,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -40,6 +42,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     private final Client client;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
     private final DeleteByQueryMetrics deleteByQueryMetrics;
     @Nullable
     private final BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics;
@@ -55,6 +58,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         TransportService transportService,
         ScriptService scriptService,
         ClusterService clusterService,
+        ProjectResolver projectResolver,
         @Nullable DeleteByQueryMetrics deleteByQueryMetrics,
         @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
         ReindexSettings reindexSettings,
@@ -65,6 +69,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         this.client = client;
         this.scriptService = scriptService;
         this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
         this.deleteByQueryMetrics = deleteByQueryMetrics;
         this.bulkByPaginatedSearchSearchContextMetrics = bulkByPaginatedSearchSearchContextMetrics;
         // todo: if relocations are added to delete-by-query and it gets its own timeout setting, this should be updated.
@@ -82,6 +87,12 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     public void doExecute(Task task, DeleteByQueryRequest request, ActionListener<BulkByPaginatedSearchResponse> listener) {
         BulkByPaginatedSearchTask bulkByPaginatedSearchTask = (BulkByPaginatedSearchTask) task;
         long startTime = System.nanoTime();
+        ProjectMetadata projectMetadata = projectResolver.getProjectState(clusterService.state()).metadata();
+        BulkByPaginatedSearchParallelizationHelper.validateSliceRoutingForWriteBackedSearch(
+            request,
+            projectMetadata,
+            "delete by query request"
+        );
         BulkByPaginatedSearchParallelizationHelper.startSlicedAction(
             request,
             bulkByPaginatedSearchTask,

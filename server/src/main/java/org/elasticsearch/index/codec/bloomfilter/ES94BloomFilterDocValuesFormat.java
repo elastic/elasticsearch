@@ -90,8 +90,10 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
     public static final String FORMAT_NAME = "ES94BloomFilterDocValuesFormat";
     public static final String STORED_FIELDS_BLOOM_FILTER_EXTENSION = "sfbf";
     public static final String STORED_FIELDS_METADATA_BLOOM_FILTER_EXTENSION = "sfbfm";
-    private static final int VERSION_START = 0;
-    private static final int VERSION_CURRENT = VERSION_START;
+    // Visible for testing
+    protected static final int VERSION_START = 0;
+    // Version bumped to deal with the empty bitset merge bug elasticsearch-serverless#7177
+    private static final int VERSION_CURRENT = 1;
 
     // We use prime numbers with the Kirsch-Mitzenmacher technique to obtain multiple hashes from two hash functions
     private static final int[] PRIMES = new int[] { 2, 5, 11, 17, 23, 29, 41, 47, 53, 59, 71 };
@@ -230,6 +232,11 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         return Math.toIntExact(closestPowerOfTwoBloomFilterSizeInBytes);
     }
 
+    // Visible for tests
+    int getCurrentFormatVersion() {
+        return VERSION_CURRENT;
+    }
+
     class Writer extends DocValuesConsumer {
         private IndexOutput metadataOut;
         private IndexOutput bloomFilterDataOut;
@@ -247,12 +254,13 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             try {
                 metadataOut = state.directory.createOutput(bloomFilterMetadataFileName(segmentInfo, state.segmentSuffix), context);
                 toClose.add(metadataOut);
-                CodecUtil.writeIndexHeader(metadataOut, FORMAT_NAME, VERSION_CURRENT, segmentInfo.getId(), state.segmentSuffix);
+                int currentFormatVersion = getCurrentFormatVersion();
+                CodecUtil.writeIndexHeader(metadataOut, FORMAT_NAME, currentFormatVersion, segmentInfo.getId(), state.segmentSuffix);
 
                 bloomFilterDataOut = state.directory.createOutput(bloomFilterFileName(segmentInfo, state.segmentSuffix), context);
                 toClose.add(bloomFilterDataOut);
 
-                CodecUtil.writeIndexHeader(bloomFilterDataOut, FORMAT_NAME, VERSION_CURRENT, segmentInfo.getId(), state.segmentSuffix);
+                CodecUtil.writeIndexHeader(bloomFilterDataOut, FORMAT_NAME, currentFormatVersion, segmentInfo.getId(), state.segmentSuffix);
                 success = true;
             } finally {
                 if (success == false) {
@@ -293,10 +301,16 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             var numDocs = state.segmentInfo.maxDoc();
             initBitSetBufferForNewSegment(numDocs);
 
+            boolean hasValues = false;
             var values = valuesProducer.getBinary(field);
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                 BytesRef value = values.binaryValue();
                 addToBloomFilter(value);
+                hasValues = true;
+            }
+
+            if (hasValues == false && numDocs > 0) {
+                throw noValuesFoundForFieldException();
             }
         }
 
@@ -359,8 +373,8 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 final int targetBitSetSizeInBytes = bitSetBuffer.sizeInBytes;
 
                 RandomAccessInput bloomFilterData = bloomFilterFieldReader.bloomFilterIn;
+                assert isAllZeros(bloomFilterData) == false : "Expected non-zero bloom filter bitset";
                 final int sourceSizeInBytes = bloomFilterFieldReader.getBloomFilterBitSetSizeInBytes();
-
                 if (sourceSizeInBytes >= targetBitSetSizeInBytes) {
                     // Fold: source is larger (or equal), so we partition it into chunks
                     // and OR each chunk into the target. This is equivalent to:
@@ -479,21 +493,31 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
 
             Fields mergedFields = new MappedMultiFields(
                 mergeState,
-                new MultiFields(fields.toArray(Fields.EMPTY_ARRAY), slices.toArray(ReaderSlice.EMPTY_ARRAY))
+                new MultiFields(fields.toArray(Fields[]::new), slices.toArray(ReaderSlice[]::new))
             );
 
             var terms = mergedFields.terms(bloomFilterFieldName);
             if (terms == null) {
+                if (docCount > 0) {
+                    throw noValuesFoundForFieldException();
+                }
+
                 return;
             }
 
             final TermsEnum termsEnum = terms.iterator();
+            boolean hasValues = false;
             while (true) {
                 final BytesRef term = termsEnum.next();
                 if (term == null) {
                     break;
                 }
                 addToBloomFilter(term);
+                hasValues = true;
+            }
+
+            if (hasValues == false && docCount > 0) {
+                throw noValuesFoundForFieldException();
             }
         }
 
@@ -574,8 +598,18 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 throw new IllegalStateException("BitSetBuffer already exists");
             }
 
-            this.bitSetBuffer = new BitSetBuffer(bigArrays, sizeInBytes);
+            this.bitSetBuffer = createBitSetBuffer(sizeInBytes);
         }
+
+        private IllegalStateException noValuesFoundForFieldException() {
+            return new IllegalStateException("No values found for field " + bloomFilterFieldName);
+        }
+    }
+
+    // visible for tests
+    BitSetBuffer createBitSetBuffer(int sizeInBytes) {
+        assert bigArrays != null;
+        return new BitSetBuffer(bigArrays, sizeInBytes);
     }
 
     static class BitSetBuffer implements Closeable {
@@ -679,6 +713,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
     static class Reader extends DocValuesProducer {
         private final IndexInput bloomFilterData;
         private final BloomFilterMetadata bloomFilterMetadata;
+        private final boolean bitSetFullOfZeroes;
 
         Reader(SegmentReadState state) throws IOException {
             final Directory directory = state.directory;
@@ -720,6 +755,10 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 }
                 CodecUtil.retrieveChecksum(bloomFilterData);
 
+                // Only check the bloom filters that were written with VERSION_START, as they may be full of zeroes due to a bug.
+                // See elasticsearch-serverless#7177
+                this.bitSetFullOfZeroes = bloomFilterDataVersion == VERSION_START
+                    && isAllZeros(bloomFilterData.randomAccessSlice(bloomFilterMetadata.fileOffset(), bloomFilterMetadata.sizeInBytes()));
                 this.bloomFilterData = bloomFilterData;
                 this.bloomFilterMetadata = bloomFilterMetadata;
                 success = true;
@@ -743,10 +782,12 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
 
         @Override
         public BinaryDocValues getBinary(FieldInfo field) {
-            return createBloomFilterReader();
-        }
+            if (bitSetFullOfZeroes) {
+                // In certain circumstances, the bloom filter may be full of zeroes due to a bug. In that case,
+                // return a bloom filter that always returns true to avoid false negatives. See elasticsearch-serverless#7177
+                return new AlwaysMatchingBloomFilter(bloomFilterMetadata.sizeInBytes());
+            }
 
-        private BloomFilterFieldReader createBloomFilterReader() {
             try {
                 // Ensure that the page cache is pre-populated
                 bloomFilterData.prefetch(bloomFilterMetadata.fileOffset(), bloomFilterMetadata.sizeInBytes());
@@ -787,7 +828,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         }
     }
 
-    static class BloomFilterFieldReader extends BinaryDocValues implements BloomFilter {
+    static class BloomFilterFieldReader extends EmptyBinaryDocValues implements BloomFilter {
         private final RandomAccessInput bloomFilterIn;
         private final int bloomFilterBitSetSizeInBits;
         private final int numHashFunctions;
@@ -861,36 +902,6 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             }
             cachedSaturation = (double) setBits / bloomFilterBitSetSizeInBits;
             return cachedSaturation;
-        }
-
-        @Override
-        public int docID() {
-            return -1;
-        }
-
-        @Override
-        public int nextDoc() {
-            return NO_MORE_DOCS;
-        }
-
-        @Override
-        public int advance(int target) {
-            return NO_MORE_DOCS;
-        }
-
-        @Override
-        public long cost() {
-            return 0;
-        }
-
-        @Override
-        public boolean advanceExact(int target) {
-            return false;
-        }
-
-        @Override
-        public BytesRef binaryValue() {
-            return null;
         }
 
         void checkIntegrity() throws IOException {
@@ -988,5 +999,81 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
     private int boundAndRoundBloomFilterSizeInBytes(long idealSizeInBytes) {
         long boundedSize = Math.min(maxBloomFilterSize.getBytes(), idealSizeInBytes);
         return closestPowerOfTwoBloomFilterSizeInBytes(Math.toIntExact(boundedSize));
+    }
+
+    private static class AlwaysMatchingBloomFilter extends EmptyBinaryDocValues implements BloomFilter {
+        private final long sizeInBytes;
+
+        AlwaysMatchingBloomFilter(long sizeInBytes) {
+            this.sizeInBytes = sizeInBytes;
+        }
+
+        @Override
+        public boolean mayContainValue(String field, BytesRef value) {
+            return true;
+        }
+
+        @Override
+        public double saturation() {
+            return 1;
+        }
+
+        @Override
+        public long sizeInBytes() {
+            return sizeInBytes;
+        }
+    }
+
+    private static class EmptyBinaryDocValues extends BinaryDocValues {
+        @Override
+        public int docID() {
+            return -1;
+        }
+
+        @Override
+        public int nextDoc() {
+            return NO_MORE_DOCS;
+        }
+
+        @Override
+        public int advance(int target) {
+            return NO_MORE_DOCS;
+        }
+
+        @Override
+        public long cost() {
+            return 0;
+        }
+
+        @Override
+        public boolean advanceExact(int target) {
+            return false;
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            return null;
+        }
+    }
+
+    static boolean isAllZeros(RandomAccessInput in) throws IOException {
+        final long len = in.length();
+        final long longEnd = len & ~7L;   // largest multiple of 8 <= len
+        long val = 0L;
+        long pos = 0;
+        // reading Long.BYTES at a time for better efficiency
+        for (; pos < longEnd; pos += Long.BYTES) {
+            val = in.readLong(pos);      // endianness irrelevant: 0 is 0 either way
+            if (val != 0L) {
+                return false;
+            }
+        }
+        for (; pos < len; pos++) {
+            val = in.readByte(pos);
+            if (val != 0) {
+                return false;
+            }
+        }
+        return true;
     }
 }

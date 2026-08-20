@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -70,6 +72,46 @@ public class ConcurrencyLimitedStorageProviderTests extends ESTestCase {
         ConcurrencyLimitedStorageProvider provider = new ConcurrencyLimitedStorageProvider(delegate, limiter);
         expectThrows(IOException.class, () -> provider.exists(StoragePath.of("s3://bucket/key")));
         assertEquals(3, limiter.availablePermits());
+    }
+
+    /**
+     * A provider-level permit-acquire timeout (e.g. during listing / exists probes) is back-pressure, so it must
+     * surface as the retryable 503-class {@link ExternalUnavailableException}, not a plain non-retryable IOException.
+     */
+    public void testPermitExhaustionThrowsRetryable503() throws Exception {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter(1, 50);
+        StorageProvider delegate = mock(StorageProvider.class);
+        StorageIterator emptyIterator = new StorageIterator() {
+            @Override
+            public boolean hasNext() {
+                return false;
+            }
+
+            @Override
+            public StorageEntry next() {
+                return null;
+            }
+
+            @Override
+            public void close() {}
+        };
+        when(delegate.listObjects(any(), anyBoolean())).thenReturn(emptyIterator);
+        when(delegate.exists(any())).thenReturn(true);
+
+        ConcurrencyLimitedStorageProvider provider = new ConcurrencyLimitedStorageProvider(delegate, limiter);
+        // Hold the single permit by leaving the list iterator open, then force a second acquire to time out.
+        StorageIterator held = provider.listObjects(StoragePath.of("s3://bucket/prefix"), true);
+        try {
+            ExternalUnavailableException thrown = expectThrows(
+                ExternalUnavailableException.class,
+                () -> provider.exists(StoragePath.of("s3://bucket/key"))
+            );
+            assertEquals(RestStatus.SERVICE_UNAVAILABLE, thrown.status());
+            assertFalse("node-local permit exhaustion is not a remote throttle", thrown.throttling());
+            assertTrue("permit exhaustion must be retryable", RetryPolicy.DEFAULT.isRetryable(thrown));
+        } finally {
+            held.close();
+        }
     }
 
     public void testNewObjectReturnsConcurrencyLimitedObject() {

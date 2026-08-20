@@ -10,6 +10,7 @@
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
 import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InstrumentationScopeInfo;
 import io.opentelemetry.sdk.metrics.data.MetricData;
@@ -31,8 +32,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.telemetry.InstrumentType.LONG_COUNTER;
+import static org.elasticsearch.telemetry.InstrumentType.LONG_GAUGE;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -65,14 +68,11 @@ public class BufferingMetricExporterTests extends ESTestCase {
 
     private void build(Settings overrides) {
         Settings merged = Settings.builder()
-            .put("telemetry.otel.metrics.disk_buffer_size", "10mb")
-            .put("telemetry.otel.metrics.buffer_ttl", "5m")
-            // Short rotation/read times so the suite runs in seconds rather than minutes.
-            .put("telemetry.otel.metrics.disk_buffer_write_window", "100ms")
-            .put("telemetry.otel.metrics.disk_buffer_read_min_age", "200ms")
+            .put("telemetry.metrics.buffer.disk_size", "10mb")
+            .put("telemetry.metrics.buffer.ttl", "5m")
             .put(overrides)
             .build();
-        exporter = new BufferingMetricExporter(delegate, merged, bufferDir, () -> meterProvider);
+        exporter = new BufferingMetricExporter(delegate, merged, bufferDir, () -> meterProvider, 100);
     }
 
     private CompletableResultCode exportAndWait(String name) {
@@ -85,9 +85,17 @@ public class BufferingMetricExporterTests extends ESTestCase {
         assertTrue("buffered batch must report success", exportAndWait("buf").isSuccess());
         assertBusy(() -> assertThat(countBufferFiles(), greaterThanOrEqualTo(1)));
         assertThat(counter("writes"), hasSize(1));
+        assertBusy(() -> {
+            List<Measurement> files = gauge("files");
+            assertThat(files, not(empty()));
+            assertThat(files.getLast().getLong(), greaterThanOrEqualTo(1L));
+            List<Measurement> bytes = gauge("bytes");
+            assertThat(bytes, not(empty()));
+            assertThat(bytes.getLast().getLong(), greaterThanOrEqualTo(1L));
+        });
 
         delegate.setShouldFail(false);
-        safeSleep(300); // past the test-injected minFileAgeForRead (200ms)
+        safeSleep(200); // let the write window (100ms) expire so the reader can force-close and promote the file
         exportAndWait("trigger");
 
         assertBusy(() -> assertThat(countBufferFiles(), equalTo(0)));
@@ -96,7 +104,7 @@ public class BufferingMetricExporterTests extends ESTestCase {
     }
 
     public void testDiskCapRotatesOldestToMakeRoom() throws Exception {
-        build(Settings.builder().put("telemetry.otel.metrics.disk_buffer_size", "1kb").build());
+        build(Settings.builder().put("telemetry.metrics.buffer.disk_size", "1kb").build());
 
         delegate.setShouldFail(true);
         assertTrue(exportAndWait("first").isSuccess());
@@ -106,8 +114,8 @@ public class BufferingMetricExporterTests extends ESTestCase {
     }
 
     public void testTtlExpiredFilesAreNotReplayed() throws Exception {
-        // TTL must be greater than the test-injected minFileAgeForRead (200ms)
-        build(Settings.builder().put("telemetry.otel.metrics.buffer_ttl", "300ms").build());
+        // TTL must be greater than the write window (100ms) so the file is promoted before it expires for reads
+        build(Settings.builder().put("telemetry.metrics.buffer.ttl", "300ms").build());
 
         delegate.setShouldFail(true);
         exportAndWait("expires");
@@ -134,8 +142,33 @@ public class BufferingMetricExporterTests extends ESTestCase {
         assertThat("buffered file must remain on disk for next startup", countBufferFiles(), greaterThanOrEqualTo(1));
     }
 
+    public void testGaugesRecoverAfterNoopMeterProvider() throws Exception {
+        var meterRef = new AtomicReference<>(MeterProvider.noop());
+        Settings merged = Settings.builder()
+            .put("telemetry.metrics.buffer.disk_size", "10mb")
+            .put("telemetry.metrics.buffer.ttl", "5m")
+            .build();
+        exporter = new BufferingMetricExporter(delegate, merged, bufferDir, meterRef::get, 100);
+        meterRef.set(meterProvider);
+
+        delegate.setShouldFail(true);
+        assertTrue(exportAndWait("buf").isSuccess());
+        assertBusy(() -> assertThat(countBufferFiles(), greaterThanOrEqualTo(1)));
+        assertThat(counter("writes"), hasSize(1));
+        assertBusy(() -> {
+            assertThat(gauge("files"), not(empty()));
+            assertThat(gauge("files").getLast().getLong(), greaterThanOrEqualTo(1L));
+            assertThat(gauge("bytes"), not(empty()));
+            assertThat(gauge("bytes").getLast().getLong(), greaterThanOrEqualTo(1L));
+        });
+    }
+
     private List<Measurement> counter(String suffix) {
         return meterProvider.meter().getRecorder().getMeasurements(LONG_COUNTER, "es.apm.metrics.disk_buffer." + suffix);
+    }
+
+    private List<Measurement> gauge(String suffix) {
+        return meterProvider.meter().getRecorder().getMeasurements(LONG_GAUGE, "es.apm.metrics.disk_buffer." + suffix);
     }
 
     private int countBufferFiles() throws Exception {

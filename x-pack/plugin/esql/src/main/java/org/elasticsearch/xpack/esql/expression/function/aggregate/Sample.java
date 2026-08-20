@@ -115,7 +115,12 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
                 "version" },
             description = "The field to collect sample values for."
         ) Expression field,
-        @Param(name = "limit", type = { "integer" }, description = "The maximum number of values to collect.") Expression limit
+        @Param(
+            name = "limit",
+            type = { "integer" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
+            description = "The maximum number of values to collect."
+        ) Expression limit
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW, limit, new Literal(Source.EMPTY, Randomness.get().nextLong(), DataType.LONG));
     }

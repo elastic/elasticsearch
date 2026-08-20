@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -97,10 +98,11 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         if (mockClientForCheckpointing == null) {
             mockClientForCheckpointing = new MockClientForCheckpointing(threadPool);
         }
-        ClusterService clusterService = mock(ClusterService.class);
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         transformsConfigManager = new IndexBasedTransformConfigManager(
             clusterService,
             TestIndexNameExpressionResolver.newInstance(),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             client(),
             xContentRegistry(),
             new TransformParsingContext(false)

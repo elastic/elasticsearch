@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.approximation;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
@@ -44,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.MaxOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggregate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
@@ -75,23 +75,29 @@ import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
+import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -111,7 +117,6 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
-import org.junit.Before;
 
 import java.net.URL;
 import java.nio.file.DirectoryStream;
@@ -142,10 +147,6 @@ public class ApproximationSupportTests extends ESTestCase {
         TimeSeriesAggregate.class,
         TimeSeriesCollapse.class,
 
-        // SurrogateLogicalPlans: present in the analyzed plan but rewritten during the optimizer's
-        // substitutions phase, before any approximation logic runs.
-        Dedup.class, // rewritten to LimitBy
-
         // HIGHLIGHT is not supported;
         Highlight.class,
 
@@ -160,6 +161,8 @@ public class ApproximationSupportTests extends ESTestCase {
         PromqlFunctionCall.class,
         WithinSeriesAggregate.class,
         AcrossSeriesAggregate.class,
+        AcrossSeriesReduction.class,
+        HistogramFunctionCall.class,
         HistogramQuantile.class,
         PlaceholderRelation.class,
         ScalarConversionFunction.class,
@@ -192,19 +195,26 @@ public class ApproximationSupportTests extends ESTestCase {
         CompoundOutputEval.class,
         AbstractSubqueryJoin.class,
 
-        // These plans don't occur in a correct analyzed query.
+        // These plans don't occur in a correct analyzed/optimzed query.
         AntiJoin.class,
+        Dedup.class,
         Drop.class,
+        InnerJoin.class,
         InlineStats.class,
         Keep.class,
         MarkJoin.class,
         Lookup.class,
         LookupJoin.class,
         ParameterizedQuery.class,
+        RemoteFetchSource.class,
         Rename.class,
         ResolvingProject.class,
         SemiJoin.class,
-        SparklineGenerateEmptyBuckets.class
+        SparklineGenerateEmptyBuckets.class,
+
+        // internals
+        PackDims.class,
+        UnpackDims.class
     );
 
     private static final Set<Class<? extends AggregateFunction>> UNSUPPORTED_AGGS = Set.of(
@@ -240,6 +250,7 @@ public class ApproximationSupportTests extends ESTestCase {
         // These multivalued aggs are not suitable for approximation.
         DimensionValues.class,
         Values.class,
+        PackDimsAgg.class,
 
         // Histograms are not suitable for approximation.
         HistogramMerge.class,
@@ -310,12 +321,6 @@ public class ApproximationSupportTests extends ESTestCase {
                 }
             }
         }
-    }
-
-    @Before
-    public void assume() {
-        assumeTrue("needs inline stats approximation", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled());
-        assumeTrue("needs lookup join approximation", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled());
     }
 
     public void testAllCommandsWhitelistedOrBlacklisted() throws Exception {

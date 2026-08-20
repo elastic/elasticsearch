@@ -94,19 +94,23 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
 
         final ClusterState clusterState = clusterService.state();
         if (request.isDeferValidation() == false) {
-            TransformNodes.throwIfNoTransformNodes(clusterState);
-            boolean requiresRemote = request.getConfig().getSource().requiresRemoteCluster();
-            if (TransformNodes.redirectToAnotherNodeIfNeeded(
-                clusterState,
-                nodeSettings,
-                requiresRemote,
-                transportService,
-                actionName,
-                request,
-                Response::new,
-                listener
-            )) {
+            if (TransformNodes.hasNoTransformNodes(clusterState)) {
+                TransformNodes.completeWithNoTransformNodeException(listener);
                 return;
+            } else {
+                boolean requiresRemote = request.getConfig().getSource().requiresRemoteCluster();
+                if (TransformNodes.redirectToAnotherNodeIfNeeded(
+                    clusterState,
+                    nodeSettings,
+                    requiresRemote,
+                    transportService,
+                    actionName,
+                    request,
+                    Response::new,
+                    listener
+                )) {
+                    return;
+                }
             }
         }
 
@@ -185,7 +189,11 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
             config.getDestination().getPipeline(),
-            SourceDestValidations.getValidations(request.isDeferValidation(), config.getAdditionalSourceDestValidations()),
+            SourceDestValidations.getValidations(
+                request.isDeferValidation(),
+                crossProjectModeDecider,
+                config.getAdditionalSourceDestValidations()
+            ),
             validateSourceDestListener
         );
     }

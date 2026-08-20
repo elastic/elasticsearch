@@ -13,6 +13,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
@@ -56,6 +57,61 @@ class RetryableStorageObject implements StorageObject {
      */
     private final StorageObjectMetricsCounters retryCounters = new StorageObjectMetricsCounters();
 
+    /**
+     * Best-effort telemetry bound to {@link #retryCounters} (which carries the sink + scheme). Fired once per
+     * retry-driven operation: a terminal give-up records a storage error (and a throttled error when the fault
+     * was a provider throttle), and both give-up and success record the cumulative backoff time as read stall.
+     * Retry <em>counting</em> stays on {@link StorageObjectMetricsCounters#addRetry()} (unchanged) so nothing is
+     * double-counted here.
+     */
+    private final RetryPolicy.RetryTelemetry storageTelemetry = new RetryPolicy.RetryTelemetry() {
+        @Override
+        public void onGiveUp(Throwable failure, long totalBackoffMillis) {
+            recordTerminalFailure(failure, totalBackoffMillis);
+        }
+
+        @Override
+        public void onComplete(long totalBackoffMillis) {
+            // Read-stall is recorded once per retryPolicy.execute(...) call, so a single logical range read that
+            // resumes N times (each resume re-drives execute for the re-open) emits N observations. Intentional:
+            // each observation has matching requests — it's a per-attempt backoff histogram, not a per-logical-read
+            // metric.
+            retryCounters.addReadStall(totalBackoffMillis);
+        }
+    };
+
+    /**
+     * Records exactly one terminal give-up to node telemetry: a storage error (only when the fault is a
+     * storage-classified fault — a transport {@link IOException} or an {@link ExternalUnavailableException}), a
+     * throttled error when that fault was a provider throttle, and — always, regardless of fault type — the
+     * cumulative backoff spent getting there as a read stall. Shared by the sync give-up ({@link #storageTelemetry})
+     * and both async terminal branches (retry exhausted, and the scheduler-rejected retry). Each terminal path
+     * calls this once, so a single failure is never double-counted.
+     */
+    private void recordTerminalFailure(Throwable failure, long backoffMillis) {
+        try {
+            // A storage error is only a storage-classified fault: a transport IOException or the unchecked
+            // ExternalUnavailableException a provider raises. The sync driver (RetryPolicy.execute) already scopes
+            // its give-up telemetry to exactly these two types (it records inside catch (IOException |
+            // ExternalUnavailableException)); the async driver reaches here for ANY terminal fault, so gate here so
+            // both paths agree on the narrow definition. This also stops a CircuitBreakingException (native-async
+            // providers surface breaker trips through this path) double-surfacing as both storage.errors and
+            // breaker.tripped. The backoff was spent regardless of the fault type, so the read-stall is always
+            // recorded.
+            if (failure instanceof IOException || failure instanceof ExternalUnavailableException) {
+                retryCounters.addError();
+                if (RetryPolicy.isThrottlingError(failure)) {
+                    retryCounters.addThrottled();
+                }
+            }
+            retryCounters.addReadStall(backoffMillis);
+        } catch (Exception e) {
+            // Best-effort: recordTerminalFailure runs BEFORE listener.onFailure(...) on the async path and calls
+            // isThrottlingError (not itself guarded), so a throw here must never strand the listener.
+            logger.trace("telemetry: recordTerminalFailure failed", e);
+        }
+    }
+
     RetryableStorageObject(StorageObject delegate, RetryPolicy retryPolicy) {
         this(delegate, retryPolicy, RetryScheduler.DIRECT);
     }
@@ -88,7 +144,13 @@ class RetryableStorageObject implements StorageObject {
         // otherwise treat as a hard error. Local file reads surface plain IOExceptions and are intentionally NOT
         // typed: a local-disk read fault is a genuine hard error, not a transient transport drop. In production
         // the decompressor sits ABOVE this layer, so a resume re-opens the (length-bearing) compressed bytes.
-        InputStream initial = retryPolicy.execute(delegate::newStream, "newStream", delegate.path(), retryCounters::addRetry);
+        InputStream initial = retryPolicy.execute(
+            delegate::newStream,
+            "newStream",
+            delegate.path(),
+            retryCounters::addRetry,
+            storageTelemetry
+        );
         return new ResumingInputStream(initial, 0, READ_TO_END);
     }
 
@@ -102,24 +164,53 @@ class RetryableStorageObject implements StorageObject {
             () -> delegate.newStream(position, length),
             "newStream(range)",
             delegate.path(),
-            retryCounters::addRetry
+            retryCounters::addRetry,
+            storageTelemetry
         );
         return new ResumingInputStream(initial, position, length);
     }
 
     @Override
     public long length() throws IOException {
-        return retryPolicy.execute(delegate::length, "length", delegate.path(), retryCounters::addRetry);
+        // Metadata ops (length/lastModified/exists) never bump the read-scoped registry request counter, so their
+        // retries/errors/read-stall must NOT feed the registry sink — that would leak storage.retries/errors/read_stall
+        // past storage.requests, a scope violation on retryable providers. So: pass RetryTelemetry.NONE (drops the
+        // error/read-stall/throttled publish) AND route the retry through addRetryProfileOnly (bumps the per-query
+        // profile retry count exactly as before, but does NOT publish storage.retries.total). Only newStream() (the
+        // read path) keeps storageTelemetry + the registry-publishing addRetry.
+        return retryPolicy.execute(
+            delegate::length,
+            "length",
+            delegate.path(),
+            retryCounters::addRetryProfileOnly,
+            RetryPolicy.RetryTelemetry.NONE
+        );
     }
 
     @Override
     public Instant lastModified() throws IOException {
-        return retryPolicy.execute(delegate::lastModified, "lastModified", delegate.path(), retryCounters::addRetry);
+        // See length(): metadata-op retries stay off the read-scoped registry sink (RetryTelemetry.NONE +
+        // addRetryProfileOnly), but still feed the per-query profile retry count.
+        return retryPolicy.execute(
+            delegate::lastModified,
+            "lastModified",
+            delegate.path(),
+            retryCounters::addRetryProfileOnly,
+            RetryPolicy.RetryTelemetry.NONE
+        );
     }
 
     @Override
     public boolean exists() throws IOException {
-        return retryPolicy.execute(delegate::exists, "exists", delegate.path(), retryCounters::addRetry);
+        // See length(): metadata-op retries stay off the read-scoped registry sink (RetryTelemetry.NONE +
+        // addRetryProfileOnly), but still feed the per-query profile retry count.
+        return retryPolicy.execute(
+            delegate::exists,
+            "exists",
+            delegate.path(),
+            retryCounters::addRetryProfileOnly,
+            RetryPolicy.RetryTelemetry.NONE
+        );
     }
 
     @Override
@@ -149,7 +240,7 @@ class RetryableStorageObject implements StorageObject {
         return retryPolicy.execute(() -> {
             target.position(savedPosition);
             return delegate.readBytes(position, target);
-        }, "readBytes", delegate.path(), retryCounters::addRetry);
+        }, "readBytes", delegate.path(), retryCounters::addRetry, storageTelemetry);
     }
 
     @Override
@@ -160,7 +251,7 @@ class RetryableStorageObject implements StorageObject {
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
-        readBytesAsyncWithRetry(position, length, factory, executor, listener, 0, System.nanoTime());
+        readBytesAsyncWithRetry(position, length, factory, executor, listener, 0, System.nanoTime(), 0L);
     }
 
     private void readBytesAsyncWithRetry(
@@ -170,12 +261,15 @@ class RetryableStorageObject implements StorageObject {
         Executor executor,
         ActionListener<DirectReadBuffer> listener,
         int attempt,
-        long startNanos
+        long startNanos,
+        long accumulatedBackoffMillis
     ) {
         delegate.readBytesAsync(position, length, factory, executor, new ActionListener<>() {
             @Override
             public void onResponse(DirectReadBuffer result) {
                 retryPolicy.notifySuccess();
+                // Read succeeded; publish the cumulative backoff spent getting here (skipped when it never retried).
+                retryCounters.addReadStall(accumulatedBackoffMillis);
                 // Do NOT route a throw from listener.onResponse into onFailure — that would
                 // trigger retry logic or double-complete the downstream listener. Propagate
                 // the exception directly so the caller's uncaught-exception handler deals with it.
@@ -200,6 +294,8 @@ class RetryableStorageObject implements StorageObject {
                 // fresh one via the factory on the next attempt — nothing to release here.
                 RetryPolicy.RetryDecision decision = retryPolicy.decide(e, attempt, startNanos);
                 if (decision.retry() == false) {
+                    // Terminal give-up on the async path: mirror the sync driver's telemetry.
+                    recordTerminalFailure(e, accumulatedBackoffMillis);
                     listener.onFailure(e);
                     return;
                 }
@@ -219,13 +315,24 @@ class RetryableStorageObject implements StorageObject {
                 // graceful query drain is ever added — a stranded listener would then stall shutdown.
                 try {
                     retryScheduler.schedule(
-                        () -> readBytesAsyncWithRetry(position, length, factory, executor, listener, attempt + 1, startNanos),
+                        () -> readBytesAsyncWithRetry(
+                            position,
+                            length,
+                            factory,
+                            executor,
+                            listener,
+                            attempt + 1,
+                            startNanos,
+                            accumulatedBackoffMillis + decision.delayMillis()
+                        ),
                         decision.delayMillis(),
                         executor
                     );
                 } catch (Exception rejected) {
-                    // Scheduler/executor rejected the retry (e.g. shutdown or saturated queue) — surface it so the
-                    // listener is always completed rather than silently dropped.
+                    // Scheduler/executor rejected the retry (e.g. shutdown or saturated queue) — a terminal failure.
+                    // Record it (mirroring the give-up branch: error + accumulated read-stall; the pending backoff
+                    // was never actually slept) and surface it so the listener is always completed, never dropped.
+                    recordTerminalFailure(rejected, accumulatedBackoffMillis);
                     listener.onFailure(rejected);
                 }
             }
@@ -240,6 +347,14 @@ class RetryableStorageObject implements StorageObject {
     @Override
     public StorageObjectMetrics metrics() {
         return delegate.metrics().add(retryCounters.snapshot());
+    }
+
+    @Override
+    public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {
+        // Requests/bytes are counted on the delegate; retries on this decorator's own counter. Attach
+        // the sink to both so each event is published once (mirrors how metrics() merges the two).
+        delegate.attachMetrics(metrics, scheme);
+        retryCounters.attach(metrics, scheme);
     }
 
     /**
@@ -323,13 +438,13 @@ class RetryableStorageObject implements StorageObject {
                 throw rethrow(e);
             }
             closeQuietly(current);
-            if (decision.delayMillis() > 0) {
-                try {
-                    Thread.sleep(decision.delayMillis());
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    throw new IOException("interrupted while waiting to resume read of " + delegate.path(), ie);
-                }
+            try {
+                // Cancellation-aware sleep: aborts a parked backoff if the query is cancelled before or
+                // during the delay, rather than sleeping through the remaining per-episode retry budget.
+                StorageRetryCancellation.sleepWithCancellationChecks(decision.delayMillis());
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw new IOException("interrupted while waiting to resume read of " + delegate.path(), ie);
             }
             retryCounters.addRetry();
             failuresSinceProgress++;
@@ -352,7 +467,8 @@ class RetryableStorageObject implements StorageObject {
                     () -> delegate.newStream(resumeFrom, READ_TO_END),
                     "newStream(resume-open)",
                     delegate.path(),
-                    retryCounters::addRetry
+                    retryCounters::addRetry,
+                    storageTelemetry
                 );
             } else {
                 long remaining = length - delivered;
@@ -362,7 +478,8 @@ class RetryableStorageObject implements StorageObject {
                         () -> delegate.newStream(resumeFrom, remaining),
                         "newStream(resume)",
                         delegate.path(),
-                        retryCounters::addRetry
+                        retryCounters::addRetry,
+                        storageTelemetry
                     )
                     : InputStream.nullInputStream();
             }

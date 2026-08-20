@@ -60,6 +60,38 @@ public interface SplitStats {
     long columnNullCount(String name);
 
     /**
+     * Number of non-null values in the named column (multivalue-aware: a multivalued cell
+     * contributes one per value). This is what {@code COUNT(col)} returns, served directly
+     * rather than derived from {@code rowCount - columnNullCount} (which under-counts
+     * multivalued columns).
+     * <p>
+     * Returns {@code -1} when not available; the caller then falls back to
+     * {@code rowCount - nullCount}.
+     */
+    default long columnValueCount(String name) {
+        return -1;
+    }
+
+    /**
+     * Whether the named column carries any per-column statistics in this split (a null count, a
+     * min/max, or a size). This is the "column was observed by the stats layer" predicate, distinct
+     * from {@link #columnNullCount}'s implicit-nulls contract: for footer formats an absent column is
+     * genuinely all-null and {@code columnNullCount} returns {@code rowCount}, but a text-format
+     * partial harvest can leave a physically present column with no stats at all, and the two cases
+     * are indistinguishable through {@code columnNullCount} alone. Callers that must not apply the
+     * implicit-nulls contract for unharvested columns (see
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport#appliesImplicitNullsForAbsentColumn()})
+     * use this to safe-miss instead.
+     *
+     * <p>Defaults to {@code false} (conservative — "no per-column stats observed"). Footer-format
+     * implementations never consult it (they declare {@code appliesImplicitNullsForAbsentColumn}), so
+     * they need not override it; partial-harvest text formats override it with the real predicate.
+     */
+    default boolean hasColumn(String name) {
+        return false;
+    }
+
+    /**
      * Minimum value for the named column, or {@code null} if unknown or the column
      * is not present in this split's statistics.
      */

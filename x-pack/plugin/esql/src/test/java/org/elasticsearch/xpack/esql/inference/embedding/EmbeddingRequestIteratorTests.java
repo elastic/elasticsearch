@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceReq
 
 import java.util.Base64;
 
+import static org.elasticsearch.xpack.esql.inference.InferenceService.ESQL_PRODUCT_USE_CASE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
@@ -489,6 +490,26 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
 
     private static DataType randomDataType() {
         return randomFrom(DataType.TEXT, DataType.IMAGE);
+    }
+
+    public void testProductUseCase() throws Exception {
+        final String inferenceId = randomIdentifier();
+        final BytesRefBlock inputBlock = randomInputBlock(1);
+
+        try (
+            EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
+                inferenceId,
+                inputBlock,
+                DataType.TEXT,
+                BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
+            )
+        ) {
+            assertTrue(requestIterator.hasNext());
+            EmbeddingAction.Request request = (EmbeddingAction.Request) requestIterator.next().inferenceRequest();
+            assertThat(request.getContext().productUseCase(), equalTo(ESQL_PRODUCT_USE_CASE));
+        }
+
+        allBreakersEmpty();
     }
 
     private static String randomInputValue(DataType dataType) {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.openai.secrets;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
@@ -73,9 +74,13 @@ public abstract class OpenAiSecretSettings implements SecretSettings {
         var configurationMap = new HashMap<String, SettingsConfiguration>();
         configurationMap.putAll(
             DefaultSecretSettings.toSettingsConfigurationWithDescription(
-                "The OpenAI API authentication key. For more details about generating OpenAI API keys, "
-                    + "refer to the https://platform.openai.com/account/api-keys.",
-                supportedTaskTypes
+                Strings.format(
+                    "The OpenAI API authentication key. For more details about generating OpenAI API keys, "
+                        + "refer to the https://platform.openai.com/account/api-keys. %s",
+                    EXACTLY_ONE_CONFIG_DESCRIPTION
+                ),
+                supportedTaskTypes,
+                false
             )
         );
         configurationMap.putAll(OpenAiOAuth2SecretsSettings.getClientSecretConfiguration(supportedTaskTypes));

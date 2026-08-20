@@ -67,17 +67,6 @@ public class VectorScorerFloat32BulkOperationBenchmarkTests extends BenchmarkTes
         }
     }
 
-    public void testBulk8() {
-        for (int i = 0; i < 100; i++) {
-            var bench = newBench();
-            try {
-                assertArrayEquals(function.toString(), bench.scoreRandom(), bench.scoreBulk8(), 1e-5f);
-            } finally {
-                bench.teardown();
-            }
-        }
-    }
-
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() throws NoSuchFieldException {
         return generateParameters(

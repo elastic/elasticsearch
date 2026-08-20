@@ -12,10 +12,6 @@ import org.apache.lucene.store.IndexInput;
 
 import java.lang.foreign.MemorySegment;
 
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductD2Q4Packed;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductD2Q4PackedBulk;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductD2Q4PackedBulkWithOffsets;
-
 /**
  * Packed D2Q4 scorer that uses existing native dot-product ops.
  * Returns sentinel values when native support is unavailable so callers can fallback.
@@ -28,12 +24,12 @@ final class NativeD2Q4PackedScorer extends NativeMemorySegmentScorer {
 
     @Override
     long dotProduct(MemorySegment dataset, MemorySegment query, int length) {
-        return dotProductD2Q4Packed(dataset, query, length);
+        return DISTANCE_FUNCS.dotProductD2Q4Packed(dataset, query, length);
     }
 
     @Override
     void dotProductBulk(MemorySegment dataset, MemorySegment query, int length, int count, MemorySegment scores) {
-        dotProductD2Q4PackedBulk(dataset, query, length, count, scores);
+        DISTANCE_FUNCS.dotProductD2Q4PackedBulk(dataset, query, length, count, scores);
     }
 
     @Override
@@ -46,7 +42,7 @@ final class NativeD2Q4PackedScorer extends NativeMemorySegmentScorer {
         int offsetsCount,
         MemorySegment scores
     ) {
-        dotProductD2Q4PackedBulkWithOffsets(dataset, query, dataLength, dataStride, offsets, offsetsCount, scores);
+        DISTANCE_FUNCS.dotProductD2Q4PackedBulkWithOffsets(dataset, query, dataLength, dataStride, offsets, offsetsCount, scores);
     }
 
     @Override

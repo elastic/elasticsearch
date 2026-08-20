@@ -49,7 +49,16 @@ public abstract class AbstractNodeSerializationTests<T extends Node<? super T>> 
     }
 
     public static List<Attribute> randomFieldAttributes(int min, int max, boolean onlyRepresentable) {
-        return randomList(min, max, () -> createFieldAttribute(0, onlyRepresentable));
+        return randomFieldAttributes(min, max, onlyRepresentable, null);
+    }
+
+    /**
+     * Version-aware variant of {@link #randomFieldAttributes(int, int, boolean)} that only produces attributes whose
+     * data types serialize on {@code supportedOn}. Use this when the generated attributes will be round-tripped through
+     * an older transport version, so that release builds don't blow up on types gated behind a later version.
+     */
+    public static List<Attribute> randomFieldAttributes(int min, int max, boolean onlyRepresentable, TransportVersion supportedOn) {
+        return randomList(min, max, () -> createFieldAttribute(0, onlyRepresentable, supportedOn));
     }
 
     @Override

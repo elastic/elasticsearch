@@ -10,7 +10,7 @@
 package org.elasticsearch.nativeaccess.jdk;
 
 import org.elasticsearch.foreign.CloseableByteBuffer;
-import org.elasticsearch.nativeaccess.CloseableMappedByteBuffer;
+import org.elasticsearch.nativeaccess.MappedSegment;
 import org.elasticsearch.nativeaccess.lib.JavaLibrary;
 
 import java.io.IOException;
@@ -29,7 +29,7 @@ class JdkJavaLibrary implements JavaLibrary {
     }
 
     @Override
-    public CloseableMappedByteBuffer map(FileChannel fileChannel, FileChannel.MapMode mode, long position, long size) throws IOException {
-        return JdkCloseableMappedByteBuffer.ofShared(fileChannel, mode, position, size);
+    public MappedSegment map(FileChannel fileChannel, FileChannel.MapMode mode, long position, long size) throws IOException {
+        return JdkMappedSegment.ofShared(fileChannel, mode, position, size);
     }
 }

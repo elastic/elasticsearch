@@ -61,10 +61,14 @@ public class APMAgentSettings {
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_NAMES_INCLUDE_SETTING, apmTracer::setIncludeNames);
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING, apmTracer::setExcludeNames);
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_SANITIZE_FIELD_NAMES, apmTracer::setLabelFilters);
-        clusterSettings.addSettingsUpdateConsumer(OtelSdkSettings.TELEMETRY_OTEL_TRACES_MAX_TRACE_DEPTH, apmTracer::setMaxTraceDepth);
+        clusterSettings.addSettingsUpdateConsumer(OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH, apmTracer::setMaxTraceDepth);
         clusterSettings.addSettingsUpdateConsumer(
-            OtelSdkSettings.TELEMETRY_OTEL_TRACES_RECORD_EXCEPTION_STACKS,
+            OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS,
             apmTracer::setRecordExceptionStacks
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            OtelSdkSettings.TELEMETRY_METRICS_INSTRUMENT_TIMING_ENABLED,
+            apmMeterService.getMeterRegistry()::setInstrumentTimingEnabled
         );
         clusterSettings.addAffixMapUpdateConsumer(APM_AGENT_SETTINGS, map -> map.forEach(this::setAgentSetting), (x, y) -> {});
     }

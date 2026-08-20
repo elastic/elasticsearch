@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
+import java.util.OptionalInt;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.repositories.gcs.StorageOperation.COPY;
@@ -110,13 +111,18 @@ public class MeteredStorage {
         return new MeteredObjectsGetRequest(statsCollector, purpose, storageRpc.objects().get(bucket, blob));
     }
 
-    public MeteredWriteChannel meteredWriter(OperationPurpose purpose, BlobInfo blobInfo, Storage.BlobWriteOption... writeOptions)
-        throws IOException {
+    public MeteredWriteChannel meteredWriter(
+        OperationPurpose purpose,
+        BlobInfo blobInfo,
+        OptionalInt resumableWriteBufferSize,
+        Storage.BlobWriteOption... writeOptions
+    ) throws IOException {
         var initStats = new OperationStats(purpose, INSERT);
-        return statsCollector.continueWithIOSupplier(
-            initStats,
-            () -> new MeteredWriteChannel(statsCollector, initStats, storage.writer(blobInfo, writeOptions))
-        );
+        return statsCollector.continueWithIOSupplier(initStats, () -> {
+            var channel = new MeteredWriteChannel(statsCollector, initStats, storage.writer(blobInfo, writeOptions));
+            resumableWriteBufferSize.ifPresent(channel::setChunkSize);
+            return channel;
+        });
     }
 
     public MeteredReadChannel meteredReader(OperationPurpose purpose, BlobId blobId, Storage.BlobSourceOption... options) {

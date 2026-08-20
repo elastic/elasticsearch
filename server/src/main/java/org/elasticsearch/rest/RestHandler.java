@@ -39,6 +39,13 @@ public interface RestHandler {
         return true;
     }
 
+    /**
+     * Whether this handler supports consuming the request body as a stream.
+     * <p>
+     * Handlers that return {@code false} receive a fully aggregated body. When this method returns {@code true}, a REST interceptor may
+     * still aggregate the stream before it reaches the handler. Such handlers must therefore support receiving either a streamed or full
+     * body, by branching during request preparation or by using a consumer that handles both representations.
+     */
     default boolean supportsContentStream() {
         return false;
     }

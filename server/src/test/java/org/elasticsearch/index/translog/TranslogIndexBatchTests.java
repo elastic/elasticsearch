@@ -20,8 +20,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.eirf.EirfBatch;
-import org.elasticsearch.eirf.EirfEncoder;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.mapper.Uid;
@@ -50,27 +50,23 @@ public class TranslogIndexBatchTests extends ESTestCase {
     private Path translogDir;
     private Translog translog;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createTranslog() throws Exception {
         assumeTrue("batch indexing requires snapshot builds", Build.current().isSnapshot());
         primaryTerm.set(randomLongBetween(1, Integer.MAX_VALUE));
         translogDir = createTempDir();
         translog = create(translogDir);
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void closeTranslog() throws Exception {
         try {
             if (translog != null) {
                 translog.close();
             }
         } finally {
-            super.tearDown();
+            IOUtils.rm(translogDir);
         }
-        IOUtils.rm(translogDir);
     }
 
     private Translog create(Path path) throws IOException {
@@ -100,6 +96,13 @@ public class TranslogIndexBatchTests extends ESTestCase {
         );
     }
 
+    /** Encodes {@code sources} as an ESCF batch and returns a standalone copy of the batch bytes. */
+    private static BytesReference encodeBatchData(List<BytesReference> sources) throws IOException {
+        try (EscfBatch escfBatch = EscfEncoder.encode(sources, XContentType.JSON)) {
+            return new BytesArray(escfBatch.data().toBytesRef(), true);
+        }
+    }
+
     /**
      * Build a batch with the given documents (one map per doc) and assign sequence numbers
      * starting at {@code firstSeqNo}. Returns the batch and the original source bytes for each doc
@@ -114,10 +117,10 @@ public class TranslogIndexBatchTests extends ESTestCase {
                 sources.add(BytesReference.bytes(b));
             }
         }
-        final EirfBatch eirf = EirfEncoder.encode(sources, xContentType);
+        final EscfBatch escf = EscfEncoder.encode(sources, xContentType);
         final BytesReference batchData;
-        try (eirf) {
-            batchData = new BytesArray(eirf.data().toBytesRef(), true);
+        try (escf) {
+            batchData = new BytesArray(escf.data().toBytesRef(), true);
         }
         final List<Translog.IndexBatch.Op> metas = new ArrayList<>(docs.size());
         for (int i = 0; i < docs.size(); i++) {
@@ -137,11 +140,11 @@ public class TranslogIndexBatchTests extends ESTestCase {
     }
 
     public void testWireFormatRoundTrip() throws IOException {
-        // EIRF only round-trips JSON sources (its parser flips allowDuplicateKeys, which SMILE/CBOR
-        // reject). The xContentType byte on the wire is independent of how the EIRF bytes were
+        // ESCF only round-trips JSON sources (its parser flips allowDuplicateKeys, which SMILE/CBOR
+        // reject). The xContentType byte on the wire is independent of how the ESCF bytes were
         // produced, so we verify the envelope round-trips for several types while encoding via JSON.
         final XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE, XContentType.CBOR, XContentType.YAML);
-        final EirfBatch eirf = EirfEncoder.encode(
+        final EscfBatch escfBatch = EscfEncoder.encode(
             List.of(
                 BytesReference.bytes(XContentBuilder.builder(XContentType.JSON.xContent()).map(Map.of("a", 1, "b", "hello"))),
                 BytesReference.bytes(XContentBuilder.builder(XContentType.JSON.xContent()).map(Map.of("a", 2, "b", "world")))
@@ -149,8 +152,8 @@ public class TranslogIndexBatchTests extends ESTestCase {
             XContentType.JSON
         );
         final BytesReference batchData;
-        try (eirf) {
-            batchData = new BytesArray(eirf.data().toBytesRef(), true);
+        try (escfBatch) {
+            batchData = new BytesArray(escfBatch.data().toBytesRef(), true);
         }
         final List<Translog.IndexBatch.Op> metas = List.of(
             new Translog.IndexBatch.IndexOp(1L, 5L, 100L, 0, xContentType, Uid.encodeId("doc-0"), null),
@@ -174,8 +177,8 @@ public class TranslogIndexBatchTests extends ESTestCase {
     }
 
     public void testSnapshotExplodesBatchIntoIndexOps() throws IOException {
-        // EIRF's parseToScratch flips allowDuplicateKeys on the source parser, which only JSON
-        // supports today, so the EIRF-encoded sources here are JSON.
+        // ESCF's parseToScratch flips allowDuplicateKeys on the source parser, which only JSON
+        // supports today, so the ESCF-encoded sources here are JSON.
         final XContentType xContentType = XContentType.JSON;
         final List<Map<String, Object>> docs = List.of(
             Map.of("field", "alpha", "n", 1),
@@ -208,7 +211,7 @@ public class TranslogIndexBatchTests extends ESTestCase {
                 final Map<String, Object> expected = docs.get(i);
                 assertEquals(expected.keySet(), roundTripped.keySet());
                 for (Map.Entry<String, Object> e : expected.entrySet()) {
-                    // numeric types may widen (int -> long) through EIRF; compare via Number.longValue or string equality
+                    // numeric types may widen (int -> long) through batch encoding; compare via Number.longValue or string equality
                     final Object actual = roundTripped.get(e.getKey());
                     if (e.getValue() instanceof Number expectedN && actual instanceof Number actualN) {
                         assertEquals(expectedN.longValue(), actualN.longValue());
@@ -290,12 +293,7 @@ public class TranslogIndexBatchTests extends ESTestCase {
         // post-Lucene with an assigned seqNo, so the engine converted it into a NoOpOp while the
         // surrounding ops remained IndexOps. Replay must emit Index, NoOp, Index in that order.
         final XContentType xContentType = XContentType.JSON;
-        final List<BytesReference> sources = List.of(new BytesArray("{\"k\":\"row-0\"}"), new BytesArray("{\"k\":\"row-2\"}"));
-        final EirfBatch eirf = EirfEncoder.encode(sources, xContentType);
-        final BytesReference batchData;
-        try (eirf) {
-            batchData = new BytesArray(eirf.data().toBytesRef(), true);
-        }
+        final BytesReference batchData = encodeBatchData(List.of(new BytesArray("{\"k\":\"row-0\"}"), new BytesArray("{\"k\":\"row-2\"}")));
 
         final long term = primaryTerm.get();
         final List<Translog.IndexBatch.Op> metas = List.of(
@@ -328,7 +326,7 @@ public class TranslogIndexBatchTests extends ESTestCase {
             final Translog.Index idx2 = (Translog.Index) op2;
             assertEquals(2L, idx2.seqNo());
             assertEquals(Uid.encodeId("doc-2"), idx2.uid());
-            // Crucially: the NoOp between the two IndexOps did not consume a row from the EIRF
+            // Crucially: the NoOp between the two IndexOps did not consume a row from the ESCF
             // batch, and idx2's explicit rowIndex (1) correctly maps to the second row.
             assertEquals("row-2", XContentHelper.convertToMap(idx2.source(), false, xContentType).v2().get("k"));
 
@@ -338,20 +336,13 @@ public class TranslogIndexBatchTests extends ESTestCase {
 
     public void testExplodeHonoursSparseRowIndex() throws IOException {
         // Simulates the primary path where the middle op of a 3-row sub-batch hit a preflight
-        // failure (UNASSIGNED_SEQ_NO) and was dropped from the ops list. The EIRF batch still
+        // failure (UNASSIGNED_SEQ_NO) and was dropped from the ops list. The ESCF batch still
         // carries all three rows; surviving IndexOps must point at their original row indices
         // so the replayed source matches the surviving op's uid/seqNo.
         final XContentType xContentType = XContentType.JSON;
-        final List<BytesReference> sources = List.of(
-            new BytesArray("{\"k\":\"row-0\"}"),
-            new BytesArray("{\"k\":\"row-1\"}"),
-            new BytesArray("{\"k\":\"row-2\"}")
+        final BytesReference batchData = encodeBatchData(
+            List.of(new BytesArray("{\"k\":\"row-0\"}"), new BytesArray("{\"k\":\"row-1\"}"), new BytesArray("{\"k\":\"row-2\"}"))
         );
-        final EirfBatch eirf = EirfEncoder.encode(sources, xContentType);
-        final BytesReference batchData;
-        try (eirf) {
-            batchData = new BytesArray(eirf.data().toBytesRef(), true);
-        }
 
         final long term = primaryTerm.get();
         // Two surviving IndexOps point at rows 0 and 2; row 1's op was dropped (preflight skip).
@@ -384,11 +375,7 @@ public class TranslogIndexBatchTests extends ESTestCase {
 
     public void testRowIndexOutOfRangeThrows() throws IOException {
         final XContentType xContentType = XContentType.JSON;
-        final EirfBatch eirf = EirfEncoder.encode(List.of(new BytesArray("{\"k\":\"v\"}")), xContentType);
-        final BytesReference batchData;
-        try (eirf) {
-            batchData = new BytesArray(eirf.data().toBytesRef(), true);
-        }
+        final BytesReference batchData = encodeBatchData(List.of(new BytesArray("{\"k\":\"v\"}")));
         // rowIndex 5 is out of range for a 1-row batch.
         final Translog.IndexBatch batch = new Translog.IndexBatch(
             batchData,
@@ -413,6 +400,41 @@ public class TranslogIndexBatchTests extends ESTestCase {
 
         final IOException ex = expectThrows(IOException.class, () -> translog.readOperation(location));
         assertTrue("unexpected exception message: " + ex.getMessage(), ex.getMessage() != null && ex.getMessage().contains("batch"));
+    }
+
+    public void testSeqNumberConflictAssertsDifferentOps() throws IOException {
+        final long term = primaryTerm.get();
+        final Translog.Index op0 = new Translog.Index(Uid.encodeId("solo-0"), 0, term, 1L, new BytesArray("{\"k\":\"v0\"}"), null, -1L);
+        translog.add(op0);
+
+        translog.add(new Translog.Delete("solo-3", 2, term));
+
+        final Translog.IndexBatch batchA = buildBatch(List.of(Map.of("k", "v1"), Map.of("k", "v2")), XContentType.JSON, 1L, term);
+
+        // Assertion should fail since batchA will contain seqNo 2 which was added as a Delete Op.
+        expectThrows(AssertionError.class, () -> translog.add(batchA));
+    }
+
+    public void testSeqNumberConflictAssertsSemanticEquality() throws IOException {
+        final long term = primaryTerm.get();
+        final Translog.Index op0 = new Translog.Index(Uid.encodeId("doc-0"), 0, term, 1L, new BytesArray("{\"k\":\"v1\"}"), null, -1L);
+        translog.add(op0);
+
+        final Translog.IndexBatch batchA = buildBatch(List.of(Map.of("k", "v1"), Map.of("k", "v2")), XContentType.JSON, 0L, term);
+
+        // Assertion should succeed since batchA will contain seqNo 0 which was same as the individual op that was added.
+        translog.add(batchA);
+    }
+
+    public void testSeqNumberConflictAssertsSemanticInequality() throws IOException {
+        final long term = primaryTerm.get();
+        final Translog.Index op0 = new Translog.Index(Uid.encodeId("solo-0"), 0, term, 1L, new BytesArray("{\"k\":\"v1\"}"), null, -1L);
+        translog.add(op0);
+
+        final Translog.IndexBatch batchA = buildBatch(List.of(Map.of("k", "v1"), Map.of("k", "v2")), XContentType.JSON, 0L, term);
+
+        // Assertion should fail since batchA will contain seqNo 0 with a different uid.
+        expectThrows(AssertionError.class, () -> translog.add(batchA));
     }
 
 }

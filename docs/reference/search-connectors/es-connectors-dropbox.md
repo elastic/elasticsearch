@@ -293,7 +293,7 @@ Due to a Dropbox issue, metadata updates to Paper files from Dropbox Paper are n
 
 
 ::::{note}
-* Content from files bigger than 10 MB won’t be extracted by default. You can use the [self-managed local extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
+* Content from files bigger than 8 MiB won’t be extracted by default. You can use the [self-managed local extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
 * Currently, the connector doesn’t retrieve files from shared Team folders.
 * Permissions are not synced by default. If [document level security (DLS)](/reference/search-connectors/document-level-security.md) is not enabled **all documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 

@@ -13,11 +13,13 @@ apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.mrjar'
 apply plugin: 'elasticsearch.foreign-library'
+apply plugin: 'elasticsearch.foreign-api'
 apply plugin: 'java-test-fixtures'
 
 dependencies {
   api project(':libs:core')
   api project(':libs:logging')
+  api project(':libs:foreign-adapter')
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'native'
   }

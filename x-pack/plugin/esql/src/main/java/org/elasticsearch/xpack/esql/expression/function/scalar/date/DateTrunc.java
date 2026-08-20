@@ -16,17 +16,21 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -44,7 +48,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 
-public class DateTrunc extends EsqlConfigurationFunction {
+public class DateTrunc extends EsqlConfigurationFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DateTrunc",
@@ -67,6 +71,7 @@ public class DateTrunc extends EsqlConfigurationFunction {
     private final Expression timestampField;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "date", "date_nanos" },
         briefSummary = "Rounds down a date to the closest interval.",
         description = "Rounds down a date to the closest interval since epoch, which starts at `0001-01-01T00:00:00Z`.",
@@ -88,6 +93,7 @@ public class DateTrunc extends EsqlConfigurationFunction {
         @Param(
             name = "interval",
             type = { "date_period", "time_duration" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Interval; [time span](/reference/query-languages/esql/esql-time-spans.md) (DATE_PERIOD or TIME_DURATION)."
         ) Expression interval,
         @Param(name = "date", type = { "date", "date_nanos" }, description = "Date expression") Expression field,
@@ -128,7 +134,7 @@ public class DateTrunc extends EsqlConfigurationFunction {
     }
 
     public ZoneId zoneId() {
-        return configuration().zoneId();
+        return QuerySettings.TIME_ZONE.get(configuration().resolvedSettings());
     }
 
     @Override
@@ -316,6 +322,6 @@ public class DateTrunc extends EsqlConfigurationFunction {
     }
 
     public Bucket timeBucketSpecRef() {
-        return new Bucket(source(), field(), interval(), null, null, configuration());
+        return new Bucket(source(), field(), interval(), null, null, null, configuration());
     }
 }

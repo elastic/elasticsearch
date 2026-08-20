@@ -1,0 +1,20 @@
+// Aggregate (MIN/MAX) pushdown over a Parquet uint64 column (physical INT64, mapped by ESQL to
+// UNSIGNED_LONG since values can exceed Long.MAX_VALUE). ESQL stores UNSIGNED_LONG sign-flip-encoded
+// (value ^ 2^63) inside a signed LongBlock; row-group statistics must go through the same encoding
+// or MIN/MAX pushdown would answer from the raw physical bit pattern instead. Fixture
+// {{uint64_pushdown}} has u64:uint64 values straddling both Long.MAX_VALUE (9223372036854775807)
+// and the unsigned maximum (18446744073709551615).
+//
+// Authored as FROM <dataset>: on dataset-capable backends (S3) ParquetFormatSpecIT registers the
+// dataset and runs the FROM query verbatim; other backends rebuild the equivalent EXTERNAL query.
+
+uint64AggregatePushdownSignFlipEncodes
+required_capability: external_command
+dataset: uint64_pushdown: "{{uint64_pushdown}}"
+
+FROM uint64_pushdown
+| STATS min_u64 = MIN(u64), max_u64 = MAX(u64);
+
+min_u64:unsigned_long | max_u64:unsigned_long
+0                      | 18446744073709551615
+;

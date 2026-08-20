@@ -36,6 +36,20 @@ import java.util.Map;
  */
 public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
 
+    private final boolean locallyUniqueNames;
+
+    public ReplaceAggregateNestedExpressionWithEval() {
+        this(false);
+    }
+
+    /**
+     * @param locallyUniqueNames when {@code true}, the synthetic eval names generated for extracted nested expressions are made
+     *                           globally unique instead of being derived deterministically from the extracted expression.
+     */
+    public ReplaceAggregateNestedExpressionWithEval(boolean locallyUniqueNames) {
+        this.locallyUniqueNames = locallyUniqueNames;
+    }
+
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
         List<Alias> evals = new ArrayList<>();
@@ -129,10 +143,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         return aggregate;
     }
 
-    private static Expression transformNonEvaluatableGroupingFunction(
-        GroupingFunction.NonEvaluatableGroupingFunction gf,
-        List<Alias> evals
-    ) {
+    private Expression transformNonEvaluatableGroupingFunction(GroupingFunction.NonEvaluatableGroupingFunction gf, List<Alias> evals) {
         int counter = 0;
         boolean childrenChanged = false;
         List<Expression> newChildren = new ArrayList<>(gf.children().size());
@@ -163,7 +174,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         return foundNestedAggs.get();
     }
 
-    private static Expression transformAggregateFunction(
+    private Expression transformAggregateFunction(
         AggregateFunction af,
         Map<Expression, Attribute> expToAttribute,
         List<Alias> evals,
@@ -171,6 +182,10 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         Holder<Boolean> aggsChanged
     ) {
         Expression result = af;
+
+        if (skipOptimisingAgg(af)) {
+            return af;
+        }
 
         Expression field = af.field();
         // if the field is a nested expression (not attribute or literal), replace it
@@ -190,7 +205,9 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         return result;
     }
 
-    private static String syntheticName(Expression expression, Expression func, int counter) {
-        return TemporaryNameGenerator.temporaryName(expression, func, counter);
+    private String syntheticName(Expression expression, Expression func, int counter) {
+        return locallyUniqueNames
+            ? TemporaryNameGenerator.locallyUniqueTemporaryName(TemporaryNameGenerator.toString(expression))
+            : TemporaryNameGenerator.temporaryName(expression, func, counter);
     }
 }

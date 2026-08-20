@@ -14,14 +14,15 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
 import org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalFixtures.Compression;
 import org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalFixtures.Format;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -32,17 +33,17 @@ import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.ACCESS_KEY;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.BUCKET;
-import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.SECRET_KEY;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.WAREHOUSE;
 
 /**
- * Heap-attack suite for the {@code EXTERNAL "s3://..."} ES|QL command. The mirror image of
- * {@link HeapAttackIT}: instead of attacking the cluster from inside (FROM + bulk-indexed data),
- * we attack it from outside by serving pathologically large or fat datasource files via an
- * in-memory S3 fixture and submitting {@code EXTERNAL} queries that would crash the node if the
- * request breaker did not intervene.
+ * Heap-attack suite for the {@code FROM <dataset>} ES|QL command over external datasources. The mirror
+ * image of {@link HeapAttackIT}: instead of attacking the cluster from inside (FROM + bulk-indexed data),
+ * we attack it from outside by serving pathologically large or fat datasource files via an in-memory S3
+ * fixture and submitting {@code FROM <dataset>} queries that would crash the node if the request breaker
+ * did not intervene. Each scenario registers a dataset (bound to a single {@code auth=anonymous} S3 data
+ * source against the fixture) pointing at its uploaded object key, then queries it by name. Because the
+ * data source persists no secrets, no project encryption key is required.
  * <p>
  * The cluster keeps the standard 512&nbsp;MB heap with a reduced request-breaker limit from
  * {@link ExternalClusters#buildExternalCluster}. Payload sizes are auto-tuned per-run from the
@@ -69,6 +70,11 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
      *  with {@code /{bucket}/{basePath}/}, where the fixture sets basePath = WAREHOUSE. */
     private static final String KEY_PREFIX = WAREHOUSE + "/heap-attack-external";
 
+    /** Name of the {@code auth=anonymous} S3 data source backing every {@code FROM <dataset>} query in this
+     *  suite. Registered once against the in-memory fixture; since it persists no secrets it requires no
+     *  project encryption key. */
+    private static final String DATA_SOURCE = "heap_attack_s3";
+
     /** Hard cap on rows generated in the test JVM regardless of cluster heap, to keep the
      *  test-JVM payload byte[] tractable. The actual row count used per scenario is derived from
      *  the cluster's breaker budget (see {@link #runStatsBlowup}); this constant only prevents
@@ -86,8 +92,9 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
     @Before
     public void assumeEnabledAndDiscoverHeap() throws Exception {
         assumeFalse("FIPS mode requires security enabled; this suite uses plain HTTP S3 fixtures", inFipsJvm());
-        assumeTrue("EXTERNAL command required; skipping in release build", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+        assumeTrue("FROM <dataset> support required; skipping in release build", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
         ensureHeapBudgetDiscovered();
+        ensureDataSourceRegistered();
     }
 
     /**
@@ -107,7 +114,22 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
     }
 
     /**
-     * The EXTERNAL datasource plugins (parquet / iceberg readers) keep a small steady-state
+     * Drops the datasets and data source this suite registered: they are {@code ProjectCustom} cluster
+     * metadata that {@link org.elasticsearch.test.rest.ESRestTestCase}'s between-test wipe does not touch,
+     * so they must be deleted explicitly. {@link DatasetRegistry#clearCaches()} runs unconditionally so a
+     * failed cleanup does not leave stale cache entries for a later suite in the same JVM fork.
+     */
+    @AfterClass
+    public static void cleanupRegisteredDatasets() throws IOException {
+        try {
+            DatasetRegistry.cleanup(adminClient());
+        } finally {
+            DatasetRegistry.clearCaches();
+        }
+    }
+
+    /**
+     * The external datasource plugins (parquet / iceberg readers) keep a small steady-state
      * allocation on the request breaker even between queries, so the parent's strict
      * {@code == 0} idle check fails right out of the gate. Relax the probe to 4&nbsp;MiB: we
      * still detect anything resembling a real leak after a heap-attack scenario.
@@ -140,6 +162,20 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
         }
         clusterHeapMax = minHeapMax;
         logger.info("Detected cluster heap budget (min across nodes): {} bytes", clusterHeapMax);
+    }
+
+    /**
+     * Registers the {@code auth=anonymous} S3 data source the suite's datasets bind to. The fixture serves
+     * blobs without an {@code Authorization} header, so anonymous reads succeed; persisting no secrets
+     * means no project encryption key is needed. Idempotent via {@link DatasetRegistry#ensureDataSource}.
+     */
+    private void ensureDataSourceRegistered() throws IOException {
+        DatasetRegistry.ensureDataSource(
+            adminClient(),
+            DATA_SOURCE,
+            "s3",
+            Map.of("endpoint", S3_FIXTURE.getAddress(), "auth", "anonymous")
+        );
     }
 
     /*
@@ -202,6 +238,11 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
         // Same key across attempts so the fixture's blob map holds at most one payload per test
         // method — otherwise five attempts × ~200 MB pile up in the test JVM heap.
         String key = scenarioKey("statsblowup", format, compression);
+        // The dataset's resource (the s3:// URI) is stable across attempts — only the payload at that
+        // key grows — so a single registration per scenario suffices. The format is inferred from the
+        // key's extension, so the dataset carries no WITH settings.
+        String dataset = datasetName("statsblowup", format, compression);
+        DatasetRegistry.ensureDataset(adminClient(), dataset, DATA_SOURCE, "s3://" + BUCKET + "/" + key, null);
         assertCircuitBreaks(attempt -> {
             int distinctKeys = (int) Math.min(MAX_ROWS / 4, (long) baseDistinctKeys * attempt);
             int rowCount = (int) Math.min(MAX_ROWS, (long) baseRowCount * attempt);
@@ -211,7 +252,7 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
                 compression
             );
             S3FixtureUtils.addBlobToFixture(handler(), key, payload);
-            String esql = externalS3Query(key) + " | STATS c = COUNT(*) BY id";
+            String esql = "FROM " + dataset + " | STATS c = COUNT(*) BY id";
             return runQueryAsMap(esql);
         });
     }
@@ -244,8 +285,8 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
 
     /**
      * Returns the bare method name without the {@code {seed=[...]}} suffix that the randomized
-     * runner appends when {@code -Dtests.iters} is in effect. S3 keys and the EXTERNAL command
-     * must not contain curly braces (glob syntax) or spaces.
+     * runner appends when {@code -Dtests.iters} is in effect. S3 keys and dataset names must not
+     * contain curly braces (glob syntax) or spaces.
      */
     private String sanitizedTestName() {
         String name = getTestName();
@@ -253,14 +294,20 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
         return brace >= 0 ? name.substring(0, brace) : name;
     }
 
-    private String externalS3Query(String s3Key) {
-        return Strings.format(
-            "EXTERNAL \"s3://%s/%s\" WITH { \"endpoint\": \"%s\", \"access_key\": \"%s\", \"secret_key\": \"%s\" }",
-            BUCKET,
-            s3Key,
-            S3_FIXTURE.getAddress(),
-            ACCESS_KEY,
-            SECRET_KEY
+    /**
+     * Index-name-legal dataset id for a scenario/format/compression triple: lowercase, underscore
+     * separated, with none of the slashes, dots or braces that {@link #scenarioKey} carries. The test
+     * method name keeps datasets distinct across the parameterized scenarios so each binds to its own
+     * object key.
+     */
+    private String datasetName(String scenario, Format format, Compression compression) {
+        return String.format(
+            Locale.ROOT,
+            "heap_attack_%s_%s_%s_%s",
+            sanitizedTestName().toLowerCase(Locale.ROOT),
+            scenario,
+            format.name().toLowerCase(Locale.ROOT),
+            compression.name().toLowerCase(Locale.ROOT)
         );
     }
 

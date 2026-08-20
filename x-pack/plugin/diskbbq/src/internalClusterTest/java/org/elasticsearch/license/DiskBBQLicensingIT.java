@@ -36,12 +36,6 @@ public class DiskBBQLicensingIT extends ESIntegTestCase {
     }
 
     @Override
-    protected boolean enableIndexSlice() {
-        // DiskBBQ validates and enables the setting directly, overriding so that the test plugin doesn't conflict
-        return false;
-    }
-
-    @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         settings.put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");

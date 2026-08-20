@@ -13,8 +13,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.RemoteClusterActionType;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -634,7 +634,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         return service;
     }
 
-    private static class MalformedGetRequest extends LegacyActionRequest {
+    private static class MalformedGetRequest extends UntypedActionRequest {
         private final String otherIndexId;
 
         MalformedGetRequest(String otherIndexId) {

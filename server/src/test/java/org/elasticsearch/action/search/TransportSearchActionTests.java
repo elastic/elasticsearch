@@ -74,6 +74,7 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
+import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchService;
@@ -117,6 +118,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -143,8 +145,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -155,9 +159,8 @@ public class TransportSearchActionTests extends ESTestCase {
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void closeThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
@@ -1538,9 +1541,7 @@ public class TransportSearchActionTests extends ESTestCase {
             assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
         }
         {
-            SearchRequestTests searchRequestTests = new SearchRequestTests();
-            searchRequestTests.setUp();
-            SearchRequest searchRequest = searchRequestTests.createSearchRequest();
+            SearchRequest searchRequest = AbstractSearchTestCase.randomSearchRequest();
             searchRequest.scroll(null);
             searchRequest.searchType(SearchType.QUERY_THEN_FETCH);
             SearchSourceBuilder source = searchRequest.source();
@@ -2130,7 +2131,7 @@ public class TransportSearchActionTests extends ESTestCase {
         }
     }
 
-    public void testValidateAndResolveSearchSliceRoutingRequiresSliceWhenEnabled() {
+    public void testValidateAndResolveSearchSliceRoutingDefaultsToAllWhenEnabled() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchRequest request = new SearchRequest("slice-enabled-index");
         IndexMetadata metadata = IndexMetadata.builder("slice-enabled-index")
@@ -2141,16 +2142,13 @@ public class TransportSearchActionTests extends ESTestCase {
                     .put("index.slice.enabled", true)
             )
             .build();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> TransportSearchAction.validateAndResolveSearchSliceRouting(
-                request,
-                Map.of(metadata.getIndex(), metadata),
-                request.indices(),
-                false
-            )
+        TransportSearchAction.validateAndResolveSearchSliceRouting(
+            request,
+            Map.of(metadata.getIndex(), metadata),
+            request.indices(),
+            false
         );
-        assertThat(e.getMessage(), containsString("[_slice] is required when [index.slice.enabled] is true"));
+        assertNull("omitting _slice on a slice-enabled index should default to _all (null routing)", request.routing());
     }
 
     public void testValidateAndResolveSearchSliceRoutingRejectsRoutingWhenSliceEnabled() {
@@ -2175,7 +2173,7 @@ public class TransportSearchActionTests extends ESTestCase {
             )
         );
         assertThat(e.getMessage(), containsString("[routing] is not allowed when [index.slice.enabled] is true"));
-        assertThat(e.getMessage(), containsString("use [_slice] instead"));
+        assertThat(e.getMessage(), containsString("use [slice] instead"));
     }
 
     public void testValidateAndResolveSearchSliceRoutingRejectsSliceWhenDisabled() {
@@ -2199,7 +2197,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 false
             )
         );
-        assertThat(e.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+        assertThat(e.getMessage(), containsString("[slice] is not allowed when [index.slice.enabled] is false"));
     }
 
     public void testValidateAndResolveSearchSliceRoutingAcceptsMixedTargets() {
@@ -2442,5 +2440,45 @@ public class TransportSearchActionTests extends ESTestCase {
             .toArray(String[]::new);
 
         assertThat(Arrays.asList(actual), containsInAnyOrder(expected));
+    }
+
+    public void testCcsClusterInfoUpdateInternalCancel_UpdatesStatus() {
+        String indexExpr = "indexExpression";
+        Map<String, SearchResponse.Cluster> clusterMap = new HashMap<>();
+        clusterMap.put(
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+            new SearchResponse.Cluster(
+                RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                indexExpr,
+                false,
+                SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION
+            )
+        );
+        String aliasA = "project-a";
+        clusterMap.put(aliasA, new SearchResponse.Cluster(aliasA, indexExpr, false, null));
+        String aliasB = "project-b";
+        clusterMap.put(aliasB, new SearchResponse.Cluster(aliasB, indexExpr, false, null));
+        SearchResponse.Clusters projects = new SearchResponse.Clusters(clusterMap, false);
+
+        // Confirm the initial state
+        for (String alias : projects.getClusterAliases()) {
+            assertThat(projects.getCluster(alias).getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
+            assertThat(projects.getCluster(alias).getFailures(), empty());
+        }
+
+        var local = projects.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+
+        // Set one cluster to skipped
+        TransportSearchAction.ccsClusterInfoUpdateInternalCancel(projects, aliasA, true);
+        assertThat(projects.getCluster(aliasA).getStatus(), equalTo(SearchResponse.Cluster.Status.SKIPPED));
+        assertThat(projects.getCluster(aliasA).getFailures(), empty());
+
+        // Set one cluster to failed
+        TransportSearchAction.ccsClusterInfoUpdateInternalCancel(projects, aliasB, false);
+        assertThat(projects.getCluster(aliasB).getStatus(), equalTo(SearchResponse.Cluster.Status.FAILED));
+        assertThat(projects.getCluster(aliasB).getFailures(), empty());
+
+        // Confirm the other cluster is unmodified
+        assertThat(projects.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY), sameInstance(local));
     }
 }

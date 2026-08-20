@@ -72,3 +72,13 @@ tasks.named('forbiddenPatterns').configure {
   // (*.crt is already excluded by the task's built-in default list.)
   exclude '**/*.key'
 }
+
+// Local-dev fixture: stands up an HTTPS workload-identity-issuer mock backed by the checked-in
+// test PEM material so a node from `./gradlew run` can exercise the real mTLS transport. See
+// LocalTestWorkloadIdentityIssuer's javadoc for the elasticsearch.yml snippet to point a node at it.
+tasks.register('runTestIssuer', JavaExec) {
+  group = 'Execution'
+  description = 'Run the local test workload-identity-issuer fixture (mTLS, per-audience JWTs) for manual end-to-end testing'
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'org.elasticsearch.workloadidentity.LocalTestWorkloadIdentityIssuer'
+}

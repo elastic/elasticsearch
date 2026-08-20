@@ -30,9 +30,30 @@ public class CompositeRecoverySchedulingListener implements RecoverySchedulingLi
     }
 
     @Override
+    public void onRecoveryCancelledBeforeQueuing(RecoverySource.Type type, RecoveryRole role) {
+        for (RecoverySchedulingListener listener : listeners) {
+            listener.onRecoveryCancelledBeforeQueuing(type, role);
+        }
+    }
+
+    @Override
     public void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role) {
         for (RecoverySchedulingListener listener : listeners) {
             listener.onRecoveryQueued(type, role);
+        }
+    }
+
+    @Override
+    public void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {
+        for (RecoverySchedulingListener listener : listeners) {
+            listener.onQueuedRecoveryDiscarded(type, role);
+        }
+    }
+
+    @Override
+    public void onQueuedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {
+        for (RecoverySchedulingListener listener : listeners) {
+            listener.onQueuedRecoveryCancelled(type, role);
         }
     }
 
@@ -51,9 +72,9 @@ public class CompositeRecoverySchedulingListener implements RecoverySchedulingLi
     }
 
     @Override
-    public void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {
+    public void onStartedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {
         for (RecoverySchedulingListener listener : listeners) {
-            listener.onQueuedRecoveryDiscarded(type, role);
+            listener.onStartedRecoveryCancelled(type, role);
         }
     }
 
@@ -61,6 +82,20 @@ public class CompositeRecoverySchedulingListener implements RecoverySchedulingLi
     public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
         for (RecoverySchedulingListener listener : listeners) {
             listener.onRecoveryCompleted(type, role);
+        }
+    }
+
+    @Override
+    public void onRecoveriesBlocked(String gateName) {
+        for (RecoverySchedulingListener listener : listeners) {
+            listener.onRecoveriesBlocked(gateName);
+        }
+    }
+
+    @Override
+    public void onRecoveriesUnblocked(long blockedTimeMillis) {
+        for (RecoverySchedulingListener listener : listeners) {
+            listener.onRecoveriesUnblocked(blockedTimeMillis);
         }
     }
 }

@@ -72,7 +72,6 @@ import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexWriteLoad;
@@ -1856,9 +1855,8 @@ public class DataStreamIT extends ESIntegTestCase {
             IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
             aliasesAddRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index("logs-es").aliases("logs"));
             var e = expectThrows(InvalidAliasNameException.class, indicesAdmin().aliases(aliasesAddRequest));
-            String expectedLogs = DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
-                ? "Invalid alias name [logs]: an index, data stream, ESQL view, or ESQL dataset exists with the same name as the alias"
-                : "Invalid alias name [logs]: an index, data stream, or ESQL view exists with the same name as the alias";
+            String expectedLogs = "Invalid alias name [logs]: an index, data stream, ESQL view, or ESQL dataset exists "
+                + "with the same name as the alias";
             assertThat(e.getMessage(), equalTo(expectedLogs));
         }
         {
@@ -1878,9 +1876,8 @@ public class DataStreamIT extends ESIntegTestCase {
                     false
                 )
             );
-            String expectedLogs = DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
-                ? "Invalid alias name [logs]: an index, data stream, ESQL view, or ESQL dataset exists with the same name as the alias"
-                : "Invalid alias name [logs]: an index, data stream, or ESQL view exists with the same name as the alias";
+            String expectedLogs = "Invalid alias name [logs]: an index, data stream, ESQL view, or ESQL dataset exists "
+                + "with the same name as the alias";
             assertThat(e.getCause().getMessage(), equalTo(expectedLogs));
         }
     }

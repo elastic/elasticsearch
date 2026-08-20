@@ -62,7 +62,7 @@ setup:
         id: "3"
         body:
           name: rabbit.jpg
-          vector: [1.0, 222.6, -26.0, 29.6, -312.0]
+          vector: [ 0.25, 55.65, -6.5, 7.4, -78.0 ]
           another_vector: [-0.5, 11.0, 0, 12, 111.0]
   # Flush in order to provoke a merge later
   - do:
@@ -78,6 +78,9 @@ setup:
       indices.refresh: { }
 ---
 "kNN search only":
+  - requires:
+      cluster_features: [ "lucene_10_4_upgrade" ]
+      reason: "Approximate int8_hnsw scoring differs between Lucene 10.3 and 10.4+ quantizers"
   - do:
       search:
         index: hnsw_byte_quantized
@@ -112,6 +115,9 @@ setup:
   - match: {hits.hits.1.fields.name.0: "moose.jpg"}
 ---
 "kNN search plus query":
+  - requires:
+      cluster_features: [ "lucene_10_4_upgrade" ]
+      reason: "Approximate int8_hnsw scoring differs between Lucene 10.3 and 10.4+ quantizers"
   - do:
       search:
         index: hnsw_byte_quantized
@@ -196,6 +202,9 @@ setup:
 
 ---
 "KNN Vector similarity search only":
+  - requires:
+      cluster_features: [ "lucene_10_4_upgrade" ]
+      reason: "Approximate int8_hnsw scoring differs between Lucene 10.3 and 10.4+ quantizers"
   - do:
       search:
         index: hnsw_byte_quantized
@@ -214,6 +223,9 @@ setup:
   - match: {hits.hits.0.fields.name.0: "moose.jpg"}
 ---
 "Vector similarity with filter only":
+  - requires:
+      cluster_features: [ "lucene_10_4_upgrade" ]
+      reason: "Approximate int8_hnsw scoring differs between Lucene 10.3 and 10.4+ quantizers"
   - do:
       search:
         index: hnsw_byte_quantized

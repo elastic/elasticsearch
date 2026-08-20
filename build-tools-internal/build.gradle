@@ -9,6 +9,7 @@
 
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo
+import org.gradle.process.CommandLineArgumentProvider
 
 plugins {
   id 'java-gradle-plugin'
@@ -159,6 +160,10 @@ gradlePlugin {
       id = 'elasticsearch.foreign-library'
       implementationClass = 'org.elasticsearch.gradle.internal.foreign.ForeignLibraryPlugin'
     }
+    foreignApi {
+      id = 'elasticsearch.foreign-api'
+      implementationClass = 'org.elasticsearch.gradle.internal.ForeignApiPlugin'
+    }
     embeddedProvider {
       id = 'elasticsearch.embedded-providers'
       implementationClass = 'org.elasticsearch.gradle.internal.EmbeddedProviderPlugin'
@@ -166,6 +171,10 @@ gradlePlugin {
     esqlFunction {
       id = 'elasticsearch.esql-function'
       implementationClass = 'org.elasticsearch.gradle.internal.esql.EsqlFunctionPlugin'
+    }
+    esqlCsvSpecTests {
+      id = 'elasticsearch.esql-csv-spec-tests'
+      implementationClass = 'org.elasticsearch.gradle.internal.esql.EsqlCsvSpecTestsPlugin'
     }
     releaseTools {
       id = 'elasticsearch.release-tools'
@@ -371,8 +380,8 @@ dependencies {
   testImplementation buildLibs.spock.junit4
   testImplementation buildLibs.json.assert
   integTestImplementation buildLibs.xmlunit.core
-  integTestImplementation(buildLibs.archunit) {
-    because 'architecture rules enforcing test coverage of plugins and tasks'
+  testImplementation(buildLibs.archunit) {
+    because 'architecture rules enforcing Gradle best practices on build logic'
   }
 
 }
@@ -385,6 +394,17 @@ tasks.register("integTest", Test) {
   testClassesDirs = sourceSets.integTest.output.classesDirs
   classpath = sourceSets.integTest.runtimeClasspath
   useJUnitPlatform()
+  // ElasticsearchTestBasePlugin cannot apply itself, so java.io.tmpdir must be set manually here.
+  // Without it, JUnit/Spock create temp dirs under /tmp (root fs) instead of the build dir (/dev/shm in CI).
+  // The nested Gradle TestKit runners require an absolute path, so a relative value is not an option here.
+  // A CommandLineArgumentProvider keeps that absolute path out of the task inputs so it stays cache relocatable.
+  def tempDir = temporaryDir
+  // Pin the TestKit Gradle user home instead of letting TestKit derive it from java.io.tmpdir, so that
+  // AbstractGradleFuncTest knows exactly where to seed its cache-cleanup init script.
+  def testKitDir = new File(temporaryDir, ".gradle-test-kit")
+  jvmArgumentProviders.add({
+    ["-Djava.io.tmpdir=${tempDir}", "-Dorg.gradle.testkit.dir=${testKitDir}"] as List<String>
+  } as CommandLineArgumentProvider)
 }
 
 tasks.named("check").configure { dependsOn("integTest") }

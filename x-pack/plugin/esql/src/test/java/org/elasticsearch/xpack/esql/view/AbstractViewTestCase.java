@@ -20,7 +20,7 @@ public abstract class AbstractViewTestCase extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(LocalStateView.class, TestEncryptionServicePlugin.class);
+        return List.of(TestEncryptionServicePlugin.class, LocalStateView.class);
     }
 
     protected static class TestResponseCapture<T> implements ActionListener<T> {

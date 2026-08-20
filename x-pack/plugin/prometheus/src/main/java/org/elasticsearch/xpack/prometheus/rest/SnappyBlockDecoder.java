@@ -67,9 +67,7 @@ public final class SnappyBlockDecoder implements IndexingPressureAwareContentAgg
 
     @Override
     public ReleasableBytesReference process(ReleasableBytesReference body, long maxSize) throws IOException {
-        try (body) {
-            return decode(body.streamInput(), maxSize);
-        }
+        return decode(body.streamInput(), maxSize);
     }
 
     private ReleasableBytesReference decode(StreamInput in, long maxSize) throws IOException {

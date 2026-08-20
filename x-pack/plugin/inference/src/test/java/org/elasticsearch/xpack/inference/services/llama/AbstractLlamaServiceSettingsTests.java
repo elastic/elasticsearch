@@ -148,7 +148,7 @@ public abstract class AbstractLlamaServiceSettingsTests<T extends LlamaServiceSe
         assertThat(originalServiceSettings.updateServiceSettings(new HashMap<>()), is(originalServiceSettings));
     }
 
-    public void testUpdateServiceSettings_EmptyRateLimitObject_DoesNotChangeSettings() {
+    public void testUpdateServiceSettings_EmptyRateLimitObject_RevertsToDefault() {
         var originalServiceSettings = createServiceSettings(
             INITIAL_TEST_MODEL_ID,
             INITIAL_TEST_URI,
@@ -158,7 +158,25 @@ public abstract class AbstractLlamaServiceSettingsTests<T extends LlamaServiceSe
             new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>()))
         );
 
-        assertThat(updatedServiceSettings, is(originalServiceSettings));
+        assertThat(
+            updatedServiceSettings,
+            is(createServiceSettings(INITIAL_TEST_MODEL_ID, INITIAL_TEST_URI, new RateLimitSettings(DEFAULT_RATE_LIMIT)))
+        );
+    }
+
+    public void testUpdateServiceSettings_ExplicitNullRateLimit_RevertsToDefault() {
+        var settingsMap = new HashMap<String, Object>();
+        settingsMap.put(RateLimitSettings.FIELD_NAME, null);
+        var originalServiceSettings = createServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        assertThat(
+            originalServiceSettings.updateServiceSettings(settingsMap),
+            is(createServiceSettings(INITIAL_TEST_MODEL_ID, INITIAL_TEST_URI, new RateLimitSettings(DEFAULT_RATE_LIMIT)))
+        );
     }
 
     public void testUpdateServiceSettings_GivenImmutableFields_ThrowsException() {

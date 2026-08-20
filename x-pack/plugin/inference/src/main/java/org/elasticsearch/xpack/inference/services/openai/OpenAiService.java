@@ -281,7 +281,11 @@ public class OpenAiService extends SenderService<OpenAiModel> {
 
         for (var request : batchedRequests) {
             var action = openAiModel.accept(actionCreator, taskSettings);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(
+                new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                timeout,
+                request.listener()
+            );
         }
     }
 
@@ -301,7 +305,7 @@ public class OpenAiService extends SenderService<OpenAiModel> {
         var actionCreator = new OpenAiActionCreator(getSender(), getServiceComponents());
 
         var action = openAiModel.accept(actionCreator, request.taskSettings());
-        action.execute(new EmbeddingsInput(request::inputs, request.inputType()), timeout, listener);
+        action.execute(new EmbeddingsInput(request.inputs(), request.inputType()), timeout, listener);
     }
 
     @Override
@@ -505,6 +509,7 @@ public class OpenAiService extends SenderService<OpenAiModel> {
                 );
 
                 configurationMap.putAll(OpenAiSecretSettings.configurations(SUPPORTED_TASK_TYPES_FOR_SERVICES_API));
+                configurationMap.putAll(OpenAiOAuth2Settings.configurations(SUPPORTED_TASK_TYPES_FOR_SERVICES_API));
                 configurationMap.putAll(
                     RateLimitSettings.toSettingsConfigurationWithDescription(
                         "Default number of requests allowed per minute. For text_embedding and embedding it is 3000. "

@@ -9,7 +9,7 @@ import org.elasticsearch.action.search.OnlinePrewarmingServiceProvider;
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.metadata.TemplateDecoratorProvider;
 import org.elasticsearch.repositories.SnapshotShardContextFactory;
-import org.elasticsearch.xpack.stateless.memory.StatelessHeapUsageCollector;
+import org.elasticsearch.xpack.stateless.memory.StatelessHeapUsageReader;
 import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotShardContextFactory;
 import org.elasticsearch.xpack.stateless.templates.StatelessTemplateSettingsDecoratorProvider;
 
@@ -17,6 +17,7 @@ module org.elasticsearch.xpack.stateless {
     requires org.elasticsearch.base;
     requires org.elasticsearch.blobcache;
     requires org.elasticsearch.logging;
+    requires org.elasticsearch.lucene.store;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcore;
     requires org.elasticsearch.xcontent;
@@ -43,6 +44,7 @@ module org.elasticsearch.xpack.stateless {
 
     exports org.elasticsearch.xpack.stateless.cluster.coordination to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.xpack.stateless.engine to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
+    exports org.elasticsearch.xpack.stateless.recovery.metering to org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.xpack.stateless.recovery.shardinfo to org.elasticsearch.server; // For PrimaryTermAndGeneration
     exports org.elasticsearch.xpack.stateless.snapshots to org.elasticsearch.server; // for stateless snapshots
     exports org.elasticsearch.xpack.stateless.templates to org.elasticsearch.server;
@@ -50,5 +52,5 @@ module org.elasticsearch.xpack.stateless {
     provides OnlinePrewarmingServiceProvider with org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingServiceProvider;
     provides SnapshotShardContextFactory with StatelessSnapshotShardContextFactory;
     provides TemplateDecoratorProvider with StatelessTemplateSettingsDecoratorProvider;
-    provides EstimatedHeapUsageCollector with StatelessHeapUsageCollector;
+    provides EstimatedHeapUsageCollector with StatelessHeapUsageReader;
 }

@@ -11,10 +11,11 @@ import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.mrjar'
+apply plugin: 'elasticsearch.foreign-api'
 apply plugin: 'java-test-fixtures'
 
 dependencies {
+  implementation project(':libs:lucene-store')
   implementation project(':libs:native')
   implementation project(':libs:logging')
   implementation "org.apache.lucene:lucene-core:${versions.lucene}"

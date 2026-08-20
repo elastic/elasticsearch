@@ -22,16 +22,19 @@ package org.elasticsearch.test.knn;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.SortedDocValuesField;
-import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.Sort;
@@ -55,6 +58,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -197,6 +201,37 @@ public class KnnIndexer {
         result.numDocs = totalDocs;
     }
 
+    void deleteDocuments(Directory dir, KnnIndexTester.Results result, int totalDocs, int numDeletedDocs, long deleteSeed)
+        throws IOException {
+        IndexWriterConfig iwc = new IndexWriterConfig();
+        iwc.setCodec(codec);
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        try (IndexWriter iw = new IndexWriter(dir, iwc)) {
+            int[] docIds = new int[totalDocs];
+            for (int i = 0; i < totalDocs; i++) {
+                docIds[i] = i;
+            }
+            Random random = new Random(deleteSeed);
+            for (int i = 0; i < numDeletedDocs; i++) {
+                int j = i + random.nextInt(totalDocs - i);
+                int tmp = docIds[i];
+                docIds[i] = docIds[j];
+                docIds[j] = tmp;
+            }
+            for (int i = 0; i < numDeletedDocs; i++) {
+                iw.deleteDocuments(new Term(ID_FIELD, Integer.toString(docIds[i])));
+            }
+            logger.info("KnnIndexer: deleted {} of {} documents (delete_seed={})", numDeletedDocs, totalDocs, deleteSeed);
+            result.numDeletedDocs = numDeletedDocs;
+        }
+    }
+
+    void deleteDocuments(KnnIndexTester.Results result, int totalDocs, int numDeletedDocs, long deleteSeed) throws IOException {
+        try (Directory dir = getDirectory(indexPath)) {
+            deleteDocuments(dir, result, totalDocs, numDeletedDocs, deleteSeed);
+        }
+    }
+
     private IndexWriterConfig createIndexWriterConfig(Sort indexSort) {
         IndexWriterConfig iwc = new IndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.CREATE);
         iwc.setCodec(codec);
@@ -307,10 +342,40 @@ public class KnnIndexer {
         try {
             Class<?> factoryClass = Class.forName("org.elasticsearch.xpack.stateless.lucene.StatelessDirectoryFactory");
             Settings searchNodeSettings = Settings.builder().putList("node.roles", "search").build();
-            var method = factoryClass.getMethod("create", Path.class, Path.class, Settings.class);
+            var method = factoryClass.getMethod("newSearchDirectory", Path.class, Path.class, Settings.class);
             return (Directory) method.invoke(null, indexPath, workPath, searchNodeSettings);
         } catch (Exception e) {
             throw new IOException("Failed to create stateless directory. Ensure the stateless test artifact is on the classpath.", e);
+        }
+    }
+
+    /**
+     * Opens a stateless <em>indexing-node</em> directory for the given index path. Files are written locally and never
+     * uploaded, so every reopen reads from the local copy. This is the read path a stateless indexing node takes when a merge
+     * reopens a segment file it has just written for scoring.
+     * <p>
+     * The index is always built from scratch: the underlying directory only tracks the files it creates itself, so
+     * {@code indexPath} is wiped when the directory is opened. This is why the {@code stateless-index} directory type
+     * requires {@code reindex: true}.
+     */
+    static Directory openStatelessIndexDirectory(Path indexPath) throws IOException {
+        Path workPath = indexPath.resolveSibling(indexPath.getFileName() + ".stateless_index_work");
+        Files.createDirectories(workPath);
+        logger.info("Opening stateless index directory for index at {} with work path {}", indexPath, workPath);
+        return newStatelessIndexDirectory(indexPath, workPath);
+    }
+
+    /**
+     * Creates a directory backed by stateless indexing-node infrastructure. Loaded via reflection for the same reason as
+     * {@link #newStatelessDirectory}.
+     */
+    private static Directory newStatelessIndexDirectory(Path indexPath, Path workPath) throws IOException {
+        try {
+            Class<?> factoryClass = Class.forName("org.elasticsearch.xpack.stateless.lucene.StatelessDirectoryFactory");
+            var method = factoryClass.getMethod("newIndexDirectory", Path.class, Path.class);
+            return (Directory) method.invoke(null, indexPath, workPath);
+        } catch (Exception e) {
+            throw new IOException("Failed to create stateless index directory. Ensure the stateless test artifact is on the classpath.", e);
         }
     }
 
@@ -348,7 +413,7 @@ public class KnnIndexer {
         public Document createDocument(IndexableField vectorField, int docOrd) {
             Document doc = new Document();
             doc.add(vectorField);
-            doc.add(new StoredField(ID_FIELD, docOrd));
+            doc.add(new StringField(ID_FIELD, Integer.toString(docOrd), Field.Store.YES));
             return doc;
         }
     }
@@ -369,7 +434,7 @@ public class KnnIndexer {
         public Document createDocument(IndexableField vectorField, int docOrd) {
             Document doc = new Document();
             doc.add(vectorField);
-            doc.add(new StoredField(ID_FIELD, docOrdinals[docOrd]));
+            doc.add(new StringField(ID_FIELD, Integer.toString(docOrdinals[docOrd]), Field.Store.YES));
             doc.add(SortedDocValuesField.indexedField(PARTITION_ID_FIELD, new BytesRef(docPartitionIds[docOrd])));
             return doc;
         }

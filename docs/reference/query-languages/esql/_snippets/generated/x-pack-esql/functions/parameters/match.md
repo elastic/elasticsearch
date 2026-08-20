@@ -3,10 +3,10 @@
 ## Parameters
 
 `field`
-:   Field that the query will target.
+:   Field or expression that the query will target.
 
 `query`
-:   Value to find in the provided field.
+:   Value to find in the provided field or expression.
 
 `options`
 :   (Optional) Match additional options as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params).

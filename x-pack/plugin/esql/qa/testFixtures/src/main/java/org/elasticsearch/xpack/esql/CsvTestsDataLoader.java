@@ -27,6 +27,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -34,6 +35,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.view.RestPutViewAction;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -89,25 +91,22 @@ public class CsvTestsDataLoader {
 
     public static final Map<String, TestDataset> CSV_DATASET = Stream.of(
         new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields(),
+        new TestDataset("conv_from_keyword", "mapping-conv_from_keyword.json", "conv_from_keyword.csv"),
         new TestDataset("voyager", "mapping-voyager.json", "voyager.csv").noSubfields(),
         new TestDataset("employees_incompatible", "mapping-default-incompatible.json", "employees_incompatible.csv").noSubfields(),
-        new TestDataset("employees", "mapping-default.json", "employees.csv").withIndex("employees_no_names")
-            .withTypeMapping(removeFields("first_name", "last_name"))
-            .withDynamic("false")
+        new TestDataset("employees_no_names", "mapping-default.json", "employees.csv").withTypeMapping(
+            removeFields("first_name", "last_name")
+        ).withDynamic("false").noSubfields(),
+        new TestDataset("employees_gender_text", "mapping-default.json", "employees.csv").withTypeMapping(Map.of("gender", "text"))
             .noSubfields(),
-        new TestDataset("employees", "mapping-default.json", "employees.csv").withIndex("employees_gender_text")
-            .withTypeMapping(Map.of("gender", "text"))
-            .noSubfields(),
-        new TestDataset("employees", "mapping-default.json", "employees.csv").withIndex("employees_no_gender")
-            .withTypeMapping(removeFields("gender"))
+        new TestDataset("employees_no_gender", "mapping-default.json", "employees.csv").withTypeMapping(removeFields("gender"))
             .withDynamic("false")
             .noSubfields(),
         new TestDataset("all_types", "mapping-all-types.json", "all-types.csv"),
-        new TestDataset("all_types", "mapping-all-types.json", "all-types.csv").withIndex("all_types_no_short")
-            .withTypeMapping(removeFields("short"))
+        new TestDataset("all_types_no_short", "mapping-all-types.json", "all-types.csv").withTypeMapping(removeFields("short"))
             .withDynamic("false"),
-        new TestDataset("all_types", "mapping-all-types.json", "all-types.csv").withIndex("all_types_short_as_long")
-            .withTypeMapping(Map.of("short", "long")),
+        new TestDataset("all_types_short_as_long", "mapping-all-types.json", "all-types.csv").withTypeMapping(Map.of("short", "long")),
+        new TestDataset("all_types_mv", "mapping-all-types.json", "all-types-mv.csv"),
         new TestDataset("hosts"),
         new TestDataset("hosts").withIndex("hosts_ip_is_kwd").withTypeMapping(Map.of("ip0", "keyword", "ip1", "keyword")),
         new TestDataset("apps"),
@@ -135,13 +134,30 @@ public class CsvTestsDataLoader {
         new TestDataset("sample_data"),
         new TestDataset("sample_data").withIndex("cloned_sample_data"),
         new TestDataset("partial_mapping_sample_data"),
+        new TestDataset("partial_mapping_mv_sample_data", "mapping-partial_mapping_sample_data.json", "partial_mapping_mv_sample_data.csv"),
+        new TestDataset("no_mapping_date_extract_fields", "mapping-no_mapping_sample_data.json", "date_extract_fields.csv"),
+        new TestDataset(
+            "partial_mapping_mv_no_source_sample_data",
+            "mapping-partial_mapping_no_source_sample_data.json",
+            "partial_mapping_mv_sample_data.csv"
+        ),
         new TestDataset(
             "partial_message_types_lookup",
             "mapping-partial_message_types_lookup.json",
             "partial_message_types_lookup.csv",
             "lookup-settings.json"
         ),
+        new TestDataset(
+            "message_language_code_lookup",
+            "mapping-message_language_code_lookup.json",
+            "message_language_code_lookup.csv",
+            "lookup-settings.json"
+        ),
         new TestDataset("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv"),
+        new TestDataset("unmapped_array_data", "mapping-unmapped_array_data.json", "unmapped_array_data.csv"),
+        new TestDataset("unmapped_object_data", "mapping-unmapped_object_data.json", "unmapped_object_data.csv"),
+        new TestDataset("cross_mapping_a", "mapping-cross_mapping_a.json", "cross_mapping_a.csv"),
+        new TestDataset("cross_mapping_b", "mapping-cross_mapping_b.json", "cross_mapping_b.csv"),
         new TestDataset("no_message_sample_data", "mapping-sample_data.json", "sample_data.csv").withTypeMapping(removeFields("message"))
             .withDynamic("false"),
         new TestDataset(
@@ -153,6 +169,12 @@ public class CsvTestsDataLoader {
             "partial_mapping_excluded_source_sample_data",
             "mapping-partial_mapping_excluded_source_sample_data.json",
             "partial_mapping_sample_data.csv"
+        ),
+        new TestDataset(
+            "synthetic_source_partial_mapping",
+            "mapping-partial_mapping_sample_data.json",
+            "partial_mapping_sample_data.csv",
+            "synthetic-source-settings.json"
         ),
         new TestDataset("mv_sample_data"),
         new TestDataset("event_alerts"),
@@ -175,6 +197,7 @@ public class CsvTestsDataLoader {
         new TestDataset("clientips").withIndex("clientips_lookup").withSetting("lookup-settings.json"),
         new TestDataset("message_types"),
         new TestDataset("message_types").withIndex("message_types_lookup").withSetting("lookup-settings.json"),
+        new TestDataset("hash_algorithms"),
         new TestDataset("firewall_logs").noData(),
         new TestDataset("threat_list").withSetting("lookup-settings.json").noData(),
         new TestDataset("app_logs").noData(),
@@ -206,11 +229,15 @@ public class CsvTestsDataLoader {
         new TestDataset("k8s_unmapped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
             .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
             .withDynamic("false"),
+        new TestDataset("k8s_nonexistent", "k8s-mappings.json", "k8s_nonexistent.csv").withSetting("k8s-settings.json")
+            .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
+            .withDynamic("false"),
         new TestDataset("k8s_retyped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
             .withTypeMapping(Map.of("network.bytes_in", "double", "network.cost", "long")),
         new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv", "k8s-settings.json"),
         new TestDataset("k8s-downsampled", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json"),
         new TestDataset("k8s_stored_source", "k8s-mappings.json", "k8s.csv").withSetting("k8s-stored-source-settings.json"),
+        new TestDataset("empty-k8s", "k8s-extra-mappings.json", "k8s-empty.csv").withSetting("k8s-settings.json"),
         new TestDataset(
             "promql_classic_histogram",
             "mapping-promql-classic-histogram-passthrough.json",
@@ -254,11 +281,27 @@ public class CsvTestsDataLoader {
                 )
             ),
         new TestDataset("books").withSetting("books-settings.json"),
+        new TestDataset("text_state_mapped"),
+        new TestDataset("text_state_unmapped", "mapping-text_state_mapped.json", "text_state_unmapped.csv").withTypeMapping(
+            removeFields("txt")
+        ).withDynamic("false"),
+        new TestDataset("text_state_nonexistent", "mapping-text_state_mapped.json", "text_state_nonexistent.csv").withTypeMapping(
+            removeFields("txt")
+        ).withDynamic("false"),
+        new TestDataset("normalized_keyword", "mapping-normalized_keyword.json", "normalized_keyword.csv").withSetting(
+            "normalized_keyword-settings.json"
+        ),
+        new TestDataset("normalized_keyword_unmapped", "mapping-normalized_keyword.json", "normalized_keyword_unmapped.csv")
+            .withTypeMapping(removeFields("kw"))
+            .withDynamic("false"),
         new TestDataset("semantic_text").withInferenceEndpoints("test_sparse_inference", "test_dense_inference"),
         new TestDataset("logs"),
         new TestDataset("dense_vector_text"),
         new TestDataset("mv_text"),
         new TestDataset("dense_vector"),
+        new TestDataset("dense_vector").withIndex("dense_vector_unmapped")
+            .withDynamic("false")
+            .withTypeMapping(removeFields("float_vector")),
         new TestDataset("dense_vector_coalesce").withRequiredCapabilities(EsqlCapabilities.Cap.COALESCE_DENSE_VECTOR),
         new TestDataset("dense_vector_bfloat16").withRequiredCapabilities(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT),
         new TestDataset("dense_vector_arithmetic"),
@@ -266,6 +309,10 @@ public class CsvTestsDataLoader {
         new TestDataset("employees_no_mv", "mapping-default.json", "employees_no_mv.csv").noSubfields(),
         new TestDataset("mv_sample", "mapping-mv_sample.json", "mv_sample.csv"),
         new TestDataset("colors"),
+        new TestDataset("colors_with_slice", "mapping-colors.json", "colors_with_slice.csv", "colors_with_slice-settings.json")
+            .withRequiredCapabilities(EsqlCapabilities.Cap.METADATA_SLICE),
+        new TestDataset("colors_unmapped", "mapping-colors.json", "colors.csv").withTypeMapping(removeFields("rgb_vector"))
+            .withDynamic("false"),
         new TestDataset("colors_cmyk").withSetting("lookup-settings.json"),
         new TestDataset("base_conversion"),
         new TestDataset("multi_column_joinable", "mapping-multi_column_joinable.json", "multi_column_joinable.csv"),
@@ -294,6 +341,7 @@ public class CsvTestsDataLoader {
         new TestDataset("many_numbers").withSetting("many_numbers-settings.json"),
         new TestDataset("mmr_text_vector_keyword"),
         new TestDataset("json_logs"),
+        new TestDataset("network_direction_networks"),
         new TestDataset("flattened_otel_logs"),
         new TestDataset("flattened_many"),
         new TestDataset("flattened_keyed"),
@@ -309,7 +357,11 @@ public class CsvTestsDataLoader {
             "metric_temporality-settings.json"
         ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V9),
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json"),
-        new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv")
+        new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json").withIndex("ts_window_nanos")
+            .withTypeMapping(Map.of("@timestamp", "date_nanos")),
+        new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv"),
+        new TestDataset("date_fn_fields", "mapping-date_fn_fields.json", "date_fn_fields.csv"),
+        new TestDataset("trim_test")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:
@@ -351,6 +403,10 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_not_rehired"),
         new ViewConfig("employees_all"),
         new ViewConfig("employees_extra"),
+        new ViewConfig("employees_via_alias"),
+        new ViewConfig("partial_mapping_view"),
+        new ViewConfig("partial_mapping_view_message_wildcard"),
+        new ViewConfig("partial_mapping_mv_view"),
         new ViewConfig("view_with_subquery"),
         new ViewConfig("view_row_constants", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
         new ViewConfig("view_row_eval", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
@@ -370,8 +426,19 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_in_subquery_stats_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
         new ViewConfig("employees_in_subquery_conjunction_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
         new ViewConfig("employees_in_subquery_disjunction_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
-        new ViewConfig("employees_in_subquery_nested_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW))
+        new ViewConfig("employees_in_subquery_nested_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("view_partial_mapping_sample_data"),
+        new ViewConfig("view_sample_data")
     ).collect(toMap(ViewConfig::name, Function.identity()));
+
+    /**
+     * Index aliases created unconditionally alongside the main test indices. These are not tied
+     * to view support — any csv-spec test may reference them. Non-view tests that use wildcard
+     * patterns (e.g. {@code FROM employees*}) are unaffected because Elasticsearch field-caps
+     * deduplicates an alias and its backing index into a single logical source.
+     */
+    public static final Map<String, AliasConfig> ALIAS_CONFIGS = Stream.of(new AliasConfig("employees_alias", "employees"))
+        .collect(toMap(AliasConfig::aliasName, Function.identity()));
 
     /**
      * <p>
@@ -492,6 +559,9 @@ public class CsvTestsDataLoader {
                 }
                 if (policies) {
                     loadEnrichPolicies(client);
+                }
+                if (indexes) {
+                    loadAliasesIntoEs(client);
                 }
                 if (views) {
                     loadViewsIntoEs(client);
@@ -628,6 +698,7 @@ public class CsvTestsDataLoader {
                 loadEnrichPolicies(client);
             }
         }
+        loadAliasesIntoEs(client, indicesToLoad);
     }
 
     /**
@@ -711,7 +782,7 @@ public class CsvTestsDataLoader {
     }
 
     public static void loadViewsIntoEs(RestClient client, Predicate<EsqlCapabilities.Cap> capabilityCheck) throws IOException {
-        if (clusterHasViewSupport(client)) {
+        if (clusterSupportsViews(client)) {
             logger.info("Loading views");
             for (var view : VIEW_CONFIGS.values()) {
                 if (view.requiredCapabilities.stream().allMatch(capabilityCheck) == false) {
@@ -725,8 +796,39 @@ public class CsvTestsDataLoader {
         }
     }
 
+    private static void loadAliasesIntoEs(RestClient client) throws IOException {
+        loadAliasesIntoEs(client, null);
+    }
+
+    /**
+     * Creates index aliases from {@link #ALIAS_CONFIGS}. When {@code indicesToLoad} is non-null,
+     * only aliases whose backing index is in that list are created — aliases for indices that were
+     * not loaded in this run are skipped to avoid {@code index_not_found_exception}.
+     */
+    private static void loadAliasesIntoEs(RestClient client, @Nullable List<String> indicesToLoad) throws IOException {
+        logger.info("Loading aliases");
+        for (var alias : ALIAS_CONFIGS.values()) {
+            if (indicesToLoad != null && indicesToLoad.contains(alias.indexName()) == false) {
+                logger.debug("Skipping alias [{}] -> [{}]: backing index not in indicesToLoad", alias.aliasName(), alias.indexName());
+                continue;
+            }
+            Request request = new Request("POST", "/_aliases");
+            request.setJsonEntity(
+                "{\"actions\":[{\"add\":{\"index\":\"" + alias.indexName() + "\",\"alias\":\"" + alias.aliasName() + "\"}}]}"
+            );
+            try {
+                client.performRequest(request);
+            } catch (ResponseException e) {
+                // Alias may already exist (idempotent re-load); ignore 400
+                if (e.getResponse().getStatusLine().getStatusCode() != 400) {
+                    throw e;
+                }
+            }
+        }
+    }
+
     public static void deleteViews(RestClient client) throws IOException {
-        if (clusterHasViewSupport(client)) {
+        if (clusterSupportsViews(client)) {
             logger.debug("Deleting views");
             for (var view : VIEW_CONFIGS.values()) {
                 deleteView(client, view.name);
@@ -832,52 +934,50 @@ public class CsvTestsDataLoader {
         client.performRequest(request);
     }
 
-    private static boolean clusterHasViewSupport(RestClient client) throws IOException {
-        // Step 1: check whether ALL nodes understand views via /_capabilities (allMatch semantics).
+    public static boolean clusterSupportsViews(RestClient client) throws IOException {
+        // Step 1: check whether ALL nodes have basic views support (allMatch semantics).
+        if (checkCapability(client, "POST", "/_query", "views_crud_as_index_actions") == false) {
+            return false;
+        }
+
+        // Step 2: check whether ALL nodes support PUT /_query/view in the current cluster mode.
+        // RestPutViewAction declares VIEWS_PUT_SERVERLESS_SCOPE in supportedCapabilities() only when
+        // @ServerlessScope(Scope.PUBLIC) is present. Old serverless nodes lack this annotation and
+        // therefore do not report this capability. /_capabilities with allMatch semantics returns
+        // supported=false for any mixed cluster that contains such a node, correctly preventing view
+        // loading from being attempted when it would fail on some nodes.
+        //
+        // In stateful mixed-cluster BWC tests where the old node has views but predates the
+        // views_put_serverless_scope capability (introduced 2026-06-19), this check also returns
+        // false and views tests are skipped rather than run. That is a conservative but safe
+        // outcome: tests skip instead of failing with "index not found".
+        return checkCapability(client, "PUT", "/_query/view/test", RestPutViewAction.VIEWS_PUT_SERVERLESS_SCOPE);
+    }
+
+    private static boolean checkCapability(RestClient client, String method, String path, String capability) throws IOException {
         Request capRequest = new Request("GET", "/_capabilities");
-        capRequest.addParameter("method", "POST");
-        capRequest.addParameter("path", "/_query");
-        capRequest.addParameter("capabilities", "views_crud_as_index_actions");
+        capRequest.addParameter("method", method);
+        capRequest.addParameter("path", path);
+        capRequest.addParameter("capabilities", capability);
         try {
             Response capResponse = client.performRequest(capRequest);
             ObjectMapper mapper = new ObjectMapper();
             JsonNode json = mapper.readTree(capResponse.getEntity().getContent());
             JsonNode supported = json.get("supported");
-            if (supported == null || supported.asBoolean() == false) {
-                return false;
-            }
+            return supported != null && supported.asBoolean();
         } catch (ResponseException e) {
             return false;
-        }
-
-        // Step 2: probe the REST endpoint directly. In non-serverless mode all nodes (old or new)
-        // return 200 because @ServerlessScope is not enforced. In serverless mode an old node
-        // without @ServerlessScope(Scope.PUBLIC) on RestPutViewAction returns 410. A single probe
-        // cannot cover every node in a mixed-serverless cluster, but any 410 is a definitive signal
-        // that view loading will fail on at least some nodes.
-        try {
-            client.performRequest(new Request("GET", "/_query/view"));
-            return true;
-        } catch (ResponseException e) {
-            int code = e.getResponse().getStatusLine().getStatusCode();
-            if (code == 410) {
-                return false; // serverless restriction — old node lacks @ServerlessScope
-            }
-            if (code == 400 || code == 500 || code == 405) {
-                return false; // older server that doesn't support the view API at all
-            }
-            throw e;
         }
     }
 
     private static void deleteView(RestClient client, String viewName) throws IOException {
+        final Set<Integer> ignoredDeleteStatusCodes = Set.of(400, 404, 405, 410, 500, 503);
         try {
             client.performRequest(new Request("DELETE", "/_query/view/" + viewName));
         } catch (ResponseException e) {
-            int code = e.getResponse().getStatusLine().getStatusCode();
             // On older servers the view listing succeeds when it should not, so we get here when we should not, hence the 400 and 500.
             // 503 (master_not_discovered_exception) is transient and can occur in BWC mixed-cluster tests after node restarts.
-            if (code != 404 && code != 400 && code != 410 && code != 500 && code != 503) {
+            if (ignoredDeleteStatusCodes.contains(e.getResponse().getStatusLine().getStatusCode()) == false) {
                 logger.info("View delete error: {}", e.getMessage());
                 throw e;
             }
@@ -987,7 +1087,7 @@ public class CsvTestsDataLoader {
 
     record Column(String name, String type) {}
 
-    public record Document(String id, StringBuilder json) {}
+    public record Document(String id, String slice, StringBuilder json) {}
 
     public static List<Document> readCsvDocuments(InputStream resource, boolean allowSubFields) {
         try (BufferedReader reader = reader(resource)) {
@@ -1052,6 +1152,7 @@ public class CsvTestsDataLoader {
             int lineNumber = 1;
             Column[] columns = null; // Column info. If one column name contains dot, it is a subfield and its value will be null
             List<Integer> subFieldsIndices = new ArrayList<>(); // list containing the index of a subfield in "columns" String[]
+
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
                 // ignore comments
@@ -1078,11 +1179,13 @@ public class CsvTestsDataLoader {
                     }
                     // id, document
                     var document = parseDocument(columns, entries, lineNumber, subFieldsIndices);
+
                     builder.append(
                         "{\"index\": {\"_index\":\""
                             + indexName
                             + "\""
                             + (document.id() != null ? ", \"_id\": \"" + document.id() + "\"" : "")
+                            + (document.slice() != null ? ", \"" + SliceIndexing.PARAM_NAME + "\": \"" + document.slice() + "\"" : "")
                             + "}}\n"
                     );
                     builder.append(document.json());
@@ -1128,6 +1231,7 @@ public class CsvTestsDataLoader {
     private static Document parseDocument(Column[] columns, String[] entries, int lineNumber, List<Integer> subFieldsIndices) {
         StringBuilder row = new StringBuilder("{");
         String id = null;
+        String slice = null;
         for (int i = 0; i < entries.length; i++) {
             // ignore values that belong to subfields and don't add them to the bulk request
             if (subFieldsIndices.contains(i) == false) {
@@ -1140,6 +1244,11 @@ public class CsvTestsDataLoader {
                     id = entries[i];
                     continue;
                 }
+                if (columns[i] != null && SliceIndexing.FIELD_NAME.equals(columns[i].name)) {
+                    slice = entries[i];
+                    continue;
+                }
+
                 try {
                     // add a comma after the previous value, only when there was actually a value before
                     if (i > 0 && row.length() > 1) {
@@ -1170,7 +1279,7 @@ public class CsvTestsDataLoader {
             }
         }
         row.append("}\n");
-        return new Document(id, row);
+        return new Document(id, slice, row);
     }
 
     private static final Pattern RANGE_PATTERN = Pattern.compile("([0-9\\-.Z:]+)\\.\\.([0-9\\-.Z:]+)");
@@ -1528,7 +1637,34 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private interface IndexCreator {
+    /** An index alias to create alongside the main test indices. */
+    public record AliasConfig(String aliasName, String indexName) {}
+
+    /**
+     * Functional interface for creating an index during dataset loading. Callers may supply a
+     * custom implementation to apply additional index settings (e.g. a different index mode) on
+     * top of the per-dataset defaults.
+     */
+    public interface IndexCreator {
         void createIndex(RestClient client, String indexName, String mapping, Settings indexSettings) throws IOException;
+    }
+
+    /**
+     * Loads the given datasets using a caller-supplied {@link IndexCreator}, for example to create
+     * the same data under alternative index settings (e.g. a different {@code index.mode}).
+     *
+     * <p>Does not load enrich policies, views, or aliases — only the per-dataset indices and their
+     * data. Callers that need those must load them separately.
+     */
+    public static void loadDataSetIntoEs(RestClient client, Collection<TestDataset> datasets, IndexCreator indexCreator)
+        throws IOException {
+        Set<String> loaded = new HashSet<>();
+        for (TestDataset dataset : datasets) {
+            load(client, dataset, indexCreator);
+            loaded.add(dataset.indexName());
+        }
+        if (loaded.isEmpty() == false) {
+            forceMerge(client, loaded);
+        }
     }
 }

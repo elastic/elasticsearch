@@ -11,19 +11,22 @@ package org.elasticsearch.node;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.node.internal.TerminationHandler;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -51,12 +54,7 @@ import java.util.stream.Collectors;
  */
 public class ShutdownPrepareService {
 
-    /// Allows setting the system property `es.reindex.disable_relocation` as an escape hatch to disable triggering reindex relocation.
-    // TODO(#2715): Remove this when we're confident relocation works
-    private static final boolean DISABLE_REINDEX_RELOCATION = Booleans.parseBooleanLenient(
-        System.getProperty("es.reindex.disable_relocation", "false"),
-        false
-    );
+    public static final String CANNOT_RELOCATE_REINDEX_CANCEL_REASON = "node shutting down";
 
     private record ShutdownHook(String name, Runnable action) {}
 
@@ -71,6 +69,13 @@ public class ShutdownPrepareService {
         TimeValue.timeValueSeconds(10),
         Setting.Property.NodeScope
     );
+
+    /**
+     * How long we'll wait for the non-relocatable reindexing tasks to cancel before
+     * we proceed with shutdown. This should not be very long because we've already timed out
+     * waiting for the tasks to relocate.
+     */
+    private static final TimeValue REINDEXING_CANCELLATION_TIMEOUT = TimeValue.timeValueSeconds(10);
 
     private static final Logger logger = LogManager.getLogger(ShutdownPrepareService.class);
 
@@ -174,16 +179,27 @@ public class ShutdownPrepareService {
         }
     }
 
-    /// The polling interval used by [#awaitTasksComplete]. Chosen to allow short response times, but (since checking the tasks list is
-    /// relatively expensive) not so short that we waste CPU time we could be spending on finishing those tasks.
+    /// The polling interval used by [#awaitTasksCompleteInternal]. Chosen to allow short response times, but (since checking the tasks list
+    /// is relatively expensive) not so short that we waste CPU time we could be spending on finishing those tasks.
     static final TimeValue AWAIT_TASKS_POLL_INTERVAL = TimeValue.timeValueMillis(500);
 
     // exists and package-private for testing
-    static class Sleeper {
+    protected static class Sleeper {
 
         void sleep(TimeValue interval) throws InterruptedException {
             Thread.sleep(interval.millis());
         }
+    }
+
+    protected boolean awaitTasksComplete(
+        TimeValue timeout,
+        Sleeper sleeper,
+        String taskName,
+        TaskManager taskManager,
+        @Nullable Consumer<Task> taskNotifier,
+        @Nullable Consumer<List<Task>> onTimeout
+    ) {
+        return awaitTasksCompleteInternal(timeout, sleeper, taskName, taskManager, taskNotifier, onTimeout);
     }
 
     /// Repeatedly polls the `taskManager` to list tasks whose action name is `taskName`, invoking `sleeper` to sleep for
@@ -191,12 +207,13 @@ public class ShutdownPrepareService {
     /// `timeout`. Invokes `taskNotifier` exactly once for each matching task encountered. Returns true if it found no matching tasks, false
     /// if it timed out or was interrupted.
     // package-private for testing
-    static boolean awaitTasksComplete(
+    static boolean awaitTasksCompleteInternal(
         TimeValue timeout,
         Sleeper sleeper,
         String taskName,
         TaskManager taskManager,
-        @Nullable Consumer<Task> taskNotifier
+        @Nullable Consumer<Task> taskNotifier,
+        @Nullable Consumer<List<Task>> onTimeout
     ) {
         long millisWaited = 0;
         Set<Long> tasksNotified = new HashSet<>();
@@ -219,6 +236,9 @@ public class ShutdownPrepareService {
                 millisWaited += AWAIT_TASKS_POLL_INTERVAL.millis();
                 if (TimeValue.ZERO.equals(timeout) == false && millisWaited >= timeout.millis()) {
                     logger.warn("timed out after waiting [{}] for [{}] {} tasks to finish", timeout, tasksRemaining.size(), taskName);
+                    if (onTimeout != null) {
+                        onTimeout.accept(tasksRemaining);
+                    }
                     return false;
                 }
                 logger.debug(
@@ -239,16 +259,44 @@ public class ShutdownPrepareService {
     }
 
     private void awaitSearchTasksComplete(TimeValue asyncSearchTimeout, TaskManager taskManager) {
-        awaitTasksComplete(asyncSearchTimeout, new Sleeper(), TransportSearchAction.NAME, taskManager, null);
+        awaitTasksComplete(asyncSearchTimeout, new Sleeper(), TransportSearchAction.NAME, taskManager, null, null);
     }
 
     private void relocateReindexTasksAndAwaitComplete(TimeValue asyncReindexTimeout, TaskManager taskManager) {
+        final var sleeper = new Sleeper();
         awaitTasksComplete(
             asyncReindexTimeout,
-            new Sleeper(),
+            sleeper,
             ReindexAction.NAME,
             taskManager,
-            task -> maybeRequestRelocationForBulkByPaginatedSearch(task, taskManager)
+            task -> maybeRequestRelocationForBulkByPaginatedSearch(task, taskManager),
+            tasks -> {
+                // Cancel any reindex tasks that could not be relocated, then wait a short time
+                // for them to exit the task manager before proceeding with shutdown.
+                tasks.forEach(t -> {
+                    if (t instanceof CancellableTask cancellable) {
+                        try {
+                            // We know that BulkByPaginatedSearchTask implements ensureCancellable, so call it
+                            // first to avoid cancelling actively relocating tasks
+                            // TaskManager should probably do this (see https://github.com/elastic/elasticsearch/issues/155444)
+                            cancellable.ensureCancellable();
+                            taskManager.cancelTaskAndDescendants(
+                                cancellable,
+                                CANNOT_RELOCATE_REINDEX_CANCEL_REASON,
+                                false,
+                                ActionListener.noop()
+                            );
+                        } catch (ElasticsearchStatusException e) {
+                            if (logger.isDebugEnabled()) {
+                                logger.debug(() -> Strings.format("Unable to cancel reindex task %s", t), e);
+                            }
+                        }
+                    } else {
+                        assert false : "Expected reindex tasks to be cancellable";
+                    }
+                });
+                awaitTasksComplete(REINDEXING_CANCELLATION_TIMEOUT, sleeper, ReindexAction.NAME, taskManager, null, null);
+            }
         );
     }
 
@@ -261,13 +309,6 @@ public class ShutdownPrepareService {
             boolean isChildTaskOfSameType = localParent != null && localParent.getAction().equals(task.getAction());
             if (bulkByPaginatedSearchTask.isEligibleForRelocationOnShutdown()) {
                 assert !bulkByPaginatedSearchTask.isRelocationRequested() : "Requested relocation multiple times for task " + task.getId();
-                if (DISABLE_REINDEX_RELOCATION) {
-                    logger.info(
-                        "Not requesting relocation for task {} because the system property es.reindex.disable_relocation is set",
-                        task.getId()
-                    );
-                    return;
-                }
                 if (!isChildTaskOfSameType) {
                     logger.info("Requesting relocation for bulk-by-paginated-search task {}", bulkByPaginatedSearchTask.getId());
                 } else {

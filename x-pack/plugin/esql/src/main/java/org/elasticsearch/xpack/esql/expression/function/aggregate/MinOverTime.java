@@ -50,6 +50,7 @@ public class MinOverTime extends TimeSeriesAggregateFunction
         .withinSeries(MinOverTime::new)
         .description("Returns the minimum value of all points in the specified time range.")
         .example("min_over_time(http_requests_total[5m])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("min_over_time");
 
     private final Expression timestamp;

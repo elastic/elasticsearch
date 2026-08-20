@@ -143,6 +143,8 @@ public class CoalescedSplit implements ExternalSplit {
             }
             childStats.add(cs);
         }
+        // Pure value-fold: each child's stats are already normalized to the reconciled type at split
+        // construction (FileSplitProvider), so the merge does not reconcile units. See MergedSplitStats.
         return new MergedSplitStats(childStats);
     }
 

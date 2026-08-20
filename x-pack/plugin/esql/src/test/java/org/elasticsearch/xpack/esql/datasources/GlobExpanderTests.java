@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -19,6 +18,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -124,6 +124,147 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("http://[::1]/logs/2026-06/data.parquet", result.path(1).toString());
     }
 
+    // -- non-data object exclusion --
+
+    /**
+     * A Spark _SUCCESS marker at the same prefix level must not appear in the expansion result.
+     * Hidden-file convention: objects whose name begins with '_' are excluded (esql-planning#1544).
+     */
+    public void testExpandGlobExcludesUnderscorePrefixedMarker() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/_SUCCESS", 0),
+            entry("s3://bucket/data/file1.parquet", 100),
+            entry("s3://bucket/data/file2.parquet", 200)
+        );
+        StubProvider provider = new StubProvider(listing);
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*", provider);
+        assertTrue(result.isResolved());
+        assertEquals(2, result.fileCount());
+        assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
+        assertEquals("s3://bucket/data/file2.parquet", result.path(1).toString());
+    }
+
+    /**
+     * A .crc sidecar file must not appear in the expansion result.
+     * Hidden-file convention: objects whose name begins with '.' are excluded (esql-planning#1544).
+     */
+    public void testExpandGlobExcludesDotPrefixedSidecar() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/.part-r-00001.parquet.crc", 10),
+            entry("s3://bucket/data/file1.parquet", 100)
+        );
+        StubProvider provider = new StubProvider(listing);
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*", provider);
+        assertTrue(result.isResolved());
+        assertEquals(1, result.fileCount());
+        assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
+    }
+
+    /**
+     * A _metadata file must not appear in the expansion result.
+     * Hidden-file convention: objects whose name begins with '_' are excluded (esql-planning#1544).
+     */
+    public void testExpandGlobExcludesMetadataFile() throws IOException {
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/_metadata", 512), entry("s3://bucket/data/file1.parquet", 100));
+        StubProvider provider = new StubProvider(listing);
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*", provider);
+        assertTrue(result.isResolved());
+        assertEquals(1, result.fileCount());
+        assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
+    }
+
+    /**
+     * A zero-byte directory placeholder key (ending in '/') must not appear in the expansion result.
+     * Object stores create these when the S3 console creates a "folder" (esql-planning#1544).
+     */
+    @SuppressWarnings("RegexpMultiline")
+    public void testExpandGlobExcludesZeroByteDirectoryPlaceholder() throws IOException {
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/subdir/", 0), entry("s3://bucket/data/subdir/file.parquet", 100));
+        StubProvider provider = new StubProvider(listing);
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", provider, null, false);
+        assertTrue(result.isResolved());
+        assertEquals(1, result.fileCount());
+        assertEquals("s3://bucket/data/subdir/file.parquet", result.path(0).toString());
+    }
+
+    /**
+     * Files under a _delta_log directory must not appear in the expansion result.
+     * A directory whose name begins with '_' and all its descendants are hidden by convention (esql-planning#1544).
+     */
+    @SuppressWarnings("RegexpMultiline")
+    public void testExpandGlobExcludesDeltaLogContent() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/_delta_log/00000000000000000001.json", 500),
+            entry("s3://bucket/data/_delta_log/", 0),
+            entry("s3://bucket/data/file1.parquet", 100)
+        );
+        StubProvider provider = new StubProvider(listing);
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", provider, null, false);
+        assertTrue(result.isResolved());
+        assertEquals(1, result.fileCount());
+        assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
+    }
+
+    /**
+     * Files under a _temporary directory must not appear in the expansion result.
+     * A directory whose name begins with '_' and all its descendants are hidden by convention (esql-planning#1544).
+     */
+    @SuppressWarnings("RegexpMultiline")
+    public void testExpandGlobExcludesTemporaryDirContent() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/_temporary/part-00001.parquet", 100),
+            entry("s3://bucket/data/file1.parquet", 100)
+        );
+        StubProvider provider = new StubProvider(listing);
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", provider, null, false);
+        assertTrue(result.isResolved());
+        assertEquals(1, result.fileCount());
+        assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
+    }
+
+    /**
+     * Mixed non-data objects (_SUCCESS marker, .crc sidecars, zero-byte placeholder) alongside real
+     * Parquet data files: only the data files must be returned, exactly as Hive/Spark/Trino behave
+     * on the same prefix (esql-planning#1544).
+     */
+    public void testExpandGlobExcludesAllNonDataObjectsFromCleanPrefix() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/_SUCCESS", 0),
+            entry("s3://bucket/data/.part-r-00001.parquet.crc", 4),
+            entry("s3://bucket/data/file1.parquet", 1000),
+            entry("s3://bucket/data/file2.parquet", 2000)
+        );
+        StubProvider provider = new StubProvider(listing);
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*", provider);
+        assertTrue(result.isResolved());
+        assertEquals(2, result.fileCount());
+        assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
+        assertEquals("s3://bucket/data/file2.parquet", result.path(1).toString());
+    }
+
+    /**
+     * The brace-only fast path uses {@code exists()} to probe each candidate and skips {@link
+     * GlobExpander#isHiddenObject}. This is intentional: a brace pattern explicitly names every
+     * alternative, so the caller is opting in — the same way a literal path would. This test locks in
+     * that design so the asymmetry with wildcard expansion is visible and deliberate.
+     */
+    public void testBraceOnlyPathDoesNotFilterHiddenNames() throws IOException {
+        StubProvider provider = new StubProvider(List.of());
+        provider.existingPaths.add("s3://bucket/data/_SUCCESS");
+        provider.existingPaths.add("s3://bucket/data/file.parquet");
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/{_SUCCESS,file.parquet}", provider);
+        assertTrue(result.isResolved());
+        assertEquals("brace-enumerated _SUCCESS must be returned: explicit opt-in, not wildcard discovery", 2, result.fileCount());
+    }
+
     // -- expandCommaSeparated --
 
     public void testExpandCommaSeparatedMixedGlobAndLiteral() throws IOException {
@@ -156,6 +297,67 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/year={2023,2024}/*.parquet", rewritten);
     }
 
+    /**
+     * A single-digit IN value must match both its bare and zero-padded folder spelling (6 → month=6 or month=06),
+     * or a query like {@code month IN (6, 11)} silently drops the zero-padded month=06 while month=11 still matches.
+     * Multi-digit values (11, years) are emitted unchanged.
+     */
+    public void testRewriteGlobWithInHintEmitsZeroPaddedSpellings() {
+        var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.IN, 6, 11));
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/month=*/*.parquet", hints);
+        assertEquals("s3://bucket/month={6,06,11}/*.parquet", rewritten);
+    }
+
+    /**
+     * An IN value that contains a brace delimiter ({@code ,} or <code>&#125;</code>) cannot be expressed as a glob
+     * brace alternative — the parser would split it and drop the folder that literally contains the delimiter. The
+     * rewrite must be vetoed, leaving the wildcard so the full glob is listed (a superset) and the row filter narrows.
+     */
+    public void testRewriteGlobWithInHintVetoedWhenValueHoldsBraceDelimiter() {
+        var hints = List.of(hint("region", PartitionFilterHintExtractor.Operator.IN, "a,b", "c"));
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/region=*/*.parquet", hints);
+        assertEquals("s3://bucket/region=*/*.parquet", rewritten);
+    }
+
+    /**
+     * An IN value with characters Hive/Spark percent-escape in folder names (`:` `/` etc.) must emit both the bare and
+     * escaped spelling — the on-disk folder is `category=ns%3Aclick`, so a rewrite to bare `ns:click` would miss it.
+     */
+    public void testRewriteGlobWithInHintEmitsHiveEscapedSpellings() {
+        var hints = List.of(hint("category", PartitionFilterHintExtractor.Operator.IN, "login", "ns:click"));
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/category=*/*.parquet", hints);
+        assertThat(rewritten, containsString("ns:click"));
+        assertThat(rewritten, containsString("ns%3Aclick"));
+        assertThat(rewritten, containsString("login"));
+    }
+
+    /**
+     * End-to-end: an IN over a Hive-escaped partition folder lists it. Folders `category=login/` and the escaped
+     * `category=ns%3Aclick/` (Spark's on-disk spelling of value `ns:click`); `WHERE category IN ("login","ns:click")`
+     * must list both, not silently drop the escaped one. Red before the escape-spelling fix (esql-planning#1176).
+     */
+    public void testInListMatchesHiveEscapedFolder() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(
+                    entry("s3://bucket/data/category=login/a.parquet", 100),
+                    entry("s3://bucket/data/category=ns%3Aclick/b.parquet", 200)
+                )
+            )
+        );
+
+        var hints = List.of(hint("category", PartitionFilterHintExtractor.Operator.IN, "login", "ns:click"));
+        FileList result = GlobExpander.expand("s3://bucket/data/category=*/*.parquet", provider, hints, true, MAX, MAX);
+
+        List<String> paths = new ArrayList<>();
+        for (int i = 0; i < result.fileCount(); i++) {
+            paths.add(result.path(i).toString());
+        }
+        assertEquals("the escaped category=ns%3Aclick folder must be listed alongside category=login", 2, result.fileCount());
+        assertTrue(paths.contains("s3://bucket/data/category=ns%3Aclick/b.parquet"));
+    }
+
     public void testRewriteGlobWithRangeHintNoRewrite() {
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2020));
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=*/*.parquet", hints);
@@ -168,7 +370,8 @@ public class GlobExpanderTests extends ESTestCase {
             hint("month", PartitionFilterHintExtractor.Operator.IN, 1, 2, 3)
         );
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=*/month=*/*.parquet", hints);
-        assertEquals("s3://bucket/year=2024/month={1,2,3}/*.parquet", rewritten);
+        // Single-digit IN values carry their zero-padded spelling too, so month=01/02/03 folders match.
+        assertEquals("s3://bucket/year=2024/month={1,01,2,02,3,03}/*.parquet", rewritten);
     }
 
     public void testRewriteGlobNonWildcardNotRewritten() {
@@ -237,8 +440,8 @@ public class GlobExpanderTests extends ESTestCase {
         var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.IN, 1, 2));
         PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}");
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/*/*.parquet", hints, config);
-        // Second wildcard maps to {month} → rewritten to {1,2}
-        assertEquals("s3://bucket/*/{1,2}/*.parquet", rewritten);
+        // Second wildcard maps to {month} → rewritten to {1,01,2,02} so zero-padded folders match too
+        assertEquals("s3://bucket/*/{1,01,2,02}/*.parquet", rewritten);
     }
 
     public void testRewriteGlobWithTemplateRangeHintsNoRewrite() {
@@ -306,8 +509,8 @@ public class GlobExpanderTests extends ESTestCase {
         }
         StubProvider provider = new StubProvider(listing);
 
-        QlIllegalArgumentException e = expectThrows(
-            QlIllegalArgumentException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider, null, true, 10, Integer.MAX_VALUE)
         );
         assertThat(e.getMessage(), containsString("Glob pattern discovered too many files"));
@@ -349,8 +552,8 @@ public class GlobExpanderTests extends ESTestCase {
         provider.existingPaths.add("s3://bucket/extra2.parquet");
         provider.existingPaths.add("s3://bucket/extra3.parquet");
 
-        QlIllegalArgumentException e = expectThrows(
-            QlIllegalArgumentException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> GlobExpander.expandCommaSeparated(
                 "s3://bucket/data/*.parquet, s3://bucket/extra1.parquet, s3://bucket/extra2.parquet, s3://bucket/extra3.parquet",
                 provider,
@@ -480,7 +683,449 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals(2, result.fileCount());
     }
 
+    // -- hints that prune the listing to nothing fall back to the un-hinted listing --
+
+    /**
+     * The rewritten glob names a folder that does not exist. Listing a superset of the files is always correct —
+     * the row filter still runs — so the expansion must fall back to the original glob rather than report that the
+     * pattern matched nothing, which the resolver turns into an error.
+     */
+    public void testHintPruningListingToEmptyFallsBackToUnhintedListing() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of("s3://bucket/data/", List.of(entry("s3://bucket/data/year=2024/a.parquet", 100)))
+        );
+
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2099));
+        FileList result = GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, true, MAX, MAX);
+
+        assertEquals(1, result.fileCount());
+        assertEquals("s3://bucket/data/year=2024/a.parquet", result.path(0).toString());
+    }
+
+    /**
+     * The trap this fix exists to avoid. {@code rewriteSegment} spells the hint's value with {@code String.valueOf},
+     * so {@code WHERE month == 6} narrows the glob to {@code month=6} — but Hive writes a zero-padded {@code month=06}.
+     * Reporting "matched no files" (or empty) there would turn an ordinary dataset into silent zero rows.
+     */
+    public void testZeroPaddedFolderAgainstUnpaddedHintFallsBack() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of("s3://bucket/data/", List.of(entry("s3://bucket/data/month=06/a.parquet", 100)))
+        );
+
+        var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6));
+        FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, true, MAX, MAX);
+
+        assertEquals("the zero-padded folder must still be listed", 1, result.fileCount());
+        assertEquals("s3://bucket/data/month=06/a.parquet", result.path(0).toString());
+    }
+
+    /**
+     * The local filesystem provider throws when a directory does not exist, where an object store lists the missing
+     * prefix as empty. A hint that narrows the prefix to a folder that was never created must behave the same on both.
+     */
+    public void testHintNarrowedPrefixThatThrowsFallsBackToUnhintedListing() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of("s3://bucket/data/", List.of(entry("s3://bucket/data/year=2024/a.parquet", 100)))
+        );
+        provider.throwOnUnknownPrefix = true;
+
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2099));
+        FileList result = GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, true, MAX, MAX);
+
+        assertEquals(1, result.fileCount());
+    }
+
+    /**
+     * The {@code _file.*} filters are exact — an all-pruned result is genuinely zero rows, with no spelling to
+     * disambiguate — so an all-pruned listing is retained (the resolver needs an anchor and the row filter still
+     * yields zero rows) rather than re-listed. The listing must not be recomputed a second time.
+     */
+    public void testFileMetadataPruneToEmptyRetainsAnchorWithoutRelisting() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of("s3://bucket/data/", List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200)))
+        );
+
+        var hints = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "nope.parquet"));
+        FileList result = GlobExpander.expand("s3://bucket/data/*.parquet", provider, hints, true, MAX, MAX);
+
+        assertEquals(2, result.fileCount());
+        assertEquals("an exact _file.* prune is retained in one listing pass, not re-listed", 1, provider.listCallCount);
+    }
+
+    /**
+     * A comma segment a rewrite narrows to empty must fall back on its own, not be masked by another segment that
+     * still matches. Without per-segment fallback the {@code a/month=06} files are silently dropped while {@code b/}
+     * keeps the aggregate non-empty.
+     */
+    public void testCommaSegmentRewrittenToEmptyFallsBackForThatSegment() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/a/",
+                List.of(entry("s3://bucket/a/month=06/x.parquet", 100)),
+                "s3://bucket/b/",
+                List.of(entry("s3://bucket/b/y.parquet", 200))
+            )
+        );
+
+        var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6));
+        FileList result = GlobExpander.expand("s3://bucket/a/month=*/*.parquet,s3://bucket/b/*.parquet", provider, hints, true, MAX, MAX);
+
+        List<String> paths = new ArrayList<>();
+        for (int i = 0; i < result.fileCount(); i++) {
+            paths.add(result.path(i).toString());
+        }
+        assertEquals("the pruned segment's zero-padded file must survive alongside the other segment", 2, result.fileCount());
+        assertTrue(paths.contains("s3://bucket/a/month=06/x.parquet"));
+        assertTrue(paths.contains("s3://bucket/b/y.parquet"));
+    }
+
+    /**
+     * A single glob with an IN-list mixing single- and multi-digit values on a zero-padded partition. `month=11`
+     * matches the rewrite so the listing is non-empty and the empty-fallback never fires; without the zero-padded
+     * spelling in the brace, `month=06` is silently dropped even though the row filter would keep it. (Same wrong-data
+     * class as the human-reviewed comma bug, single-glob form; esql-planning#1176.)
+     */
+    public void testInListMixedDigitValuesMatchZeroPaddedFolders() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(entry("s3://bucket/data/month=06/a.parquet", 100), entry("s3://bucket/data/month=11/b.parquet", 200))
+            )
+        );
+
+        var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.IN, 6, 11));
+        FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, true, MAX, MAX);
+
+        List<String> paths = new ArrayList<>();
+        for (int i = 0; i < result.fileCount(); i++) {
+            paths.add(result.path(i).toString());
+        }
+        assertEquals("the zero-padded month=06 must be listed alongside month=11", 2, result.fileCount());
+        assertTrue(paths.contains("s3://bucket/data/month=06/a.parquet"));
+        assertTrue(paths.contains("s3://bucket/data/month=11/b.parquet"));
+    }
+
+    /** The local-filesystem flavor of the per-segment fallback: the rewritten segment prefix throws. */
+    public void testCommaSegmentRewrittenPrefixThatThrowsFallsBack() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/a/",
+                List.of(entry("s3://bucket/a/month=06/x.parquet", 100)),
+                "s3://bucket/b/",
+                List.of(entry("s3://bucket/b/y.parquet", 200))
+            )
+        );
+        provider.throwOnUnknownPrefix = true;
+
+        var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6));
+        FileList result = GlobExpander.expand("s3://bucket/a/month=*/*.parquet,s3://bucket/b/*.parquet", provider, hints, true, MAX, MAX);
+
+        assertEquals(2, result.fileCount());
+    }
+
+    /**
+     * The rewrite-channel fallback drops the rewrite but must keep the exact {@code _file.*} filters, or the fallback
+     * over-lists. Here {@code month == 6} empties the rewritten glob; the fallback re-lists {@code month=*} but the
+     * {@code _file.size > 100} filter must still exclude the small file.
+     */
+    public void testRewriteFallbackKeepsFileMetadataFilter() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(
+                    entry("s3://bucket/data/month=06/big.parquet", 200),
+                    entry("s3://bucket/data/month=06/small.parquet", 10),
+                    entry("s3://bucket/data/month=07/other.parquet", 300)
+                )
+            )
+        );
+
+        var hints = List.of(
+            hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6),
+            hint(FileMetadataColumns.SIZE, PartitionFilterHintExtractor.Operator.GREATER_THAN, 100)
+        );
+        FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, true, MAX, MAX);
+
+        List<String> paths = new ArrayList<>();
+        for (int i = 0; i < result.fileCount(); i++) {
+            paths.add(result.path(i).toString());
+        }
+        assertEquals("the fallback keeps the size filter, dropping the small file", 2, result.fileCount());
+        assertTrue(paths.contains("s3://bucket/data/month=06/big.parquet"));
+        assertTrue(paths.contains("s3://bucket/data/month=07/other.parquet"));
+    }
+
+    /**
+     * A query whose rewrite AND file filter both exclude everything still leaves an anchor: the rewrite fallback
+     * re-lists {@code month=*}, the exact size filter prunes it to empty, and retention keeps the file so the
+     * resolver never sees zero files (the row filter yields zero rows downstream).
+     */
+    public void testComposedPruneToEmptyRetainsAnchor() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of("s3://bucket/data/", List.of(entry("s3://bucket/data/month=06/small.parquet", 10)))
+        );
+
+        var hints = List.of(
+            hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6),
+            hint(FileMetadataColumns.SIZE, PartitionFilterHintExtractor.Operator.GREATER_THAN, 1_000_000)
+        );
+        FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, true, MAX, MAX);
+
+        assertTrue(result.isResolved());
+        assertEquals(1, result.fileCount());
+        assertEquals("s3://bucket/data/month=06/small.parquet", result.path(0).toString());
+    }
+
+    /** A pattern that genuinely matches nothing still comes back empty — the caller's loud error is preserved. */
+    public void testUnhintedListingAlsoEmptyStaysEmpty() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(Map.of("s3://bucket/data/", List.of()));
+
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2099));
+        FileList result = GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, true, MAX, MAX);
+
+        assertTrue(result.isResolved());
+        assertEquals(0, result.fileCount());
+    }
+
+    /** A hint that narrows nothing must not trigger a second listing pass. */
+    public void testUnhintedEmptyListingIsNotRetried() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(Map.of("s3://bucket/data/", List.of()));
+
+        FileList result = GlobExpander.expand("s3://bucket/data/*.parquet", provider, null, true, MAX, MAX);
+
+        assertEquals(0, result.fileCount());
+        assertEquals("no hints, so no fallback listing", 1, provider.listCallCount);
+    }
+
+    /**
+     * The rewrite fallback re-lists the full glob to tell a spelling-miss from a genuinely empty partition. If that
+     * full listing exceeds {@code max_discovered_files} the discovery cap fires — the same error the un-filtered
+     * query would raise. That cap error is preserved deliberately; deciding the two cases needs the full listing.
+     */
+    public void testRewriteFallbackBeyondDiscoveryCapKeepsCapError() {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(
+                    entry("s3://bucket/data/year=2024/a.parquet", 100),
+                    entry("s3://bucket/data/year=2024/b.parquet", 200),
+                    entry("s3://bucket/data/year=2024/c.parquet", 300)
+                )
+            )
+        );
+
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2099));
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, true, 2, MAX)
+        );
+        assertThat(e.getMessage(), containsString("discovered too many files"));
+    }
+
+    // -- listing cache discriminator --
+
+    /**
+     * The property the listing cache key rests on: equal discriminators must mean equal listings. Hints reach the
+     * listing through the glob rewrite and the {@code _file.*} filters, and nothing else. This catches a new listing
+     * channel added to the expansion but not the discriminator — <b>only for the hint shapes and flag values below</b>,
+     * so extend {@code hintSets} and the {@code excludeNonData} loop whenever a new channel or hint kind is introduced,
+     * or it can slip through.
+     */
+    public void testDiscriminatorDeterminesTheListing() throws IOException {
+        Map<String, List<StorageEntry>> tree = Map.of(
+            "s3://bucket/data/",
+            List.of(entry("s3://bucket/data/year=2024/a.parquet", 100), entry("s3://bucket/data/year=2025/b.parquet", 200)),
+            "s3://bucket/data/year=2024/",
+            List.of(entry("s3://bucket/data/year=2024/a.parquet", 100)),
+            "s3://bucket/data/year=2025/",
+            List.of(entry("s3://bucket/data/year=2025/b.parquet", 200))
+        );
+        String pattern = "s3://bucket/data/year=*/*.parquet";
+
+        List<List<PartitionFilterHintExtractor.PartitionFilterHint>> hintSets = List.of(
+            List.of(),
+            List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024)),
+            List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025)),
+            List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "us")),
+            List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "a.parquet")),
+            List.of(hint(FileMetadataColumns.SIZE, PartitionFilterHintExtractor.Operator.GREATER_THAN, 150))
+        );
+
+        Map<String, List<String>> listingByDiscriminator = new HashMap<>();
+        for (var hints : hintSets) {
+            for (boolean hive : List.of(true, false)) {
+                String discriminator = GlobExpander.listingCacheDiscriminator(pattern, hints, hive);
+                List<String> files = new ArrayList<>();
+                FileList expanded = GlobExpander.expand(pattern, new PrefixAwareStubProvider(tree), hints, hive, MAX, MAX);
+                for (int i = 0; i < expanded.fileCount(); i++) {
+                    files.add(expanded.path(i).toString());
+                }
+                List<String> previous = listingByDiscriminator.putIfAbsent(discriminator, files);
+                if (previous != null) {
+                    assertEquals("same discriminator must mean the same listing", previous, files);
+                }
+            }
+        }
+    }
+
+    /**
+     * The {@code excludeNonDataObjects} flag is a listing channel — it changes which entries survive the iterator
+     * loop — so it must be part of the cache key. This test uses a flat {@code *} pattern so that {@code _SUCCESS}
+     * genuinely matches the glob and the two flag values produce different listings. It verifies both that the
+     * discriminator moves (cache-safety) and that the expansions actually differ (the channel is wired in).
+     */
+    public void testDiscriminatorCoversExcludeNonDataObjectsChannel() throws IOException {
+        Map<String, List<StorageEntry>> tree = Map.of(
+            "s3://bucket/data/",
+            List.of(entry("s3://bucket/data/_SUCCESS", 0), entry("s3://bucket/data/file.parquet", 100))
+        );
+        String pattern = "s3://bucket/data/*";
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(tree);
+
+        // The flag must produce different cache keys — a cached filtered listing must not be served to an
+        // unfiltered request (or vice versa).
+        String discriminatorOn = GlobExpander.listingCacheDiscriminator(pattern, null, false, true);
+        String discriminatorOff = GlobExpander.listingCacheDiscriminator(pattern, null, false, false);
+        assertNotEquals("excludeNonDataObjects flag must move the discriminator", discriminatorOn, discriminatorOff);
+
+        // The expansions must actually differ — _SUCCESS matches * but is excluded when the flag is on.
+        FileList withExclusion = GlobExpander.expand(pattern, provider, null, false, MAX, MAX, true);
+        FileList withoutExclusion = GlobExpander.expand(pattern, provider, null, false, MAX, MAX, false);
+        assertEquals("exclusion on: only data file survives", 1, withExclusion.fileCount());
+        assertEquals("exclusion off: _SUCCESS included", 2, withoutExclusion.fileCount());
+    }
+
+    /**
+     * When non-data exclusion is explicitly disabled the raw listing is returned, restoring the old behavior.
+     * This also proves the flag is not hard-wired to {@code true} inside the expansion.
+     */
+    public void testNonDataExclusionCanBeDisabled() throws IOException {
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/_SUCCESS", 0), entry("s3://bucket/data/file.parquet", 100));
+        StubProvider provider = new StubProvider(listing);
+
+        FileList excluded = GlobExpander.expand("s3://bucket/data/*", provider, null, false, MAX, MAX, true);
+        assertEquals("exclusion on: _SUCCESS must be filtered out", 1, excluded.fileCount());
+
+        FileList raw = GlobExpander.expand("s3://bucket/data/*", provider, null, false, MAX, MAX, false);
+        assertEquals("exclusion off: _SUCCESS must be present", 2, raw.fileCount());
+    }
+
+    /**
+     * Non-data exclusion must apply through the comma-separated path ({@code doExpandCommaSeparated}), not just the
+     * single-glob path. Each comma segment independently calls {@link GlobExpander#expandGlobWithRewriteFallback},
+     * which in turn calls {@code doExpandGlob} where the filter lives — so the flag must be threaded all the way.
+     */
+    public void testNonDataExclusionAppliesToCommaSeparatedSegments() throws IOException {
+        Map<String, List<StorageEntry>> tree = Map.of(
+            "s3://bucket/a/",
+            List.of(entry("s3://bucket/a/_SUCCESS", 0), entry("s3://bucket/a/file1.parquet", 100)),
+            "s3://bucket/b/",
+            List.of(entry("s3://bucket/b/.part-r-00001.parquet.crc", 10), entry("s3://bucket/b/file2.parquet", 200))
+        );
+        String paths = "s3://bucket/a/*,s3://bucket/b/*";
+
+        FileList result = GlobExpander.expand(paths, new PrefixAwareStubProvider(tree), null, false, MAX, MAX, true);
+        assertEquals("both segments: only data files survive", 2, result.fileCount());
+        List<String> names = new ArrayList<>();
+        for (int i = 0; i < result.fileCount(); i++) {
+            names.add(result.path(i).toString());
+        }
+        assertTrue(names.contains("s3://bucket/a/file1.parquet"));
+        assertTrue(names.contains("s3://bucket/b/file2.parquet"));
+    }
+
+    /**
+     * A hint on an ordinary data column reaches neither channel, so it must leave the discriminator alone —
+     * otherwise every distinct WHERE literal would get its own cache entry and the listing cache would stop
+     * hitting for filtered queries.
+     */
+    public void testDiscriminatorIgnoresHintsThatCannotNarrowTheListing() {
+        String pattern = "s3://bucket/data/*.parquet";
+        String unhinted = GlobExpander.listingCacheDiscriminator(pattern, null, true);
+
+        var dataColumnHint = List.of(hint("user_id", PartitionFilterHintExtractor.Operator.EQUALS, 42));
+        assertEquals(unhinted, GlobExpander.listingCacheDiscriminator(pattern, dataColumnHint, true));
+
+        // A `year=*` segment is absent from this pattern, so even a rewritable hint cannot narrow it.
+        var absentPartitionHint = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        assertEquals(unhinted, GlobExpander.listingCacheDiscriminator(pattern, absentPartitionHint, true));
+    }
+
+    /** Every input that changes the listing must change the discriminator. */
+    public void testDiscriminatorSeparatesHintsThatNarrowTheListing() {
+        String keyed = "s3://bucket/data/year=*/*.parquet";
+        String plain = "s3://bucket/data/*.parquet";
+        String unhintedKeyed = GlobExpander.listingCacheDiscriminator(keyed, null, true);
+
+        var year2024 = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        var year2025 = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025));
+        assertNotEquals(unhintedKeyed, GlobExpander.listingCacheDiscriminator(keyed, year2024, true));
+        assertNotEquals(
+            GlobExpander.listingCacheDiscriminator(keyed, year2024, true),
+            GlobExpander.listingCacheDiscriminator(keyed, year2025, true)
+        );
+
+        // hive_partitioning gates the rewrite and selects the partition metadata carried by the cached listing.
+        assertNotEquals(unhintedKeyed, GlobExpander.listingCacheDiscriminator(keyed, null, false));
+
+        var fileName = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "a.parquet"));
+        assertNotEquals(
+            GlobExpander.listingCacheDiscriminator(plain, null, true),
+            GlobExpander.listingCacheDiscriminator(plain, fileName, true)
+        );
+
+        // A value's type is part of its identity: _file.name == "6" and _file.name == 6 do not filter alike.
+        var nameSix = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "6"));
+        var nameSixInt = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, 6));
+        assertNotEquals(
+            GlobExpander.listingCacheDiscriminator(plain, nameSix, true),
+            GlobExpander.listingCacheDiscriminator(plain, nameSixInt, true)
+        );
+    }
+
+    /** In a comma-separated list only the pattern segments are rewritten, so only they may move the discriminator. */
+    public void testDiscriminatorHandlesCommaSeparatedPaths() {
+        String paths = "s3://bucket/a/year=*/*.parquet,s3://bucket/b/plain.parquet";
+        var year2024 = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+
+        String unhinted = GlobExpander.listingCacheDiscriminator(paths, null, true);
+        String hinted = GlobExpander.listingCacheDiscriminator(paths, year2024, true);
+
+        assertNotEquals(unhinted, hinted);
+        assertThat(hinted, containsString("s3://bucket/a/year=2024/*.parquet"));
+        assertThat(hinted, containsString("s3://bucket/b/plain.parquet"));
+    }
+
+    /**
+     * Filter literals carry arbitrary characters, including whatever delimiters the encoding uses. Two distinct
+     * filters must never encode to the same discriminator — a collision would serve one filter's narrowed listing to
+     * the other. Exercises values holding the control characters a naive separator-joined encoding would break on.
+     */
+    public void testDiscriminatorDoesNotCollideOnValuesContainingDelimiters() {
+        String pattern = "s3://bucket/data/*.parquet";
+
+        // A single value that splices in what would be a second value under separator-joining.
+        var oneSplicedValue = List.of(
+            hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.IN, "a\u0001java.lang.String:b")
+        );
+        var twoValues = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.IN, "a", "b"));
+        assertNotEquals(
+            GlobExpander.listingCacheDiscriminator(pattern, oneSplicedValue, true),
+            GlobExpander.listingCacheDiscriminator(pattern, twoValues, true)
+        );
+
+        // A value carrying the top-level joiner must not fake the pattern/hints boundary.
+        var nullByteValue = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "x\u0000y"));
+        var plainValue = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "xy"));
+        assertNotEquals(
+            GlobExpander.listingCacheDiscriminator(pattern, nullByteValue, true),
+            GlobExpander.listingCacheDiscriminator(pattern, plainValue, true)
+        );
+    }
+
     // -- helpers --
+
+    private static final int MAX = Integer.MAX_VALUE;
 
     private static PartitionFilterHintExtractor.PartitionFilterHint hint(
         String column,
@@ -488,6 +1133,84 @@ public class GlobExpanderTests extends ESTestCase {
         Object... values
     ) {
         return new PartitionFilterHintExtractor.PartitionFilterHint(column, op, List.of(values));
+    }
+
+    /**
+     * Lists only the entries under the requested prefix, as a real provider does. {@link StubProvider} returns its
+     * whole listing whatever the prefix, which makes a glob narrowed onto a missing folder indistinguishable from an
+     * un-narrowed one — the reason the listing layer's pruning bugs never surfaced in these tests.
+     *
+     * <p>{@code throwOnUnknownPrefix} models {@code LocalStorageProvider}, which throws on a missing directory where
+     * an object store returns an empty listing.
+     */
+    private static class PrefixAwareStubProvider implements StorageProvider {
+        private final Map<String, List<StorageEntry>> listingsByPrefix;
+        boolean throwOnUnknownPrefix = false;
+        int listCallCount = 0;
+
+        PrefixAwareStubProvider(Map<String, List<StorageEntry>> listingsByPrefix) {
+            this.listingsByPrefix = listingsByPrefix;
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            return new StubStorageObject(path, 0, false);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            return new StubStorageObject(path, length, true);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            return new StubStorageObject(path, length, true);
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
+            listCallCount++;
+            List<StorageEntry> entries = listingsByPrefix.get(prefix.toString());
+            if (entries == null) {
+                if (throwOnUnknownPrefix) {
+                    throw new IOException("Directory does not exist: " + prefix);
+                }
+                entries = List.of();
+            }
+            List<StorageEntry> snapshot = entries;
+            return new StorageIterator() {
+                private final Iterator<StorageEntry> it = snapshot.iterator();
+
+                @Override
+                public boolean hasNext() {
+                    return it.hasNext();
+                }
+
+                @Override
+                public StorageEntry next() {
+                    if (it.hasNext() == false) {
+                        throw new NoSuchElementException();
+                    }
+                    return it.next();
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public boolean exists(StoragePath path) {
+            return false;
+        }
+
+        @Override
+        public List<String> supportedSchemes() {
+            return List.of("s3");
+        }
+
+        @Override
+        public void close() {}
     }
 
     private static StorageEntry entry(String path, long length) {

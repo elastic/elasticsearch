@@ -26,15 +26,18 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
-import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
@@ -63,7 +66,7 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
         ShardId recentShard = new ShardId("recent", randomUUID(), 0);
         var policy = new TestIndexAgeEvictionPolicy(Map.of(oldShard, creationDates[0], recentShard, creationDates[1]));
 
-        assertTrue(policy.canEvict(region(oldShard, "f"), region(recentShard, "g")));
+        assertTrue(canEvict(policy, region(oldShard, "f"), region(recentShard, "g")));
     }
 
     public void testCannotEvictNewerRegionForOlderIncoming() {
@@ -72,7 +75,7 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
         ShardId recentShard = new ShardId("recent", randomUUID(), 0);
         var policy = new TestIndexAgeEvictionPolicy(Map.of(oldShard, creationDates[0], recentShard, creationDates[1]));
 
-        assertFalse(policy.canEvict(region(recentShard, "f"), region(oldShard, "g")));
+        assertFalse(canEvict(policy, region(recentShard, "f"), region(oldShard, "g")));
     }
 
     public void testCanEvictWhenCreationDatesEqual() {
@@ -81,7 +84,7 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
         ShardId shard2 = new ShardId("index2", randomUUID(), 0);
         var policy = new TestIndexAgeEvictionPolicy(Map.of(shard1, creationDate, shard2, creationDate));
 
-        assertTrue(policy.canEvict(region(shard1, "f"), region(shard2, "g")));
+        assertTrue(canEvict(policy, region(shard1, "f"), region(shard2, "g")));
     }
 
     public void testMissingShardTreatedAsOldest() {
@@ -90,8 +93,8 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
         ShardId recentShard = new ShardId("recent", randomUUID(), 0);
         var policy = new TestIndexAgeEvictionPolicy(Map.of(recentShard, recentDate));
 
-        assertTrue(policy.canEvict(region(unknownShard, "f"), region(recentShard, "g")));
-        assertFalse(policy.canEvict(region(recentShard, "f"), region(unknownShard, "g")));
+        assertTrue(canEvict(policy, region(unknownShard, "f"), region(recentShard, "g")));
+        assertFalse(canEvict(policy, region(recentShard, "f"), region(unknownShard, "g")));
     }
 
     /**
@@ -137,7 +140,7 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
             .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
             .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
             .put(
-                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING.getKey(),
+                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(),
                 StatelessCacheEvictionPolicyType.INDEX_AGE
             )
             .put("path.home", createTempDir())
@@ -147,7 +150,18 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
         final ShardId newShard = new ShardId(newIndex.getIndex(), 0);
 
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        final ClusterService clusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), ProjectId.DEFAULT);
+        final ClusterService clusterService = ClusterServiceUtils.createClusterService(
+            taskQueue.getThreadPool(),
+            ProjectId.DEFAULT,
+            Settings.EMPTY,
+            Set.of(
+                StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
+                StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,
+                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING,
+                StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING
+            )
+        );
+        final IndicesService indicesService = TestUtils.mockIndicesService(clusterService);
         ClusterServiceUtils.setState(
             clusterService,
             ClusterState.builder(ClusterName.DEFAULT)
@@ -162,6 +176,7 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
                 taskQueue.getThreadPool(),
                 BlobCacheMetrics.NOOP,
                 clusterService,
+                indicesService,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             )
         ) {
@@ -169,7 +184,13 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
 
             for (int i = 0; i < numRegions; i++) {
                 var key = new FileCacheKey(oldShard, 1L, "file-" + i);
-                SharedBlobCacheServiceTestUtils.cacheRegion(cacheService, key, randomLongBetween(1, regionSizeInBytes - 1L), 0);
+                SharedBlobCacheServiceTestUtils.cacheRegion(
+                    cacheService,
+                    key,
+                    randomLongBetween(1, regionSizeInBytes - 1L),
+                    0,
+                    randomRegionTimestampMillis()
+                );
             }
             assertEquals(0, SharedBlobCacheServiceTestUtils.freeRegionCount(cacheService));
             assertThat(cacheService.countCachedRegions(key -> key.shardId().equals(oldShard)), equalTo((long) numRegions));
@@ -177,13 +198,25 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
             final int oldIndexReinsertions = randomIntBetween(1, numRegions);
             for (int i = 0; i < oldIndexReinsertions; i++) {
                 var key = new FileCacheKey(oldShard, 1L, "file-" + randomIntBetween(0, numRegions - 1));
-                SharedBlobCacheServiceTestUtils.cacheRegion(cacheService, key, randomLongBetween(1, regionSizeInBytes - 1L), 0);
+                SharedBlobCacheServiceTestUtils.cacheRegion(
+                    cacheService,
+                    key,
+                    randomLongBetween(1, regionSizeInBytes - 1L),
+                    0,
+                    randomRegionTimestampMillis()
+                );
             }
 
             final int newEntries = randomIntBetween(1, numRegions);
             for (int i = 0; i < newEntries; i++) {
                 var key = new FileCacheKey(newShard, 1L, "new-file-" + i);
-                SharedBlobCacheServiceTestUtils.cacheRegion(cacheService, key, randomLongBetween(1, regionSizeInBytes - 1L), 0);
+                SharedBlobCacheServiceTestUtils.cacheRegion(
+                    cacheService,
+                    key,
+                    randomLongBetween(1, regionSizeInBytes - 1L),
+                    0,
+                    randomRegionTimestampMillis()
+                );
             }
 
             assertThat(cacheService.countCachedRegions(key -> key.shardId().equals(newShard)), equalTo((long) newEntries));
@@ -195,6 +228,7 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
     }
 
     private static CacheRegion<FileCacheKey> region(ShardId shardId, String file) {
+        final long timestampMillis = randomRegionTimestampMillis();
         return new CacheRegion<>() {
             @Override
             public FileCacheKey key() {
@@ -203,7 +237,7 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
 
             @Override
             public long timestampMillis() {
-                return UNKNOWN_TIMESTAMP;
+                return timestampMillis;
             }
         };
     }
@@ -216,5 +250,9 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
 
     private static long cacheRegionSizeInBytes(long numPages) {
         return numPages * SharedBytes.PAGE_SIZE;
+    }
+
+    private static boolean canEvict(IndexAgeEvictionPolicy policy, CacheRegion<FileCacheKey> region, CacheRegion<FileCacheKey> incoming) {
+        return policy.createPredicate(incoming).test(region);
     }
 }

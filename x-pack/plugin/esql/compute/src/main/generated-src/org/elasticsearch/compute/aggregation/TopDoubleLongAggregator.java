@@ -9,7 +9,6 @@ package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -62,7 +61,14 @@ class TopDoubleLongAggregator {
         state.add(groupId, v, outputValue);
     }
 
-    public static void combineIntermediate(GroupingState state, int groupId, DoubleBlock values, LongBlock outputValues, int position) {
+    public static void combineIntermediate(
+        // comment to make spotless happy about line breaks
+        GroupingState state,
+        int groupId,
+        DoubleBlock values,
+        LongBlock outputValues,
+        int position
+    ) {
         int start = values.getFirstValueIndex(position);
         int end = start + values.getValueCount(position);
         for (int i = start; i < end; i++) {

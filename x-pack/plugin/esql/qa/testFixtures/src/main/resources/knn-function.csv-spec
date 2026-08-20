@@ -370,7 +370,6 @@ be excellent to each other                                            | host3
 ;
 
 testKnnWithSemanticTextMultiValueField
-skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: knn_function_v5
 required_capability: semantic_text_field_caps
 

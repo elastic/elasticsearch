@@ -20,11 +20,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportMeterSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportMeterSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
+import org.elasticsearch.telemetry.apm.internal.metrics.APMMeterRegistry;
 
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
@@ -38,7 +38,7 @@ public class APMMeterService extends AbstractLifecycleComponent {
     private final APMMeterRegistry meterRegistry;
     private final MeterSupplier otelMeterSupplier;
     private final MeterSupplier noopMeterSupplier;
-    private final long flushTimeoutMillis;
+    private final SystemMetrics systemMetrics;
 
     protected volatile boolean enabled;
 
@@ -51,7 +51,8 @@ public class APMMeterService extends AbstractLifecycleComponent {
         this.otelMeterSupplier = otelMeterSupplier;
         this.noopMeterSupplier = noopMeterSupplier;
         this.meterRegistry = new APMMeterRegistry(enabled ? otelMeterSupplier.get() : noopMeterSupplier.get());
-        this.flushTimeoutMillis = OtelSdkSettings.TELEMETRY_OTEL_FLUSH_TIMEOUT.get(settings).millis();
+        this.meterRegistry.setInstrumentTimingEnabled(OtelSdkSettings.TELEMETRY_METRICS_INSTRUMENT_TIMING_ENABLED.get(settings));
+        this.systemMetrics = new SystemMetrics(meterRegistry, OtelSdkSettings.NODE_METRICS_OTEL_SEMCONV_ENABLED_SETTING.get(settings));
     }
 
     private static MeterSupplier createOtelMeterSupplier(Settings settings, Path diskBufferPath) {
@@ -100,13 +101,15 @@ public class APMMeterService extends AbstractLifecycleComponent {
     }
 
     @Override
-    protected void doStart() {}
+    protected void doStart() {
+        systemMetrics.start();
+    }
 
     @Override
     protected void doStop() {
         if (enabled) {
             try {
-                otelMeterSupplier.attemptFlushMetrics().join(flushTimeoutMillis, TimeUnit.MILLISECONDS);
+                otelMeterSupplier.attemptFlushMetrics().join(OtelSdkSettings.OTEL_EXPORT_FLUSH_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
             } catch (Exception e) {
                 LOGGER.warn("Exception flushing OTel MeterSupplier", e);
             }
@@ -115,6 +118,7 @@ public class APMMeterService extends AbstractLifecycleComponent {
 
     @Override
     protected void doClose() {
+        systemMetrics.close();
         try {
             otelMeterSupplier.close();
         } catch (Exception e) {

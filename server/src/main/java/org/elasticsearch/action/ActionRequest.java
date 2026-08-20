@@ -15,6 +15,11 @@ import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 
+/**
+ * In due course we intend to make {@link ActionRequest} strongly-typed in its {@link ActionResponse} type, and then to migrate each
+ * {@link UntypedActionRequest} instances to the new typed world. Until the strongly-typed {@link ActionRequest} is available, please
+ * continue to use {@link UntypedActionRequest} for all new request types.
+ */
 public abstract class ActionRequest extends AbstractTransportRequest {
 
     public ActionRequest() {

@@ -56,6 +56,8 @@ POST _tasks/2j8UKw1bRO283PMwDugNNg:5326/_cancel
 
 It may take a few seconds for the query to be stopped.
 
+If you regularly find long-running {{esql}} queries, refer to [Optimize {{esql}} query performance](/reference/query-languages/esql/esql-query-performance.md) for ways to reduce scanned data, returned data, and expensive operations.
+
 ::::{tip}
 If you prefer a visual interface, you can use the [Query activity](docs-content://deploy-manage/monitor/query-activity.md) page in {{kib}} to view and manage all running queries — including ES|QL — directly from the UI.
 ::::

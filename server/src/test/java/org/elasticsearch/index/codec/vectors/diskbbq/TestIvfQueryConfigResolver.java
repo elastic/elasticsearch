@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 
 /**
  * Test-only {@link IvfQueryConfigResolver} that returns a fixed {@link IvfSegmentConfig} on every leaf.
@@ -20,9 +19,19 @@ public class TestIvfQueryConfigResolver extends IvfQueryConfigResolver {
 
     private final IvfSegmentConfig config;
 
-    public TestIvfQueryConfigResolver(ESNextDiskBBQVectorsFormat.QuantEncoding encoding, boolean usePrecondition, float rescoreOversample) {
+    public TestIvfQueryConfigResolver(
+        CentroidIndexFormat centroidIndexFormat,
+        QuantEncoding encoding,
+        boolean usePrecondition,
+        float rescoreOversample
+    ) {
         super(false, false, 4, rescoreOversample, null);
-        this.config = new IvfSegmentConfig(encoding, usePrecondition, rescoreOversample);
+        this.config = IvfSegmentConfig.of(
+            centroidIndexFormat,
+            new IvfSegmentConfig.OsqConfig(encoding),
+            usePrecondition,
+            rescoreOversample
+        );
     }
 
     @Override

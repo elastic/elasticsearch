@@ -118,6 +118,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
                     "1.2.3"
                 ),
                 inputType,
+                null,
                 CCMAuthenticationApplierFactory.NOOP_APPLIER
             );
 
@@ -150,6 +151,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
                     "1.2.3"
                 ),
                 inputType,
+                null,
                 new CCMAuthenticationApplierFactory.AuthenticationHeaderApplier(secret)
             );
 
@@ -174,6 +176,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
             new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
             randomElasticInferenceServiceRequestMetadata(),
             inputType,
+            null,
             CCMAuthenticationApplierFactory.NOOP_APPLIER
         );
     }

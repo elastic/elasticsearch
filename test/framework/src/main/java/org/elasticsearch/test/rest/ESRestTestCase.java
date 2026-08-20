@@ -388,18 +388,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         multiProjectEnabled = Booleans.parseBoolean(System.getProperty("tests.multi_project.enabled", "false"));
     }
 
-    @Override
-    public final void setUp() throws Exception {
-        // do not override setUp, use an @Before
-        super.setUp();
-    }
-
-    @Override
-    public final void tearDown() throws Exception {
-        // do not override tearDown, use an @After
-        super.tearDown();
-    }
-
     @Before
     public void initClient() throws IOException {
         if (client == null) {
@@ -2544,6 +2532,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "data-streams-mappings":
             case "search-acl-filter":
             case ".kibana-reporting":
+            case "ai-index-idx":
+            case "ai-index-ds":
                 return true;
             default:
                 return false;
@@ -2951,6 +2941,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             .entry("inference_resolution", instanceOf(Map.class))
             .entry("analysis", instanceOf(Map.class))
             .entry("field_caps_calls", instanceOf(Integer.class))
+            .entry("unmapped_fields", instanceOf(String.class))
             .entry("drivers", instanceOf(List.class))
             .entry("plans", instanceOf(List.class))
             .entry("minimumTransportVersion", instanceOf(Integer.class));

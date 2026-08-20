@@ -365,6 +365,7 @@ public class DocsV3SupportTests extends ESTestCase {
 
                 ```{applies_to}
                 stack: ga 9.1.0
+                serverless: ga
                 ```
 
 

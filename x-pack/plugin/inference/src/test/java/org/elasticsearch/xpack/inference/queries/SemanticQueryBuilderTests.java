@@ -47,9 +47,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InputType;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.model.TestModel;
@@ -151,7 +152,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     public static void startModelRegistry() {
         threadPool = new TestThreadPool(SemanticQueryBuilderTests.class.getName());
         var clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        modelRegistry = new ModelRegistry(clusterService, new NoOpClient(threadPool));
+        modelRegistry = new ModelRegistry(clusterService, new NoOpClient(threadPool), Utils.noopInferenceIndexMappingManager());
         modelRegistry.clusterChanged(new ClusterChangedEvent("init", clusterService.state(), clusterService.state()) {
             @Override
             public boolean localNodeMaster() {
@@ -165,10 +166,8 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         IOUtils.closeWhileHandlingException(threadPool);
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void resetQueryTokenCount() throws Exception {
         queryTokenCount = null;
     }
 
@@ -196,6 +195,11 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         );
 
         applyRandomInferenceResults(mapperService);
+    }
+
+    @Override
+    protected boolean rebuildServiceHolderForEachTest() {
+        return true;
     }
 
     @Override
@@ -614,14 +618,14 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         return sourceToParse;
     }
 
-    private static MinimalServiceSettings getModelSettingsForInferenceResultType(
+    private static EndpointClusterState getModelSettingsForInferenceResultType(
         InferenceResultType inferenceResultType,
         @Nullable DenseVectorFieldMapper.ElementType denseVectorElementType
     ) {
         return switch (inferenceResultType) {
             case NONE -> null;
-            case SPARSE_EMBEDDING -> new MinimalServiceSettings("my-service", TaskType.SPARSE_EMBEDDING, null, null, null);
-            case TEXT_EMBEDDING -> new MinimalServiceSettings(
+            case SPARSE_EMBEDDING -> new EndpointClusterState("my-service", TaskType.SPARSE_EMBEDDING, null, null, null);
+            case TEXT_EMBEDDING -> new EndpointClusterState(
                 "my-service",
                 TaskType.TEXT_EMBEDDING,
                 TEXT_EMBEDDING_DIMENSION_COUNT,
@@ -629,7 +633,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                 denseVectorElementType == DenseVectorFieldMapper.ElementType.BIT ? SimilarityMeasure.L2_NORM : SimilarityMeasure.COSINE,
                 denseVectorElementType
             );
-            case EMBEDDING -> new MinimalServiceSettings(
+            case EMBEDDING -> new EndpointClusterState(
                 "my-service",
                 TaskType.EMBEDDING,
                 TEXT_EMBEDDING_DIMENSION_COUNT,

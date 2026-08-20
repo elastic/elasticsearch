@@ -10,6 +10,7 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
@@ -19,7 +20,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Collections;
 import java.util.Date;
 import java.util.Map;
 
@@ -66,11 +66,12 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByPaginatedSe
         );
         TransportUpdateByQueryAction transportAction = new TransportUpdateByQueryAction(
             threadPool,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             null,
             transportService,
             scriptService,
             clusterService,
+            mock(ProjectResolver.class),
             null,
             null,
             new ReindexSettings(),

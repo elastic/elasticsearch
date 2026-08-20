@@ -2,7 +2,7 @@
   "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
   "type" : "time",
   "name" : "hour",
-  "description" : "returns the hour of the day for each of those timestamps (in UTC). Returned values are from 0 to 23.",
+  "description" : "Returns the hour of the day for each of the input timestamps (in UTC). Returned values are from 0 to 23.",
   "signatures" : [
     {
       "params" : [

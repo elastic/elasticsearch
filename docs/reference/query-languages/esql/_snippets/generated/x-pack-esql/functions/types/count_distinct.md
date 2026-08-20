@@ -20,6 +20,10 @@
 | double | long | long |
 | double | unsigned_long | long |
 | double | | long |
+| flattened {applies_to}`stack: preview 9.5.0` | integer | long |
+| flattened {applies_to}`stack: preview 9.5.0` | long | long |
+| flattened {applies_to}`stack: preview 9.5.0` | unsigned_long | long |
+| flattened {applies_to}`stack: preview 9.5.0` | | long |
 | integer | integer | long |
 | integer | long | long |
 | integer | unsigned_long | long |

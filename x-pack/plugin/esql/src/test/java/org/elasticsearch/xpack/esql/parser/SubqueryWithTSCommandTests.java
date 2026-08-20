@@ -1070,9 +1070,18 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
      */
     public void testSubqueryWithinTimeSeriesCommand() {
         requireSubqueryInFromCommand();
+        for (String query : List.of("TS mainIndex, (FROM subIndex)", "TS mainIndex, (TS subIndex)")) {
+            expectThrows(ParsingException.class, containsString("Subqueries are not supported in TS command"), () -> query(query));
+        }
+    }
+
+    /**
+     * A TS source command nested as the source of a WHERE IN subquery still rejects subqueries of its own,
+     * regardless of whether the nested subquery uses FROM or TS.
+     */
+    public void testSubqueryWithinTimeSeriesCommandInWhereInSubquery() {
+        requireWhereInSubquery();
         for (String query : List.of(
-            "TS mainIndex, (FROM subIndex)",
-            "TS mainIndex, (TS subIndex)",
             "FROM mainIndex | WHERE x IN (TS subIndex1, (FROM subIndex2))",
             "FROM mainIndex | WHERE x IN (TS subIndex1, (TS subIndex2))"
         )) {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -31,8 +32,24 @@ public abstract class DataSourceConfiguration {
 
     private static final Logger logger = LogManager.getLogger(DataSourceConfiguration.class);
 
+    /**
+     * Deprecation-warning message template emitted when a deprecated {@code auth} value alias is canonicalized on
+     * parse. The two {@code {}} placeholders are the deprecated value and its canonical replacement, in that order.
+     * Shared by every {@code normalize()} that canonicalizes an {@code auth} alias so the emitted string stays
+     * byte-identical across datasource types (a serverless test filters on it).
+     */
+    public static final String DEPRECATED_AUTH_MESSAGE = "auth value [{}] is deprecated; the canonical value is [{}]";
+
+    /**
+     * Deprecation-logger key prefix for a deprecated {@code auth} value; the deprecated value name is appended to form
+     * the per-alias key (e.g. {@code esql_datasource_auth_none}). Shared so every {@code normalize()} keys the warning
+     * identically.
+     */
+    public static final String DEPRECATED_AUTH_LOG_KEY_PREFIX = "esql_datasource_auth_";
+
     private final Map<String, DataSourceConfigDefinition> fieldDefs;
     private final Map<String, Object> values;
+    private final Set<String> preexistingSecretKeys;
 
     /**
      * Parses, normalizes, and validates raw settings from a REST request or CRUD layer.
@@ -50,9 +67,26 @@ public abstract class DataSourceConfiguration {
      * @param fieldDefs the field definitions
      * @throws ValidationException if any validation errors are found
      */
-    @SuppressWarnings("this-escape")
     protected DataSourceConfiguration(Map<String, Object> raw, Map<String, DataSourceConfigDefinition> fieldDefs) {
+        this(raw, fieldDefs, Set.of());
+    }
+
+    /**
+     * Like {@link #DataSourceConfiguration(Map, Map)}, but for a PUT-as-update: a secret field omitted from
+     * {@code raw} is still treated as present (see {@link #hasStoredSecret}) if its name is in
+     * {@code preexistingSecretKeys}, so credential-completeness checks pass when the caller intends to keep
+     * the existing value. The caller excludes any key the request explicitly clears (JSON {@code null}).
+     *
+     * @param preexistingSecretKeys secret field names already stored, empty for a create
+     */
+    @SuppressWarnings("this-escape")
+    protected DataSourceConfiguration(
+        Map<String, Object> raw,
+        Map<String, DataSourceConfigDefinition> fieldDefs,
+        Set<String> preexistingSecretKeys
+    ) {
         this.fieldDefs = fieldDefs;
+        this.preexistingSecretKeys = Set.copyOf(preexistingSecretKeys);
         ValidationException errors = new ValidationException();
         DataSourceValidationUtils.rejectUnknownFields(raw, fieldDefs.keySet(), errors);
         Map<String, Object> parsed = new HashMap<>();
@@ -66,16 +100,36 @@ public abstract class DataSourceConfiguration {
                 parsed.put(entry.getKey(), value);
             }
         }
+        normalize(parsed);
         this.values = Map.copyOf(parsed);
         validate(errors);
         errors.throwIfValidationErrorsExist();
     }
 
+    /**
+     * Subclass hook to canonicalize parsed values before they are frozen — e.g. mapping a deprecated
+     * enum alias to its current value so the stored configuration (and every later read) holds the
+     * canonical form. Runs after unknown-field rejection and case-insensitive lowering, before
+     * {@link #validate}. The default is a no-op. Like {@link #validate}, this is a virtual call during
+     * construction, so overrides must touch only the supplied map and static data, never instance fields.
+     */
+    protected void normalize(Map<String, Object> parsed) {}
+
     /** Cross-field validation. Accumulate errors into the provided exception. */
     protected abstract void validate(ValidationException errors);
 
-    /** Returns true if any field marked as secret has a value set. Null values are already excluded. */
+    /** True if any field marked secret has a value set, or a preexisting one carries forward (see {@link #hasStoredSecret}). */
     protected boolean hasAnySecretValue() {
+        return hasAnyExplicitSecretValue() || preexistingSecretKeys.isEmpty() == false;
+    }
+
+    /**
+     * True if any field marked secret has a value set in this request specifically, excluding any preexisting
+     * secret carried forward from a stored value. Use this to distinguish "this request supplied credentials"
+     * from "credentials came from the existing entry" in a conflict message — e.g. rejecting {@code
+     * auth=anonymous} because a stored secret wasn't cleared shouldn't say the request supplied one.
+     */
+    protected boolean hasAnyExplicitSecretValue() {
         for (var entry : values.entrySet()) {
             DataSourceConfigDefinition def = fieldDefs.get(entry.getKey());
             assert def != null : "values map should only contain known fields, got [" + entry.getKey() + "]";
@@ -86,12 +140,22 @@ public abstract class DataSourceConfiguration {
         return false;
     }
 
-    /** Returns true if any field marked as keyless auth has a value set. Null values are already excluded. */
-    public boolean hasKeylessAuth() {
+    /**
+     * True if the named secret field has a value set in this request, or carries forward from a preexisting
+     * stored value on a PUT-as-update. Use this, not {@code Strings.hasText(get(key))}, in
+     * {@code hasCredentials()}/credential-completeness checks so an update that omits an already-stored
+     * secret still satisfies them.
+     */
+    protected boolean hasStoredSecret(String key) {
+        return Strings.hasText(get(key)) || preexistingSecretKeys.contains(key);
+    }
+
+    /** Returns true if any field marked as federated identity (aka keyless auth) has a value set. Null values are already excluded. */
+    public boolean hasFederatedAuth() {
         for (var entry : values.entrySet()) {
             DataSourceConfigDefinition def = fieldDefs.get(entry.getKey());
             assert def != null : "values map should only contain known fields, got [" + entry.getKey() + "]";
-            if (def.keylessAuth()) {
+            if (def.federatedAuth()) {
                 return true;
             }
         }

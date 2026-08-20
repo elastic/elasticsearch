@@ -110,10 +110,10 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
         ActionListener<MultiTermVectorsShardResponse> listener
     ) throws IOException {
         if (stateless) {
-            final String[] realTimeIds = request.requests.stream()
-                .filter(r -> r.realtime())
-                .map(TermVectorsRequest::id)
-                .toArray(String[]::new);
+            // Keep ids and routings parallel by deriving both from the same filtered list of realtime requests.
+            final List<TermVectorsRequest> realTimeRequests = request.requests.stream().filter(TermVectorsRequest::realtime).toList();
+            final String[] realTimeIds = realTimeRequests.stream().map(TermVectorsRequest::id).toArray(String[]::new);
+            final String[] realTimeRoutings = realTimeRequests.stream().map(TermVectorsRequest::routing).toArray(String[]::new);
 
             if (realTimeIds.length > 0) {
                 // The summary is the same for this entire operation, it is passed in the individual request
@@ -126,6 +126,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
                     request.index(),
                     shardId.id(),
                     realTimeIds,
+                    realTimeRoutings,
                     splitShardCountSummary
                 );
                 ensureDocsSearchableRequest.setParentTask(clusterService.localNode().getId(), request.getParentTask().getId());

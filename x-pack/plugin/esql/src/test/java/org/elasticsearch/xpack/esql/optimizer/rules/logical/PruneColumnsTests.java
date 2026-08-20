@@ -11,6 +11,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -2565,6 +2567,43 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(Expressions.names(prunedExt.output()), contains("col_a"));
     }
 
+    public void testExternalRelationKeepsAllDataColumnsWhenSourceConsumed() {
+        // When _source survives downstream, the synthesizer needs every file-resident data column
+        // at compose time — pruning them would render `{}`. Project only _source over (col_a,
+        // col_b, col_c, _source); pin must keep all four.
+        Attribute colA = extAttr("col_a", KEYWORD);
+        Attribute colB = extAttr("col_b", LONG);
+        Attribute colC = extAttr("col_c", INTEGER);
+        Attribute sourceAttr = sourceMetadataAttr();
+        ExternalRelation ext = externalRelation(List.of(colA, colB, colC, sourceAttr));
+
+        LogicalPlan plan = new Project(EMPTY, ext, List.of(sourceAttr));
+        LogicalPlan result = new PruneColumns().apply(plan);
+
+        var project = as(result, Project.class);
+        var prunedExt = as(project.child(), ExternalRelation.class);
+        assertThat(prunedExt.output(), hasSize(4));
+        assertThat(Expressions.names(prunedExt.output()), contains("col_a", "col_b", "col_c", "_source"));
+    }
+
+    public void testExternalRelationStillPrunesWhenSourceBoundButUnused() {
+        // _source is bound but the user drops it without ever reading. Pin should NOT fire (no
+        // over-retention); _source itself is pruned along with col_b and col_c.
+        Attribute colA = extAttr("col_a", KEYWORD);
+        Attribute colB = extAttr("col_b", LONG);
+        Attribute colC = extAttr("col_c", INTEGER);
+        Attribute sourceAttr = sourceMetadataAttr();
+        ExternalRelation ext = externalRelation(List.of(colA, colB, colC, sourceAttr));
+
+        LogicalPlan plan = new Project(EMPTY, ext, List.of(colA));
+        LogicalPlan result = new PruneColumns().apply(plan);
+
+        var project = as(result, Project.class);
+        var prunedExt = as(project.child(), ExternalRelation.class);
+        assertThat(prunedExt.output(), hasSize(1));
+        assertThat(Expressions.names(prunedExt.output()), contains("col_a"));
+    }
+
     public void testPruneColumnsInExternalRelationWithFilter() {
         Attribute colA = extAttr("col_a", KEYWORD);
         Attribute colB = extAttr("col_b", LONG);
@@ -2615,6 +2654,10 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         return new FieldAttribute(EMPTY, name, new EsField(name, type, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
     }
 
+    private static Attribute sourceMetadataAttr() {
+        return new ExternalMetadataAttribute(EMPTY, "_source", DataType.SOURCE);
+    }
+
     private static ExternalRelation externalRelation(List<Attribute> attributes) {
         SourceMetadata metadata = new SourceMetadata() {
             @Override
@@ -2662,7 +2705,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("k8s", IndexMode.TIME_SERIES),
+            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of(cpuField)
         );
         Project project = new Project(EMPTY, esRelation, List.of(cpuField));
@@ -2691,7 +2734,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("k8s", IndexMode.TIME_SERIES),
+            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of(cpuField)
         );
         Project project = new Project(EMPTY, esRelation, List.of(cpuField));

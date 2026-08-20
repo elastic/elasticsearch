@@ -138,30 +138,27 @@ abstract class DataNodeRequestSender {
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SYSTEM_READ,
             ThreadPool.Names.SEARCH,
-            ThreadPool.Names.SEARCH_COORDINATION
+            ThreadPool.Names.SEARCH_COORDINATION,
+            // Reached downstream of ComputeService.execute(), which itself may be invoked on the external blob-store
+            // pool after ExternalSourceResolver completes on that pool.
+            EsqlPlugin.externalBlobStorePool()
         );
         final long startTimeInNanos = System.nanoTime();
         searchShards(concreteIndices, ActionListener.wrap(targetShards -> {
-            try (
-                var computeListener = new ComputeListener(
-                    transportService.getThreadPool(),
-                    runOnTaskFailure,
-                    listener.map(completionInfo -> {
-                        final int totalSkipShards = targetShards.skippedShards() + skippedShards.get();
-                        final int failedShards = shardFailures.size();
-                        final int successfulShards = targetShards.totalShards() - totalSkipShards - failedShards;
-                        return new ComputeResponse(
-                            completionInfo,
-                            timeValueNanos(System.nanoTime() - startTimeInNanos),
-                            targetShards.totalShards(),
-                            successfulShards,
-                            totalSkipShards,
-                            failedShards,
-                            selectFailures()
-                        );
-                    })
-                )
-            ) {
+            try (var computeListener = new ComputeListener(runOnTaskFailure, listener.map(completionInfo -> {
+                final int totalSkipShards = targetShards.skippedShards() + skippedShards.get();
+                final int failedShards = shardFailures.size();
+                final int successfulShards = targetShards.totalShards() - totalSkipShards - failedShards;
+                return new ComputeResponse(
+                    completionInfo,
+                    timeValueNanos(System.nanoTime() - startTimeInNanos),
+                    targetShards.totalShards(),
+                    successfulShards,
+                    totalSkipShards,
+                    failedShards,
+                    selectFailures()
+                );
+            }))) {
                 pendingShardIds.addAll(order(targetShards));
                 trySendingRequestsForPendingShards(targetShards, computeListener);
             }

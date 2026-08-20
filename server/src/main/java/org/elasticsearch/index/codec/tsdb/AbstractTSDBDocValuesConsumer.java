@@ -1112,12 +1112,15 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         long globalMinValue = Long.MAX_VALUE;
         int globalDocCount = 0;
         int maxDocId = -1;
+        int globalMaxValueCount = 0;
         final List<SkipAccumulator> accumulators = new ArrayList<>();
         SkipAccumulator accumulator = null;
         final int maxAccumulators = 1 << (formatConfig.skipIndexLevelShift() * (formatConfig.skipIndexMaxLevel() - 1));
         for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
             final long firstValue = values.nextValue();
-            if (accumulator != null && accumulator.isDone(formatConfig.skipIndexIntervalSize(), values.docValueCount(), firstValue, doc)) {
+            final int valueCount = values.docValueCount();
+            globalMaxValueCount = Math.max(globalMaxValueCount, valueCount);
+            if (accumulator != null && accumulator.isDone(formatConfig.skipIndexIntervalSize(), valueCount, firstValue, doc)) {
                 globalMaxValue = Math.max(globalMaxValue, accumulator.maxValue);
                 globalMinValue = Math.min(globalMinValue, accumulator.minValue);
                 globalDocCount += accumulator.docCount;
@@ -1134,7 +1137,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
             }
             accumulator.nextDoc(doc);
             accumulator.accumulate(firstValue);
-            for (int i = 1, end = values.docValueCount(); i < end; ++i) {
+            for (int i = 1; i < valueCount; ++i) {
                 accumulator.accumulate(values.nextValue());
             }
         }
@@ -1154,6 +1157,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         assert globalDocCount <= maxDocId + 1;
         meta.writeInt(globalDocCount);
         meta.writeInt(maxDocId);
+        meta.writeInt(globalMaxValueCount);
     }
 
     private void writeLevels(final List<SkipAccumulator> accumulators) throws IOException {

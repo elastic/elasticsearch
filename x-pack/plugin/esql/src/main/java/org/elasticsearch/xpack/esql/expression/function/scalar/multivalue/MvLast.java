@@ -14,6 +14,8 @@ import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
@@ -21,11 +23,14 @@ import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -41,7 +46,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 /**
  * Reduce a multivalued field to a single valued field containing the minimum value.
  */
-public class MvLast extends AbstractMultivalueFunction {
+public class MvLast extends AbstractMultivalueFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvLast", MvLast::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvLast.class)
         .unary(MvLast::new)
@@ -49,6 +54,7 @@ public class MvLast extends AbstractMultivalueFunction {
         .name("mv_last");
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = {
             "boolean",
             "cartesian_point",
@@ -57,6 +63,7 @@ public class MvLast extends AbstractMultivalueFunction {
             "date_nanos",
             "date_range",
             "double",
+            "double_range",
             "flattened",
             "geo_point",
             "geo_shape",
@@ -94,6 +101,7 @@ public class MvLast extends AbstractMultivalueFunction {
                 "date_nanos",
                 "date_range",
                 "double",
+                "double_range",
                 "flattened",
                 "geo_point",
                 "geo_shape",
@@ -144,6 +152,7 @@ public class MvLast extends AbstractMultivalueFunction {
             case BOOLEAN -> new MvLastBooleanEvaluator.Factory(fieldEval);
             case BYTES_REF -> new MvLastBytesRefEvaluator.Factory(fieldEval);
             case DOUBLE -> new MvLastDoubleEvaluator.Factory(fieldEval);
+            case DOUBLE_RANGE -> new MvLastDoubleRangeEvaluator.Factory(fieldEval);
             case INT -> new MvLastIntEvaluator.Factory(fieldEval);
             case LONG -> new MvLastLongEvaluator.Factory(fieldEval);
             case LONG_RANGE -> new MvLastLongRangeEvaluator.Factory(fieldEval);
@@ -190,5 +199,15 @@ public class MvLast extends AbstractMultivalueFunction {
     @MvEvaluator(extraName = "LongRange")
     static LongRangeBlockBuilder.LongRange process(LongRangeBlock block, int start, int end, LongRangeBlockBuilder.LongRange scratch) {
         return block.getLongRange(end - 1, scratch);
+    }
+
+    @MvEvaluator(extraName = "DoubleRange")
+    static DoubleRangeBlockBuilder.DoubleRange process(
+        DoubleRangeBlock block,
+        int start,
+        int end,
+        DoubleRangeBlockBuilder.DoubleRange scratch
+    ) {
+        return block.getDoubleRange(end - 1, scratch);
     }
 }

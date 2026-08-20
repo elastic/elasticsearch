@@ -22,6 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
 import org.elasticsearch.xpack.core.common.chunks.ScoredChunk;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -51,6 +52,7 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.string.Top
 import static org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippetsTests.createOptions;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.chunkText;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -244,8 +246,7 @@ public class TopSnippetsStaticTests extends ESTestCase {
             InvalidArgumentException.class,
             () -> processWithHighlight(text, "text", 5, 300, null, null, null, null, null, "nonexistent_analyzer")
         );
-        assertThat(e.getMessage(), containsString("'analyzer' must be a registered analyzer"));
-        assertThat(e.getMessage(), containsString("nonexistent_analyzer"));
+        assertThat(e.getMessage(), containsString("[nonexistent_analyzer] is not a registered analyzer"));
     }
 
     /**
@@ -314,6 +315,42 @@ public class TopSnippetsStaticTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testValidateAnalyzersKnownAnalyzerPasses() {
+        Failures failures = new Failures();
+        topSnippetsWithAnalyzer("standard").postAnalysisVerification(analysisRegistry, failures);
+        assertThat(failures.failures(), empty());
+    }
+
+    public void testValidateAnalyzersUnknownAnalyzerFails() {
+        Failures failures = new Failures();
+        topSnippetsWithAnalyzer("no_such_analyzer").postAnalysisVerification(analysisRegistry, failures);
+        assertThat(failures.failures(), hasSize(1));
+        assertThat(failures.failures().iterator().next().message(), equalTo("[no_such_analyzer] is not a registered analyzer"));
+    }
+
+    public void testValidateAnalyzersMissingAnalyzerOptionPasses() {
+        Failures failures = new Failures();
+        topSnippetsWithAnalyzer(null).postAnalysisVerification(analysisRegistry, failures);
+        assertThat(failures.failures(), empty());
+    }
+
+    public void testValidateAnalyzersNoOptionsAtAllPasses() {
+        TopSnippets ts = new TopSnippets(
+            Source.EMPTY,
+            Literal.keyword(Source.EMPTY, "field text"),
+            Literal.keyword(Source.EMPTY, "query"),
+            null
+        );
+        Failures failures = new Failures();
+        ts.postAnalysisVerification(analysisRegistry, failures);
+        assertThat(failures.failures(), empty());
+    }
+
+    private static TopSnippets topSnippetsWithAnalyzer(String analyzerName) {
+        MapExpression options = analyzerName == null ? null : createOptions(null, null, null, null, null, null, null, analyzerName);
+        return new TopSnippets(Source.EMPTY, Literal.keyword(Source.EMPTY, "field text"), Literal.keyword(Source.EMPTY, "query"), options);
     }
 
     private List<String> process(Object fieldInput, String query, int numSnippets, int numWords) {

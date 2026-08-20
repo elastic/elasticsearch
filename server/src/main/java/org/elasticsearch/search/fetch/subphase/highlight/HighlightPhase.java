@@ -135,7 +135,7 @@ public class HighlightPhase implements FetchSubPhase {
 
                 if (fieldType.isStored()) {
                     storedFields.add(fieldType.name());
-                } else {
+                } else if (highlighter.canHighlightWithoutSource(fieldType, context.getSearchExecutionContext()) == false) {
                     sourceRequired = true;
                 }
 

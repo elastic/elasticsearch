@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -69,6 +71,7 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
 
         FormatReader formatReader = Mockito.mock(FormatReader.class);
         Mockito.when(formatReader.formatName()).thenReturn("csv");
+        Mockito.when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
         @SuppressWarnings("unchecked")
         CloseableIterator<org.elasticsearch.compute.data.Page> emptyIterator = Mockito.mock(CloseableIterator.class);
         Mockito.when(emptyIterator.hasNext()).thenReturn(false);
@@ -120,6 +123,7 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
     public void testFactoryValidation() {
         StorageProvider storageProvider = Mockito.mock(StorageProvider.class);
         FormatReader formatReader = Mockito.mock(FormatReader.class);
+        Mockito.when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
         StoragePath path = StoragePath.of("file:///tmp/test.csv");
         List<Attribute> attributes = List.of(
             new FieldAttribute(
@@ -165,6 +169,63 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
     private static final BlockFactory TEST_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
         .breaker(new NoopCircuitBreaker("none"))
         .build();
+
+    /**
+     * A whole-file split reaches the reader marked as its file's last, so the reader keeps a final record
+     * that has no trailing terminator. Splits built before the position keys existed carry no marks at all,
+     * and this is the path that recognises them.
+     * <p>
+     * Nothing else covers the factory's half of that chain: the split producer stamping the mark and the
+     * reader honouring it are each pinned elsewhere, but if the factory stopped deriving it the record would
+     * be dropped again with every other test still green.
+     */
+    public void testLegacyUnstampedWholeFileSplitReachesTheReaderAsFileFinal() throws Exception {
+        FileSplit split = new FileSplit(
+            "file",
+            StoragePath.of("s3://bucket/whole.csv"),
+            0,
+            1024,
+            ".csv",
+            Map.of(), // no position keys — as produced before they were stamped
+            Map.of()
+        );
+        List<Boolean> capturedSkipFirstLine = new ArrayList<>();
+        SplitCapturingFormatReader formatReader = new SplitCapturingFormatReader(new ArrayList<>(), capturedSkipFirstLine);
+
+        BlockFactory blockFactory = Mockito.mock(BlockFactory.class);
+        DriverContext driverContext = Mockito.mock(DriverContext.class);
+        Mockito.when(driverContext.blockFactory()).thenReturn(blockFactory);
+
+        ExternalSourceOperatorFactory factory = new ExternalSourceOperatorFactory(
+            new StubStorageProvider(),
+            formatReader,
+            StoragePath.of("s3://bucket/whole.csv"),
+            List.of(
+                new FieldAttribute(
+                    Source.EMPTY,
+                    "value",
+                    new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                )
+            ),
+            100,
+            FormatReader.NO_LIMIT,
+            new ExternalSliceQueue(List.of(split))
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                page.releaseBlocks();
+            }
+        }
+
+        assertEquals(1, formatReader.capturedLastSplit().size());
+        assertTrue(
+            "a split covering the whole file owns its trailing bytes, so the reader must be told it is the file's last",
+            formatReader.capturedLastSplit().get(0)
+        );
+    }
 
     public void testSliceQueueWithNonZeroOffsetWrapsWithRangeStorageObject() throws Exception {
         long splitOffset = 500;
@@ -325,6 +386,7 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
     public void testDescribe() {
         StorageProvider storageProvider = Mockito.mock(StorageProvider.class);
         FormatReader formatReader = Mockito.mock(FormatReader.class);
+        Mockito.when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
         Mockito.when(formatReader.formatName()).thenReturn("csv");
         StoragePath path = StoragePath.of("file:///tmp/data.csv");
         List<Attribute> attributes = List.of(
@@ -415,13 +477,23 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     private static class SplitCapturingFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final List<StorageObject> capturedObjects;
         private final List<Boolean> capturedSkipFirstLine;
 
+        private final List<Boolean> capturedLastSplit = new ArrayList<>();
+
         SplitCapturingFormatReader(List<StorageObject> capturedObjects, List<Boolean> capturedSkipFirstLine) {
             this.capturedObjects = capturedObjects;
             this.capturedSkipFirstLine = capturedSkipFirstLine;
+        }
+
+        List<Boolean> capturedLastSplit() {
+            return capturedLastSplit;
         }
 
         @Override
@@ -433,6 +505,7 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             capturedObjects.add(object);
             capturedSkipFirstLine.add(context.firstSplit() == false);
+            capturedLastSplit.add(context.lastSplit());
             return singlePageIterator();
         }
 

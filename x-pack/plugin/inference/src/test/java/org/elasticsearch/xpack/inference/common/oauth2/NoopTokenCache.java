@@ -23,4 +23,7 @@ public class NoopTokenCache implements TokenCache {
     public void invalidate(InferenceIdAndProject key, ActionListener<Void> listener) {
         listener.onResponse(null);
     }
+
+    @Override
+    public void invalidateOnlLocalNode(String inferenceId) {}
 }

@@ -773,30 +773,24 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 when(mergeTask.supportsIOThrottling()).thenReturn(randomBoolean());
                 // avoid backlogging and re-enqueing merge tasks in this test because it makes the queue's available budget unsteady
                 when(mergeTask.schedule()).thenReturn(randomFrom(RUN, ABORT));
-                // let some task complete, which will NOT hold up any budget
-                if (randomBoolean()) {
-                    // this task will NOT hold up any budget because it runs quickly (it is not blocked)
-                    when(mergeTask.estimatedRemainingMergeSize()).thenReturn(randomLongBetween(1_000L, 10_000L));
-                } else {
-                    CountDownLatch blockMergeTaskLatch = new CountDownLatch(1);
-                    long taskBudget = randomLongBetween(1L, expectedAvailableBudget.get());
-                    when(mergeTask.estimatedRemainingMergeSize()).thenReturn(taskBudget);
-                    expectedAvailableBudget.set(expectedAvailableBudget.get() - taskBudget);
-                    submittedMergesCount--;
-                    // this task will hold up budget because it blocks when it runs (to simulate it running for a long time)
-                    doAnswer(mock -> {
-                        // wait to be signalled before completing (this holds up budget)
-                        blockMergeTaskLatch.await();
-                        return null;
-                    }).when(mergeTask).run();
-                    doAnswer(mock -> {
-                        // wait to be signalled before completing (this holds up budget)
-                        blockMergeTaskLatch.await();
-                        return null;
-                    }).when(mergeTask).abort();
-                    runningOrAbortingMergeTasksList.add(mergeTask);
-                    latchesBlockingMergeTasksList.add(blockMergeTaskLatch);
-                }
+                CountDownLatch blockMergeTaskLatch = new CountDownLatch(1);
+                long taskBudget = randomLongBetween(1L, expectedAvailableBudget.get());
+                when(mergeTask.estimatedRemainingMergeSize()).thenReturn(taskBudget);
+                expectedAvailableBudget.set(expectedAvailableBudget.get() - taskBudget);
+                submittedMergesCount--;
+                // this task will hold up budget because it blocks when it runs (to simulate it running for a long time)
+                doAnswer(mock -> {
+                    // wait to be signalled before completing (this holds up budget)
+                    blockMergeTaskLatch.await();
+                    return null;
+                }).when(mergeTask).run();
+                doAnswer(mock -> {
+                    // wait to be signalled before completing (this holds up budget)
+                    blockMergeTaskLatch.await();
+                    return null;
+                }).when(mergeTask).abort();
+                runningOrAbortingMergeTasksList.add(mergeTask);
+                latchesBlockingMergeTasksList.add(blockMergeTaskLatch);
                 assertTrue(threadPoolMergeExecutorService.submitMergeTask(mergeTask));
             }
             // currently running (or aborting) merge tasks have consumed some of the available budget

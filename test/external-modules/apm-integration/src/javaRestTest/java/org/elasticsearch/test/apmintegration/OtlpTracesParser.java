@@ -15,8 +15,6 @@ import io.opentelemetry.proto.trace.v1.ResourceSpans;
 import io.opentelemetry.proto.trace.v1.ScopeSpans;
 import io.opentelemetry.proto.trace.v1.Span;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -33,19 +31,17 @@ public final class OtlpTracesParser extends OtlpParser {
     private OtlpTracesParser() {}
 
     /**
-     * Parse an OTLP traces request into a list of received telemetry events.
+     * Parse an already-decoded OTLP traces request (gRPC path) into received telemetry events.
      *
-     * @param input OTLP protobuf ExportTraceServiceRequest stream
+     * @param request decoded OTLP ExportTraceServiceRequest
      * @return list of ReceivedTelemetry (one per span)
-     * @throws IOException if the stream is not valid OTLP protobuf
      */
-    public static List<ReceivedTelemetry> parse(InputStream input) throws IOException {
-        ExportTraceServiceRequest request = ExportTraceServiceRequest.parseFrom(input);
+    public static List<ReceivedTelemetry> parse(ExportTraceServiceRequest request) {
         List<ReceivedTelemetry> result = new ArrayList<>();
         for (ResourceSpans resourceSpans : request.getResourceSpansList()) {
             // Resource attributes pass through unchanged: no "otel.attributes." prefix
             // (unlike extractSpanAttributes below, which adds it to mimic the APM intake shape).
-            // AbstractTracesIT.REQUIRED_RESOURCE_KEYS asserts on the OTel SemConv names directly.
+            // AbstractTracesIT.requiredResourceKeys() asserts on the OTel SemConv names directly.
             result.add(new ReceivedTelemetry.ReceivedResource(extractRawAttributes(resourceSpans.getResource().getAttributesList())));
             for (ScopeSpans scopeSpans : resourceSpans.getScopeSpansList()) {
                 for (Span span : scopeSpans.getSpansList()) {
@@ -54,7 +50,7 @@ public final class OtlpTracesParser extends OtlpParser {
                     Optional<String> parentSpanId = span.getParentSpanId().isEmpty()
                         ? Optional.empty()
                         : Optional.of(toHex(span.getParentSpanId().toByteArray()));
-                    Map<String, Object> attributes = extractSpanAttributes(span);
+                    Map<String, Object> attributes = withRepresentativeCount(extractSpanAttributes(span), span.getTraceState());
                     result.add(new ReceivedTelemetry.ReceivedSpan(span.getName(), traceId, spanId, parentSpanId, attributes));
                 }
             }
@@ -88,6 +84,22 @@ public final class OtlpTracesParser extends OtlpParser {
             attributes.put("otel.attributes." + kv.getKey(), toJavaValue(kv.getValue()));
         }
         return Map.copyOf(attributes);
+    }
+
+    private static Map<String, Object> withRepresentativeCount(Map<String, Object> attributes, String traceState) {
+        for (String entry : traceState.split(",")) {
+            if (entry.startsWith("ot=") == false) {
+                continue;
+            }
+            for (String subValue : entry.substring("ot=".length()).split(";")) {
+                if (subValue.startsWith("p:")) {
+                    Map<String, Object> result = new LinkedHashMap<>(attributes);
+                    result.put("representative_count", Math.pow(2, Integer.parseInt(subValue.substring("p:".length()))));
+                    return Map.copyOf(result);
+                }
+            }
+        }
+        return attributes;
     }
 
     private static String toHex(byte[] bytes) {

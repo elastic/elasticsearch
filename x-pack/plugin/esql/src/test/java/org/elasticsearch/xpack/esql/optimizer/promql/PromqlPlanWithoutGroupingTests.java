@@ -35,9 +35,9 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
-import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ReadDimsExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
@@ -239,18 +239,18 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         );
         var localizedDataNodePlan = PlannerUtils.localPlan(deserializedDataNodePlan, localLogical, localPhysical, null);
 
-        FieldExtractExec readTimeSeries = localizedDataNodePlan.collect(FieldExtractExec.class)
+        ReadDimsExec readTimeSeries = localizedDataNodePlan.collect(ReadDimsExec.class)
             .stream()
-            .filter(fieldExtract -> Expressions.names(fieldExtract.attributesToExtract()).contains(MetadataAttribute.TIMESERIES))
+            .filter(readDims -> Expressions.names(readDims.dims()).contains(MetadataAttribute.TIMESERIES))
             .findFirst()
             .orElse(null);
         assertNotNull(localizedDataNodePlan.toString(), readTimeSeries);
 
-        FieldAttribute extractedTimeSeries = as(readTimeSeries.attributesToExtract().getFirst(), FieldAttribute.class);
+        FieldAttribute extractedTimeSeries = as(readTimeSeries.dims().getFirst(), FieldAttribute.class);
         assertThat(extractedTimeSeries.fieldName().string(), equalTo(SourceFieldMapper.NAME));
         FunctionEsField extractedField = as(extractedTimeSeries.field(), FunctionEsField.class);
         var functionConfig = as(extractedField.functionConfig(), BlockLoaderFunctionConfig.TimeSeriesMetadata.class);
-        assertThat(functionConfig.withoutFields(), hasItem("pod"));
+        assertThat(functionConfig.skipFieldNames(), hasItem("pod"));
     }
 
     public void testNestedWithoutOverByProducesConcreteOutput() {

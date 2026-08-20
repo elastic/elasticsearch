@@ -96,6 +96,7 @@ public class FilterTests extends ESTestCase {
                 EsqlTestUtils.TEST_CFG,
                 TEST_FUNCTION_REGISTRY,
                 PromqlFunctionRegistry.INSTANCE,
+                EsqlTestUtils.TEST_ANALYSIS_REGISTRY,
                 indexResolutions(test),
                 Map.of(),
                 EsqlTestUtils.emptyPolicyResolution(),

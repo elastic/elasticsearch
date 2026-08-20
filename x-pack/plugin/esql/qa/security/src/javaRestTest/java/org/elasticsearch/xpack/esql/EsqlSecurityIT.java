@@ -14,10 +14,12 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -28,6 +30,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.datasources.EsqlDataSourcesCapabilities;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.junit.Before;
 import org.junit.ClassRule;
 
@@ -67,14 +70,18 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
+        // Federation is only on by default in snapshot builds; the data source and dataset authorization tests need it on.
+        .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .user("test-admin", "x-pack-test-password", "test-admin", true)
         .user("user1", "x-pack-test-password", "user1", false)
         .user("user2", "x-pack-test-password", "user2", false)
         .user("user3", "x-pack-test-password", "user3", false)
         .user("user_dataset_authorize_only", "x-pack-test-password", "user_dataset_authorize_only", false)
+        .user("ds_repro_broad_reader", "x-pack-test-password", "ds_repro_broad_reader", false)
         .user("user4", "x-pack-test-password", "user4", false)
         .user("user5", "x-pack-test-password", "user5", false)
+        .user("fls_cross_index_user", "x-pack-test-password", "fls_cross_index", false)
         .user("fls_user", "x-pack-test-password", "fls_user", false)
         .user("fls_partial_no_source_user", "x-pack-test-password", "fls_partial_no_source", false)
         .user("fls_per_index_access_user", "x-pack-test-password", "fls_partial_no_source,read_full_mapping", false)
@@ -111,6 +118,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("ds_dataset_create_read_metadata_datasource", "x-pack-test-password", "ds_dataset_create_read_metadata_datasource", false)
         .user("ds_dataset_read_metadata", "x-pack-test-password", "ds_dataset_read_metadata", false)
         .user("ds_dataset_delete", "x-pack-test-password", "ds_dataset_delete", false)
+        .user("ds_dataset_query_no_datasource", "x-pack-test-password", "ds_dataset_query_no_datasource", false)
+        .user("ds_dataset_query_dls", "x-pack-test-password", "ds_dataset_query_dls", false)
+        .user("ds_dataset_query_fls", "x-pack-test-password", "ds_dataset_query_fls", false)
+        .user("ds_dataset_query_partial", "x-pack-test-password", "ds_dataset_query_partial", false)
         .build();
 
     @Override
@@ -579,6 +590,17 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(respMap.get("values"), equalTo(List.of(List.of(30.0d))));
     }
 
+    public void testGetViewByMissingNameReturnsCleanNotFoundUnderSecurity() throws IOException {
+        // Security-on counterpart to ViewRestTests: GET a view by a name that does not resolve to a view must return a
+        // clean view-shaped not-found, never leak the raw index_not_found_exception. The translation lives in the
+        // transport, after authorization, so it holds the same with security enabled.
+        ResponseException ex = expectThrows(ResponseException.class, () -> getView("test-admin", "no-such-view-under-security"));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+        String body = EntityUtils.toString(ex.getResponse().getEntity());
+        assertThat(body, containsString("view [no-such-view-under-security] not found"));
+        assertThat(body, not(containsString("index_not_found_exception")));
+    }
+
     public void testViewWildcardFiltersUnauthorized() throws Exception {
         Response resp = runESQLCommand("user1", "FROM view-user* | STATS sum=sum(value)");
         assertOK(resp);
@@ -899,9 +921,12 @@ public class EsqlSecurityIT extends ESRestTestCase {
             "Requires unmapped_fields=LOAD support",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
         );
+        // The text field [partial] is unmapped in some of the queried indices and cannot be implicitly loaded, so a non-loadable
+        // field warning is emitted. That warning is covered elsewhere; here we just ignore it.
         Response resp = runESQLCommand(
             "fls_user",
-            "SET unmapped_fields=\"load\"; FROM index,indexpartial METADATA _index " + "| KEEP _index, value, partial | SORT value"
+            "SET unmapped_fields=\"load\"; FROM index,indexpartial METADATA _index " + "| KEEP _index, value, partial | SORT value",
+            WarningsHandler.PERMISSIVE
         );
         assertOK(resp);
         Map<String, Object> respMap = entityAsMap(resp);
@@ -1031,6 +1056,61 @@ public class EsqlSecurityIT extends ESRestTestCase {
                     )
                 )
                 .entry("values", List.of(Arrays.asList(null, null), Arrays.asList(null, null)))
+        );
+    }
+
+    /**
+     * The {@code LOAD_ALL} counterpart of {@link #testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoad}: no unmapped field is
+     * referenced, so every unmapped {@code _source} key becomes a column of its own. An FLS-denied field must not become one of
+     * them. {@code fls_deny_value_org_user} is denied the mapped {@code value} and the unmapped {@code org}, so neither may show
+     * up as a column, while the admin running the same query sees both.
+     */
+    public void testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD_ALL support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL.capabilityName()))
+        );
+        // Sorting on the unmapped salary keeps the row order stable for both users; the only mapped field is denied below.
+        String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM " + INDEX_PARTIAL_MAPPING + " | SORT salary | LIMIT 10";
+
+        Response adminResp = runESQLCommand("test-admin", query);
+        assertOK(adminResp);
+        assertMap(
+            entityAsMap(adminResp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "value").entry("type", "double"),
+                        matchesMap().entry("name", "salary").entry("type", "keyword"),
+                        matchesMap().entry("name", "hire_date").entry("type", "keyword"),
+                        matchesMap().entry("name", "ip_addr").entry("type", "keyword"),
+                        matchesMap().entry("name", "org").entry("type", "keyword")
+                    )
+                )
+                .entry(
+                    "values",
+                    List.of(
+                        List.of(10.0, "100000", "2024-01-01", "10.0.0.1", "sales"),
+                        List.of(20.0, "200000", "2023-06-15", "10.0.0.2", "engineering")
+                    )
+                )
+        );
+
+        Response restrictedResp = runESQLCommand("fls_deny_value_org_user", query);
+        assertOK(restrictedResp);
+        assertMap(
+            entityAsMap(restrictedResp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "salary").entry("type", "keyword"),
+                        matchesMap().entry("name", "hire_date").entry("type", "keyword"),
+                        matchesMap().entry("name", "ip_addr").entry("type", "keyword")
+                    )
+                )
+                .entry("values", List.of(List.of("100000", "2024-01-01", "10.0.0.1"), List.of("200000", "2023-06-15", "10.0.0.2")))
         );
     }
 
@@ -1309,9 +1389,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         request.setJsonEntity(Strings.toString(json));
         request.addParameter("error_trace", "true");
         // EXPLAIN queries may trigger a default limit warning, so ignore warnings
-        request.setOptions(
-            RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user).setWarningsHandler(warnings -> false)
-        );
+        request.setOptions(runAsUserOptions(user, WarningsHandler.PERMISSIVE));
         return client().performRequest(request);
     }
 
@@ -1756,6 +1834,33 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
     }
 
+    public void testLookupJoinWithRequestFilterMatchingNoDocs() throws Exception {
+        assumeTrue(
+            "Requires LOOKUP JOIN capability",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
+        );
+        // Regression test: a request-level filter that matches no source documents used to cause the
+        // lookup index field-caps request to be sent with an empty index expression. With security
+        // enabled, IndicesAndAliasesResolver then expanded the empty expression to all authorised
+        // indices (lookup-user1 and lookup-user2 for metadata1_read2), making the lookup join fail
+        // with "Lookup Join requires a single lookup mode index; [...] resolves to multiple indices"
+        // instead of returning an empty result set.
+        // https://github.com/elastic/kibana/issues/277613
+        Request request = new Request("POST", "_query");
+        request.setJsonEntity("""
+            {
+                "query": "FROM index-user2 | LOOKUP JOIN lookup-user2 ON value | KEEP value, org | LIMIT 10",
+                "filter": {"match_none": {}}
+            }
+            """);
+        request.setOptions(runAsUserOptions("metadata1_read2", null));
+        request.addParameter("error_trace", "true");
+        Response resp = client().performRequest(request);
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("values"), equalTo(List.of()));
+    }
+
     public void testFromLookupIndexForbidden() throws Exception {
         var resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "FROM lookup-user1"));
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
@@ -2133,7 +2238,29 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021_alias", "FROM alias-* | STATS COUNT(*)")), oneResult);
     }
 
+    public void testCountAcrossIndicesWithFlsDeniedField() throws Exception {
+        Response resp = runESQLCommand("fls_cross_index_user", "FROM index,index-user1 | STATS c = COUNT(value)");
+        assertOK(resp);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) entityAsMap(resp).get("values");
+        // index: value allowed — 2 docs (10.0, 20.0); index-user1: value FLS-denied — contributes 0
+        assertThat(values.get(0).get(0), equalTo(2));
+    }
+
+    public void testSumAcrossIndicesWithFlsDeniedFieldAndCast() throws Exception {
+        Response resp = runESQLCommand("fls_cross_index_user", "FROM index,index-user1 | STATS s = SUM(value::long)");
+        assertOK(resp);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) entityAsMap(resp).get("values");
+        // index: value allowed — 10.0+20.0 → 30L; index-user1: value FLS-denied — contributes null
+        assertThat(values.get(0).get(0), equalTo(30));
+    }
+
     protected Response runESQLCommand(String user, String command) throws IOException {
+        return runESQLCommand(user, command, null);
+    }
+
+    protected Response runESQLCommand(String user, String command, @Nullable WarningsHandler warningsHandler) throws IOException {
         if (command.toLowerCase(Locale.ROOT).contains("limit") == false) {
             // add a (high) limit to avoid warnings on default limit
             command += " | limit 10000000";
@@ -2145,14 +2272,21 @@ public class EsqlSecurityIT extends ESRestTestCase {
         json.endObject();
         Request request = new Request("POST", "_query");
         request.setJsonEntity(Strings.toString(json));
-        setUser(request, user);
+        request.setOptions(runAsUserOptions(user, warningsHandler));
         request.addParameter("error_trace", "true");
         return client().performRequest(request);
     }
 
     private static void setUser(Request request, String user) {
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
+        request.setOptions(runAsUserOptions(user, null));
+    }
 
+    static RequestOptions.Builder runAsUserOptions(String user, @Nullable WarningsHandler warningsHandler) {
+        RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user);
+        if (warningsHandler != null) {
+            options.setWarningsHandler(warningsHandler);
+        }
+        return options;
     }
 
     static void addRandomPragmas(XContentBuilder builder) throws IOException {
@@ -2239,6 +2373,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         builder.field("type", "s3");
         builder.startObject("settings");
         builder.field("region", "us-east-1");
+        builder.field("auth", "anonymous");
         builder.endObject();
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
@@ -2254,6 +2389,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         builder.field("type", "s3");
         builder.startObject("settings");
         builder.field("region", "us-east-1");
+        builder.field("auth", "anonymous");
         builder.endObject();
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
@@ -2312,6 +2448,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         builder.field("type", "s3");
         builder.startObject("settings");
         builder.field("region", "us-east-1");
+        builder.field("auth", "anonymous");
         builder.endObject();
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
@@ -2330,6 +2467,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         builder.field("type", "s3");
         builder.startObject("settings");
         builder.field("region", "us-east-1");
+        builder.field("auth", "anonymous");
         builder.endObject();
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
@@ -2414,6 +2552,78 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertOK(client().performRequest(delete));
     }
 
+    /**
+     * End-to-end regression for #152216 under security: the authorization layer expands a dataset DELETE
+     * wildcard across the whole (security-narrowed) index namespace, so the match set can include real
+     * indices. The transport must type-filter to datasets — deleting only the dataset, never the index,
+     * and not 404ing on an index name. Reproduces the reported {@code .siem-signals-default} scenario,
+     * which the no-security {@code DataSourceCrudIT} cannot exercise.
+     */
+    public void testDeleteDatasetWildcardResolvesOnlyDatasetsUnderSecurity() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String suffix = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        final String datasetName = "wildcard_it_d_" + suffix;
+        final String indexName = "wildcard_it_x_" + suffix;
+        try {
+            // A dataset and a same-prefix index that the wildcard also matches.
+            Request put = new Request("PUT", "/_query/dataset/" + datasetName);
+            XContentBuilder body = JsonXContent.contentBuilder();
+            body.startObject();
+            body.field("data_source", SECURITY_IT_SHARED_DATASOURCE);
+            body.field("resource", "s3://bucket/wildcard/*.parquet");
+            body.endObject();
+            put.setJsonEntity(Strings.toString(body));
+            setUser(put, "test-admin");
+            assertOK(client().performRequest(put));
+
+            Request createIndex = new Request("PUT", "/" + indexName);
+            setUser(createIndex, "test-admin");
+            assertOK(client().performRequest(createIndex));
+
+            // Relax the destructive guard so the wildcard resolves; the guard-rejection path is covered in DataSourceCrudIT.
+            setDestructiveRequiresName("false");
+
+            // DELETE the wildcard: resolves to datasets only — never the index, no index-named 404.
+            Request delete = new Request("DELETE", "/_query/dataset/wildcard_it_*");
+            setUser(delete, "test-admin");
+            assertOK(client().performRequest(delete));
+
+            // The dataset is gone...
+            Request getDataset = new Request("GET", "/_query/dataset/" + datasetName);
+            setUser(getDataset, "test-admin");
+            ResponseException notFound = expectThrows(ResponseException.class, () -> client().performRequest(getDataset));
+            assertThat(notFound.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_NOT_FOUND));
+
+            // ...and the index is untouched.
+            Request getIndex = new Request("GET", "/" + indexName);
+            setUser(getIndex, "test-admin");
+            assertOK(client().performRequest(getIndex));
+        } finally {
+            setDestructiveRequiresName(null);
+            deleteIndexQuietly(indexName);
+        }
+    }
+
+    private void setDestructiveRequiresName(String value) throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity(
+            "{\"persistent\":{\"action.destructive_requires_name\":" + (value == null ? "null" : "\"" + value + "\"") + "}}"
+        );
+        setUser(request, "test-admin");
+        assertOK(client().performRequest(request));
+    }
+
+    private void deleteIndexQuietly(String indexName) {
+        try {
+            Request request = new Request("DELETE", "/" + indexName);
+            setUser(request, "test-admin");
+            client().performRequest(request);
+        } catch (Exception ignored) {
+            // best-effort cleanup
+        }
+    }
+
     public void testGetDatasetForbiddenWithoutReadDatasetMetadata() throws IOException {
         assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
         ensureSecurityItDatasourcesForTests();
@@ -2458,6 +2668,244 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertOK(client().performRequest(get));
 
         Request delete = new Request("DELETE", "/_query/dataset/" + datasetName);
+        setUser(delete, "test-admin");
+        assertOK(client().performRequest(delete));
+    }
+
+    /**
+     * Repro for the GET _query/dataset 404 reported 2026-06-30. A non-superuser whose role can both list datasets and
+     * read an unrelated (Entity-Store-style, hidden) data stream lists datasets with "*". The security layer expands
+     * the wildcard against the user's authorized namespace — which includes the data stream — and the dataset
+     * resolution then reads it back with data streams excluded, 404-ing on entities-updates-default. A superuser does
+     * not hit this because it is authorized for "*" wholesale and never enumerates.
+     */
+    public void testListDatasetsAsNonSuperuserWithCoresidentHiddenDataStream() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+
+        // Hidden, template-managed data stream, mirroring the Entity Store's entities-updates-default.
+        Request tmpl = new Request("PUT", "/_index_template/entities-updates-tmpl");
+        tmpl.setJsonEntity("{\"index_patterns\":[\"entities-updates-*\"],\"data_stream\":{\"hidden\":true}}");
+        setUser(tmpl, "test-admin");
+        assertOK(client().performRequest(tmpl));
+        Request createDs = new Request("PUT", "/_data_stream/entities-updates-default");
+        setUser(createDs, "test-admin");
+        assertOK(client().performRequest(createDs));
+
+        final String dataset = createSecurityItDatasetAsAdmin("security_it_ds_repro_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
+
+        try {
+            // GET /_query/dataset (list all == "*") as the non-superuser.
+            Request list = new Request("GET", "/_query/dataset");
+            setUser(list, "ds_repro_broad_reader");
+            Response resp = client().performRequest(list);
+            assertOK(resp);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> hits = (List<Map<String, Object>>) entityAsMap(resp).get("datasets");
+            assertThat(hits.stream().anyMatch(h -> dataset.equals(h.get("name"))), equalTo(true));
+        } finally {
+            deleteDatasetAsAdmin(dataset);
+            Request delDs = new Request("DELETE", "/_data_stream/entities-updates-default");
+            setUser(delDs, "test-admin");
+            client().performRequest(delDs);
+            Request delTmpl = new Request("DELETE", "/_index_template/entities-updates-tmpl");
+            setUser(delTmpl, "test-admin");
+            client().performRequest(delTmpl);
+        }
+    }
+
+    /**
+     * Explicit-name counterpart of {@link #testListDatasetsAsNonSuperuserWithCoresidentHiddenDataStream}: a user
+     * authorized on the co-resident data stream asks for it by its literal name, not via a wildcard. Dataset
+     * resolution must preserve explicit-name not-found semantics instead of treating the foreign resource like a
+     * wildcard-expanded value that can be silently filtered away.
+     */
+    public void testGetDatasetByExplicitNameOfCoresidentHiddenDataStream() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+
+        Request tmpl = new Request("PUT", "/_index_template/entities-updates-tmpl");
+        tmpl.setJsonEntity("{\"index_patterns\":[\"entities-updates-*\"],\"data_stream\":{\"hidden\":true}}");
+        setUser(tmpl, "test-admin");
+        assertOK(client().performRequest(tmpl));
+        Request createDs = new Request("PUT", "/_data_stream/entities-updates-default");
+        setUser(createDs, "test-admin");
+        assertOK(client().performRequest(createDs));
+
+        try {
+            Request get = new Request("GET", "/_query/dataset/entities-updates-default");
+            setUser(get, "ds_repro_broad_reader");
+            ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(get));
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_NOT_FOUND));
+            assertThat(ex.getMessage(), containsString("dataset [entities-updates-default] not found"));
+        } finally {
+            Request delDs = new Request("DELETE", "/_data_stream/entities-updates-default");
+            setUser(delDs, "test-admin");
+            client().performRequest(delDs);
+            Request delTmpl = new Request("DELETE", "/_index_template/entities-updates-tmpl");
+            setUser(delTmpl, "test-admin");
+            client().performRequest(delTmpl);
+        }
+    }
+
+    /**
+     * {@code FROM <dataset>} requires the index {@code read} privilege on the dataset name — the name is routed
+     * through the security filter before the rewrite strips it from the plan. A principal without read on the name
+     * gets the same {@code Unknown index} error a missing index produces — like unauthorized indices and views,
+     * dataset existence is not revealed.
+     */
+    public void testFromDatasetDeniedWithoutReadOnName() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String dataset = createSecurityItDatasetAsAdmin();
+        try {
+            // user5 can run ES|QL (read on `index`) but has no privilege on `security_it_ds_*`.
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("user5", "FROM " + dataset + " | STATS COUNT(*)")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+            assertThat(ex.getMessage(), containsString("Unknown index [" + dataset + "]"));
+
+            // Under a wildcard the unauthorized dataset is filtered from expansion, so the pattern matches
+            // nothing — same as a wildcard over unauthorized indices: an empty success, never dataset data.
+            Response wildcardResp = runESQLCommand("user5", "FROM " + dataset + "* | STATS COUNT(*)");
+            assertOK(wildcardResp);
+            Map<String, Object> wildcardMap = entityAsMap(wildcardResp);
+            assertThat(wildcardMap.get("values"), anyOf(equalTo(List.of()), equalTo(List.of(List.of(0)))));
+        } finally {
+            deleteDatasetAsAdmin(dataset);
+        }
+    }
+
+    /**
+     * Read on the dataset name is sufficient — no datasource privilege required. The parent datasource's
+     * credentials are settled at create time (PUT), not re-checked per query, so a role with index {@code read}
+     * on the dataset name but no {@code global.data_source} grant passes authorization. It then fails reading the
+     * (nonexistent) external resource, which must not look like an authorization failure or a hidden name.
+     */
+    public void testFromDatasetAllowedWithDatasetReadOnly() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String dataset = createSecurityItDatasetAsAdmin();
+        try {
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("ds_dataset_query_no_datasource", "FROM " + dataset + " | STATS COUNT(*)")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), not(equalTo(HttpStatus.SC_FORBIDDEN)));
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), not(equalTo(HttpStatus.SC_UNAUTHORIZED)));
+            assertThat(ex.getMessage(), not(containsString("Unknown index [" + dataset + "]")));
+            assertThat(ex.getMessage(), not(containsString("unauthorized")));
+        } finally {
+            deleteDatasetAsAdmin(dataset);
+        }
+    }
+
+    /** Datasets are incompatible with DLS/FLS: a DLS-restricted role targeting a dataset via FROM is rejected. */
+    public void testFromDatasetDeniedWithDlsOnName() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String dataset = createSecurityItDatasetAsAdmin();
+        try {
+            // ds_dataset_query_dls has read on `security_it_ds_*` but that read carries a DLS query.
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("ds_dataset_query_dls", "FROM " + dataset + " | STATS COUNT(*)")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+            assertThat(ex.getMessage(), containsString("document or field level security"));
+        } finally {
+            deleteDatasetAsAdmin(dataset);
+        }
+    }
+
+    /**
+     * {@code FROM authorized_ds, unauthorized_ds} fails with {@code Unknown index [unauthorized_ds]} — an explicitly
+     * named dataset the caller can't read errors like a missing index (400) instead of silently returning partial data
+     * for the authorized one. The denial is produced by routing the names through the rbac engine.
+     */
+    public void testFromDatasetMixedAuthorizedAndUnauthorizedRejected() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        // ds_dataset_query_partial can read security_it_ds_keep_* but not security_it_ds_drop_*.
+        final String authorized = createSecurityItDatasetAsAdmin("security_it_ds_keep_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
+        final String denied = createSecurityItDatasetAsAdmin("security_it_ds_drop_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
+        try {
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("ds_dataset_query_partial", "FROM " + authorized + "," + denied + " | STATS COUNT(*)")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+            assertThat(ex.getMessage(), containsString("Unknown index [" + denied + "]"));
+        } finally {
+            deleteDatasetAsAdmin(authorized);
+            deleteDatasetAsAdmin(denied);
+        }
+    }
+
+    /**
+     * A wildcard that partially matches authorized datasets, combined with an explicitly-named unauthorized dataset in
+     * the same FROM: the wildcard silently keeps only the authorized matches, but the explicit unauthorized name still
+     * errors with {@code Unknown index} (it is not silently dropped).
+     */
+    public void testFromDatasetWildcardPartialWithExplicitUnauthorized() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String authorized = createSecurityItDatasetAsAdmin("security_it_ds_keep_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
+        final String denied = createSecurityItDatasetAsAdmin("security_it_ds_drop_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
+        try {
+            // security_it_ds_keep_* matches only the authorized dataset; the explicit denied one must still error.
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("ds_dataset_query_partial", "FROM security_it_ds_keep_*," + denied + " | STATS COUNT(*)")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+            assertThat(ex.getMessage(), containsString("Unknown index [" + denied + "]"));
+        } finally {
+            deleteDatasetAsAdmin(authorized);
+            deleteDatasetAsAdmin(denied);
+        }
+    }
+
+    /** Datasets are incompatible with FLS: an FLS-restricted role targeting a dataset via FROM is rejected (mirrors DLS). */
+    public void testFromDatasetDeniedWithFlsOnName() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String dataset = createSecurityItDatasetAsAdmin();
+        try {
+            // ds_dataset_query_fls has read on security_it_ds_* but that read carries a field_security grant.
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("ds_dataset_query_fls", "FROM " + dataset + " | STATS COUNT(*)")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+            assertThat(ex.getMessage(), containsString("document or field level security"));
+        } finally {
+            deleteDatasetAsAdmin(dataset);
+        }
+    }
+
+    /** Registers a randomly-named dataset under {@link #SECURITY_IT_SHARED_DATASOURCE} as test-admin; returns its name. */
+    private String createSecurityItDatasetAsAdmin() throws IOException {
+        return createSecurityItDatasetAsAdmin("security_it_ds_authz_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT));
+    }
+
+    /** Registers a dataset with the given name under {@link #SECURITY_IT_SHARED_DATASOURCE} as test-admin. */
+    private String createSecurityItDatasetAsAdmin(String name) throws IOException {
+        Request put = new Request("PUT", "/_query/dataset/" + name);
+        XContentBuilder body = JsonXContent.contentBuilder();
+        body.startObject();
+        body.field("data_source", SECURITY_IT_SHARED_DATASOURCE);
+        body.field("resource", "s3://security-it-denied-bucket/denied/*.parquet");
+        body.endObject();
+        put.setJsonEntity(Strings.toString(body));
+        setUser(put, "test-admin");
+        assertOK(client().performRequest(put));
+        return name;
+    }
+
+    private void deleteDatasetAsAdmin(String name) throws IOException {
+        Request delete = new Request("DELETE", "/_query/dataset/" + name);
         setUser(delete, "test-admin");
         assertOK(client().performRequest(delete));
     }

@@ -7,13 +7,19 @@
 
 package org.elasticsearch.xpack.esql.expression.promql.function;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -39,13 +45,25 @@ public final class PromqlFunctionDefinition {
     private final PromqlFunctionArity arity;
     private final FunctionBuilder esqlBuilder;
     private final String description;
+    private final String extendedDescription;
     private final List<PromqlParamInfo> params;
     private final List<String> examples;
     private final CounterSupport counterSupport;
+    private final ClassicHistogramHandler classicHistogramHandler;
+    private final String differenceFromPrometheus;
+    private final List<StackAvailability> stack;
 
     @FunctionalInterface
     public interface FunctionBuilder {
         Expression build(Source source, Expression target, PromqlFunctionRegistry.PromqlContext ctx, List<Expression> extraParams);
+    }
+
+    /**
+     * Builds the specialized logical plan node used to evaluate classic histogram.
+     */
+    @FunctionalInterface
+    public interface ClassicHistogramHandler {
+        HistogramFunctionCall build(Source source, LogicalPlan child, PromqlFunctionDefinition definition, List<Expression> extraParams);
     }
 
     /**
@@ -141,9 +159,13 @@ public final class PromqlFunctionDefinition {
         PromqlFunctionArity arity,
         FunctionBuilder esqlBuilder,
         String description,
+        String extendedDescription,
         List<PromqlParamInfo> params,
         List<String> examples,
-        CounterSupport counterSupport
+        CounterSupport counterSupport,
+        ClassicHistogramHandler classicHistogramHandler,
+        String differenceFromPrometheus,
+        List<StackAvailability> stack
     ) {
         Objects.requireNonNull(name, "name cannot be null");
         Objects.requireNonNull(functionType, "functionType cannot be null");
@@ -153,6 +175,9 @@ public final class PromqlFunctionDefinition {
         Objects.requireNonNull(params, "params cannot be null");
         Objects.requireNonNull(examples, "examples cannot be null");
         Objects.requireNonNull(counterSupport, "counterSupport cannot be null");
+        if (classicHistogramHandler != null && functionType != FunctionType.HISTOGRAM) {
+            throw new IllegalArgumentException("classicHistogramHandler may only be set for histogram functions");
+        }
         if (arity.max() != params.size()) {
             throw new IllegalArgumentException(
                 String.format(
@@ -172,9 +197,17 @@ public final class PromqlFunctionDefinition {
         this.arity = arity;
         this.esqlBuilder = esqlBuilder;
         this.description = description;
+        // Optional: extra description paragraph rendered only on the function's own page, not in the brief overview.
+        this.extendedDescription = extendedDescription;
         this.params = params;
         this.examples = examples;
         this.counterSupport = counterSupport;
+        this.classicHistogramHandler = classicHistogramHandler;
+        // Optional: only set for functions whose Elasticsearch behavior diverges from the Prometheus reference.
+        this.differenceFromPrometheus = differenceFromPrometheus;
+        // Stack availability rendered into the docs applies_to badge. Empty until declared; the docs generator rejects
+        // any registered function that leaves this unset.
+        this.stack = stack;
     }
 
     public String name() {
@@ -197,6 +230,15 @@ public final class PromqlFunctionDefinition {
         return description;
     }
 
+    /**
+     * Additional description detail rendered only on the function's own reference page (after the brief summary), not
+     * in the per-category functions overview. Used to keep the overview summaries short while documenting fuller
+     * behavior on the dedicated page. {@code null} when the function has no extra detail.
+     */
+    public String extendedDescription() {
+        return extendedDescription;
+    }
+
     public List<PromqlParamInfo> params() {
         return params;
     }
@@ -207,6 +249,34 @@ public final class PromqlFunctionDefinition {
 
     public CounterSupport counterSupport() {
         return counterSupport;
+    }
+
+    /**
+     * Returns the specialized classic histogram handler, or {@code null} when this histogram function only supports the
+     * regular native-histogram translation path.
+     */
+    public ClassicHistogramHandler classicHistogramHandler() {
+        if (functionType != FunctionType.HISTOGRAM) {
+            throw new IllegalStateException("classicHistogramHandler may only be called for histogram functions");
+        }
+        return classicHistogramHandler;
+    }
+
+    /**
+     * The "Differences from Prometheus" note rendered in the generated function docs, or {@code null} when the
+     * function matches the Prometheus reference behavior.
+     */
+    public String differenceFromPrometheus() {
+        return differenceFromPrometheus;
+    }
+
+    /**
+     * The {@code stack} availability entries rendered into this function's docs {@code applies_to} badge (for example
+     * {@code preview 9.4, ga 9.5}). Empty when the function has not declared its availability, which the docs generator
+     * treats as an error so every registered function must declare one.
+     */
+    public List<StackAvailability> stack() {
+        return stack;
     }
 
     @Override
@@ -223,6 +293,7 @@ public final class PromqlFunctionDefinition {
     );
     public static final PromqlParamInfo SCALAR = PromqlParamInfo.child("s", PromqlDataType.SCALAR, "Scalar value.");
     public static final PromqlParamInfo QUANTILE = PromqlParamInfo.of("φ", PromqlDataType.SCALAR, "Quantile value (0 ≤ φ ≤ 1).");
+    public static final PromqlParamInfo K = PromqlParamInfo.of("k", PromqlDataType.SCALAR, "Number of series to keep.");
     public static final PromqlParamInfo TO_NEAREST = PromqlParamInfo.optional(
         "to_nearest",
         PromqlDataType.SCALAR,
@@ -230,6 +301,122 @@ public final class PromqlFunctionDefinition {
     );
     public static final PromqlParamInfo MIN_SCALAR = PromqlParamInfo.of("min", PromqlDataType.SCALAR, "Minimum value.");
     public static final PromqlParamInfo MAX_SCALAR = PromqlParamInfo.of("max", PromqlDataType.SCALAR, "Maximum value.");
+    public static final PromqlParamInfo LOWER_SCALAR = PromqlParamInfo.of("lower", PromqlDataType.SCALAR, "Lower bound of the range.");
+    public static final PromqlParamInfo UPPER_SCALAR = PromqlParamInfo.of("upper", PromqlDataType.SCALAR, "Upper bound of the range.");
+
+    /**
+     * Shared extended-description fragment for the counter rate family ({@code rate}, {@code irate}, {@code increase}),
+     * set as each function's {@link Builder#extendedDescription} so it appears only on the dedicated function page, not
+     * in the brief functions overview. Documents Elasticsearch behavior that is consistent with Prometheus.
+     */
+    public static final String COUNTER_RATE_BEHAVIOR =
+        "Requires a counter input; non-counter inputs are automatically coerced with `to_counter`. The metric's "
+            + "configured temporality (cumulative or delta) is honored. The result is always a `double`.";
+
+    /**
+     * Difference note for {@code rate} and {@code increase}: unlike Prometheus, which extrapolates within each
+     * (overlapping) range window, Elasticsearch evaluates these over fixed time buckets and interpolates the counter
+     * value at interior bucket boundaries from the adjacent buckets' samples. See
+     * {@code RateDoubleGroupingAggregatorFunction}.
+     */
+    public static final String RATE_INCREASE_NOTE =
+        "{{es}} computes the value over fixed time buckets and, at bucket boundaries, interpolates the counter value "
+            + "from the adjacent buckets' samples, falling back to Prometheus-style extrapolation wherever an adjacent "
+            + "bucket has no samples (the series edges and any gaps). Prometheus instead extrapolates within each range "
+            + "window, so results can differ slightly.";
+    /**
+     * Shared extended-description fragment for the gauge family ({@code delta}, {@code idelta}, {@code deriv}), set as
+     * each function's {@link Builder#extendedDescription} so it appears only on the dedicated function page, not in the
+     * brief functions overview. Documents the transparent {@code to_gauge} coercion, which matches Prometheus semantics
+     * and so is not a "Differences from Prometheus" note. (Native histogram support is covered by the page-level
+     * limitations note rather than repeated here.)
+     */
+    public static final String GAUGE_FAMILY_BEHAVIOR =
+        "Operates on gauges: counter inputs are automatically and transparently converted to a gauge with `to_gauge`. "
+            + "The result is always a `double`.";
+    public static final String FIRST_LAST_NOTE =
+        "Accepts additional {{es}} field types (for example `keyword`, `ip`, and `date`) and returns counter inputs "
+            + "unchanged rather than rejecting or converting them.";
+    public static final String COUNT_NOTE = "Returns a `long` integer count rather than a floating-point value.";
+    public static final String LOG_DOMAIN_NOTE =
+        "For an input of zero or a negative number, {{es}} returns `null` and emits a warning, rather than the "
+            + "`-Inf` (for zero) or `NaN` (for negatives) that Prometheus returns.";
+    public static final String DOMAIN_PLUS_MINUS_ONE_NOTE =
+        "For inputs outside the range [-1, 1], {{es}} returns `null` and emits a warning, rather than the `NaN` that "
+            + "Prometheus returns.";
+    public static final String OVERFLOW_NOTE =
+        "On numeric overflow for large-magnitude inputs, {{es}} returns `null` and emits a warning, rather than the "
+            + "`±Inf` that Prometheus returns.";
+    public static final String QUANTILE_NOTE =
+        "Computed using the {{es}} t-digest percentile aggregation, so results are approximate and may differ slightly "
+            + "from Prometheus's exact linear interpolation, particularly for small sample sets.";
+
+    /**
+     * Stack (versioned Elasticsearch) releases that PromQL function documentation can reference. Kept as a small closed
+     * set so individual function definitions cannot introduce free-text version strings; add a constant here when a new
+     * release starts shipping PromQL functions. The rendered label is derived from {@link Version} so it cannot drift.
+     */
+    public enum PromqlDocsVersion {
+        V_9_4(Version.V_9_4_0),
+        V_9_5(Version.V_9_5_0),
+        V_9_6(Version.V_9_6_0);
+
+        private final Version version;
+
+        PromqlDocsVersion(Version version) {
+            this.version = version;
+        }
+
+        /** Major.minor label used inside an {@code applies_to} badge, for example {@code "9.4"}. */
+        String docsLabel() {
+            return version.major + "." + version.minor;
+        }
+    }
+
+    /**
+     * A single {@code stack} availability entry for a function's docs badge: a lifecycle state and the release it
+     * applies from, for example {@code preview 9.4} or {@code ga 9.5}.
+     */
+    public record StackAvailability(FunctionAppliesToLifecycle lifecycle, PromqlDocsVersion since) {
+        /**
+         * Renders this entry as it appears inside a {@code stack:} badge, for example {@code "preview 9.4"}.
+         * */
+        String appliesTo() {
+            return lifecycle.name().toLowerCase(Locale.ROOT) + " " + since.docsLabel();
+        }
+    }
+
+    /**
+     * Convenience factory for a {@code preview} stack availability entry.
+     */
+    public static StackAvailability preview(PromqlDocsVersion version) {
+        return new StackAvailability(FunctionAppliesToLifecycle.PREVIEW, version);
+    }
+
+    /**
+     * Convenience factory for a {@code ga} stack availability entry.
+     */
+    public static StackAvailability ga(PromqlDocsVersion version) {
+        return new StackAvailability(FunctionAppliesToLifecycle.GA, version);
+    }
+
+    /**
+     * Stack availability for PromQL functions that shipped as a preview in 9.4 and became generally available in 9.5.
+     */
+    public static final List<StackAvailability> STACK_PREVIEW_9_4_GA_9_5 = List.of(
+        preview(PromqlDocsVersion.V_9_4),
+        ga(PromqlDocsVersion.V_9_5)
+    );
+
+    /**
+     * Stack availability for PromQL functions first implemented (and generally available) in 9.5.
+     */
+    public static final List<StackAvailability> STACK_GA_9_5 = List.of(ga(PromqlDocsVersion.V_9_5));
+
+    /**
+     * Stack availability for PromQL functions that ship as generally available in 9.6.
+     */
+    public static final List<StackAvailability> STACK_GA_9_6 = List.of(ga(PromqlDocsVersion.V_9_6));
 
     /**
      * Scales a PromQL quantile φ (in the range [0, 1]) to the percentile value (in the range [0, 100]) expected by
@@ -257,8 +444,12 @@ public final class PromqlFunctionDefinition {
         private PromqlFunctionArity arity;
         private FunctionBuilder builder;
         private String description;
+        private String extendedDescription;
         private List<PromqlParamInfo> params;
         private CounterSupport counterSupport = CounterSupport.UNSUPPORTED;
+        private ClassicHistogramHandler classicHistogramHandler;
+        private String differenceFromPrometheus;
+        private List<StackAvailability> stack = List.of();
 
         public PromqlFunctionDefinition.Builder counterSupport(CounterSupport counterSupport) {
             this.counterSupport = counterSupport;
@@ -267,6 +458,37 @@ public final class PromqlFunctionDefinition {
 
         public PromqlFunctionDefinition.Builder description(String description) {
             this.description = description;
+            return this;
+        }
+
+        /**
+         * Adds a description paragraph rendered only on the function's own reference page, after the brief summary. Use
+         * this for behavior detail that should not bloat the short summaries shown in the functions overview. Omit for
+         * functions whose full description fits in {@link #description}.
+         */
+        public PromqlFunctionDefinition.Builder extendedDescription(String extendedDescription) {
+            this.extendedDescription = extendedDescription;
+            return this;
+        }
+
+        /**
+         * Documents how this function's Elasticsearch behavior diverges from the Prometheus reference. Rendered as a
+         * "Differences from Prometheus" section in the generated docs. Omit for functions that match Prometheus.
+         */
+        public PromqlFunctionDefinition.Builder differenceFromPrometheus(String differenceFromPrometheus) {
+            this.differenceFromPrometheus = differenceFromPrometheus;
+            return this;
+        }
+
+        /**
+         * Declares the {@code stack} availability rendered into the function's docs {@code applies_to} badge. Use the
+         * {@link PromqlFunctionDefinition#STACK_PREVIEW_9_4_GA_9_5} / {@link PromqlFunctionDefinition#STACK_GA_9_5}
+         * presets for the common cases. Serverless availability is intentionally not declared here: implemented PromQL
+         * functions are generally available in serverless, which is stated once at the docs page level rather than
+         * repeated per function. (When a function first ships as a serverless preview, add a serverless entry here.)
+         */
+        public PromqlFunctionDefinition.Builder stack(List<StackAvailability> stack) {
+            this.stack = stack;
             return this;
         }
 
@@ -397,11 +619,70 @@ public final class PromqlFunctionDefinition {
             return this;
         }
 
+        public PromqlFunctionDefinition.Builder acrossSeriesBinaryReduceSortDesc(PromqlParamInfo paramInfo) {
+            return acrossSeriesBinaryReduceSort(paramInfo, Order.OrderDirection.DESC);
+        }
+
+        public PromqlFunctionDefinition.Builder acrossSeriesBinaryReduceSortAsc(PromqlParamInfo paramInfo) {
+            return acrossSeriesBinaryReduceSort(paramInfo, Order.OrderDirection.ASC);
+        }
+
+        private PromqlFunctionDefinition.Builder acrossSeriesBinaryReduceSort(
+            PromqlParamInfo paramInfo,
+            Order.OrderDirection orderDirection
+        ) {
+            this.functionType = FunctionType.ACROSS_SERIES_REDUCTION;
+            this.arity = PromqlFunctionArity.TWO;
+            this.builder = (source, target, ctx, extraParams) -> new Order(source, target, orderDirection, Order.NullsPosition.LAST);
+            this.params = List.of(paramInfo, INSTANT_VECTOR);
+            return this;
+        }
+
+        /**
+         * Across-series reduction that keeps {@code k} arbitrary elements with no value-based ranking.
+         * The {@link FunctionBuilder} returns {@code null} to signal "no sort order" to the translator,
+         * which emits a {@link org.elasticsearch.xpack.esql.plan.logical.TopNBy} with an empty order list.
+         */
+        public PromqlFunctionDefinition.Builder acrossSeriesBinaryReduceUnordered(PromqlParamInfo paramInfo) {
+            this.functionType = FunctionType.ACROSS_SERIES_REDUCTION;
+            this.arity = PromqlFunctionArity.TWO;
+            this.builder = (source, target, ctx, extraParams) -> null;
+            this.params = List.of(paramInfo, INSTANT_VECTOR);
+            return this;
+        }
+
+        public PromqlFunctionDefinition.Builder histogramUnary(BiFunction<Source, Expression, ? extends Expression> ctorRef) {
+            this.functionType = FunctionType.HISTOGRAM;
+            this.arity = PromqlFunctionArity.ONE;
+            this.builder = (source, target, ctx, extraParams) -> ctorRef.apply(source, target);
+            this.params = List.of(INSTANT_VECTOR);
+            return this;
+        }
+
         public PromqlFunctionDefinition.Builder histogramBinary(PromqlParamInfo paramInfo, FunctionBuilder builder) {
             this.functionType = FunctionType.HISTOGRAM;
             this.arity = PromqlFunctionArity.TWO;
             this.builder = builder;
             this.params = List.of(paramInfo, INSTANT_VECTOR);
+            return this;
+        }
+
+        public PromqlFunctionDefinition.Builder histogramTernary(PromqlParamInfo p1, PromqlParamInfo p2, FunctionBuilder builder) {
+            this.functionType = FunctionType.HISTOGRAM;
+            this.arity = PromqlFunctionArity.fixed(3);
+            this.builder = builder;
+            this.params = List.of(p1, p2, INSTANT_VECTOR);
+            return this;
+        }
+
+        /**
+         * Configures the specialized logical plan node used for classic histograms.
+         */
+        public PromqlFunctionDefinition.Builder classicHistogramHandler(ClassicHistogramHandler classicHistogramHandler) {
+            if (functionType != FunctionType.HISTOGRAM) {
+                throw new IllegalStateException("classicHistogramHandler may only be configured for histogram functions");
+            }
+            this.classicHistogramHandler = Objects.requireNonNull(classicHistogramHandler);
             return this;
         }
 
@@ -418,6 +699,17 @@ public final class PromqlFunctionDefinition {
             this.arity = PromqlFunctionArity.NONE;
             this.builder = (source, target, ctx, extraParams) -> ctorRef.apply(source, ctx.step());
             this.params = List.of();
+            return this;
+        }
+
+        /**
+         * Builds a required-argument time-extraction function over an instant vector (e.g. {@code timestamp(v)}).
+         */
+        public PromqlFunctionDefinition.Builder unaryTimeExtraction(FunctionBuilder functionBuilder) {
+            this.functionType = FunctionType.TIME_EXTRACTION;
+            this.arity = PromqlFunctionArity.ONE;
+            this.builder = functionBuilder;
+            this.params = List.of(INSTANT_VECTOR);
             return this;
         }
 
@@ -442,7 +734,7 @@ public final class PromqlFunctionDefinition {
                         new ToDatetime(
                             source,
                             new Mul(source, new ToDouble(source, date), Literal.fromDouble(source, 1000.0)),
-                            ctx.configuration().withZoneId(ZoneOffset.UTC)
+                            ctx.configuration().withSetting(QuerySettings.TIME_ZONE, ZoneOffset.UTC)
                         ),
                         ctx.configuration()
                     );
@@ -477,7 +769,20 @@ public final class PromqlFunctionDefinition {
          * Build the {@link PromqlFunctionDefinition} with the given primary name.
          */
         public PromqlFunctionDefinition name(String name) {
-            return new PromqlFunctionDefinition(name, functionType, arity, builder, description, params, examples, counterSupport);
+            return new PromqlFunctionDefinition(
+                name,
+                functionType,
+                arity,
+                builder,
+                description,
+                extendedDescription,
+                params,
+                examples,
+                counterSupport,
+                classicHistogramHandler,
+                differenceFromPrometheus,
+                stack
+            );
         }
     }
 

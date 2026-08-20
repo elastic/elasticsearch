@@ -12,13 +12,10 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.CachePopulationSource;
 import org.elasticsearch.blobcache.shared.SharedBytes;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -27,7 +24,6 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -44,15 +40,13 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED;
-import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class BlobCacheMetricsIT extends AbstractStatelessPluginIntegTestCase {
+public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
 
     private static final ByteSizeValue CACHE_REGION_SIZE = ByteSizeValue.ofBytes(8L * SharedBytes.PAGE_SIZE);
 
@@ -127,11 +121,6 @@ public class BlobCacheMetricsIT extends AbstractStatelessPluginIntegTestCase {
 
         executeNoMissSearch(searchNode, notFlushedIndex);
         executeNoMissSearch(searchNode, flushedIndex);
-    }
-
-    private void clearShardCache(IndexShard indexShard) {
-        BlobStoreCacheDirectory indexShardBlobStoreCacheDirectory = BlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory());
-        getCacheService(indexShardBlobStoreCacheDirectory).forceEvict((key) -> true);
     }
 
     private static void executeSearchAndAssertCacheMissMetrics(
@@ -257,35 +246,24 @@ public class BlobCacheMetricsIT extends AbstractStatelessPluginIntegTestCase {
         assertThat(normalCacheBypassCount, equalTo(0L));
     }
 
-    private String createIndexWithNoReplicas(String namePrefix) {
-        final String indexName = namePrefix + "-" + randomIdentifier();
-        assertAcked(
-            prepareCreate(
-                indexName,
-                Settings.builder()
-                    .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    // disable automatic refresh
-                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-            )
-        );
-        return indexName;
-    }
+    public void testSearchNodeOnlyPeriodicCacheMetrics() throws Exception {
+        final var indexNode = startMasterAndIndexNode();
+        final var searchNode = startSearchNode();
 
-    private void populateIndex(String indexName) {
-        // Use at least 2 segments so that index data extends beyond cache region 0. ShardWarmer skips
-        // region 0 for SEARCH warming (it's assumed already loaded), so with a single small segment all
-        // file locations land in region 0 and warming records no metrics.
-        final int iters = randomIntBetween(2, 3);
-        int docsCounter = 0;
-        for (int i = 0; i < iters; i++) {
-            int numDocs = randomIntBetween(100, 1_000);
-            indexDocs(indexName, numDocs);
-            refresh(indexName);
-            docsCounter += numDocs;
-        }
-        logger.info("--> Wrote {} documents in {} segments to index {}", docsCounter, iters, indexName);
+        // Ensure object not instantiated for indexing node so that we expect exception throwing
+        expectThrows(Exception.class, () -> internalCluster().getInstance(StatelessSharedBlobCachePeriodicMetrics.class, indexNode));
+        // It should be available on the search node
+        internalCluster().getInstance(StatelessSharedBlobCachePeriodicMetrics.class, searchNode);
+
+        updateClusterSettings(Settings.builder().put(StatelessSharedBlobCachePeriodicMetrics.METRICS_INTERVAL_SETTING.getKey(), "1s"));
+
+        final var plugin = getTestTelemetryPlugin(searchNode);
+        assertBusy(() -> {
+            plugin.collect();
+            final var gauge = plugin.getLongGaugeMeasurement(StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED);
+            assertNotNull(gauge);
+            assertFalse(gauge.isEmpty());
+        });
     }
 
     private static void assertMetricsArePresent(
@@ -371,12 +349,12 @@ public class BlobCacheMetricsIT extends AbstractStatelessPluginIntegTestCase {
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
-                    @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+                    @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {
                     var subscribableListener = new SubscribableListener<Void>();
-                    super.warmCache(type, indexShard, commit, directory, endOffsetsToWarm, preWarmForIdLookup, subscribableListener);
+                    super.warmCache(type, indexShard, commit, directory, endTargetsToWarm, preWarmForIdLookup, subscribableListener);
                     safeAwait(subscribableListener);
                     subscribableListener.addListener(listener);
                 }

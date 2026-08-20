@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -70,6 +72,30 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
     public static final FeatureFlag TRANSFORM_CROSS_PROJECT = new FeatureFlag("transform_cross_project");
 
     public static final TransportVersion TRANSFORM_CLOUD_TOKEN = TransportVersion.fromName("transform_cloud_token");
+
+    /**
+     * Gates the {@code cloudCredential} field carried on {@code PutTransformAction.Request},
+     * {@code UpdateTransformAction.Request}, {@code StartTransformAction.Request},
+     * {@code PreviewTransformAction.Request}, {@code ResetTransformAction.Request}, and
+     * {@code UpgradeTransformsAction.Request}. Extracted on the coordinating node so it survives
+     * forwarding to the master node, where the {@code AUTHENTICATING_CLOUD_TOKEN_THREAD_CONTEXT}
+     * transient is no longer present.
+     */
+    public static final TransportVersion TRANSFORM_CLOUD_CREDENTIAL_ON_REQUEST = TransportVersion.fromName(
+        "transform_cloud_credential_on_request"
+    );
+
+    /**
+     * Gates {@code _force_rekeying} on {@link TransformConfigUpdate} (wire + presence on older nodes).
+     */
+    public static final TransportVersion TRANSFORM_FORCE_REKEYING = TransportVersion.fromName("transform_force_rekeying");
+
+    public static final String FORCE_REKEYING_REQUIRES_CPS_AND_CLOUD_AUTH_MESSAGE =
+        "_force_rekeying requires a cloud-authenticated caller and an environment that supports cross-project calls";
+
+    public static ElasticsearchStatusException forceRekeyingRequiresCpsAndCloudAuthException() {
+        return new ElasticsearchStatusException(FORCE_REKEYING_REQUIRES_CPS_AND_CLOUD_AUTH_MESSAGE, RestStatus.BAD_REQUEST);
+    }
 
     /** Specifies all the possible transform functions. */
     public enum Function {
@@ -551,12 +577,14 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         builder.startObject();
         builder.field(TransformField.ID.getPreferredName(), id);
         if (excludeGenerated == false) {
-            if (headers.isEmpty() == false) {
-                if (forInternalStorage) {
+            if (forInternalStorage) {
+                if (headers.isEmpty() == false) {
                     builder.field(HEADERS.getPreferredName(), headers);
-                } else {
-                    XContentUtils.addAuthorizationInfo(builder, headers);
                 }
+            } else if (credentialId != null) {
+                XContentUtils.addCloudApiKeyAuthorization(builder, credentialId);
+            } else if (headers.isEmpty() == false) {
+                XContentUtils.addAuthorizationInfo(builder, headers);
             }
             if (transformVersion != null) {
                 builder.field(TransformField.VERSION.getPreferredName(), transformVersion);
@@ -600,7 +628,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             builder.field(retentionPolicyConfig.getWriteableName(), retentionPolicyConfig);
             builder.endObject();
         }
-        if (excludeGenerated == false && credentialId != null) {
+        if (forInternalStorage && credentialId != null) {
             builder.field(CREDENTIAL_ID.getPreferredName(), credentialId);
         }
         builder.endObject();
@@ -802,6 +830,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             this.frequency = config.frequency;
             this.syncConfig = config.syncConfig;
             this.description = config.description;
+            this.headers = config.headers;
             this.transformVersion = config.transformVersion;
             this.createTime = config.createTime;
             this.pivotConfig = config.pivotConfig;

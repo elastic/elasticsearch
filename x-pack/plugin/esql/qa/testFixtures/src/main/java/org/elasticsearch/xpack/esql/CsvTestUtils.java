@@ -24,6 +24,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BlockUtils.BuilderWrapper;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
@@ -75,6 +76,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -126,7 +128,7 @@ public final class CsvTestUtils {
     public record Range(Object lowerBound, Object upperBound) {
         @SuppressWarnings("unchecked")
         <T extends Comparable<T>> boolean includes(Object value) {
-            if (value == null || value instanceof List) {
+            if (value == null || "null".equals(value) || value instanceof List) {
                 return false;
             }
             return ((T) value).compareTo((T) lowerBound) >= 0 && ((T) value).compareTo((T) upperBound) <= 0;
@@ -299,6 +301,22 @@ public final class CsvTestUtils {
                 Sets.difference(new HashSet<>(requiredCapabilities), enabledCapabilities.capabilities())
             ),
             enabledCapabilities.capabilities().containsAll(requiredCapabilities)
+        );
+    }
+
+    /**
+     * The inverse of {@link #checkTestCapabilities}: skips the test unless none of {@code missingCapabilities} are
+     * enabled. Used for {@code missing_capability_coordinator}/{@code missing_capability_data_node} directives, which
+     * assert behavior for a node that lacks a capability; in single-version test runners that always run current code,
+     * this cannot be satisfied (unless a capability was actively removed, which we generally don't do).
+     * <p>
+     * Unlike {@link #checkTestCapabilities}, this doesn't assert the capability name is still known: a capability
+     * that's been fully removed (e.g. superseded by a {@code _v2}) trivially satisfies "missing" too.
+     */
+    public static void checkMissingTestCapabilities(EsqlCapabilities enabledCapabilities, List<String> missingCapabilities) {
+        assumeTrueLogging(
+            format("Capability unexpectedly supported in this build: {}", missingCapabilities),
+            Collections.disjoint(enabledCapabilities.capabilities(), missingCapabilities)
         );
     }
 
@@ -711,6 +729,7 @@ public final class CsvTestUtils {
         JSON(s -> s == null ? null : new BytesRef(s), BytesRef.class),
         // DATE_RANGE literals are parsed in UTC only; TODO: support other zones in CSV specs (similar to DATETIME).
         DATE_RANGE(s -> EsqlDataTypeConverter.parseDateRange(s, ZoneOffset.UTC), LongRangeBlockBuilder.LongRange.class),
+        DOUBLE_RANGE(EsqlDataTypeConverter::parseDoubleRange, DoubleRangeBlockBuilder.DoubleRange.class),
         VERSION(v -> new org.elasticsearch.xpack.versionfield.Version(v).toBytesRef(), BytesRef.class),
         NULL(s -> s, Void.class),
         DATETIME(
@@ -846,6 +865,7 @@ public final class CsvTestUtils {
                 case EXPONENTIAL_HISTOGRAM -> EXPONENTIAL_HISTOGRAM;
                 case TDIGEST -> TDIGEST;
                 case LONG_RANGE -> DATE_RANGE;
+                case DOUBLE_RANGE -> DOUBLE_RANGE;
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
             };
         }

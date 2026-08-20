@@ -42,6 +42,8 @@ public class BlobCacheMetrics {
     public static final String BLOB_CACHE_EVICTION_SCANNED_ENTRIES = "es.blob_cache.eviction.scanned_entries.histogram";
     public static final String EVICTION_SCAN_MODE_ATTRIBUTE_KEY = "es_eviction_scan_mode";
     public static final String EVICTION_SCAN_OUTCOME_ATTRIBUTE_KEY = "es_eviction_scan_outcome";
+    public static final String BLOB_CACHE_LOCK_ACQUIRE_TIME = "es.blob_cache.lock_acquire_time.histogram";
+    public static final String LOCK_ACQUIRE_SITE_ATTRIBUTE_KEY = "es_lock_acquire_site";
 
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;
@@ -54,6 +56,7 @@ public class BlobCacheMetrics {
     private final LongCounter prefetchCounter;
     private final DoubleHistogram evictionScanTime;
     private final LongHistogram evictionScannedEntries;
+    private final DoubleHistogram lockAcquireTime;
 
     private final LongAdder missCount = new LongAdder();
     private final LongAdder readCount = new LongAdder();
@@ -106,6 +109,25 @@ public class BlobCacheMetrics {
         Free,
         /// Scan exhausted its frequency buckets without freeing a region.
         None
+    }
+
+    /// The call site at which the SharedBlobCacheService monitor was acquired. Lets us attribute lock-wait time to the
+    /// operation requesting the lock so contention can be tracked per code path as eviction work grows.
+    public enum LockAcquireSite {
+        /// Cache-miss path: scanning the LFU for an eviction victim (maybeEvictAndTake via initChunk).
+        CacheMissEviction,
+        /// Cache-miss path: assigning a free IO slot to a freshly initialized region (assignToSlot).
+        SlotAssignment,
+        /// Cache-hit path: promoting a region's frequency on first access within an epoch (maybePromote).
+        Promote,
+        /// Best-effort prefetch/warming path: lowest-frequency eviction scan (maybeEvictLeastUsed).
+        LowestFrequencyEviction,
+        /// Bulk eviction via any of the forceEvict methods.
+        ForceEvict,
+        /// Bulk demotion of a relocated shard's regions to frequency 0 (demoteAll).
+        Demote,
+        /// Background LFU decay / new-epoch task (computeDecay).
+        Decay
     }
 
     public BlobCacheMetrics(MeterRegistry meterRegistry) {
@@ -178,6 +200,13 @@ public class BlobCacheMetrics {
                     + EVICTION_SCAN_OUTCOME_ATTRIBUTE_KEY
                     + "]",
                 "entries"
+            ),
+            meterRegistry.registerDoubleHistogram(
+                BLOB_CACHE_LOCK_ACQUIRE_TIME,
+                "The time spent waiting to acquire the SharedBlobCacheService monitor, broken down by ["
+                    + LOCK_ACQUIRE_SITE_ATTRIBUTE_KEY
+                    + "]",
+                "microseconds"
             )
         );
 
@@ -220,7 +249,8 @@ public class BlobCacheMetrics {
         LongCounter cacheBypassCounter,
         LongCounter prefetchCounter,
         DoubleHistogram evictionScanTime,
-        LongHistogram evictionScannedEntries
+        LongHistogram evictionScannedEntries,
+        DoubleHistogram lockAcquireTime
     ) {
         this.cacheMissCounter = cacheMissCounter;
         this.evictedCountNonZeroFrequency = evictedCountNonZeroFrequency;
@@ -235,6 +265,7 @@ public class BlobCacheMetrics {
         this.prefetchCounter = prefetchCounter;
         this.evictionScanTime = evictionScanTime;
         this.evictionScannedEntries = evictionScannedEntries;
+        this.lockAcquireTime = lockAcquireTime;
     }
 
     public static final BlobCacheMetrics NOOP = new BlobCacheMetrics(TelemetryProvider.NOOP.getMeterRegistry());
@@ -345,6 +376,14 @@ public class BlobCacheMetrics {
         );
         evictionScanTime.record((double) elapsedNanos / 1000, attrs); // nanos -> micros
         evictionScannedEntries.record(scannedEntries, attrs);
+    }
+
+    /// Record the time spent waiting to acquire the SharedBlobCacheService monitor, attributed by call site.
+    /// Contrast with recordEvictionScan, which times work performed while the lock is already held.
+    /// @param elapsedNanos wait time between requesting and acquiring the monitor, in nanoseconds (recorded as fractional microseconds)
+    /// @param site the operation that acquired the lock (see [LockAcquireSite])
+    public void recordLockAcquire(long elapsedNanos, LockAcquireSite site) {
+        lockAcquireTime.record((double) elapsedNanos / 1000, Map.of(LOCK_ACQUIRE_SITE_ATTRIBUTE_KEY, site.name()));
     }
 
     public long readCount() {

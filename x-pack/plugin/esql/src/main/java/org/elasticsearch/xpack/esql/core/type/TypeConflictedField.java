@@ -15,7 +15,8 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 
-public abstract sealed class TypeConflictedField extends EsField permits InvalidMappedField, CompactInvalidMappedField {
+public abstract sealed class TypeConflictedField extends EsField permits InvalidMappedField, CompactInvalidMappedField,
+    PotentiallyUnmappedSingleTypeEsField {
     public TypeConflictedField(
         String name,
         DataType esDataType,
@@ -62,6 +63,33 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
     /** Source data types observed for this field across all indices. */
     public abstract Set<DataType> types();
 
+    /**
+     * A "two-legged PUNK": a field that is mapped to a single type in some indices and unmapped in others. Under
+     * {@code unmapped_fields="load"} this is not a genuine type conflict — values are loaded where the field is mapped and are null
+     * where it is unmapped.
+     */
+    public boolean isSingleTypePotentiallyUnmapped() {
+        return isPotentiallyUnmapped() && types().size() == 1;
+    }
+
+    /**
+     * The single mapped source type (e.g. {@code SHORT}). Only valid when {@link #isSingleTypePotentiallyUnmapped()}.
+     */
+    public DataType singleMappedType() {
+        if (isSingleTypePotentiallyUnmapped() == false) {
+            throw new IllegalStateException("Unexpected call for a non-single type unmapped field");
+        }
+        return types().iterator().next();
+    }
+
+    /**
+     * The single mapped type widened to its ES|QL surface type (e.g. {@code SHORT -> INTEGER}), so the implicit load matches an
+     * explicit cast and agrees with the Fork/UnionAll output. Only valid when {@link #isSingleTypePotentiallyUnmapped()}.
+     */
+    public DataType singleMappedTypeWidened() {
+        return singleMappedType().widenSmallNumeric();
+    }
+
     abstract Map<String, Sample> samples();
 
     record Sample(Collection<String> kept, int total) {}
@@ -69,13 +97,13 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
     private String makeErrorMessage() {
         StringBuilder sb = new StringBuilder();
         var typesToSample = samples();
-        boolean includeInsistKeyword = isPotentiallyUnmapped();
-        boolean prependInsistKeyword = includeInsistKeyword && samples().containsKey(DataType.KEYWORD.typeName()) == false;
+        boolean includeUnmappedKeyword = isPotentiallyUnmapped();
+        boolean prependUnmappedKeyword = includeUnmappedKeyword && samples().containsKey(DataType.KEYWORD.typeName()) == false;
         sb.append("mapped as [");
-        sb.append(typesToSample.size() + (prependInsistKeyword ? 1 : 0));
+        sb.append(typesToSample.size() + (prependUnmappedKeyword ? 1 : 0));
         sb.append("] incompatible types: ");
         boolean first = true;
-        if (prependInsistKeyword) {
+        if (prependUnmappedKeyword) {
             first = false;
             sb.append("[keyword] due to loading from _source");
         }
@@ -87,7 +115,7 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
             }
             sb.append("[").append(entry.getKey()).append("] ");
             sb.append(
-                entry.getKey().equals(DataType.KEYWORD.typeName()) && includeInsistKeyword ? "due to loading from _source and in " : "in "
+                entry.getKey().equals(DataType.KEYWORD.typeName()) && includeUnmappedKeyword ? "due to loading from _source and in " : "in "
             );
             Sample sample = entry.getValue();
             sb.append(sample.kept());

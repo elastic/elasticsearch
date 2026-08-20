@@ -60,7 +60,12 @@ public class IndicesOptionsTests extends ESTestCase {
                         .allowSelectors(randomBoolean())
                 )
                 .crossProjectModeOptions(new CrossProjectModeOptions(randomBoolean()))
-                .indexAbstractionOptions(IndexAbstractionOptions.builder().resolveAliases(randomBoolean()).resolveViews(randomBoolean()))
+                .indexAbstractionOptions(
+                    IndexAbstractionOptions.builder()
+                        .resolveAliases(randomBoolean())
+                        .resolveViews(randomBoolean())
+                        .resolveDatasets(randomBoolean())
+                )
                 .build();
 
             BytesStreamOutput output = new BytesStreamOutput();
@@ -88,6 +93,40 @@ public class IndicesOptionsTests extends ESTestCase {
         IndicesOptions deserialized = IndicesOptions.readIndicesOptions(streamInput);
 
         assertFalse(deserialized.indexAbstractionOptions().resolveViews());
+    }
+
+    public void testSerializationResolveDatasetsDroppedBeforeSupportVersion() throws Exception {
+        IndicesOptions indicesOptions = IndicesOptions.builder()
+            .wildcardOptions(WildcardOptions.builder().matchOpen(true).matchClosed(false))
+            .indexAbstractionOptions(IndexAbstractionOptions.builder().resolveDatasets(true))
+            .build();
+
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.setTransportVersion(TransportVersionUtils.getPreviousVersion(IndicesOptions.INDICES_OPTIONS_RESOLVE_DATASETS));
+        indicesOptions.writeIndicesOptions(output);
+
+        StreamInput streamInput = output.bytes().streamInput();
+        streamInput.setTransportVersion(output.getTransportVersion());
+        IndicesOptions deserialized = IndicesOptions.readIndicesOptions(streamInput);
+
+        assertFalse(deserialized.indexAbstractionOptions().resolveDatasets());
+    }
+
+    public void testSerializationResolveDatasetsRoundTripsAtSupportVersion() throws Exception {
+        IndicesOptions indicesOptions = IndicesOptions.builder()
+            .wildcardOptions(WildcardOptions.builder().matchOpen(true).matchClosed(false))
+            .indexAbstractionOptions(IndexAbstractionOptions.builder().resolveDatasets(true))
+            .build();
+
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.setTransportVersion(IndicesOptions.INDICES_OPTIONS_RESOLVE_DATASETS);
+        indicesOptions.writeIndicesOptions(output);
+
+        StreamInput streamInput = output.bytes().streamInput();
+        streamInput.setTransportVersion(output.getTransportVersion());
+        IndicesOptions deserialized = IndicesOptions.readIndicesOptions(streamInput);
+
+        assertTrue(deserialized.indexAbstractionOptions().resolveDatasets());
     }
 
     public void testFromOptions() {

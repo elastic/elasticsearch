@@ -67,34 +67,25 @@ class QueryBudgetedStorageObject implements StorageObject {
         }
     }
 
+    // Metadata ops (length/lastModified/exists) are deliberately exempt from permit acquisition.
+    // The permit is pure throughput control with no correctness role; these are cheap, short-lived
+    // HEAD/stat calls whose fan-out is already bounded by the caller thread pool and
+    // ExternalSourceResolver.MAX_PARALLEL_METADATA_READS. Parking them behind long-lived stream
+    // permits (streams hold their permit for their whole minutes-long lifetime) starved SEARCH
+    // threads — see #1151. Byte-transfer ops (newStream/readBytes) stay permit-governed.
     @Override
     public long length() throws IOException {
-        acquirePermit();
-        try {
-            return delegate.length();
-        } finally {
-            budget.release();
-        }
+        return delegate.length();
     }
 
     @Override
     public Instant lastModified() throws IOException {
-        acquirePermit();
-        try {
-            return delegate.lastModified();
-        } finally {
-            budget.release();
-        }
+        return delegate.lastModified();
     }
 
     @Override
     public boolean exists() throws IOException {
-        acquirePermit();
-        try {
-            return delegate.exists();
-        } finally {
-            budget.release();
-        }
+        return delegate.exists();
     }
 
     @Override

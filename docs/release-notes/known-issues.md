@@ -8,6 +8,33 @@ mapped_pages:
 
 Known issues are significant defects or limitations that may impact your implementation. These issues are actively being worked on and will be addressed in a future release. Review the Elasticsearch known issues to help you make informed decisions, such as upgrading to a new version.
 
+## 9.5.1 [elasticsearch-9.5.1-known-issues]
+
+* Boolean queries containing a `must`, `filter`, or `should` clause using a `terms` query
+  (multi-value), along with a `must_not` clause, on fields with disabled indexing can still return
+  false-positive matches despite the partial fix in 9.5.1. The 9.5.1 fix
+  ([#155936](https://github.com/elastic/elasticsearch/pull/155936)) addressed the bulk-scorer defect
+  for `term` and `range` query paths, but the multi-value `terms` query uses a different Lucene query
+  type that was not covered by that fix. [TSDB](https://www.elastic.co/docs/manage-data/data-store/data-streams/time-series-data-stream-tsds)
+  and [columnar](https://www.elastic.co/docs/reference/elasticsearch/columnar) indices and data
+  streams remain affected for this query shape.
+
+  The full fix, which upgrades Elasticsearch to Lucene 10.5.1 ([apache/lucene#16450](https://github.com/apache/lucene/pull/16450)),
+  is included in a future release.
+
+## 9.5.0 [elasticsearch-9.5.0-known-issues]
+
+* Boolean queries containing a `must`, `filter`, or `should` clause, along with a `must_not` clause, on fields with disabled indexing can return false-positive matches. This occurs when a DSL or ES|QL query selects Lucene's bulk-scoring path due to an iterator evaluation defect in Lucene ([apache/lucene#16450](https://github.com/apache/lucene/pull/16450)). [TSDB](https://www.elastic.co/docs/manage-data/data-store/data-streams/time-series-data-stream-tsds) and [columnar](https://www.elastic.co/docs/reference/elasticsearch/columnar) indices and data streams are affected, since they disable indexing on all fields by default.
+
+  The [fix](https://github.com/elastic/elasticsearch/pull/155936) is included in 9.5.1.
+
+## 9.3.6 [elasticsearch-9.3.6-known-issues]
+
+* The [create trained model API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-trained-model) enforces overly restrictive input limits that may reject valid requests. Version 9.3.6 introduced caps on `description`, `tags`, `prefix_strings.ingest_prefix`, `prefix_strings.search_prefix`, `input.field_names`, `default_field_map` and `metadata`. These limits are too low for some existing use cases.
+
+  The [fix](https://github.com/elastic/elasticsearch/pull/152000) is included in 9.3.7.
+
+
 ## 9.3.3 [elasticsearch-9.3.3-known-issues]
 
 * GCS repository operations fail when using Application Default Credentials (ADC). A [change](https://github.com/elastic/elasticsearch/pull/144519) in 9.3.3 caused `NotEntitledException` to no longer extend `AccessControlException`. The Google auth library's `DefaultCredentialsProvider` catches `AccessControlException` when checking credential file paths via `File.isFile()`, so the exception now propagates instead of falling through to the GCE metadata server.

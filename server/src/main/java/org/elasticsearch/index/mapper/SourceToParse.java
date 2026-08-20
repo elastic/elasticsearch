@@ -14,10 +14,10 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.eirf.EirfRowReader;
-import org.elasticsearch.eirf.EirfRowToXContent;
-import org.elasticsearch.eirf.EirfRowXContentParser;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.sourcebatch.SourceRow;
+import org.elasticsearch.sourcebatch.SourceRowToXContent;
+import org.elasticsearch.sourcebatch.SourceRowXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -72,8 +72,8 @@ public class SourceToParse {
 
     public SourceToParse(
         @Nullable String id,
-        EirfRowXContentParser.SchemaNode schemaTree,
-        EirfRowReader row,
+        SourceRowXContentParser.SchemaNode schemaTree,
+        SourceRow row,
         XContentType xContentType,
         @Nullable String routing,
         Map<String, String> dynamicTemplates,
@@ -107,8 +107,8 @@ public class SourceToParse {
         boolean includeSourceOnError,
         XContentMeteringParserDecorator meteringParserDecorator,
         @Nullable BytesRef tsid,
-        @Nullable EirfRowXContentParser.SchemaNode schemaTree,
-        @Nullable EirfRowReader row
+        @Nullable SourceRowXContentParser.SchemaNode schemaTree,
+        @Nullable SourceRow row
     ) {
         this.id = id;
         this.routing = routing;
@@ -184,14 +184,14 @@ public class SourceToParse {
     public static class Source {
 
         private final boolean includeSourceOnError;
-        private final EirfRowXContentParser.SchemaNode schemaTree;
-        private final EirfRowReader row;
+        private final SourceRowXContentParser.SchemaNode schemaTree;
+        private final SourceRow row;
         private final XContentType xContentType;
         private BytesReference originalSourceBytes;
 
         private Source(
-            EirfRowXContentParser.SchemaNode schemaTree,
-            EirfRowReader row,
+            SourceRowXContentParser.SchemaNode schemaTree,
+            SourceRow row,
             BytesReference originalSourceBytes,
             XContentType xContentType,
             boolean includeSourceOnError
@@ -214,8 +214,7 @@ public class SourceToParse {
         }
 
         public boolean isEmpty() {
-            return (row != null && row.columnCount() == 0)
-                || (row == null && (originalSourceBytes == null || originalSourceBytes.length() == 0));
+            return (row != null && row.isEmpty()) || (row == null && (originalSourceBytes == null || originalSourceBytes.length() == 0));
         }
 
         public XContentType xContentType() {
@@ -224,8 +223,9 @@ public class SourceToParse {
 
         public XContentParser parser(XContentParserConfiguration configuration) throws IOException {
             if (row != null) {
-                // TODO: EIRF does not current support XContentParserConfiguration or includeSourceOnError. Need to evaluate these features.
-                return new EirfRowXContentParser(schemaTree, row);
+                // TODO: batch row parsing does not currently support XContentParserConfiguration or includeSourceOnError. Need to evaluate
+                // these features.
+                return new SourceRowXContentParser(schemaTree, row);
             } else {
                 return XContentHelper.createParser(
                     configuration.withIncludeSourceOnError(includeSourceOnError),
@@ -250,7 +250,7 @@ public class SourceToParse {
         public synchronized BytesReference originalBytes() {
             if (originalSourceBytes == null) {
                 try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-                    EirfRowToXContent.writeRowFromSchema(row, schemaTree, builder);
+                    SourceRowToXContent.writeRowFromSchema(row, schemaTree, builder);
                     originalSourceBytes = BytesReference.bytes(builder);
                 } catch (IOException e) {
                     assert false : e.getMessage();

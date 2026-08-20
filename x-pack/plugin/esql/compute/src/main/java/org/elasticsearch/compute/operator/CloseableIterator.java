@@ -30,4 +30,20 @@ public interface CloseableIterator<T> extends Iterator<T>, Closeable {
     default SubscribableListener<Void> waitForReady() {
         return SubscribableListener.newSucceeded(null);
     }
+
+    /**
+     * Non-blocking single-step advance: returns the next element, or {@code null} if none is
+     * immediately available (either because upstream is still producing or because the iterator
+     * is exhausted). Callers distinguish "not yet" from "EOF" via {@link #waitForReady()}: a
+     * {@code null} return paired with an immediately-done {@code waitForReady()} means EOF;
+     * a {@code null} paired with a non-done listener means more data may arrive.
+     *
+     * <p>The default delegates to {@link #hasNext()}/{@link #next()} and is therefore blocking
+     * for iterators whose {@code hasNext()} blocks. Async iterators should override this to
+     * guarantee a non-blocking return so the caller (typically an executor-bound producer loop)
+     * can yield its thread instead of pinning it.
+     */
+    default T tryAdvance() {
+        return hasNext() ? next() : null;
+    }
 }

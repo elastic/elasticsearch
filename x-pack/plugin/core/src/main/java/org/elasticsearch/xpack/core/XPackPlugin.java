@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.core.action.DataStreamUsageTransportAction;
 import org.elasticsearch.xpack.core.action.TimeSeriesUsageTransportAction;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
+import org.elasticsearch.xpack.core.action.VectorDBDocumentUsageTransportAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
@@ -354,6 +355,7 @@ public class XPackPlugin extends XPackClientPlugin
         actions.add(new ActionHandler(NodesDataTiersUsageTransportAction.TYPE, NodesDataTiersUsageTransportAction.class));
         actions.add(new ActionHandler(XPackUsageFeatureAction.TIME_SERIES_DATA_STREAMS, TimeSeriesUsageTransportAction.class));
         actions.add(new ActionHandler(XPackUsageFeatureAction.LOGGING, LoggingUsageTransportAction.class));
+        actions.add(new ActionHandler(XPackUsageFeatureAction.VECTORDB_DOCUMENT, VectorDBDocumentUsageTransportAction.class));
         return actions;
     }
 
@@ -375,8 +377,8 @@ public class XPackPlugin extends XPackClientPlugin
     ) {
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new RestXPackInfoAction());
-        handlers.add(new RestXPackUsageAction());
-        handlers.add(new RestTermsEnumAction());
+        handlers.add(new RestXPackUsageAction(DiscoveryNode.isStateless(settings)));
+        handlers.add(new RestTermsEnumAction(restHandlersServices.crossProjectModeDecider()));
         handlers.add(new RestGetLicenseAction());
         handlers.add(new RestPutLicenseAction());
         handlers.add(new RestDeleteLicenseAction());

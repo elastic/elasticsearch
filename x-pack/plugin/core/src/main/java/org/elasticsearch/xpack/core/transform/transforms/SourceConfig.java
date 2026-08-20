@@ -183,6 +183,14 @@ public class SourceConfig implements Writeable, ToXContentObject {
         return projectRouting;
     }
 
+    /**
+     * Returns a copy of this {@link SourceConfig} with the given {@code projectRouting} value,
+     * preserving all other fields. Pass {@code null} to clear any existing routing.
+     */
+    public SourceConfig withProjectRouting(@Nullable String projectRouting) {
+        return new SourceConfig(getIndex(), getQueryConfig(), getRuntimeMappings(), indicesOptions(), projectRouting);
+    }
+
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

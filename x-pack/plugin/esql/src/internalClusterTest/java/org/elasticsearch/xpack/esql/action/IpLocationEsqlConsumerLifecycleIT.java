@@ -48,8 +48,8 @@ public class IpLocationEsqlConsumerLifecycleIT extends AbstractGeoIpIT {
             ReindexPlugin.class,
             IngestGeoIpPlugin.class,
             IngestGeoIpSettingsPlugin.class,
-            EsqlPluginWithEnterpriseOrTrialLicense.class,
-            TestEncryptionServicePlugin.class
+            TestEncryptionServicePlugin.class,
+            EsqlPluginWithEnterpriseOrTrialLicense.class
         );
     }
 

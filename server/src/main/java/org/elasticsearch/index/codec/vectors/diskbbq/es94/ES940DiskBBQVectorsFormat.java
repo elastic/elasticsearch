@@ -103,23 +103,23 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
         ONE_BIT_4BIT_QUERY(0, (byte) 1, (byte) 4) {
             @Override
             public void pack(int[] quantized, byte[] destination) {
-                ESVectorUtil.packAsBinary(quantized, destination);
+                ESVectorUtil.pack1BitValues(quantized, destination);
             }
 
             @Override
             public void packQuery(int[] quantized, byte[] destination) {
-                ESVectorUtil.transposeHalfByte(quantized, destination);
+                ESVectorUtil.stride4BitValues(quantized, destination);
             }
         },
         TWO_BIT_4BIT_QUERY_STRIPED(1, (byte) 2, (byte) 4) {
             @Override
             public void pack(int[] quantized, byte[] destination) {
-                ESVectorUtil.packDibit(quantized, destination);
+                ESVectorUtil.stride2BitValues(quantized, destination);
             }
 
             @Override
             public void packQuery(int[] quantized, byte[] destination) {
-                ESVectorUtil.transposeHalfByte(quantized, destination);
+                ESVectorUtil.stride4BitValues(quantized, destination);
             }
 
             @Override
@@ -145,7 +145,7 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
         TWO_BIT_4BIT_QUERY_PACKED(5, (byte) 2, (byte) 4) {
             @Override
             public void pack(int[] quantized, byte[] destination) {
-                ESVectorUtil.packDibitQuad(quantized, destination);
+                ESVectorUtil.pack2BitValues(quantized, destination);
             }
 
             @Override
@@ -167,12 +167,12 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
         FOUR_BIT_SYMMETRIC_STRIPED(2, (byte) 4, (byte) 4) {
             @Override
             public void packQuery(int[] quantized, byte[] destination) {
-                ESVectorUtil.transposeHalfByte(quantized, destination);
+                ESVectorUtil.stride4BitValues(quantized, destination);
             }
 
             @Override
             public void pack(int[] quantized, byte[] destination) {
-                ESVectorUtil.transposeHalfByte(quantized, destination);
+                ESVectorUtil.stride4BitValues(quantized, destination);
             }
 
             @Override
@@ -195,12 +195,12 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
         SEVEN_BIT_SYMMETRIC(3, (byte) 7, (byte) 7) {
             @Override
             public void pack(int[] quantized, byte[] destination) {
-                packAsBytes(quantized, destination);
+                ESVectorUtil.packAsBytes(quantized, destination, quantized.length);
             }
 
             @Override
             public void packQuery(int[] quantized, byte[] destination) {
-                packAsBytes(quantized, destination);
+                ESVectorUtil.packAsBytes(quantized, destination, quantized.length);
             }
 
             @Override
@@ -221,7 +221,7 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
         FOUR_BIT_SYMMETRIC_PACKED(4, (byte) 4, (byte) 4) {
             @Override
             public void packQuery(int[] quantized, byte[] destination) {
-                packAsBytes(quantized, destination);
+                ESVectorUtil.packAsBytes(quantized, destination, quantized.length);
             }
 
             @Override
@@ -246,12 +246,6 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
                 return (totalBits + 7) / 8 * 8 / 4;
             }
         };
-
-        private static void packAsBytes(int[] quantized, byte[] destination) {
-            for (int i = 0; i < quantized.length; i++) {
-                destination[i] = (byte) quantized[i];
-            }
-        }
 
         private static void packNibbles(int[] quantized, byte[] destination) {
             assert quantized.length == destination.length * 2;

@@ -40,6 +40,8 @@ import org.apache.lucene.util.LiveDocs;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.SparseLiveDocs;
+import org.apache.lucene.util.bkd.BKDConfig;
+import org.apache.lucene.util.bkd.BKDReader;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -70,7 +72,6 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.FieldInfosWithUsages;
@@ -149,6 +150,8 @@ public abstract class Engine implements Closeable {
     protected static final String FIELD_HAS_VALUE_SOURCE = "field_has_value";
     public static final long UNKNOWN_PRIMARY_TERM = -1L;
     public static final String ROOT_DOC_FIELD_NAME = "__root_doc_for_nested";
+    private static final long BKD_READER_BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BKDReader.class);
+    private static final long BKD_CONFIG_BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BKDConfig.class);
 
     protected final ShardId shardId;
     protected final Logger logger;
@@ -298,6 +301,8 @@ public abstract class Engine implements Closeable {
         long usages = 0;
         long totalPostingBytes = 0;
         long totalLiveDocsBytes = 0;
+        long totalPointsBytes = 0;
+
         for (LeafReaderContext leaf : leaves) {
             numSegments++;
             var fieldInfos = leaf.reader().getFieldInfos();
@@ -324,10 +329,33 @@ public abstract class Engine implements Closeable {
                         long liveDocsBytes = getLiveDocsBytes(liveDocs);
                         totalLiveDocsBytes += liveDocsBytes;
                     }
+                    totalPointsBytes += getPointsBytes(fieldInfos);
                 }
             }
         }
-        return new ShardFieldStats(numSegments, totalFields, usages, totalPostingBytes, totalLiveDocsBytes);
+        return new ShardFieldStats(numSegments, totalFields, usages, totalPostingBytes, totalLiveDocsBytes, totalPointsBytes);
+    }
+
+    private static long getPointsBytes(FieldInfos fieldInfos) {
+        long totalPointsBytes = 0;
+        for (FieldInfo fieldInfo : fieldInfos) {
+            if (fieldInfo.getPointDimensionCount() > 0) {
+                totalPointsBytes += getBKDReaderBytes(fieldInfo);
+            }
+        }
+        return totalPointsBytes;
+    }
+
+    private static long getBKDReaderBytes(FieldInfo fieldInfo) {
+        // On construction, the BKDReader constructs two byte arrays each of size packedIndexBytesLength. We add that to
+        // the base shallow size of the BKDReader and BKDConfig to get an estimate of the total memory used by the BKDReader.
+        // The IndexInputs in the BKDReader are an abstract class so we don't estimate their size due to differing concrete implementations.
+        int packedIndexBytesLength = fieldInfo.getPointIndexDimensionCount() * fieldInfo.getPointNumBytes();
+        return BKD_READER_BASE_RAM_BYTES_USED + BKD_CONFIG_BASE_RAM_BYTES_USED + 2 * byteArrayRamBytesUsed(packedIndexBytesLength);
+    }
+
+    private static long byteArrayRamBytesUsed(int length) {
+        return RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Byte.BYTES * length);
     }
 
     // Would prefer to use FixedBitSet#ramBytesUsed() however FixedBits / Bits interface don't expose that.
@@ -482,7 +510,7 @@ public abstract class Engine implements Closeable {
      */
     public void verifyEngineBeforeIndexClosing() throws IllegalStateException {
         final long globalCheckpoint = engineConfig.getGlobalCheckpointSupplier().getAsLong();
-        final long maxSeqNo = getSeqNoStats(globalCheckpoint).getMaxSeqNo();
+        final long maxSeqNo = getMaxSeqNo();
         if (globalCheckpoint != maxSeqNo) {
             throw new IllegalStateException(
                 "Global checkpoint ["
@@ -715,12 +743,8 @@ public abstract class Engine implements Closeable {
      */
     public abstract IndexResult index(Index index) throws IOException;
 
-    public List<IndexResult> indexBatch(List<Index> operations, EirfBatch batch) throws IOException {
-        ArrayList<IndexResult> results = new ArrayList<>(operations.size());
-        for (Index index : operations) {
-            results.add(index(index));
-        }
-        return results;
+    public List<IndexResult> indexBatch(EngineBatch batch) throws IOException {
+        throw new UnsupportedOperationException("batch indexing is not supported by this engine");
     }
 
     /**
@@ -979,7 +1003,8 @@ public abstract class Engine implements Closeable {
         if (docIdAndVersion != null) {
             // don't release the searcher on this path, it is the
             // responsibility of the caller to call GetResult.release
-            return new GetResult(searcher, docIdAndVersion);
+            // an uncached lookup is requested exactly when the searcher reads an ephemeral translog reader
+            return new GetResult(searcher, docIdAndVersion, uncachedLookup);
         } else {
             Releasables.close(searcher);
             return GetResult.NOT_EXISTS;
@@ -1018,13 +1043,6 @@ public abstract class Engine implements Closeable {
         throw new UnsupportedOperationException();
     }
 
-    /**
-     * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
-     */
-    public final SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper) throws EngineException {
-        return acquireSearcherSupplier(wrapper, SearcherScope.EXTERNAL);
-    }
-
     // Called before a {@link Searcher} is created, to allow subclasses to perform any stats or logging operations.
     protected void onSearcherCreation(String source, SearcherScope scope) {}
 
@@ -1033,14 +1051,7 @@ public abstract class Engine implements Closeable {
         return reader;
     }
 
-    /**
-     * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
-     */
-    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
-        return acquireSearcherSupplier(wrapper, scope, SplitShardCountSummary.UNSET);
-    }
-
-    public SearcherSupplier acquireSearcherSupplier(
+    public final SearcherSupplier acquireSearcherSupplier(
         Function<Searcher, Searcher> wrapper,
         SearcherScope scope,
         SplitShardCountSummary splitShardCountSummary
@@ -2164,18 +2175,21 @@ public abstract class Engine implements Closeable {
 
     public static class Get {
         private final boolean realtime;
-        private final BytesRef uid;
-        private final String id;
+        private final Uid uid;
         private final boolean readFromTranslog;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
         private long ifSeqNo = UNASSIGNED_SEQ_NO;
         private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
+        /** Convenience for a plain (non-sliced) document; the uid is {@link Uid#of(String)}. */
         public Get(boolean realtime, boolean readFromTranslog, String id) {
+            this(realtime, readFromTranslog, Uid.of(id));
+        }
+
+        public Get(boolean realtime, boolean readFromTranslog, Uid uid) {
             this.realtime = realtime;
-            this.id = id;
-            this.uid = Uid.encodeId(id);
+            this.uid = uid;
             this.readFromTranslog = readFromTranslog;
         }
 
@@ -2184,11 +2198,11 @@ public abstract class Engine implements Closeable {
         }
 
         public String id() {
-            return id;
+            return uid.id();
         }
 
         public BytesRef uid() {
-            return uid;
+            return uid.term();
         }
 
         public long version() {
@@ -2238,18 +2252,30 @@ public abstract class Engine implements Closeable {
         private final long version;
         private final DocIdAndVersion docIdAndVersion;
         private final Engine.Searcher searcher;
+        private final boolean fromTranslog;
 
-        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null);
+        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null, false);
 
-        private GetResult(boolean exists, long version, DocIdAndVersion docIdAndVersion, Engine.Searcher searcher) {
+        private GetResult(boolean exists, long version, DocIdAndVersion docIdAndVersion, Engine.Searcher searcher, boolean fromTranslog) {
             this.exists = exists;
             this.version = version;
             this.docIdAndVersion = docIdAndVersion;
             this.searcher = searcher;
+            this.fromTranslog = fromTranslog;
         }
 
-        public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion) {
-            this(true, docIdAndVersion.version, docIdAndVersion, searcher);
+        public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion, boolean fromTranslog) {
+            this(true, docIdAndVersion.version, docIdAndVersion, searcher, fromTranslog);
+        }
+
+        /**
+         * Whether the document was served from an ephemeral, single-use in-memory translog reader rather than an
+         * index reader, in which case holding onto this result pins that reader and the document source it wraps.
+         * Note that a get consulting the translog may still be served from the index (reporting {@code false}) when
+         * the operation's translog location is unknown.
+         */
+        public boolean isFromTranslog() {
+            return fromTranslog;
         }
 
         public boolean exists() {

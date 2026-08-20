@@ -1174,6 +1174,88 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat((Map<String, Object>) mappingsProperties.get("test"), hasValue("keyword"));
     }
 
+    public void testStandaloneColumnarIndexKeepsSequenceNumbers() {
+        assertFalse(
+            "a standalone columnar index should keep sequence numbers so that it supports updates",
+            IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(aggregateColumnarSettings(null))
+        );
+    }
+
+    public void testColumnarDataStreamBackingIndexDisablesSequenceNumbers() {
+        assertTrue(
+            "a columnar data-stream backing index disables sequence numbers by default",
+            IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(aggregateColumnarSettings("my-data-stream"))
+        );
+    }
+
+    public void testColumnarDataStreamBackingIndexKeepsExplicitDisableSequenceNumbers() {
+        // The injection only applies when the setting is absent, so an explicit request value must win.
+        boolean explicit = randomBoolean();
+        assertThat(
+            "an explicit [index.disable_sequence_numbers] on a columnar data-stream backing index must be preserved, not overridden",
+            IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(aggregateColumnarSettings("my-data-stream", IndexVersion.current(), explicit)),
+            equalTo(explicit)
+        );
+    }
+
+    public void testStandaloneColumnarIndexKeepsExplicitDisableSequenceNumbers() {
+        // The injection only fires for data streams, so an explicit value on a standalone columnar index is preserved untouched.
+        boolean explicit = randomBoolean();
+        assertThat(
+            "an explicit [index.disable_sequence_numbers] on a standalone columnar index must be preserved",
+            IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(aggregateColumnarSettings(null, IndexVersion.current(), explicit)),
+            equalTo(explicit)
+        );
+    }
+
+    public void testStandaloneColumnarIndexBeforeGateDisablesSequenceNumbers() {
+        // Below the gating version the override does not apply and a standalone columnar index disables sequence numbers. The lower bound
+        // is where the columnar disable-by-default begins.
+        IndexVersion beforeGate = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.DISABLE_SEQUENCE_NUMBERS,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY)
+        );
+        assertTrue(
+            "a standalone columnar index below the gating version disables sequence numbers",
+            IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(aggregateColumnarSettings(null, beforeGate, null))
+        );
+    }
+
+    private Settings aggregateColumnarSettings(@Nullable String dataStreamName) {
+        return aggregateColumnarSettings(dataStreamName, IndexVersion.current(), null);
+    }
+
+    private Settings aggregateColumnarSettings(
+        @Nullable String dataStreamName,
+        IndexVersion createdVersion,
+        @Nullable Boolean explicitDisableSequenceNumbers
+    ) {
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+        Settings.Builder indexSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion);
+        if (explicitDisableSequenceNumbers != null) {
+            indexSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), explicitDisableSequenceNumbers);
+        }
+        var request = new CreateIndexClusterStateUpdateRequest("create index", projectId, "idx", "idx").settings(indexSettings.build());
+        if (dataStreamName != null) {
+            request.dataStreamName(dataStreamName);
+        }
+        return aggregateIndexSettings(
+            clusterState,
+            request,
+            Settings.EMPTY,
+            null,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Set.of(new IndexMode.IndexModeSettingsProvider())
+        );
+    }
+
     private static ClusterState clusterStateWithSettings(ProjectId projectId, Settings persistentSettings) {
         return ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().persistentSettings(persistentSettings).put(ProjectMetadata.builder(projectId)).build())
@@ -1970,10 +2052,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("_node_id")).build())
                 .putCompatibilityVersions("_node_id", new CompatibilityVersions(minTransportVersion, Map.of()))
                 .build();
-            var settings = Settings.builder()
-                .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
-                .put(MetadataCreateIndexService.USE_INDEX_REFRESH_BLOCK_SETTING_NAME, true)
-                .build();
+            var settings = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
             int nbReplicas = randomIntBetween(0, 1);
             var updatedClusterState = clusterStateCreateIndex(
                 emptyClusterState,
@@ -2001,13 +2080,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     public void testCreateClusterBlocksTransformerForIndexCreation() {
         boolean isStateless = randomBoolean();
-        boolean useRefreshBlock = randomBoolean();
 
         var applier = MetadataCreateIndexService.createClusterBlocksTransformerForIndexCreation(
-            Settings.builder()
-                .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, isStateless)
-                .put(MetadataCreateIndexService.USE_INDEX_REFRESH_BLOCK_SETTING_NAME, useRefreshBlock)
-                .build()
+            Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, isStateless).build()
         );
         assertThat(applier, notNullValue());
 
@@ -2021,7 +2096,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 .numberOfReplicas(randomIntBetween(1, 3))
                 .build()
         );
-        assertThat(blocks.hasIndexBlock(projectId, "test", IndexMetadata.INDEX_REFRESH_BLOCK), is(isStateless && useRefreshBlock));
+        assertThat(blocks.hasIndexBlock(projectId, "test", IndexMetadata.INDEX_REFRESH_BLOCK), is(isStateless));
     }
 
     public void testSetPrivateSettingsFails() throws Exception {

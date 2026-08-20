@@ -23,9 +23,7 @@ class GlobalBuildInfoPluginFuncTest extends AbstractGradleInternalPluginFuncTest
 
         def "offline mode falls back to workspace root branches.json for http(s) branches location"() {
         given:
-        // This test's build script uses task actions that aren't configuration-cache safe.
-        // The behavior under test here is Gradle offline mode fallback, not configuration cache.
-        configurationCacheCompatible = false
+        disableConfigurationCache("test build script uses task actions that are not configuration-cache safe; behavior under test is offline mode fallback")
 
         propertiesFile << """
             org.elasticsearch.build.branches-file-location=https://example.invalid/branches.json
@@ -76,7 +74,7 @@ class GlobalBuildInfoPluginFuncTest extends AbstractGradleInternalPluginFuncTest
 
     def "retries branches.json download from flaky http endpoint"() {
         given:
-        configurationCacheCompatible = false
+        disableConfigurationCache("test build script uses task actions that are not configuration-cache safe")
         writeBwcVersionSource()
         writeBuildThatResolvesBwcVersions()
 
@@ -118,7 +116,7 @@ class GlobalBuildInfoPluginFuncTest extends AbstractGradleInternalPluginFuncTest
 
     def "exhausts retries when branches.json http endpoint keeps failing"() {
         given:
-        configurationCacheCompatible = false
+        disableConfigurationCache("test build script uses task actions that are not configuration-cache safe")
         writeBwcVersionSource()
         writeBuildThatResolvesBwcVersions()
 

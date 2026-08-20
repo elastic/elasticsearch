@@ -282,7 +282,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         assertThat(ALLOWED_OPERATIONS.drainPermits(), equalTo(0));
 
         ReindexRequestBuilder builder = new ReindexRequestBuilder(client).source(INDEX_NAME).destination("target_index");
-        // Scroll by 1 so that cancellation is easier to control
+        // Batch by 1 so that cancellation is easier to control
         builder.source().setSize(1);
 
         int numModifiedDocs = randomIntBetween(builder.request().getSlices() * 2, numDocs);

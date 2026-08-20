@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -43,15 +44,14 @@ import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Verifies split-range statistics from the native footer path include per-column keys used by
- * {@code PushAggregatesToExternalSource} for MIN/MAX (parity with Java {@code ParquetFormatReader}).
+ * {@code PushStatsToExternalSource} for MIN/MAX (parity with Java {@code ParquetFormatReader}).
  */
 public class ParquetRsDiscoverSplitRangesStatsTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 

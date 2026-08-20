@@ -22,12 +22,10 @@ import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
-import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMEnablementService;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -40,8 +38,6 @@ import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureTests.createMockCCMFeature;
-import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMServiceTests.createMockCCMService;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -59,28 +55,26 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
     private PersistentTasksService persistentTasksService;
     private String localNodeId;
     private FeatureService enabledFeatureServiceMock;
-    private InferenceFeatureService inferenceFeatureService;
     private CCMFeature unsupportedEnvironmentCcmFeatureMock;
     private CCMEnablementService ccmEnablementServiceMock;
+    private CCMService mockCCMService;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createClusterAndMocks() throws Exception {
         threadPool = createThreadPool(inferenceUtilityExecutors());
         clusterService = createClusterService(threadPool);
         persistentTasksService = mock(PersistentTasksService.class);
         localNodeId = clusterService.localNode().getId();
         enabledFeatureServiceMock = mock(FeatureService.class);
         when(enabledFeatureServiceMock.clusterHasFeature(any(), any())).thenReturn(true);
-        inferenceFeatureService = new InferenceFeatureService(clusterService, enabledFeatureServiceMock);
         unsupportedEnvironmentCcmFeatureMock = mock(CCMFeature.class);
         when(unsupportedEnvironmentCcmFeatureMock.isCcmSupportedEnvironment()).thenReturn(false);
         ccmEnablementServiceMock = mock(CCMEnablementService.class);
+        mockCCMService = mock(CCMService.class);
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownClusterAndThreadPool() throws Exception {
         clusterService.close();
         terminate(threadPool);
     }
@@ -95,14 +89,10 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
             unsupportedEnvironmentCcmFeatureMock,
             new AuthorizationPoller.Parameters(
                 createWithEmptySettings(threadPool),
-                mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
-                mock(Sender.class),
                 ElasticInferenceServiceSettingsTests.create(EIS_FAKE_URL, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-                mock(ModelRegistry.class),
                 mock(Client.class),
-                createMockCCMFeature(false),
-                createMockCCMService(false),
-                inferenceFeatureService
+                unsupportedEnvironmentCcmFeatureMock,
+                mockCCMService
             ),
             Clock.systemUTC()
         );
@@ -121,14 +111,10 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
             unsupportedEnvironmentCcmFeatureMock,
             new AuthorizationPoller.Parameters(
                 createWithEmptySettings(threadPool),
-                mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
-                mock(Sender.class),
                 ElasticInferenceServiceSettingsTests.create(EIS_FAKE_URL, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-                mock(ModelRegistry.class),
                 mock(Client.class),
-                createMockCCMFeature(false),
-                createMockCCMService(false),
-                inferenceFeatureService
+                unsupportedEnvironmentCcmFeatureMock,
+                mockCCMService
             ),
             Clock.systemUTC()
         );
@@ -165,14 +151,10 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
             unsupportedEnvironmentCcmFeatureMock,
             new AuthorizationPoller.Parameters(
                 createWithEmptySettings(threadPool),
-                mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
-                mock(Sender.class),
                 ElasticInferenceServiceSettingsTests.create(eisUrl, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-                mock(ModelRegistry.class),
                 mock(Client.class),
-                createMockCCMFeature(false),
-                createMockCCMService(false),
-                inferenceFeatureService
+                unsupportedEnvironmentCcmFeatureMock,
+                mockCCMService
             ),
             Clock.systemUTC()
         );
@@ -202,14 +184,10 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
             unsupportedEnvironmentCcmFeatureMock,
             new AuthorizationPoller.Parameters(
                 createWithEmptySettings(threadPool),
-                mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
-                mock(Sender.class),
                 ElasticInferenceServiceSettingsTests.create(EIS_FAKE_URL, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-                mock(ModelRegistry.class),
                 mock(Client.class),
-                createMockCCMFeature(false),
-                createMockCCMService(false),
-                inferenceFeatureService
+                unsupportedEnvironmentCcmFeatureMock,
+                mockCCMService
             ),
             clock
         );
@@ -262,14 +240,10 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
             unsupportedEnvironmentCcmFeatureMock,
             new AuthorizationPoller.Parameters(
                 createWithEmptySettings(threadPool),
-                mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
-                mock(Sender.class),
                 ElasticInferenceServiceSettingsTests.create(EIS_FAKE_URL, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-                mock(ModelRegistry.class),
                 mock(Client.class),
-                createMockCCMFeature(false),
-                createMockCCMService(false),
-                inferenceFeatureService
+                unsupportedEnvironmentCcmFeatureMock,
+                mockCCMService
             ),
             clock
         );
@@ -332,14 +306,10 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
             unsupportedEnvironmentCcmFeatureMock,
             new AuthorizationPoller.Parameters(
                 createWithEmptySettings(threadPool),
-                mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
-                mock(Sender.class),
                 ElasticInferenceServiceSettingsTests.create(EIS_FAKE_URL, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-                mock(ModelRegistry.class),
                 mock(Client.class),
-                createMockCCMFeature(false),
-                createMockCCMService(false),
-                inferenceFeatureService
+                unsupportedEnvironmentCcmFeatureMock,
+                mockCCMService
             ),
             Clock.systemUTC()
         );
@@ -375,14 +345,10 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
             unsupportedEnvironmentCcmFeatureMock,
             new AuthorizationPoller.Parameters(
                 createWithEmptySettings(threadPool),
-                mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
-                mock(Sender.class),
                 ElasticInferenceServiceSettingsTests.create(EIS_FAKE_URL, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-                mock(ModelRegistry.class),
                 mock(Client.class),
-                createMockCCMFeature(false),
-                createMockCCMService(false),
-                inferenceFeatureService
+                unsupportedEnvironmentCcmFeatureMock,
+                mockCCMService
             ),
             clock
         );
@@ -449,14 +415,10 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
             supportedEnvironmentCcmFeatureMock,
             new AuthorizationPoller.Parameters(
                 createWithEmptySettings(threadPool),
-                mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
-                mock(Sender.class),
                 ElasticInferenceServiceSettingsTests.create(EIS_FAKE_URL, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-                mock(ModelRegistry.class),
                 mock(Client.class),
-                createMockCCMFeature(false),
-                createMockCCMService(false),
-                inferenceFeatureService
+                unsupportedEnvironmentCcmFeatureMock,
+                mockCCMService
             ),
             clock
         );
@@ -503,14 +465,10 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
             supportedEnvironmentCcmFeatureMock,
             new AuthorizationPoller.Parameters(
                 createWithEmptySettings(threadPool),
-                mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
-                mock(Sender.class),
                 ElasticInferenceServiceSettingsTests.create(EIS_FAKE_URL, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-                mock(ModelRegistry.class),
                 mock(Client.class),
-                createMockCCMFeature(false),
-                createMockCCMService(false),
-                inferenceFeatureService
+                unsupportedEnvironmentCcmFeatureMock,
+                mockCCMService
             ),
             Clock.systemUTC()
         );
@@ -542,14 +500,10 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
             unsupportedEnvironmentCcmFeatureMock,
             new AuthorizationPoller.Parameters(
                 createWithEmptySettings(threadPool),
-                mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
-                mock(Sender.class),
                 ElasticInferenceServiceSettingsTests.create(EIS_FAKE_URL, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-                mock(ModelRegistry.class),
                 mock(Client.class),
-                createMockCCMFeature(false),
-                createMockCCMService(false),
-                inferenceFeatureService
+                unsupportedEnvironmentCcmFeatureMock,
+                mockCCMService
             ),
             Clock.systemUTC()
         );
@@ -577,14 +531,10 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
             unsupportedEnvironmentCcmFeatureMock,
             new AuthorizationPoller.Parameters(
                 createWithEmptySettings(threadPool),
-                mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
-                mock(Sender.class),
                 ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-                mock(ModelRegistry.class),
                 mock(Client.class),
-                createMockCCMFeature(false),
-                createMockCCMService(false),
-                inferenceFeatureService
+                unsupportedEnvironmentCcmFeatureMock,
+                mockCCMService
             ),
             Clock.systemUTC()
         );
@@ -611,14 +561,10 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
             unsupportedEnvironmentCcmFeatureMock,
             new AuthorizationPoller.Parameters(
                 createWithEmptySettings(threadPool),
-                mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
-                mock(Sender.class),
                 ElasticInferenceServiceSettingsTests.create(null, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-                mock(ModelRegistry.class),
                 mock(Client.class),
-                createMockCCMFeature(false),
-                createMockCCMService(false),
-                inferenceFeatureService
+                unsupportedEnvironmentCcmFeatureMock,
+                mockCCMService
             ),
             Clock.systemUTC()
         );
@@ -667,14 +613,10 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
             unsupportedEnvironmentCcmFeatureMock,
             new AuthorizationPoller.Parameters(
                 createWithEmptySettings(threadPool),
-                mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
-                mock(Sender.class),
                 ElasticInferenceServiceSettingsTests.create(EIS_FAKE_URL, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-                mock(ModelRegistry.class),
                 mock(Client.class),
-                createMockCCMFeature(false),
-                createMockCCMService(false),
-                inferenceFeatureService
+                unsupportedEnvironmentCcmFeatureMock,
+                mockCCMService
             ),
             Clock.systemUTC()
         );

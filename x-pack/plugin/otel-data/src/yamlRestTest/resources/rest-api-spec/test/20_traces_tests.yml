@@ -127,6 +127,30 @@ Conflicting attribute types:
   - match: { hits.hits.0.fields.attributes\.http\.response\.status_code: [200] }
   - match: { hits.hits.1.fields.attributes\.http\.response\.status_code: [201] }
 ---
+"http.request.body.bytes and http.response.body.bytes should alias to OTel body size attributes":
+  - do:
+      bulk:
+        index: traces-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - "@timestamp": 2024-10-06T00:00:00
+            attributes:
+              http.request.body.size: 123
+              http.response.body.size: 456
+  - is_false: errors
+  - do:
+      search:
+        index: traces-generic.otel-default
+        body:
+          fields: ["http.request.body.bytes", "http.response.body.bytes"]
+          query:
+            term:
+              "@timestamp": "2024-10-06T00:00:00"
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.http\.request\.body\.bytes: [123] }
+  - match: { hits.hits.0.fields.http\.response\.body\.bytes: [456] }
+---
 "resource.attributes.host.name @timestamp should be used as sort fields":
   - do:
       bulk:

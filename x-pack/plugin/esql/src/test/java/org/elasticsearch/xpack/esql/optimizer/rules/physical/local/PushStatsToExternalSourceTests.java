@@ -24,10 +24,16 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.datasources.TextAggregatePushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -36,6 +42,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.optimizer.ExternalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
@@ -94,6 +102,30 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
 
         LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
         assertEquals(0L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
+    }
+
+    /**
+     * Same shape as {@link #testCountFieldWithoutColumnEntriesPushedAsImplicitNullCount}, but the source is a
+     * text format ({@link TextAggregatePushdownSupport} declares {@code appliesImplicitNullsForAbsentColumn() ==
+     * false}). For text an absent column key means "not harvested," not "all-null," so {@code rowCount - rowCount
+     * = 0} would be wrong. The rule must apply the safe-miss — leaving the {@code AggregateExec} in place for a
+     * re-scan rather than serving 0.
+     */
+    public void testTextFormatCountFieldWithoutColumnEntriesSafeMisses() {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1000L);
+        var agg = aggregateExec(externalSource(metadata), countFieldAlias(AGE));
+
+        // Not rewritten to a LocalSourceExec: the rule safe-misses and the AggregateExec stays for a re-scan.
+        as(applyRuleText(agg), AggregateExec.class);
+    }
+
+    public void testNotPushedWithNullFormatReaderRegistry() {
+        var agg = aggregateExec(externalSource(statsMetadata(1000L, null, null, null)), countStarAlias());
+
+        // NONE context carries no registry: consulting external capabilities is impossible, so the rule bails
+        // (the ExternalOptimizerContext.NONE contract).
+        as(new PushStatsToExternalSource().apply(agg, nullRegistryContext()), AggregateExec.class);
     }
 
     public void testMinPushedDown() {
@@ -548,6 +580,24 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         assertEquals(0L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
     }
 
+    public void testFilteredCountSafeMissesOnPartialWholeFileStats() {
+        // F2 (elastic/elasticsearch#150920): with no per-split stats (e.g. a CoalescedSplit whose stat-less
+        // child collapsed splitStats() to null), a FILTERED count falls back to the whole-file cache stats. If
+        // those are STATS_PARTIAL, it must safe-miss exactly as the unfiltered path (resolveEffectiveStats) does
+        // — serving the partial row_count would emit a wrong COUNT. Pushes the partial 1000 without the guard.
+        Map<String, Object> partial = new HashMap<>();
+        partial.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1000L);
+        partial.put(SourceStatisticsSerializer.columnMinKey("age"), 30L);
+        partial.put(SourceStatisticsSerializer.columnMaxKey("age"), 50L);
+        partial.put(SourceStatisticsSerializer.columnNullCountKey("age"), 0L); // no nulls -> the filter can classify MATCH
+        partial.put(SourceStatisticsSerializer.STATS_PARTIAL, Boolean.TRUE);
+        Expression filterCondition = greaterThanOf(AGE, of(20L)); // MATCH against min=30/nc=0, so it would push absent the guard
+        var agg = aggregateExec(new FilterExec(Source.EMPTY, externalSource(partial), filterCondition), countStarAlias());
+
+        // Must NOT push — a partial whole-file row_count cannot answer a filtered count. AggregateExec stays.
+        as(applyRule(agg), AggregateExec.class);
+    }
+
     // --- helpers ---
 
     @SafeVarargs
@@ -562,19 +612,8 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
                 splits.add(fileSplit(i, perSplitStats[i]));
             }
         }
-        return new ExternalSourceExec(
-            Source.EMPTY,
-            "file:///test.parquet",
-            "parquet",
-            defaultAttrs(),
-            Map.of(),
-            sourceMetadata,
-            null,
-            -1,
-            null,
-            null,
-            splits
-        );
+        return new ExternalSourceExec(Source.EMPTY, "file:///test.parquet", "parquet", defaultAttrs(), Map.of(), sourceMetadata, null, null)
+            .withSplits(splits);
     }
 
     private static ExternalSourceExec externalSource(Map<String, Object> sourceMetadata) {
@@ -638,6 +677,9 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         builder.rowCount(rowCount);
         int col = builder.addColumn(colName);
         builder.nullCount(col, nullCount);
+        // Single-valued (one value per non-null row): required for a comparison MATCH after the multivalue guard
+        // (SplitFilterClassifier.matchableColumn). These fixtures model plain single-valued columns.
+        builder.valueCount(col, rowCount - nullCount);
         builder.min(col, min);
         builder.max(col, max);
         return builder.build();
@@ -673,6 +715,100 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
     }
 
     private static PhysicalPlan applyRule(AggregateExec agg) {
-        return new PushStatsToExternalSource().apply(agg);
+        // Footer (Parquet) reader: appliesImplicitNullsForAbsentColumn() is true, so the safe-miss guard is inert
+        // and these tests exercise the footer pushdown PushStats has always done.
+        return new PushStatsToExternalSource().apply(agg, buildContext(buildParquetRegistry()));
+    }
+
+    private static PhysicalPlan applyRuleText(AggregateExec agg) {
+        return new PushStatsToExternalSource().apply(agg, buildContext(buildTextRegistry()));
+    }
+
+    private static FormatReaderRegistry buildParquetRegistry() {
+        FormatReaderRegistry registry = new FormatReaderRegistry(null);
+        AggregatePushdownSupport parquetSupport = (aggregates, groupings) -> {
+            if (groupings.isEmpty() == false) {
+                return AggregatePushdownSupport.Pushability.NO;
+            }
+            for (Expression agg : aggregates) {
+                if (agg instanceof Count || agg instanceof Min || agg instanceof Max) {
+                    continue;
+                }
+                return AggregatePushdownSupport.Pushability.NO;
+            }
+            return AggregatePushdownSupport.Pushability.YES;
+        };
+        registry.registerLazy("parquet", (settings, blockFactory) -> new StubFormatReader(parquetSupport), null, null);
+        return registry;
+    }
+
+    /**
+     * Registry whose "parquet"-named reader carries the real {@link TextAggregatePushdownSupport}, i.e. it
+     * declares {@code appliesImplicitNullsForAbsentColumn() == false}. Exercises the text-format partial-harvest
+     * safe-miss without standing up a CSV/NDJSON reader; the source-type name stays "parquet" only because
+     * {@link #externalSource} hard-codes it — the support is what the rule reads.
+     */
+    private static FormatReaderRegistry buildTextRegistry() {
+        FormatReaderRegistry registry = new FormatReaderRegistry(null);
+        AggregatePushdownSupport textSupport = new TextAggregatePushdownSupport();
+        registry.registerLazy("parquet", (settings, blockFactory) -> new StubFormatReader(textSupport), null, null);
+        return registry;
+    }
+
+    private static LocalPhysicalOptimizerContext buildContext(FormatReaderRegistry registry) {
+        return new LocalPhysicalOptimizerContext(null, null, null, null, null, new ExternalOptimizerContext(registry));
+    }
+
+    private static LocalPhysicalOptimizerContext nullRegistryContext() {
+        return new LocalPhysicalOptimizerContext(null, null, null, null, null, ExternalOptimizerContext.NONE);
+    }
+
+    /**
+     * Minimal FormatReader stub that only provides aggregate pushdown support.
+     */
+    private static class StubFormatReader implements NoConfigFormatReader {
+        private final AggregatePushdownSupport support;
+
+        StubFormatReader(AggregatePushdownSupport support) {
+            this.support = support;
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata metadata(
+            org.elasticsearch.xpack.esql.datasources.spi.StorageObject object
+        ) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public org.elasticsearch.compute.operator.CloseableIterator<org.elasticsearch.compute.data.Page> read(
+            org.elasticsearch.xpack.esql.datasources.spi.StorageObject object,
+            org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext context
+        ) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String formatName() {
+            return "parquet";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public AggregatePushdownSupport aggregatePushdownSupport() {
+            return support;
+        }
+
+        @Override
+        public void close() {}
     }
 }

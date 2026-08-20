@@ -10,4 +10,22 @@ ProjectExec[[l{r}#0]]
                 \_EvalExec[[$$last_name$LENGTH$12{f$}#20 AS a1#22, $$last_name$LENGTH$12{f$}#20 AS a3#6]]
                   \_FilterExec[$$last_name$LENGTH$12{f$}#20 > 1[INTEGER]]
                     \_FieldExtractExec[$$last_name$LENGTH$12{f$}#20]<[],[],[]>
-                      \_EsQueryExec[employees], indexMode[standard], [_doc{f}#23], limit[], sort[] estimatedRowSize[28] queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]
+                      \_EsQueryExec[employees], indexMode[standard], [_doc{f}#23], limit[], sort[] estimatedRowSize[28] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "bool" : {
+    "should" : [
+      {
+        "exists" : {
+          "field" : "last_name",
+          "boost" : 0.0
+        }
+      },
+      {
+        "exists" : {
+          "field" : "first_name",
+          "boost" : 0.0
+        }
+      }
+    ],
+    "boost" : 1.0
+  }
+}, tags=[]]]]

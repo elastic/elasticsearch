@@ -53,7 +53,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class MultiSearchIT extends ESIntegTestCase {
 
@@ -96,9 +95,12 @@ public class MultiSearchIT extends ESIntegTestCase {
      * the reservation when the combined {@link org.elasticsearch.action.search.MultiSearchResponse} is delivered.
      */
     public void testBreakerAccountingEndToEnd() throws Exception {
-        assumeFalse("noop breakers used, skipping test", noopBreakerUsed());
-
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        // The request breaker type is randomized per node (~10% noop). The coordinating-only node gets its own seed and may
+        // be noop even when the pre-existing nodes are not, so the check must target the coordinator that runs the msearch
+        // accounting rather than the pre-existing nodes; a noop breaker never reserves bytes and reports getUsed() == 0.
+        assumeFalse("coordinator uses a noop request breaker, skipping test", noopBreakerUsed(coordinatorNode));
+
         String index = "msearch-breaker-it";
         int numDocs = scaledRandomIntBetween(20, 50);
         int numSearches = scaledRandomIntBetween(10, 25);
@@ -114,11 +116,7 @@ public class MultiSearchIT extends ESIntegTestCase {
         ensureGreen(index);
 
         assertBusy(
-            () -> assertThat(
-                "request breaker should be at baseline before msearch",
-                requestBreakerEstimated(coordinatorNode),
-                lessThanOrEqualTo(0L)
-            )
+            () -> assertThat("request breaker should be at baseline before msearch", requestBreakerEstimated(coordinatorNode), equalTo(0L))
         );
         long baseline = requestBreakerEstimated(coordinatorNode);
 
@@ -163,7 +161,39 @@ public class MultiSearchIT extends ESIntegTestCase {
             () -> assertThat(
                 "request breaker should return to baseline after msearch completes",
                 requestBreakerEstimated(coordinatorNode),
-                lessThanOrEqualTo(baseline)
+                equalTo(baseline)
+            )
+        );
+    }
+
+    public void testBreakerAccountingEndToEndOnFailure() throws Exception {
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assumeFalse("coordinator uses a noop request breaker, skipping test", noopBreakerUsed(coordinatorNode));
+
+        int numSearches = 10;
+
+        assertBusy(
+            () -> assertThat("request breaker should be at baseline before msearch", requestBreakerEstimated(coordinatorNode), equalTo(0L))
+        );
+        long baseline = requestBreakerEstimated(coordinatorNode);
+
+        MultiSearchRequest request = new MultiSearchRequest();
+        var coordinatorClient = internalCluster().client(coordinatorNode);
+        for (int i = 0; i < numSearches; i++) {
+            request.add(coordinatorClient.prepareSearch("msearch-breaker-it-missing-" + i).request());
+        }
+        assertResponse(coordinatorClient.multiSearch(request), response -> {
+            assertThat(response.getResponses().length, equalTo(numSearches));
+            for (Item item : response) {
+                assertTrue(item.isFailure());
+            }
+        });
+
+        assertBusy(
+            () -> assertThat(
+                "request breaker should return to baseline after an all-failure msearch completes",
+                requestBreakerEstimated(coordinatorNode),
+                equalTo(baseline)
             )
         );
     }
@@ -293,6 +323,34 @@ public class MultiSearchIT extends ESIntegTestCase {
         }
     }
 
+    public void testMrtDefaultsToFalseInCps() throws IOException {
+        String body = """
+            {"index": "index-1" }
+            {"query" : {"match" : { "message": "this is a test"}}}
+            {"index": "index-2" }
+            {"query" : {"match_all" : {}}}
+            """;
+
+        MultiSearchRequest mreq = parseCpsRequest(body, Map.of());
+        for (SearchRequest req : mreq.requests()) {
+            assertFalse(req.isCcsMinimizeRoundtrips());
+        }
+    }
+
+    public void testMrtParamIsIgnoredInCps() throws IOException {
+        String body = """
+            {"index": "index-1", "ccs_minimize_roundtrips": true }
+            {"query" : {"match" : { "message": "this is a test"}}}
+            {"index": "index-2", "ccs_minimize_roundtrips": true }
+            {"query" : {"match_all" : {}}}
+            """;
+
+        MultiSearchRequest mreq = parseCpsRequest(body, Map.of("ccs_minimize_roundtrips", "true"));
+        for (SearchRequest req : mreq.requests()) {
+            assertFalse(req.isCcsMinimizeRoundtrips());
+        }
+    }
+
     public void testTopLevelSliceParamIsAppliedToAllSubRequests() throws IOException {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         String body = """
@@ -313,14 +371,14 @@ public class MultiSearchIT extends ESIntegTestCase {
     public void testRoutingAndSliceCannotBeMixedAcrossRequestLevels() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         String body = """
-            {"_slice": "s1" }
+            {"slice": "s1" }
             {"query" : {"match_all" : {}}}
             """;
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseRequest(body, Map.of("routing", "r1")));
-        assertThat(ex.getMessage(), Matchers.is("[routing] and [_slice] cannot be combined in the same _msearch request"));
+        assertThat(ex.getMessage(), Matchers.is("[routing] and [slice] cannot be combined in the same _msearch request"));
     }
 
-    public void testSliceEnabledIndexRequiresSliceAndRejectsRoutingInExecution() throws Exception {
+    public void testSliceEnabledIndexDefaultsToAllAndRejectsRoutingInExecution() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createIndex("slice-enabled", Settings.builder().put("index.slice.enabled", true).put("number_of_shards", 1).build());
         ensureGreen("slice-enabled");
@@ -337,17 +395,13 @@ public class MultiSearchIT extends ESIntegTestCase {
         );
         assertResponse(client().multiSearch(request), response -> {
             assertThat(response.getResponses().length, equalTo(2));
-            assertTrue(response.getResponses()[0].isFailure());
-            assertThat(
-                response.getResponses()[0].getFailure().getMessage(),
-                containsString("[_slice] is required when [index.slice.enabled] is true")
-            );
+            assertFalse(response.getResponses()[0].isFailure());
             assertTrue(response.getResponses()[1].isFailure());
             assertThat(
                 response.getResponses()[1].getFailure().getMessage(),
                 containsString("[routing] is not allowed when [index.slice.enabled] is true")
             );
-            assertThat(response.getResponses()[1].getFailure().getMessage(), containsString("use [_slice] instead"));
+            assertThat(response.getResponses()[1].getFailure().getMessage(), containsString("use [slice] instead"));
         });
     }
 
@@ -368,11 +422,11 @@ public class MultiSearchIT extends ESIntegTestCase {
         String body = """
             {"index":"routing-index","routing":"r1"}
             {"query":{"term":{"field.keyword":"routing-r1"}}}
-            {"index":"slice-index","_slice":"s1"}
+            {"index":"slice-index","slice":"s1"}
             {"query":{"term":{"field.keyword":"slice-s1"}}}
             {"index":"routing-index","routing":"r2"}
             {"query":{"term":{"field.keyword":"routing-r2"}}}
-            {"index":"slice-index","_slice":"s2"}
+            {"index":"slice-index","slice":"s2"}
             {"query":{"term":{"field.keyword":"slice-s2"}}}
             """;
         MultiSearchRequest request = parseRequest(body, Map.of());
@@ -422,8 +476,18 @@ public class MultiSearchIT extends ESIntegTestCase {
         );
     }
 
-    private boolean noopBreakerUsed() {
-        NodesStatsResponse stats = clusterAdmin().prepareNodesStats().setBreaker(true).get();
+    private MultiSearchRequest parseCpsRequest(String body, Map<String, String> params) throws IOException {
+        return RestMultiSearchAction.parseRequest(
+            mkRequest(body, params),
+            true,
+            new UsageService().getSearchUsageHolder(),
+            (ignored) -> true,
+            Optional.of(true)
+        );
+    }
+
+    private boolean noopBreakerUsed(String nodeName) {
+        NodesStatsResponse stats = clusterAdmin().prepareNodesStats(nodeName).setBreaker(true).get();
         for (NodeStats nodeStats : stats.getNodes()) {
             if (nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST).getLimit() == NoopCircuitBreaker.LIMIT) {
                 return true;

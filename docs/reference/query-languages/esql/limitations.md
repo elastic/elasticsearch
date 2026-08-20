@@ -31,8 +31,11 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
     * The following functions don’t yet support date nanos: `bucket`, `date_format`, `date_parse`, `date_diff`, `date_extract`
     * You can use `to_datetime` to cast to millisecond dates to use unsupported functions
 
+* `date_range` [range family](/reference/elasticsearch/mapping-reference/range.md) {applies_to}`stack: preview 9.5.0` {applies_to}`serverless: preview`
 * `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
+* `double_range` [range family](/reference/elasticsearch/mapping-reference/range.md) {applies_to}`stack: preview 9.6.0` {applies_to}`serverless: preview`
 * `dense_vector` {applies_to}`stack: preview 9.2+` {applies_to}`serverless: preview`
+* `flattened` {applies_to}`stack: preview 9.5.0`
 * `ip`
 * `keyword` [family](/reference/elasticsearch/mapping-reference/keyword.md) including `keyword`, `constant_keyword`, and `wildcard`
 * `int` (`short` and `byte` are represented as `int`)
@@ -65,16 +68,10 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
    * `gauge`
    * `aggregate_metric_double`
 
-* Date/time
-
-    * `date_range`
-
 * Other types
 
     * `binary`
     * `completion`
-    * `double_range`
-    * `flattened`
     * `float_range`
     * `histogram`
     * `integer_range`
@@ -86,7 +83,7 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
     * `search_as_you_type`
 
 
-Querying a column with an unsupported type returns an error. If a column with an unsupported type is not explicitly used in a query, it is returned with `null` values, with the exception of nested fields. Nested fields are not returned at all.
+Querying a column with an unsupported type returns an error. If a column with an unsupported type is not explicitly used in a query, it is returned with `null` values, with the exception of nested fields. Nested fields are not returned at all. To understand how unsupported types are reported in the API response, refer to [column metadata](esql-rest.md#esql-rest-column-metadata).
 
 
 ### Limitations on supported types [_limitations_on_supported_types]
@@ -148,13 +145,13 @@ Note that if you return both the original `location` and the extracted `x` and `
 
 ## Runtime fields [esql-limitations-runtime-fields]
 
-{{esql}} respects [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md) defined in the index mapping and treats them like regular mapped fields. However, you cannot define new runtime fields at search time in {{esql}}. Use the [`EVAL`](/reference/query-languages/esql/commands/eval.md) command to create computed columns instead.
+{{esql}} respects [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md) defined in the index mapping and treats them like regular mapped fields. Use the [`EVAL`](/reference/query-languages/esql/commands/eval.md) command to compute fields at query time, the built-in equivalent of runtime fields.
 
-Runtime fields are different from unmapped fields. An unmapped field is a field that does not exist in the mapping at all. By default, {{esql}} returns an error when you reference an unmapped field, but you can change this behavior using the [`SET unmapped_fields`](/reference/query-languages/esql/commands/set.md#esql-unmapped_fields) directive.
+Runtime fields are different from unmapped fields. An unmapped field is a field that does not exist in the mapping at all. By default, {{esql}} returns an error when you reference an unmapped field, but you can change this behavior using the [`SET unmapped_fields`](/reference/query-languages/esql/directives/set.md#esql-unmapped_fields) directive. Loading unmapped fields from [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) with `SET unmapped_fields="load"` is slower than querying mapped fields, and filters or sorts on loaded fields can force a full scan. To learn more, refer to [Unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md).
 
 ## _source availability [esql-_source-availability]
 
-{{esql}} does not support configurations where the [_source field](/reference/elasticsearch/mapping-reference/mapping-source-field.md) is [disabled](/reference/elasticsearch/mapping-reference/mapping-source-field.md#disable-source-field).
+{{esql}} does not support configurations where the [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) field is [disabled](/reference/elasticsearch/mapping-reference/mapping-source-field.md#disable-source-field).
 
 ## Full-text search [esql-limitations-full-text-search]
 
@@ -179,8 +176,32 @@ FROM books
 | WHERE MATCH(author, "Faulkner")
 ```
 
-Note that any queries on `text` fields that do not explicitly use the full-text functions,
+{applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
+This restriction does not apply when `MATCH` targets an expression rather
+than an indexed field (for example, a column produced by `EVAL` or `STATS`).
+In that case, `MATCH` evaluates by scanning values row by row instead of
+using the index, and can appear anywhere in the query.
+
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+[`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md)
+supports targeting `text` and `keyword` expressions in the same way, with the same limitations.
+
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+When searching expressions, [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
+(match query options) are supported on `text` expressions; the `analyzer` option must name a
+registered analyzer (prebuilt or plugin-contributed), not a per-index custom analyzer. On other
+expression types options are not supported.
+
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+When using `METADATA _score`, `MATCH` on an expression contributes to the relevance score:
+a row scores the `boost` option (1.0 by default) for each query term occurrence it matches
+(duplicate query terms each contribute separately), rather than BM25, as there are no index
+statistics for an expression. In earlier versions, `MATCH` on an expression does not contribute
+to the score.
+
+Lastly, note that any queries on `text` fields that do not explicitly use the full-text functions,
 [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md),
+[`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md),
 [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md) or
 [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md),
 will behave as if the fields are actually `keyword` fields: they are case-sensitive and need to match the full string.
@@ -242,7 +263,7 @@ The `DISSECT` command does not support reference keys.
 
 ## Grok limitations [esql-limitations-grok]
 
-The `GROK` command does not support configuring [custom patterns](/reference/enrich-processor/grok-processor.md#custom-patterns), or [multiple patterns](/reference/enrich-processor/grok-processor.md#trace-match). The `GROK` command is not subject to [Grok watchdog settings](/reference/enrich-processor/grok-processor.md#grok-watchdog).
+The `GROK` command does not support configuring [custom patterns](/reference/ingest-processor/grok-processor.md#custom-patterns), or [multiple patterns](/reference/ingest-processor/grok-processor.md#trace-match). The `GROK` command is not subject to [Grok watchdog settings](/reference/ingest-processor/grok-processor.md#grok-watchdog).
 
 
 ## Multivalue limitations [esql-limitations-mv]

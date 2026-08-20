@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -43,8 +42,8 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
@@ -59,7 +58,6 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -118,7 +116,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private final CircuitBreakerService circuitBreakerService;
 
     private final UsageService usageService;
-    private final Tracer tracer;
+    private final HttpServerInstrumentation instrumentation;
     private final LongCounter requestsCounter;
     // If true, the ServerlessScope annotations will be enforced
     private final ServerlessApiProtections apiProtections;
@@ -133,7 +131,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         TelemetryProvider telemetryProvider
     ) {
         this.usageService = usageService;
-        this.tracer = telemetryProvider.getTracer();
+        this.instrumentation = telemetryProvider.getHttpServerInstrumentation();
         this.requestsCounter = telemetryProvider.getMeterRegistry()
             .registerLongCounter(METRIC_REQUESTS_TOTAL, "The total number of rest requests/responses processed", "unit");
         if (restInterceptor == null) {
@@ -683,59 +681,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void startTrace(ThreadContext threadContext, RestChannel channel, String restPath) {
-        final RestRequest req = channel.request();
-        if (restPath == null) {
-            restPath = req.path();
-        }
-        String method = null;
-        try {
-            method = req.method().name();
-        } catch (IllegalArgumentException e) {
-            // Invalid methods throw an exception
-        }
-        String name;
-        if (method != null) {
-            name = method + " " + restPath;
-        } else {
-            name = restPath;
-        }
-
-        final Map<String, Object> attributes = Maps.newMapWithExpectedSize(req.getHeaders().size() + 3);
-        req.getHeaders().forEach((key, values) -> {
-            final String lowerKey = key.toLowerCase(Locale.ROOT).replace('-', '_');
-            attributes.put("http.request.headers." + lowerKey, values == null ? "" : String.join("; ", values));
-        });
-        String resolvedMethod = Objects.requireNonNullElse(method, "<unknown>");
-        String resolvedUri = Objects.requireNonNullElse(req.uri(), "<unknown>");
-        attributes.put("http.method", resolvedMethod);
-        // OTel HTTP server SemConv (https://opentelemetry.io/docs/specs/semconv/http/http-spans/):
-        // http.request.method MUST be "_OTHER" for methods unknown to the instrumentation.
-        attributes.put("http.request.method", method != null ? method : "_OTHER");
-        attributes.put("http.url", resolvedUri);
-        attributes.put("url.full", resolvedUri);
-        int queryIdx = resolvedUri.indexOf('?');
-        if (queryIdx >= 0) {
-            attributes.put("url.path", resolvedUri.substring(0, queryIdx));
-            attributes.put("url.query", resolvedUri.substring(queryIdx + 1));
-        } else {
-            attributes.put("url.path", resolvedUri);
-        }
-        switch (req.getHttpRequest().protocolVersion()) {
-            case HTTP_1_0 -> {
-                attributes.put("http.flavour", "1.0");
-                attributes.put("network.protocol.version", "1.0");
-            }
-            case HTTP_1_1 -> {
-                attributes.put("http.flavour", "1.1");
-                attributes.put("network.protocol.version", "1.1");
-            }
-        }
-
-        tracer.startTrace(threadContext, channel.request(), name, attributes);
+        this.instrumentation.start(threadContext, channel.request(), restPath);
     }
 
     private void traceException(RestChannel channel, Throwable e) {
-        this.tracer.addError(channel.request(), e);
+        this.instrumentation.recordException(channel.request(), e);
     }
 
     private static void sendContentTypeErrorMessage(@Nullable List<String> contentTypeHeader, RestChannel channel) throws IOException {

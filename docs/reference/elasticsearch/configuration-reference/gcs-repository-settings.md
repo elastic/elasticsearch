@@ -69,6 +69,9 @@ The following are the available client settings. Those that must be stored in th
 `gcs.client.CLIENT_NAME.proxy.type`
 :   Proxy type for the client. Supported values are `direct` (no proxy), `http`, and `socks`. Defaults to `direct`.
 
+`gcs.client.CLIENT_NAME.resumable_write_buffer_size` {applies_to}`stack: ga 9.5`
+:   Size of the write buffer passed to the GCS SDK for resumable uploads. Controls the amount of data buffered in memory before each HTTP PUT request. The SDK default of `16MB` is used if this setting is not configured.
+
 
 ## Repository settings [repository-gcs-repository-settings]
 

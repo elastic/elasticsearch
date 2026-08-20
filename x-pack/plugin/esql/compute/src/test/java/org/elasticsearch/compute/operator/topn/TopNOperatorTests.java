@@ -85,6 +85,7 @@ import static org.elasticsearch.compute.data.ElementType.BOOLEAN;
 import static org.elasticsearch.compute.data.ElementType.BYTES_REF;
 import static org.elasticsearch.compute.data.ElementType.COMPOSITE;
 import static org.elasticsearch.compute.data.ElementType.DOUBLE;
+import static org.elasticsearch.compute.data.ElementType.DOUBLE_RANGE;
 import static org.elasticsearch.compute.data.ElementType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.compute.data.ElementType.FLOAT;
 import static org.elasticsearch.compute.data.ElementType.INT;
@@ -272,7 +273,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 sortOrders,
                 IntStream.of(groupKeys).boxed().toList(),
                 maxPageSize,
-                jumboPageBytes
+                jumboPageBytes,
+                GroupedTopNOperator.OutputOrdering.SORTED
             );
         }
         return new TopNOperator.TopNOperatorFactory(
@@ -470,7 +472,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]"
                 + ", groupKeys="
                 + Arrays.toString(groupKeys())
-                + "]";
+                + ", outputOrdering=SORTED]";
             try (Operator operator = topN.get(driverContext())) {
                 assertThat(operator.toString(), equalTo(expectedDescription));
             }
@@ -1103,12 +1105,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomFrom(ElementType.values());
-            if (e == ElementType.UNKNOWN
-                || e == COMPOSITE
-                || e == AGGREGATE_METRIC_DOUBLE
-                || e == EXPONENTIAL_HISTOGRAM
-                || e == TDIGEST
-                || e == LONG_RANGE) {
+            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == AGGREGATE_METRIC_DOUBLE || e == EXPONENTIAL_HISTOGRAM || e == TDIGEST) {
                 continue;
             }
             elementTypes.add(e);
@@ -1288,7 +1285,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 + sorts
                 + "], groupKeys="
                 + Arrays.toString(groupKeys())
-                + "]";
+                + ", outputOrdering=SORTED]";
             assertThat(factory.describe(), equalTo("GroupedTopNOperator[count=10" + tail));
             try (Operator operator = factory.get(driverContext())) {
                 assertThat(operator.toString(), equalTo("GroupedTopNOperator[count=0/0/10" + tail));
@@ -1567,11 +1564,12 @@ public class TopNOperatorTests extends OperatorTestCase {
                     || t == AGGREGATE_METRIC_DOUBLE
                     || t == EXPONENTIAL_HISTOGRAM
                     || t == TDIGEST
-                    || t == LONG_RANGE,
+                    || t == LONG_RANGE
+                    || t == DOUBLE_RANGE,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);
-            validSortKeys[type] = true;
+            validSortKeys[type] = e != LONG_RANGE && e != DOUBLE_RANGE;
             Supplier<Object> randomValueSupplier = () -> randomValue(e);
             if (e == BYTES_REF) {
                 if (rarely()) {
@@ -2467,12 +2465,11 @@ public class TopNOperatorTests extends OperatorTestCase {
                     || t == COMPOSITE
                     || t == AGGREGATE_METRIC_DOUBLE
                     || t == EXPONENTIAL_HISTOGRAM
-                    || t == TDIGEST
-                    || t == LONG_RANGE,
+                    || t == TDIGEST,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);
-            validSortKeys[type] = true;
+            validSortKeys[type] = e != LONG_RANGE && e != DOUBLE_RANGE;
             try (Block.Builder builder = e.newBlockBuilder(rows, driverContext.blockFactory())) {
                 List<Object> previousValue = null;
                 Function<ElementType, Object> randomValueSupplier = (blockType) -> randomValue(blockType);
@@ -2598,12 +2595,11 @@ public class TopNOperatorTests extends OperatorTestCase {
                     || t == COMPOSITE
                     || t == AGGREGATE_METRIC_DOUBLE
                     || t == EXPONENTIAL_HISTOGRAM
-                    || t == TDIGEST
-                    || t == LONG_RANGE,
+                    || t == TDIGEST,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);
-            validSortKeys[type] = true;
+            validSortKeys[type] = e != LONG_RANGE && e != DOUBLE_RANGE;
             try (Block.Builder builder = e.newBlockBuilder(rows, driverContext.blockFactory())) {
                 Function<ElementType, Object> randomValueSupplier = (blockType) -> randomValue(blockType);
                 if (e == BYTES_REF) {
@@ -2804,11 +2800,12 @@ public class TopNOperatorTests extends OperatorTestCase {
                     || t == ElementType.AGGREGATE_METRIC_DOUBLE
                     || t == ElementType.EXPONENTIAL_HISTOGRAM
                     || t == ElementType.TDIGEST
-                    || t == ElementType.LONG_RANGE,
+                    || t == ElementType.LONG_RANGE
+                    || t == ElementType.DOUBLE_RANGE,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);
-            validSortKeys[type] = true;
+            validSortKeys[type] = e != LONG_RANGE && e != DOUBLE_RANGE;
             Supplier<Object> randomValueSupplier = () -> randomValue(e);
             if (e == ElementType.BYTES_REF) {
                 if (rarely()) {

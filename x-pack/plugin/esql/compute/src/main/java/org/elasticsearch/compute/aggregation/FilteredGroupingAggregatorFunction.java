@@ -142,6 +142,11 @@ public record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next
     }
 
     @Override
+    public IntVector selectTopN(IntVector selected, int limit, boolean asc) {
+        return next.selectTopN(selected, limit, asc);
+    }
+
+    @Override
     public int intermediateBlockCount() {
         return next.intermediateBlockCount();
     }

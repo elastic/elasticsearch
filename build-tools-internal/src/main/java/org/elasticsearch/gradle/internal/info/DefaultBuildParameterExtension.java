@@ -32,7 +32,6 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     private final RuntimeJava runtimeJava;
     private final List<JavaHome> javaVersions;
     private final JavaVersion minimumCompilerVersion;
-    private final JavaVersion minimumRuntimeVersion;
     private final JavaVersion gradleJavaVersion;
     private final Provider<JavaVersion> runtimeJavaVersion;
     private final Provider<? extends Action<JavaToolchainSpec>> javaToolChainSpec;
@@ -48,6 +47,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     // not final for testing
     private Provider<BwcVersions> bwcVersions;
     private Provider<String> gitOrigin;
+    private JavaVersion minimumRuntimeVersion;
 
     public DefaultBuildParameterExtension(
         ProviderFactory providers,
@@ -255,5 +255,10 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     // for testing; not part of public api
     public void setGitOrigin(Provider<String> gitOrigin) {
         this.gitOrigin = gitOrigin;
+    }
+
+    // for testing; not part of public api
+    public void setMinimumRuntimeVersion(JavaVersion minimumRuntimeVersion) {
+        this.minimumRuntimeVersion = minimumRuntimeVersion;
     }
 }

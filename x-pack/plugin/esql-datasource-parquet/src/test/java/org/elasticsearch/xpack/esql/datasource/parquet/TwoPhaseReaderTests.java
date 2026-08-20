@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -63,6 +65,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * End-to-end tests for the two-phase I/O decode flow added to
@@ -80,9 +84,8 @@ public class TwoPhaseReaderTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() throws Exception {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
@@ -165,11 +168,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         // but selective filters should reliably trim well over 50%.
         long single = singlePhaseObj.totalBytesRead.get();
         long two = twoPhaseObj.totalBytesRead.get();
-        assertThat(
-            "two-phase should read fewer bytes than single-phase: " + two + " vs " + single,
-            two,
-            org.hamcrest.Matchers.lessThan(single)
-        );
+        assertThat("two-phase should read fewer bytes than single-phase: " + two + " vs " + single, two, lessThan(single));
     }
 
     public void testFilterEvaluatedWhenNoProjectionOnlyColumn() throws Exception {
@@ -358,6 +357,117 @@ public class TwoPhaseReaderTests extends ESTestCase {
         List<Page> singlePhasePages = readAllPages(syncReader, syncObj);
         int singlePhaseRows = singlePhasePages.stream().mapToInt(Page::getPositionCount).sum();
         assertThat("single-phase and two-phase row counts must match", twoPhaseRows, equalTo(singlePhaseRows));
+    }
+
+    /**
+     * End-to-end regression for #152592: two-phase page-skipping over a NULLABLE projection-only
+     * column whose first surviving run decodes to a {@code ConstantNullBlock}. The predicate column
+     * {@code pred} matches {@code == ""} only on a tight cluster of non-contiguous rows late in the
+     * row group, so every earlier projection page is skipped (page-filtering engaged) while the
+     * cluster still decodes as several non-contiguous {@code readBatchSparse} runs. The
+     * projection-only {@code label} column is null on the first surviving row (null-leading) and
+     * interleaves null / value across the cluster — the exact shape that threw "can't append
+     * non-null values to a null block" before the concat fix. {@code label} is deliberately wide so
+     * the predicate-byte ratio gate lets two-phase engage.
+     */
+    public void testTwoPhaseSparseNullLeadingProjectionColumn() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("pred")
+            .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("label")
+            .named("test_schema");
+
+        int rowCount = 3_000;
+        // Survivors: a tight non-contiguous cluster {1000, 1002, 1004, 1006}. Everything before row
+        // 1000 is skipped (page-filtering), and the gap-1 spacing inside the cluster yields four
+        // separate readBatchSparse runs. label is null on the first (1000) and a later (1004)
+        // survivor, so the concat is null-leading with an interleaved null.
+        Set<Integer> survivorRows = Set.of(1000, 1002, 1004, 1006);
+        Set<Integer> labelNullRows = Set.of(1000, 1004);
+        byte[] parquetData = buildParquetWithPageSize(schema, rowCount, 64, i -> {
+            SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+            Group g = factory.newGroup();
+            g.add("pred", survivorRows.contains(i) ? "" : "x_" + i);
+            if (labelNullRows.contains(i) == false) {
+                g.add("label", repeat('l', 256) + "_" + i);
+            }
+            return g;
+        });
+
+        ReferenceAttribute predAttr = new ReferenceAttribute(Source.EMPTY, "pred", DataType.KEYWORD);
+        Expression filter = new Equals(Source.EMPTY, predAttr, new Literal(Source.EMPTY, new BytesRef(""), DataType.KEYWORD), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        int expectedSurvivors = survivorRows.size();
+        int expectedLabelNulls = labelNullRows.size();
+        // Non-null survivors carry their exact wide label value; asserting the values (not just the
+        // null count) catches any concat mis-ordering or value scrambling.
+        Set<String> expectedLabels = Set.of(repeat('l', 256) + "_1002", repeat('l', 256) + "_1006");
+
+        // Two-phase path (native async) must not throw and must produce every survivor, with the
+        // null-leading projection column faithfully preserving its nulls and values.
+        CountingStorageObject asyncObj = new CountingStorageObject(parquetData, true);
+        List<Page> asyncPages = readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), asyncObj);
+        int asyncRows = asyncPages.stream().mapToInt(Page::getPositionCount).sum();
+        int asyncLabelNulls = countLabelNulls(asyncPages);
+        Set<String> asyncLabels = collectNonNullLabels(asyncPages);
+        assertThat("two-phase survivor count", asyncRows, equalTo(expectedSurvivors));
+        assertThat("two-phase null-leading projection nulls preserved", asyncLabelNulls, equalTo(expectedLabelNulls));
+        assertEquals("two-phase non-null label values", expectedLabels, asyncLabels);
+
+        // Cross-check against the single-phase path on the same data and filter.
+        CountingStorageObject syncObj = new CountingStorageObject(parquetData, false);
+        List<Page> syncPages = readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), syncObj);
+        int syncRows = syncPages.stream().mapToInt(Page::getPositionCount).sum();
+        int syncLabelNulls = countLabelNulls(syncPages);
+        assertThat("single-phase and two-phase row counts must match", asyncRows, equalTo(syncRows));
+        assertThat("single-phase and two-phase null counts must match", asyncLabelNulls, equalTo(syncLabelNulls));
+
+        // Prove two-phase page-skipping actually fired rather than a whole-column fallback: the async
+        // path must fetch strictly fewer bytes than single-phase, since it skips the wide label pages
+        // for the 2996 filtered-out rows and materialises only the surviving label pages.
+        long asyncBytes = asyncObj.totalBytesRead.get();
+        long syncBytes = syncObj.totalBytesRead.get();
+        assertThat(
+            "two-phase must read fewer bytes than single-phase (async=" + asyncBytes + ", sync=" + syncBytes + ")",
+            asyncBytes,
+            lessThan(syncBytes)
+        );
+
+        asyncPages.forEach(Page::releaseBlocks);
+        syncPages.forEach(Page::releaseBlocks);
+    }
+
+    /** Counts null positions in the {@code label} column (block 1 in schema order). */
+    private static int countLabelNulls(List<Page> pages) {
+        int nulls = 0;
+        for (Page p : pages) {
+            BytesRefBlock label = p.getBlock(1);
+            for (int i = 0; i < label.getPositionCount(); i++) {
+                if (label.isNull(i)) {
+                    nulls++;
+                }
+            }
+        }
+        return nulls;
+    }
+
+    /** Collects the non-null {@code label} values (block 1 in schema order) as UTF-8 strings. */
+    private static Set<String> collectNonNullLabels(List<Page> pages) {
+        Set<String> labels = new HashSet<>();
+        BytesRef scratch = new BytesRef();
+        for (Page p : pages) {
+            BytesRefBlock label = p.getBlock(1);
+            for (int i = 0; i < label.getPositionCount(); i++) {
+                if (label.isNull(i) == false) {
+                    labels.add(label.getBytesRef(label.getFirstValueIndex(i), scratch).utf8ToString());
+                }
+            }
+        }
+        return labels;
     }
 
     /**
@@ -1115,6 +1225,49 @@ public class TwoPhaseReaderTests extends ESTestCase {
             int engineCount = pages.stream().mapToInt(Page::getPositionCount).sum();
 
             assertThat("tiny block LIKE (nativeAsync=" + nativeAsync + ") must match oracle", engineCount, equalTo(oracleCount));
+        }
+    }
+
+    /**
+     * Verifies that {@code read_nanos} grows during two-phase iterator consumption, specifically
+     * covering the {@code drainEmptyTwoPhaseBatches()} path that skips fully-filtered batches in
+     * projection columns. A selective filter (id &lt; 10 out of 5 000 rows) produces many zero-survivor
+     * batches per row group, forcing real decompression/skip work in each drain call.
+     */
+    public void testReadNanosIncludesTwoPhaseDrain() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("label")
+            .named("test_schema");
+
+        byte[] parquetData = buildParquet(schema, 5_000, i -> {
+            SimpleGroupFactory f = new SimpleGroupFactory(schema);
+            Group g = f.newGroup();
+            g.add("id", (long) i);
+            g.add("label", repeat('x', 256) + "_" + i);
+            return g;
+        });
+
+        ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 10L, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        CountingStorageObject obj = new CountingStorageObject(parquetData, true);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+
+        try (CloseableIterator<Page> it = reader.read(obj, FormatReadContext.builder().batchSize(1024).build())) {
+            long readNanosAfterOpen = reader.statusSnapshot().readNanos();
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+            assertThat(
+                "read_nanos must grow beyond the open phase as drainEmptyTwoPhaseBatches() performs real decode work",
+                reader.statusSnapshot().readNanos(),
+                greaterThan(readNanosAfterOpen)
+            );
         }
     }
 

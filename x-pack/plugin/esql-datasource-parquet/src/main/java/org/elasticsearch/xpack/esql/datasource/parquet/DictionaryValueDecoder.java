@@ -236,6 +236,9 @@ final class DictionaryValueDecoder {
             BytesRef[] entries = new BytesRef[size];
             for (int i = 0; i < size; i++) {
                 byte[] bytes = dict.decodeToBinary(i).getBytes();
+                // Note: this decoder is type-agnostic; the same dictionary bytes back INT96 timestamps,
+                // decimals and float16 (read via readBinaries), so UTF-8 sanitization must NOT happen here.
+                // KEYWORD callers sanitize in PageColumnReader's ordinal/fallback paths instead.
                 entries[i] = new BytesRef(bytes, 0, bytes.length);
             }
             cachedDictBytesRefs = entries;

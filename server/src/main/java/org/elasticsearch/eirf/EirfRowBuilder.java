@@ -15,6 +15,8 @@ import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.sourcebatch.SourceSchema;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentString;
 
@@ -34,7 +36,7 @@ public final class EirfRowBuilder implements Releasable {
 
     private static final int INITIAL_CAPACITY = 16;
 
-    private final EirfSchema schema;
+    private final SourceSchema schema;
     private final EirfEncoder.ScratchBuffers scratch;
     private final RecyclerBytesStreamOutput rowOutput;
 
@@ -44,7 +46,7 @@ public final class EirfRowBuilder implements Releasable {
     private boolean inDocument;
 
     public EirfRowBuilder() {
-        this.schema = new EirfSchema();
+        this.schema = new SourceSchema();
         this.scratch = new EirfEncoder.ScratchBuffers(INITIAL_CAPACITY);
         this.rowOutput = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE);
         this.rowOffsets = new int[INITIAL_CAPACITY];
@@ -121,19 +123,19 @@ public final class EirfRowBuilder implements Releasable {
     public void setBoolean(String path, boolean value) {
         int colIdx = resolveColumn(path);
         checkNotSet(colIdx);
-        scratch.typeBytes[colIdx] = value ? EirfType.TRUE : EirfType.FALSE;
+        scratch.typeBytes[colIdx] = value ? SourceValueType.TRUE : SourceValueType.FALSE;
     }
 
     public void setNull(String path) {
         int colIdx = resolveColumn(path);
         checkNotSet(colIdx);
-        scratch.typeBytes[colIdx] = EirfType.NULL;
+        scratch.typeBytes[colIdx] = SourceValueType.NULL;
     }
 
     public void setBinary(String path, BytesReference bytes) {
         int colIdx = resolveColumn(path);
         checkNotSet(colIdx);
-        scratch.typeBytes[colIdx] = EirfType.BINARY;
+        scratch.typeBytes[colIdx] = SourceValueType.BINARY;
         scratch.varData[colIdx] = bytes;
         scratch.totalVarSize += bytes.length();
         scratch.varColumnCount++;
@@ -142,7 +144,7 @@ public final class EirfRowBuilder implements Releasable {
     public void setUnionArray(String path, byte[] packed) {
         int colIdx = resolveColumn(path);
         checkNotSet(colIdx);
-        scratch.typeBytes[colIdx] = EirfType.UNION_ARRAY;
+        scratch.typeBytes[colIdx] = SourceValueType.UNION_ARRAY;
         scratch.varData[colIdx] = new BytesArray(packed);
         scratch.totalVarSize += packed.length;
         scratch.varColumnCount++;
@@ -151,7 +153,7 @@ public final class EirfRowBuilder implements Releasable {
     public void setFixedArray(String path, byte[] packed) {
         int colIdx = resolveColumn(path);
         checkNotSet(colIdx);
-        scratch.typeBytes[colIdx] = EirfType.FIXED_ARRAY;
+        scratch.typeBytes[colIdx] = SourceValueType.FIXED_ARRAY;
         scratch.varData[colIdx] = new BytesArray(packed);
         scratch.totalVarSize += packed.length;
         scratch.varColumnCount++;
@@ -160,7 +162,7 @@ public final class EirfRowBuilder implements Releasable {
     public void setKeyValue(String path, byte[] bytes) {
         int colIdx = resolveColumn(path);
         checkNotSet(colIdx);
-        scratch.typeBytes[colIdx] = EirfType.KEY_VALUE;
+        scratch.typeBytes[colIdx] = SourceValueType.KEY_VALUE;
         scratch.varData[colIdx] = new BytesArray(bytes);
         scratch.totalVarSize += bytes.length;
         scratch.varColumnCount++;
@@ -169,7 +171,7 @@ public final class EirfRowBuilder implements Releasable {
     public void setStringAt(int colIdx, String value) {
         checkNotSet(colIdx);
         byte[] utf8 = value.getBytes(StandardCharsets.UTF_8);
-        scratch.typeBytes[colIdx] = EirfType.STRING;
+        scratch.typeBytes[colIdx] = SourceValueType.STRING;
         scratch.varData[colIdx] = new XContentString.UTF8Bytes(utf8, 0, utf8.length);
         scratch.totalVarSize += utf8.length;
         scratch.varColumnCount++;
@@ -179,7 +181,7 @@ public final class EirfRowBuilder implements Releasable {
         checkNotSet(colIdx);
         byte[] copy = new byte[length];
         System.arraycopy(utf8, offset, copy, 0, length);
-        scratch.typeBytes[colIdx] = EirfType.STRING;
+        scratch.typeBytes[colIdx] = SourceValueType.STRING;
         scratch.varData[colIdx] = new XContentString.UTF8Bytes(copy, 0, length);
         scratch.totalVarSize += length;
         scratch.varColumnCount++;
@@ -187,28 +189,28 @@ public final class EirfRowBuilder implements Releasable {
 
     public void setIntAt(int colIdx, int value) {
         checkNotSet(colIdx);
-        scratch.typeBytes[colIdx] = EirfType.INT;
+        scratch.typeBytes[colIdx] = SourceValueType.INT;
         EirfEncoder.writeIntToFixed(scratch.fixedData, colIdx, value);
         scratch.scalarFixedSize += 4;
     }
 
     public void setLongAt(int colIdx, long value) {
         checkNotSet(colIdx);
-        scratch.typeBytes[colIdx] = EirfType.LONG;
+        scratch.typeBytes[colIdx] = SourceValueType.LONG;
         EirfEncoder.writeLongToFixed(scratch.fixedData, colIdx, value);
         scratch.scalarFixedSize += 8;
     }
 
     public void setFloatAt(int colIdx, float value) {
         checkNotSet(colIdx);
-        scratch.typeBytes[colIdx] = EirfType.FLOAT;
+        scratch.typeBytes[colIdx] = SourceValueType.FLOAT;
         EirfEncoder.writeIntToFixed(scratch.fixedData, colIdx, Float.floatToRawIntBits(value));
         scratch.scalarFixedSize += 4;
     }
 
     public void setDoubleAt(int colIdx, double value) {
         checkNotSet(colIdx);
-        scratch.typeBytes[colIdx] = EirfType.DOUBLE;
+        scratch.typeBytes[colIdx] = SourceValueType.DOUBLE;
         EirfEncoder.writeLongToFixed(scratch.fixedData, colIdx, Double.doubleToRawLongBits(value));
         scratch.scalarFixedSize += 8;
     }

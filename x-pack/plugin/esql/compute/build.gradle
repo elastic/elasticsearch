@@ -22,7 +22,7 @@ dependencies {
   compileOnly project(xpackModule('ml'))
   annotationProcessor project('gen')
   implementation 'com.carrotsearch:hppc:0.8.1'
-  implementation 'org.ow2.asm:asm:9.9'  // ConstantMethodResultSpecializer: runtime bytecode generation for @Fixed(jitConstant=true) evaluators
+  implementation 'org.ow2.asm:asm:9.10.1'  // ConstantMethodResultSpecializer: runtime bytecode generation for @Fixed(jitConstant=true) evaluators
   api project(':libs:arrow')
   api project(':libs:exponential-histogram')
   implementation project(':libs:swisshash')
@@ -98,8 +98,11 @@ def prop(Name, Type, type, Wrapper, TYPE, BYTES, Array, Hash) {
     "long"    : Name == "Long" ? "true" : "",
     "double"  : Name == "Double" ? "true" : "",
     "boolean" : Name == "Boolean" ? "true" : "",
-    "BytesRef": Name == "BytesRef" ? "true" : "",
-    "Ip"      : Name == "Ip" ? "true" : "",
+    "BytesRef" : Name == "BytesRef" ? "true" : "",
+    "Ip"       : Name == "Ip" ? "true" : "",
+    "LongRange": Name == "LongRange" ? "true" : "",
+    "DoubleRange": Name == "DoubleRange" ? "true" : "",
+    "Range": (Name == "LongRange" || Name == "DoubleRange") ? "true" : "",
   ]
 }
 
@@ -1011,9 +1014,9 @@ tasks.named('stringTemplates').configure {
     }
   }
   // TOP when the sort field and the output field can be *different* fields
-  [intProperties, longProperties, floatProperties, doubleProperties].forEach { props1 ->
+  [intProperties, longProperties, floatProperties, doubleProperties, bytesRefProperties].forEach { props1 ->
     {
-      [intProperties, longProperties, floatProperties, doubleProperties].forEach { props2 ->
+      [intProperties, longProperties, floatProperties, doubleProperties, bytesRefProperties].forEach { props2 ->
         {
           template {
             it.properties = propWithExtra(props1, props2, "OutputField")
@@ -1162,7 +1165,7 @@ tasks.named('stringTemplates').configure {
   }
 
   File bucketedSortInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/sort/X-BucketedSort.java.st")
-  [intProperties, longProperties, floatProperties, doubleProperties].forEach { props ->
+  [intProperties, longProperties, floatProperties, doubleProperties, bytesRefProperties].forEach { props ->
     {
       template {
         it.properties = propWithoutExtra(props, "Extra")
@@ -1172,9 +1175,9 @@ tasks.named('stringTemplates').configure {
     }
   }
   // TOP when the sort field and the output field can be *different* fields
-  [intProperties, longProperties, floatProperties, doubleProperties].forEach { props1 ->
+  [intProperties, longProperties, floatProperties, doubleProperties, bytesRefProperties].forEach { props1 ->
     {
-      [intProperties, longProperties, floatProperties, doubleProperties].forEach { props2 ->
+      [intProperties, longProperties, floatProperties, doubleProperties, bytesRefProperties].forEach { props2 ->
         {
           template {
             it.properties = propWithExtra(props1, props2, "Extra")
@@ -1216,6 +1219,18 @@ tasks.named('stringTemplates').configure {
     it.properties = floatProperties
     it.inputFile = enrichResultBuilderInput
     it.outputFile = "org/elasticsearch/xpack/compute/operator/lookup/EnrichResultBuilderForFloat.java"
+  }
+  var longRangeProperties = prop("LongRange", "LongRange", "long", "", "LONG_RANGE", "", "", "")
+  template {
+    it.properties = longRangeProperties
+    it.inputFile = enrichResultBuilderInput
+    it.outputFile = "org/elasticsearch/xpack/compute/operator/lookup/EnrichResultBuilderForLongRange.java"
+  }
+  var doubleRangeProperties = prop("DoubleRange", "DoubleRange", "double", "", "DOUBLE_RANGE", "", "", "")
+  template {
+    it.properties = doubleRangeProperties
+    it.inputFile = enrichResultBuilderInput
+    it.outputFile = "org/elasticsearch/xpack/compute/operator/lookup/EnrichResultBuilderForDoubleRange.java"
   }
 
   // TODO: add {value}_over_time for other types: boolean, bytes_refs

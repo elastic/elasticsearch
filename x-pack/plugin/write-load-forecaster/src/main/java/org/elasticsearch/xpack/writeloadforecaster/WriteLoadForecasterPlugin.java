@@ -105,7 +105,7 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
 
             clusterSettings.initializeAndWatch(
                 WriteLoadConstraintSettings.CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING,
-                clusterInfoForecasterEnabled -> handleChangedWriteLoadForecaster(clusterInfoForecasterEnabled)
+                this::handleChangedWriteLoadForecaster
             );
         }
 

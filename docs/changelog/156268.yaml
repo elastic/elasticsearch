@@ -1,0 +1,6 @@
+area: Aggregations
+issues:
+ - 156057
+pr: 156268
+summary: Fix exponential histogram min/max not being fully respected in rank estimation
+type: bug

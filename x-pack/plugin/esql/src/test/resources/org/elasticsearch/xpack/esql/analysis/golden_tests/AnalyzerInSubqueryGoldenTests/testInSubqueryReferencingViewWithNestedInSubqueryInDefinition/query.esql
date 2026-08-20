@@ -1,0 +1,2 @@
+FROM employees
+| WHERE emp_no IN (FROM nested_in_view | KEEP emp_no)

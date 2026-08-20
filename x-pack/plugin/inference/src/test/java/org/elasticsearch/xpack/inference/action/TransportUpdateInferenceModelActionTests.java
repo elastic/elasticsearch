@@ -548,6 +548,38 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         verifyModelRegistryUpdateInvoked();
     }
 
+    public void testMasterOperation_ForwardsRequestTimeoutToValidation() {
+        var unparsedModel = new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of());
+        mockGetModelWithSecretsToReturnUnparsedModel(unparsedModel, INFERENCE_ENTITY_ID_VALUE);
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        var model = createModel();
+        mockParsePersistedConfigWithSecretsToReturnModel(model);
+        mockBuildModelFromConfigAndSecretsToReturnNewModel();
+        mockServiceInferCallToReturnDenseEmbeddingFloatResults();
+        mockUpdateModelWithEmbeddingDetailsToReturnSameModel();
+        mockUpdateModelTransactionToReturnBoolean(true, model);
+        mockModelRegistryGetModelToReturnUnparsedModel(unparsedModel);
+        when(service.parsePersistedConfig(unparsedModel)).thenReturn(model);
+
+        var requestTimeout = TimeValue.timeValueSeconds(42);
+        var listener = callMasterOperation(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY, requestTimeout);
+        listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+
+        // The user-supplied timeout must be forwarded to the validation call (service.infer) rather than the task-type default.
+        var timeoutCaptor = ArgumentCaptor.forClass(TimeValue.class);
+        verify(service).infer(
+            any(GoogleVertexAiEmbeddingsModel.class),
+            anyList(),
+            anyBoolean(),
+            anyMap(),
+            any(InputType.class),
+            timeoutCaptor.capture(),
+            any()
+        );
+        assertThat(timeoutCaptor.getValue(), is(requestTimeout));
+    }
+
     public void testMasterOperation_SuccessfulUpdate_InvokesOnModelUpdatedWithExistingAndMergedModels() {
         var unparsedModel = new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of());
         mockGetModelWithSecretsToReturnUnparsedModel(unparsedModel, INFERENCE_ENTITY_ID_VALUE);
@@ -732,6 +764,14 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     }
 
     private TestPlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperation(String inferenceEntityId, String requestBody) {
+        return callMasterOperation(inferenceEntityId, requestBody, TimeValue.timeValueSeconds(1));
+    }
+
+    private TestPlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperation(
+        String inferenceEntityId,
+        String requestBody,
+        TimeValue timeout
+    ) {
         var listener = new TestPlainActionFuture<UpdateInferenceModelAction.Response>();
 
         action.masterOperation(
@@ -741,7 +781,9 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
                 new BytesArray(requestBody),
                 XContentType.JSON,
                 TaskType.TEXT_EMBEDDING,
-                TimeValue.timeValueSeconds(1)
+                timeout,
+                TimeValue.timeValueSeconds(30),
+                TimeValue.timeValueSeconds(30)
             ),
             ClusterState.EMPTY_STATE,
             listener

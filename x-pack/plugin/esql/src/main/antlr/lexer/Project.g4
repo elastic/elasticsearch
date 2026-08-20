@@ -11,7 +11,6 @@ lexer grammar Project;
 //
 DROP : 'drop'                 -> pushMode(PROJECT_MODE);
 KEEP : 'keep'                 -> pushMode(PROJECT_MODE);
-DEV_INSIST :      {this.isDevVersion()}? 'insist_🐔'      -> pushMode(PROJECT_MODE);
 
 mode PROJECT_MODE;
 PROJECT_PIPE : PIPE -> type(PIPE), popMode;

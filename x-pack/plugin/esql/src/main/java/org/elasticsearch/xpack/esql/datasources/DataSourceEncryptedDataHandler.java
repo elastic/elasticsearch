@@ -32,6 +32,33 @@ public final class DataSourceEncryptedDataHandler implements EncryptedDataHandle
         return DataSourceMetadata.TYPE;
     }
 
+    /**
+     * On destructive reset, wipe only the encrypted credential values while preserving the rest of
+     * each data source's configuration (name, type, description, non-secret settings). Users will
+     * see {@code null} for credentials in the API and need only re-provision those — not recreate
+     * the entire data source from scratch.
+     */
+    @Override
+    public DataSourceMetadata onDestructiveReset(DataSourceMetadata current) {
+        if (current == null || current.dataSources().isEmpty()) {
+            return current;
+        }
+        Map<String, DataSource> rebuilt = new HashMap<>(current.dataSources().size());
+        for (Map.Entry<String, DataSource> entry : current.dataSources().entrySet()) {
+            rebuilt.put(entry.getKey(), wipeSecrets(entry.getValue()));
+        }
+        return new DataSourceMetadata(rebuilt);
+    }
+
+    private static DataSource wipeSecrets(DataSource dataSource) {
+        Map<String, DataSourceSetting> rebuilt = new HashMap<>(dataSource.settings().size());
+        for (Map.Entry<String, DataSourceSetting> entry : dataSource.settings()) {
+            DataSourceSetting setting = entry.getValue();
+            rebuilt.put(entry.getKey(), setting.secret() ? new DataSourceSetting(null, true) : setting);
+        }
+        return new DataSource(dataSource.name(), dataSource.type(), dataSource.description(), rebuilt);
+    }
+
     @Override
     public DataSourceMetadata reEncrypt(DataSourceMetadata current, EncryptionService encryptionService, String activeKeyId) {
         if (current == null || current.dataSources().isEmpty()) {

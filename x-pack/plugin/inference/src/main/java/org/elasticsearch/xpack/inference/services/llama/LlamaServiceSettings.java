@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
@@ -29,6 +30,7 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
 import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
@@ -188,12 +190,12 @@ public abstract class LlamaServiceSettings extends FilteredXContentObject implem
      * rejects attempts to change them.
      */
     public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
-        parser.declareObject(
-            CommonUpdate::setRateLimitSettings,
-            // A null default preserves "no change" semantics for updates: an empty or value-less rate_limit object leaves the existing
-            // rate limit untouched in CommonUpdate#mergedRateLimitSettings.
-            (p, c) -> RateLimitSettings.createParser(false, null).apply(p, null),
-            new ParseField(RateLimitSettings.FIELD_NAME)
+        StatefulValue.declareNullable(
+            parser,
+            (update, value) -> update.rateLimitSettings = value,
+            (p) -> RateLimitSettings.createParser(false, null).apply(p, null),
+            new ParseField(RateLimitSettings.FIELD_NAME),
+            ObjectParser.ValueType.OBJECT_OR_NULL
         );
     }
 
@@ -203,18 +205,14 @@ public abstract class LlamaServiceSettings extends FilteredXContentObject implem
      */
     public static class CommonUpdate {
 
-        protected RateLimitSettings rateLimitSettings;
-
-        private void setRateLimitSettings(@Nullable RateLimitSettings rateLimitSettings) {
-            this.rateLimitSettings = rateLimitSettings;
-        }
+        protected StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();
 
         /**
-         * Resolves the rate limit settings to use after applying this update: the value supplied by the update if present, otherwise
-         * the value carried by the existing settings.
+         * Resolves the rate limit settings to use after applying the update following the tri-state convention: an omitted field keeps
+         * the current value, an explicit null resets the field to the default rate limit, and a present value replaces the current one.
          */
         protected RateLimitSettings mergedRateLimitSettings(LlamaServiceSettings existing) {
-            return Objects.requireNonNullElse(this.rateLimitSettings, existing.rateLimitSettings());
+            return applyUpdate(rateLimitSettings, existing.rateLimitSettings(), DEFAULT_RATE_LIMIT_SETTINGS);
         }
     }
 }

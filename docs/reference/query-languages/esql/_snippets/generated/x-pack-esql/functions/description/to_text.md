@@ -2,5 +2,5 @@
 
 ## Description
 
-Converts an input value into a text.
+Converts an input value into text.
 

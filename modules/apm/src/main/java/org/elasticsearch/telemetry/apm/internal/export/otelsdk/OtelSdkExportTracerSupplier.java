@@ -13,8 +13,8 @@ import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.ContextPropagators;
-import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporter;
-import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporterBuilder;
+import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
+import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporterBuilder;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InternalTelemetryVersion;
@@ -24,6 +24,8 @@ import io.opentelemetry.sdk.trace.samplers.Sampler;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.apm.internal.export.TraceSupplier;
 
 import java.util.concurrent.TimeUnit;
@@ -32,38 +34,81 @@ import java.util.function.Supplier;
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_TRACES_ENABLED_SYSTEM_PROPERTY;
 
 /**
- * {@link TraceSupplier} that exports spans via OTLP HTTP using its own {@link SdkTracerProvider},
+ * {@link TraceSupplier} that exports spans via OTLP/gRPC using its own {@link SdkTracerProvider},
  * used when {@code telemetry.otel.traces.enabled=true} is set as a JVM system property.
  */
 public class OtelSdkExportTracerSupplier implements TraceSupplier {
 
-    private final SdkTracerProvider tracerProvider;
-    private final OpenTelemetrySdk openTelemetrySdk;
+    private static final Logger logger = LogManager.getLogger(OtelSdkExportTracerSupplier.class);
+
+    private final Settings settings;
+    private final Supplier<MeterProvider> meterProvider;
+    private final Object mutex = new Object();
+    private volatile OpenTelemetrySdk openTelemetrySdk;
 
     public OtelSdkExportTracerSupplier(Settings settings, Supplier<MeterProvider> meterProvider) {
-        String endpoint = OtelSdkSettings.TELEMETRY_OTEL_TRACES_ENDPOINT.get(settings);
+        this.settings = settings;
+        this.meterProvider = meterProvider;
+    }
+
+    @Override
+    public OpenTelemetry get() {
+        synchronized (mutex) {
+            if (openTelemetrySdk == null) {
+                openTelemetrySdk = createOpenTelemetrySdk();
+            }
+            return openTelemetrySdk == null ? OpenTelemetry.noop() : openTelemetrySdk;
+        }
+    }
+
+    @Override
+    public CompletableResultCode attemptFlushTraces() {
+        OpenTelemetrySdk openTelemetrySdk;
+        synchronized (mutex) {
+            openTelemetrySdk = this.openTelemetrySdk;
+        }
+        return openTelemetrySdk == null ? CompletableResultCode.ofSuccess() : openTelemetrySdk.getSdkTracerProvider().forceFlush();
+    }
+
+    @Override
+    public void close() {
+        synchronized (mutex) {
+            if (openTelemetrySdk != null) {
+                openTelemetrySdk.getSdkTracerProvider().close();
+                openTelemetrySdk = null;
+            }
+        }
+    }
+
+    private OpenTelemetrySdk createOpenTelemetrySdk() {
+        String endpoint = OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.get(settings);
         if (endpoint == null || endpoint.isEmpty()) {
-            throw new IllegalStateException(
-                OTEL_TRACES_ENABLED_SYSTEM_PROPERTY + "=true requires telemetry.otel.traces.endpoint to be configured"
+            logger.warn(
+                "{}=true but [telemetry.export.endpoint] is not configured; OTel SDK trace export is disabled",
+                OTEL_TRACES_ENABLED_SYSTEM_PROPERTY
             );
+            return null;
         }
 
-        TimeValue interval = OtelSdkSettings.TELEMETRY_OTEL_TRACES_INTERVAL.get(settings);
-        double sampleRate = OtelSdkSettings.TELEMETRY_OTEL_TRACES_SAMPLE_RATE.get(settings);
-        int maxQueueSize = OtelSdkSettings.TELEMETRY_OTEL_TRACES_BATCH_MAX_QUEUE_SIZE.get(settings);
-        int maxExportBatchSize = OtelSdkSettings.TELEMETRY_OTEL_TRACES_BATCH_MAX_EXPORT_BATCH_SIZE.get(settings);
-        TimeValue exportTimeout = OtelSdkSettings.TELEMETRY_OTEL_TRACES_BATCH_EXPORT_TIMEOUT.get(settings);
+        TimeValue interval = OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL.get(settings);
+        double sampleRate = OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE.get(settings);
+        int maxQueueSize = OtelSdkSettings.TELEMETRY_TRACING_MAX_QUEUE_SIZE.get(settings);
+        int maxExportBatchSize = OtelSdkSettings.TELEMETRY_TRACING_MAX_BATCH_SIZE.get(settings);
 
         // InternalTelemetryVersion is @Internal but is the only way to opt into stable SemConv names in 1.62.0.
-        OtlpHttpSpanExporterBuilder builder = OtlpHttpSpanExporter.builder()
+        OtlpGrpcSpanExporterBuilder builder = OtlpGrpcSpanExporter.builder()
             .setEndpoint(endpoint)
             .setMeterProvider(meterProvider)
-            .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST);
+            .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST)
+            .setTimeout(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.get(settings).toDuration())
+            .setConnectTimeout(OtelSdkSettings.TELEMETRY_EXPORT_CONNECT_TIMEOUT.get(settings).toDuration())
+            .setRetryPolicy(OtelSdkSettings.OTLP_RETRY_POLICY);
         String authHeader = OtelSdkExportMeterSupplier.buildOtlpAuthorizationHeader(settings);
         if (authHeader != null) {
             builder.addHeader("Authorization", authHeader);
         }
-        OtlpHttpSpanExporter exporter = builder.build();
+        OtelSdkExportMeterSupplier.configureTls(settings, builder::setSslContext);
+        OtlpGrpcSpanExporter exporter = builder.build();
 
         BatchSpanProcessor processor = BatchSpanProcessor.builder(exporter)
             .setMeterProvider(meterProvider)
@@ -71,37 +116,20 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
             .setScheduleDelay(interval.millis(), TimeUnit.MILLISECONDS)
             .setMaxQueueSize(maxQueueSize)
             .setMaxExportBatchSize(maxExportBatchSize)
-            .setExporterTimeout(exportTimeout.millis(), TimeUnit.MILLISECONDS)
             .build();
 
-        // ParentBased honors a sampled upstream traceparent regardless of sampleRate; only locally-started
-        // traces are subject to the ratio.
-        Sampler sampler = Sampler.parentBased(Sampler.traceIdRatioBased(sampleRate));
+        // TODO: emit the modern th: tracestate instead of ot=p: once exporting to EDOT gateway
+        Sampler sampler = new ElasticTracestateSampler(sampleRate);
 
-        this.tracerProvider = SdkTracerProvider.builder()
+        SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
             .setResource(OtelSdkResource.get(settings))
             .setSampler(sampler)
             .addSpanProcessor(processor)
             .build();
 
-        this.openTelemetrySdk = OpenTelemetrySdk.builder()
+        return OpenTelemetrySdk.builder()
             .setTracerProvider(tracerProvider)
             .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
             .build();
-    }
-
-    @Override
-    public OpenTelemetry get() {
-        return openTelemetrySdk;
-    }
-
-    @Override
-    public CompletableResultCode attemptFlushTraces() {
-        return tracerProvider.forceFlush();
-    }
-
-    @Override
-    public void close() {
-        tracerProvider.close();
     }
 }

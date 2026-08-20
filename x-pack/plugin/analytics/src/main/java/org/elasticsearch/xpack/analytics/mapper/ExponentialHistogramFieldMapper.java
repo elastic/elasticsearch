@@ -40,8 +40,8 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.FallbackPostMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -542,9 +542,10 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void parse(DocumentParserContext context) throws IOException {
+    public ParseResult parse(DocumentParserContext context) throws IOException {
         context.path().add(leafName());
 
+        boolean wasAlreadyIgnored = context.getIgnoredFields().contains(fullPath());
         boolean shouldStoreMalformedDataForSyntheticSource = context.mappingLookup().isSourceSynthetic() && ignoreMalformed();
         XContentParser.Token token;
         XContentSubParser subParser = null;
@@ -554,7 +555,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             token = context.parser().currentToken();
             if (token == XContentParser.Token.VALUE_NULL) {
                 context.path().remove();
-                return;
+                return ParseResult.INDEXED;
             }
 
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser());
@@ -631,12 +632,13 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             }
 
             if (malformedDataForSyntheticSource != null) {
-                IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), malformedDataForSyntheticSource);
+                FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED, malformedDataForSyntheticSource);
             }
 
             context.addIgnoredField(fieldType().name());
         }
         context.path().remove();
+        return resolveIgnoredResult(context, wasAlreadyIgnored);
     }
 
     // Visible for testing, to construct realistic doc values in tests
@@ -833,9 +835,6 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             valueSums = leafReader.getNumericDocValues(valuesSumSubFieldName(fullPath));
             valueMinima = leafReader.getNumericDocValues(valuesMinSubFieldName(fullPath));
             valueMaxima = leafReader.getNumericDocValues(valuesMaxSubFieldName(fullPath));
-            if (valueCounts == null) {
-                currentDocId = DocIdSetIterator.NO_MORE_DOCS;
-            }
             docIdSetIterator = new DocIdSetIterator() {
 
                 @Override
@@ -847,6 +846,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 public int nextDoc() throws IOException {
                     if (valueCounts != null) {
                         currentDocId = valueCounts.nextDoc();
+                    } else {
+                        currentDocId = DocIdSetIterator.NO_MORE_DOCS;
                     }
                     return currentDocId;
                 }
@@ -855,6 +856,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 public int advance(int target) throws IOException {
                     if (valueCounts != null) {
                         currentDocId = valueCounts.advance(target);
+                    } else {
+                        currentDocId = DocIdSetIterator.NO_MORE_DOCS;
                     }
                     return currentDocId;
                 }

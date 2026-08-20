@@ -59,7 +59,12 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 public class First extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "First", First::readFrom);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(First.class).binary(First::new).name("first");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(First.class)
+        .binary(First::new)
+        // Fix a crash when the sort argument is a foldable/null value and @timestamp has been dropped from a TS query's output.
+        // Also fix a crash when InsertDefaultInnerTimeSeriesAggregate sees an unresolved sort during the CCS/bwc analyzer retry path.
+        .capabilities("fix_null_sort_dropped_timestamp", "fix_unresolved_sort_in_ts_default_inner_agg")
+        .name("first");
 
     private final Expression sort;
 
@@ -74,6 +79,7 @@ public class First extends AggregateFunction implements ToAggregator {
             "dense_vector",
             "double",
             "exponential_histogram",
+            "flattened",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -122,6 +128,7 @@ public class First extends AggregateFunction implements ToAggregator {
                 "dense_vector",
                 "double",
                 "exponential_histogram",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",

@@ -19,7 +19,7 @@ import java.util.function.Supplier;
 
 public class StoreMetrics implements DirectoryMetrics.PluggableMetrics<StoreMetrics> {
     public static final String NAME = "store";
-    public static final String BYTES_READ_RESPONSE_HEADER = "store_bytes_read";
+    public static final String BYTES_READ_METRIC_KEY = "store_bytes_read";
     public static final PluggableDirectoryMetricsHolder<StoreMetrics> NOOP_HOLDER = PluggableDirectoryMetricsHolder.noop(
         new StoreMetrics() {
             @Override
@@ -65,7 +65,7 @@ public class StoreMetrics implements DirectoryMetrics.PluggableMetrics<StoreMetr
 
     @Override
     public Map<String, String> entries() {
-        return Map.of(BYTES_READ_RESPONSE_HEADER, Long.toString(bytesRead));
+        return Map.of(BYTES_READ_METRIC_KEY, Long.toString(bytesRead));
     }
 
     @Override

@@ -10,12 +10,12 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-public class GetScriptLanguageRequest extends LegacyActionRequest {
+public class GetScriptLanguageRequest extends UntypedActionRequest {
     public GetScriptLanguageRequest() {
         super();
     }

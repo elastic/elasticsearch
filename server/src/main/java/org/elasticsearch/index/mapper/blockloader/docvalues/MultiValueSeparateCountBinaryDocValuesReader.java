@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.blockloader.docvalues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.function.BiPredicate;
@@ -73,6 +74,35 @@ public final class MultiValueSeparateCountBinaryDocValuesReader {
             initializeScratch();
             if (predicate.test(scratch)) {
                 return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Matches against a {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull} blob, where each
+     * slot is encoded as {@code [valueLen+1][key\0value]}, with {@code prefix==0} marking a null slot ({@code [0][key\0]}). Null slots are
+     * skipped; the full {@code key\0value} bytes of non-null slots are tested against {@code predicate}.
+     */
+    public boolean matchKeyedInlineNull(BytesRef bytes, long count, Predicate<BytesRef> predicate) throws IOException {
+        in.reset(bytes.bytes, bytes.offset, bytes.length);
+        for (int v = 0; v < count; v++) {
+            int prefix = in.readVInt();
+            int slotKeyStart = in.getPosition();  // absolute index in bytes.bytes of the first key byte
+            int remaining = bytes.length - (slotKeyStart - bytes.offset);
+            int keyLen = ESVectorUtil.indexOf(bytes.bytes, slotKeyStart, remaining, (byte) 0);
+            assert keyLen != -1 : "KeyedArrayOrderInlineNull slot has no separator byte";
+            in.skipBytes(keyLen + 1);
+            if (prefix != 0) {
+                // Non-null slot: [valueLen+1]key\0value — valueLen = prefix - 1.
+                int valueLen = prefix - 1;
+                scratch.bytes = bytes.bytes;
+                scratch.offset = slotKeyStart;
+                scratch.length = keyLen + 1 + valueLen;  // key\0value
+                in.skipBytes(valueLen);
+                if (predicate.test(scratch)) {
+                    return true;
+                }
             }
         }
         return false;

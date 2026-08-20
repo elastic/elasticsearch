@@ -27,6 +27,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -704,6 +705,99 @@ public class LuceneTests extends ESTestCase {
                 return Tuple.tuple(sortField, expected);
             }
             default -> throw new UnsupportedOperationException();
+        }
+    }
+
+    public void testSearchWithoutBulkScorer() throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new KeywordAnalyzer()))) {
+                w.addDocument(new Document());
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                // Use a plain IndexSearcher (not newSearcher) to guarantee a deterministic single-threaded
+                // search path that always routes through ScorerSupplier.bulkScorer(). The randomized
+                // newSearcher() may wrap weights in an assertions layer or use concurrent slicing, which
+                // can bypass ThrowingBulkScorerQuery's custom bulkScorer() path.
+                IndexSearcher searcher = new IndexSearcher(reader);
+
+                // A query that throws AssertionError if bulkScorer() is called from its weight directly
+                Query throwingQuery = new ThrowingBulkScorerQuery(Queries.ALL_DOCS_INSTANCE);
+
+                // Normal search routes through bulkScorer() and hits the assertion
+                expectThrows(AssertionError.class, () -> searcher.search(throwingQuery, 1));
+
+                // searchWithoutBulkScorer wraps in NoBulkScoringQuery, so the custom bulkScorer()
+                // is never reached; the default Weight.bulkScorer() builds from scorerSupplier() instead
+                TopDocs topDocs = Lucene.searchWithoutBulkScorer(searcher, throwingQuery, 1);
+                assertEquals(1, topDocs.scoreDocs.length);
+            }
+        }
+    }
+
+    private static class ThrowingBulkScorerQuery extends Query {
+
+        private final Query delegate;
+
+        ThrowingBulkScorerQuery(Query delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            final Weight delegateWeight = delegate.createWeight(searcher, scoreMode, boost);
+            return new Weight(this) {
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return false;
+                }
+
+                @Override
+                public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+                    return delegateWeight.explain(context, doc);
+                }
+
+                @Override
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                    final ScorerSupplier innerSupplier = delegateWeight.scorerSupplier(context);
+                    if (innerSupplier == null) return null;
+                    return new ScorerSupplier() {
+                        @Override
+                        public Scorer get(long leadCost) throws IOException {
+                            return innerSupplier.get(leadCost);
+                        }
+
+                        @Override
+                        public BulkScorer bulkScorer() {
+                            throw new AssertionError("bulkScorer() should not be called");
+                        }
+
+                        @Override
+                        public long cost() {
+                            return innerSupplier.cost();
+                        }
+                    };
+                }
+            };
+        }
+
+        @Override
+        public String toString(String field) {
+            return "ThrowingBulkScorer(" + delegate.toString(field) + ")";
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj instanceof ThrowingBulkScorerQuery other && delegate.equals(other.delegate);
+        }
+
+        @Override
+        public int hashCode() {
+            return delegate.hashCode();
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            delegate.visit(visitor);
         }
     }
 

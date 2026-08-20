@@ -172,7 +172,7 @@ public class MultiTypeEsFieldMemoryTests extends ESTestCase {
             indexResponses.add(new FieldCapabilitiesIndexResponse("idx_" + i, mappingHash, fields, false, IndexMode.STANDARD));
         }
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(indexResponses, List.of());
-        IndexResolver.FieldsInfo info = new IndexResolver.FieldsInfo(caps, transportVersion, false, false, false, false);
+        IndexResolver.FieldsInfo info = new IndexResolver.FieldsInfo(caps, transportVersion, false, false, false, false, true);
         return IndexResolver.mergedMappings("idx*", false, info, false, IndexResolver.DO_NOT_GROUP);
     }
 }

@@ -228,6 +228,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         final long clusterStateVersion,
         final RecoveryListener listener
     ) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         final Releasable snapshotFileDownloadsPermit = tryAcquireSnapshotDownloadPermits();
         // create a new recovery status, and process...
         final long recoveryId = onGoingRecoveries.startRecovery(
@@ -238,9 +239,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             listener,
             snapshotFileDownloadsPermit
         );
-        // we fork off quickly here and go async but this is called from the cluster state applier thread too and that can cause
-        // assertions to trip if we executed it on the same thread hence we fork off to the generic threadpool.
-        threadPool.generic().execute(new RecoveryRunner(recoveryId));
+        RecoveryRunner recoveryRunner = new RecoveryRunner(recoveryId);
+        recoveryRunner.run();
     }
 
     protected void retryRecovery(final long recoveryId, final Throwable reason, TimeValue retryAfter) {

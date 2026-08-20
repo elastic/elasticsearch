@@ -239,6 +239,17 @@ which holds the default and dynamically updated values, but _not_ the node-local
 Setting must also be declared, such as `Property.IndexScope` for a setting that applies to indexes, or `Property.NodeScope`
 for a cluster-level setting.
 
+A `Setting<T>` is defined by a handful of pieces: a `key` (the dotted setting name, e.g.
+`indices.recovery.max_concurrent_outgoing_recoveries`), a `defaultValue`, a `parser` that converts the raw string value into
+the typed value `T`, an optional `validator`, and one or more `Property` declarations that govern the setting's scope,
+mutability, and visibility.
+
+Beyond `IndexScope`/`NodeScope` and `Dynamic`, other `Property` declarations refine a setting's behavior. `OperatorDynamic`
+marks a setting as dynamic but changeable only by operator users, enforced by the Security plugin. `Deprecated` marks a setting
+that is on its way out and emits a deprecation warning when used. In serverless, `ProjectScope` denotes a per-project setting.
+Each scope corresponds to the collection the setting is tracked in: `NodeScope` settings live in `ClusterSettings`, `IndexScope`
+settings live in `IndexScopedSettings`, and `ProjectScope` settings live in `ProjectScopedSettings`.
+
 [Setting]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/common/settings/Setting.java#L57-L80
 [Property]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/common/settings/Setting.java#L82
 [A setting]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/cluster/routing/allocation/allocator/BalancedShardsAllocator.java#L111-L117
@@ -250,6 +261,20 @@ for a cluster-level setting.
 [SettingsModule][]. Additional settings from the various plugins are [collected during node construction] and passed into the
 [SettingsModule constructor][]. The Plugin interface has a [getSettings()][] method via which each plugin can declare additional
 settings.
+
+Built-in settings are declared as `public static final` fields on the class that owns them, and then registered by listing them in
+`ClusterSettings.BUILT_IN_CLUSTER_SETTINGS` or `IndexScopedSettings.BUILT_IN_INDEX_SETTINGS`. The `SettingsModule` validates that
+each setting's scope properties are not conflicting, detects duplicate registrations, and builds the final `ClusterSettings`,
+`IndexScopedSettings`, and `ProjectScopedSettings` instances.
+
+The node-local `elasticsearch.yml` file is static and read once by the [Environment][] at startup, becoming the node's `Settings`
+object, and it is the source for `NodeScope` settings that are not `Dynamic`. Consumers wire up runtime updates by registering a
+setter at node startup, e.g.
+`clusterService.getClusterSettings().addSettingsUpdateConsumer(SETTING, this::setter)`. When both are present, dynamic cluster
+settings override the `elasticsearch.yml` values, and only `Dynamic` and `OperatorDynamic` cluster-scoped settings can be set via
+the settings API.
+
+[Environment]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/env/Environment.java
 
 [ClusterSettings]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/common/settings/ClusterSettings.java#L138
 [core Elasticsearch settings]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/common/settings/ClusterSettings.java#L204-L586
@@ -280,7 +305,25 @@ state must ever be reloaded from persisted state.
 [Metadata]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java#L212-L213
 [applied here]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java#L2437
 
+## Specialized Setting Types
+
+Beyond the plain `Setting<T>`, a few specialized variants cover common patterns. A `SecureSetting<T>` is backed by the
+Elasticsearch keystore rather than plain-text config, keeping sensitive values (e.g. credentials) out of `elasticsearch.yml`.
+A `ListSetting<T>` holds a list of values, serialized as a JSON array. A `GroupSetting` matches an entire prefix and returns all
+settings under it as a `Settings` sub-object. An `AffixSetting<T>` follows a `prefix.{namespace}.suffix` pattern, producing a
+concrete setting for each namespace present in the config (for example `indices.breaker.{name}.limit` covers
+`indices.breaker.fielddata.limit`, `indices.breaker.parent.limit`, and so on). Consumers of an affix setting receive
+`(namespace, value)` pairs.
+
 # Deprecations
+
+See also:
+
+- The [Elasticsearch deprecations release notes][] are the published, per-release list of deprecated functionality shipped in Elasticsearch.
+- The [Deprecation logging][] docs explain how Elasticsearch logs use of deprecated features so users can find and fix them before upgrading.
+
+[Elasticsearch deprecations release notes]: https://github.com/elastic/elasticsearch/blob/main/docs/release-notes/deprecations.md
+[Deprecation logging]: https://www.elastic.co/docs/deploy-manage/monitor/logging-configuration/elasticsearch-deprecation-logs
 
 # Backwards Compatibility
 

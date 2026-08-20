@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
 
+import static org.elasticsearch.xpack.esql.inference.InferenceService.ESQL_PRODUCT_USE_CASE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -392,6 +393,19 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
             }
 
             assertThat(iterationCount, equalTo(size));
+        }
+
+        allBreakersEmpty();
+    }
+
+    public void testProductUseCase() throws Exception {
+        final String inferenceId = randomIdentifier();
+        final BytesRefBlock inputBlock = randomInputBlock(1);
+
+        try (TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(inferenceId, inputBlock, null)) {
+            assertTrue(requestIterator.hasNext());
+            InferenceAction.Request request = (InferenceAction.Request) requestIterator.next().inferenceRequest();
+            assertThat(request.getContext().productUseCase(), equalTo(ESQL_PRODUCT_USE_CASE));
         }
 
         allBreakersEmpty();

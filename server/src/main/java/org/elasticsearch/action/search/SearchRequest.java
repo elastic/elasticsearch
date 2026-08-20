@@ -13,8 +13,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -57,7 +57,7 @@ import static org.elasticsearch.search.SearchService.DEFAULT_ALLOW_PARTIAL_SEARC
  * @see Client#search(SearchRequest)
  * @see SearchResponse
  */
-public class SearchRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, Rewriteable<SearchRequest> {
+public class SearchRequest extends UntypedActionRequest implements IndicesRequest.Replaceable, Rewriteable<SearchRequest> {
 
     public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
@@ -567,14 +567,14 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     }
 
     /**
-     * Returns {@code true} when routing was provided through the {@code _slice} REST parameter.
+     * Returns {@code true} when routing was provided through the {@code slice} REST parameter.
      */
     public boolean isRoutingFromSlice() {
         return routingFromSlice;
     }
 
     /**
-     * Returns the requested {@code _slice} value when routing comes from {@code _slice}.
+     * Returns the requested {@code slice} value when routing comes from {@code slice}.
      */
     @Nullable
     public String searchSlice() {
@@ -582,8 +582,8 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     }
 
     /**
-     * Sets the user-provided {@code _slice} value and derives routing/provenance from it.
-     * Passing {@code null} clears slice-routing provenance and any routing previously derived from {@code _slice}.
+     * Sets the user-provided {@code slice} value and derives routing/provenance from it.
+     * Passing {@code null} clears slice-routing provenance and any routing previously derived from {@code slice}.
      */
     public SearchRequest searchSlice(@Nullable String searchSlice) {
         this.searchSlice = searchSlice;
@@ -901,7 +901,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             sb.append(", routing[").append(routing).append("]");
         }
         if (routingFromSlice) {
-            sb.append(", _slice[").append(searchSlice).append("]");
+            sb.append(", slice[").append(searchSlice).append("]");
         }
         if (preference != null) {
             sb.append(", preference[").append(preference).append("]");

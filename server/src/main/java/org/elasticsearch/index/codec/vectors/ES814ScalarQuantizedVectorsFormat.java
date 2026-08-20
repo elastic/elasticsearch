@@ -30,7 +30,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedVectorsReader;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.simdvec.ESVectorizationProvider;
@@ -151,13 +151,8 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
-        public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-            delegate.mergeOneField(fieldInfo, mergeState);
-        }
-
-        @Override
-        public CloseableRandomVectorScorerSupplier mergeOneFieldToIndex(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-            return delegate.mergeOneFieldToIndex(fieldInfo, mergeState);
+        public void mergeOneFlatVectorField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+            delegate.mergeOneFlatVectorField(fieldInfo, mergeState);
         }
 
         @Override
@@ -187,9 +182,13 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         final FlatVectorsReader rawDelegate;
 
         ES814ScalarQuantizedVectorsReader(Lucene99ScalarQuantizedVectorsReader delegate, FlatVectorsReader rawDelegate) {
-            super(delegate.getFlatVectorScorer());
             this.delegate = delegate;
             this.rawDelegate = rawDelegate;
+        }
+
+        @Override
+        public FlatVectorsScorer getFlatVectorScorer(String field) throws IOException {
+            return delegate.getFlatVectorScorer(field);
         }
 
         @Override
@@ -200,6 +199,14 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         @Override
         public RandomVectorScorer getRandomVectorScorer(String field, byte[] target) throws IOException {
             return delegate.getRandomVectorScorer(field, target);
+        }
+
+        @Override
+        public CloseableRandomVectorScorerSupplier getRandomVectorScorerSupplierForMerge(
+            FieldInfo fieldInfo,
+            SegmentWriteState segmentWriteState
+        ) throws IOException {
+            return delegate.getRandomVectorScorerSupplierForMerge(fieldInfo, segmentWriteState);
         }
 
         @Override
@@ -224,7 +231,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
-        public QuantizedByteVectorValues getQuantizedVectorValues(String fieldName) throws IOException {
+        public LegacyQuantizedByteVectorValues getQuantizedVectorValues(String fieldName) throws IOException {
             return delegate.getQuantizedVectorValues(fieldName);
         }
 
@@ -267,7 +274,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         @Override
         public RandomVectorScorerSupplier getRandomVectorScorerSupplier(VectorSimilarityFunction sim, KnnVectorValues values)
             throws IOException {
-            if (values instanceof QuantizedByteVectorValues qValues && qValues.getSlice() != null) {
+            if (values instanceof LegacyQuantizedByteVectorValues qValues && qValues.getSlice() != null) {
                 // TODO: optimize int4 quantization
                 if (qValues.getScalarQuantizer().getBits() != 7) {
                     return delegate.getRandomVectorScorerSupplier(sim, values);
@@ -288,7 +295,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         @Override
         public RandomVectorScorer getRandomVectorScorer(VectorSimilarityFunction sim, KnnVectorValues values, float[] query)
             throws IOException {
-            if (values instanceof QuantizedByteVectorValues qValues && qValues.getSlice() != null) {
+            if (values instanceof LegacyQuantizedByteVectorValues qValues && qValues.getSlice() != null) {
                 // TODO: optimize int4 quantization
                 if (qValues.getScalarQuantizer().getBits() != 7) {
                     return delegate.getRandomVectorScorer(sim, values, query);

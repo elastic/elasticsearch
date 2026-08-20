@@ -274,15 +274,25 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
     }
 
     private SnapshotInfo createSnapshotInfo(SnapshotState state, int failedShards) {
+        int totalShards = Math.max(1, failedShards);
+        return createSnapshotInfo(state, List.of(indexName), totalShards, totalShards - failedShards, failedShards);
+    }
+
+    private SnapshotInfo createSnapshotInfo(
+        SnapshotState state,
+        List<String> indices,
+        int totalShards,
+        int successfulShards,
+        int failedShards
+    ) {
         String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
         List<SnapshotShardFailure> shardFailures = new ArrayList<>();
         for (int i = 0; i < failedShards; i++) {
             shardFailures.add(new SnapshotShardFailure(null, new ShardId(indexName, randomAlphaOfLength(10), i), "test failure"));
         }
-        int totalShards = Math.max(1, failedShards);
         return new SnapshotInfo(
             new Snapshot(projectId, REPO_NAME, new SnapshotId(snapshotName, randomAlphaOfLength(10))),
-            List.of(indexName),
+            indices,
             List.of(),
             List.of(),
             state == SnapshotState.FAILED ? "simulated failure" : null,
@@ -290,7 +300,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
             clock.millis(),
             clock.millis(),
             totalShards,
-            totalShards - failedShards,
+            successfulShards,
             shardFailures,
             false,
             null,
@@ -321,6 +331,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertThat(request.indices(), is(new String[] { expectedIndex }));
         assertThat(request.includeGlobalState(), is(false));
         assertThat(request.waitForCompletion(), is(true));
+        assertThat(request.partial(), is(true));
     }
 
     private GetSnapshotsResponse emptyGetSnapshotsResponse() {
@@ -355,6 +366,24 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
             () -> DLMConvertToFrozen.checkSnapshotInfoSuccess(indexName, "snap", info)
         );
         assertThat(e.getMessage(), containsString("FAILED"));
+    }
+
+    public void testCheckSnapshotInfoSuccess_failsWhenSnapshotDoesNotContainTargetIndex() {
+        SnapshotInfo info = createSnapshotInfo(SnapshotState.SUCCESS, List.of(randomAlphaOfLength(10)), 1, 1, 0);
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> DLMConvertToFrozen.checkSnapshotInfoSuccess(indexName, "snap", info)
+        );
+        assertThat(e.getMessage(), containsString("indices"));
+    }
+
+    public void testCheckSnapshotInfoSuccess_failsWithoutSuccessfulShards() {
+        SnapshotInfo info = createSnapshotInfo(SnapshotState.SUCCESS, List.of(indexName), 1, 0, 0);
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> DLMConvertToFrozen.checkSnapshotInfoSuccess(indexName, "snap", info)
+        );
+        assertThat(e.getMessage(), containsString("successful shards"));
     }
 
     public void testCheckSnapshotInfoSuccess_failsWithNull() {
@@ -580,6 +609,22 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         converter.checkForOrphanedSnapshotAndStart(indexName, REPO_NAME, snapshotName);
 
         assertGetSnapshotsRequest(REPO_NAME, snapshotName);
+        assertDeleteSnapshotRequest(REPO_NAME, snapshotName);
+        assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
+    }
+
+    public void testCheckForOrphanedSnapshot_withoutTargetIndex_deletesAndRecreates() throws InterruptedException {
+        ProjectState projectState = createProjectState();
+        setClusterState(projectState);
+        SnapshotInfo incompleteSnapshot = createSnapshotInfo(SnapshotState.SUCCESS, List.of(randomAlphaOfLength(10)), 1, 1, 0);
+        mockGetSnapshotsResponse.set(getSnapshotsResponseWith(incompleteSnapshot));
+        mockDeleteSnapshotResponse.set(AcknowledgedResponse.TRUE);
+        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
+
+        DLMConvertToFrozen converter = createConverter();
+        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
+        converter.checkForOrphanedSnapshotAndStart(indexName, REPO_NAME, snapshotName);
+
         assertDeleteSnapshotRequest(REPO_NAME, snapshotName);
         assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
     }

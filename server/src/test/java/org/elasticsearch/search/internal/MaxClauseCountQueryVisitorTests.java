@@ -9,6 +9,13 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -16,9 +23,12 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.ByteBuffersDirectory;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
@@ -26,12 +36,15 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.lucene.search.FuzzyQueries;
+import org.elasticsearch.lucene.search.cost.PointRangeQueryCostEstimator;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.lucene.search.Queries.ALL_DOCS_INSTANCE;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class MaxClauseCountQueryVisitorTests extends ESTestCase {
@@ -81,6 +94,27 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         );
     }
 
+    public void testBooleanOfFuzzyClausesSumsPerClauseEstimates() {
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        int clauses = randomIntBetween(2, 20);
+
+        BooleanQuery.Builder bool = new BooleanQuery.Builder();
+        long expected = 0L;
+        for (int i = 0; i < clauses; i++) {
+            FuzzyQuery fq = new FuzzyQuery(new Term("field", "value" + i), 2, 1, 50, true);
+            bool.add(fq, BooleanClause.Occur.SHOULD);
+            expected += FuzzyQueries.estimateBytes(fq);
+        }
+        bool.build().visit(visitor);
+
+        assertEquals(
+            "each fuzzy clause must be visited and summed by FuzzyQueries.estimateBytes, not floored once",
+            expected,
+            visitor.getEstimatedBytes()
+        );
+        assertEquals(clauses, visitor.getNumClauses());
+    }
+
     public void testFuzzyQueryVisitDoesNotInvokeAutomatonSupplier() {
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
         AtomicInteger supplierInvocations = new AtomicInteger();
@@ -112,6 +146,67 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
             FuzzyQueries.estimateBytes(fq),
             visitor.getEstimatedBytes()
         );
+    }
+
+    public void testFuzzyClauseChargeGrowsWithSegmentCount() {
+        FuzzyQuery fq = new FuzzyQuery(new Term("field", "value0"), 2, 1, 50, true);
+
+        MaxClauseCountQueryVisitor singleSegment = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), null, null, 1);
+        MaxClauseCountQueryVisitor manySegments = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), null, null, 128);
+
+        fq.visit(singleSegment);
+        fq.visit(manySegments);
+
+        assertEquals(FuzzyQueries.estimateBytes(fq, 1), singleSegment.getEstimatedBytes());
+        assertEquals(FuzzyQueries.estimateBytes(fq, 128), manySegments.getEstimatedBytes());
+        assertThat(
+            "a fuzzy clause charged against a 128-segment reader must cost strictly more than against a 1-segment reader",
+            manySegments.getEstimatedBytes(),
+            greaterThan(singleSegment.getEstimatedBytes())
+        );
+    }
+
+    public void testSegmentCountOrDefaultFallsBackToDefaultWhenReaderIsNull() {
+        assertEquals(FuzzyQueries.DEFAULT_SEGMENT_COUNT_WHEN_UNKNOWN, MaxClauseCountQueryVisitor.segmentCountOrDefault(null));
+    }
+
+    public void testSegmentCountOrDefaultUsesRealReaderLeafCount() throws IOException {
+        int segments = randomIntBetween(2, 5);
+        try (Directory directory = new ByteBuffersDirectory()) {
+            IndexWriterConfig writerConfig = new IndexWriterConfig(null).setMergePolicy(NoMergePolicy.INSTANCE);
+            try (IndexWriter writer = new IndexWriter(directory, writerConfig)) {
+                for (int i = 0; i < segments; i++) {
+                    writer.addDocument(new Document());
+                    writer.flush();
+                }
+                writer.commit();
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                assertEquals(segments, MaxClauseCountQueryVisitor.segmentCountOrDefault(reader));
+            }
+        }
+    }
+
+    public void testChargesPointRangeQueryStructuralOnly() {
+        PointRangeQuery prq = (PointRangeQuery) LongPoint.newRangeQuery("f", 1L, 100L);
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        prq.visit(visitor);
+
+        long structuralOnly = new PointRangeQueryCostEstimator(prq.getNumDims(), prq.getBytesPerDim()).estimate();
+        assertEquals(structuralOnly, visitor.getEstimatedBytes());
+        assertEquals(1, visitor.getNumClauses());
+    }
+
+    public void testPointRangeStructuralChargeIsIndependentOfReaderSize() {
+        PointRangeQuery prq = (PointRangeQuery) IntPoint.newRangeQuery("f", 1, 100);
+
+        MaxClauseCountQueryVisitor first = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), null);
+        prq.visit(first);
+        MaxClauseCountQueryVisitor second = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        prq.visit(second);
+
+        assertEquals(second.getEstimatedBytes(), first.getEstimatedBytes());
+        assertEquals(new PointRangeQueryCostEstimator(prq.getNumDims(), prq.getBytesPerDim()).estimate(), first.getEstimatedBytes());
     }
 
     public void testAccumulatesBytesAcrossAllLeavesInABooleanQuery() {
@@ -233,7 +328,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         assertEquals(0L, visitor.getEstimatedBytes());
     }
 
-    public void testResetRecapturesBreakerBaseline() {
+    public void testPostResetTripsReflectLiveBreakerUsage() {
         long limit = 1_000L;
         FakeCircuitBreaker breaker = new FakeCircuitBreaker(limit, 0L);
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), breaker);
@@ -246,7 +341,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         visitor.reset();
 
         expectThrows(CircuitBreakingException.class, () -> new AccountableTestQuery(200L).visit(visitor));
-        assertTrue("reset() must recapture the breaker baseline so post-reset trips reflect new used", breaker.tripped);
+        assertTrue("post-reset trips must reflect the live breaker usage read at check time", breaker.tripped);
     }
 
     public void testResetWithoutBreakerIsANoOpForBaseline() {
@@ -311,7 +406,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         assertTrue("second leaf should have tripped the breaker", breaker.tripped);
     }
 
-    public void testBreakerBaselineIsCapturedAtConstructionTime() {
+    public void testPreExistingBreakerUsageIsIncludedInProjection() {
         long limit = 1_000L;
         long preExisting = 900L;
         FakeCircuitBreaker breaker = new FakeCircuitBreaker(limit, preExisting);
@@ -319,6 +414,26 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
 
         expectThrows(CircuitBreakingException.class, () -> new AccountableTestQuery(200L).visit(visitor));
         assertTrue(breaker.tripped);
+    }
+
+    public void testPreChargedBytesCountTowardMidWalkTripViaLiveUsed() {
+        long limit = 1000L;
+        FakeCircuitBreaker breaker = new FakeCircuitBreaker(limit, 0L);
+        Query preChargedAutomaton = new AccountableTestQuery(10000L);
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(
+            IndexSearcher.getMaxClauseCount(),
+            breaker,
+            q -> q == preChargedAutomaton
+        );
+
+        breaker.setUsed(800L);
+        preChargedAutomaton.visit(visitor);
+        assertEquals("pre-charged bytes must never enter the committed estimate", 0L, visitor.getEstimatedBytes());
+        assertEquals("the pre-charged leaf must still be counted as a clause", 1, visitor.getNumClauses());
+        assertFalse("visiting the pre-charged leaf must not trip on its own", breaker.tripped);
+
+        expectThrows(CircuitBreakingException.class, () -> new AccountableTestQuery(300L).visit(visitor));
+        assertTrue("mid-walk projection must include pre-charged bytes via live breaker.getUsed()", breaker.tripped);
     }
 
     public void testMergeRoutesThroughEarlyTripPeek() {

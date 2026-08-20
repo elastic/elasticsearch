@@ -20,18 +20,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-class FullFieldSemanticFieldValueFetcher extends EmbeddingsSemanticFieldValueFetcher {
+class FullFieldSemanticFieldValueFetcher extends AbstractEmbeddingsLoadingValueFetcher {
     FullFieldSemanticFieldValueFetcher(
         SemanticFieldMapper.SemanticFieldType fieldType,
         Function<Query, BitSetProducer> bitSetCache,
         IndexSearcher searcher
     ) {
         super(fieldType, bitSetCache, searcher);
-    }
-
-    @Override
-    protected boolean loadOffsets() {
-        return true;
     }
 
     @Override

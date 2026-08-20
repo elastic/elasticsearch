@@ -24,15 +24,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.inference.mapper.EmbeddingsSemanticFieldValueFetcher.advanceToEmbeddingsValue;
-import static org.elasticsearch.xpack.inference.mapper.EmbeddingsSemanticFieldValueFetcher.parseEmbeddings;
+import static org.elasticsearch.xpack.inference.mapper.AbstractEmbeddingsLoadingValueFetcher.advanceToEmbeddingsValue;
+import static org.elasticsearch.xpack.inference.mapper.AbstractEmbeddingsLoadingValueFetcher.parseEmbeddings;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 
 /**
  * A {@link ValueFetcher} for the {@code embeddings} fetch format on legacy-format {@code semantic_text} fields.
  * <p>
  * In the legacy format, sparse-vector embeddings are not stored as Lucene stored fields (they are indexed but not stored,
- * so they cannot be recovered via the synthetic-field-loader path used by {@link EmbeddingsSemanticFieldValueFetcher}).
+ * so they cannot be recovered via the synthetic-field-loader path used by {@link AbstractEmbeddingsLoadingValueFetcher}).
  * Instead, the full {@code {text, inference: {...}}} object is kept verbatim in the document's stored {@code _source},
  * and the embeddings are extracted directly from there.
  * </p>

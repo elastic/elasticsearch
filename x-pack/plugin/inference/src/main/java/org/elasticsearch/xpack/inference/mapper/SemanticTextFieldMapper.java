@@ -658,7 +658,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             // The legacy format does not store sparse-vector embeddings as Lucene stored fields, so the synthetic-field-loader
-            // path used by EmbeddingsSemanticFieldValueFetcher cannot recover them. Read directly from _source instead.
+            // path used by AbstractEmbeddingsLoadingValueFetcher cannot recover them. Read directly from _source instead.
             if (useLegacyFormat && EMBEDDINGS_FORMAT.equals(format)) {
                 return new LegacyEmbeddingsSemanticTextFieldValueFetcher(this, context.getIndexSettings().getIgnoredSourceFormat());
             }

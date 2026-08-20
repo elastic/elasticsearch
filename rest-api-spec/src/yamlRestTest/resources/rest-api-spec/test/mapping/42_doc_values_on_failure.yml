@@ -59,7 +59,7 @@
         index: test_on_failure_synthetic
         id: "1"
         stored_fields: [ _ignored ]
-  - match: { fields._ignored: [ "kw" ] }
+  - match: { _ignored: [ "kw" ] }
 
   - do:
       get:
@@ -146,7 +146,7 @@
         index: test_on_failure_synthetic_columnar
         id: "1"
         stored_fields: [ _ignored ]
-  - match: { fields._ignored: [ "kw" ] }
+  - match: { _ignored: [ "kw" ] }
 
   - do:
       get:
@@ -233,7 +233,7 @@
         index: test_on_failure_columnar_stored
         id: "1"
         stored_fields: [ _ignored ]
-  - match: { fields._ignored: [ "kw" ] }
+  - match: { _ignored: [ "kw" ] }
 
   - do:
       get:
@@ -318,7 +318,7 @@
         index: test_on_failure_columnar_stored_columnar
         id: "1"
         stored_fields: [ _ignored ]
-  - match: { fields._ignored: [ "kw" ] }
+  - match: { _ignored: [ "kw" ] }
 
   - do:
       get:

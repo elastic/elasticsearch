@@ -711,7 +711,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * Reads the {@code @timestamp} field value range for the additional segments in the given commit.
      * Package protected so that tests can override this to simulate legacy compound commits that lack a timestamp range.
      */
-    @Nullable TimestampFieldValueRange readTimestampFieldValueRange(ShardCommitState commitState, StatelessCommitRef reference) {
+    @Nullable
+    TimestampFieldValueRange readTimestampFieldValueRange(ShardCommitState commitState, StatelessCommitRef reference) {
         return commitState.readTimestampFieldValueRangeAcrossAdditionalSegments(reference);
     }
 

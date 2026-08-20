@@ -19,7 +19,7 @@ def clusterCredentials = [
 
 // New path: plain Test tasks enrolled via RestTestBasePlugin / JUnit-rule-based test clusters
 plugins.withType(RestTestBasePlugin) {
-  restTests.tasks.configureEach {
+  restTests.configureEach {
     systemProperty 'tests.rest.cluster.username', clusterCredentials.username
     systemProperty 'tests.rest.cluster.password', clusterCredentials.password
   }

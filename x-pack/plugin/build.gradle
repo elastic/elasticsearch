@@ -62,7 +62,7 @@ if (buildParams.snapshotBuild == false) {
   restTestBlacklist.add('privileges/11_builtin/Test get builtin privileges')
 }
 
-restTests.tasks.configureEach {
+restTests.configureEach {
   usesDefaultDistribution("to be triaged")
 }
 

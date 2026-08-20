@@ -18,7 +18,7 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 // New path: plain Test tasks enrolled via RestTestBasePlugin / JUnit-rule-based test clusters
 plugins.withType(RestTestBasePlugin) {
-  restTests.tasks.configureEach {
+  restTests.configureEach {
     onlyIf("stateless tests skipped on windows") { OS.current() != OS.WINDOWS }
   }
 }

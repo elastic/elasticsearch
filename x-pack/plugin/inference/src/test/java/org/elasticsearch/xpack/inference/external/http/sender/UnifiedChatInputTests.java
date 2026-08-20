@@ -7,15 +7,33 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.elasticsearch.inference.InferenceObjectRamBytesUsedTest;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
-import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.List;
 
-public class UnifiedChatInputTests extends ESTestCase {
+public class UnifiedChatInputTests extends InferenceObjectRamBytesUsedTest<UnifiedChatInput> {
+
+    private static final List<String> INPUTS = List.of("input");
+    private static final String ROLE = "role";
+
+    @Override
+    public UnifiedChatInput objectToEstimate() {
+        return new UnifiedChatInput(INPUTS, ROLE, false);
+    }
+
+    @Override
+    public List<UnifiedChatInput> objectsToEstimateWithLargerInput() {
+        return List.of(
+            // More inputs
+            new UnifiedChatInput(List.of(INPUTS.getFirst(), INPUTS.getFirst()), ROLE, false),
+            // Larger role
+            new UnifiedChatInput(INPUTS, ROLE.repeat(5), false)
+        );
+    }
 
     public void testConvertsStringInputToMessages() {
         var a = new UnifiedChatInput(List.of("hello", "awesome"), "a role", true);

@@ -255,7 +255,13 @@ public class GoogleAiStudioService extends SenderService<GoogleAiStudioModel> {
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
-            doInfer(model, new EmbeddingsInput(request.batch().inputs(), inputType), taskSettings, timeout, request.listener());
+            doInfer(
+                model,
+                new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                taskSettings,
+                timeout,
+                request.listener()
+            );
         }
     }
 

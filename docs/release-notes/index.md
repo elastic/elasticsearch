@@ -20,6 +20,250 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+## 9.5.2 [elasticsearch-9.5.2-release-notes]
+```{applies_to}
+stack: ga 9.5.2
+```
+
+### Features and enhancements [elasticsearch-9.5.2-features-enhancements]
+
+FIPS:
+* Upgrade Bouncy Castle FIPS to 1.0.2.7 and 2.0.2 [#156296](https://github.com/elastic/elasticsearch/pull/156296)
+
+Infra/Core:
+* Upgrade ASM to 9.10.1 [#156213](https://github.com/elastic/elasticsearch/pull/156213)
+* Upgrade the bundled JDK to 26.0.2 [#156203](https://github.com/elastic/elasticsearch/pull/156203)
+
+Mapping:
+* Upgrade to Lucene 10.5.1 [#156643](https://github.com/elastic/elasticsearch/pull/156643)
+
+Security:
+* Upgrade Jackson to 2.21.5 for ES|QL and Arrow [#156368](https://github.com/elastic/elasticsearch/pull/156368)
+
+
+### Fixes [elasticsearch-9.5.2-fixes]
+
+Aggregations:
+* Fix exponential histogram min/max not being fully respected in rank estimation [#156268](https://github.com/elastic/elasticsearch/pull/156268) (issue: [#156057](https://github.com/elastic/elasticsearch/issues/156057))
+
+Downsampling:
+* Fix duplicate field in the cumulative histogram reset document [#156287](https://github.com/elastic/elasticsearch/pull/156287) (issue: [#156276](https://github.com/elastic/elasticsearch/issues/156276))
+
+ES|QL:
+* Account for t-digest percentiles memory in the request circuit breaker [#155586](https://github.com/elastic/elasticsearch/pull/155586)
+* Fix `TS` `STATS` aggregate aliases that collide with grouping keys [#155312](https://github.com/elastic/elasticsearch/pull/155312) (issue: [#153507](https://github.com/elastic/elasticsearch/issues/153507))
+* Fix `TS` queries that name a time bucket after the timestamp field [#155623](https://github.com/elastic/elasticsearch/pull/155623)
+* Fix incorrect results from Parquet predicate pushdown on multi-valued fields [#156604](https://github.com/elastic/elasticsearch/pull/156604)
+* Integrate circuit breaker into `BestBucketsDeferringCollector` [#155600](https://github.com/elastic/elasticsearch/pull/155600) (issue: [#148516](https://github.com/elastic/elasticsearch/issues/148516))
+* Replace an IN subquery evaluated as a false filter with an empty local relation [#155648](https://github.com/elastic/elasticsearch/pull/155648) (issue: [#155563](https://github.com/elastic/elasticsearch/issues/155563))
+
+Inference:
+* Fix Anthropic translation to the unified schema [#155314](https://github.com/elastic/elasticsearch/pull/155314)
+* Fix Google Vertex AI chat completion tool call argument serialization for non-string values [#156665](https://github.com/elastic/elasticsearch/pull/156665) (issue: [#156644](https://github.com/elastic/elasticsearch/issues/156644))
+* Fix `BroadcastMessageAction` request serialization [#156603](https://github.com/elastic/elasticsearch/pull/156603)
+* Translate unified tool-calling message blocks to the Anthropic format [#154607](https://github.com/elastic/elasticsearch/pull/154607)
+
+Infra/Core:
+* Fix `IllegalStateException` when a truncated string cuts off in the middle of a JSON object [#156382](https://github.com/elastic/elasticsearch/pull/156382) (issue: [#156289](https://github.com/elastic/elasticsearch/issues/156289))
+
+Machine Learning:
+* Fail closed on an incomplete TorchScript pre-load state hook scan [#3149](https://github.com/elastic/ml-cpp/pull/3149)
+* Fail gracefully when restoring a categorizer with an out-of-range token ID [#3143](https://github.com/elastic/ml-cpp/pull/3143)
+
+Search:
+* Add a limit on aggregation nesting depth [#155743](https://github.com/elastic/elasticsearch/pull/155743)
+* Count failed `_msearch` sub-search responses against the circuit breaker [#156683](https://github.com/elastic/elasticsearch/pull/156683)
+* Ensure batched queries always return a response [#155908](https://github.com/elastic/elasticsearch/pull/155908)
+* Exclude non-metadata `_type` from default search hit fields [#155706](https://github.com/elastic/elasticsearch/pull/155706) (issue: [#110438](https://github.com/elastic/elasticsearch/issues/110438))
+* Fail the request instead of the node on deeply nested aggregations [#155745](https://github.com/elastic/elasticsearch/pull/155745)
+* Fix `NullPointerException` in `LongComparator` caused by null `search_after` values [#132434](https://github.com/elastic/elasticsearch/pull/132434) (issue: [#132370](https://github.com/elastic/elasticsearch/issues/132370))
+* Fix nested and `mode`-based sorts on `integer` fields returning incorrect values on indices created before 8.19 or in 9.0.x [#155580](https://github.com/elastic/elasticsearch/pull/155580) (issue: [#155243](https://github.com/elastic/elasticsearch/issues/155243))
+* Keep scroll contexts on transient search queue rejection [#155697](https://github.com/elastic/elasticsearch/pull/155697) (issue: [#90912](https://github.com/elastic/elasticsearch/issues/90912))
+
+Snapshot/Restore:
+* Ensure `Error` propagates out of `S3BlobContainer` [#156765](https://github.com/elastic/elasticsearch/pull/156765)
+
+Transform:
+* Preserve headers when copying a transform configuration [#156191](https://github.com/elastic/elasticsearch/pull/156191)
+
+Vector Search:
+* Fix `DOT_PRODUCT` and `COSINE` score clamping in the BBQ vector scorer [#156015](https://github.com/elastic/elasticsearch/pull/156015) (issues: [#156010](https://github.com/elastic/elasticsearch/issues/156010), [#156011](https://github.com/elastic/elasticsearch/issues/156011), [#156009](https://github.com/elastic/elasticsearch/issues/156009), [#156012](https://github.com/elastic/elasticsearch/issues/156012))
+* Fix search failures on indices without vector fields when many field patterns are requested [#156466](https://github.com/elastic/elasticsearch/pull/156466)
+* Fix the `auto_calibrate` index option being rejected by a leftover experimental flag [#156623](https://github.com/elastic/elasticsearch/pull/156623)
+* Score nested kNN `inner_hits` like the query phase [#156332](https://github.com/elastic/elasticsearch/pull/156332) (issue: [#138496](https://github.com/elastic/elasticsearch/issues/138496))
+
+## 9.5.1 [elasticsearch-9.5.1-release-notes]
+
+### Features and enhancements [elasticsearch-9.5.1-features-enhancements]
+
+FIPS:
+* Update Bouncy Castle FIPS TLS libraries [#155937](https://github.com/elastic/elasticsearch/pull/155937)
+
+Infra/Core:
+* Upgrade lz4-java to 1.11.1 [#155598](https://github.com/elastic/elasticsearch/pull/155598)
+
+Machine Learning:
+* Add EuroBERT and Jina v5 ops to the graph validation allowlist [#3015](https://github.com/elastic/ml-cpp/pull/3015)
+* Downgrade log severity for a batch of recoverable errors [#2889](https://github.com/elastic/ml-cpp/pull/2889)
+* Harden `pytorch_inference` with TorchScript model graph validation [#3008](https://github.com/elastic/ml-cpp/pull/3008) (issue: [#2890](https://github.com/elastic/ml-cpp/issues/2890))
+* Improve adherence to memory limits for the bucket gatherer [#2848](https://github.com/elastic/ml-cpp/pull/2848)
+* Improve error handling for quantiles state documents [#2894](https://github.com/elastic/ml-cpp/pull/2894)
+* Improve handling of invalid JSON state documents [#2895](https://github.com/elastic/ml-cpp/pull/2895)
+* Improve messaging for OOM process termination [#2841](https://github.com/elastic/ml-cpp/pull/2841)
+* Report the actual memory usage of the autodetect process [#2846](https://github.com/elastic/ml-cpp/pull/2846)
+* Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
+
+Security:
+* Upgrade Apache HttpComponents 5.x to address CVEs [#153057](https://github.com/elastic/elasticsearch/pull/153057)
+* Upgrade Apache HttpCore 5 to 5.4.3 to fix header DoS CVEs [#153467](https://github.com/elastic/elasticsearch/pull/153467)
+* Upgrade Bouncy Castle to 1.85 [#155819](https://github.com/elastic/elasticsearch/pull/155819)
+
+Vector Search:
+* Cache little-endian float layout in the DiskBBQ scalar corrections loop [#154373](https://github.com/elastic/elasticsearch/pull/154373)
+
+
+### Fixes [elasticsearch-9.5.1-fixes]
+
+Analysis:
+* Trip the request breaker on term and phrase suggesters based on backing array estimates [#154837](https://github.com/elastic/elasticsearch/pull/154837)
+
+Codec:
+* Fix false positives in boolean queries with `must_not` clauses on non-indexed fields [#155936](https://github.com/elastic/elasticsearch/pull/155936) (issue: [#155653](https://github.com/elastic/elasticsearch/issues/155653))
+
+ES|QL:
+* Allow garbage collection of closed search contexts in ES|QL [#155418](https://github.com/elastic/elasticsearch/pull/155418)
+* Apply `PropagateEmptyRelation` to `AbstractSubqueryJoin` [#154768](https://github.com/elastic/elasticsearch/pull/154768) (issue: [#154755](https://github.com/elastic/elasticsearch/issues/154755))
+* Fix `BUCKET` with very large bucket counts [#153392](https://github.com/elastic/elasticsearch/pull/153392) (issue: [#153389](https://github.com/elastic/elasticsearch/issues/153389))
+* Fix `FROM_BASE64` generating invalid non-UTF-8 strings. Previously it could create binary values that ES|QL does not support in other operations; only valid UTF-8 is supported, and invalid cases now return null with a warning. [#154955](https://github.com/elastic/elasticsearch/pull/154955)
+* Fix `MV_SORT` incorrectly allowing geospatial types, which are not sortable [#154417](https://github.com/elastic/elasticsearch/pull/154417)
+* Fix exponential histogram merging with zero bucket overlap [#155459](https://github.com/elastic/elasticsearch/pull/155459) (issue: [#153665](https://github.com/elastic/elasticsearch/issues/153665))
+
+ILM:
+* Support dynamically enabling history indexes in `ILMHistoryTemplateRegistry` [#155602](https://github.com/elastic/elasticsearch/pull/155602) (issue: [#141807](https://github.com/elastic/elasticsearch/issues/141807))
+
+Infra/CLI:
+* Upgrade JANSI to 2.4.3 to fix terminal detection on zlib-ng based systems (EL10) [#155853](https://github.com/elastic/elasticsearch/pull/155853) (issue: [#154510](https://github.com/elastic/elasticsearch/issues/154510))
+
+Machine Learning:
+* Fix flaky `CIoManagerTest/testFileIoGood` test [#3017](https://github.com/elastic/ml-cpp/pull/3017)
+* Fix flaky concurrent LFU cache count invariant under lock timeouts [#3090](https://github.com/elastic/ml-cpp/pull/3090)
+* Mark the ML controller non-dumpable before accepting commands [#3081](https://github.com/elastic/ml-cpp/pull/3081)
+* Reject TorchScript custom state hooks before load and forbid `inductor::_reinterpret_tensor` [#3078](https://github.com/elastic/ml-cpp/pull/3078)
+* Reject non-native ABIs in the ML seccomp filter (`socketcall`/`getuid` collision) [#3080](https://github.com/elastic/ml-cpp/pull/3080)
+
+PromQL:
+* Support `date_nanos` timestamp indices [#153996](https://github.com/elastic/elasticsearch/pull/153996) (issue: [#146923](https://github.com/elastic/elasticsearch/issues/146923))
+
+Search:
+* Clamp merge scheduler thread count when it exceeds max merge count [#155693](https://github.com/elastic/elasticsearch/pull/155693) (issues: [#96594](https://github.com/elastic/elasticsearch/issues/96594), [#155678](https://github.com/elastic/elasticsearch/issues/155678))
+* Limit dot-separated identifiers per version part [#154572](https://github.com/elastic/elasticsearch/pull/154572)
+* Parse scroll ID from a bounded byte array [#154542](https://github.com/elastic/elasticsearch/pull/154542)
+* Use `readArraySize` in `readImmutableMap` and `readImmutableOpenMap` [#154525](https://github.com/elastic/elasticsearch/pull/154525)
+
+Vector Search:
+* Fix `EUCLIDEAN` score clamping order in the BBQ vector scorer [#155630](https://github.com/elastic/elasticsearch/pull/155630) (issue: [#155568](https://github.com/elastic/elasticsearch/issues/155568))
+
+## 9.4.5 [elasticsearch-9.4.5-release-notes]
+
+### Features and enhancements [elasticsearch-9.4.5-features-enhancements]
+
+FIPS:
+* Update Bouncy Castle FIPS TLS libraries [#155937](https://github.com/elastic/elasticsearch/pull/155937)
+
+Infra/Core:
+* Upgrade lz4-java to 1.11.1 [#155598](https://github.com/elastic/elasticsearch/pull/155598)
+
+Infra/Plugins:
+* Add `policy_base_id` field to fleet-agents and fleet-policies index templates [#154521](https://github.com/elastic/elasticsearch/pull/154521)
+
+Machine Learning:
+* Add EuroBERT and Jina v5 ops to the graph validation allowlist [#3015](https://github.com/elastic/ml-cpp/pull/3015)
+* Downgrade log severity for a batch of recoverable errors [#2889](https://github.com/elastic/ml-cpp/pull/2889)
+* Harden `pytorch_inference` with TorchScript model graph validation [#3008](https://github.com/elastic/ml-cpp/pull/3008) (issue: [#2890](https://github.com/elastic/ml-cpp/issues/2890))
+* Improve adherence to memory limits for the bucket gatherer [#2848](https://github.com/elastic/ml-cpp/pull/2848)
+* Improve error handling for quantiles state documents [#2894](https://github.com/elastic/ml-cpp/pull/2894)
+* Improve handling of invalid JSON state documents [#2895](https://github.com/elastic/ml-cpp/pull/2895)
+* Improve messaging for OOM process termination [#2841](https://github.com/elastic/ml-cpp/pull/2841)
+* Report the actual memory usage of the autodetect process [#2846](https://github.com/elastic/ml-cpp/pull/2846)
+* Restrict file system access for PyTorch models [#2851](https://github.com/elastic/ml-cpp/pull/2851)
+* Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
+
+Security:
+* Add security stats to the monitoring mapping [#155552](https://github.com/elastic/elasticsearch/pull/155552)
+* Upgrade Apache HttpComponents 5.x to address CVEs [#153057](https://github.com/elastic/elasticsearch/pull/153057)
+* Upgrade Apache HttpCore 5 to 5.4.3 to fix header DoS CVEs [#153467](https://github.com/elastic/elasticsearch/pull/153467)
+* Upgrade Bouncy Castle to 1.85 [#155819](https://github.com/elastic/elasticsearch/pull/155819)
+* Upgrade Jackson to 2.18.9 [#154569](https://github.com/elastic/elasticsearch/pull/154569)
+* Upgrade Log4j to 2.26.1 [#154115](https://github.com/elastic/elasticsearch/pull/154115)
+
+Vector Search:
+* Cache little-endian float layout in the DiskBBQ scalar corrections loop [#154373](https://github.com/elastic/elasticsearch/pull/154373)
+
+
+### Fixes [elasticsearch-9.4.5-fixes]
+
+Analysis:
+* Add a check against self-referencing filters [#154793](https://github.com/elastic/elasticsearch/pull/154793)
+* Trip the request breaker on term and phrase suggesters based on backing array estimates [#154837](https://github.com/elastic/elasticsearch/pull/154837)
+
+ES|QL:
+* Allow garbage collection of closed search contexts in ES|QL [#155418](https://github.com/elastic/elasticsearch/pull/155418)
+* Avoid an integer overflow loop in the `REPEAT` function [#154295](https://github.com/elastic/elasticsearch/pull/154295)
+* Fix `FROM_BASE64` generating invalid non-UTF-8 strings. Previously it could create binary values that ES|QL does not support in other operations; only valid UTF-8 is supported, and invalid cases now return null with a warning. [#154955](https://github.com/elastic/elasticsearch/pull/154955)
+* Fix `MV_SORT` incorrectly allowing geospatial types, which are not sortable [#154417](https://github.com/elastic/elasticsearch/pull/154417)
+* Fix a cause of lost ES|QL warnings by preserving thread context [#154016](https://github.com/elastic/elasticsearch/pull/154016)
+* Fix a concurrency issue in `InferenceOperator#pollNextRequest` for failed responses [#154972](https://github.com/elastic/elasticsearch/pull/154972) (issue: [#154866](https://github.com/elastic/elasticsearch/issues/154866))
+* Fix an off-by-one error in `ZeroBucket.index()` due to rounding errors [#153675](https://github.com/elastic/elasticsearch/pull/153675) (issue: [#153270](https://github.com/elastic/elasticsearch/issues/153270))
+* Fix incorrect inclusion of flattened subfields in multi-index queries [#154508](https://github.com/elastic/elasticsearch/pull/154508) (issues: [#154743](https://github.com/elastic/elasticsearch/issues/154743), [#154484](https://github.com/elastic/elasticsearch/issues/154484), [#154011](https://github.com/elastic/elasticsearch/issues/154011))
+* Fix view and alias data deduplication in `ViewResolver` [#154694](https://github.com/elastic/elasticsearch/pull/154694)
+* Guard `ROUND_TO` to fields from indices in the physical optimizer [#154317](https://github.com/elastic/elasticsearch/pull/154317) (issue: [#154315](https://github.com/elastic/elasticsearch/issues/154315))
+* Prevent mixing time series and standard indices with time series views [#153366](https://github.com/elastic/elasticsearch/pull/153366) (issues: [#149619](https://github.com/elastic/elasticsearch/issues/149619), [#153030](https://github.com/elastic/elasticsearch/issues/153030), [#145445](https://github.com/elastic/elasticsearch/issues/145445))
+* Retype `text` to `keyword` to fulfill the CASE `resolveType` contract [#154287](https://github.com/elastic/elasticsearch/pull/154287) (issue: [#154278](https://github.com/elastic/elasticsearch/issues/154278))
+
+Inference:
+* Delete default inference endpoints using the master node action only [#154735](https://github.com/elastic/elasticsearch/pull/154735) (issue: [#154710](https://github.com/elastic/elasticsearch/issues/154710))
+* Deploy text embedding models before the validation call [#153886](https://github.com/elastic/elasticsearch/pull/153886) (issue: [#144871](https://github.com/elastic/elasticsearch/issues/144871))
+* Fix SSE parser handling of empty lines and byte order marks [#154632](https://github.com/elastic/elasticsearch/pull/154632)
+* Fix SSE parsing across network read boundaries [#154155](https://github.com/elastic/elasticsearch/pull/154155) (issue: [#153980](https://github.com/elastic/elasticsearch/issues/153980))
+* Fix associating an inference endpoint with an ML node deployment [#153688](https://github.com/elastic/elasticsearch/pull/153688) (issue: [#144860](https://github.com/elastic/elasticsearch/issues/144860))
+
+Infra/CLI:
+* Upgrade JANSI to 2.4.3 to fix terminal detection on zlib-ng based systems (EL10) [#155853](https://github.com/elastic/elasticsearch/pull/155853) (issue: [#154510](https://github.com/elastic/elasticsearch/issues/154510))
+
+Machine Learning:
+* Fix double decrement of the pending inference request count [#154577](https://github.com/elastic/elasticsearch/pull/154577) (issue: [#154483](https://github.com/elastic/elasticsearch/issues/154483))
+* Fix flaky `CIoManagerTest/testFileIoGood` test [#3017](https://github.com/elastic/ml-cpp/pull/3017)
+* Fix flaky concurrent LFU cache count invariant under lock timeouts [#3090](https://github.com/elastic/ml-cpp/pull/3090)
+* Mark the ML controller non-dumpable before accepting commands [#3081](https://github.com/elastic/ml-cpp/pull/3081)
+* Reject TorchScript custom state hooks before load and forbid `inductor::_reinterpret_tensor` [#3078](https://github.com/elastic/ml-cpp/pull/3078)
+* Reject non-native ABIs in the ML seccomp filter (`socketcall`/`getuid` collision) [#3080](https://github.com/elastic/ml-cpp/pull/3080)
+* Use the model's `deployment_id` when waiting for model allocation [#153213](https://github.com/elastic/elasticsearch/pull/153213) (issue: [#146835](https://github.com/elastic/elasticsearch/issues/146835))
+* Validate the inference ingest processor `target_field` [#154795](https://github.com/elastic/elasticsearch/pull/154795) (issue: [#88059](https://github.com/elastic/elasticsearch/issues/88059))
+
+Mapping:
+* Fix wildcard queries on keyword fields whose normalizer rewrites wildcard characters [#153582](https://github.com/elastic/elasticsearch/pull/153582) (issue: [#150699](https://github.com/elastic/elasticsearch/issues/150699))
+
+Ranking:
+* Add a hardcoded limit on nested retrievers [#154814](https://github.com/elastic/elasticsearch/pull/154814)
+* Fix an error caused by empty reranker results [#155099](https://github.com/elastic/elasticsearch/pull/155099)
+
+Search:
+* Apply `max_regex_length` limit to intervals regexp and wildcard rules [#155231](https://github.com/elastic/elasticsearch/pull/155231)
+* Bound numeric string length before parsing [#154689](https://github.com/elastic/elasticsearch/pull/154689)
+* Clamp merge scheduler thread count when it exceeds max merge count [#155693](https://github.com/elastic/elasticsearch/pull/155693) (issues: [#96594](https://github.com/elastic/elasticsearch/issues/96594), [#155678](https://github.com/elastic/elasticsearch/issues/155678))
+* Ensure cancelled `_field_caps` tasks are removed from the tasks API [#153831](https://github.com/elastic/elasticsearch/pull/153831) (issue: [#137475](https://github.com/elastic/elasticsearch/issues/137475))
+* Limit dot-separated identifiers per version part [#154572](https://github.com/elastic/elasticsearch/pull/154572)
+* Parse scroll ID from a bounded byte array [#154542](https://github.com/elastic/elasticsearch/pull/154542)
+* Prevent out-of-memory errors caused by scripted fields [#152718](https://github.com/elastic/elasticsearch/pull/152718) (issue: [#120459](https://github.com/elastic/elasticsearch/issues/120459))
+* Reserve regexp automaton memory on the circuit breaker before building it [#155076](https://github.com/elastic/elasticsearch/pull/155076)
+* Use `readArraySize` in `readImmutableMap` and `readImmutableOpenMap` [#154525](https://github.com/elastic/elasticsearch/pull/154525)
+
+Transform:
+* Retry transient failures during restarts [#153298](https://github.com/elastic/elasticsearch/pull/153298)
+
+Vector Search:
+* Fix `EUCLIDEAN` score clamping order in the BBQ vector scorer [#155630](https://github.com/elastic/elasticsearch/pull/155630) (issue: [#155568](https://github.com/elastic/elasticsearch/issues/155568))
+
 ## 9.5.0 [elasticsearch-9.5.0-release-notes]
 
 ### Highlights [elasticsearch-9.5.0-highlights]
@@ -619,6 +863,7 @@ ES|QL:
 * Helpful logging for NPE investigation [#147701](https://github.com/elastic/elasticsearch/pull/147701) (issue: [#146545](https://github.com/elastic/elasticsearch/issues/146545))
 * Implicit cast based on widened type [#153268](https://github.com/elastic/elasticsearch/pull/153268) (issue: [#152997](https://github.com/elastic/elasticsearch/issues/152997))
 * Keep LIMIT BY above MV_EXPAND when needed [#149911](https://github.com/elastic/elasticsearch/pull/149911) (issue: [#148513](https://github.com/elastic/elasticsearch/issues/148513))
+* Make `CompoundOutputEval` implement `SortAgnostic` [#148521](https://github.com/elastic/elasticsearch/pull/148521) (issue: [#148500](https://github.com/elastic/elasticsearch/issues/148500))
 * Mark histogram and tsid as unsortable [#149085](https://github.com/elastic/elasticsearch/pull/149085)
 * Materialize dropped field from one FORK branch in other branches under unmapped_fields="load" [#153288](https://github.com/elastic/elasticsearch/pull/153288) (issue: [#152843](https://github.com/elastic/elasticsearch/issues/152843))
 * More tests and bug fix for In Subquery with TS [#150324](https://github.com/elastic/elasticsearch/pull/150324)
@@ -747,8 +992,6 @@ Vector Search:
 * Fix IVF query cache correctness by including resolver in equals/hashCode [#155205](https://github.com/elastic/elasticsearch/pull/155205)
 * [DiskBBQ] Fix a bug where we might incorrectly assign to centroid 0 [#152243](https://github.com/elastic/elasticsearch/pull/152243)
 
-
-
 ## 9.4.4 [elasticsearch-9.4.4-release-notes]
 
 ::::{important}
@@ -845,8 +1088,6 @@ TSDB:
 Transform:
 * Tighten retry startup logic [#152803](https://github.com/elastic/elasticsearch/pull/152803)
 
-
-
 ## 9.3.8 [elasticsearch-9.3.8-release-notes]
 
 ::::{important}
@@ -921,8 +1162,6 @@ TSDB:
 Transform:
 * Tighten retry startup logic [#152803](https://github.com/elastic/elasticsearch/pull/152803)
 
-
-
 ## 9.3.7 [elasticsearch-9.3.7-release-notes]
 
 ### Features and enhancements [elasticsearch-9.3.7-features-enhancements]
@@ -949,8 +1188,6 @@ Infra/Core:
 Machine Learning:
 * Fix bug causing incorrect error on force deleting already deleted model [#107188](https://github.com/elastic/elasticsearch/pull/107188) (issue: [#105420](https://github.com/elastic/elasticsearch/issues/105420))
 * Revert "[ML] Add extra validation in `trained_model` creation" [#152000](https://github.com/elastic/elasticsearch/pull/152000)
-
-
 
 ## 9.4.3 [elasticsearch-9.4.3-release-notes]
 
@@ -1024,8 +1261,6 @@ TSDB:
 Vector Search:
 * Fix GPU SQ format name to match CPU equivalent [#149512](https://github.com/elastic/elasticsearch/pull/149512) (issue: [#148975](https://github.com/elastic/elasticsearch/issues/148975))
 
-
-
 ## 9.3.6 [elasticsearch-9.3.6-release-notes]
 
 ### Features and enhancements [elasticsearch-9.3.6-features-enhancements]
@@ -1097,8 +1332,6 @@ TSDB:
 
 Transform:
 * Honor `ClusterHealth` timeout when waiting for transform internal index shards [#149462](https://github.com/elastic/elasticsearch/pull/149462) (issue: [#149400](https://github.com/elastic/elasticsearch/issues/149400))
-
-
 
 ## 9.4.2 [elasticsearch-9.4.2-release-notes]
 
@@ -1185,8 +1418,6 @@ Transform:
 Vector Search:
 * Fix gpu close resource ordering [#149054](https://github.com/elastic/elasticsearch/pull/149054)
 * GPU codec: fall back to CPU graph build on flush when GPU is busy [#149373](https://github.com/elastic/elasticsearch/pull/149373)
-
-
 
 ## 9.3.5 [elasticsearch-9.3.5-release-notes]
 
@@ -1286,8 +1517,6 @@ Watcher:
 * Clear watch schedules when starting trigger engine [#145325](https://github.com/elastic/elasticsearch/pull/145325) (issues: [#137562](https://github.com/elastic/elasticsearch/issues/137562), [#131964](https://github.com/elastic/elasticsearch/issues/131964))
 * Fix race in `TickerScheduleTriggerEngine` by checking watcher to node allocation [#147678](https://github.com/elastic/elasticsearch/pull/147678) (issue: [#146874](https://github.com/elastic/elasticsearch/issues/146874))
 
-
-
 ## 9.4.1 [elasticsearch-9.4.1-release-notes]
 
 ### Features and enhancements [elasticsearch-9.4.1-features-enhancements]
@@ -1334,8 +1563,6 @@ Vector Search:
 
 Watcher:
 * Fix race in `TickerScheduleTriggerEngine` by checking watcher to node allocation [#147678](https://github.com/elastic/elasticsearch/pull/147678) (issue: [#146874](https://github.com/elastic/elasticsearch/issues/146874))
-
-
 
 ## 9.4.0 [elasticsearch-9.4.0-release-notes]
 
@@ -2161,8 +2388,6 @@ Vector Search:
 Watcher:
 * Clear watch schedules when starting trigger engine [#145325](https://github.com/elastic/elasticsearch/pull/145325) (issues: [#137562](https://github.com/elastic/elasticsearch/issues/137562), [#131964](https://github.com/elastic/elasticsearch/issues/131964))
 
-
-
 ## 9.3.4 [elasticsearch-9.3.4-release-notes]
 
 ### Features and enhancements [elasticsearch-9.3.4-features-enhancements]
@@ -2227,8 +2452,6 @@ Vector Search:
 * [DiskBBQ] Fix `offHeap` size for empty indices [#146347](https://github.com/elastic/elasticsearch/pull/146347)
 * [DiskBBQ] Wait for queue saturation in `MaxScoreTopKnnCollector` [#145341](https://github.com/elastic/elasticsearch/pull/145341)
 
-
-
 ## 9.2.8 [elasticsearch-9.2.8-release-notes]
 
 ### Features and enhancements [elasticsearch-9.2.8-features-enhancements]
@@ -2281,8 +2504,6 @@ Vector Search:
 
 Watcher:
 * Validate Watcher Proxy Allowlist [#144759](https://github.com/elastic/elasticsearch/pull/144759)
-
-
 
 ## 9.3.3 [elasticsearch-9.3.3-release-notes]
 
@@ -2337,8 +2558,6 @@ Vector Search:
 * [DiskBBQ] Fix index sorting on flush [#144938](https://github.com/elastic/elasticsearch/pull/144938)
 * [DiskBBQ] Fix index sorting on flush (2nd attempt) [#145076](https://github.com/elastic/elasticsearch/pull/145076)
 
-
-
 ## 9.2.7 [elasticsearch-9.2.7-release-notes]
 
 ### Features and enhancements [elasticsearch-9.2.7-features-enhancements]
@@ -2392,8 +2611,6 @@ Snapshot/Restore:
 
 Transform:
 * [ML]Fix latest transforms disregarding updates when sort and sync fields are non-monotonic [#142856](https://github.com/elastic/elasticsearch/pull/142856) (issue: [#90643](https://github.com/elastic/elasticsearch/issues/90643))
-
-
 
 ## 9.3.2 [elasticsearch-9.3.2-release-notes]
 
@@ -2466,8 +2683,6 @@ Transform:
 Vector Search:
 * Fix GPU merge `ClassCastException` with wrapped directories [#143531](https://github.com/elastic/elasticsearch/pull/143531)
 
-
-
 ## 9.2.6 [elasticsearch-9.2.6-release-notes]
 
 ### Features and enhancements [elasticsearch-9.2.6-features-enhancements]
@@ -2525,8 +2740,6 @@ Snapshot/Restore:
 Transform:
 * Fix transform producing empty dest index when source query references runtime fields [#142450](https://github.com/elastic/elasticsearch/pull/142450) (issue: [#113156](https://github.com/elastic/elasticsearch/issues/113156))
 * Fix transform validation to reject PUT and `_start` when user lacks remote index permissions [#142403](https://github.com/elastic/elasticsearch/pull/142403) (issue: [#95367](https://github.com/elastic/elasticsearch/issues/95367))
-
-
 
 ## 9.3.1 [elasticsearch-9.3.1-release-notes]
 
@@ -2608,8 +2821,6 @@ Transform:
 
 Vector Search:
 * [GPU] Handle segments too big for MSAI segment access [#141872](https://github.com/elastic/elasticsearch/pull/141872) (issue: [#141746](https://github.com/elastic/elasticsearch/issues/141746))
-
-
 
 ## 9.3.0 [elasticsearch-9.3.0-release-notes]
 
@@ -3125,8 +3336,6 @@ Vector Search:
 * Ensure we parse `on_disk_rescore` as its valid to pass false [#141158](https://github.com/elastic/elasticsearch/pull/141158)
 * Intercept filters to knn queries [#138457](https://github.com/elastic/elasticsearch/pull/138457) (issue: [#138410](https://github.com/elastic/elasticsearch/issues/138410))
 
-
-
 ## 9.2.5 [elasticsearch-9.2.5-release-notes]
 
 ### Features and enhancements [elasticsearch-9.2.5-features-enhancements]
@@ -3177,8 +3386,6 @@ Search:
 Snapshot/Restore:
 * Fix race condition in `CancellableRateLimitedFluxIterator` [#141323](https://github.com/elastic/elasticsearch/pull/141323)
 
-
-
 ## 9.1.10 [elasticsearch-9.1.10-release-notes]
 
 ### Features and enhancements [elasticsearch-9.1.10-features-enhancements]
@@ -3216,8 +3423,6 @@ Recovery:
 
 Transform:
 * Reduce task match load [#139857](https://github.com/elastic/elasticsearch/pull/139857) (issue: [#139252](https://github.com/elastic/elasticsearch/issues/139252))
-
-
 
 ## 9.2.4 [elasticsearch-9.2.4-release-notes]
 
@@ -3268,8 +3473,6 @@ Snapshot/Restore:
 
 Transform:
 * Reduce task match load [#139857](https://github.com/elastic/elasticsearch/pull/139857) (issue: [#139252](https://github.com/elastic/elasticsearch/issues/139252))
-
-
 
 ## 9.1.9 [elasticsearch-9.1.9-release-notes]
 
@@ -3323,8 +3526,6 @@ Security:
 
 Stats:
 * Improving performance of stats APIs when the number of shards is very large [#138126](https://github.com/elastic/elasticsearch/pull/138126) (issue: [#97222](https://github.com/elastic/elasticsearch/issues/97222))
-
-
 
 ## 9.2.3 [elasticsearch-9.2.3-release-notes]
 
@@ -3386,8 +3587,6 @@ Stats:
 
 Vector Search:
 * Disallow index types updates to bbq_disk, revert [#139061](https://github.com/elastic/elasticsearch/pull/139061)
-
-
 
 ## 9.2.2 [elasticsearch-9.2.2-release-notes]
 
@@ -3483,8 +3682,6 @@ Vector Search:
 * Update to Lucene 10.3.2 [#138230](https://github.com/elastic/elasticsearch/pull/138230) (issue: [#135718](https://github.com/elastic/elasticsearch/issues/135718))
 * [Vector Search] Fix  wrong vector docvalue_fields [#137862](https://github.com/elastic/elasticsearch/pull/137862)
 
-
-
 ## 9.1.8 [elasticsearch-9.1.8-release-notes]
 
 ### Features and enhancements [elasticsearch-9.1.8-features-enhancements]
@@ -3554,8 +3751,6 @@ Snapshot/Restore:
 Vector Search:
 * [Vector Search] Fix  wrong vector docvalue_fields [#137862](https://github.com/elastic/elasticsearch/pull/137862)
 
-
-
 ## 9.1.7 [elasticsearch-9.1.7-release-notes]
 
 ### Features and enhancements [elasticsearch-9.1.7-features-enhancements]
@@ -3610,8 +3805,6 @@ Search:
 * Make `MutableSearchResponse` ref-counted to prevent use-after-close in async search [#134359](https://github.com/elastic/elasticsearch/pull/134359)
 * Remove early phase failure in batched [#136889](https://github.com/elastic/elasticsearch/pull/136889) (issue: [#134151](https://github.com/elastic/elasticsearch/issues/134151))
 * [LTR] Fix feature display order when using explain [#137671](https://github.com/elastic/elasticsearch/pull/137671)
-
-
 
 ## 9.2.1 [elasticsearch-9.2.1-release-notes]
 
@@ -3704,8 +3897,6 @@ TSDB:
 Vector Search:
 * Use Suppliers To Get Inference Results In Semantic Queries [#136720](https://github.com/elastic/elasticsearch/pull/136720) (issue: [#136621](https://github.com/elastic/elasticsearch/issues/136621))
 
-
-
 ## 9.1.6 [elasticsearch-9.1.6-release-notes]
 
 ### Features and enhancements [elasticsearch-9.1.6-features-enhancements]
@@ -3754,15 +3945,13 @@ Transform:
 Vector Search:
 * Cardinality Aggregator Throws `UnsupportedOperationException` When Field Type is Vector [#135994](https://github.com/elastic/elasticsearch/pull/135994)
 
-
-
 ## 9.2.0 [elasticsearch-9.2.0-release-notes]
 
 ### Highlights [elasticsearch-9.2.0-highlights]
 
 ::::{dropdown} Enable Failure Store for new logs data streams
 The [Failure Store](docs-content://manage-data/data-store/data-streams/failure-store.md) is now enabled by default for new logs data streams matching the pattern `logs-*-*`. This means that such data streams will now store invalid documents in a
-dedicated failure index instead of rejecting them, allowing better visibility and control over data quality issues without loosing data. This can be [enabled manually](docs-content://manage-data/data-store/data-streams/failure-store.md#set-up-failure-store-existing) for existing data streams. 
+dedicated failure index instead of rejecting them, allowing better visibility and control over data quality issues without loosing data. This can be [enabled manually](docs-content://manage-data/data-store/data-streams/failure-store.md#set-up-failure-store-existing) for existing data streams.
 Note: With the failure store enabled, the http response code clients receive when indexing invalid documents will change from `400 Bad Request` to `201 Created`, with an additional response attribute `"failure_store" : "used"`.
 ::::
 
@@ -4239,8 +4428,6 @@ Vector Search:
 * Fix _inference_fields handling on old indices [#136312](https://github.com/elastic/elasticsearch/pull/136312) (issue: [#136130](https://github.com/elastic/elasticsearch/issues/136130))
 * Have top level knn searches tracked in query stats [#132548](https://github.com/elastic/elasticsearch/pull/132548)
 
-
-
 ## 9.0.8 [elasticsearch-9.0.8-release-notes]
 
 ### Highlights [elasticsearch-9.0.8-highlights]
@@ -4297,8 +4484,6 @@ Search:
 Transform:
 * Fix a bug in the GET _transform API that incorrectly claims some Transform configurations are missing [#134963](https://github.com/elastic/elasticsearch/pull/134963) (issue: [#134263](https://github.com/elastic/elasticsearch/issues/134263))
 * Prevent Transform from queuing too many PIT close requests by waiting for PIT to close before finishing the checkpoint [#134955](https://github.com/elastic/elasticsearch/pull/134955) (issue: [#134925](https://github.com/elastic/elasticsearch/issues/134925))
-
-
 
 ## 9.1.5 [elasticsearch-9.1.5-release-notes]
 
@@ -4375,8 +4560,6 @@ Transform:
 * Fix a bug in the GET _transform API that incorrectly claims some Transform configurations are missing [#134963](https://github.com/elastic/elasticsearch/pull/134963) (issue: [#134263](https://github.com/elastic/elasticsearch/issues/134263))
 * Prevent Transform from queuing too many PIT close requests by waiting for PIT to close before finishing the checkpoint [#134955](https://github.com/elastic/elasticsearch/pull/134955) (issue: [#134925](https://github.com/elastic/elasticsearch/issues/134925))
 
-
-
 ## 9.1.4 [elasticsearch-9.1.4-release-notes]
 
 ### Features and enhancements [elasticsearch-9.1.4-features-enhancements]
@@ -4448,8 +4631,6 @@ Search:
 Snapshot/Restore:
 * Delay S3 repo warning if default region absent [#133848](https://github.com/elastic/elasticsearch/pull/133848)
 
-
-
 ## 9.0.7 [elasticsearch-9.0.7-release-notes]
 
 ### Features and enhancements [elasticsearch-9.0.7-features-enhancements]
@@ -4501,8 +4682,6 @@ Relevance:
 Search:
 * KQL: Support boolean operators in field queries [#133737](https://github.com/elastic/elasticsearch/pull/133737) (issue: [#132366](https://github.com/elastic/elasticsearch/issues/132366))
 
-
-
 ## 9.0.6 [elasticsearch-9.0.6-release-notes]
 
 ### Highlights [elasticsearch-9.0.6-highlights]
@@ -4542,8 +4721,6 @@ Machine Learning:
 * Disable child span for streaming tasks [#132945](https://github.com/elastic/elasticsearch/pull/132945)
 * Improve EIS auth call logs and fix revocation bug [#132546](https://github.com/elastic/elasticsearch/pull/132546)
 * Preserve lost thread context in node inference action. A lost context causes a memory leak if APM tracing is enabled [#132973](https://github.com/elastic/elasticsearch/pull/132973)
-
-
 
 ## 9.1.3 [elasticsearch-9.1.3-release-notes]
 
@@ -4593,8 +4770,6 @@ Machine Learning:
 Search:
 * Don't fail search if bottom doc can't be formatted [#133188](https://github.com/elastic/elasticsearch/pull/133188) (issue: [#125321](https://github.com/elastic/elasticsearch/issues/125321))
 
-
-
 ## 9.1.2 [elasticsearch-9.1.2-release-notes]
 
 ### Features and enhancements [elasticsearch-9.1.2-features-enhancements]
@@ -4637,8 +4812,6 @@ Search:
 Exceptions in fetch sub-phases (for example, `setNextReader`) left the profiling timer running, causing mismatched start/stop calls and errors.
 [#132570](https://github.com/elastic/elasticsearch/pull/132570) ensures the `timer.stop()` call always stops.
 :::
-
-
 
 ## 9.0.5 [elasticsearch-9.0.5-release-notes]
 
@@ -4742,8 +4915,6 @@ Snapshot/Restore:
 Verifying the integrity of a brand-new snapshot repository without any index blobs failed with a low-level error because the repository generation was `-1`, which cannot be sent over the wire. [#131677](https://github.com/elastic/elasticsearch/pull/131677) updates the logic to reject such requests early with a clearer, more helpful error message.
 :::
 
-
-
 ## 9.1.1 [elasticsearch-9.1.1-release-notes]
 
 ### Fixes [elasticsearch-9.1.1-fixes]
@@ -4836,8 +5007,6 @@ The timeout cancellation callback registered in `QueryPhase` via `addQueryCancel
 This caused unintended timeouts or cancellations during subsequent phases under specific conditions (such as large datasets, low timeouts, and partial search results enabled).
 [#130279](https://github.com/elastic/elasticsearch/pull/130279) resolves the issue and ensures predictable behavior by reintroducing the cleanup logic. (issue: [#130071](https://github.com/elastic/elasticsearch/issues/130071))
 :::
-
-
 
 ## 9.1.0 [elasticsearch-9.1.0-release-notes]
 
@@ -5437,8 +5606,6 @@ Vector Search:
 * Fix filtered knn vector search when query timeouts are enabled [#129440](https://github.com/elastic/elasticsearch/pull/129440)
 * Fix top level knn search with scroll [#126035](https://github.com/elastic/elasticsearch/pull/126035)
 
-
-
 ## 9.0.4 [elasticsearch-9.0.4-release-notes]
 
 ### Fixes [elasticsearch-9.0.4-fixes]
@@ -5478,8 +5645,6 @@ Search:
 
 Vector Search:
 * Fix knn search error when dimensions are not set [#131081](https://github.com/elastic/elasticsearch/pull/131081) (issue: [#129550](https://github.com/elastic/elasticsearch/issues/129550))
-
-
 
 ## 9.0.3 [elasticsearch-9.0.3-release-notes]
 
@@ -5551,8 +5716,6 @@ Searchable Snapshots:
 Security:
 * Fix error message when changing the password for a user in the file realm [#127621](https://github.com/elastic/elasticsearch/pull/127621)
 
-
-
 ## 9.0.2 [elasticsearch-9.0.2-release-notes]
 
 ### Features and enhancements [elasticsearch-9.0.2-features-enhancements]
@@ -5621,8 +5784,6 @@ TSDB:
 
 Vector Search:
 * [9.x] Revert "Enable madvise by default for all builds" [#127921](https://github.com/elastic/elasticsearch/pull/127921)
-
-
 
 ## 9.0.1 [elasticsearch-9.0.1-release-notes]
 
@@ -5693,8 +5854,6 @@ Task Management:
 Vector Search:
 * Fix `vec_caps` to test for OS support too (on x64) [#126911](https://github.com/elastic/elasticsearch/pull/126911) (issue: [#126809](https://github.com/elastic/elasticsearch/issues/126809))
 * Fix bbq quantization algorithm but for differently distributed components [#126778](https://github.com/elastic/elasticsearch/pull/126778)
-
-
 
 ## 9.0.0 [elasticsearch-900-release-notes]
 

@@ -11,6 +11,8 @@ package org.elasticsearch.search.aggregations;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -37,6 +39,7 @@ import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregatio
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -318,6 +321,41 @@ public class AggregatorFactoriesTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("exceeds the maximum nested depth for aggregations of [" + maxDepth + "]"));
     }
 
+    public void testMaxNestedDepthEnforcedAtValidationTime() {
+        int maxDepth = defaultMaxNestedDepth();
+        ActionRequestValidationException e = nestedTermsBuilder(maxDepth + 1).validate(null);
+        assertNotNull(e);
+        assertThat(e.getMessage(), containsString("exceeds the maximum nested depth for aggregations of [" + maxDepth + "]"));
+    }
+
+    public void testValidationOfVeryDeepTreeDoesNotOverflowTheStack() {
+        int maxDepth = defaultMaxNestedDepth();
+        ActionRequestValidationException e = veryDeeplyNestedTermsBuilder().validate(null);
+        assertNotNull(e);
+        assertThat(e.getMessage(), containsString(maxNestedDepthExceededMessage(maxDepth)));
+    }
+
+    public void testValidationOfVeryDeepTreeInSearchRequestDoesNotOverflowTheStack() {
+        int maxDepth = defaultMaxNestedDepth();
+        SearchRequest request = new SearchRequest().source(new SearchSourceBuilder().aggregationsBuilder(veryDeeplyNestedTermsBuilder()));
+        ActionRequestValidationException e = request.validate();
+        assertNotNull(e);
+        assertThat(e.getMessage(), containsString(maxNestedDepthExceededMessage(maxDepth)));
+    }
+
+    public void testMaxNestedDepthEnforcedAtValidationTimeRegardlessOfAllowPartialSearchResults() {
+        int maxDepth = defaultMaxNestedDepth();
+        SearchRequest request = new SearchRequest().source(new SearchSourceBuilder().aggregationsBuilder(nestedTermsBuilder(maxDepth + 1)))
+            .allowPartialSearchResults(true);
+        ActionRequestValidationException e = request.validate();
+        assertNotNull(e);
+        assertThat(e.getMessage(), containsString("exceeds the maximum nested depth for aggregations of [" + maxDepth + "]"));
+    }
+
+    public void testMaxNestedDepthBoundaryAcceptedAtValidationTime() {
+        assertNull(nestedTermsBuilder(defaultMaxNestedDepth()).validate(null));
+    }
+
     public void testMaxNestedDepthBoundaryAcceptedAtBuildTime() {
         AggregatorFactories.Builder atLimit = nestedTermsBuilder(defaultMaxNestedDepth());
         try {
@@ -329,6 +367,17 @@ public class AggregatorFactoriesTests extends ESTestCase {
                 not(containsString("maximum nested depth"))
             );
         }
+    }
+
+    private static AggregatorFactories.Builder veryDeeplyNestedTermsBuilder() {
+        TermsAggregationBuilder leaf = new TermsAggregationBuilder("a0").field("f");
+        AggregatorFactories.Builder builder = new AggregatorFactories.Builder().addAggregator(leaf);
+        for (int i = 1; i < 20_000; i++) {
+            TermsAggregationBuilder child = new TermsAggregationBuilder("a" + i).field("f");
+            leaf.subAggregation(child);
+            leaf = child;
+        }
+        return builder;
     }
 
     private static AggregatorFactories.Builder nestedTermsBuilder(int depth) {
@@ -344,6 +393,18 @@ public class AggregatorFactoriesTests extends ESTestCase {
 
     private static int defaultMaxNestedDepth() {
         return AggregatorFactories.MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY);
+    }
+
+    /**
+     * Mirrors {@code AggregatorFactories.maxNestedDepthExceededMessage()} so tests can assert against the full
+     * expected message, including the setting name, rather than a hand-typed partial substring.
+     */
+    private static String maxNestedDepthExceededMessage(int maxDepth) {
+        return "The nested depth of the aggregations exceeds the maximum nested depth for aggregations of ["
+            + maxDepth
+            + "] set in ["
+            + AggregatorFactories.MAX_NESTED_DEPTH_SETTING.getKey()
+            + "]";
     }
 
     private void assertNestedDepthAccepted(int depth) throws IOException {

@@ -922,15 +922,12 @@ public class KnnSearcher {
                 indexType == KnnIndexTester.IndexType.HNSW && searchParameters.earlyTermination()
             );
         }
+        // PostFilterKnnQuery takes the FINAL result count; the candidate pool it aims for comes from
+        // PostFilterableKnnQuery#candidatePoolK (k for HNSW, which was pre-oversampled above; the internal
+        // expansion for IVF). Passing overSampledTopK here would make the orchestrator demand an
+        // already-oversampled count of filter survivors before it accepted the post-filter result.
         if (searchParameters.postFilter() && filterQuery != null && knnQuery instanceof PostFilterableKnnQuery pfKnnQuery) {
-            knnQuery = new PostFilterKnnQuery(
-                pfKnnQuery,
-                filterQuery,
-                overSampledTopK,
-                VECTOR_FIELD,
-                null,
-                BENCHMARK_POST_FILTERING_THRESHOLD
-            );
+            knnQuery = new PostFilterKnnQuery(pfKnnQuery, filterQuery, resultK, VECTOR_FIELD, null, BENCHMARK_POST_FILTERING_THRESHOLD);
         }
         if (searchParameters.overSamplingFactor() > 1f && testConfiguration.autoCalibrate() == false) {
             knnQuery = RescoreKnnVectorQuery.fromInnerQuery(VECTOR_FIELD, vector, resultK, overSampledTopK, knnQuery);

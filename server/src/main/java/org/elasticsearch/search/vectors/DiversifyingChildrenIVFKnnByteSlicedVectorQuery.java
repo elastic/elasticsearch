@@ -49,8 +49,41 @@ public class DiversifyingChildrenIVFKnnByteSlicedVectorQuery extends IVFKnnByteS
         String sliceField,
         BytesRef... sliceIds
     ) {
-        super(field, query, k, numCands, childFilter, visitRatio, queryConfigResolver, sliceField, sliceIds);
+        this(field, query, k, numCands, childFilter, parentsFilter, visitRatio, queryConfigResolver, false, sliceField, sliceIds);
+    }
+
+    DiversifyingChildrenIVFKnnByteSlicedVectorQuery(
+        String field,
+        byte[] query,
+        int k,
+        int numCands,
+        Query childFilter,
+        BitSetProducer parentsFilter,
+        float visitRatio,
+        IvfQueryConfigResolver queryConfigResolver,
+        boolean postFilterDelegate,
+        String sliceField,
+        BytesRef... sliceIds
+    ) {
+        super(field, query, k, numCands, childFilter, visitRatio, queryConfigResolver, postFilterDelegate, sliceField, sliceIds);
         this.parentsFilter = Objects.requireNonNull(parentsFilter);
+    }
+
+    @Override
+    protected DiversifyingChildrenIVFKnnByteSlicedVectorQuery withParams(Query filter, int k, int numCands, boolean postFilterDelegate) {
+        return new DiversifyingChildrenIVFKnnByteSlicedVectorQuery(
+            field,
+            query,
+            k,
+            numCands,
+            filter,
+            parentsFilter,
+            providedVisitRatio,
+            ivfQueryConfigResolver,
+            postFilterDelegate,
+            sliceField,
+            sliceIds
+        );
     }
 
     @Override

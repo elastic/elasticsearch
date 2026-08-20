@@ -31,6 +31,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.function.LongSupplier;
 
 /**
@@ -60,12 +61,37 @@ public class IVFKnnByteVectorQuery extends AbstractIVFKnnVectorQuery {
         float visitRatio,
         IvfQueryConfigResolver queryConfigResolver
     ) {
-        super(field, visitRatio, k, numCands, filter, queryConfigResolver);
+        this(field, query, k, numCands, filter, visitRatio, queryConfigResolver, false);
+    }
+
+    IVFKnnByteVectorQuery(
+        String field,
+        byte[] query,
+        int k,
+        int numCands,
+        Query filter,
+        float visitRatio,
+        IvfQueryConfigResolver queryConfigResolver,
+        boolean postFilterDelegate
+    ) {
+        super(field, visitRatio, k, numCands, filter, queryConfigResolver, postFilterDelegate);
         this.query = query;
     }
 
     public byte[] getQuery() {
         return query;
+    }
+
+    @Override
+    protected IVFKnnByteVectorQuery withParams(Query filter, int k, int numCands, boolean postFilterDelegate) {
+        return new IVFKnnByteVectorQuery(field, query, k, numCands, filter, providedVisitRatio, ivfQueryConfigResolver, postFilterDelegate);
+    }
+
+    /** BYTE-encoded vectors: counting the FLOAT32 values of a byte field would yield 0 and silently
+     *  disable post-filtering (see {@link KnnQueryUtils#countByteVectors}). */
+    @Override
+    public int countTotalVectors(List<LeafReaderContext> leaves) throws IOException {
+        return KnnQueryUtils.countByteVectors(field, leaves);
     }
 
     @Override
@@ -174,9 +200,8 @@ public class IVFKnnByteVectorQuery extends AbstractIVFKnnVectorQuery {
     }
 
     @Override
-    Query getAutoRescoreQuery(IndexSearcher indexSearcher, TopDocs topOversampled, int effectiveK) {
-        Query topDocsQuery = new KnnScoreDocQuery(topOversampled.scoreDocs, indexSearcher.getIndexReader());
-        return RescoreKnnVectorQuery.fromInnerQuery(field, query, k, effectiveK, topDocsQuery);
+    Query getAutoRescoreQuery(IndexSearcher indexSearcher, Query approxTopN, int finalK, int rescoreK) {
+        return RescoreKnnVectorQuery.fromInnerQuery(field, query, finalK, rescoreK, approxTopN);
     }
 
     private TopDocs approximateSearch(

@@ -60,6 +60,19 @@ public class IvfQueryConfigResolver {
         return autoCalibrate;
     }
 
+    /**
+     * The oversample that configuration alone asks for: the query-time override when there is one, otherwise
+     * the mapping default.
+     * <p>
+     * "Declared" contrasts with the effective value {@link #resolve} produces, which slots a calibrated
+     * segment's own persisted factor in ahead of the mapping default. Callers use this to size a candidate
+     * pool before any segment has been read, so under {@link #isAutoCalibrate()} an individual leaf can still
+     * end up applying something different - treat it as an estimate, not a guarantee.
+     */
+    public float declaredRescoreOversample() {
+        return queryOversample != null ? queryOversample : mappingRescoreOversample;
+    }
+
     public IvfSegmentConfig resolve(FieldInfo fieldInfo, LeafReader leafReader) throws IOException {
         IvfSegmentConfig raw = autoCalibrate ? resolveCalibrated(fieldInfo, leafReader) : mappingDefaults();
         return IvfSegmentConfig.withEffectiveRescoreOversample(raw, queryOversample, mappingRescoreOversample);

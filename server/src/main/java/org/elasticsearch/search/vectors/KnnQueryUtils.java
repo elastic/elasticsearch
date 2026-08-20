@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
@@ -38,6 +40,40 @@ public final class KnnQueryUtils {
 
     public record FilterWeight(@Nullable Weight weight) {
         static final FilterWeight MATCH_NO_DOCS = new FilterWeight(null);
+    }
+
+    /**
+     * Total number of {@code FLOAT32}-encoded vectors indexed for {@code field} across {@code leaves}.
+     * Use for {@link org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType#FLOAT} and
+     * {@code BFLOAT16} fields, which both index as {@link org.apache.lucene.index.VectorEncoding#FLOAT32}.
+     * A leaf that does not index {@code field} contributes nothing.
+     */
+    public static int countFloatVectors(String field, List<LeafReaderContext> leaves) throws IOException {
+        int totalVectors = 0;
+        for (LeafReaderContext leaf : leaves) {
+            FloatVectorValues values = leaf.reader().getFloatVectorValues(field);
+            if (values != null) {
+                totalVectors += values.size();
+            }
+        }
+        return totalVectors;
+    }
+
+    /**
+     * Total number of {@code BYTE}-encoded vectors indexed for {@code field} across {@code leaves}.
+     * Counting the wrong encoding yields 0, which {@link #computeSelectivity} turns into a selectivity of
+     * 0 and silently disables post-filtering — so implementations must pick the counter that matches the
+     * query's own encoding.
+     */
+    public static int countByteVectors(String field, List<LeafReaderContext> leaves) throws IOException {
+        int totalVectors = 0;
+        for (LeafReaderContext leaf : leaves) {
+            ByteVectorValues values = leaf.reader().getByteVectorValues(field);
+            if (values != null) {
+                totalVectors += values.size();
+            }
+        }
+        return totalVectors;
     }
 
     public static float computeSelectivity(Weight filterWeight, List<LeafReaderContext> leaves, int totalVectors) throws IOException {

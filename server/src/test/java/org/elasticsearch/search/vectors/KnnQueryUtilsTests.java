@@ -11,12 +11,15 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.KnnByteVectorField;
+import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
@@ -32,6 +35,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.List;
 
 public class KnnQueryUtilsTests extends ESTestCase {
 
@@ -489,6 +493,32 @@ public class KnnQueryUtilsTests extends ESTestCase {
                 KnnQueryUtils.FilterWeight result = KnnQueryUtils.createFilterWeight(searcher, new TermQuery(new Term("tag", "a")), "tag");
                 assertNotNull(result);
                 assertNotNull(result.weight());
+            }
+        }
+    }
+
+    /**
+     * Counting the wrong encoding yields 0, which {@link KnnQueryUtils#computeSelectivity} turns into a
+     * selectivity of 0 and the orchestrator treats as "no estimate, do not post-filter". That silent
+     * degradation is why the counters are split by encoding rather than shared.
+     */
+    public void testVectorCountersAreEncodingSpecific() throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+                for (int i = 0; i < 5; i++) {
+                    Document doc = new Document();
+                    doc.add(new KnnFloatVectorField("floats", new float[] { i, i }));
+                    doc.add(new KnnByteVectorField("bytes", new byte[] { (byte) i, (byte) i }));
+                    writer.addDocument(doc);
+                }
+            }
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                List<LeafReaderContext> leaves = reader.leaves();
+                assertEquals(5, KnnQueryUtils.countFloatVectors("floats", leaves));
+                assertEquals(5, KnnQueryUtils.countByteVectors("bytes", leaves));
+                assertEquals("float counter on a byte field sees nothing", 0, KnnQueryUtils.countFloatVectors("bytes", leaves));
+                assertEquals("byte counter on a float field sees nothing", 0, KnnQueryUtils.countByteVectors("floats", leaves));
+                assertEquals("absent field", 0, KnnQueryUtils.countFloatVectors("missing", leaves));
             }
         }
     }

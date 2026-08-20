@@ -374,6 +374,155 @@ abstract class AbstractPostFilterKnnQueryTests extends ESTestCase {
         }
     }
 
+    private AssertingKnnQuery createPoolQuery(
+        String field,
+        float[] queryVector,
+        int k,
+        int numCands,
+        Query filter,
+        float postFilterScale,
+        float poolScale,
+        boolean useRetrySeeds
+    ) {
+        return new AssertingKnnQuery(vectorType(), field, queryVector, k, numCands, filter, postFilterScale, poolScale, useRetrySeeds);
+    }
+
+    /**
+     * The retry round must aim for {@link PostFilterableKnnQuery#candidatePoolK()}, not the user's {@code k}:
+     * the pool is what the final scoring pass consumes, so stopping at {@code k} survivors starves it.
+     * <p>
+     * 8 docs all passing, vectors 0..7. k=2 with poolScale=3 makes poolK=6; numCands=4 caps round 0 at 4
+     * candidates. 4 &ge; k, so a k-based retry decision would fire nothing at all - the discriminating
+     * assertion here is that a retry fires, asking for the missing 6-4=2.
+     */
+    public void testRetryTargetsCandidatePoolNotFinalK() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            for (int i = 0; i < 8; i++) {
+                Document doc = new Document();
+                addVectorField(doc, "vector", (float) i);
+                doc.add(new KeywordField("tag", "pass", Field.Store.NO));
+                writer.addDocument(doc);
+            }
+            writer.forceMerge(1);
+            writer.commit();
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                IndexSearcher searcher = newSearcher(reader);
+                int k = 2;
+                Query userFilter = new TermQuery(new Term("tag", "pass"));
+                AssertingKnnQuery asserting = createPoolQuery("vector", new float[] { 0f }, k, 4, userFilter, 1.0f, 3.0f, true);
+                PostFilterKnnQuery pfq = new PostFilterKnnQuery(asserting, userFilter, k, "vector", null, 0f);
+
+                TopDocs td = searcher.search(pfq, k);
+
+                assertEquals(k, td.scoreDocs.length);
+                assertDocsByScoreDescending(td.scoreDocs, new int[] { 0, 1 });
+
+                AssertingKnnQuery.PostFilterMeta meta = asserting.postFilterMeta();
+                assertEquals(1, meta.postFilterDelegateCalls());
+                assertEquals("a retry must fire even though round 0 already had k survivors", 1, meta.retryCalls());
+                assertEquals("retry must ask for the pool shortfall, not the k shortfall", 2, meta.retryRemainingK());
+            }
+        }
+    }
+
+    /** With the pool already filled by round 0 there is nothing to retry for. */
+    public void testNoRetryWhenCandidatePoolAlreadyFilled() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            for (int i = 0; i < 8; i++) {
+                Document doc = new Document();
+                addVectorField(doc, "vector", (float) i);
+                doc.add(new KeywordField("tag", "pass", Field.Store.NO));
+                writer.addDocument(doc);
+            }
+            writer.forceMerge(1);
+            writer.commit();
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                IndexSearcher searcher = newSearcher(reader);
+                int k = 2;
+                Query userFilter = new TermQuery(new Term("tag", "pass"));
+                AssertingKnnQuery asserting = createPoolQuery("vector", new float[] { 0f }, k, 8, userFilter, 1.0f, 3.0f, true);
+                PostFilterKnnQuery pfq = new PostFilterKnnQuery(asserting, userFilter, k, "vector", null, 0f);
+
+                TopDocs td = searcher.search(pfq, k);
+
+                assertEquals(k, td.scoreDocs.length);
+                AssertingKnnQuery.PostFilterMeta meta = asserting.postFilterMeta();
+                assertEquals(0, meta.retryCalls());
+                assertEquals("the pool, not k, is what finalizeTopK receives", 6, meta.finalizePoolSize());
+                assertEquals(1, meta.finalizeCalls());
+                assertEquals(k, meta.finalizeFinalK());
+            }
+        }
+    }
+
+    /**
+     * {@code finalizeTopK} is the engine's exact scoring pass, so it must run exactly once when
+     * post-filtering succeeds and never when the query falls back - the fallback path does its own scoring.
+     */
+    public void testFinalizeTopKSkippedOnFallback() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            // Only 1 passing doc, so post-filtering can never reach k=3 and must fall back.
+            Document passing = new Document();
+            addVectorField(passing, "vector", 0f);
+            passing.add(new KeywordField("tag", "pass", Field.Store.NO));
+            writer.addDocument(passing);
+            for (int i = 1; i < 8; i++) {
+                Document doc = new Document();
+                addVectorField(doc, "vector", (float) i);
+                doc.add(new KeywordField("tag", "fail", Field.Store.NO));
+                writer.addDocument(doc);
+            }
+            writer.forceMerge(1);
+            writer.commit();
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                IndexSearcher searcher = newSearcher(reader);
+                int k = 3;
+                Query userFilter = new TermQuery(new Term("tag", "pass"));
+                AssertingKnnQuery asserting = createPoolQuery("vector", new float[] { 0f }, k, 8, userFilter, 1.0f, 1.0f, true);
+                PostFilterKnnQuery pfq = new PostFilterKnnQuery(asserting, userFilter, k, "vector", null, 0f);
+
+                searcher.search(pfq, k);
+
+                AssertingKnnQuery.PostFilterMeta meta = asserting.postFilterMeta();
+                assertEquals("post-filtering came up short, so its scoring pass must not run", 0, meta.finalizeCalls());
+            }
+        }
+    }
+
+    /**
+     * An implementation that declares {@code usesRetrySeeds() == false} (IVF, which walks posting lists
+     * rather than a graph) must be handed no seeds at all, and the retry must still fire.
+     */
+    public void testRetrySeedsOmittedWhenUnused() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            for (int i = 0; i < 8; i++) {
+                Document doc = new Document();
+                addVectorField(doc, "vector", (float) i);
+                doc.add(new KeywordField("tag", "pass", Field.Store.NO));
+                writer.addDocument(doc);
+            }
+            writer.forceMerge(1);
+            writer.commit();
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                IndexSearcher searcher = newSearcher(reader);
+                int k = 2;
+                Query userFilter = new TermQuery(new Term("tag", "pass"));
+                AssertingKnnQuery asserting = createPoolQuery("vector", new float[] { 0f }, k, 4, userFilter, 1.0f, 3.0f, false);
+                PostFilterKnnQuery pfq = new PostFilterKnnQuery(asserting, userFilter, k, "vector", null, 0f);
+
+                searcher.search(pfq, k);
+
+                AssertingKnnQuery.PostFilterMeta meta = asserting.postFilterMeta();
+                assertEquals(1, meta.retryCalls());
+                assertNull("no graph to seed -> no seed selection", meta.retrySeedDocs());
+            }
+        }
+    }
+
     protected static void assertDocsByScoreDescending(ScoreDoc[] actual, int[] expectedDocs) {
         assertEquals("doc count mismatch", expectedDocs.length, actual.length);
         for (int i = 0; i < expectedDocs.length; i++) {

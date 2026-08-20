@@ -1,5 +1,5 @@
 area: Vector Search
 issues: []
 pr: 151125
-summary: Post filtering for knn search - ivf implementation
+summary: Support kNN post-filtering on `bbq_disk` (IVF) vector fields
 type: enhancement

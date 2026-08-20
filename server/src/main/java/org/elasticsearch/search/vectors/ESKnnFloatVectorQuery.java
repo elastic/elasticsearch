@@ -101,24 +101,16 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     }
 
     @Override
-    public Query createPostFilterDelegate(float filterSelectivity) {
-        var params = PostFilterableKnnQuery.computeOversampledParams(kParam, numCandsParam, filterSelectivity);
-        return new ESKnnFloatVectorQuery(
-            field,
-            getTargetCopy(),
-            params.scaledK(),
-            params.scaledNumCands(),
-            null,
-            searchStrategy,
-            earlyTermination,
-            null
-        );
+    public Query createPostFilterDelegate(float filterSelectivity, int targetPool) {
+        int scaledK = PostFilterableKnnQuery.computeScaledK(targetPool, filterSelectivity);
+        int scaledNumCands = PostFilterableKnnQuery.beamWidthFor(numCandsParam, scaledK);
+        return new ESKnnFloatVectorQuery(field, getTargetCopy(), scaledK, scaledNumCands, null, searchStrategy, earlyTermination, null);
     }
 
     @Override
     public ScoreDoc[][] getPostFilterCandidates() {
         return rawPerLeafResults == null
-            ? new ScoreDoc[leaves.size()][]
+            ? leaves == null ? new ScoreDoc[0][] : new ScoreDoc[leaves.size()][]
             : PostFilterableKnnQuery.buildPerLeafCandidates(rawPerLeafResults, leaves);
     }
 

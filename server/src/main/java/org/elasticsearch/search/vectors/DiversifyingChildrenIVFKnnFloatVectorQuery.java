@@ -53,9 +53,9 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
         BitSetProducer parentsFilter,
         float visitRatio,
         IvfQueryConfigResolver queryConfigResolver,
-        boolean skipAutoRescore
+        boolean postFilterDelegate
     ) {
-        super(field, query, k, numCands, childFilter, visitRatio, queryConfigResolver, skipAutoRescore);
+        super(field, query, k, numCands, childFilter, visitRatio, queryConfigResolver, postFilterDelegate);
         this.parentsFilter = parentsFilter;
     }
 
@@ -65,17 +65,17 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
     }
 
     @Override
-    protected AbstractIVFKnnVectorQuery withParams(Query filter, int k, int numCands, float[] queryVector, boolean skipAutoRescore) {
+    protected DiversifyingChildrenIVFKnnFloatVectorQuery withParams(Query filter, int k, int numCands, boolean postFilterDelegate) {
         return new DiversifyingChildrenIVFKnnFloatVectorQuery(
             field,
-            copyQueryVector(queryVector),
+            query,
             k,
             numCands,
             filter,
             parentsFilter,
             providedVisitRatio,
             ivfQueryConfigResolver,
-            skipAutoRescore
+            postFilterDelegate
         );
     }
 

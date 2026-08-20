@@ -60,11 +60,11 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQuery extends IVFKnnFloa
         BitSetProducer parentsFilter,
         float visitRatio,
         IvfQueryConfigResolver queryConfigResolver,
-        boolean skipAutoRescore,
+        boolean postFilterDelegate,
         String sliceField,
         BytesRef... sliceId
     ) {
-        super(field, query, k, numCands, childFilter, visitRatio, queryConfigResolver, skipAutoRescore, sliceField, sliceId);
+        super(field, query, k, numCands, childFilter, visitRatio, queryConfigResolver, postFilterDelegate, sliceField, sliceId);
         this.parentsFilter = Objects.requireNonNull(parentsFilter);
     }
 
@@ -74,17 +74,17 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQuery extends IVFKnnFloa
     }
 
     @Override
-    protected AbstractIVFKnnVectorQuery withParams(Query filter, int k, int numCands, float[] queryVector, boolean skipAutoRescore) {
+    protected DiversifyingChildrenIVFKnnFloatSlicedVectorQuery withParams(Query filter, int k, int numCands, boolean postFilterDelegate) {
         return new DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(
             field,
-            copyQueryVector(queryVector),
+            query,
             k,
             numCands,
             filter,
             parentsFilter,
             providedVisitRatio,
             ivfQueryConfigResolver,
-            skipAutoRescore,
+            postFilterDelegate,
             sliceField,
             sliceIds
         );

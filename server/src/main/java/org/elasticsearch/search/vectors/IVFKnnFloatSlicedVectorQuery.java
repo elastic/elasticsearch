@@ -17,13 +17,14 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 
 /** A {@link IVFKnnFloatSlicedVectorQuery} that uses the IVF search strategy with an sliced index. */
 public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
 
-    protected final String sliceField;
-    protected final BytesRef[] sliceIds;
+    final String sliceField;
+    final BytesRef[] sliceIds;
 
     /**
      * Creates a new {@link IVFKnnFloatSlicedVectorQuery} with the given parameters.
@@ -58,29 +59,38 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         Query filter,
         float visitRatio,
         IvfQueryConfigResolver queryConfigResolver,
-        boolean skipAutoRescore,
+        boolean postFilterDelegate,
         String sliceField,
         BytesRef... sliceIds
     ) {
-        super(field, query, k, numCands, filter, visitRatio, queryConfigResolver, skipAutoRescore);
+        super(field, query, k, numCands, filter, visitRatio, queryConfigResolver, postFilterDelegate);
         this.sliceField = Objects.requireNonNull(sliceField);
         this.sliceIds = Objects.requireNonNull(sliceIds);
     }
 
     @Override
-    protected AbstractIVFKnnVectorQuery withParams(Query filter, int k, int numCands, float[] queryVector, boolean skipAutoRescore) {
+    protected IVFKnnFloatSlicedVectorQuery withParams(Query filter, int k, int numCands, boolean postFilterDelegate) {
         return new IVFKnnFloatSlicedVectorQuery(
             field,
-            copyQueryVector(queryVector),
+            query,
             k,
             numCands,
             filter,
             providedVisitRatio,
             ivfQueryConfigResolver,
-            skipAutoRescore,
+            postFilterDelegate,
             sliceField,
             sliceIds
         );
+    }
+
+    /**
+     * Restricted to the requested slices: this query never visits the rest of the reader, so estimating
+     * selectivity across all of it would size round 1 against a corpus it cannot return hits from.
+     */
+    @Override
+    public float estimateFilterSelectivity(Weight filterWeight, List<LeafReaderContext> leaves) throws IOException {
+        return IVFSlicedSearchHelper.estimateSliceFilterSelectivity(leaves, filterWeight, field, false, sliceField, sliceIds);
     }
 
     @Override

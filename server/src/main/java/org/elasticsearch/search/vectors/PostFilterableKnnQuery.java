@@ -12,9 +12,11 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,7 +27,11 @@ import static org.elasticsearch.search.vectors.KnnSearchBuilder.NUM_CANDS_LIMIT;
  * Interface for KNN queries that support post-filtering with retry.
  * Implemented by the HNSW query classes ({@link ESKnnFloatVectorQuery},
  * {@link ESKnnByteVectorQuery}, and their diversifying-children variants) and by
- * {@link AbstractIVFKnnVectorQuery} (and its float/sliced/diversifying subtypes).
+ * {@link AbstractIVFKnnVectorQuery} (and its float/byte/sliced/diversifying subtypes).
+ * <p>
+ * Implementations differ in what {@link #k()} means, so the orchestrator never infers the candidate
+ * pool from it: see {@link #candidatePoolK()} for the pool the orchestrator must fill and
+ * {@link #finalizeTopK} for who owns the final (exact) scoring pass.
  */
 public interface PostFilterableKnnQuery {
 
@@ -71,32 +77,54 @@ public interface PostFilterableKnnQuery {
         return POST_FILTER_OVERSAMPLE_Z_SCORE * Math.sqrt(k * (1.0f - selectivity) / selectivity);
     }
 
-    record OversampledParams(int scaledK, int scaledNumCands) {}
-
     /**
-     * Sizes round 1 of a post-filter search from the target {@code k}, the configured
-     * {@code numCands} and the estimated filter {@code selectivity}.
+     * The exploration budget to pair with a grown {@code scaledK}, when {@code numCands} is a beam width.
      * <p>
-     * {@code scaledK} follows the binomial-variance model in {@link #POST_FILTER_OVERSAMPLE_Z_SCORE}:
-     * enough candidates that, after the filter drops a {@code (1 - selectivity)} fraction, {@code k}
-     * still survives with high probability, clamped below by {@link #POST_FILTER_OVERSAMPLE_FLOOR}×
-     * and above by {@code NUM_CANDS_LIMIT}. {@code scaledNumCands} keeps the exploration budget at
-     * least as wide as {@code scaledK}, otherwise the search cannot surface that many candidates,
-     * without exceeding {@code NUM_CANDS_LIMIT}.
+     * HNSW's {@code numCands} <em>is</em> the efSearch beam, so the user's value is kept as-is and only
+     * floored at {@code scaledK} - a beam narrower than the number of results asked for cannot surface them -
+     * and capped at {@code NUM_CANDS_LIMIT}. Contrast {@link #numCandsPreservingRatio}, which IVF needs
+     * because there {@code numCands} is meaningful only relative to {@code k}.
      */
-    static OversampledParams computeOversampledParams(int k, int numCands, float selectivity) {
-        double zMargin = zMargin(k, selectivity);
-        int scaledK = (int) Math.clamp(
-            Math.ceil((k + zMargin) / selectivity),
-            Math.ceil(k * POST_FILTER_OVERSAMPLE_FLOOR),
-            NUM_CANDS_LIMIT
-        );
-        int scaledNumCands = Math.clamp(numCands, scaledK, NUM_CANDS_LIMIT);
-        return new OversampledParams(scaledK, scaledNumCands);
+    static int beamWidthFor(int numCands, int scaledK) {
+        return Math.clamp(numCands, scaledK, NUM_CANDS_LIMIT);
     }
 
     /**
-     * Creates a new query for the next retry round.
+     * The binomial-variance round-1 target from {@link #POST_FILTER_OVERSAMPLE_Z_SCORE}: enough candidates
+     * that {@code k} still survives a {@code (1 - selectivity)} drop with high probability, floored at
+     * {@link #POST_FILTER_OVERSAMPLE_FLOOR}x {@code k} and capped at {@code NUM_CANDS_LIMIT}.
+     * <p>
+     * The floor is itself capped before clamping: {@code Math.clamp} throws when {@code min > max}, and
+     * {@code ceil(k * 1.2)} exceeds {@code NUM_CANDS_LIMIT} for any {@code k > 8333} — a legal request.
+     */
+    static int computeScaledK(int k, float selectivity) {
+        double zMargin = zMargin(k, selectivity);
+        double floor = Math.min(Math.ceil(k * POST_FILTER_OVERSAMPLE_FLOOR), NUM_CANDS_LIMIT);
+        return (int) Math.clamp(Math.ceil((k + zMargin) / selectivity), floor, NUM_CANDS_LIMIT);
+    }
+
+    /**
+     * Rescales {@code numCands} so the {@code numCands/k} ratio is preserved when {@code k} moves from
+     * {@code fromK} to {@code toK}, floored at {@code toK} and capped at {@code NUM_CANDS_LIMIT}.
+     * <p>
+     * IVF derives its visit ratio (the fraction of a segment it scans) from {@code numCands/k} via
+     * {@code IVFVectorsReader#computeDynamicVisitRatio}, so holding {@code numCands} fixed while {@code k}
+     * moves silently re-tunes exploration: raising {@code k} under-explores, lowering it (a retry round)
+     * over-explores. Contrast {@link #beamWidthFor}, the rule for engines whose {@code numCands} stands on
+     * its own.
+     */
+    static int numCandsPreservingRatio(int numCands, int fromK, int toK) {
+        if (fromK <= 0) {
+            return Math.clamp(numCands, toK, NUM_CANDS_LIMIT);
+        }
+        long scaled = (long) Math.ceil((double) numCands * toK / fromK);
+        return Math.clamp(scaled, toK, NUM_CANDS_LIMIT);
+    }
+
+    /**
+     * Creates a new query for the next retry round. Always called on a delegate returned by
+     * {@link #createPostFilterDelegate}, never on the user's own query, so the retry inherits how that
+     * delegate collects.
      * <p>
      * For HNSW: {@code excludedDocs} becomes an {@link ExcludeDocsQuery} filter (which Lucene's
      * {@code AbstractKnnVectorQuery#rewrite} converts into {@code AcceptDocs}), and {@code seedDocsPerLeaf}
@@ -130,22 +158,94 @@ public interface PostFilterableKnnQuery {
     }
 
     /**
-     * Creates a filter-less delegate query for post-filtering. Subclasses provide
-     * the concrete query type with the appropriate vector data.
+     * Creates a filter-less delegate query for post-filtering: the round-1 search whose raw candidates the
+     * orchestrator filters.
+     * <p>
+     * {@code targetPool} is how many filter-<em>passing</em> candidates the orchestrator wants to be left
+     * holding, in the doc space the candidates live in. The implementation grows it into a request: up by
+     * {@link #computeScaledK} to survive the filter, and - for engines that oversample internally - back down
+     * so their own expansion lands on that number rather than multiplying it again. It already accounts for
+     * the parent collapse on nested fields, so implementations must not re-derive it from {@link #k()} or
+     * {@link #candidatePoolK()}.
+     * <p>
+     * A delegate over a nested field must <b>not</b> diversify by parent. Diversification keeps only the
+     * best-scoring child per parent, and doing that before the filter runs discards a parent whose best child
+     * fails the filter even when a lower-scoring sibling would have passed - a hit the pre-filtered path
+     * returns, and one the reference docs promise ("only considers vectors that have ... set"). The
+     * orchestrator collapses to one child per parent after filtering instead.
      */
-    Query createPostFilterDelegate(float filterSelectivity);
+    Query createPostFilterDelegate(float filterSelectivity, int targetPool);
 
     int countTotalVectors(List<LeafReaderContext> leaves) throws IOException;
+
+    /**
+     * Estimated fraction of the vectors this query can actually return that pass {@code filterWeight} -
+     * the input to both the post-filter gate and the round-1 sizing in {@link #computeScaledK}.
+     * <p>
+     * Numerator and denominator must describe the same population, which is why this is one method rather
+     * than a count paired with a separate ratio: a query that searches only part of a leaf (a slice) has to
+     * narrow both halves together, or the ratio silently drifts - narrowing only the denominator pushes the
+     * estimate towards 1 and makes the pool too small.
+     * <p>
+     * Returns {@code 0} when there is no usable estimate (no vectors visible for the field, or a filter that
+     * matches nothing); callers treat that as "do not post-filter" rather than as "perfectly selective".
+     */
+    default float estimateFilterSelectivity(Weight filterWeight, List<LeafReaderContext> leaves) throws IOException {
+        return KnnQueryUtils.computeSelectivity(filterWeight, leaves, countTotalVectors(leaves));
+    }
 
     long totalVectorOps();
 
     int k();
 
     /**
-     * @return the current numCands (KNN beam / collector candidate budget) for this query.
-     * Used by {@link PostFilterKnnQuery} to compute retry-round numCands scaling.
+     * @return the current numCands for this query. For HNSW this is the efSearch beam width; for IVF it is
+     * only meaningful relative to {@link #k()}, whose ratio drives the codec's visit ratio (see
+     * {@link #numCandsPreservingRatio}). Used by {@link PostFilterKnnQuery} to size delegate and retry rounds.
      */
     int numCands();
+
+    /**
+     * Number of filter-passing candidates the orchestrator should aim to retain before the final scoring
+     * pass - i.e. what the outer rescore (or {@link #finalizeTopK}) consumes, not what the user asked for.
+     * <p>
+     * HNSW returns {@link #k()}: the caller already multiplied {@code k} by the oversample before
+     * constructing the query, so {@code k()} <em>is</em> the pool. IVF returns a larger value, because an
+     * IVF query is constructed with the final {@code k} and expands the pool itself from its per-segment
+     * oversample. Under auto-calibration that oversample is persisted per segment and unknown until
+     * {@code rewrite} resolves each leaf, so the IVF value is a <em>target</em>, not a guarantee; it sizes
+     * retention and the rescore input only, never correctness.
+     */
+    default int candidatePoolK() {
+        return k();
+    }
+
+    /**
+     * Reduces the filter-passing candidate pool to the final top-{@code finalK}, applying whatever exact
+     * scoring pass this query owns. The default is identity: an outer {@code RescoreKnnVectorQuery} (or
+     * nothing at all, for unquantized fields) owns final scoring.
+     * <p>
+     * IVF overrides this for auto-calibrated fields, where the exact rescore normally happens inside
+     * {@code rewrite} and is therefore skipped on post-filter delegates - without this hook those results
+     * would be returned with raw quantized scores while the fallback path returned exact ones, mixing two
+     * score domains inside one search.
+     * <p>
+     * Returns {@link ScoreDoc}[] rather than a {@link Query} so the implementation can fold the exact
+     * comparisons it performed into its own vector-op count; a {@code Query} built inside
+     * {@link PostFilterKnnQuery#rewrite} is never visited by the profiler.
+     */
+    default ScoreDoc[] finalizeTopK(IndexSearcher searcher, ScoreDoc[] candidatePool, int finalK) throws IOException {
+        return candidatePool;
+    }
+
+    /**
+     * @return whether {@link #createRetryQuery}'s {@code seedDocsPerLeaf} is used by this implementation.
+     * HNSW seeds its graph traversal from them; IVF ignores them, so the orchestrator can skip selecting
+     * seeds entirely.
+     */
+    default boolean usesRetrySeeds() {
+        return true;
+    }
 
     /**
      * Per-leaf candidate docs collected during the delegate's {@code mergeLeafResults}, indexed

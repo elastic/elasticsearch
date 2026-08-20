@@ -119,14 +119,15 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
     }
 
     @Override
-    public Query createPostFilterDelegate(float filterSelectivity) {
-        var params = PostFilterableKnnQuery.computeOversampledParams(kParam, numCandsParam, filterSelectivity);
+    public Query createPostFilterDelegate(float filterSelectivity, int targetPool) {
+        int scaledK = PostFilterableKnnQuery.computeScaledK(targetPool, filterSelectivity);
+        int scaledNumCands = PostFilterableKnnQuery.beamWidthFor(numCandsParam, scaledK);
         return new ESDiversifyingChildrenFloatKnnVectorQuery(
             field,
             getTargetCopy(),
             null,
-            params.scaledK(),
-            params.scaledNumCands(),
+            scaledK,
+            scaledNumCands,
             parentsFilter,
             searchStrategy,
             earlyTermination,

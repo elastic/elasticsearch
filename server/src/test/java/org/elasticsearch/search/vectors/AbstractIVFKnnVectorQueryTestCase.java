@@ -87,7 +87,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
-/** Test cases for AbstractIVFKnnVectorQuery objects. */
+/** Test cases for {@link AbstractIVFKnnVectorQuery} objects. */
 public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCase {
     // handle quantization noise
     static final float EPSILON = 0.001f;

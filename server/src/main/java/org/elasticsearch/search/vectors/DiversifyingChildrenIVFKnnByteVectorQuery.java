@@ -42,8 +42,37 @@ public class DiversifyingChildrenIVFKnnByteVectorQuery extends IVFKnnByteVectorQ
         float visitRatio,
         IvfQueryConfigResolver queryConfigResolver
     ) {
-        super(field, query, k, numCands, childFilter, visitRatio, queryConfigResolver);
+        this(field, query, k, numCands, childFilter, parentsFilter, visitRatio, queryConfigResolver, false);
+    }
+
+    DiversifyingChildrenIVFKnnByteVectorQuery(
+        String field,
+        byte[] query,
+        int k,
+        int numCands,
+        Query childFilter,
+        BitSetProducer parentsFilter,
+        float visitRatio,
+        IvfQueryConfigResolver queryConfigResolver,
+        boolean postFilterDelegate
+    ) {
+        super(field, query, k, numCands, childFilter, visitRatio, queryConfigResolver, postFilterDelegate);
         this.parentsFilter = parentsFilter;
+    }
+
+    @Override
+    protected DiversifyingChildrenIVFKnnByteVectorQuery withParams(Query filter, int k, int numCands, boolean postFilterDelegate) {
+        return new DiversifyingChildrenIVFKnnByteVectorQuery(
+            field,
+            query,
+            k,
+            numCands,
+            filter,
+            parentsFilter,
+            providedVisitRatio,
+            ivfQueryConfigResolver,
+            postFilterDelegate
+        );
     }
 
     @Override

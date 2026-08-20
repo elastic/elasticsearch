@@ -37,8 +37,13 @@ import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Integration tests for kNN post-filtering over a {@code bbq_disk} (IVF) index, mirroring
- * {@code PostFilterHnswKnnSearchIT} for the IVF query tree (float, nested/diversifying, sorted,
- * fallback). diskbbq only supports float element types, so there is no byte variant.
+ * {@code PostFilterHnswKnnSearchIT} for the IVF query tree (float, sliced, fallback, retry).
+ * {@code bbq_disk} also accepts {@code element_type: byte} on snapshot builds, which is what
+ * {@code internalClusterTest} runs on; byte coverage lives in {@code IVFPostFilterFactoryTests} at the
+ * query level rather than here.
+ * <p>
+ * Nested (block-join) vector fields deliberately stay on the pre-filter path
+ * ({@code DenseVectorFieldType#canPostFilter}), so the nested case below asserts pre-filter behaviour.
  *
  * <p>Post-filtering is dormant by default ({@code index.dense_vector.post_filter_selectivity_threshold}
  * defaults to 1.0). Each index lowers it to {@code 0.7} so the ~0.8-selectivity filters below take the
@@ -57,6 +62,9 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
     private static final String TAG_FIELD = "tag";
     private static final String NESTED_FIELD = "nested_field";
     private static final int DIMS = 4;
+    // Realistic dimensionality for the exact-score assertion: at DIMS=4 quantization is effectively lossless.
+    private static final int EXACT_SCORE_DIMS = 64;
+    private static final int EXACT_SCORE_DOCS = 200;
     private static final float POST_FILTER_THRESHOLD = 0.7f;
 
     @Before
@@ -170,6 +178,93 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
         assertPostFilterFlat(indexName, new float[] { 1, 1, 1, 20 });
     }
 
+    /**
+     * The default {@code bbq_disk} shape: {@code bits: 1}, so {@code rescore_vector} defaults to a 3x
+     * oversample and an outer rescore wraps the query, and the mapping's default visit percentage, so the
+     * codec's dynamic visit ratio is in play. The {@code bits: 4} indices used elsewhere in this suite leave
+     * {@code rescore_vector} unset, which bypasses the oversample plumbing entirely.
+     */
+    public void testIvfFloatDefaultBits() throws IOException {
+        String indexName = "ivf_float_default_bits_test";
+        createIvfDefaultBitsIndex(indexName);
+        indexFlatDocs(indexName);
+        assertPostFilterFlat(indexName, new float[] { 1, 1, 1, 20 });
+    }
+
+    /**
+     * With {@code auto_calibrate} the exact rescore lives inside the IVF query, and a post-filter delegate
+     * skips it because its pool has not been filtered yet. Something must still apply it afterwards, or
+     * post-filtered hits come back carrying approximate scores while the same query on the pre-filter path
+     * returns exact ones - two score domains for one query, which corrupts the coordinator's merge.
+     * <p>
+     * Asserted against the arithmetic rather than by comparing two indices, because a comparison passes
+     * trivially whenever both sides happen to take the same path. The expected {@code l2_norm} score of a doc
+     * is {@code 1/(1 + ||doc - query||^2)} computed from the vectors this test generates, so an approximate
+     * score cannot satisfy it.
+     * <p>
+     * {@link #EXACT_SCORE_DIMS} dimensions matter: at the 4 dimensions the rest of this suite uses, 1-bit
+     * quantization error is around 1e-7 and rescoring is numerically indistinguishable from not rescoring,
+     * so the assertion would hold either way and prove nothing.
+     */
+    public void testAutoCalibratePostFilteredScoresAreExact() throws IOException {
+        String indexName = "ivf_ac_exact_scores";
+        createIvfExactScoreIndex(indexName);
+
+        // 80% "pass", spread uniformly, so round 0's pool always yields enough survivors to avoid the
+        // fallback (which would rescore anyway and make the assertion vacuous).
+        float[][] vectors = new float[EXACT_SCORE_DOCS][];
+        for (int i = 0; i < EXACT_SCORE_DOCS; i++) {
+            vectors[i] = exactScoreVector(i);
+            prepareIndex(indexName).setId(Integer.toString(i))
+                .setSource(VECTOR_FIELD, vectors[i], TAG_FIELD, i % 5 == 0 ? "fail" : "pass")
+                .get();
+        }
+        refresh(indexName);
+
+        int k = 5;
+        float[] queryVector = exactScoreVector(EXACT_SCORE_DOCS / 2);
+        var knnSearch = new KnnSearchBuilder(VECTOR_FIELD, queryVector, k, 100, null, null, null).addFilterQuery(
+            QueryBuilders.termQuery(TAG_FIELD, "pass")
+        );
+
+        assertResponse(client().prepareSearch(indexName).setKnnSearch(List.of(knnSearch)).setSize(k), response -> {
+            assertEquals("Expected exactly k results", k, response.getHits().getHits().length);
+            assertScoresDescending(response);
+            for (SearchHit hit : response.getHits().getHits()) {
+                assertEquals("pass", hit.getSourceAsMap().get(TAG_FIELD));
+                float[] docVector = vectors[Integer.parseInt(hit.getId())];
+                double squaredDistance = 0;
+                for (int d = 0; d < EXACT_SCORE_DIMS; d++) {
+                    double delta = docVector[d] - queryVector[d];
+                    squaredDistance += delta * delta;
+                }
+                assertEquals(
+                    "doc " + hit.getId() + " must carry its exact l2_norm score, not an approximate one",
+                    1.0 / (1.0 + squaredDistance),
+                    hit.getScore(),
+                    1e-5
+                );
+            }
+        });
+    }
+
+    /**
+     * Deterministic, well-spread vectors in {@code [-1, 1)} via a xorshift-multiply mix of the seed, so the
+     * test can recompute the exact distance without storing anything, and so 1-bit quantization of a
+     * {@link #EXACT_SCORE_DIMS}-dimensional vector loses real precision.
+     */
+    private static float[] exactScoreVector(int seed) {
+        float[] vector = new float[EXACT_SCORE_DIMS];
+        long h = seed * 0x9E3779B97F4A7C15L + 0x165667B19E3779F9L;
+        for (int d = 0; d < EXACT_SCORE_DIMS; d++) {
+            h ^= h >>> 33;
+            h *= 0xFF51AFD7ED558CCDL;
+            h ^= h >>> 29;
+            vector[d] = ((h >>> 40) % 2000) / 1000f - 1f;
+        }
+        return vector;
+    }
+
     public void testPostFilterReportsVectorOpsInProfile() throws IOException {
         String indexName = "ivf_profile_test";
         createIvfIndex(indexName);
@@ -214,15 +309,76 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
     }
 
     private void createIvfAutoCalibrateIndex(String indexName) throws IOException {
+        createIvfAutoCalibrateIndex(indexName, POST_FILTER_THRESHOLD);
+    }
+
+    private void createIvfAutoCalibrateIndex(String indexName, float postFilterThreshold) throws IOException {
         Settings settings = Settings.builder()
             .put(indexSettings())
+            .put(DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD.getKey(), postFilterThreshold)
             .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
             .build();
         prepareCreate(indexName).setSettings(settings).setMapping(ivfMapping(true)).get();
         ensureGreen(indexName);
     }
 
+    /**
+     * {@code auto_calibrate} over {@link #EXACT_SCORE_DIMS}-dimensional vectors with 1-bit quantization, so
+     * the approximate scores the codec produces are materially different from the exact ones.
+     */
+    private void createIvfExactScoreIndex(String indexName) throws IOException {
+        Settings settings = Settings.builder()
+            .put(indexSettings())
+            .put(DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD.getKey(), POST_FILTER_THRESHOLD)
+            .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
+            .build();
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject(VECTOR_FIELD)
+            .field("type", "dense_vector")
+            .field("element_type", "float")
+            .field("dims", EXACT_SCORE_DIMS)
+            .field("index", true)
+            .field("similarity", "l2_norm")
+            .startObject("index_options")
+            .field("type", "bbq_disk")
+            .field("bits", 1)
+            .field("default_visit_percentage", 100)
+            .field("auto_calibrate", true)
+            .endObject()
+            .endObject()
+            .startObject(TAG_FIELD)
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject();
+        prepareCreate(indexName).setSettings(settings).setMapping(mapping).get();
+        ensureGreen(indexName);
+    }
+
+    /**
+     * Default {@code bits} (1), so {@code rescore_vector} defaults to 3x oversample, and the mapping's
+     * default visit percentage, so the codec's dynamic visit ratio is in play. This is the configuration the
+     * oversample plumbing actually ships with; the {@code bits: 4} indices above bypass it entirely.
+     */
+    private void createIvfDefaultBitsIndex(String indexName) throws IOException {
+        prepareCreate(indexName).setMapping(ivfMapping(false, 1, null)).get();
+        ensureGreen(indexName);
+    }
+
     private static XContentBuilder ivfMapping(boolean autoCalibrate) throws IOException {
+        return ivfMapping(autoCalibrate, 4, 100);
+    }
+
+    /**
+     * @param bits            quantization bits. 4 leaves {@code rescore_vector} unset, so no oversample and no
+     *                        outer rescore; 1 (the {@code bbq_disk} default) defaults it to 3x, which is the
+     *                        shape that drives the oversample plumbing in {@code createKnnFloatQuery}.
+     * @param visitPercentage {@code null} keeps the mapping default of 0, i.e. the codec's dynamic visit
+     *                        ratio; 100 forces an exhaustive scan for tests that need determinism.
+     */
+    private static XContentBuilder ivfMapping(boolean autoCalibrate, int bits, Integer visitPercentage) throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
@@ -234,8 +390,10 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
             .field("similarity", "l2_norm")
             .startObject("index_options")
             .field("type", "bbq_disk")
-            .field("bits", 4)
-            .field("default_visit_percentage", 100);
+            .field("bits", bits);
+        if (visitPercentage != null) {
+            mapping.field("default_visit_percentage", visitPercentage);
+        }
         if (autoCalibrate) {
             mapping.field("auto_calibrate", true);
         }
@@ -317,7 +475,10 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
     private void indexSlicedDocs(String indexName) {
         for (String slice : List.of("s1", "s2")) {
             for (int i = 0; i < 100; i++) {
-                String tag = randomFloat() < .8f ? "common" : "rare";
+                // Correlate the tag with the slice: "s1" is mostly "common", "s2" mostly "rare". A tag
+                // distribution independent of the slice would make in-slice selectivity identical to the
+                // whole-index figure, so a selectivity estimate that ignores slice scoping would look correct.
+                String tag = randomFloat() < (slice.equals("s1") ? .8f : .2f) ? "common" : "rare";
                 client().index(
                     new IndexRequest(indexName).id(slice + "_" + i)
                         .source(VECTOR_FIELD, new float[] { 1, 1, 1, randomIntBetween(-128, 127) }, TAG_FIELD, tag)
@@ -326,7 +487,6 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
                 ).actionGet();
             }
         }
-        forceMerge(true);
         refresh(indexName);
     }
 
@@ -345,6 +505,7 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
 
         assertResponse(search, response -> {
             assertTrue("Expected at least 1 result", response.getHits().getHits().length > 0);
+            assertScoresDescending(response);
             for (SearchHit hit : response.getHits().getHits()) {
                 assertEquals("common", hit.getSourceAsMap().get(TAG_FIELD));
                 assertTrue("Expected hit from queried slice", hit.getId().startsWith(slice + "_"));
@@ -363,7 +524,8 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
                 .setSource(VECTOR_FIELD, new float[] { 1, 1, 1, randomIntBetween(-128, 127) }, TAG_FIELD, tag)
                 .get();
         }
-        forceMerge(true);
+        // No force-merge: natural segmentation is what production looks like, and it is the only way the
+        // per-leaf candidate stashing and regrouping this feature adds gets exercised at all.
         refresh(indexName);
     }
 
@@ -373,18 +535,28 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
      */
     private void indexNestedDocs(String indexName) {
         for (int parentId = 0; parentId < 100; parentId++) {
-            String tag = randomFloat() < .8f ? "common" : "rare";
+            // Siblings are tagged independently: giving both children of a parent the same tag would make the
+            // child-level filter behave like a parent-level one and hide any child/parent confusion.
             prepareIndex(indexName).setId("parent_" + parentId)
                 .setSource(
                     NESTED_FIELD,
                     List.of(
-                        Map.of(VECTOR_FIELD, new float[] { 1, 1, 1, randomIntBetween(-128, 127) }, TAG_FIELD, tag),
-                        Map.of(VECTOR_FIELD, new float[] { 1, 1, 1, randomIntBetween(-128, 127) }, TAG_FIELD, tag)
+                        Map.of(
+                            VECTOR_FIELD,
+                            new float[] { 1, 1, 1, randomIntBetween(-128, 127) },
+                            TAG_FIELD,
+                            randomFloat() < .8f ? "common" : "rare"
+                        ),
+                        Map.of(
+                            VECTOR_FIELD,
+                            new float[] { 1, 1, 1, randomIntBetween(-128, 127) },
+                            TAG_FIELD,
+                            randomFloat() < .8f ? "common" : "rare"
+                        )
                     )
                 )
                 .get();
         }
-        forceMerge(true);
         refresh(indexName);
     }
 
@@ -400,7 +572,8 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
         );
 
         assertResponse(client().prepareSearch(indexName).setKnnSearch(List.of(knnSearch)).setSize(k), response -> {
-            assertTrue("Expected at least 1 result", response.getHits().getHits().length > 0);
+            assertEquals("Expected exactly k results", k, response.getHits().getHits().length);
+            assertScoresDescending(response);
             for (SearchHit hit : response.getHits().getHits()) {
                 assertEquals("common", hit.getSourceAsMap().get(TAG_FIELD));
             }
@@ -412,6 +585,12 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
      * With random tag assignment we cannot predict exact parent IDs, but all results must be
      * "common" parents.
      */
+    /**
+     * Nested fields take the pre-filter path, so this asserts the filter is honoured rather than that
+     * post-filtering ran. Every returned parent must have at least one "common" child, which is what the
+     * child-level filter selects on; siblings are tagged independently so the filter is genuinely child-level.
+     */
+    @SuppressWarnings("unchecked")
     private void assertPostFilterNested(String indexName, float[] queryVector) {
         int k = 3;
         String nestedVectorField = NESTED_FIELD + "." + VECTOR_FIELD;
@@ -421,11 +600,29 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
         );
 
         assertResponse(client().prepareSearch(indexName).setKnnSearch(List.of(knnSearch)).setSize(k), response -> {
-            assertTrue("Expected at least 1 result", response.getHits().getHits().length > 0);
+            assertEquals("Expected exactly k parents", k, response.getHits().getHits().length);
+            assertScoresDescending(response);
             for (SearchHit hit : response.getHits().getHits()) {
                 assertTrue("Expected parent doc ID", hit.getId().startsWith("parent_"));
+                List<Map<String, Object>> children = (List<Map<String, Object>>) hit.getSourceAsMap().get(NESTED_FIELD);
+                assertNotNull("Expected nested children in _source", children);
+                assertTrue(
+                    "Every returned parent must have a child matching the filter, got " + children,
+                    children.stream().anyMatch(child -> "common".equals(child.get(TAG_FIELD)))
+                );
             }
         });
+    }
+
+    /** Scores must come back in descending order regardless of which path produced them. */
+    private static void assertScoresDescending(SearchResponse response) {
+        SearchHit[] hits = response.getHits().getHits();
+        for (int i = 1; i < hits.length; i++) {
+            assertTrue(
+                "Scores must be descending, got " + hits[i - 1].getScore() + " then " + hits[i].getScore(),
+                hits[i - 1].getScore() >= hits[i].getScore()
+            );
+        }
     }
 
     /**
@@ -449,6 +646,7 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
 
         assertResponse(client().prepareSearch(indexName).setKnnSearch(List.of(knnSearch)).setSize(k).setProfile(true), response -> {
             assertEquals("Expected exactly k results", k, response.getHits().getHits().length);
+            assertScoresDescending(response);
             for (SearchHit hit : response.getHits().getHits()) {
                 assertEquals("pass", hit.getSourceAsMap().get(TAG_FIELD));
             }
@@ -504,6 +702,7 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
 
         assertResponse(client().prepareSearch(indexName).setKnnSearch(List.of(knnSearch)).setSize(k).setProfile(true), response -> {
             assertEquals("Expected exactly k results from round-0 + retry", k, response.getHits().getHits().length);
+            assertScoresDescending(response);
             for (SearchHit hit : response.getHits().getHits()) {
                 assertEquals("pass", hit.getSourceAsMap().get(TAG_FIELD));
             }

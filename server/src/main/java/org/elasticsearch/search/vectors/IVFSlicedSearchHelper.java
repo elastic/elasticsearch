@@ -9,6 +9,7 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
@@ -27,6 +28,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.function.LongSupplier;
 
 /**
@@ -172,6 +174,82 @@ final class IVFSlicedSearchHelper {
             ? bulkKnnCollector.unsortedTopK()
             : knnCollector.topDocs();
         return results != null ? results : AbstractIVFKnnVectorQuery.NO_RESULTS;
+    }
+
+    /**
+     * Slice-restricted version of {@link KnnQueryUtils#computeSelectivity}: a sliced query only ever visits
+     * the requested slices, so estimating its filter selectivity against the whole reader measures a corpus
+     * it will not touch.
+     * <p>
+     * The denominator is exact - the slice ranges come from the {@code sliceField} skipper, so the vector
+     * count is capped at the docs the query can actually reach. The numerator scales each leaf's filter cost
+     * by the share of the leaf its slices cover, because {@link org.apache.lucene.search.ScorerSupplier#cost}
+     * is a whole-leaf figure and narrowing it exactly would mean walking the filter's doc-id set - work
+     * proportional to the match set, which is largest exactly when post-filtering is under consideration.
+     * The consequence is that a filter correlated with slice membership is still estimated from its global
+     * rate; the retry round is the safety net for that, as it is for correlated filters generally.
+     */
+    static float estimateSliceFilterSelectivity(
+        List<LeafReaderContext> leaves,
+        Weight filterWeight,
+        String vectorField,
+        boolean byteEncoded,
+        String sliceField,
+        BytesRef[] sliceIds
+    ) throws IOException {
+        double filterCost = 0;
+        long sliceVectors = 0;
+        for (LeafReaderContext ctx : leaves) {
+            LeafReader reader = ctx.reader();
+            int maxDoc = reader.maxDoc();
+            if (maxDoc == 0) {
+                continue;
+            }
+            KnnVectorValues values = byteEncoded ? reader.getByteVectorValues(vectorField) : reader.getFloatVectorValues(vectorField);
+            if (values == null || values.size() == 0) {
+                continue;
+            }
+            long sliceDocs = sliceDocCount(ctx, sliceField, sliceIds);
+            if (sliceDocs <= 0) {
+                continue;
+            }
+            double sliceShare = Math.min(1.0, (double) sliceDocs / maxDoc);
+            // Vectors are not necessarily dense over the slice, so cap by the leaf's actual vector count.
+            sliceVectors += Math.min(values.size(), (long) Math.ceil(values.size() * sliceShare));
+            ScorerSupplier supplier = filterWeight.scorerSupplier(ctx);
+            if (supplier != null) {
+                filterCost += supplier.cost() * sliceShare;
+            }
+        }
+        if (sliceVectors <= 0) {
+            return 0f;
+        }
+        return (float) Math.min(1.0, filterCost / sliceVectors);
+    }
+
+    /**
+     * Number of docs in {@code ctx} that belong to the requested slices, or {@code maxDoc} when no slice ids
+     * were given (the query searches every slice). Uses the {@code sliceField} skipper, so this is O(number
+     * of requested slices) rather than a doc walk.
+     */
+    private static long sliceDocCount(LeafReaderContext ctx, String sliceField, BytesRef[] sliceIds) throws IOException {
+        int maxDoc = ctx.reader().maxDoc();
+        if (sliceIds.length == 0) {
+            return maxDoc;
+        }
+        SortedDocValues sortedDocValues = ctx.reader().getSortedDocValues(sliceField);
+        DocValuesSkipper skipper = ctx.reader().getDocValuesSkipper(sliceField);
+        if (sortedDocValues == null || skipper == null || skipper.docCount() != maxDoc) {
+            // Not a sliced leaf in the shape getLeafResults requires; fall back to the whole leaf rather
+            // than reporting a bogus zero. getLeafResults will raise the real error at search time.
+            return maxDoc;
+        }
+        long docs = 0;
+        for (int ord : sliceToSortedOrds(sortedDocValues, sliceIds)) {
+            ESAcceptDocs.SliceAcceptDocs range = getSliceAcceptDocsSupplier(sortedDocValues, skipper, ord);
+            docs += Math.max(0, range.endDoc() - range.startDoc());
+        }
+        return docs;
     }
 
     private static void searchOneSlice(

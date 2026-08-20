@@ -457,7 +457,7 @@ public record TestConfiguration(
         private KnnIndexTester.VectorEncoding vectorEncoding = KnnIndexTester.VectorEncoding.FLOAT32;
         private int dimensions;
         private List<Boolean> earlyTermination = List.of(Boolean.FALSE);
-        private List<Boolean> postFilter = List.of(Boolean.TRUE);
+        private List<Boolean> postFilter = List.of(Boolean.FALSE);
         private List<Float> filterSelectivity = List.of(1f);
         private List<Long> seed = List.of(1751900822751L);
         private KnnIndexTester.MergePolicyType mergePolicy = null;

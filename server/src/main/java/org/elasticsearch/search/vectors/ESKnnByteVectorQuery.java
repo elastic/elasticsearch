@@ -101,18 +101,10 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
     }
 
     @Override
-    public Query createPostFilterDelegate(float filterSelectivity) {
-        var params = PostFilterableKnnQuery.computeOversampledParams(kParam, numCandsParam, filterSelectivity);
-        return new ESKnnByteVectorQuery(
-            field,
-            getTargetCopy(),
-            params.scaledK(),
-            params.scaledNumCands(),
-            null,
-            searchStrategy,
-            earlyTermination,
-            null
-        );
+    public Query createPostFilterDelegate(float filterSelectivity, int targetPool) {
+        int scaledK = PostFilterableKnnQuery.computeScaledK(targetPool, filterSelectivity);
+        int scaledNumCands = PostFilterableKnnQuery.beamWidthFor(numCandsParam, scaledK);
+        return new ESKnnByteVectorQuery(field, getTargetCopy(), scaledK, scaledNumCands, null, searchStrategy, earlyTermination, null);
     }
 
     @Override

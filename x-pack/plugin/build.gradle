@@ -65,7 +65,7 @@ if (buildParams.snapshotBuild == false) {
   restTestBlacklist.add('search.vectors/46_knn_search_bbq_ivf_byte/*')
 }
 
-restTests.tasks.configureEach {
+restTests.configureEach {
   usesDefaultDistribution("to be triaged")
 }
 

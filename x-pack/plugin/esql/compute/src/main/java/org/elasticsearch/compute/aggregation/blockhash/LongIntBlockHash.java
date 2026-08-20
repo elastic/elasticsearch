@@ -137,8 +137,8 @@ public final class LongIntBlockHash extends BlockHash {
 
     /*
      * longValue, intValue  -> longValue, intValue & WIDEN
-     * longValue, null      -> 0, intValue & WIDEN | LONG_NULL_MASK
-     * longValue, intValue  -> longValue, INT_NULL_MASK
+     * null, intValue       -> 0, intValue & WIDEN | LONG_NULL_MASK
+     * longValue, null      -> longValue, INT_NULL_MASK
      * null, null           -> 0, LONG_NULL_MASK | INT_NULL_MASK
      */
     static final long LONG_NULL_MASK = 0x00F0_0000_0000_0000L;

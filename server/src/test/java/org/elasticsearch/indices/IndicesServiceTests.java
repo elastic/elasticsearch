@@ -299,7 +299,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
     public static class TestPlugin extends Plugin implements MapperPlugin {
 
-        private static final CopyOnWriteArrayList<IndexEventListener> indexEventListeners = new CopyOnWriteArrayList<>();
+        private static final List<IndexEventListener> indexEventListeners = new CopyOnWriteArrayList<>();
 
         public TestPlugin() {}
 

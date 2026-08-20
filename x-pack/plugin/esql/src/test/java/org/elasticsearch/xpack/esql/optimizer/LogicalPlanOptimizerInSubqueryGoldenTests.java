@@ -708,6 +708,14 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    public void testInSubqueryInEvalWithKeep() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL matches = emp_no IN (FROM employees | KEEP emp_no)
+            | KEEP emp_no
+            """, STAGES);
+    }
+
     public void testCaseWithInSubqueryInEval() {
         runGoldenTest("""
             FROM employees

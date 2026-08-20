@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -26,7 +27,9 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.FailureCollector;
+import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexMode;
@@ -82,6 +85,7 @@ import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
+import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadata;
@@ -217,6 +221,7 @@ public class EsqlSession {
     private final BlockFactory blockFactory;
     private final PlannerSettings plannerSettings;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final ClusterService clusterService;
     private final String clusterName;
     private final String localNodeName;
     private final String clusterUuid;
@@ -340,9 +345,10 @@ public class EsqlSession {
         this.blockFactory = services.blockFactoryProvider().blockFactory();
         this.plannerSettings = plannerSettings;
         this.crossProjectModeDecider = services.crossProjectModeDecider();
-        this.clusterName = services.clusterService().getClusterName().value();
-        this.localNodeName = services.clusterService().getNodeName();
-        this.clusterUuid = resolveClusterUuid(services.clusterService());
+        this.clusterService = services.clusterService();
+        this.clusterName = this.clusterService.getClusterName().value();
+        this.localNodeName = this.clusterService.getNodeName();
+        this.clusterUuid = resolveClusterUuid(this.clusterService);
         this.projectMetadata = projectMetadata;
         this.ipLocationService = services.ipLocationService();
     }
@@ -639,7 +645,7 @@ public class EsqlSession {
      * string. The UUID feeds the HMAC key used by the anonymizer; an empty key still produces a
      * deterministic HMAC, only the token namespace is shared across affected sessions (test only).
      */
-    private static String resolveClusterUuid(org.elasticsearch.cluster.service.ClusterService clusterService) {
+    private static String resolveClusterUuid(ClusterService clusterService) {
         try {
             var state = clusterService.state();
             return state != null ? state.metadata().clusterUUID() : "";
@@ -795,6 +801,37 @@ public class EsqlSession {
                         values.add(List.of(cluster, node, "node_reduce", "physicalPlan", planTree));
                     } else if (description != null && description.endsWith("final")) {
                         values.add(List.of(cluster, node, "final", "physicalPlan", planTree));
+                    }
+                }
+            }
+
+            // Extract lookup-side plans from operator statuses in driver profiles.
+            // StreamingLookupFromIndexOperator records plan strings in its status; each unique
+            // (node, plan) pair becomes a "lookup" role row. Deduplicated across drivers.
+            // TODO: for CCS, lookup nodes may be on a remote cluster; localCluster is always ""
+            // here, which means remote-cluster lookup attribution is incorrect. Out of scope for this PR.
+            if (result.completionInfo() != null) {
+                // Dedup by (nodeName, lookupPlan) pair — using a List as key avoids separator-collision bugs
+                // that arise when plan strings contain arbitrary characters (including any chosen separator).
+                Set<List<String>> seenLookupRows = new HashSet<>();
+                var nodes = clusterService.state().nodes();
+                for (DriverProfile driverProfile : result.completionInfo().driverProfiles()) {
+                    for (OperatorStatus operatorStatus : driverProfile.operators()) {
+                        if (operatorStatus.status() instanceof StreamingLookupFromIndexOperator.StreamingLookupStatus lookupStatus) {
+                            for (Map.Entry<String, Set<String>> entry : lookupStatus.planToWorkers().entrySet()) {
+                                String lookupPlan = entry.getKey();
+                                for (String workerKey : entry.getValue()) {
+                                    // workerKey format: "<nodeId>:worker<N>"
+                                    int workerSuffix = workerKey.lastIndexOf(":worker");
+                                    String nodeId = workerSuffix >= 0 ? workerKey.substring(0, workerSuffix) : workerKey;
+                                    var node = nodes.get(nodeId);
+                                    String nodeName = node != null ? node.getName() : nodeId;
+                                    if (seenLookupRows.add(List.of(nodeName, lookupPlan))) {
+                                        values.add(List.of(localCluster, nodeName, "lookup", "physicalPlan", lookupPlan));
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

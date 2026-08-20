@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -3014,6 +3015,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 String localPhysicalPlan = null;
                 String nodeReducePlan = null;
                 String finalPlan = null;
+                List<String> lookupPlans = new ArrayList<>();
+                List<String> lookupNodes = new ArrayList<>();
                 int dataNodePlanCount = 0;
 
                 for (List<Object> row : values) {
@@ -3038,6 +3041,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                         nodeReducePlan = plan;
                     } else if ("final".equals(role)) {
                         finalPlan = plan;
+                    } else if ("lookup".equals(role)) {
+                        lookupPlans.add(plan);
+                        lookupNodes.add((String) row.get(EXPLAIN_COL_NODE));
                     }
                 }
 
@@ -3100,9 +3106,143 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 assertThat("Final plan should contain OutputExec", finalPlan, containsString("OutputExec"));
                 // Final plan should contain ExchangeSourceExec to receive data from data nodes
                 assertThat("Final plan should contain ExchangeSourceExec", finalPlan, containsString("ExchangeSourceExec"));
+
+                // === Lookup Plan Assertions ===
+                // EXPLAIN should now expose the lookup-side physical plan via the streaming probe.
+                // The plan is a shard-level physical plan (ParameterizedQueryExec + field extraction).
+                // This exercises the `profile || explainOnly` fix: profile is false by default here.
+                assertFalse("Should have at least one lookup-side plan row from LOOKUP JOIN", lookupPlans.isEmpty());
+                Set<String> clusterNodeNames = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
+                for (int i = 0; i < lookupPlans.size(); i++) {
+                    String lookupPlan = lookupPlans.get(i);
+                    String lookupNode = lookupNodes.get(i);
+                    assertFalse("Lookup plan should not be a failure placeholder", lookupPlan.startsWith("<unavailable:"));
+                    assertNotNull("Lookup node name should be present", lookupNode);
+                    assertFalse("Lookup node name should be non-empty", lookupNode.isEmpty());
+                    // Node column must be a human-readable name, not a raw node ID (UUID-like string).
+                    assertThat("Lookup node should be a known cluster node name", clusterNodeNames, hasItem(lookupNode));
+                    // The lookup plan is a shard-level physical plan — it contains the join key field name
+                    assertThat("Lookup plan should contain the join key field", lookupPlan, containsString("category_id"));
+                }
+                int firstExplainLookupCount = lookupPlans.size();
+
+                // Deduplication: a second EXPLAIN call on the same query must produce the same number of lookup rows.
+                try (EsqlQueryResponse secondExplain = run("EXPLAIN (" + query + ")")) {
+                    long secondLookupCount = getValuesList(secondExplain).stream()
+                        .filter(r -> "lookup".equals(r.get(EXPLAIN_COL_ROLE)))
+                        .count();
+                    assertEquals(
+                        "EXPLAIN lookup row count should be consistent (deduplication stable across runs)",
+                        firstExplainLookupCount,
+                        (int) secondLookupCount
+                    );
+                }
+            }
+
+            // Non-EXPLAIN regression: the actual LOOKUP JOIN query must still return correct results.
+            try (EsqlQueryResponse results = run(query)) {
+                List<List<Object>> rows = getValuesList(results);
+                assertThat("LOOKUP JOIN (non-EXPLAIN) should return all matched rows", rows.size(), equalTo(3));
             }
         } finally {
             // Clean up
+            try {
+                indicesAdmin().prepareDelete(mainIndex).get();
+            } catch (Exception e) {
+                // ignore
+            }
+            try {
+                indicesAdmin().prepareDelete(lookupIndex).get();
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+    }
+
+    /**
+     * Tests EXPLAIN on a LOOKUP JOIN with profile=true, and verifies the profile output format:
+     * the {@code lookup_plans.workers[]} entries in the profile response use node IDs (not names),
+     * while the EXPLAIN node column shows human-readable node names.
+     */
+    public void testExplainWithLookupJoinWithProfile() {
+        assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
+
+        String mainIndex = "explain_lookup_profile_main";
+        String lookupIndex = "explain_lookup_profile_index";
+
+        try {
+            Settings lookupSettings = Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup").build();
+            assertAcked(
+                indicesAdmin().prepareCreate(lookupIndex)
+                    .setSettings(lookupSettings)
+                    .setMapping("category_id", "type=keyword", "category_name", "type=keyword")
+            );
+            prepareIndex(lookupIndex).setSource("category_id", "A", "category_name", "Alpha").get();
+            indicesAdmin().prepareRefresh(lookupIndex).get();
+
+            assertAcked(
+                indicesAdmin().prepareCreate(mainIndex)
+                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
+                    .setMapping("id", "type=integer", "category_id", "type=keyword")
+            );
+            prepareIndex(mainIndex).setSource("id", 1, "category_id", "A").get();
+            indicesAdmin().prepareRefresh(mainIndex).get();
+
+            String query = "FROM " + mainIndex + " | LOOKUP JOIN " + lookupIndex + " ON category_id | KEEP id, category_id, category_name";
+
+            // Regression check: EXPLAIN with profile=true must still return lookup rows.
+            EsqlQueryRequest explainWithProfile = syncEsqlQueryRequest("EXPLAIN (" + query + ")").profile(true);
+            try (EsqlQueryResponse explainResults = run(explainWithProfile)) {
+                List<String> lookupPlans = getValuesList(explainResults).stream()
+                    .filter(r -> "lookup".equals(r.get(EXPLAIN_COL_ROLE)))
+                    .map(r -> (String) r.get(EXPLAIN_COL_PLAN))
+                    .toList();
+                assertFalse("EXPLAIN with profile=true should still return lookup rows", lookupPlans.isEmpty());
+                for (String plan : lookupPlans) {
+                    assertFalse("Lookup plan row should not be a placeholder", plan.startsWith("<unavailable:"));
+                }
+            }
+
+            // Profile format: run actual LOOKUP JOIN with profile=true and verify that
+            // StreamingLookupStatus.planToWorkers workers[] use node IDs (not human-readable names).
+            Map<String, String> nodeIdToName = new HashMap<>();
+            for (String nodeName : internalCluster().getNodeNames()) {
+                String nodeId = internalCluster().clusterService(nodeName).localNode().getId();
+                nodeIdToName.put(nodeId, nodeName);
+            }
+            Set<String> clusterNodeIds = nodeIdToName.keySet();
+
+            EsqlQueryRequest profileRequest = syncEsqlQueryRequest(query).profile(true);
+            try (EsqlQueryResponse profileResults = run(profileRequest)) {
+                assertNotNull("Profile should be present when profile=true", profileResults.profile());
+                // Verify correct query results while we're here
+                assertThat("LOOKUP JOIN should return matched rows", getValuesList(profileResults).size(), equalTo(1));
+
+                boolean foundLookupStatus = false;
+                for (DriverProfile driverProfile : profileResults.profile().drivers()) {
+                    for (OperatorStatus operatorStatus : driverProfile.operators()) {
+                        if (operatorStatus.status() instanceof StreamingLookupFromIndexOperator.StreamingLookupStatus lookupStatus) {
+                            if (lookupStatus.planToWorkers().isEmpty() == false) {
+                                foundLookupStatus = true;
+                                for (Set<String> workers : lookupStatus.planToWorkers().values()) {
+                                    for (String workerKey : workers) {
+                                        // workerKey format: "<nodeId>:worker<N>"
+                                        int sep = workerKey.lastIndexOf(":worker");
+                                        String nodeId = sep >= 0 ? workerKey.substring(0, sep) : workerKey;
+                                        assertThat(
+                                            "Profile workers[] must use node IDs (not names), but got: " + workerKey,
+                                            clusterNodeIds,
+                                            hasItem(nodeId)
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                assertTrue("Should find StreamingLookupStatus with plan data in profile", foundLookupStatus);
+            }
+        } finally {
             try {
                 indicesAdmin().prepareDelete(mainIndex).get();
             } catch (Exception e) {

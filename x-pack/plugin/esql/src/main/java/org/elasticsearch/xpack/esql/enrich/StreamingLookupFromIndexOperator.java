@@ -79,9 +79,14 @@ public class StreamingLookupFromIndexOperator implements Operator {
     private final boolean profile;
     @Nullable
     private final Configuration configuration;
+    private final boolean explainOnly;
 
     // State
     private final AtomicLong batchIdGenerator = new AtomicLong(0);
+    // Set to true once the explain probe completes (success or failure). Guards isFinished() in explain mode.
+    private volatile boolean explainProbeDone = false;
+    // Node ID of the probe worker created by triggerSetupForExplain(). Used to build the workerKey for placeholder rows on probe failure.
+    private volatile String explainProbeNodeId = null;
     private final Map<Long, PendingJoin> activeBatches = new HashMap<>();
     private BidirectionalBatchExchangeClient client;
     private final AtomicReference<Exception> failure = new AtomicReference<>();
@@ -155,9 +160,22 @@ public class StreamingLookupFromIndexOperator implements Operator {
         this.matchFieldsMapping = LookupFromIndexOperator.buildMatchFieldsMapping(matchFields, joinOnConditions);
         this.profile = profile;
         this.configuration = configuration;
+        this.explainOnly = configuration != null && configuration.explainOnly();
 
         // Initialize exchange client in constructor
         initializeClient();
+
+        // In explain mode, eagerly trigger setup so the server plans the lookup query and
+        // returns the plan string, even though no data pages will flow.
+        if (explainOnly && client != null) {
+            try {
+                explainProbeNodeId = client.triggerSetupForExplain();
+            } catch (Exception e) {
+                // triggerSetupForExplain() failed synchronously (e.g. no available node).
+                // driverContext.addAsyncAction() was already called in initializeClient(); release it here.
+                recordExplainProbeFailure(e, null);
+            }
+        }
     }
 
     private void initializeClient() {
@@ -193,7 +211,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
                         null,
                         clientToServerId,
                         serverToClientId,
-                        profile,
+                        profile || explainOnly,
                         configuration
                     );
                 } else {
@@ -209,7 +227,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
                         joinOnConditions,
                         clientToServerId,
                         serverToClientId,
-                        profile,
+                        profile || explainOnly,
                         null
                     );
                 }
@@ -224,10 +242,15 @@ public class StreamingLookupFromIndexOperator implements Operator {
                         logger,
                         Level.ERROR,
                         e,
-                        "Server setup failed for node=" + serverNode.getId(),
-                        e
+                        "Server setup failed for node={}",
+                        serverNode.getId()
                     );
-                    failure.set(e);
+                    // In explain mode the probe failure is handled gracefully by
+                    // handleBatchExchangeFailure(); don't set failure here so it
+                    // isn't seen by isFinished() before the handler can swallow it.
+                    if (explainOnly == false) {
+                        failure.set(e);
+                    }
                     listener.onFailure(e);
                 }));
             };
@@ -243,10 +266,10 @@ public class StreamingLookupFromIndexOperator implements Operator {
                 ActionListener.wrap(v -> handleBatchExchangeSuccess(), this::handleBatchExchangeFailure),
                 lookupService.getSettings(),
                 setupCallback,
-                profile
+                (profile || explainOnly)
                     ? (workerKey, planString) -> planToWorkers.computeIfAbsent(planString, k -> ConcurrentHashMap.newKeySet())
                         .add(workerKey)
-                    : null,  // Only track plans when profiling
+                    : null,  // Only track plans when profiling or in explain mode
                 maxOutstandingRequests,
                 this::determineServerNode  // Supplier for getting server nodes for workers
             );
@@ -285,13 +308,34 @@ public class StreamingLookupFromIndexOperator implements Operator {
 
     private void handleBatchExchangeSuccess() {
         logger.debug("Batch exchange completed successfully");
+        explainProbeDone = true;
+        driverContext.removeAsyncAction();
+    }
+
+    /**
+     * Records a placeholder plan row for the lookup operator when the explain probe fails or cannot be sent.
+     * Sets {@code explainProbeDone} and releases the async action so the driver can proceed.
+     */
+    private void recordExplainProbeFailure(Exception e, String nodeId) {
+        logger.warn("Explain-mode lookup probe failed; EXPLAIN output will show placeholder for lookup plan", e);
+        String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+        String placeholder = "<unavailable: " + msg + ">";
+        String workerKey = (nodeId != null ? nodeId : "unknown") + ":worker0";
+        planToWorkers.computeIfAbsent(placeholder, k -> ConcurrentHashMap.newKeySet()).add(workerKey);
+        explainProbeDone = true;
         driverContext.removeAsyncAction();
     }
 
     private void handleBatchExchangeFailure(Exception e) {
-        BidirectionalBatchExchangeBase.logExchangeFailure(logger, Level.ERROR, true, e, "Batch exchange failed", e);
-        failure.set(e);
-        driverContext.removeAsyncAction();
+        if (explainOnly) {
+            // In explain mode, emit a placeholder plan row so EXPLAIN still reports the lookup operator.
+            // Don't propagate the exception — explain should degrade gracefully.
+            recordExplainProbeFailure(e, explainProbeNodeId);
+        } else {
+            BidirectionalBatchExchangeBase.logExchangeFailure(logger, Level.ERROR, true, e, "Batch exchange failed", e);
+            failure.set(e);
+            driverContext.removeAsyncAction();
+        }
     }
 
     @Override
@@ -300,7 +344,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
         if (activeBatches.size() >= maxOutstandingRequests) {
             return false;
         }
-        return finished == false && failure.get() == null && closed == false && client != null;
+        return finished == false && failure.get() == null && closed == false && client != null && client.getPrimaryFailure() == null;
     }
 
     @Override
@@ -530,6 +574,11 @@ public class StreamingLookupFromIndexOperator implements Operator {
      * Cleans up batch resources before throwing.
      */
     private void checkFailureAndMaybeThrow() {
+        // In explain mode, once the probe is done the exchange failure was already recorded as a
+        // placeholder row — don't propagate it as an operator exception.
+        if (explainOnly && explainProbeDone) {
+            return;
+        }
         Exception ex = failure.get();
         Exception clientEx = (client != null) ? client.getPrimaryFailure() : null;
         Exception best = bestError(ex, clientEx);
@@ -588,8 +637,18 @@ public class StreamingLookupFromIndexOperator implements Operator {
             logger.trace("isFinished: false (activeBatches not empty), size={}", activeBatches.size());
             return false;
         }
-        // If no batches were ever sent, we're done immediately
+        // If no batches were ever sent, we're done immediately — unless we're in explain mode
+        // and still waiting for the eager probe to come back.
         if (batchIdGenerator.get() == 0) {
+            if (explainOnly) {
+                if (explainProbeDone == false) {
+                    logger.debug("isFinished: false (explain probe in flight)");
+                    return false;
+                }
+                drainClientWarnings();
+                logger.debug("isFinished: true (explain probe done)");
+                return true;
+            }
             logger.debug("isFinished: true (no batches sent)");
             return true;
         }
@@ -642,7 +701,12 @@ public class StreamingLookupFromIndexOperator implements Operator {
 
         Exception ex = failure.get();
         if (ex == null && client != null) {
-            ex = client.getPrimaryFailure();
+            // In explain mode, don't surface the client's primary failure until handleBatchExchangeFailure()
+            // has run and set explainProbeDone — otherwise the driver can slip past isBlocked() before
+            // the probe callback has had a chance to record the placeholder row.
+            if (explainOnly == false || explainProbeDone) {
+                ex = client.getPrimaryFailure();
+            }
         }
         if (ex != null) {
             // it will throw in getOutput() with the exception

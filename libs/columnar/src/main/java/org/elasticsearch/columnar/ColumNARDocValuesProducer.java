@@ -149,10 +149,7 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
     private BinaryDocValues numericBinary(NumericColumnMetadata metadata) throws IOException {
         NumericColumnReader reader = new NumericColumnReader(metadata, data);
         ColumnIterator iterator = reader.iterator();
-        // Dense single-valued columns map a document id onto its value ordinal, which unlocks the
-        // vectorized range and bulk-read fast paths; every other shape falls back to per-doc reads.
-        boolean vectorizable = iterator.isDense() && metadata.multiValued() == false;
-        return new ColumnarNumericBinaryDocValues(reader, iterator, maxDoc, vectorizable, metadata.skipper(), skipIndex);
+        return new ColumnarNumericBinaryDocValues(reader, iterator, maxDoc, metadata.skipper(), skipIndex);
     }
 
     @Override

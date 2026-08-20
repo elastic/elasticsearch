@@ -54,11 +54,7 @@ public class HighlightGenerator implements CommandGenerator {
         { "order", "\"none\"", "\"score\"" },
         { "no_match_size", "0", "30", "100", "200" },
         // max_analyzed_offset must be a positive integer or -1 (0 is invalid).
-        { "max_analyzed_offset", "-1", "100", "1000" },
-        // Accepted for Query DSL parity but no-ops for the unified highlighter HIGHLIGHT uses.
-        { "boundary_chars", "\".,!?\"" },
-        { "boundary_max_scan", "10", "20" },
-        { "phrase_limit", "128", "256" } };
+        { "max_analyzed_offset", "-1", "100", "1000" } };
 
     @Override
     public CommandDescription generate(

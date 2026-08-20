@@ -149,6 +149,7 @@ import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
@@ -974,8 +975,8 @@ public class LocalExecutionPlanner {
      * <ul>
      *     <li>Exactly one sort {@link Order} (Tier 1 is single-key).</li>
      *     <li>The sort attribute is a plain {@link Attribute} (no expressions over the field) of
-     *         a fixed-width numeric type — currently LONG, INTEGER, DOUBLE, BOOLEAN, DATETIME, or
-     *         DATE_NANOS. FLOAT, UNSIGNED_LONG, HALF_FLOAT, and SCALED_FLOAT are deferred to a
+     *         a fixed-width numeric type — currently LONG, INTEGER, DOUBLE, BOOLEAN, DATETIME,
+     *         DATE_NANOS, or UNSIGNED_LONG. FLOAT, HALF_FLOAT, and SCALED_FLOAT are deferred to a
      *         follow-up PR; they need a tiny encoding addition but no operator surface change.</li>
      *     <li>The limit is a literal foldable to a positive {@code int}. Non-literal limits go
      *         to the generic operator (the bytes-encoding path doesn't need a literal).</li>
@@ -1079,12 +1080,14 @@ public class LocalExecutionPlanner {
      * go through the LONG path. Keeping the predicate here rather than on the operator lets the
      * planner cleanly skip the optimisation without instantiating the factory.
      *
+     * <p>{@code UNSIGNED_LONG} is included: ESQL stores it sign-flip-encoded
+     * ({@code raw ^ Long.MIN_VALUE}) so that signed-long ordering over the encoded form already
+     * matches unsigned ordering over the true value. The operator's own
+     * {@code ~raw} ASC/DESC bit flip then applies on top of that encoding exactly as it does for
+     * a plain {@code LONG} sort key — no operator change needed.
+     *
      * <p>Deliberately excluded:
      * <ul>
-     *     <li>{@code UNSIGNED_LONG}: maps to {@link ElementType#LONG} but the operator's
-     *         {@code ~raw} encoding does not preserve unsigned ordering. Supporting it needs a
-     *         different encoding ({@code raw ^ Long.MIN_VALUE}, sign-bit flip) and is parked for
-     *         a follow-up.</li>
      *     <li>{@code FLOAT}, {@code HALF_FLOAT}, {@code SCALED_FLOAT}: ESQL widens these to
      *         {@link DataType#DOUBLE} at load time, so a sort attribute with one of these data
      *         types never reaches this predicate in practice — {@link PlannerUtils#toElementType}
@@ -1098,7 +1101,8 @@ public class LocalExecutionPlanner {
             || dataType == DataType.DOUBLE
             || dataType == DataType.BOOLEAN
             || dataType == DataType.DATETIME
-            || dataType == DataType.DATE_NANOS;
+            || dataType == DataType.DATE_NANOS
+            || dataType == DataType.UNSIGNED_LONG;
     }
 
     /**
@@ -1521,11 +1525,11 @@ public class LocalExecutionPlanner {
         // After enabling remote joins, we can have one of the two situations here:
         // 1. We've just got one entry - this should be the one relevant to the join, and it should be for this cluster
         // 2. We have got multiple entries - this means each cluster has its own one, and we should extract one relevant for this cluster
-        Map.Entry<String, IndexMode> entry;
-        if (esRelation.indexNameWithModes().size() == 1) {
-            entry = esRelation.indexNameWithModes().entrySet().iterator().next();
+        Map.Entry<String, IndexProperties> entry;
+        if (esRelation.indexProperties().size() == 1) {
+            entry = esRelation.indexProperties().entrySet().iterator().next();
         } else {
-            var maybeEntry = esRelation.indexNameWithModes()
+            var maybeEntry = esRelation.indexProperties()
                 .entrySet()
                 .stream()
                 .filter(e -> RemoteClusterAware.splitIndexName(e.getKey()).getClusterGroupingKey().equals(clusterAlias))
@@ -1537,8 +1541,8 @@ public class LocalExecutionPlanner {
             );
         }
 
-        if (entry.getValue() != IndexMode.LOOKUP) {
-            throw new IllegalStateException("can't plan [" + join + "], found index with mode [" + entry.getValue() + "]");
+        if (entry.getValue().indexMode() != IndexMode.LOOKUP) {
+            throw new IllegalStateException("can't plan [" + join + "], found index with mode [" + entry.getValue().indexMode() + "]");
         }
         var indexSplit = RemoteClusterAware.splitIndexName(entry.getKey());
         // No prefix is ok, prefix with this cluster is ok, something else is not

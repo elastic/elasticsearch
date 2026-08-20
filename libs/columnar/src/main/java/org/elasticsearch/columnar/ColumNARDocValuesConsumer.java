@@ -42,6 +42,10 @@ import java.util.List;
 /**
  * Writes tagged columns onto the binary substrate; numeric types decode their {@code NumericBinaryPayload}
  * into the long column. Field metadata is flushed on {@link #close()}.
+ *
+ * <p><b>Merge contract.</b> {@link #mergeBinaryField} re-encodes all source segments through the
+ * current writer's pipeline. There is no version-preserving merge and no mixed-version output
+ * segment: a force-merge is a silent format upgrade.
  */
 final class ColumNARDocValuesConsumer extends DocValuesConsumer {
 
@@ -71,7 +75,13 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 ColumNARDocValuesFormat.DATA_EXTENSION
             );
             data = state.directory.createOutput(dataName, state.context);
-            ColumnarCodecUtil.writeHeader(data, ColumNARDocValuesFormat.DATA_CODEC, state.segmentInfo.getId(), state.segmentSuffix);
+            ColumnarCodecUtil.writeHeader(
+                data,
+                ColumNARDocValuesFormat.DATA_CODEC,
+                FormatVersion.CURRENT,
+                state.segmentInfo.getId(),
+                state.segmentSuffix
+            );
 
             String metaName = IndexFileNames.segmentFileName(
                 state.segmentInfo.name,
@@ -79,7 +89,13 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 ColumNARDocValuesFormat.META_EXTENSION
             );
             meta = state.directory.createOutput(metaName, state.context);
-            ColumnarCodecUtil.writeHeader(meta, ColumNARDocValuesFormat.META_CODEC, state.segmentInfo.getId(), state.segmentSuffix);
+            ColumnarCodecUtil.writeHeader(
+                meta,
+                ColumNARDocValuesFormat.META_CODEC,
+                FormatVersion.CURRENT,
+                state.segmentInfo.getId(),
+                state.segmentSuffix
+            );
             success = true;
         } finally {
             if (success == false) {
@@ -195,7 +211,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         // Count in one pass, then stream the values block by block from fresh cursors — never buffer
         // the whole field on-heap, so a large merge stays memory-bounded.
         int numDocsWithField = 0;
-        int numValues = 0;
+        long numValues = 0;
         NumericColumnValues counter = cursors.get();
         for (int doc = counter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = counter.nextDoc()) {
             numDocsWithField++;

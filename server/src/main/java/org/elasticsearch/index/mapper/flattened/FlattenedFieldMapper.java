@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.DirectoryReader;
@@ -56,7 +57,6 @@ import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.escf.EscfColumnTransforms;
 import org.elasticsearch.escf.LuceneBinaryColumn;
 import org.elasticsearch.escf.LuceneLongColumn;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -106,7 +106,6 @@ import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullPrefixQuery;
 import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
-import org.elasticsearch.lucene.queries.SortedSetDocValuesRangeQuery;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.FlattenedDocValuesField;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
@@ -180,10 +179,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
      * Name of the implicit, non-serialized flattened sink injected under root to absorb unmapped fields as full dotted keys.
      */
     public static final String UNMAPPED_SINK_NAME = "_unmapped";
-
-    public static final NodeFeature FLATTENED_MAPPED_SUBFIELDS_FEATURE = new NodeFeature("mapper.flattened.mapped_subfields");
-    public static final NodeFeature FLATTENED_PASSTHROUGH_FEATURE = new NodeFeature("mapper.flattened.passthrough");
-    public static final NodeFeature FLATTENED_COLUMNAR_DOCUMENT_ORDER = new NodeFeature("mapper.flattened.columnar_document_order");
 
     private static class Defaults {
         public static final int DEPTH_LIMIT = 20;
@@ -737,7 +732,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                     }
                     return new ScanningBinaryDocValuesTermQuery(name(), keyedValue, false);
                 } else {
-                    return SortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
+                    return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
                 }
             } else {
                 return super.termQuery(value, context);
@@ -773,7 +768,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 BytesRef upper = new BytesRef(keyPrefix);
                 upper.bytes[upper.offset + upper.length - 1] = (byte) 0x01; // bump the trailing separator byte for an exclusive upper bound
 
-                return SortedSetDocValuesRangeQuery.newSlowRangeQuery(name(), lower, upper, true, false);
+                return SortedSetDocValuesField.newSlowRangeQuery(name(), lower, upper, true, false);
             }
             return new PrefixQuery(new Term(name(), keyPrefix));
         }
@@ -858,9 +853,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             SearchExecutionContext context,
             @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
-            throw new UnsupportedOperationException(
-                "[fuzzy] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields."
-            );
+            throw new IllegalArgumentException("[fuzzy] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
@@ -872,9 +865,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             MultiTermQuery.RewriteMethod method,
             SearchExecutionContext context
         ) {
-            throw new UnsupportedOperationException(
-                "[regexp] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields."
-            );
+            throw new IllegalArgumentException("[regexp] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
@@ -884,7 +875,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             boolean caseInsensitive,
             SearchExecutionContext context
         ) {
-            throw new UnsupportedOperationException(
+            throw new IllegalArgumentException(
                 "[wildcard] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields."
             );
         }
@@ -1885,7 +1876,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
      *   <li>{@code <root>._keyed.counts} — the slot count per document, including null slots.</li>
      * </ol>
      *
-     * <p>Two known divergences from the row path:
+     * <p>Known divergence from the row path:
      * <ul>
      *   <li><b>Slot order.</b> Slots are emitted in schema-leaf order (first-seen key order across the batch) rather than per-document
      *       JSON order. The two agree when all documents list their keys in the same order, which is the common case.
@@ -1895,9 +1886,14 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
      *       Same divergence as {@link KeywordFieldMapper#mapColumnBatch}.</li>
      * </ul>
      *
-     * <p>TODO: {@code depth_limit} and {@code relativeKeys} uniqueness are not enforced — deferred to the production hook-up in
-     * {@code ShardBatchMapper}, where the right schema representation will need to be propogated.
+     * <p>Duplicate relative keys within a batch are benign, including when one document carries both spellings
+     * ({@code {"flat":{"a.b":1,"a":{"b":2}}}} produces two columns whose relative key is {@code a.b}). Every column of
+     * the group arrives here in a single call, so both slots land in the same per-document blob and the emitted slot
+     * count matches the row path. This is why aliasing is safe for group mappers but not for per-leaf ones, which
+     * {@code ShardBatchMapper#resolveMappers} rejects.
      *
+     * @throws IllegalArgumentException when a relative key's depth exceeds {@code depth_limit}, mirroring
+     *         {@code FlattenedFieldParser.validateDepthLimit}
      * @throws UnsupportedOperationException when a value exceeds {@code ignore_above}, so that the caller falls back to the row path,
      *         which writes the {@code <root>._keyed._ignored} channel this path does not yet produce
      */
@@ -1908,6 +1904,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         final int columnCount = columns.length;
 
         // The "key\0" prefix is constant across documents for a given column, so build it once.
+        // Also validate depth_limit and the reserved separator character here, once per key.
         final BytesRef[] keyPrefixes = new BytesRef[columnCount];
         final BytesRefBuilder prefixScratch = new BytesRefBuilder();
         for (int k = 0; k < columnCount; k++) {
@@ -1915,6 +1912,13 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             if (key.indexOf(FlattenedFieldParser.SEPARATOR_BYTE) >= 0) {
                 throw new IllegalArgumentException(
                     "Keys in [flattened] fields cannot contain the reserved character \\0. Offending key: [" + key + "]."
+                );
+            }
+            // depth_limit mirrors FlattenedFieldParser.validateDepthLimit: path.length() + 1 > depthLimit,
+            // where path.length() equals the number of dots in the relative key (nesting depth).
+            if (dotCountInKey(key) + 1 > depthLimit()) {
+                throw new IllegalArgumentException(
+                    "The provided [flattened] field [" + fullPath() + "] exceeds the maximum depth limit of [" + depthLimit() + "]."
                 );
             }
             prefixScratch.clear();
@@ -2023,6 +2027,17 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
         b.lockScalar(EscfColumnKind.LONG);
         return b;
+    }
+
+    /** Counts the number of {@code '.'} characters in {@code key}. Used to compute nesting depth for {@code depth_limit} checks. */
+    private static int dotCountInKey(String key) {
+        int count = 0;
+        for (int i = 0; i < key.length(); i++) {
+            if (key.charAt(i) == '.') {
+                count++;
+            }
+        }
+        return count;
     }
 
     /** Mirrors the row path's immense-keyed-value error in {@link FlattenedFieldParser}. */

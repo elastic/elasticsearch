@@ -48,6 +48,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
@@ -117,6 +118,22 @@ public class KnnIndexTester {
         HNSW,
         IVF,
         GPU_HNSW
+    }
+
+    enum QuantizationType {
+        OSQ,
+        ASH;
+
+        static QuantizationType fromString(String name) {
+            if (name == null) {
+                return OSQ;
+            }
+            return switch (name.toLowerCase(Locale.ROOT)) {
+                case "ash" -> ASH;
+                case "osq" -> OSQ;
+                default -> throw new IllegalArgumentException("Unknown quantization_type: '" + name + "'. Known types: ash, osq");
+            };
+        }
     }
 
     public enum VectorEncoding {
@@ -209,18 +226,30 @@ public class KnnIndexTester {
             case FLAT -> suffix.add("flat");
             case GPU_HNSW -> suffix.add("gpu_hnsw");
             case IVF -> {
-                suffix.add("ivf");
+                boolean isAsh = QuantizationType.fromString(args.quantizationType()) == QuantizationType.ASH;
+                suffix.add(isAsh ? "ash" : "ivf");
                 suffix.add(Integer.toString(args.ivfClusterSize()));
-                suffix.add(
-                    Integer.toString(
-                        args.secondaryClusterSize() == -1
-                            ? ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
-                            : args.secondaryClusterSize()
-                    )
-                );
-                suffix.add(Integer.toString(args.quantizeBits()));
-                if (args.queryQuantizeBits() != null && args.queryQuantizeBits() != defaultQueryQuantizeBits(args.quantizeBits())) {
-                    suffix.add("q" + args.queryQuantizeBits());
+                if (isAsh) {
+                    int bits = args.quantizeBits() != null ? args.quantizeBits() : 2;
+                    suffix.add(Integer.toString(bits));
+                    if (args.queryQuantizeBits() != null && args.queryQuantizeBits() != 4) {
+                        suffix.add("q" + args.queryQuantizeBits());
+                    }
+                    if (args.projectedDimsFraction() != 0.5f) {
+                        suffix.add("p" + String.format(Locale.ROOT, "%.2f", args.projectedDimsFraction()));
+                    }
+                } else {
+                    suffix.add(
+                        Integer.toString(
+                            args.secondaryClusterSize() == -1
+                                ? ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
+                                : args.secondaryClusterSize()
+                        )
+                    );
+                    suffix.add(Integer.toString(args.quantizeBits()));
+                    if (args.queryQuantizeBits() != null && args.queryQuantizeBits() != defaultQueryQuantizeBits(args.quantizeBits())) {
+                        suffix.add("q" + args.queryQuantizeBits());
+                    }
                 }
             }
             case HNSW -> {
@@ -248,29 +277,56 @@ public class KnnIndexTester {
 
         format = switch (args.indexType()) {
             case IVF -> {
-                var encoding = resolveQuantEncoding(quantizeBits, args.queryQuantizeBits());
-                // Use flatVectorThreshold from config, or default to -1 (dynamic) if not specified
+                boolean isAsh = QuantizationType.fromString(args.quantizationType()) == QuantizationType.ASH;
                 int flatVectorThreshold = args.flatVectorThreshold() >= 0 ? args.flatVectorThreshold() : -1;
-                IvfMergeConfigResolver mergeConfigResolver = args.autoCalibrate()
-                    ? IvfAutoCalibration.mergeConfigResolver(args.ivfClusterSize())
-                    : IvfMergeConfigResolver.useCodecDefault();
-                yield new ESNextDiskBBQVectorsFormat(
-                    encoding,
-                    args.ivfClusterSize(),
-                    args.secondaryClusterSize() == -1
-                        ? ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
-                        : args.secondaryClusterSize(),
-                    elementType,
-                    args.onDiskRescore(),
-                    exec,
-                    mergeWorkers,
-                    args.doPrecondition(),
-                    args.preconditioningBlockDims(),
-                    flatVectorThreshold,
-                    args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null,
-                    IvfFlushConfigSource.empty(),
-                    mergeConfigResolver
-                );
+                int centroidsPerParentCluster = args.secondaryClusterSize() == -1
+                    ? (isAsh
+                        ? ESNextDiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
+                        : ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER)
+                    : args.secondaryClusterSize();
+                String sliceField = args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null;
+
+                if (isAsh) {
+                    int bitsPerDim = args.quantizeBits() != null ? args.quantizeBits() : 2;
+                    int queryBits = args.queryQuantizeBits() != null
+                        ? args.queryQuantizeBits()
+                        : ESNextDiskASHVectorsFormat.DEFAULT_QUERY_BITS_PER_DIM;
+                    yield new ESNextDiskASHVectorsFormat(
+                        args.ivfClusterSize(),
+                        centroidsPerParentCluster,
+                        elementType,
+                        false,
+                        exec,
+                        mergeWorkers,
+                        flatVectorThreshold,
+                        sliceField,
+                        IvfFlushConfigSource.empty(),
+                        IvfMergeConfigResolver.useCodecDefault(),
+                        bitsPerDim,
+                        args.projectedDimsFraction(),
+                        queryBits
+                    );
+                } else {
+                    var encoding = resolveQuantEncoding(quantizeBits, args.queryQuantizeBits());
+                    IvfMergeConfigResolver mergeConfigResolver = args.autoCalibrate()
+                        ? IvfAutoCalibration.mergeConfigResolver(args.ivfClusterSize())
+                        : IvfMergeConfigResolver.useCodecDefault();
+                    yield new ESNextDiskBBQVectorsFormat(
+                        encoding,
+                        args.ivfClusterSize(),
+                        centroidsPerParentCluster,
+                        elementType,
+                        args.onDiskRescore(),
+                        exec,
+                        mergeWorkers,
+                        args.doPrecondition(),
+                        args.preconditioningBlockDims(),
+                        flatVectorThreshold,
+                        sliceField,
+                        IvfFlushConfigSource.empty(),
+                        mergeConfigResolver
+                    );
+                }
             }
             case GPU_HNSW -> {
                 int graphDegree = ES92GpuHnswVectorsFormat.cagraGraphDegree(args.hnswM());
@@ -421,6 +477,7 @@ public class KnnIndexTester {
             throw new IllegalArgumentException("JSON config file does not exist: " + jsonConfigPath);
         }
 
+        reportMemoryAndProcesses();
         logger.info("Using configuration file: " + jsonConfigPath);
         String rawConfigJson = Files.readString(jsonConfigPath);
         // Parse the JSON config file to get command line arguments
@@ -662,6 +719,63 @@ public class KnnIndexTester {
         }
     }
 
+    // Log system memory and other Java processes to help identify page-cache starvation early.
+    private static void reportMemoryAndProcesses() {
+        Path meminfo = Path.of("/proc/meminfo");
+        if (Files.exists(meminfo)) {
+            try {
+                String text = Files.readString(meminfo);
+                long totalMB = parseMeminfoKB(text, "MemTotal") / 1024;
+                long availMB = parseMeminfoKB(text, "MemAvailable") / 1024;
+                long cacheMB = parseMeminfoKB(text, "Cached") / 1024;
+
+                long myPid = ProcessHandle.current().pid();
+                List<String> otherJavaProcs = ProcessHandle.allProcesses()
+                    .filter(p -> p.pid() != myPid)
+                    .filter(p -> p.info().command().orElse("").contains("java"))
+                    .map(p -> {
+                        String cmdLine = p.info().commandLine().orElse("");
+                        return "  PID " + p.pid() + " (" + javaProcessLabel(cmdLine) + ")";
+                    })
+                    .toList();
+
+                logger.info(
+                    "MEMORY: total={}MB, available={}MB, page_cache={}MB, other_java_procs={}",
+                    totalMB,
+                    availMB,
+                    cacheMB,
+                    otherJavaProcs.size()
+                );
+                for (String proc : otherJavaProcs) {
+                    logger.info(proc);
+                }
+                if (availMB > 0 && availMB < 4096) {
+                    logger.warn("Only {}MB available — benchmark may be dominated by page faults!", availMB);
+                }
+            } catch (IOException e) {
+                logger.warn("Failed to read /proc/meminfo: {}", e.getMessage());
+            }
+        }
+    }
+
+    private static long parseMeminfoKB(String text, String key) {
+        int idx = text.indexOf(key + ":");
+        if (idx < 0) return -1;
+        int start = idx + key.length() + 1;
+        int end = text.indexOf('\n', start);
+        String line = text.substring(start, end).trim();
+        return Long.parseLong(line.split("\\s+")[0]);
+    }
+
+    private static String javaProcessLabel(String cmdLine) {
+        if (cmdLine.contains("GradleWorkerMain")) return "GradleWorker";
+        if (cmdLine.contains("GradleDaemon")) return "GradleDaemon";
+        if (cmdLine.contains("gradle-wrapper")) return "GradleWrapper";
+        if (cmdLine.contains("KnnIndexTester")) return "KnnIndexTester";
+        if (cmdLine.contains("org.elasticsearch")) return "Elasticsearch";
+        return "java[" + cmdLine.substring(0, Math.min(cmdLine.length(), 80)) + "]";
+    }
+
     static void numSegments(Path indexPath, Results indexResults, Directory sharedDir) throws IOException {
         if (sharedDir != null) {
             numSegments(sharedDir, indexResults);
@@ -734,36 +848,45 @@ public class KnnIndexTester {
     private static void checkQuantizeBits(TestConfiguration args) {
         switch (args.indexType()) {
             case IVF:
-                if (args.quantizeBits() == null || !Set.of(1, 2, 4, 7).contains(args.quantizeBits())) {
-                    throw new IllegalArgumentException(
-                        "IVF index type only supports 1, 2, 4 or 7 bits quantization, but got: " + args.quantizeBits()
-                    );
-                }
-                if (args.queryQuantizeBits() != null) {
-                    int docBits = args.quantizeBits();
-                    int queryBits = args.queryQuantizeBits();
-                    if (docBits == 1 && !Set.of(1, 4).contains(queryBits)) {
+                if (QuantizationType.fromString(args.quantizationType()) == QuantizationType.ASH) {
+                    // ASH supports {1, 2, 3, 4, 8} for doc bits; query bits are independent
+                    if (args.quantizeBits() != null && !Set.of(1, 2, 3, 4, 8).contains(args.quantizeBits())) {
                         throw new IllegalArgumentException(
-                            "IVF with 1-bit document quantization supports query_quantize_bits 1 or 4, but got: " + queryBits
+                            "ASH quantization supports 1, 2, 3, 4 or 8 bits, but got: " + args.quantizeBits()
                         );
                     }
-                    if (docBits == 2 && queryBits != 4) {
+                } else {
+                    if (args.quantizeBits() == null || !Set.of(1, 2, 4, 7).contains(args.quantizeBits())) {
                         throw new IllegalArgumentException(
-                            "IVF with 2-bit document quantization requires query_quantize_bits 4, but got: " + queryBits
+                            "IVF index type only supports 1, 2, 4 or 7 bits quantization, but got: " + args.quantizeBits()
                         );
                     }
-                    if ((docBits == 4 || docBits == 7) && queryBits != docBits) {
-                        throw new IllegalArgumentException(
-                            "IVF with "
-                                + docBits
-                                + "-bit document quantization requires query_quantize_bits "
-                                + docBits
-                                + ", but got: "
-                                + queryBits
-                        );
+                    if (args.queryQuantizeBits() != null) {
+                        int docBits = args.quantizeBits();
+                        int queryBits = args.queryQuantizeBits();
+                        if (docBits == 1 && !Set.of(1, 4).contains(queryBits)) {
+                            throw new IllegalArgumentException(
+                                "IVF with 1-bit document quantization supports query_quantize_bits 1 or 4, but got: " + queryBits
+                            );
+                        }
+                        if (docBits == 2 && queryBits != 4) {
+                            throw new IllegalArgumentException(
+                                "IVF with 2-bit document quantization requires query_quantize_bits 4, but got: " + queryBits
+                            );
+                        }
+                        if ((docBits == 4 || docBits == 7) && queryBits != docBits) {
+                            throw new IllegalArgumentException(
+                                "IVF with "
+                                    + docBits
+                                    + "-bit document quantization requires query_quantize_bits "
+                                    + docBits
+                                    + ", but got: "
+                                    + queryBits
+                            );
+                        }
+                        // validate the combination is supported by the codec
+                        resolveQuantEncoding(docBits, queryBits);
                     }
-                    // validate the combination is supported by the codec
-                    resolveQuantEncoding(docBits, queryBits);
                 }
                 break;
             case GPU_HNSW: {

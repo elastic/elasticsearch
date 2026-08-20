@@ -131,6 +131,65 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         );
     }
 
+    // ---- Test 1b: UNSIGNED_LONG comparisons implement unsigned ordering over the encoded LongBlock ----
+
+    /**
+     * {@code UNSIGNED_LONG} blocks and literals both live in ESQL's canonical sign-flip-encoded domain (see
+     * {@link ParquetColumnDecoding#encodeUnsignedLong}); this dispatch is type-blind on the block's runtime class
+     * (see {@code evaluateComparison}'s {@code instanceof LongBlock} branch above), so ordinary signed
+     * {@link Long#compare} over that encoded form must already implement TRUE unsigned ordering across the 2^63
+     * boundary, with no {@code UNSIGNED_LONG}-specific branch needed.
+     */
+    public void testComparisonOpsWithUnsignedLongBlockAcrossSignBoundary() {
+        // True unsigned magnitudes 2^63-2 .. 2^63+2 sign-flip-encode to -2 .. 2.
+        long[] encoded = {
+            ParquetColumnDecoding.encodeUnsignedLong(Long.MAX_VALUE - 1), // 2^63 - 2 -> -2
+            ParquetColumnDecoding.encodeUnsignedLong(Long.MAX_VALUE),     // 2^63 - 1 -> -1
+            ParquetColumnDecoding.encodeUnsignedLong(Long.MIN_VALUE),     // 2^63 -> 0
+            ParquetColumnDecoding.encodeUnsignedLong(Long.MIN_VALUE + 1), // 2^63 + 1 -> 1
+            ParquetColumnDecoding.encodeUnsignedLong(Long.MIN_VALUE + 2)  // 2^63 + 2 -> 2
+        };
+        Block block = blockFactory.newLongArrayVector(encoded, encoded.length).asBlock();
+        Map<String, Block> blocks = Map.of("u", block);
+        int rowCount = 5;
+        WordMask reusable = new WordMask();
+
+        long boundary = ParquetColumnDecoding.encodeUnsignedLong(Long.MIN_VALUE); // literal 2^63, encodes to 0
+
+        // u > 2^63 -> the two truly-larger unsigned magnitudes, positions [3, 4]
+        assertSurvivors(
+            new ParquetPushedExpressions(
+                List.of(new GreaterThan(Source.EMPTY, attr("u", DataType.UNSIGNED_LONG), lit(boundary, DataType.UNSIGNED_LONG), null))
+            ),
+            blocks,
+            rowCount,
+            reusable,
+            new int[] { 3, 4 }
+        );
+
+        // u < 2^63 -> the two truly-smaller unsigned magnitudes, positions [0, 1]
+        assertSurvivors(
+            new ParquetPushedExpressions(
+                List.of(new LessThan(Source.EMPTY, attr("u", DataType.UNSIGNED_LONG), lit(boundary, DataType.UNSIGNED_LONG), null))
+            ),
+            blocks,
+            rowCount,
+            reusable,
+            new int[] { 0, 1 }
+        );
+
+        // u == 2^63 -> position [2]
+        assertSurvivors(
+            new ParquetPushedExpressions(
+                List.of(new Equals(Source.EMPTY, attr("u", DataType.UNSIGNED_LONG), lit(boundary, DataType.UNSIGNED_LONG), null))
+            ),
+            blocks,
+            rowCount,
+            reusable,
+            new int[] { 2 }
+        );
+    }
+
     // ---- Test 2: Equals across all 5 block types ----
 
     public void testEqualsWithIntBlock() {
@@ -1317,6 +1376,24 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         }
     }
 
+    public void testOrdinalEqualsWithNullGapsUsesCorrectValueIndex() {
+        // Regression test for the applyDictionaryMatches bug: ordinals.getInt(i) must use
+        // getFirstValueIndex(i) as the value index, not the raw position index i.
+        // A null at position 2 shifts subsequent value indices; without the fix, position 3
+        // (ordinal 2 = "gamma") reads values[3] (wrong ordinal) instead of values[2].
+        String[] dict = { "alpha", "beta", "gamma" };
+        int[] ordinals = { 0, 1, 0, 2, 0, 1, 2, 0, 1, 2, 2 };
+        boolean[] nulls = { false, false, true, false, false, false, false, false, false, false, false };
+        Block block = ordinalBlock(dict, ordinals, nulls);
+        try (block) {
+            Map<String, Block> blocks = Map.of("x", block);
+            WordMask reusable = new WordMask();
+            int[] expected = positionsWithOrdinalAndNotNull(ordinals, nulls, 2);
+            Expression expr = new Equals(Source.EMPTY, attr("x", DataType.KEYWORD), lit(new BytesRef("gamma"), DataType.KEYWORD), null);
+            assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, ordinals.length, reusable, expected);
+        }
+    }
+
     // ---- Test: WildcardLike (LIKE) evaluation ----
 
     public void testWildcardLikeBasicScalar() {
@@ -2057,6 +2134,151 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
             System.arraycopy(pattern, 0, out, t * pattern.length, pattern.length);
         }
         return out;
+    }
+
+    // ---- Multivalue block tests (esql-planning#1070) ----
+
+    // Block layout for most MV int tests: pos0=[1,2] (MV), pos1=[3] (SV), pos2=null, pos3=[7,5] (MV)
+
+    public void testEqualsOnMultivalueIntBlock() {
+        Block block = buildMvIntBlock();
+        try (block) {
+            Map<String, Block> blocks = Map.of("v", block);
+            WordMask reusable = new WordMask();
+            Equals equals = new Equals(Source.EMPTY, attr("v", DataType.INTEGER), lit(3, DataType.INTEGER), null);
+            // only pos1 (single-value 3) must survive; pos0 and pos3 are MV, pos2 is null
+            assertSurvivors(new ParquetPushedExpressions(List.of(equals)), blocks, 4, reusable, new int[] { 1 });
+        }
+    }
+
+    public void testNotEqualsOnMultivalueIntBlock() {
+        Block block = buildMvIntBlock();
+        try (block) {
+            Map<String, Block> blocks = Map.of("v", block);
+            WordMask reusable = new WordMask();
+            // NOT(v == 7): pos1 (single-value 3, not equal to 7) survives; MV/null positions excluded
+            Not not = new Not(Source.EMPTY, new Equals(Source.EMPTY, attr("v", DataType.INTEGER), lit(7, DataType.INTEGER), null));
+            assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 4, reusable, new int[] { 1 });
+        }
+    }
+
+    public void testInOnMultivalueIntBlock() {
+        Block block = buildMvIntBlock();
+        try (block) {
+            Map<String, Block> blocks = Map.of("v", block);
+            WordMask reusable = new WordMask();
+            In in = new In(Source.EMPTY, attr("v", DataType.INTEGER), List.of(lit(3, DataType.INTEGER), lit(7, DataType.INTEGER)));
+            // pos3 has value 7 but is MV — must not survive; only pos1 (single-value 3) survives
+            assertSurvivors(new ParquetPushedExpressions(List.of(in)), blocks, 4, reusable, new int[] { 1 });
+        }
+    }
+
+    public void testRangeOnMultivalueIntBlock() {
+        Block block = buildMvIntBlock();
+        try (block) {
+            Map<String, Block> blocks = Map.of("v", block);
+            WordMask reusable = new WordMask();
+            Range range = new Range(
+                Source.EMPTY,
+                attr("v", DataType.INTEGER),
+                lit(2, DataType.INTEGER),
+                true,
+                lit(6, DataType.INTEGER),
+                true,
+                ZoneOffset.UTC
+            );
+            // pos1 (value 3) is in [2,6]; MV and null positions excluded
+            assertSurvivors(new ParquetPushedExpressions(List.of(range)), blocks, 4, reusable, new int[] { 1 });
+        }
+    }
+
+    // Block layout for int MV tests: pos0=[1,2] (MV), pos1=3 (SV), pos2=null, pos3=[7,5] (MV)
+
+    private Block buildMvIntBlock() {
+        try (var b = blockFactory.newIntBlockBuilder(4)) {
+            b.beginPositionEntry().appendInt(1).appendInt(2).endPositionEntry();
+            b.appendInt(3);
+            b.appendNull();
+            b.beginPositionEntry().appendInt(7).appendInt(5).endPositionEntry();
+            return b.build();
+        }
+    }
+
+    // Block layout for BytesRef MV tests: pos0=["Senior Dev"] (SV), pos1=["Architect","Senior X"] (MV), pos2=["Manager"] (SV)
+
+    private Block buildTagsMvBlock() {
+        try (var b = blockFactory.newBytesRefBlockBuilder(3)) {
+            b.beginPositionEntry().appendBytesRef(new BytesRef("Senior Dev")).endPositionEntry();
+            b.beginPositionEntry().appendBytesRef(new BytesRef("Architect")).appendBytesRef(new BytesRef("Senior X")).endPositionEntry();
+            b.beginPositionEntry().appendBytesRef(new BytesRef("Manager")).endPositionEntry();
+            return b.build();
+        }
+    }
+
+    public void testStartsWithOnMultivalueBytesRefBlock() {
+        Block block = buildTagsMvBlock();
+        try (block) {
+            Map<String, Block> blocks = Map.of("tags", block);
+            WordMask reusable = new WordMask();
+            StartsWith startsWith = new StartsWith(
+                Source.EMPTY,
+                attr("tags", DataType.KEYWORD),
+                lit(new BytesRef("Sen"), DataType.KEYWORD)
+            );
+            // pos0 (single-value "Senior Dev") starts with "Sen"; pos1 is MV (excluded even though "Senior X" matches)
+            assertSurvivors(new ParquetPushedExpressions(List.of(startsWith)), blocks, 3, reusable, new int[] { 0 });
+        }
+    }
+
+    public void testNotStartsWithOnMultivalueBytesRefBlock() {
+        Block block = buildTagsMvBlock();
+        try (block) {
+            Map<String, Block> blocks = Map.of("tags", block);
+            WordMask reusable = new WordMask();
+            Not not = new Not(
+                Source.EMPTY,
+                new StartsWith(Source.EMPTY, attr("tags", DataType.KEYWORD), lit(new BytesRef("Sen"), DataType.KEYWORD))
+            );
+            // pos0 matches → excluded; pos1 is MV → excluded; pos2 ("Manager") doesn't match → survives
+            assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 3, reusable, new int[] { 2 });
+        }
+    }
+
+    public void testWildcardLikeMatchesAllOnMultivalueBytesRefBlock() {
+        // Block: pos0=["hello"] (SV), pos1=["a","b"] (MV), pos2=null
+        try (var b = blockFactory.newBytesRefBlockBuilder(3)) {
+            b.beginPositionEntry().appendBytesRef(new BytesRef("hello")).endPositionEntry();
+            b.beginPositionEntry().appendBytesRef(new BytesRef("a")).appendBytesRef(new BytesRef("b")).endPositionEntry();
+            b.appendNull();
+            Block block = b.build();
+            Map<String, Block> blocks = Map.of("tags", block);
+            WordMask reusable = new WordMask();
+            WildcardLike wildcard = new WildcardLike(Source.EMPTY, attr("tags", DataType.KEYWORD), new WildcardPattern("*"));
+            // "LIKE *" on MV row is null in scalar context; only SV non-null pos0 survives
+            assertSurvivors(new ParquetPushedExpressions(List.of(wildcard)), blocks, 3, reusable, new int[] { 0 });
+        }
+    }
+
+    public void testWildcardLikeOnMultivalueBytesRefBlock() {
+        Block block = buildTagsMvBlock();
+        try (block) {
+            Map<String, Block> blocks = Map.of("tags", block);
+            WordMask reusable = new WordMask();
+            WildcardLike wildcard = new WildcardLike(Source.EMPTY, attr("tags", DataType.KEYWORD), new WildcardPattern("Senior*"));
+            // pos0 (single-value "Senior Dev") matches; pos1 is MV (excluded even though "Senior X" matches)
+            assertSurvivors(new ParquetPushedExpressions(List.of(wildcard)), blocks, 3, reusable, new int[] { 0 });
+        }
+    }
+
+    public void testNotWildcardLikeOnMultivalueBytesRefBlock() {
+        Block block = buildTagsMvBlock();
+        try (block) {
+            Map<String, Block> blocks = Map.of("tags", block);
+            WordMask reusable = new WordMask();
+            Not not = new Not(Source.EMPTY, new WildcardLike(Source.EMPTY, attr("tags", DataType.KEYWORD), new WildcardPattern("Senior*")));
+            // pos0 matches → excluded; pos1 is MV → excluded by MV semantics in NOT; pos2 ("Manager") → survives
+            assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 3, reusable, new int[] { 2 });
+        }
     }
 
     private static int[] positionsWithOrdinal(int[] ordinals, int target) {

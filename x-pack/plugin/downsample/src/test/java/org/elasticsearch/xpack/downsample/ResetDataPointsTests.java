@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
@@ -15,10 +14,13 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 
 public class ResetDataPointsTests extends ESTestCase {
@@ -59,8 +61,8 @@ public class ResetDataPointsTests extends ESTestCase {
 
         dataPoints.processDataPoints((t, values) -> {
             assertThat(t, equalTo(timestamp));
-            assertThat(values, hasItem(Tuple.tuple("counter_a", new ResetDataPoints.CounterResetValue(10.0))));
-            assertThat(values, hasItem(Tuple.tuple("counter_b", new ResetDataPoints.CounterResetValue(20.0))));
+            assertThat(values, hasEntry("counter_a", new ResetDataPoints.CounterResetValue(10.0)));
+            assertThat(values, hasEntry("counter_b", new ResetDataPoints.CounterResetValue(20.0)));
         });
     }
 
@@ -99,13 +101,13 @@ public class ResetDataPointsTests extends ESTestCase {
             if (timestamp == 100L) {
                 assertThat(
                     values,
-                    hasItems(
-                        Tuple.tuple("cpu", new ResetDataPoints.CounterResetValue(50.0)),
-                        Tuple.tuple("mem", new ResetDataPoints.CounterResetValue(80.0))
+                    allOf(
+                        hasEntry("cpu", new ResetDataPoints.CounterResetValue(50.0)),
+                        hasEntry("mem", new ResetDataPoints.CounterResetValue(80.0))
                     )
                 );
             } else if (timestamp == 200L) {
-                assertThat(values, equalTo(List.of(Tuple.tuple("cpu", new ResetDataPoints.CounterResetValue(5.0)))));
+                assertThat(values, equalTo(Map.of("cpu", new ResetDataPoints.CounterResetValue(5.0))));
             } else {
                 fail("unexpected timestamp: " + timestamp);
             }
@@ -143,9 +145,9 @@ public class ResetDataPointsTests extends ESTestCase {
 
         dataPoints.processDataPoints((t, values) -> {
             assertThat(t, equalTo(timestamp));
-            assertThat(values, hasSize(2));
-            assertThat(values, hasItem(Tuple.tuple("latency", new ResetDataPoints.HistogramResetValue(h1))));
-            assertThat(values, hasItem(Tuple.tuple("throughput", new ResetDataPoints.HistogramResetValue(h2))));
+            assertThat(values, aMapWithSize(2));
+            assertThat(values, hasEntry("latency", new ResetDataPoints.HistogramResetValue(h1)));
+            assertThat(values, hasEntry("throughput", new ResetDataPoints.HistogramResetValue(h2)));
         });
     }
 
@@ -160,9 +162,9 @@ public class ResetDataPointsTests extends ESTestCase {
 
         dataPoints.processDataPoints((timestamp, values) -> {
             assertThat(timestamp, equalTo(100L));
-            assertThat(values, hasSize(2));
-            assertThat(values, hasItem(Tuple.tuple("requests", new ResetDataPoints.CounterResetValue(42.0))));
-            assertThat(values, hasItem(Tuple.tuple("latency", new ResetDataPoints.HistogramResetValue(h))));
+            assertThat(values, aMapWithSize(2));
+            assertThat(values, hasEntry("requests", new ResetDataPoints.CounterResetValue(42.0)));
+            assertThat(values, hasEntry("latency", new ResetDataPoints.HistogramResetValue(h)));
         });
     }
 
@@ -180,21 +182,11 @@ public class ResetDataPointsTests extends ESTestCase {
 
         dataPoints.processDataPoints((timestamp, values) -> {
             if (timestamp == 100L) {
-                assertThat(
-                    values,
-                    hasItems(
-                        Tuple.tuple("requests", new ResetDataPoints.CounterResetValue(50.0)),
-                        Tuple.tuple("latency", new ResetDataPoints.HistogramResetValue(h1))
-                    )
-                );
+                assertThat(values.get("requests"), equalTo(new ResetDataPoints.CounterResetValue(50.0)));
+                assertThat(values.get("latency"), equalTo(new ResetDataPoints.HistogramResetValue(h1)));
             } else if (timestamp == 200L) {
-                assertThat(
-                    values,
-                    hasItems(
-                        Tuple.tuple("latency", new ResetDataPoints.HistogramResetValue(h2)),
-                        Tuple.tuple("requests", new ResetDataPoints.CounterResetValue(5.0))
-                    )
-                );
+                assertThat(values.get("latency"), equalTo(new ResetDataPoints.HistogramResetValue(h2)));
+                assertThat(values.get("requests"), equalTo(new ResetDataPoints.CounterResetValue(5.0)));
             } else {
                 fail("unexpected timestamp: " + timestamp);
             }
@@ -221,8 +213,8 @@ public class ResetDataPointsTests extends ESTestCase {
         assertThat(dataPoints.countResetDocuments(), equalTo(1));
         dataPoints.processDataPoints((ts, values) -> {
             assertThat(ts, equalTo(timestamp));
-            assertThat(values, hasSize(1));
-            assertThat(values.get(0).v1(), equalTo("latency"));
+            assertThat(values, aMapWithSize(1));
+            assertThat(values, hasKey("latency"));
         });
     }
 

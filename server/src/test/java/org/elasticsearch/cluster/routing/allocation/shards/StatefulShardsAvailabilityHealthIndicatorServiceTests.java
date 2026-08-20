@@ -235,9 +235,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
     }
 
     public void testShouldBeRedWhenPrimaryIsInitializing() {
-        var clusterState = clusterStateWith(
-            () -> List.of(index("unreplicated-index", new ShardAllocation(randomNodeId(), INITIALIZING)))
-        );
+        var clusterState = clusterStateWith(() -> List.of(index("unreplicated-index", new ShardAllocation(randomNodeId(), INITIALIZING))));
         var service = createShardsAvailabilityIndicatorService(NO_GRACE_PERIOD_SETTINGS, clusterState, Collections.emptyMap());
 
         HealthIndicatorResult calculate = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
@@ -924,11 +922,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             () -> List.of(index("restarting-index", new ShardAllocation("node-0", RESTARTING, System.nanoTime()))),
             randomMismatchedRestartShutdowns("node-0")
         );
-        final var service = createShardsAvailabilityIndicatorService(
-            NO_GRACE_PERIOD_SETTINGS,
-            clusterState,
-            Collections.emptyMap()
-        );
+        final var service = createShardsAvailabilityIndicatorService(NO_GRACE_PERIOD_SETTINGS, clusterState, Collections.emptyMap());
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
@@ -971,11 +965,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             ),
             randomMismatchedRestartShutdowns("node-0")
         );
-        final var service = createShardsAvailabilityIndicatorService(
-            NO_GRACE_PERIOD_SETTINGS,
-            clusterState,
-            Collections.emptyMap()
-        );
+        final var service = createShardsAvailabilityIndicatorService(NO_GRACE_PERIOD_SETTINGS, clusterState, Collections.emptyMap());
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
@@ -1091,10 +1081,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         final var result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         assertThat(result.status(), equalTo(YELLOW));
         final var symptomKeyword = replicaInitializing ? "initializing" : "unavailable";
-        assertThat(
-            result.symptom(),
-            equalTo(shardSymptom(1, symptomKeyword + " replica shard", symptomKeyword + " replica shards"))
-        );
+        assertThat(result.symptom(), equalTo(shardSymptom(1, symptomKeyword + " replica shard", symptomKeyword + " replica shards")));
         assertThat(
             result.diagnosisList(),
             equalTo(
@@ -1191,10 +1178,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         final var result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         assertThat(result.status(), equalTo(RED));
         final var symptomKeyword = primaryInitializing ? "initializing" : "unavailable";
-        assertThat(
-            result.symptom(),
-            equalTo(shardSymptom(1, symptomKeyword + " primary shard", symptomKeyword + " primary shards"))
-        );
+        assertThat(result.symptom(), equalTo(shardSymptom(1, symptomKeyword + " primary shard", symptomKeyword + " primary shards")));
         assertThat(
             result.diagnosisList(),
             equalTo(
@@ -1688,11 +1672,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 )
             );
 
-            final var service = createShardsAvailabilityIndicatorService(
-                NO_GRACE_PERIOD_SETTINGS,
-                clusterState,
-                Collections.emptyMap()
-            );
+            final var service = createShardsAvailabilityIndicatorService(NO_GRACE_PERIOD_SETTINGS, clusterState, Collections.emptyMap());
             final var result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             if (isAcceptable) {
@@ -2884,12 +2864,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                         List.of(
                             new Diagnosis(
                                 ACTION_CHECK_ALLOCATION_EXPLAIN_API,
-                                List.of(
-                                    new Diagnosis.Resource(
-                                        INDEX,
-                                        indexNameListByPriority(Map.of(originalIndex, 1, restoredIndex, 1))
-                                    )
-                                )
+                                List.of(new Diagnosis.Resource(INDEX, indexNameListByPriority(Map.of(originalIndex, 1, restoredIndex, 1))))
                             )
                         )
                     )
@@ -3192,12 +3167,10 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 names.add(multiProject ? id.id() + "/" + indexName : indexName);
             }
         }
-        names.sort(
-            Comparator.<String>comparingInt(name -> {
-                String indexName = multiProject ? name.substring(name.indexOf('/') + 1) : name;
-                return indexNameToPriority.get(indexName);
-            }).reversed().thenComparing(Comparator.naturalOrder())
-        );
+        names.sort(Comparator.<String>comparingInt(name -> {
+            String indexName = multiProject ? name.substring(name.indexOf('/') + 1) : name;
+            return indexNameToPriority.get(indexName);
+        }).reversed().thenComparing(Comparator.naturalOrder()));
         return names;
     }
 

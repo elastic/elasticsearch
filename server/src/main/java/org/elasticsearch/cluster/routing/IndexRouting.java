@@ -34,6 +34,7 @@ import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -119,15 +120,51 @@ public abstract class IndexRouting {
     public void preProcess(IndexRequest indexRequest) {}
 
     /**
+     * Batch version of {@link #preProcess(IndexRequest)}: pre-processes each request in turn.
+     * Subclasses override for more efficient batch treatment; the default loops over
+     * {@link #preProcess(IndexRequest)}.
+     */
+    public void preProcess(IndexRequest[] requests) {
+        for (IndexRequest r : requests)
+            preProcess(r);
+    }
+
+    /**
      * Finalize the request after routing, incorporating data produced by the routing logic.
      */
     public void postProcess(IndexRequest indexRequest) {}
+
+    /**
+     * Batch version of {@link #postProcess(IndexRequest)}: post-processes each request in turn.
+     * Subclasses override for more efficient batch treatment; the default loops over
+     * {@link #postProcess(IndexRequest)}.
+     */
+    public void postProcess(IndexRequest[] requests) {
+        for (IndexRequest r : requests)
+            postProcess(r);
+    }
 
     /**
      * Called when indexing a document to generate the shard id that should contain
      * a document with the provided parameters.
      */
     public abstract int indexShard(IndexRequest indexRequest);
+
+    /**
+     * Batch version of {@link #indexShard(IndexRequest)}: routes each request, optionally reading
+     * dimension values directly from the supplied {@link SourceBatch} rather than re-parsing
+     * {@code _source}. Returns one shard id per request in the same order as {@code requests}.
+     *
+     * <p>Subclasses that can exploit the batch (e.g. via a columnar tsid pass) override this method;
+     * the default loops over {@link #indexShard(IndexRequest)}, ignoring {@code batch}.
+     */
+    public int[] indexShard(IndexRequest[] requests, SourceBatch batch) {
+        int[] shards = new int[requests.length];
+        for (int i = 0; i < requests.length; i++) {
+            shards[i] = indexShard(requests[i]);
+        }
+        return shards;
+    }
 
     /**
      * Returns a {@link RoutingExtractor} for this routing strategy if it can compute the shard id
@@ -390,6 +427,12 @@ public abstract class IndexRouting {
         private final boolean useTimeSeriesSyntheticId;
         private final boolean addIdWithRoutingHash;
         private int hash = Integer.MAX_VALUE;
+        /**
+         * Hashes recorded by a batch {@link #indexShard(IndexRequest[], SourceBatch)} call, one per
+         * request. Set by subclasses (e.g. {@link ForIndexDimensions}) and consumed by the batch
+         * {@link #postProcess(IndexRequest[])} override. {@code null} between calls.
+         */
+        int[] batchHashes;
 
         /**
          * Records the routing hash that {@link #postProcess(IndexRequest)} will later read. Used by
@@ -428,6 +471,29 @@ public abstract class IndexRouting {
             } else if (addIdWithRoutingHash) {
                 assert hash != Integer.MAX_VALUE;
                 indexRequest.autoGenerateTimeBasedId(OptionalInt.of(hash));
+            }
+        }
+
+        /**
+         * Batch post-process: when a preceding {@link #indexShard(IndexRequest[], SourceBatch)} call
+         * recorded per-request hashes in {@link #batchHashes}, applies the same
+         * {@code trackTimeSeriesRoutingHash} / {@code addIdWithRoutingHash} logic as
+         * {@link #postProcess(IndexRequest)} to each request using its own hash. Falls back to the
+         * per-request loop when no batch hash was recorded.
+         */
+        @Override
+        public void postProcess(IndexRequest[] requests) {
+            if (batchHashes != null) {
+                assert batchHashes.length == requests.length
+                    : "batchHashes.length " + batchHashes.length + " != requests.length " + requests.length;
+                for (int i = 0; i < requests.length; i++) {
+                    hash = batchHashes[i];
+                    postProcess(requests[i]);
+                }
+                batchHashes = null;
+            } else {
+                for (IndexRequest r : requests)
+                    postProcess(r);
             }
         }
 
@@ -494,7 +560,7 @@ public abstract class IndexRouting {
             return (rerouteWritesIfResharding(shardId));
         }
 
-        private void checkNoRouting(@Nullable String routing) {
+        void checkNoRouting(@Nullable String routing) {
             if (routing != null) {
                 throw new IllegalArgumentException(error("specifying routing"));
             }
@@ -614,6 +680,16 @@ public abstract class IndexRouting {
             public boolean matchesField(String fieldName) {
                 return isRoutingPath.test(fieldName);
             }
+
+            /**
+             * Batch routing is not yet implemented for {@code routing_path} indices.
+             */
+            @Override
+            public int[] indexShard(IndexRequest[] requests, SourceBatch batch) {
+                throw new UnsupportedOperationException(
+                    "Batch routing is not yet implemented for routing_path indices (index [" + indexName + "])"
+                );
+            }
         }
 
         /**
@@ -689,6 +765,61 @@ public abstract class IndexRouting {
                     throw new IllegalArgumentException("Error extracting tsid: " + e.getMessage(), e);
                 }
                 return b.buildTsid(creationVersion);
+            }
+
+            /**
+             * Batch routing: computes tsids for all requests in one column-major pass over
+             * {@code batch}, mirroring every side-effect of
+             * {@link #hashSource(IndexRequest)} / {@link #shardIdForExtractedTsid} per row:
+             * <ul>
+             *   <li>Rows with a pre-set tsid (externally provided) are skipped by the columnar
+             *       calculator and their existing tsid is used as-is.</li>
+             *   <li>For remaining rows the tsid is stashed on the request (so the data node can
+             *       reuse it via {@link #extractDimensionsWhileMapping()}).</li>
+             *   <li>Per-request hashes are stored in {@link #batchHashes} for
+             *       {@link #postProcess(IndexRequest[])}.</li>
+             *   <li>{@link #rerouteWritesIfResharding} is applied to each shard id.</li>
+             * </ul>
+             */
+            @Override
+            public int[] indexShard(IndexRequest[] requests, SourceBatch batch) {
+                // Enforce all-or-none tsid rule: either every request has a pre-set tsid (from an
+                // upstream producer that already computed them) or none do. A mixed batch is a bug.
+                boolean allPreSet = requests.length > 0 && requests[0].tsid() != null;
+                for (int i = 0; i < requests.length; i++) {
+                    IndexRequest req = requests[i];
+                    checkNoRouting(req.routing());
+                    boolean hasPreSet = req.tsid() != null;
+                    if (hasPreSet != allPreSet) {
+                        throw new IllegalArgumentException(
+                            "Batch tsid consistency violation at index "
+                                + i
+                                + ": expected all requests to "
+                                + (allPreSet ? "have" : "lack")
+                                + " a pre-set tsid"
+                        );
+                    }
+                }
+
+                int[] shards = new int[requests.length];
+                int[] hashes = new int[requests.length];
+                if (allPreSet) {
+                    for (int i = 0; i < requests.length; i++) {
+                        int h = hash(requests[i].tsid());
+                        hashes[i] = h;
+                        shards[i] = rerouteWritesIfResharding(routingFunction.shardNum(h));
+                    }
+                } else {
+                    BytesRef[] tsids = ColumnarTsidCalculator.computeTsids(batch, this::matchesField, creationVersionForTsid);
+                    for (int i = 0; i < requests.length; i++) {
+                        requests[i].tsid(tsids[i]);
+                        int h = hash(tsids[i]);
+                        hashes[i] = h;
+                        shards[i] = rerouteWritesIfResharding(routingFunction.shardNum(h));
+                    }
+                }
+                batchHashes = hashes;
+                return shards;
             }
         }
     }

@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -218,5 +219,50 @@ public class TsidBuilderTests extends ESTestCase {
 
     public void testEnableSinglePrefixByte() {
         assertTrue(TsidBuilder.useSingleBytePrefixLayout(IndexVersion.current()));
+    }
+
+    /**
+     * {@link TsidBuilder#addPrehashedDimension} must produce a tsid byte-identical to the corresponding
+     * typed dimension method when the path hash is computed via {@link TsidBuilder#hashPath}.
+     */
+    public void testAddPrehashedDimensionMatchesTypedDimensions() {
+        BufferedMurmur3Hasher hasher = new BufferedMurmur3Hasher(0L);
+
+        String path = "dim.host";
+        MurmurHash3.Hash128 pathHash = TsidBuilder.hashPath(hasher, path);
+
+        // String dimension: value hash = murmur3(utf8 bytes)
+        String strVal = randomAlphaOfLengthBetween(1, 32);
+        BytesRef strRef = new BytesRef(strVal);
+        hasher.reset();
+        hasher.update(strRef.bytes, strRef.offset, strRef.length);
+        MurmurHash3.Hash128 strValueHash = hasher.digestHash();
+        assertEqualBuilders(
+            TsidBuilder.newBuilder().addStringDimension("other", "anchor").addStringDimension(path, strVal),
+            TsidBuilder.newBuilder()
+                .addStringDimension("other", "anchor")
+                .addPrehashedDimension(path, pathHash.h1, pathHash.h2, strValueHash.h1, strValueHash.h2)
+        );
+
+        // Long dimension: value hash = Hash128(1, v)
+        long longVal = randomLong();
+        assertEqualBuilders(
+            TsidBuilder.newBuilder().addLongDimension(path, longVal),
+            TsidBuilder.newBuilder().addPrehashedDimension(path, pathHash.h1, pathHash.h2, 1L, longVal)
+        );
+
+        // Boolean dimension: value hash = Hash128(3, v ? 1 : 0)
+        boolean boolVal = randomBoolean();
+        assertEqualBuilders(
+            TsidBuilder.newBuilder().addBooleanDimension(path, boolVal),
+            TsidBuilder.newBuilder().addPrehashedDimension(path, pathHash.h1, pathHash.h2, 3L, boolVal ? 1L : 0L)
+        );
+
+        // Double dimension: value hash = Hash128(2, Double.doubleToLongBits(v))
+        double doubleVal = randomDoubleBetween(-1e9, 1e9, true);
+        assertEqualBuilders(
+            TsidBuilder.newBuilder().addDoubleDimension(path, doubleVal),
+            TsidBuilder.newBuilder().addPrehashedDimension(path, pathHash.h1, pathHash.h2, 2L, Double.doubleToLongBits(doubleVal))
+        );
     }
 }

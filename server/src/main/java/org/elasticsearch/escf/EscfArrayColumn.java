@@ -63,7 +63,7 @@ final class EscfArrayColumn extends EscfColumn {
     }
 
     @Override
-    ArrayReader getArrayValue(int row) {
+    public ArrayReader getArrayValue(int row) {
         int elemFrom = intAt(rowOffsets, row);
         int elemTo = intAt(rowOffsets, row + 1);
         return new ColumnarArrayReader(child, elemFrom, elemTo);

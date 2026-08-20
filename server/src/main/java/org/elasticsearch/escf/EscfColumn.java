@@ -121,7 +121,15 @@ public abstract class EscfColumn implements SliceableColumn {
         return isAbsent(row) == false;
     }
 
-    final byte getTypeByte(int row) {
+    /**
+     * Returns the {@link SourceValueType} byte for document {@code row}. Returns
+     * {@link SourceValueType#ABSENT} when the row is out of bounds or absent.
+     *
+     * <p>These getters are intentionally public — the same information is already publicly
+     * reachable via {@code EscfBatch.row(d)} (which allocates an {@code EscfRow}); widening the
+     * modifier avoids that per-row allocation for callers that scan an entire column.
+     */
+    public final byte getTypeByte(int row) {
         if (row < 0 || row >= docCount || isAbsent(row)) {
             return SourceValueType.ABSENT;
         }
@@ -131,26 +139,36 @@ public abstract class EscfColumn implements SliceableColumn {
     /** The {@link SourceValueType} byte for document {@code row}, which is known to be present. */
     abstract byte typeByteForPresent(int row);
 
-    final boolean isNull(int row) {
+    /** Returns {@code true} if document {@code row} holds an explicit JSON {@code null}. */
+    public final boolean isNull(int row) {
         return getTypeByte(row) == SourceValueType.NULL;
     }
 
     // Typed value getters — default to throwing; subtypes override what they support.
+    // Public modifier: the same values are already reachable via EscfBatch.row(d) (which returns
+    // an EscfRow that delegates to these methods). Making them public removes the per-row
+    // EscfRow allocation for column-scanning callers.
 
-    boolean getBooleanValue(int row) {
+    /** Returns the boolean value at {@code row}. The column kind must be {@link EscfColumnKind#BOOL}. */
+    public boolean getBooleanValue(int row) {
         throw notA("boolean");
     }
 
-    long getLongValue(int row) {
+    /** Returns the long value at {@code row}. The column kind must be {@link EscfColumnKind#LONG}. */
+    public long getLongValue(int row) {
         throw notA("long");
     }
 
-    double getDoubleValue(int row) {
+    /** Returns the double value at {@code row}. The column kind must be {@link EscfColumnKind#DOUBLE}. */
+    public double getDoubleValue(int row) {
         throw notA("double");
     }
 
-    /** Narrows {@link #getLongValue} to an {@code int}, throwing if out of range. */
-    int getIntValue(int row) {
+    /**
+     * Narrows {@link #getLongValue} to an {@code int}, throwing if out of range.
+     * Valid for {@link EscfColumnKind#UNION} columns whose row type is {@link org.elasticsearch.sourcebatch.SourceValueType#INT}.
+     */
+    public int getIntValue(int row) {
         long val = getLongValue(row);
         if (val < Integer.MIN_VALUE || val > Integer.MAX_VALUE) {
             throw new ArithmeticException("Long value " + val + " does not fit in int");
@@ -158,24 +176,31 @@ public abstract class EscfColumn implements SliceableColumn {
         return (int) val;
     }
 
-    /** Narrows {@link #getDoubleValue} to a {@code float}. */
-    float getFloatValue(int row) {
+    /**
+     * Narrows {@link #getDoubleValue} to a {@code float}.
+     * Valid for {@link EscfColumnKind#UNION} columns whose row type is {@link org.elasticsearch.sourcebatch.SourceValueType#FLOAT}.
+     */
+    public float getFloatValue(int row) {
         return (float) getDoubleValue(row);
     }
 
-    Text getStringValue(int row) {
+    /** Returns the string value at {@code row}. The column kind must be {@link EscfColumnKind#STRING}. */
+    public Text getStringValue(int row) {
         throw notA("string");
     }
 
-    BytesRef getBinaryValue(int row) {
+    /** Returns the binary value at {@code row}. The column kind must be {@link EscfColumnKind#BINARY}. */
+    public BytesRef getBinaryValue(int row) {
         throw notA("binary");
     }
 
-    ArrayReader getArrayValue(int row) {
+    /** Returns the array value at {@code row}. The column kind must be {@link EscfColumnKind#ARRAY}. */
+    public ArrayReader getArrayValue(int row) {
         throw notA("array");
     }
 
-    KeyValueReader getKeyValue(int row) {
+    /** Returns the key-value reader at {@code row}. The column kind must be a key-value type. */
+    public KeyValueReader getKeyValue(int row) {
         throw notA("key-value");
     }
 

@@ -194,10 +194,49 @@ public class TsidBuilder {
         return this;
     }
 
+    /**
+     * Adds a dimension whose path hash has already been computed, bypassing path re-hashing.
+     *
+     * <p>The {@code path} string must still be supplied because {@link #buildTsid(IndexVersion)}
+     * uses it for the OTel / Prometheus prefix-byte special-case and the array-dedup guard in the
+     * multi-byte layout. The path hash values must have been computed via
+     * {@link #hashPath(BufferedMurmur3Hasher, String)} with the same {@code path}, so the columnar
+     * path can never silently diverge from the per-row path.
+     *
+     * @param path   full dotted dimension path (required even though it is not re-hashed)
+     * @param pathH1 first 64-bit word of the path murmur3-128 hash
+     * @param pathH2 second 64-bit word of the path murmur3-128 hash
+     * @param valueH1 first 64-bit word of the value murmur3-128 hash
+     * @param valueH2 second 64-bit word of the value murmur3-128 hash
+     * @return this builder for chaining
+     */
+    public TsidBuilder addPrehashedDimension(String path, long pathH1, long pathH2, long valueH1, long valueH2) {
+        dimensions.add(
+            new Dimension(path, new MurmurHash3.Hash128(pathH1, pathH2), new MurmurHash3.Hash128(valueH1, valueH2), dimensions.size())
+        );
+        return this;
+    }
+
+    /**
+     * Computes the murmur3-128 hash of a dimension path string.
+     *
+     * <p>Extracted as a static so that {@link ColumnarTsidCalculator} can precompute the path
+     * hash once per column (rather than once per value per row) and pass it to
+     * {@link #addPrehashedDimension}. Using the same hasher instance as {@link #addDimension}
+     * guarantees that the two call-sites produce identical hashes.
+     *
+     * @param hasher a shared {@link BufferedMurmur3Hasher} (will be reset before use)
+     * @param path   the dimension path string
+     * @return the 128-bit hash of the path
+     */
+    static MurmurHash3.Hash128 hashPath(BufferedMurmur3Hasher hasher, String path) {
+        hasher.reset();
+        hasher.addString(path);
+        return hasher.digestHash();
+    }
+
     private void addDimension(String path, MurmurHash3.Hash128 valueHash) {
-        murmur3Hasher.reset();
-        murmur3Hasher.addString(path);
-        MurmurHash3.Hash128 pathHash = murmur3Hasher.digestHash();
+        MurmurHash3.Hash128 pathHash = hashPath(murmur3Hasher, path);
         dimensions.add(new Dimension(path, pathHash, valueHash, dimensions.size()));
     }
 

@@ -69,8 +69,10 @@ public class ViewMetadataFieldRewriterTests extends ESTestCase {
 
         assertThat(eval.child(), instanceOf(UnresolvedRelation.class));
         UnresolvedRelation innerRelation = (UnresolvedRelation) eval.child();
-        assertTrue("The relation inside the view body had a _id metadataField injected",
-            innerRelation.metadataFields().stream().anyMatch(f -> IdFieldMapper.NAME.equals(f.name())));
+        assertTrue(
+            "The relation inside the view body had a _id metadataField injected",
+            innerRelation.metadataFields().stream().anyMatch(f -> IdFieldMapper.NAME.equals(f.name()))
+        );
 
         assertThat(eval.fields(), hasSize(1));
         Alias alias = eval.fields().getFirst();

@@ -46,9 +46,7 @@ public final class ViewMetadataFieldRewriter {
 
         for (NamedExpression metadataField : outerMetadataFields) {
             switch (metadataField.name()) {
-                case MetadataAttribute.INDEX -> aliases.add(
-                    new Alias(source, MetadataAttribute.INDEX, Literal.keyword(source, viewName))
-                );
+                case MetadataAttribute.INDEX -> aliases.add(new Alias(source, MetadataAttribute.INDEX, Literal.keyword(source, viewName)));
                 case IdFieldMapper.NAME -> {
                     needsId = true;
                     aliases.add(
@@ -63,9 +61,7 @@ public final class ViewMetadataFieldRewriter {
                         )
                     );
                 }
-                default -> aliases.add(
-                    new Alias(source, metadataField.name(), new Literal(source, null, metadataField.dataType()))
-                );
+                default -> aliases.add(new Alias(source, metadataField.name(), new Literal(source, null, metadataField.dataType())));
             }
         }
 

@@ -29,7 +29,6 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
-import javax.lang.model.util.Types;
 import javax.tools.Diagnostic.Kind;
 
 import static org.elasticsearch.foreign.processor.model.StructSpecParser.ARRAY_FIELD_FQN;
@@ -48,8 +47,6 @@ import static org.elasticsearch.foreign.processor.model.StructSpecParser.ARRAY_F
  *        code generation to emit the correct Java method descriptor when a struct does not declare
  *        {@code extends Addressable}.
  * @param isCritical whether the method is annotated with {@code @Critical}
- * @param fallbackAdapterClassName fully-qualified name of the JDK 21 {@code @Critical} fallback adapter class,
- *        or {@code null} if none was specified
  * @param capturesErrno whether the method is annotated with {@code @CaptureErrno}
  * @param firstVariadicArg 0-based index of the first variadic argument, or {@code -1} if not variadic
  * @param isStructFactory whether the method is annotated with {@code @StructFactory}
@@ -67,7 +64,6 @@ public record MethodModel(
     List<NativeType> paramTypes,
     List<String> paramStructSimpleNames,
     boolean isCritical,
-    String fallbackAdapterClassName,
     boolean capturesErrno,
     int firstVariadicArg,
     boolean isStructFactory,
@@ -159,28 +155,6 @@ public record MethodModel(
         }
 
         boolean isCritical = method.getAnnotation(Critical.class) != null;
-        final String fallbackAdapter;
-        if (isCritical) {
-            TypeElement adapterElement = resolveFallbackAdapter(method, messager, env.getTypeUtils());
-            if (adapterElement == null) {
-                return null;
-            }
-            var isUnsupportedFallback = adapterElement.getQualifiedName()
-                .contentEquals(Critical.UnsupportedFallback.class.getCanonicalName());
-            if (isUnsupportedFallback) {
-                // For a critical binding, fallbackAdapter is null when the Critical.UnsupportedFallback sentinel is used.
-                fallbackAdapter = null;
-            } else {
-                if (validateFallbackAdapter(method, adapterElement, paramTypes, returnType, messager) == false) {
-                    return null;
-                }
-                // For a critical binding, fallbackAdapter is the FQN of the JDK 21 adapter
-                fallbackAdapter = adapterElement.getQualifiedName().toString();
-            }
-        } else {
-            // A non-critical binding does not need a fallbackAdapter
-            fallbackAdapter = null;
-        }
 
         List<BoundsCheckModel> boundsChecks = BoundsCheckModel.from(method, paramTypes, messager);
         if (boundsChecks == null) {
@@ -194,7 +168,6 @@ public record MethodModel(
             paramTypes,
             Collections.unmodifiableList(new ArrayList<>(paramStructSimpleNames)),
             isCritical,
-            fallbackAdapter,
             capturesErrno,
             firstVariadicArg,
             false,
@@ -284,7 +257,6 @@ public record MethodModel(
             List.of(),
             List.of(),
             false,
-            null,
             false,
             -1,
             true,
@@ -293,79 +265,6 @@ public record MethodModel(
             isProtected,
             List.of()
         );
-    }
-
-    /**
-     * Resolves {@code @Critical.fallbackAdapter()} to its adapter {@link TypeElement}. Returns {@code null}
-     * (with a {@link Kind#ERROR} emitted) when the attribute is missing or does not reference a class. The
-     * returned element may be the {@link Critical.UnsupportedFallback} sentinel; the caller detects that
-     * before validating a real adapter with {@link #validateFallbackAdapter}.
-     */
-    private static TypeElement resolveFallbackAdapter(ExecutableElement method, Messager messager, Types types) {
-        AnnotationMirror criticalMirror = ModelUtil.findAnnotationMirror(method, Critical.class.getName());
-        if (criticalMirror == null) {
-            // Caller checked @Critical is present.
-            return null;
-        }
-        TypeMirror adapterMirror = ModelUtil.annotationClassValue(criticalMirror, "fallbackAdapter");
-        if (adapterMirror == null) {
-            messager.printMessage(Kind.ERROR, "@Critical requires fallbackAdapter to be set", method, criticalMirror);
-            return null;
-        }
-        TypeElement adapterElement = types.asElement(adapterMirror) instanceof TypeElement te ? te : null;
-        if (adapterElement == null) {
-            messager.printMessage(Kind.ERROR, "@Critical.fallbackAdapter must reference a class", method, criticalMirror);
-            return null;
-        }
-        return adapterElement;
-    }
-
-    /**
-     * Verifies that {@code adapterElement} declares a {@code public static} method with the same name as
-     * {@code method} and a parameter list of {@code (MethodHandle, …originalParams)} returning the same type
-     * as the annotated method. Returns {@code true} on success, or {@code false} (with a {@link Kind#ERROR}
-     * emitted) on validation failure.
-     */
-    private static boolean validateFallbackAdapter(
-        ExecutableElement method,
-        TypeElement adapterElement,
-        List<NativeType> paramTypes,
-        NativeType returnType,
-        Messager messager
-    ) {
-        AnnotationMirror criticalMirror = ModelUtil.findAnnotationMirror(method, Critical.class.getName());
-        String methodName = method.getSimpleName().toString();
-        String adapterFqn = adapterElement.getQualifiedName().toString();
-
-        ExecutableElement adapterMethod = ModelUtil.findPublicStaticMethod(adapterElement, methodName);
-        if (adapterMethod == null) {
-            messager.printMessage(
-                Kind.ERROR,
-                "@Critical.fallbackAdapter class '" + adapterFqn + "' has no public static method named '" + methodName + "'",
-                method,
-                criticalMirror
-            );
-            return false;
-        }
-        if (signatureMatches(adapterMethod, paramTypes, returnType) == false) {
-            messager.printMessage(
-                Kind.ERROR,
-                "@Critical.fallbackAdapter method '"
-                    + adapterFqn
-                    + "."
-                    + methodName
-                    + "' must have signature (MethodHandle, "
-                    + paramTypes
-                    + ") -> "
-                    + returnType
-                    + ", got "
-                    + describeSignature(adapterMethod),
-                method,
-                criticalMirror
-            );
-            return false;
-        }
-        return true;
     }
 
     /**
@@ -379,40 +278,5 @@ public record MethodModel(
         TypeElement typeElement = (TypeElement) ((DeclaredType) mirror).asElement();
         String simpleName = typeElement.getSimpleName().toString();
         return enclosingStructNames.contains(simpleName) ? simpleName : null;
-    }
-
-    private static boolean signatureMatches(ExecutableElement adapter, List<NativeType> originalParams, NativeType originalReturn) {
-        var params = adapter.getParameters();
-        if (params.size() != originalParams.size() + 1) {
-            return false;
-        }
-        if (isMethodHandle(params.get(0).asType()) == false) {
-            return false;
-        }
-        for (int i = 0; i < originalParams.size(); i++) {
-            if (ModelUtil.classifyType(params.get(i + 1).asType()) != originalParams.get(i)) {
-                return false;
-            }
-        }
-        return ModelUtil.classifyType(adapter.getReturnType()) == originalReturn;
-    }
-
-    private static boolean isMethodHandle(TypeMirror mirror) {
-        if (mirror.getKind() != TypeKind.DECLARED) {
-            return false;
-        }
-        return ((TypeElement) ((DeclaredType) mirror).asElement()).getQualifiedName().contentEquals("java.lang.invoke.MethodHandle");
-    }
-
-    private static String describeSignature(ExecutableElement method) {
-        StringBuilder sb = new StringBuilder("(");
-        boolean first = true;
-        for (var p : method.getParameters()) {
-            if (first == false) sb.append(", ");
-            sb.append(p.asType());
-            first = false;
-        }
-        sb.append(") -> ").append(method.getReturnType());
-        return sb.toString();
     }
 }

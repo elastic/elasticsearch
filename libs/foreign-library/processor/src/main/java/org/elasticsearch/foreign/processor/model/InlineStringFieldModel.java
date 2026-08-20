@@ -13,7 +13,7 @@ package org.elasticsearch.foreign.processor.model;
  * A fixed-size null-terminated C string {@link StructFieldModel} declared via
  * {@code @InlineStringField(length = N)}. The field contributes a
  * {@code sequenceLayout(length, JAVA_BYTE)} to the struct layout. No {@code VarHandle} is used;
- * accessors operate directly on the segment slice using {@code MemorySegmentAdapter}.
+ * accessors call {@code MemorySegment.getString}/{@code setString} directly at the field offset.
  *
  * <p>A field may have a getter, a setter, or both — but at least one must be present.
  */

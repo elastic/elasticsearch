@@ -100,7 +100,6 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
 
     private boolean ignoreFailures = false;
     private boolean ignoreMissingClasses = false;
-    private String foreignSignatureName;
 
     @Input
     @Optional
@@ -176,17 +175,11 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
     /**
      * A {@link FileCollection} containing all files, which contain signatures and comments for forbidden API calls.
      * The signatures are resolved against {@link #getClasspath()}.
-     * Includes the foreign API signature file if {@link #checkForeignApiUsage} was called.
      */
     @InputFiles
     @Optional
     @PathSensitive(PathSensitivity.RELATIVE)
     public FileCollection getSignaturesFiles() {
-        if (foreignSignatureName != null) {
-            return objectFactory.fileCollection()
-                .from(signaturesFiles)
-                .from(new File(resourcesDir, "forbidden/" + foreignSignatureName + ".txt"));
-        }
         return signaturesFiles;
     }
 
@@ -223,16 +216,6 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
             resources.add(new File(resourcesDir, "forbidden/" + name + ".txt"));
         }
         setSignaturesFiles(objectFactory.fileCollection().from(getSignaturesFiles()).from(resources));
-    }
-
-    /**
-     * Opt-in to checking for direct usage of {@code java.lang.foreign} APIs that should go
-     * through the adapter classes in {@code org.elasticsearch.foreign.adapter}. Adds the
-     * {@code jdk-foreign-signatures22} file (the renamed, standard methods like {@code getString}),
-     * which resolve against the JDK the checker runs on.
-     */
-    public void checkForeignApiUsage() {
-        this.foreignSignatureName = "jdk-foreign-signatures22";
     }
 
     /**

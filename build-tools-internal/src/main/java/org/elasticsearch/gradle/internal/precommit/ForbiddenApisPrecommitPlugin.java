@@ -46,7 +46,6 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
             t.copy("forbidden/es-test-signatures.txt");
             t.copy("forbidden/http-signatures.txt");
             t.copy("forbidden/es-server-signatures.txt");
-            t.copy("forbidden/jdk-foreign-signatures22.txt");
         });
 
         project.getExtensions().getByType(SourceSetContainer.class).configureEach(sourceSet -> {

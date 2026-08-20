@@ -11,12 +11,10 @@ import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.foreign-api'
 
 dependencies {
   api "org.apache.lucene:lucene-core:${versions.lucene}"
   implementation project(':libs:core')
-  implementation project(':libs:foreign-adapter')
 
   // test:framework reaches this project again transitively (via server), which puts our own jar on a
   // classpath that already has our main classes: excluding it keeps jarHell happy.

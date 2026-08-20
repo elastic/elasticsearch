@@ -9,8 +9,6 @@
 
 package org.elasticsearch.foreign;
 
-import org.elasticsearch.foreign.adapter.MemorySegmentAdapter;
-
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
@@ -65,7 +63,7 @@ public class LinkerHelper {
 
     public static final MemorySegment ERRNO_STATE = Arena.ofAuto().allocate(Linker.Option.captureStateLayout());
 
-    private static final VarHandle ERRNO_VH = MemorySegmentAdapter.varHandleWithoutOffset(
+    private static final VarHandle ERRNO_VH = MemoryLayoutVarHandles.varHandleWithoutOffset(
         Linker.Option.captureStateLayout(),
         groupElement("errno")
     );

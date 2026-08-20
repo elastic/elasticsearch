@@ -157,7 +157,7 @@ public class ImplClassWriterTests extends ProcessorTestCase {
      * Verifies that a {@code String} parameter is accepted and generates a class whose method
      * takes a {@code String} on the Java side. The generated method body must open a confined
      * {@code Arena}, allocate the String into native memory via
-     * {@code MemorySegmentAdapter.allocateString}, pass the resulting {@code MemorySegment} to
+     * {@code Arena.allocateFrom(String)}, pass the resulting {@code MemorySegment} to
      * {@code invokeExact}, and close the arena in both normal and exceptional paths.
      *
      * <p>We verify structurally: the generated class must have a {@code sandbox_init$mh} field
@@ -321,11 +321,9 @@ public class ImplClassWriterTests extends ProcessorTestCase {
         assertNotNull("Generated BufLib$Elem$Pack not found", result.loadClass("test.BufLib$Elem$Pack"));
 
         // Invoke the driver's create(short) method to exercise the full generated factory body:
-        // Arena.ofAuto() -> ArenaAdapter.allocate(arena, layout, count) -> per-element Pack.pack loop
-        // -> len$vh.set / elem$ptr$vh.set. This is the assertion that would catch, for example, an
-        // Arena.allocate(MemoryLayout, long) direct call (JDK 22+ only) instead of going through
-        // ArenaAdapter, or any similar cross-JDK signature mismatch in the emitted invokestatic/
-        // invokeinterface descriptors.
+        // Arena.ofAuto().allocate(layout, count) -> per-element Pack.pack loop -> len$vh.set /
+        // elem$ptr$vh.set. This assertion would catch a signature mismatch in the emitted
+        // invokestatic/invokeinterface descriptors.
         Class<?> driver = result.loadClass("test.BufDriver");
         Object buf = driver.getMethod("create", short.class).invoke(null, (short) 42);
         assertNotNull("BufDriver.create must return a non-null Buf", buf);
@@ -782,7 +780,7 @@ public class ImplClassWriterTests extends ProcessorTestCase {
 
     /**
      * An {@code @InlineStringField} getter+setter pair must generate String accessors that operate
-     * via {@code MemorySegmentAdapter.getString/setString}. A write-then-read must return the
+     * via {@code MemorySegment.getString/setString}. A write-then-read must return the
      * written string value.
      */
     public void testInlineStringFieldRoundTrip() throws Exception {

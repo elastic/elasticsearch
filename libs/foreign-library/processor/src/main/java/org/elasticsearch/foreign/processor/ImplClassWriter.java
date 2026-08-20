@@ -38,11 +38,9 @@ import javax.lang.model.element.TypeElement;
 
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Addressable;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Arena;
-import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_ArenaAdapter;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayoutArray;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemorySegment;
-import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemorySegmentAdapter;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Object;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_String;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_StructLayout;
@@ -50,8 +48,8 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_VarHandle;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_boolean;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_long;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_void;
-import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_ArenaAdapter_allocate;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_Arena_ofAuto;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_allocate_layout_count;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.emitValueLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.primitiveClassDesc;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.slotWidth;
@@ -76,8 +74,6 @@ import static org.elasticsearch.foreign.processor.model.LibraryModel.SYMBOL_RESO
 class ImplClassWriter {
 
     private static final ClassDesc CD_MethodHandle = ClassDesc.of("java.lang.invoke.MethodHandle");
-    private static final ClassDesc CD_MethodHandles = ClassDesc.of("java.lang.invoke.MethodHandles");
-    private static final ClassDesc CD_Lookup = ClassDesc.of("java.lang.invoke.MethodHandles$Lookup");
     private static final ClassDesc CD_FunctionDescriptor = ClassDesc.of("java.lang.foreign.FunctionDescriptor");
     private static final ClassDesc CD_LinkerOption = ClassDesc.of("java.lang.foreign.Linker$Option");
     private static final ClassDesc CD_LinkerOptionArray = ClassDesc.ofDescriptor("[Ljava/lang/foreign/Linker$Option;");
@@ -87,7 +83,6 @@ class ImplClassWriter {
     private static final ClassDesc CD_ResolvedSymbol = ClassDesc.of("org.elasticsearch.foreign.ResolvedSymbol");
     private static final ClassDesc CD_SymbolLookup = ClassDesc.of("java.lang.foreign.SymbolLookup");
     private static final ClassDesc CD_LinkerHelper = ClassDesc.of(LinkerHelper.class.getName());
-    private static final ClassDesc CD_LinkerAdapter = ClassDesc.of("org.elasticsearch.foreign.adapter.LinkerAdapter"); // not a dependency
     private static final ClassDesc CD_LoaderHelper = ClassDesc.of(LoaderHelper.class.getName());
     private static final ClassDesc CD_Objects = ClassDesc.of("java.util.Objects");
     private static final ClassDesc CD_Math = ClassDesc.of("java.lang.Math");
@@ -119,19 +114,11 @@ class ImplClassWriter {
         CD_Linker,
         CD_LinkerOptionArray
     );
-    private static final MethodTypeDesc MTD_adaptCritical = MethodTypeDesc.of(
-        CD_MethodHandle,
-        CD_Lookup,
-        CD_MethodHandle,
-        CD_Class,
-        CD_String
-    );
-    private static final MethodTypeDesc MTD_unsupportedFallback = MethodTypeDesc.of(CD_MethodHandle, CD_MethodHandle, CD_String);
-    private static final MethodTypeDesc MTD_MemorySegmentAdapter_getString = MethodTypeDesc.of(CD_String, CD_MemorySegment, CD_long);
+    private static final MethodTypeDesc MTD_getString = MethodTypeDesc.of(CD_String, CD_long);
     private static final MethodTypeDesc MTD_Arena_ofConfined = MethodTypeDesc.of(CD_Arena);
     private static final MethodTypeDesc MTD_Arena_close = MethodTypeDesc.of(CD_void);
-    private static final MethodTypeDesc MTD_MemorySegmentAdapter_allocateString = MethodTypeDesc.of(CD_MemorySegment, CD_Arena, CD_String);
-    private static final MethodTypeDesc MTD_critical = MethodTypeDesc.of(CD_LinkerOptionArray);
+    private static final MethodTypeDesc MTD_Arena_allocateFrom_String = MethodTypeDesc.of(CD_MemorySegment, CD_String);
+    private static final MethodTypeDesc MTD_Linker_Option_critical = MethodTypeDesc.of(CD_LinkerOption, CD_boolean);
 
     private final Filer filer;
     private final int classFileVersion;
@@ -315,18 +302,6 @@ class ImplClassWriter {
         String methodHandleResolverClassName,
         String fieldName
     ) {
-        boolean hasFallbackAdapter = nm.fallbackAdapterClassName() != null;
-        // For @Critical methods with no fallback adapter (using the Critical.UnsupportedFallback sentinel)
-        // we need to call LinkerAdapter.unsupportedFallback()
-        boolean isUnsupportedFallback = nm.isCritical() && hasFallbackAdapter == false;
-
-        // For @Critical methods with a fallback adapter we need to call
-        // LinkerAdapter.adaptCritical(lookup, rawHandle, adapterClass, methodName). Stack-prep
-        // the leading lookup arg here, then build the raw handle on top.
-        if (hasFallbackAdapter) {
-            cb.invokestatic(CD_MethodHandles, "lookup", MethodTypeDesc.of(CD_Lookup));
-        }
-
         // new MethodHandleResolver() -> mhResolver
         ClassDesc mhResolverDesc = ClassDesc.of(methodHandleResolverClassName);
         cb.new_(mhResolverDesc);
@@ -353,15 +328,6 @@ class ImplClassWriter {
 
         // mhResolver.resolve(resolvedSymbol, descriptor, linker, options) -> MethodHandle
         cb.invokeinterface(ClassDesc.of(MH_RESOLVER_INTERFACE_FQN), "resolve", MTD_mhResolve);
-
-        if (hasFallbackAdapter) {
-            cb.ldc(ClassDesc.of(nm.fallbackAdapterClassName()));
-            cb.ldc(nm.methodName());
-            cb.invokestatic(CD_LinkerAdapter, "adaptCritical", MTD_adaptCritical);
-        } else if (isUnsupportedFallback) {
-            cb.ldc(nm.methodName());
-            cb.invokestatic(CD_LinkerAdapter, "unsupportedFallback", MTD_unsupportedFallback);
-        }
 
         cb.putstatic(generatedDesc, fieldName, CD_MethodHandle);
     }
@@ -390,14 +356,21 @@ class ImplClassWriter {
 
     /**
      * Emits the {@code Linker.Option[]} array passed to {@code linker.downcallHandle}. For
-     * {@code @Critical} the array is built by {@code LinkerAdapter.critical()}. Otherwise the
-     * array is assembled inline with a {@code captureCallState("errno")} entry for
-     * {@code @CaptureErrno} and/or a {@code firstVariadicArg(N)} entry for {@code @Variadic}
-     * (empty when neither applies).
+     * {@code @Critical} the array holds a single {@code Linker.Option.critical(true)} entry, which allows
+     * the downcall to accept heap-backed segments. Otherwise the array is assembled inline with a
+     * {@code captureCallState("errno")} entry for {@code @CaptureErrno} and/or a {@code firstVariadicArg(N)}
+     * entry for {@code @Variadic} (empty when neither applies).
      */
     private static void emitLinkerOptions(CodeBuilder cb, MethodModel nm) {
         if (nm.isCritical()) {
-            cb.invokestatic(CD_LinkerAdapter, "critical", MTD_critical);
+            // new Linker.Option[] { Linker.Option.critical(true) }
+            cb.iconst_1();
+            cb.anewarray(CD_LinkerOption);
+            cb.dup();
+            cb.iconst_0();
+            cb.iconst_1(); // critical(true): allow passing heap segments to the downcall
+            cb.invokestatic(CD_LinkerOption, "critical", MTD_Linker_Option_critical, true);
+            cb.aastore();
             return;
         }
         boolean captureErrno = nm.capturesErrno();
@@ -631,7 +604,7 @@ class ImplClassWriter {
     /**
      * Generates a method body that marshals {@code String} parameters to native memory before the call.
      * Opens a confined {@code Arena} per call, allocates each {@code String} param via
-     * {@code MemorySegmentAdapter.allocateString}, and closes the arena in both normal and exception paths.
+     * {@code Arena.allocateFrom(String)}, and closes the arena in both normal and exception paths.
      *
      * <p>Local variable layout (slots):
      * <ul>
@@ -667,7 +640,7 @@ class ImplClassWriter {
         code.astore(arenaSlot);
 
         code.trying(tryBlock -> {
-            // Marshal each String param: MemorySegment $sN = MemorySegmentAdapter.allocateString(arena, strN)
+            // Marshal each String param: MemorySegment $sN = arena.allocateFrom(strN)
             int slot = 1;
             int marshaledSlot = arenaSlot + 1;
             for (NativeType paramType : paramTypes) {
@@ -681,7 +654,8 @@ class ImplClassWriter {
                     tryBlock.labelBinding(notNull);
                     tryBlock.aload(arenaSlot);
                     tryBlock.aload(slot);
-                    tryBlock.invokestatic(CD_MemorySegmentAdapter, "allocateString", MTD_MemorySegmentAdapter_allocateString);
+                    // arena.allocateFrom(str): allocate a NUL-terminated UTF-8 copy of the string in native memory.
+                    tryBlock.invokeinterface(CD_Arena, "allocateFrom", MTD_Arena_allocateFrom_String);
                     tryBlock.labelBinding(end);
                     tryBlock.astore(marshaledSlot);
                     marshaledSlot++;
@@ -838,13 +812,11 @@ class ImplClassWriter {
         cb.aconst_null();
         cb.areturn();
         cb.labelBinding(notNull);
-        // Otherwise reinterpret the segment to a known size and read it as a UTF-8 string. We route
-        // the read through MemorySegmentAdapter so the mrjar shim picks the right API for the runtime
-        // JDK (MemorySegment.getString in JDK 22+, getUtf8String in JDK 21).
+        // Otherwise reinterpret the segment to a known size and read it as a UTF-8 string.
         cb.ldc(Long.MAX_VALUE);
         cb.invokeinterface(CD_MemorySegment, "reinterpret", MethodTypeDesc.of(CD_MemorySegment, CD_long));
         cb.ldc(0L);
-        cb.invokestatic(CD_MemorySegmentAdapter, "getString", MTD_MemorySegmentAdapter_getString);
+        cb.invokeinterface(CD_MemorySegment, "getString", MTD_getString);
         cb.areturn();
     }
 
@@ -901,14 +873,13 @@ class ImplClassWriter {
             code.invokespecial(structImplDesc, "<init>", MethodTypeDesc.of(CD_void));
             code.astore(2); // slot 2 = result
 
-            // arr = ArenaAdapter.allocate(Arena.ofAuto(), ElemPack.LAYOUT, elements.length)
-            // Route through ArenaAdapter: the (MemoryLayout, long) allocate overload is JDK 22+,
-            // so the adapter uses allocateArray on JDK 21 and allocate on JDK 22+.
+            // arr = Arena.ofAuto().allocate(ElemPack.LAYOUT, elements.length)
             code.invokestatic(CD_Arena, "ofAuto", MTD_Arena_ofAuto, true);
             code.getstatic(packDesc, "LAYOUT", CD_StructLayout);
             code.aload(1);
             code.arraylength();
-            code.invokestatic(CD_ArenaAdapter, "allocate", MTD_ArenaAdapter_allocate);
+            code.i2l(); // Arena.allocate takes the element count as a long
+            code.invokeinterface(CD_Arena, "allocate", MTD_allocate_layout_count);
             code.astore(3); // slot 3 = arr
 
             // for (int i = 0; i < elements.length; i++) ElemPack.pack(elements[i], arr, LAYOUT.byteSize() * i)

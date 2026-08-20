@@ -54,7 +54,7 @@ public class FieldNameUtilsTests extends ESTestCase {
      */
     private final boolean includePrefixFields;
 
-    private static void requireMultiColumnInSubquery() {
+    private static void checkMultiColumnInSubquery() {
         assumeTrue("multi-column IN subquery", EsqlCapabilities.Cap.WHERE_IN_MULTI_COLUMN_SUBQUERY.isEnabled());
     }
 
@@ -3716,10 +3716,6 @@ public class FieldNameUtilsTests extends ESTestCase {
             """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*", "languages", "languages.*"));
     }
 
-    private static void checkMultiColumnInSubquery() {
-        assumeTrue("multi-column IN subquery", EsqlCapabilities.Cap.WHERE_IN_MULTI_COLUMN_SUBQUERY.isEnabled());
-    }
-
     // EVAL IN subquery tests
 
     public void testInSubqueryInEval() {
@@ -3912,7 +3908,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiColumnTsInSubqueryInEval() {
-        requireMultiColumnInSubquery();
+        checkMultiColumnInSubquery();
         assertFieldNames(
             "FROM main | EVAL z = (f1, f2) IN (TS sub | KEEP f1, f2) | KEEP f1",
             Set.of("_index", "f1", "f1.*", "f2", "f2.*", "@timestamp", "@timestamp.*")
@@ -3920,7 +3916,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiColumnRowInSubqueryInEval() {
-        requireMultiColumnInSubquery();
+        checkMultiColumnInSubquery();
         assertFieldNames(
             "FROM main | EVAL z = (f1, f2) IN (ROW f1 = 1, f2 = 2 | KEEP f1, f2) | KEEP f1",
             Set.of("_index", "f1", "f1.*", "f2", "f2.*")
@@ -3928,7 +3924,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryNestedInCaseInEval() {
-        requireMultiColumnInSubquery();
+        checkMultiColumnInSubquery();
         assertFieldNames(
             "FROM main | EVAL z = CASE((f1, f2) IN (FROM sub | KEEP f1, f2), true, false) | KEEP f1",
             Set.of("_index", "f1", "f1.*", "f2", "f2.*")
@@ -3936,7 +3932,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryNestedInCoalesceInEval() {
-        requireMultiColumnInSubquery();
+        checkMultiColumnInSubquery();
         assertFieldNames(
             "FROM main | EVAL z = COALESCE((f1, f2) IN (TS sub | KEEP f1, f2), false) | KEEP f1",
             Set.of("_index", "f1", "f1.*", "f2", "f2.*", "@timestamp", "@timestamp.*")
@@ -3944,7 +3940,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryNestedInIsNullInEval() {
-        requireMultiColumnInSubquery();
+        checkMultiColumnInSubquery();
         assertFieldNames(
             "FROM main | EVAL z = ((f1, f2) IN (FROM sub | KEEP f1, f2)) IS NULL | KEEP f1",
             Set.of("_index", "f1", "f1.*", "f2", "f2.*")

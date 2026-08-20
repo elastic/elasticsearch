@@ -14,6 +14,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
@@ -36,6 +37,7 @@ import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.simulateR
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -306,7 +308,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testLiveDeploymentStats() throws IOException {
+    public void testLiveDeploymentStats() throws Exception {
         String modelId = "live_deployment_stats";
         createPassThroughModel(modelId);
         putVocabulary(List.of("once", "twice"), modelId);
@@ -367,27 +369,88 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
             int inferenceCount = sumInferenceCountOnNodes(nodes);
             assertThat(inferenceCount, equalTo(5));
 
-            // The native process reports its resident set size periodically. When at least one node has reported it,
-            // the API must surface it as the runtime native memory in model_size_stats (summed across nodes). The check
-            // is guarded so it does not flake if no measurement has been received within the short test window.
-            long summedNodeRss = 0;
-            boolean anyNodeReportedRss = false;
-            for (var node : nodes) {
-                Number nodeRss = (Number) node.get("average_inference_process_memory_rss_bytes");
-                if (nodeRss != null) {
-                    anyNodeReportedRss = true;
-                    summedNodeRss += nodeRss.longValue();
-                }
-            }
-            if (anyNodeReportedRss) {
-                Number runtimeNativeMemory = (Number) XContentMapValues.extractValue(
-                    "model_size_stats.runtime_native_memory_bytes",
-                    stats.get(0)
-                );
-                assertThat(runtimeNativeMemory, notNullValue());
-                assertThat(runtimeNativeMemory.longValue(), equalTo(summedNodeRss));
+            // The native process reports its resident set size (current and OS peak) periodically. Elasticsearch surfaces
+            // these, summed across nodes, as runtime_native_memory_bytes / peak_runtime_native_memory_bytes in
+            // model_size_stats. When running against an ml-cpp that emits periodic RSS (the coordinated PR build sets
+            // -Dtests.ml.expect_native_rss=true) we enforce the full end-to-end chain, waiting for the first report.
+            // Otherwise the check is best-effort so it does not flake against a released ml-cpp that does not report RSS
+            // within the short test window.
+            if (Booleans.parseBoolean(System.getProperty("tests.ml.expect_native_rss", "false"))) {
+                assertBusy(() -> assertNativeRuntimeMemorySurfaced(modelId), 30, TimeUnit.SECONDS);
+            } else {
+                assertNativeRuntimeMemoryConsistentIfPresent(nodes, stats.get(0));
             }
         }
+    }
+
+    /**
+     * Best-effort check used when we cannot guarantee the native process has reported its RSS yet (e.g. running against a
+     * released ml-cpp without periodic reporting): if a node has reported RSS, the summed value must match what the stats
+     * API surfaces, but absence is tolerated so the test does not flake.
+     */
+    private void assertNativeRuntimeMemoryConsistentIfPresent(List<Map<String, Object>> nodes, Map<String, Object> modelStats) {
+        long summedNodeRss = 0;
+        boolean anyNodeReportedRss = false;
+        for (var node : nodes) {
+            Number nodeRss = (Number) node.get("average_inference_process_memory_rss_bytes");
+            if (nodeRss != null) {
+                anyNodeReportedRss = true;
+                summedNodeRss += nodeRss.longValue();
+            }
+        }
+        if (anyNodeReportedRss) {
+            Number runtimeNativeMemory = (Number) XContentMapValues.extractValue("model_size_stats.runtime_native_memory_bytes", modelStats);
+            assertThat(runtimeNativeMemory, notNullValue());
+            assertThat(runtimeNativeMemory.longValue(), equalTo(summedNodeRss));
+        }
+    }
+
+    /**
+     * Enforces the full RSS accounting chain end to end: at least one node must have reported native RSS, and the
+     * per-node current/peak values must be surfaced (summed across nodes) as runtime_native_memory_bytes /
+     * peak_runtime_native_memory_bytes in model_size_stats, with the peak at least the current. Used only when the native
+     * process is known to emit periodic RSS, so a missing report fails (driving the surrounding assertBusy to retry)
+     * rather than being tolerated.
+     */
+    @SuppressWarnings("unchecked")
+    private void assertNativeRuntimeMemorySurfaced(String modelId) throws IOException {
+        Response statsResponse = getTrainedModelStats(modelId);
+        List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(statsResponse).get("trained_model_stats");
+        assertThat(stats, hasSize(1));
+        List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
+            "deployment_stats.nodes",
+            stats.get(0)
+        );
+
+        long summedAvgRss = 0;
+        long summedPeakRss = 0;
+        boolean anyNodeReportedRss = false;
+        for (var node : nodes) {
+            Number nodeAvgRss = (Number) node.get("average_inference_process_memory_rss_bytes");
+            Number nodePeakRss = (Number) node.get("peak_inference_process_memory_rss_bytes");
+            if (nodeAvgRss != null) {
+                anyNodeReportedRss = true;
+                summedAvgRss += nodeAvgRss.longValue();
+                if (nodePeakRss != null) {
+                    summedPeakRss += nodePeakRss.longValue();
+                }
+            }
+        }
+        // Fail (not skip) so the surrounding assertBusy keeps polling until the periodic report arrives.
+        assertTrue("no node has reported native RSS yet", anyNodeReportedRss);
+        assertThat(summedAvgRss, greaterThan(0L));
+
+        Number runtimeNativeMemory = (Number) XContentMapValues.extractValue("model_size_stats.runtime_native_memory_bytes", stats.get(0));
+        assertThat(runtimeNativeMemory, notNullValue());
+        assertThat(runtimeNativeMemory.longValue(), equalTo(summedAvgRss));
+
+        Number peakRuntimeNativeMemory = (Number) XContentMapValues.extractValue(
+            "model_size_stats.peak_runtime_native_memory_bytes",
+            stats.get(0)
+        );
+        assertThat(peakRuntimeNativeMemory, notNullValue());
+        assertThat(peakRuntimeNativeMemory.longValue(), equalTo(summedPeakRss));
+        assertThat(peakRuntimeNativeMemory.longValue(), greaterThanOrEqualTo(runtimeNativeMemory.longValue()));
     }
 
     @SuppressWarnings("unchecked")

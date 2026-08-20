@@ -2127,6 +2127,186 @@ public class InSubqueryResolverTests extends ESTestCase {
     }
 
     /**
+     * {@code FROM main | EVAL a = x IN (FROM sub), b = x IN (FROM sub)}: two fields with identical IN subquery expressions must receive
+     * distinct mark attribute names and NameIds — otherwise downstream name-based resolution would silently return the wrong boolean for
+     * one of the fields.
+     * This could be a potential optimization in the future, but for now we require distinct names to avoid confusion.
+     */
+    public void testTwoEvalFieldsWithIdenticalInSubqueryGetDistinctMarkNames() {
+        LogicalPlan plan = resolve("FROM main | EVAL a = x IN (FROM sub), b = x IN (FROM sub)");
+
+        Eval eval = as(plan, Eval.class);
+        assertEquals(2, eval.fields().size());
+        Attribute markA = as(eval.fields().get(0).child(), Attribute.class);
+        Attribute markB = as(eval.fields().get(1).child(), Attribute.class);
+
+        assertNotEquals("mark names must be distinct", markA.name(), markB.name());
+        assertNotEquals("mark NameIds must be distinct", markA.id(), markB.id());
+
+        // Two stacked MarkJoins: b's join is outermost (stacked last)
+        MarkJoin joinB = as(eval.child(), MarkJoin.class);
+        assertEquals(markB.id(), joinB.markAttribute().id());
+        MarkJoin joinA = as(joinB.left(), MarkJoin.class);
+        assertEquals(markA.id(), joinA.markAttribute().id());
+    }
+
+    /**
+     * {@code FROM main | EVAL a = 42 IN (FROM sub), b = 42 IN (FROM sub)}: two fields with identical foldable LHS constants and identical
+     * subqueries must receive distinct synthetic const alias names, so the join key for each MarkJoin resolves to its own materialized
+     * constant column.
+     */
+    public void testTwoEvalFieldsWithIdenticalConstInSubqueryGetDistinctConstNames() {
+        LogicalPlan plan = resolve("FROM main | EVAL a = 42 IN (FROM sub), b = 42 IN (FROM sub)");
+
+        Eval eval = as(plan, Eval.class);
+        assertEquals(2, eval.fields().size());
+        Attribute markA = as(eval.fields().get(0).child(), Attribute.class);
+        Attribute markB = as(eval.fields().get(1).child(), Attribute.class);
+
+        assertNotEquals("mark names must be distinct", markA.name(), markB.name());
+        assertNotEquals("mark NameIds must be distinct", markA.id(), markB.id());
+
+        // Each MarkJoin has its own const Eval below it — the join key names must differ
+        MarkJoin joinB = as(eval.child(), MarkJoin.class);
+        assertEquals(markB.id(), joinB.markAttribute().id());
+        Eval constEvalB = as(joinB.left(), Eval.class);
+
+        MarkJoin joinA = as(constEvalB.child(), MarkJoin.class);
+        assertEquals(markA.id(), joinA.markAttribute().id());
+        Eval constEvalA = as(joinA.left(), Eval.class);
+
+        String constNameA = constEvalA.fields().get(0).name();
+        String constNameB = constEvalB.fields().get(0).name();
+        assertNotEquals("const alias names must be distinct", constNameA, constNameB);
+        assertNotNull(joinA.left()); // sanity: main relation is below
+    }
+
+    /**
+     * {@code FROM main | EVAL a = x IN (FROM sub), b = 42 IN (FROM sub)}: two fields in one EVAL
+     * with different LHS kinds — attribute and foldable constant. Field {@code a} uses an attribute LHS
+     * (no synthetic const alias), field {@code b} uses a foldable constant (materialised as a synthetic
+     * const alias). Both must receive distinct mark attribute names and NameIds:
+     * <pre>
+     * Eval[a=$$markA, b=$$markB]
+     *   MarkJoin_b[left=$$const, right=sub]
+     *     Eval[$$const=42]
+     *       MarkJoin_a[left=x, right=sub]
+     *         FROM main
+     * </pre>
+     */
+    public void testEvalWithMixedLhsInSubqueries() {
+        LogicalPlan plan = resolve("FROM main | EVAL a = x IN (FROM sub), b = 42 IN (FROM sub)");
+
+        Eval eval = as(plan, Eval.class);
+        assertEquals(2, eval.fields().size());
+        assertEquals("a", eval.fields().get(0).name());
+        assertEquals("b", eval.fields().get(1).name());
+        Attribute markA = as(eval.fields().get(0).child(), Attribute.class);
+        Attribute markB = as(eval.fields().get(1).child(), Attribute.class);
+        assertNotEquals("mark names must be distinct", markA.name(), markB.name());
+        assertNotEquals("mark NameIds must be distinct", markA.id(), markB.id());
+
+        // b's MarkJoin is outermost (stacked after a's)
+        MarkJoin joinB = as(eval.child(), MarkJoin.class);
+        assertEquals(markB.id(), joinB.markAttribute().id());
+
+        // const Eval materialises 42 below b's MarkJoin
+        Eval constEval = as(joinB.left(), Eval.class);
+        assertEquals(1, constEval.fields().size());
+        assertTrue(constEval.fields().get(0).name().startsWith("$$in_subquery_const"));
+        assertEquals("sub", as(joinB.right(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        // a's MarkJoin is below the const Eval
+        MarkJoin joinA = as(constEval.child(), MarkJoin.class);
+        assertEquals(markA.id(), joinA.markAttribute().id());
+        assertEquals("x", joinA.config().leftFields().get(0).name());
+        as(joinA.left(), UnresolvedRelation.class); // FROM main
+        assertEquals("sub", as(joinA.right(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * two chained EVAL commands each containing multiple IN subqueries. The two {@link Eval} nodes are
+     * processed independently by {@code transformUp}, so each gets its own fresh accumulator. Within each
+     * EVAL the shared accumulator guarantees globally-unique ordinals. All five mark attributes must have
+     * distinct names and NameIds; the two const aliases inside the second EVAL must also be distinct:
+     * <pre>
+     * Eval[c=$$markC, d=$$markD, e=$$markE]
+     *   MarkJoin_e[left=x, right=sub]
+     *     Eval[$$constD=42]
+     *       MarkJoin_d[left=$$constD, right=sub]
+     *         Eval[$$constC=42]
+     *           MarkJoin_c[left=$$constC, right=sub]
+     *             Eval[a=$$markA, b=$$markB]
+     *               MarkJoin_b[left=x, right=sub]
+     *                 MarkJoin_a[left=x, right=sub]
+     *                   FROM main
+     * </pre>
+     */
+    public void testChainedEvalsWithMultipleInSubqueriesGetDistinctMarkNames() {
+        LogicalPlan plan = resolve("""
+            FROM main
+            | EVAL a = x IN (FROM sub), b = x IN (FROM sub)
+            | EVAL c = 42 IN (FROM sub), d = 42 IN (FROM sub), e = x IN (FROM sub)
+            """);
+
+        // Outer EVAL for c, d, e
+        Eval outerEval = as(plan, Eval.class);
+        assertEquals(3, outerEval.fields().size());
+        assertEquals("c", outerEval.fields().get(0).name());
+        assertEquals("d", outerEval.fields().get(1).name());
+        assertEquals("e", outerEval.fields().get(2).name());
+        Attribute markC = as(outerEval.fields().get(0).child(), Attribute.class);
+        Attribute markD = as(outerEval.fields().get(1).child(), Attribute.class);
+        Attribute markE = as(outerEval.fields().get(2).child(), Attribute.class);
+
+        // e's MarkJoin is outermost — no const Eval needed because e's LHS is an attribute
+        MarkJoin joinE = as(outerEval.child(), MarkJoin.class);
+        assertEquals(markE.id(), joinE.markAttribute().id());
+        assertEquals("x", joinE.config().leftFields().get(0).name());
+
+        // d's MarkJoin is directly below e's (const Eval is below d's MarkJoin, not above)
+        MarkJoin joinD = as(joinE.left(), MarkJoin.class);
+        assertEquals(markD.id(), joinD.markAttribute().id());
+
+        // const Eval for d is below d's MarkJoin
+        Eval constEvalD = as(joinD.left(), Eval.class);
+        assertEquals(1, constEvalD.fields().size());
+        String constNameD = constEvalD.fields().get(0).name();
+
+        // c's MarkJoin is below d's const Eval
+        MarkJoin joinC = as(constEvalD.child(), MarkJoin.class);
+        assertEquals(markC.id(), joinC.markAttribute().id());
+
+        // const Eval for c is below c's MarkJoin
+        Eval constEvalC = as(joinC.left(), Eval.class);
+        assertEquals(1, constEvalC.fields().size());
+        String constNameC = constEvalC.fields().get(0).name();
+        assertNotEquals("const names for c and d must be distinct", constNameC, constNameD);
+
+        // Inner EVAL for a and b
+        Eval innerEval = as(constEvalC.child(), Eval.class);
+        assertEquals(2, innerEval.fields().size());
+        assertEquals("a", innerEval.fields().get(0).name());
+        assertEquals("b", innerEval.fields().get(1).name());
+        Attribute markA = as(innerEval.fields().get(0).child(), Attribute.class);
+        Attribute markB = as(innerEval.fields().get(1).child(), Attribute.class);
+
+        MarkJoin joinB = as(innerEval.child(), MarkJoin.class);
+        assertEquals(markB.id(), joinB.markAttribute().id());
+        MarkJoin joinA = as(joinB.left(), MarkJoin.class);
+        assertEquals(markA.id(), joinA.markAttribute().id());
+        as(joinA.left(), UnresolvedRelation.class); // FROM main
+
+        // All five marks have distinct names and NameIds
+        Set<String> markNames = new HashSet<>();
+        Set<NameId> markIds = new HashSet<>();
+        for (Attribute mark : new Attribute[] { markA, markB, markC, markD, markE }) {
+            assertTrue("mark name must be unique: " + mark.name(), markNames.add(mark.name()));
+            assertTrue("mark NameId must be unique: " + mark.id(), markIds.add(mark.id()));
+        }
+    }
+
+    /**
      * {@code FROM main | EVAL z = x IN (FROM sub) AND y > 0}: an IN subquery connected to a regular predicate by AND
      * produces one MarkJoin and preserves the regular predicate.
      */

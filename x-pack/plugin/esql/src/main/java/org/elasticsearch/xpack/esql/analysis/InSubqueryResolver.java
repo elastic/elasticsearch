@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -230,20 +230,28 @@ public class InSubqueryResolver {
      * Make this public, so that {@link org.elasticsearch.xpack.esql.view.ViewResolver} can drive IN subquery resolution.
      */
     public static LogicalPlan resolveInSubqueryInEval(Eval eval) {
-        List<Alias> pending = new ArrayList<>();
-        Set<String> pendingNames = new HashSet<>();
+        // LinkedHashMap preserves insertion order (needed when flushing into an Eval) and exposes
+        // its keySet() as the name-lookup set — a single structure instead of a parallel List+Set pair.
+        LinkedHashMap<String, Alias> pending = new LinkedHashMap<>();
         LogicalPlan current = eval.child();
         boolean changed = false;
 
+        // Shared accumulators grow monotonically across all fields so that the ordinal passed to
+        // syntheticMarkName / syntheticConstName (joins.size() / syntheticEvals.size() at call time)
+        // is globally unique. Per-field slices are taken after each rewriteOrContextInSubqueries call.
+        List<MarkJoinSpec> allMarks = new ArrayList<>();
+        List<Alias> allConsts = new ArrayList<>();
+
         for (Alias field : eval.fields()) {
-            List<MarkJoinSpec> fieldMarks = new ArrayList<>();
-            List<Alias> fieldConsts = new ArrayList<>();
-            Expression rewritten = rewriteOrContextInSubqueries(field.child(), fieldMarks, fieldConsts);
+            int marksBefore = allMarks.size();
+            int constsBefore = allConsts.size();
+            Expression rewritten = rewriteOrContextInSubqueries(field.child(), allMarks, allConsts);
+            List<MarkJoinSpec> fieldMarks = new ArrayList<>(allMarks.subList(marksBefore, allMarks.size()));
+            List<Alias> fieldConsts = new ArrayList<>(allConsts.subList(constsBefore, allConsts.size()));
 
             if (fieldMarks.isEmpty()) {
                 // No InSubquery in this field — accumulate as-is.
-                pending.add(field);
-                pendingNames.add(field.name());
+                pending.put(field.name(), field);
                 continue;
             }
 
@@ -252,10 +260,9 @@ public class InSubqueryResolver {
             // Flush accumulated fields below the MarkJoin(s) only when a mark's left field references an alias produced by a preceding
             // field. This makes the LHS attribute available below the join, e.g. for: EVAL a = emp_no + 1, b = a IN (sub), without the
             // flush, `a` would not exist below the MarkJoin.
-            if (pending.isEmpty() == false && referencesPendingName(fieldMarks, pendingNames)) {
-                current = new Eval(eval.source(), current, pending);
-                pending = new ArrayList<>();
-                pendingNames = new HashSet<>();
+            if (pending.isEmpty() == false && referencesPendingName(fieldMarks, pending.keySet())) {
+                current = new Eval(eval.source(), current, new ArrayList<>(pending.values()));
+                pending = new LinkedHashMap<>();
             }
 
             // Materialize any foldable LHS constants (e.g. EVAL b = 10001 IN (sub)).
@@ -270,8 +277,7 @@ public class InSubqueryResolver {
 
             // Re-create the alias with the rewritten expression, preserving the original NameId so
             // downstream references (e.g. a later WHERE m) resolve to the right column.
-            pending.add(new Alias(field.source(), field.name(), rewritten, field.id(), field.synthetic()));
-            pendingNames.add(field.name());
+            pending.put(field.name(), new Alias(field.source(), field.name(), rewritten, field.id(), field.synthetic()));
         }
 
         if (changed == false) {
@@ -279,7 +285,7 @@ public class InSubqueryResolver {
         }
 
         if (pending.isEmpty() == false) {
-            current = new Eval(eval.source(), current, pending);
+            current = new Eval(eval.source(), current, new ArrayList<>(pending.values()));
         }
         return current;
     }
@@ -340,7 +346,10 @@ public class InSubqueryResolver {
             // Non-attribute, non-foldable LHS — leave it for the verifier to surface a clear error.
             return false;
         }
-        LogicalPlan subquery = resolveNestedInSubqueries(subqueryPlan);
+        // resolveInSubqueries is reused here: nested subquery plans are not reachable by the
+        // outer transformUp (they live inside InSubquery expressions, not as plan children), so
+        // they need their own traversal — but the traversal strategy is identical to the outer one.
+        LogicalPlan subquery = resolveInSubqueries(subqueryPlan);
         JoinConfig config = new JoinConfig(negated ? JoinTypes.ANTI : JoinTypes.SEMI, leftFields, emptyList(), null);
         semiOrAntiJoins.add(new SemiOrAntiJoinSpec(source, subquery, config, negated));
         return true;
@@ -427,7 +436,10 @@ public class InSubqueryResolver {
         if (leftFields == null) {
             return inSubquery;
         }
-        LogicalPlan subquery = resolveNestedInSubqueries(inSubquery.subquery());
+        // resolveInSubqueries is reused here: nested subquery plans are not reachable by the
+        // outer transformUp (they live inside InSubquery expressions, not as plan children), so
+        // they need their own traversal — but the traversal strategy is identical to the outer one.
+        LogicalPlan subquery = resolveInSubqueries(inSubquery.subquery());
         Attribute markAttribute = new ReferenceAttribute(
             inSubquery.source(),
             null,
@@ -453,7 +465,8 @@ public class InSubqueryResolver {
         if (leftFields == null) {
             return mcs;
         }
-        LogicalPlan subquery = resolveNestedInSubqueries(mcs.subquery());
+        // resolveInSubqueries is reused here: see the single-column overload for the rationale.
+        LogicalPlan subquery = resolveInSubqueries(mcs.subquery());
         Attribute markAttribute = new ReferenceAttribute(
             mcs.source(),
             null,
@@ -466,15 +479,6 @@ public class InSubqueryResolver {
         JoinConfig config = new JoinConfig(JoinTypes.MARK, leftFields, emptyList(), null);
         joins.add(new MarkJoinSpec(mcs.source(), subquery, config, markAttribute));
         return markAttribute;
-    }
-
-    /**
-     * Recursively transforms a subquery plan, converting any nested IN/NOT IN subquery expressions
-     * into SemiJoin/AntiJoin/MarkJoin nodes. This is needed because nested subquery plans are
-     * embedded inside InSubquery expressions and not reachable by the top-level transformUp.
-     */
-    private static LogicalPlan resolveNestedInSubqueries(LogicalPlan subqueryPlan) {
-        return subqueryPlan.transformUp(LogicalPlan.class, InSubqueryResolver::resolveInSubquery);
     }
 
     /**

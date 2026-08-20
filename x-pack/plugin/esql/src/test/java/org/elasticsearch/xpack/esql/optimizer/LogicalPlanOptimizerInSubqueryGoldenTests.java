@@ -815,4 +815,20 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             | EVAL m = ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NOT NULL
             """, STAGES);
     }
+
+    public void testInSubqueryInEvalInsideNestedSubqueryPlan() {
+        // Verifies that the Analyzer correctly resolves a MarkJoin produced by an EVAL IN subquery
+        // that sits inside a nested subquery plan (the right side of an outer SemiJoin). Before the
+        // EVAL branch, this shape was rejected by verify() with "IN subquery not supported in Eval".
+        // After the branch it is resolved, and this golden test confirms the analyzed plan is correct.
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (
+                FROM employees
+                | EVAL m = emp_no IN (FROM employees | KEEP emp_no)
+                | WHERE m
+                | KEEP emp_no
+              )
+            """, STAGES);
+    }
 }

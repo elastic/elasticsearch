@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
 import java.util.List;
+import java.util.Map;
 
 public class UnmappedFieldsAttributeTests extends AbstractNamedExpressionSerializationTests<UnmappedFieldsAttribute> {
 
@@ -44,7 +45,8 @@ public class UnmappedFieldsAttributeTests extends AbstractNamedExpressionSeriali
             new NameId(),
             randomBoolean(),
             patternWithIntersectedOrGroupsAndExcludes(),
-            randomKeepOrder()
+            randomKeepOrder(),
+            Map.of()
         );
     }
 
@@ -65,7 +67,7 @@ public class UnmappedFieldsAttributeTests extends AbstractNamedExpressionSeriali
             case 4 -> pattern = randomValueOtherThan(pattern, () -> UnmappedFieldsPattern.excludes(List.of(randomAlphaOfLength(4) + "*")));
             case 5 -> keepOrder = randomValueOtherThan(keepOrder, UnmappedFieldsAttributeTests::randomKeepOrder);
         }
-        return new UnmappedFieldsAttribute(source, type, nullability, id, synthetic, pattern, keepOrder);
+        return new UnmappedFieldsAttribute(source, type, nullability, id, synthetic, pattern, keepOrder, Map.of());
     }
 
     @Override
@@ -77,7 +79,8 @@ public class UnmappedFieldsAttributeTests extends AbstractNamedExpressionSeriali
             new NameId(),
             instance.synthetic(),
             instance.pattern(),
-            instance.keepOrder()
+            instance.keepOrder(),
+            Map.of()
         );
     }
 

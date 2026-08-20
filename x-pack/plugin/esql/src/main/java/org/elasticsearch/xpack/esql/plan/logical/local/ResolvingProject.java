@@ -11,12 +11,12 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
@@ -69,27 +69,46 @@ public class ResolvingProject extends Project {
     private final Command command;
 
     public ResolvingProject(Source source, LogicalPlan child, Command command) {
-        this(source, child, computeProjections(child.output(), command.resolver()), command);
+        this(source, child, computeProjections(child.output(), command.resolver(), command.kind()), command);
     }
 
     /**
-     * Runs the resolver against the child output, keeping any {@link UnmappedFieldsAttribute}
-     * instances out of the resolver's scope (so KEEP/DROP/RENAME patterns cannot match the
-     * synthetic column), then re-appending them unconditionally at the end of the projections.
+     * Runs the resolver against the child output, keeping any {@link UnmappedFieldsAttribute} instances out of the resolver's scope
+     * (so KEEP/DROP/RENAME patterns cannot match the synthetic column), and re-inserting them at the correct position.
      */
     private static List<? extends NamedExpression> computeProjections(
         List<Attribute> childOutput,
-        Function<List<Attribute>, List<? extends NamedExpression>> resolver
+        Function<List<Attribute>, List<? extends NamedExpression>> resolver,
+        Kind kind
     ) {
-        List<Attribute> unmappedAttrs = childOutput.stream().filter(a -> a instanceof UnmappedFieldsAttribute).toList();
-        List<Attribute> resolverInput = unmappedAttrs.isEmpty()
-            ? childOutput
-            : childOutput.stream().filter(a -> (a instanceof UnmappedFieldsAttribute) == false).toList();
-        List<? extends NamedExpression> resolved = resolver.apply(resolverInput);
-        if (unmappedAttrs.isEmpty()) {
-            return resolved;
+        List<Attribute> unmappedAttrs = new ArrayList<>();
+        List<Attribute> resolverInput = new ArrayList<>();
+        int beforeCount = 0;
+        for (Attribute a : childOutput) {
+            if (a instanceof UnmappedFieldsAttribute) {
+                unmappedAttrs.add(a);
+            } else {
+                resolverInput.add(a);
+                if (unmappedAttrs.isEmpty()) {
+                    beforeCount++;
+                }
+            }
         }
-        return CollectionUtils.combine(resolved, unmappedAttrs);
+        if (unmappedAttrs.isEmpty()) {
+            return resolver.apply(childOutput);
+        }
+        List<? extends NamedExpression> resolved = resolver.apply(resolverInput);
+        List<NamedExpression> result = new ArrayList<>(resolved.size() + unmappedAttrs.size());
+        if (kind == Kind.KEEP) {
+            result.addAll(resolved);
+            result.addAll(unmappedAttrs);
+        } else {
+            int insertAt = Math.min(beforeCount, resolved.size());
+            result.addAll(resolved.subList(0, insertAt));
+            result.addAll(unmappedAttrs);
+            result.addAll(resolved.subList(insertAt, resolved.size()));
+        }
+        return result;
     }
 
     private ResolvingProject(Source source, LogicalPlan child, List<? extends NamedExpression> projections, Command command) {
@@ -109,6 +128,11 @@ public class ResolvingProject extends Project {
     /** Whether this node was built from a {@code KEEP} (as opposed to a {@code DROP} or {@code RENAME}). */
     public boolean isKeep() {
         return command.kind() == Kind.KEEP;
+    }
+
+    /** Whether this node was built from a {@code RENAME}. */
+    public boolean isRename() {
+        return command.kind() == Kind.RENAME;
     }
 
     /**

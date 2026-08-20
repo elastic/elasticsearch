@@ -507,8 +507,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             );
         }
 
+        /**
+         * Restrict the _source read to this field's own paths so a single unmapped reference does not force a full _source load
+         */
         static BlockLoader unmappedKeywordBlockLoader(String name, DefaultShardContext context) {
-            // restrict the _source read to this field's own paths so a single unmapped reference does not force a full _source load
             Set<String> sourcePaths = context.ctx.isSourceEnabled() ? context.ctx.sourcePath(name) : Set.of();
             return new UnmappedKeywordBlockLoader(name, sourcePaths, context.ctx.getIndexSettings().getIgnoredSourceFormat());
         }

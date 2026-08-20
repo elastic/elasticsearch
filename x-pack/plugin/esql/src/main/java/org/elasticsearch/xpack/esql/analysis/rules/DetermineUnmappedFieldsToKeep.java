@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.analysis.rules;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -20,7 +22,9 @@ import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * When {@code SET unmapped_fields="LOAD_ALL"} is in effect, annotates
@@ -49,34 +53,46 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             return plan;
         }
         List<UnmappedFieldsPattern.KeepTerm> keepOrder = outermostKeepOrder(plan);
+        Map<String, String> renames = outermostRenames(plan);
         return plan.transformUp(EsRelation.class, esr -> {
             if (esr.indexMode() == IndexMode.LOOKUP) {
                 return esr;
             }
-            return esr.withAdditionalAttribute(new UnmappedFieldsAttribute(Source.EMPTY, pattern, keepOrder));
+            return esr.withAdditionalAttribute(new UnmappedFieldsAttribute(Source.EMPTY, pattern, keepOrder, renames));
         });
     }
 
-    /**
-     * The projection terms of the top-most {@code KEEP}, in written order, or empty when no {@code KEEP} governs the output order.
-     * The coordinator replays them over the real columns plus the expanded leaves so a {@code LOAD_ALL} output honors {@code KEEP}'s
-     * left-to-right column contract (see {@link UnmappedFieldsPattern#keepOrdered}).
-     * <p>
-     * Only the top-most projection is consulted, and only when it is a {@code KEEP}: a {@code DROP}/{@code RENAME} above it would
-     * reorder or rename columns in ways these name-based terms can no longer describe, so the output falls back to the natural
-     * real-then-alphabetical order (unchanged from before this ordering support). Non-projection commands ({@code EVAL}, {@code WHERE},
-     * {@code SORT}, {@code LIMIT}) do not change which projection governs order, so the walk descends through them to that top
-     * {@code KEEP}; a column an {@code EVAL} appended above the {@code KEEP} trails its output at the coordinator (it did not exist when
-     * {@code KEEP} ran — see {@link UnmappedFieldsPattern#keepOrdered} and the post-processor's layout). The plan is a linear unary
-     * chain here — {@code LOAD_ALL} currently rejects non-unary plans in the {@code Verifier}.
-     */
     private static List<UnmappedFieldsPattern.KeepTerm> outermostKeepOrder(LogicalPlan plan) {
         for (LogicalPlan p = plan; p instanceof UnaryPlan unary; p = unary.child()) {
             if (p instanceof ResolvingProject project) {
-                return project.isKeep() ? project.keepOrderTerms() : List.of();
+                // return the last seen KEEP command's projections
+                if (project.isKeep()) {
+                    return project.keepOrderTerms();
+                }
             }
         }
         return List.of();
+    }
+
+    private static Map<String, String> outermostRenames(LogicalPlan plan) {
+        Map<String, String> renames = new HashMap<>();
+        for (LogicalPlan p = plan; p instanceof UnaryPlan unary; p = unary.child()) {
+            if (p instanceof ResolvingProject project) {
+                if (project.isKeep()) {
+                    break;
+                }
+
+                for (NamedExpression ne : project.projections()) {
+                    if (ne instanceof Alias alias && alias.child() instanceof NamedExpression orig) {
+                        String newName = alias.name();
+                        String originalName = orig.name();
+                        renames.replaceAll((k, v) -> v.equals(newName) ? originalName : v);
+                        renames.put(newName, originalName);
+                    }
+                }
+            }
+        }
+        return renames.isEmpty() ? Map.of() : Map.copyOf(renames);
     }
 
     /**

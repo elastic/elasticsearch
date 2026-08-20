@@ -10,7 +10,6 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -21,10 +20,12 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Describes which additional (not already in {@link EsRelation}) source fields a
@@ -66,18 +67,12 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
 
     private final List<List<String>> includeGroups;
 
-    /** Glob patterns (DROP wildcards) */
-    private final List<String> excludes;
+    private final List<String> globExcludes;
 
-    /** Literal names of columns the plan already outputs, matched exactly */
-    private final List<String> exactExcludes;
+    private final Set<String> exactExcludes;
 
     public static UnmappedFieldsPattern excludes(List<String> excludes) {
         return excludes.isEmpty() ? ALL : new UnmappedFieldsPattern(INCLUDES_ALL, excludes, List.of());
-    }
-
-    public static UnmappedFieldsPattern includes(List<String> includes) {
-        return includes.isEmpty() ? NONE : new UnmappedFieldsPattern(List.of(includes), List.of(), List.of());
     }
 
     /**
@@ -89,8 +84,6 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
     public static UnmappedFieldsPattern forKeep(List<? extends NamedExpression> projections) {
         List<String> includes = new ArrayList<>();
         for (NamedExpression proj : projections) {
-            // mirrors Analyzer.keepResolver: only a wildcard contributes an include group; an explicit name (resolved or not) is
-            // demand-loaded instead, so it contributes nothing to the expansion
             switch (proj) {
                 case UnresolvedStar ignored -> {
                     return ALL;
@@ -100,34 +93,20 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
                 }
                 case UnresolvedAttribute ignored -> {
                 }
-                case NamedExpression ne when ne.resolved() -> {
-                }
                 default -> throw new IllegalStateException("Unsupported KEEP projection [" + proj + "]");
             }
         }
         return includes(includes);
     }
 
-    /**
-     * One {@code KEEP} projection term in written order, tagged {@code pattern} when it is a wildcard (matched with
-     * {@link Regex#simpleMatch}) rather than an explicit name (matched exactly)
-     */
-    public record KeepTerm(String name, boolean pattern) implements Writeable {
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(name);
-            out.writeBoolean(pattern);
-        }
-
-        public static KeepTerm readFrom(StreamInput in) throws IOException {
-            return new KeepTerm(in.readString(), in.readBoolean());
-        }
+    public static UnmappedFieldsPattern includes(List<String> includes) {
+        return includes.isEmpty() ? NONE : new UnmappedFieldsPattern(List.of(includes), List.of(), List.of());
     }
 
+    public record KeepTerm(String name, boolean pattern) {}
+
     /**
-     * The ordered projection terms of a {@code KEEP} command, tagged wildcard-vs-explicit by kind (see {@link KeepTerm}). Unlike
-     * {@link #forKeep}'s unordered membership predicate, this preserves written order so {@link #keepOrdered} can replay {@code KEEP}'s
-     * column ordering over the expanded leaves.
+     * The ordered projection terms of a {@code KEEP} command
      */
     public static List<KeepTerm> orderTerms(List<? extends NamedExpression> projections) {
         List<KeepTerm> terms = new ArrayList<>(projections.size());
@@ -137,7 +116,6 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
                 case UnresolvedNamePattern unp -> terms.add(new KeepTerm(unp.pattern(), true));
                 case UnsupportedAttribute ua -> terms.add(new KeepTerm(ua.name(), false));
                 case UnresolvedAttribute ua -> terms.add(new KeepTerm(ua.name(), false));
-                case NamedExpression ne when ne.resolved() -> terms.add(new KeepTerm(ne.name(), false));
                 default -> throw new IllegalStateException("Unsupported KEEP projection [" + proj + "]");
             }
         }
@@ -152,7 +130,7 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
         LinkedHashMap<String, Integer> priorities = new LinkedHashMap<>();
         for (KeepTerm term : keepTerms) {
             boolean explicit = term.pattern() == false;
-            // Priorities match keepResolver's: an explicit name (1) outranks any wildcard, and a non-bare wildcard (3) outranks bare * (4).
+            // TODO: integrate this logic with the one from Analyzer.keepResolver
             int priority = explicit ? 1 : (term.name().equals("*") ? 4 : 3);
             for (String name : childOutput) {
                 boolean matched = explicit ? name.equals(term.name()) : Regex.simpleMatch(term.name(), name);
@@ -189,10 +167,10 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
         );
     }
 
-    private UnmappedFieldsPattern(List<List<String>> includeGroups, List<String> excludes, List<String> exactExcludes) {
+    private UnmappedFieldsPattern(List<List<String>> includeGroups, List<String> globExcludes, Collection<String> exactExcludes) {
         this.includeGroups = includeGroups.stream().map(List::copyOf).toList();
-        this.excludes = List.copyOf(excludes);
-        this.exactExcludes = List.copyOf(exactExcludes);
+        this.globExcludes = List.copyOf(globExcludes);
+        this.exactExcludes = Set.copyOf(new LinkedHashSet<>(exactExcludes));
     }
 
     /**
@@ -204,12 +182,12 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
             ? NONE
             : new UnmappedFieldsPattern(
                 effectiveIncludeGroups(other),
-                combineDeduping(excludes, other.excludes),
+                combineDeduping(globExcludes, other.globExcludes),
                 combineDeduping(exactExcludes, other.exactExcludes)
             );
     }
 
-    private static List<String> combineDeduping(List<String> l1, List<String> l2) {
+    private static List<String> combineDeduping(Collection<String> l1, Collection<String> l2) {
         LinkedHashSet<String> merged = new LinkedHashSet<>(l1.size() + l2.size());
         merged.addAll(l1);
         merged.addAll(l2);
@@ -232,18 +210,20 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
      * and it must match at least one pattern in every include group.
      */
     public boolean matches(String name) {
+        // TODO: look into lazily compiling regex patterns for better performance
         return isNone() == false
             && exactExcludes.contains(name) == false
-            && excludes.stream().noneMatch(exclude -> Regex.simpleMatch(exclude, name))
+            && globExcludes.stream().noneMatch(exclude -> Regex.simpleMatch(exclude, name))
             && includeGroups.stream().allMatch(group -> group.stream().anyMatch(include -> Regex.simpleMatch(include, name)));
     }
 
     /**
      * Whether a top-level {@code _source} object or array key should ship from the data node so the coordinator can flatten it into dotted
-     * leaf columns and keep the surviving ones. It owns no column, so it ships if every include group could reach the key or a descendant
-     * ({@link #groupCouldMatchDescendant}); the per-group over-approximation only ever over-ships, never dropping a leaf that survives.
+     * leaf columns.
      */
-    public boolean matchesObjectPush(String name) {
+    public boolean objectSubfieldsCouldMatch(String name) {
+        // TODO: apply the UnmappedFieldsPattern early so that whatever is being shipped to the coordinator is bare minimum
+        // (as opposed to shipping the whole _source of that specific field + its subfields)
         if (isNone() || anySubtreeCoveringExcludeMatches(name)) {
             return false;
         }
@@ -261,7 +241,7 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
     private static boolean groupCouldMatchDescendant(List<String> group, String name) {
         String dotted = name + ".";
         for (String pattern : group) {
-            if (Regex.simpleMatch(pattern, name) || pattern.startsWith(dotted)) {
+            if (pattern.startsWith(dotted) || Regex.simpleMatch(pattern, name)) {
                 return true;
             }
             int wildcard = pattern.indexOf('*');
@@ -278,7 +258,7 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
      * but not its leaves, so it is not subtree-covering and is left to the coordinator's per-leaf {@link #matches}.
      */
     private boolean anySubtreeCoveringExcludeMatches(String name) {
-        return excludes.stream().anyMatch(exclude -> exclude.endsWith("*") && Regex.simpleMatch(exclude, name));
+        return globExcludes.stream().anyMatch(exclude -> exclude.endsWith("*") && Regex.simpleMatch(exclude, name));
     }
 
     /**
@@ -291,7 +271,7 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
         LinkedHashSet<String> merged = new LinkedHashSet<>(exactExcludes.size() + names.size());
         merged.addAll(exactExcludes);
         merged.addAll(names);
-        return new UnmappedFieldsPattern(includeGroups, excludes, new ArrayList<>(merged));
+        return new UnmappedFieldsPattern(includeGroups, globExcludes, merged);
     }
 
     @Override
@@ -304,18 +284,24 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
         }
         var that = (UnmappedFieldsPattern) obj;
         return Objects.equals(this.includeGroups, that.includeGroups)
-            && Objects.equals(this.excludes, that.excludes)
+            && Objects.equals(this.globExcludes, that.globExcludes)
             && Objects.equals(this.exactExcludes, that.exactExcludes);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(includeGroups, excludes, exactExcludes);
+        return Objects.hash(includeGroups, globExcludes, exactExcludes);
     }
 
     @Override
     public String toString() {
-        return "UnmappedFieldsPattern[includeGroups=" + includeGroups + ", excludes=" + excludes + ", exactExcludes=" + exactExcludes + ']';
+        return "UnmappedFieldsPattern[includeGroups="
+            + includeGroups
+            + ", globExcludes="
+            + globExcludes
+            + ", exactExcludes="
+            + exactExcludes
+            + ']';
     }
 
     public boolean isNone() {
@@ -330,7 +316,7 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(includeGroups, StreamOutput::writeStringCollection);
-        out.writeStringCollection(excludes);
+        out.writeStringCollection(globExcludes);
         out.writeStringCollection(exactExcludes);
     }
 

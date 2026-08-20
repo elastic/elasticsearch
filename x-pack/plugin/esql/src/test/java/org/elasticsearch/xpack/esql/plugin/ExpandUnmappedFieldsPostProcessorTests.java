@@ -249,9 +249,6 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testFlattenedLeafCollidingWithQueryColumnIsDropped() {
         BlockFactory bf = blockFactory();
-        // network.eth0.rx is a mapped (query) column. The data node filters _unmapped_fields by top-level source key, so it cannot drop
-        // just the mapped leaf - the whole partially-mapped network object flows through. Flattening re-derives network.eth0.rx, which
-        // must yield to the existing column (no conflict/500), while the genuinely-unmapped siblings still expand.
         Result result = result(
             List.of(keywordAttr("network.eth0.rx"), unmappedAttr()),
             List.of(page(bf, List.of(row("7", jsonObject("{'network':{'bytes_in':10,'eth0':{'tx':5,'rx':7}}}")))))
@@ -294,7 +291,6 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testArrayRecursionFlattensNestedArraysAndMixedScalarObjectElements() {
         BlockFactory bf = blockFactory();
-        // "a" holds a scalar and an object element at the same path (a stays scalar, a.b appears); "nums" is an array of arrays.
         Result result = result(
             List.of(intAttr(), unmappedAttr()),
             List.of(page(bf, List.of(row(1, jsonObject("{'a':['s',{'b':'o'}],'nums':[[1,2],[3]]}")))))
@@ -319,8 +315,6 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testDuplicateLeafFromLiteralAndNestedKeyMergesToMultivalue() {
         BlockFactory bf = blockFactory();
-        // A row whose _source carries both a literal dotted key "a.b" and a nested {"a":{"b":...}} produces the leaf a.b twice; both
-        // values must survive as a multivalue in source order rather than one silently overwriting the other.
         Result result = result(
             List.of(intAttr(), unmappedAttr()),
             List.of(page(bf, List.of(row(1, jsonObject("{'a.b':'literal','a':{'b':'nested'}}")))))
@@ -340,8 +334,6 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testExactExcludeOfParentStillKeepsObjectDottedLeaves() {
         BlockFactory bf = blockFactory();
-        // SORT unmapped adds an exact "unmapped" exclude. The data node still ships the reconstructed object; the coordinator tests each
-        // dotted leaf, and "unmapped.deep.leaf" does not match the exact "unmapped" exclude, so it survives - parity with a stored key.
         Result result = result(
             List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.excludes(List.of("unmapped", INT_ATTR)))),
             List.of(page(bf, List.of(row(1, jsonObject("{'unmapped':{'deep':{'leaf':'v'}}}")))))
@@ -358,8 +350,6 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testChildWildcardIncludeExpandsObjectLeavesAndDropsSiblings() {
         BlockFactory bf = blockFactory();
-        // KEEP unmapped.* must reach the object's dotted leaves on the coordinator even though the top-level key is the bare "unmapped",
-        // and must drop an unrelated sibling key that the wildcard does not cover.
         Result result = result(
             List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.includes(List.of("unmapped.*")))),
             List.of(page(bf, List.of(row(1, jsonObject("{'unmapped':{'deep':{'leaf':'v'},'foo':'f'},'other':'o'}")))))
@@ -379,8 +369,6 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testNestedWildcardDropRemovesOnlyItsSubtree() {
         BlockFactory bf = blockFactory();
-        // DROP unmapped.deep* removes "unmapped.deep.leaf" but leaves the sibling "unmapped.foo"; the object still ships and the
-        // coordinator drops only the matching leaf, so a synthetic object behaves like a stored source's per-key drop.
         Result result = result(
             List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.excludes(List.of("unmapped.deep*", INT_ATTR)))),
             List.of(page(bf, List.of(row(1, jsonObject("{'unmapped':{'deep':{'leaf':'v'},'foo':'f'}}")))))
@@ -397,9 +385,6 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testFixedSuffixExcludeKeepsObjectLeavesThatDoNotShareTheSuffix() {
         BlockFactory bf = blockFactory();
-        // DROP *ped is a fixed-suffix wildcard: it matches the reconstructed parent key "unmapped" but none of its deeper leaves. The
-        // data node ships the object anyway (see UnmappedFieldsPatternTests#testObjectPushPrunesOnlyOnSubtreeCoveringExcludes); here the
-        // coordinator keeps "unmapped.deep.leaf" because it does not end in "ped", matching what a stored source's literal key would face.
         Result result = result(
             List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.excludes(List.of("*ped", INT_ATTR)))),
             List.of(page(bf, List.of(row(1, jsonObject("{'unmapped':{'deep':{'leaf':'v'}}}")))))
@@ -416,8 +401,6 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testKeepOrderPlacesLeavesPerKeepContractStarFirst() {
         BlockFactory bf = blockFactory();
-        // KEEP *, unmapped.*, unmapped: the real column (from *) leads, then the object's dotted leaves (unmapped.*), then the scalar
-        // "unmapped" last - not the alphabetical unmapped, unmapped.bar, unmapped.deep.leaf, unmapped.foo a plain expansion would emit.
         Result result = result(
             List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.ALL, List.of("*", "unmapped.*", "unmapped"))),
             List.of(page(bf, List.of(row(1, jsonObject(KEEP_ORDER_JSON)))))
@@ -443,8 +426,6 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testKeepOrderCanPlaceRealColumnAfterExpandedLeaves() {
         BlockFactory bf = blockFactory();
-        // KEEP unmapped.*, unmapped, *: the object's dotted leaves lead, then the scalar "unmapped", and the real column (matched only by
-        // the trailing *) lands LAST - a position the fixed "retained columns first, leaves after" layout could never produce.
         Result result = result(
             List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.ALL, List.of("unmapped.*", "unmapped", "*"))),
             List.of(page(bf, List.of(row(1, jsonObject(KEEP_ORDER_JSON)))))
@@ -470,9 +451,6 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testKeepOrderTrailsEvalColumnAppendedAboveKeep() {
         BlockFactory bf = blockFactory();
-        // FROM ... | KEEP * | EVAL z = ...: the EVAL column is appended after _unmapped_fields (KEEP pins that synthetic column right
-        // after its own projections, so a later-added real column lands past it). The trailing * would match "z", but it did not exist
-        // when KEEP ran, so it must trail the expanded leaves rather than be reordered among the * matches.
         Result result = result(
             List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.ALL, List.of("*")), keywordAttr("z")),
             List.of(page(bf, List.of(row(1, jsonObject(KEEP_ORDER_JSON), "e"))))
@@ -497,10 +475,38 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         }
     }
 
+    public void testKeepOrderWithEvalBelowKeepPlacesEvalColInKeptGroup() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(keywordAttr("foo"), intAttr(), unmappedAttr(UnmappedFieldsPattern.ALL, List.of("foo*", "*", "bar*"))),
+            List.of(page(bf, List.of(row("v", 1, jsonObject("{'unmapped.foo':'uf','unmapped.bar':'ub'}")))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of("foo", INT_ATTR, "unmapped.bar", "unmapped.foo")));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testKeepOrderWithEvalBelowAndAboveKeepPlacesEvalColsCorrectly() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(keywordAttr("foo"), intAttr(), unmappedAttr(UnmappedFieldsPattern.ALL, List.of("foo*", "*")), keywordAttr("z")),
+            List.of(page(bf, List.of(row("v", 1, jsonObject("{'unmapped.foo':'uf','unmapped.other':'uo'}"), "ev"))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of("foo", INT_ATTR, "unmapped.foo", "unmapped.other", "z")));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
     public void testExpandReleasesInputPagesWhenExpansionFails() {
         BlockFactory bf = blockFactory();
-        // A _unmapped_fields cell must hold exactly one value; a two-value cell makes getBytesRef throw mid-collect. The point is that
-        // expand still releases the input pages it took ownership of on that failure path.
         Block intBlock;
         try (var builder = bf.newIntBlockBuilder(1)) {
             builder.appendInt(1);
@@ -549,8 +555,6 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
     }
 
     private static UnmappedFieldsAttribute unmappedAttr(UnmappedFieldsPattern pattern, List<String> keepOrder) {
-        // These ordering tests predate the KeepTerm wildcard tag and use no quoted name containing '*', so deriving each term's tag from
-        // the string via Regex.isSimpleMatchPattern reproduces the analyzer's tag for every term used here.
         List<UnmappedFieldsPattern.KeepTerm> terms = keepOrder.stream()
             .map(name -> new UnmappedFieldsPattern.KeepTerm(name, Regex.isSimpleMatchPattern(name)))
             .toList();

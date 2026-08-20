@@ -280,10 +280,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNotKept(pattern, excl("_unmapped_fields", "len"));
     }
 
-    /**
-     * The governing (top-most) {@code KEEP}'s projection terms are captured, in written order, for the coordinator to replay column
-     * ordering over the expanded leaves. The bare {@code *}, wildcards and explicit names are all preserved verbatim.
-     */
     public void testKeepOrderCapturedForTopKeep() {
         assertThat(
             keepOrderFor("FROM test | KEEP *, unmapped.*, unmapped"),
@@ -295,21 +291,34 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         );
     }
 
-    /**
-     * No governing {@code KEEP} means the coordinator falls back to the natural real-then-alphabetical order, so nothing is captured:
-     * with no projection, and - deliberately - when the top-most projection is a {@code DROP} (whose removals reorder/rename in ways the
-     * name-based terms can no longer describe), even if a {@code KEEP} sits below it.
-     */
     public void testKeepOrderEmptyWithoutGoverningKeep() {
         assertThat(keepOrderFor("FROM test"), empty());
-        assertThat(keepOrderFor("FROM test | DROP unmapped"), empty());
-        assertThat(keepOrderFor("FROM test | KEEP unmapped* | DROP unmapped"), empty());
+        assertThat(keepOrderFor("FROM test | DROP salary"), empty());
     }
 
-    /**
-     * {@code EVAL}/{@code WHERE}/{@code SORT}/{@code LIMIT} above the {@code KEEP} are transparent to column ordering, so the walk
-     * descends through them and the {@code KEEP} still governs. ({@code emp_no} is kept so the {@code WHERE} above stays resolvable.)
-     */
+    public void testKeepOrderSeenThroughDropAboveKeep() {
+        assertThat(keepOrderFor("FROM test | KEEP first_name*, salary | DROP salary"), equalTo(List.of(pat("first_name*"), lit("salary"))));
+        assertThat(
+            keepOrderFor("FROM test | KEEP first_name*, salary | DROP salary | DROP first_name"),
+            equalTo(List.of(pat("first_name*"), lit("salary")))
+        );
+        assertThat(
+            keepOrderFor("FROM test | KEEP emp_no, first_name* | RENAME emp_no AS id | DROP first_name"),
+            equalTo(List.of(lit("emp_no"), pat("first_name*")))
+        );
+    }
+
+    public void testKeepOrderSeenThroughRenameAboveKeep() {
+        assertThat(
+            keepOrderFor("FROM test | KEEP emp_no, unmapped.* | RENAME emp_no AS id"),
+            equalTo(List.of(lit("emp_no"), pat("unmapped.*")))
+        );
+        assertThat(
+            keepOrderFor("FROM test | KEEP unmapped.*, emp_no | EVAL x = 1 | RENAME x AS y"),
+            equalTo(List.of(pat("unmapped.*"), lit("emp_no")))
+        );
+    }
+
     public void testKeepOrderSeenThroughTransparentCommandsAboveKeep() {
         assertThat(
             keepOrderFor("FROM test | KEEP emp_no, unmapped.* | WHERE emp_no > 0 | LIMIT 5"),

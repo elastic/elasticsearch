@@ -35,7 +35,7 @@ abstract class AnalyzerUnmappedTestBase extends ESTestCase {
     }
 
     static String setUnmappedLoadAll(String query) {
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
         return "SET unmapped_fields=\"LOAD_ALL\"; " + query;
     }
 

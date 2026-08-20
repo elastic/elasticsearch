@@ -55,7 +55,9 @@ import java.util.function.BiConsumer;
  * <p>A leaf is not a column when {@code KEEP} is resolved, so the plan cannot position it; the column order is re-derived here. When a
  * top {@code KEEP} governs the output (carried as {@link UnmappedFieldsAttribute#keepOrder()}), {@link UnmappedFieldsPattern#keepOrdered}
  * replays its left-to-right ordering over the real columns plus the discovered leaves so the response honors {@code KEEP}'s contract;
- * otherwise the leaves keep their natural real-then-alphabetical position.
+ * otherwise the leaves keep their natural real-then-alphabetical position. {@code RENAME} above a {@code KEEP} is transparent: the ordering
+ * walk in {@code DetermineUnmappedFieldsToKeep} descends through it, and {@code ResolvingProject.computeProjections} preserves the
+ * {@code _unmapped_fields} position so that {@code EVAL}-added columns that appear after it in the schema always trail the expanded leaves.
  * <p>
  * TODO every row's {@code _source} ends up parsed three times: the data node parses it to filter the column, then the
  *  coordinator parses the column once to collect field names and once more to expand them. A columnar shape — one block of
@@ -82,7 +84,8 @@ class ExpandUnmappedFieldsPostProcessor {
         boolean success = false;
         try {
             var fieldNames = collectFieldNames(result, unmappedIdx, pattern, blockFactory.breaker(), reservationFactor);
-            Set<String> existingNames = existingColumnNames(schema, unmappedIdx);
+            Map<String, String> renames = unmappedAttribute.renames();
+            Set<String> existingNames = existingColumnNames(schema, unmappedIdx, renames);
             List<String> leafNames = new ArrayList<>(fieldNames.size());
             // A leaf that collides with an existing column is dropped, not an error: with flattening a leaf mapped in one index can also
             // appear in another's _source, and the per-shard UnmappedKeywordBlockLoader already filled that column, so the value is kept.
@@ -93,7 +96,7 @@ class ExpandUnmappedFieldsPostProcessor {
             }
             // TODO account for newSchema's field names against the circuit breaker. A wide _source turns into a wide schema, and
             // unlike the pages, the response schema has no breaker-tracked lifetime to release it against today.
-            ExpandedLayout layout = computeLayout(schema, unmappedIdx, leafNames, unmappedAttribute.keepOrder());
+            ExpandedLayout layout = computeLayout(schema, unmappedIdx, leafNames, unmappedAttribute.keepOrder(), renames);
             List<Page> newPages = rewritePages(result, unmappedIdx, leafNames, layout.blockOrder(), blockFactory, reservationFactor);
 
             Result expanded = new Result(
@@ -163,14 +166,19 @@ class ExpandUnmappedFieldsPostProcessor {
         return reservation;
     }
 
-    /** The names of every column except {@code _unmapped_fields}; used to keep an expanded leaf from shadowing a query column. */
-    private static Set<String> existingColumnNames(List<Attribute> schema, int unmappedIdx) {
+    /**
+     * The names of every column except {@code _unmapped_fields}, plus the pre-rename originals of any renamed columns.
+     * Used to prevent an expanded leaf from shadowing a query column, and to suppress the original name of a renamed PUNK
+     * column so it doesn't appear as a duplicate leaf alongside the renamed column.
+     */
+    private static Set<String> existingColumnNames(List<Attribute> schema, int unmappedIdx, Map<String, String> renames) {
         Set<String> existingNames = new HashSet<>();
         for (int i = 0; i < schema.size(); i++) {
             if (i != unmappedIdx) {
                 existingNames.add(schema.get(i).name());
             }
         }
+        existingNames.addAll(renames.values());
         return existingNames;
     }
 
@@ -186,7 +194,8 @@ class ExpandUnmappedFieldsPostProcessor {
         List<Attribute> schema,
         int unmappedIdx,
         List<String> leafNames,
-        List<UnmappedFieldsPattern.KeepTerm> keepOrder
+        List<UnmappedFieldsPattern.KeepTerm> keepOrder,
+        Map<String, String> renames
     ) {
         int originalColumnCount = schema.size();
         List<String> keptRealNames = new ArrayList<>();
@@ -214,10 +223,23 @@ class ExpandUnmappedFieldsPostProcessor {
             orderedNames.addAll(appendedRealNames);
             orderedNames.addAll(leafNames);
         } else {
-            List<String> keepScope = new ArrayList<>(keptRealNames.size() + leafNames.size());
-            keepScope.addAll(keptRealNames);
+            List<String> originalKeptNames = new ArrayList<>(keptRealNames.size());
+            for (String actual : keptRealNames) {
+                originalKeptNames.add(renames.getOrDefault(actual, actual));
+            }
+            List<String> keepScope = new ArrayList<>(originalKeptNames.size() + leafNames.size());
+            keepScope.addAll(originalKeptNames);
             keepScope.addAll(leafNames);
-            orderedNames = UnmappedFieldsPattern.keepOrdered(keepScope, keepOrder);
+            List<String> orderedOriginals = UnmappedFieldsPattern.keepOrdered(keepScope, keepOrder);
+            // Translate original names back to actual (post-rename) names so the schema lookup below works.
+            Map<String, String> originalToActual = new HashMap<>(renames.size());
+            for (Map.Entry<String, String> e : renames.entrySet()) {
+                originalToActual.put(e.getValue(), e.getKey()); // original → actual
+            }
+            orderedNames = new ArrayList<>(orderedOriginals.size() + appendedRealNames.size());
+            for (String orig : orderedOriginals) {
+                orderedNames.add(originalToActual.getOrDefault(orig, orig));
+            }
             orderedNames.addAll(appendedRealNames);
         }
 

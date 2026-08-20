@@ -38,7 +38,7 @@ public abstract class AbstractEsqlSpecForkIT extends AbstractEsqlSpecIT {
         assumeFalse("dataset-backed spec; covered by the external-source suites", testCase.datasetSources.isEmpty() == false);
         assumeFalse(
             "LOAD_ALL doesn't currently support fork",
-            testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL.capabilityName())
+            testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.capabilityName())
         );
         // We add a LIMIT in one of the branches to prevent filter pushdown from removing one of the branches.
         String query = testCase.query + " | FORK (WHERE true | LIMIT 300) (WHERE true) | LIMIT 300 | WHERE _fork == \"fork1\" | DROP _fork";

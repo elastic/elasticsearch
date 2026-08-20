@@ -3343,25 +3343,19 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FORK_DROP_MATERIALIZES_SIBLINGS,
 
         /**
-         * Support for {@code unmapped_fields="LOAD_ALL"}, which loads every unmapped source field as its own
-         * {@code keyword} output column without requiring each field to be referenced in the query.
+         * _source and synthetic source with LOAD_ALL
+         * Also, proper column ordering after loading all unmapped fields. This covers KEEP, DROP and EVAL generated columns.
+         * See https://github.com/elastic/elasticsearch/issues/156381 and https://github.com/elastic/elasticsearch/issues/156433
          */
-        OPTIONAL_FIELDS_LOAD_ALL(Build.current().isSnapshot()),
+        OPTIONAL_FIELDS_LOAD_ALL_V2(Build.current().isSnapshot()),
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a net-zero projection (e.g. {@code KEEP x | DROP x}) that leaves no columns and
          * expands no unmapped fields no longer fails with {@code "blocks is empty"}; it returns a zero-column result preserving the row
-         * count. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
+         * count. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_NET_ZERO_PROJECTION(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_NET_ZERO_PROJECTION(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
-        /**
-         * Reading an unmapped field whose {@code _source} value is an object as a keyword under {@code unmapped_fields="load"}/{@code
-         * "LOAD_ALL"} now yields {@code null} instead of failing on a synthetic-source index: a keyword scalar can't hold an object, so
-         * ES|QL reads the field from {@code _source} rather than the synthetic-source fallback loader that tripped on it.
-         * See https://github.com/elastic/elasticsearch/issues/156381 and https://github.com/elastic/elasticsearch/issues/156433.
-         */
-        OPTIONAL_FIELDS_FIX_LOAD_OBJECT_FROM_SYNTHETIC_SOURCE(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
 
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.

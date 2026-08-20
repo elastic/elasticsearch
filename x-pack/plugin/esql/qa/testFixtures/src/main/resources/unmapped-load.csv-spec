@@ -4170,7 +4170,7 @@ FROM synthetic_source_partial_mapping
 
 syntheticSourceObjectUnmappedFieldLoadsAsNull
 required_capability: optional_fields_v5
-required_capability: optional_fields_fix_load_object_from_synthetic_source
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="load"\;
 FROM synthetic_source_partial_mapping

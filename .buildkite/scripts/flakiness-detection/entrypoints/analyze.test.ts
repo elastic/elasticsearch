@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import type { SkippedTest } from "../domain.ts";
 
-import { buildFailedPayload, isPrecompileFailure, notApplicablePayload } from "./analyze.ts";
+import { allTargetTasksSkipped, buildFailedPayload, isPrecompileFailure, notApplicablePayload } from "./analyze.ts";
 
 describe("notApplicablePayload", () => {
   test("maps a skipped javaRestTest to a zeroed not_applicable record carrying the resolver's reason", () => {
@@ -95,5 +95,35 @@ describe("isPrecompileFailure", () => {
   test("false for malformed or empty marker content", () => {
     expect(isPrecompileFailure("not json")).toBe(false);
     expect(isPrecompileFailure("")).toBe(false);
+  });
+});
+
+describe("allTargetTasksSkipped", () => {
+  const skipped = (p: string) => ({ path: p, outcome: "SKIPPED" });
+  const success = (p: string) => ({ path: p, outcome: "SUCCESS" });
+
+  test("true only when every requested task was skipped", () => {
+    expect(allTargetTasksSkipped([":a:test"], [skipped(":a:test")])).toBe(true);
+    expect(allTargetTasksSkipped([":a:test", ":b:test"], [skipped(":a:test"), skipped(":b:test")])).toBe(true);
+  });
+
+  test("false when any requested task actually ran - a zero-test result is then not explained by onlyIf", () => {
+    expect(allTargetTasksSkipped([":a:test", ":b:test"], [skipped(":a:test"), success(":b:test")])).toBe(false);
+  });
+
+  test("ignores unrelated SKIPPED tasks, so the muted-tests case is not mislabelled", () => {
+    // A healthy build skips plenty of things (processResources with no resources). The target task ran, so
+    // zero tests here means the filter matched nothing - a hang, not not_applicable.
+    const entries = [success(":a:test"), skipped(":a:processResources"), skipped(":a:processTestResources")];
+    expect(allTargetTasksSkipped([":a:test"], entries)).toBe(false);
+  });
+
+  test("no verdict when the report is missing or the plan carried no task paths", () => {
+    expect(allTargetTasksSkipped([":a:test"], [])).toBe(false);
+    expect(allTargetTasksSkipped([], [skipped(":a:test")])).toBe(false);
+  });
+
+  test("matches paths exactly, so a prefix cannot cross-match", () => {
+    expect(allTargetTasksSkipped([":a:test"], [skipped(":a:testFixtures")])).toBe(false);
   });
 });

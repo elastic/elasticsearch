@@ -66,11 +66,19 @@ export const NEVER_FAIL_GRACE_MINUTES = 2;
 // rc + JUnit XML, and uploads a single structured artifact. The wrapper
 // itself does no classification - it only captures rc + duration, which the
 // JUnit XML cannot provide. See entrypoints/analyze.ts and README "Observability".
+// Where gradle-runner (the Tooling API client `.ci/scripts/run-gradle.sh` invokes)
+// writes each task's outcome. Keep in sync with GradleRunner.writeStatusReport.
+const TASK_STATUS_FILE = "build/task-status.json";
+
+// Per-job copy of the above, uploaded by the existing `flakiness-status/*.json` glob and read back by the
+// analyze step. Keep the prefix in sync with taskStatusFileFor() in entrypoints/analyze.ts.
+export const TASK_STATUS_COPY_PREFIX = "flakiness-status/tasks-";
+
 function wrapNeverFail(
   command: string,
   contextKey: string,
   outerTimeoutMin: number,
-  emitOutcome?: { kind: TestKind }
+  emitOutcome?: { kind: TestKind; taskPaths?: string[] }
 ): string {
   const innerTimeoutMin = Math.max(1, outerTimeoutMin - NEVER_FAIL_GRACE_MINUTES);
   return [
@@ -119,7 +127,23 @@ function wrapNeverFail(
           "mkdir -p flakiness-status",
           "_fd_oom=\"\"",
           "if [ -n \"$(find . -type f -path '*/build/heapdump/*.hprof' -print -quit 2>/dev/null)\" ]; then _fd_oom=\"oom\"; fi",
-          `printf '{"jobId":"%s","stepKey":"%s","kind":"%s","rc":%s,"durationSec":%s,"infraSubtype":"%s"}' "$$BUILDKITE_JOB_ID" "${contextKey}" "${emitOutcome.kind}" "$$rc" "$(( _fd_end - _fd_start ))" "$$_fd_oom" > "flakiness-status/status-$$BUILDKITE_JOB_ID.json" || true`,
+          // Skipped-task detection: Gradle reports a task rejected by `onlyIf` (bwc's `bwc_tests_enabled`,
+          // the distro architecture check) - and one with no source - as SKIPPED, running zero tests and
+          // exiting 0. From rc alone that is indistinguishable from a hang. gradle-runner (the Tooling API
+          // client every CI invocation goes through) records each task's outcome in build/task-status.json,
+          // so we read the verdict for THIS batch's own task paths. Scoping to those paths matters: a
+          // healthy build contains unrelated SKIPPED entries, so an unscoped check would mislabel the
+          // muted-tests case (task ran, filter matched nothing) as not_applicable. analyze.ts turns this
+          // into the `task-skipped` not_applicable reason.
+          //
+          // For REST kinds repeat-rest-test.sh loops the gradle invocation and each iteration overwrites
+          // task-status.json, so this is the LAST iteration's verdict. That is sound here because `onlyIf`
+          // predicates are static for the life of a job - they do not flip between iterations seconds apart.
+          //
+          // The wrapper only COPIES the report; analyze.ts parses it as JSON and does the matching. Grepping
+          // it here would couple this shell to gradle-runner's exact spacing (`{ "path" : ... }`).
+          `cp ${TASK_STATUS_FILE} "${TASK_STATUS_COPY_PREFIX}$$BUILDKITE_JOB_ID.json" 2>/dev/null || true`,
+          `printf '{"jobId":"%s","stepKey":"%s","kind":"%s","rc":%s,"durationSec":%s,"infraSubtype":"%s","taskPaths":%s}' "$$BUILDKITE_JOB_ID" "${contextKey}" "${emitOutcome.kind}" "$$rc" "$(( _fd_end - _fd_start ))" "$$_fd_oom" '${JSON.stringify(emitOutcome.taskPaths ?? [])}' > "flakiness-status/status-$$BUILDKITE_JOB_ID.json" || true`,
         ]
       : []),
     "exit 0",
@@ -419,7 +443,7 @@ export function toBuildkitePipeline(
     const step: PipelineStep = {
       label: head.label,
       key,
-      command: wrapNeverFail(head.command, key, cfg.timeoutInMinutes, { kind: head.kind }),
+      command: wrapNeverFail(head.command, key, cfg.timeoutInMinutes, { kind: head.kind, taskPaths: head.taskPaths }),
       timeout_in_minutes: cfg.timeoutInMinutes,
       agents: { ...cfg.agents },
       artifact_paths: [TEST_RESULTS_ARTIFACTS, FLAKINESS_STATUS_ARTIFACTS],
@@ -431,6 +455,7 @@ export function toBuildkitePipeline(
       for (let i = 0; i < batches.length; i++) {
         env[`BATCH_COMMAND_${i}`] = wrapNeverFail(batches[i].command, key, cfg.timeoutInMinutes, {
           kind: batches[i].kind,
+          taskPaths: batches[i].taskPaths,
         });
       }
       // Both `$$` escapes defer interpolation past Buildkite's pipeline-upload

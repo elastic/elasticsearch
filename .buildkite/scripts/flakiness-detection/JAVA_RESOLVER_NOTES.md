@@ -236,20 +236,40 @@ Realizing them for all ~450 projects would be indefensible; realizing them for 1
 
 Realizing `Test` tasks inside a store-time provider is **permitted** - no error, no CC problem, no deprecation, on 708 `Test` tasks across the three probe projects (`:qa:packaging` alone realized 637). This was the main uncertainty going in, and it simply worked. It is still arbitrary user code running late in the build, so a pathological project could in principle throw there; the failure would be a red resolve step, not a wrong answer.
 
-### P8 (unsolved) - `onlyIf` predicates are invisible
+### P8 (solved runner-side) - `onlyIf` predicates are invisible
 `enabled` is a plain property we can read; **`onlyIf` is a `Spec<Task>` evaluated by Gradle at execution time** and cannot be introspected (and must not be speculatively evaluated - the predicates close over live task state).
 Two live cases:
 - `elasticsearch.bwc-test`: `onlyIf("BWC tests enabled") { project.bwc_tests_enabled }` on every `v<version>#*` task;
 - `DistroTestPlugin`: `onlyIf { distribution.getArchitecture() == Architecture.current() }` - which is why the spike saw *all* `destructiveDistroTest.*` tasks reporting `enabled = true` on an aarch64 host, including the x86-only ones.
 
-**How it is handled:** not at all for bwc, deliberately.
-A task that passes `enabled` but is skipped by `onlyIf` still runs 0 tests and still reads as a `hang` - so this is a *residual* instance of the very bug this feature fixes, just a much narrower one:
+**How it is handled:** not in the resolver, deliberately - and no longer at all necessary there.
+A task that passes `enabled` but is skipped by `onlyIf` runs 0 tests, which used to read as a `hang`:
 - the packaging `onlyIf` is moot, because the packaging policy skips those tasks anyway;
 - `bwc_tests_enabled` is true in normal CI/dev builds (it is only flipped off during release surgery), so the bwc `onlyIf` passes whenever the flakiness pipeline runs.
   Reading `project.bwc_tests_enabled` would fix the known case but would re-introduce exactly the per-convention special-casing this feature deleted, for a predicate that is almost always true.
 
-If we later want to close the gap properly, the honest options are (a) have the batch runner treat "gradle reported `SKIPPED`/`NO-SOURCE` for the task" as `not_applicable` rather than letting the 0-test XML fall through to `hang` - a *runner-side* fix that covers every `onlyIf`, not just the ones we can name; or (b) ask Gradle for a dry-run of the task graph.
-(a) is clearly the better shape and is where this should go next; it is **not** implemented here.
+**The gap is now closed runner-side, which covers every `onlyIf` rather than the ones we can name.**
+`.ci/scripts/run-gradle.sh` already routes every CI invocation through `gradle-runner` - a Gradle **Tooling API** client - and its `TaskTracker` records each task's outcome in `build/task-status.json`. The batch wrapper copies that report next to its per-job status file and carries the task paths the batch invoked (`PlanCommand.taskPaths`, so they are the resolver's own authoritative paths rather than a regex over the command string); `analyze.ts` parses both and, when **every** requested task came back `SKIPPED`, records `not_applicable` with reason `task-skipped` instead of `hang`.
+
+Verified against Gradle 9 with a purpose-built fixture:
+
+| fixture | gradle console | `task-status.json` |
+| --- | --- | --- |
+| `onlyIf { false }` | `SKIPPED` | `SKIPPED` |
+| `enabled = false` | `SKIPPED` | `SKIPPED` |
+| `Test` + `onlyIf { false }` | `SKIPPED` | `SKIPPED` |
+| `Test`, no source | `NO-SOURCE` | `SKIPPED` |
+| normal task | executed | `SUCCESS` |
+
+So `onlyIf` rejection is reported as `SKIPPED`, **not** `NOT_RUN` (which `TaskTracker` reserves for tasks that emitted no events at all), and `NO-SOURCE` collapses into `SKIPPED` too because `TaskTracker` discards `TaskSkippedResult.getSkipMessage()`. One check therefore covers the whole family.
+
+Two deliberate constraints:
+- **Scoped to the batch's own task paths.** A healthy build contains unrelated `SKIPPED` entries (a `processResources` with no resources), so an unscoped check would mislabel the muted-tests case - task ran, filter matched nothing - as `not_applicable`.
+- **Requires *all* requested tasks to be skipped.** If even one really ran, a zero-test result is not explained by `onlyIf` and stays a `hang`.
+
+For REST kinds `repeat-rest-test.sh` loops the gradle invocation and each iteration overwrites `task-status.json`, so the verdict is the **last** iteration's. That is sound because `onlyIf` predicates are static for the life of a job; they do not flip between iterations seconds apart.
+
+Option (b), asking Gradle for a dry-run of the task graph, was not needed.
 
 ## Review-driven refinements
 

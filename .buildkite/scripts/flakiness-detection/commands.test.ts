@@ -111,6 +111,9 @@ describe("planCommandsToRunnable", () => {
       key: "flakiness-detection:unit",
       command:
         ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.foo.FooTests",
+      // Carried through verbatim so the batch wrapper can scope its skipped-task check; a plan written
+      // before taskPaths existed yields [].
+      taskPaths: [],
     });
     // The wrapped rest form gets the same substitution inside repeat-rest-test.sh.
     expect(runnable[1].command).toBe(

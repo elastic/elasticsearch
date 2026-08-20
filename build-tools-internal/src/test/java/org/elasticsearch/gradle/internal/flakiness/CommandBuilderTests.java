@@ -46,6 +46,27 @@ public class CommandBuilderTests {
             equalTo("__GRADLE__ -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.A --tests org.B --tests org.C")
         );
         assertThat(cmds.get(1).command(), equalTo("__GRADLE__ -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.D"));
+        // The task paths travel as a field so the batch runner can scope its skipped-task check to exactly
+        // the tasks this command invokes, without parsing them back out of the command string.
+        assertThat(first.taskPaths(), contains(":server:test"));
+    }
+
+    /**
+     * A batch spanning several tasks must carry every one of them: the runner only treats a zero-test result
+     * as {@code not_applicable} when ALL the tasks it asked for came back SKIPPED, so a missing path would
+     * make that check silently unsatisfiable.
+     */
+    @Test
+    public void testTaskPathsCoverEveryTaskInTheBatchWithoutDuplicates() {
+        List<PlanEntry> run = List.of(unit(":a", "org.A"), unit(":b", "org.B"), unit(":a", "org.C"));
+
+        List<PlanCommand> cmds = CommandBuilder.build(run, CommandBuilder.Config.defaults());
+
+        assertThat(cmds, hasSize(1));
+        assertThat(cmds.get(0).taskPaths(), contains(":a:test", ":b:test"));
+        for (String taskPath : cmds.get(0).taskPaths()) {
+            assertThat(cmds.get(0).command(), containsString(taskPath));
+        }
     }
 
     @Test

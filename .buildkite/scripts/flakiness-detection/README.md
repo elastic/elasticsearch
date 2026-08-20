@@ -208,9 +208,9 @@ Derived in priority order by `analyzer/outcome.ts` (`deriveOutcome`):
 | `flaky_detected`| `realFailures > 0` (failing test cases, excluding suite-timeout markers)        |
 | `timeout`       | `rc == 124`, or `rc == 137` with duration at/after the inner timeout            |
 | `infra_fail`    | `rc == 137` short run (`oom_killed`), a non-zero `rc` with a heap dump (`oom`), or any other non-zero `rc` with no real failures |
-| `hang`          | `rc == 0` but zero recorded test cases                                          |
+| `hang`          | `rc == 0`, zero recorded test cases, and at least one requested task actually ran |
 | `clean_pass`    | `rc == 0` with recorded cases and no real failures                              |
-| `not_applicable`| assigned upstream (not by `deriveOutcome`) for a target the resolver found nothing to re-run for - no enabled `Test` task (`no-runnable-task`) or only the destructive packaging tasks (`requires-packaging-host`); the resolver's reason is carried into the record. "Nothing to re-run", excluded from the false-failure metric |
+| `not_applicable`| two sources, both meaning "nothing to re-run" and both excluded from the false-failure metric. **Upstream** (not by `deriveOutcome`): the resolver found no enabled `Test` task (`no-runnable-task`) or only destructive packaging tasks (`requires-packaging-host`). **By `deriveOutcome`** (`task-skipped`): `rc == 0`, zero test cases, and gradle-runner's `task-status.json` reports *every* task the batch asked for as `SKIPPED` - Gradle's verdict for a task rejected by `onlyIf` or with no source. This is the only way to catch `onlyIf`, which is an execution-time `Spec` the resolver cannot introspect |
 | `build_failed`  | assigned upstream when the `compile` orchestration step fails: the PR did not compile, so `scan` was skipped and `generate` uploaded no batches. `analyze` emits one `build_failed` (keyed under `flakiness-orchestration:compile`, not a test batch), excluded from the false-failure metric (the PR is already red from its main build). |
 
 `timedOut` is reported alongside `outcome` so the two timeout shapes stay

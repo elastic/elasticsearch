@@ -111,8 +111,11 @@ describe("toBuildkitePipeline end-to-end", () => {
     // + OOM subtype (from the heap-dump probe below).
     expect(batch.command).toContain("_fd_start=$(date +%s)");
     expect(batch.command).toContain(
-      'printf \'{"jobId":"%s","stepKey":"%s","kind":"%s","rc":%s,"durationSec":%s,"infraSubtype":"%s"}\' "$$BUILDKITE_JOB_ID" "flakiness-detection:unit" "test" "$$rc" "$(( _fd_end - _fd_start ))" "$$_fd_oom" > "flakiness-status/status-$$BUILDKITE_JOB_ID.json" || true'
+      'printf \'{"jobId":"%s","stepKey":"%s","kind":"%s","rc":%s,"durationSec":%s,"infraSubtype":"%s","taskPaths":%s}\' "$$BUILDKITE_JOB_ID" "flakiness-detection:unit" "test" "$$rc" "$(( _fd_end - _fd_start ))" "$$_fd_oom" \'[]\' > "flakiness-status/status-$$BUILDKITE_JOB_ID.json" || true'
     );
+    // gradle-runner's task report is COPIED, not parsed here: analyze.ts does the matching with real JSON
+    // parsing, so this shell stays uncoupled from the report's exact spacing.
+    expect(batch.command).toContain('cp build/task-status.json "flakiness-status/tasks-$$BUILDKITE_JOB_ID.json"');
     // OOM is detected from a heap-dump file (TTY-safe), not the log; the probe
     // stops at the first match.
     expect(batch.command).toContain("find . -type f -path '*/build/heapdump/*.hprof' -print -quit");

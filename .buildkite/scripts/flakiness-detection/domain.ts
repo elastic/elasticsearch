@@ -124,6 +124,8 @@ export interface PlanCommand {
   label: string;
   key: string;
   command: string;
+  /** Distinct Test-task paths this command invokes; see PlanCommand.taskPaths on the Java side. */
+  taskPaths?: string[];
 }
 
 export interface FlakinessPlan {
@@ -170,6 +172,7 @@ export interface RunnableCommand {
   label: string;     // "unit tests"
   key: string;       // "flakiness-detection:unit"
   command: string;   // shell-ready invocation
+  taskPaths: string[]; // the Test tasks it invokes, for the batch wrapper's skipped-task check
 }
 
 export interface AgentConfig {

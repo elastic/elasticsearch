@@ -57,11 +57,50 @@ interface JobStatus {
   durationSec: number;
 }
 
+// `taskPaths` also travels in the status file, but it is a classification input (scoping the skipped-task
+// check), not a payload field - so it is destructured off alongside the other signals, never spread.
+
+// Per-job copy of gradle-runner's task-status.json, written next to the status file by the wrapper.
+// Keep the prefix in sync with TASK_STATUS_COPY_PREFIX in runners/buildkite.ts.
+const TASK_STATUS_COPY_PREFIX = "tasks-";
+
+interface TaskStatusEntry {
+  path: string;
+  outcome: string;
+}
+
+/**
+ * Whether EVERY task this batch asked for came back SKIPPED.
+ *
+ * Gradle reports a task rejected by `onlyIf` - bwc's `bwc_tests_enabled`, the distro architecture check - and
+ * one with no source as SKIPPED: zero tests, exit 0, which from rc alone is indistinguishable from a hang.
+ * Verified against Gradle 9: both `onlyIf { false }` and NO-SOURCE surface as `SKIPPED` in task-status.json
+ * (gradle-runner discards the skip message, so the two collapse into one outcome - which is what we want,
+ * since neither means "the PR is flaky").
+ *
+ * Scoped to the batch's own task paths on purpose: a healthy build contains unrelated SKIPPED entries (a
+ * `processResources` with no resources), so an unscoped check would mislabel the muted-tests case - task ran,
+ * filter matched nothing - as not_applicable.
+ *
+ * Requires ALL of them rather than ANY: if even one requested task really ran, a zero-test outcome is not
+ * explained by `onlyIf` and should stay a hang.
+ *
+ * Exported for testing.
+ */
+export function allTargetTasksSkipped(taskPaths: string[], entries: TaskStatusEntry[]): boolean {
+  if (taskPaths.length === 0 || entries.length === 0) {
+    // No paths carried (a plan predating taskPaths) or no report - do not invent a verdict.
+    return false;
+  }
+  const skipped = new Set(entries.filter((e) => e.outcome === "SKIPPED").map((e) => e.path));
+  return taskPaths.every((p) => skipped.has(p));
+}
+
 // A JobStatus plus the raw signals the wrapper reports that are inputs to
 // classification but are not themselves payload fields (the payload's
 // `infraSubtype` comes from deriveOutcome, not the wrapper). Kept separate so it
 // is not spread into the payload.
-type JobStatusWithSignals = JobStatus & { oomDetected: boolean };
+type JobStatusWithSignals = JobStatus & { oomDetected: boolean; taskSkipped: boolean };
 
 // One element of the `data-flakiness` annotation array.
 interface FlakinessPayload extends JobStatus {
@@ -100,6 +139,12 @@ async function readJobStatuses(): Promise<JobStatusWithSignals[]> {
           // The wrapper reports `infraSubtype: "oom"` when a heap dump was found;
           // it is a classification input, not a payload field.
           oomDetected: parsed.infraSubtype === "oom",
+          // Same idea for the skipped-task verdict: the wrapper copies gradle-runner's report verbatim and
+          // carries the task paths it asked for; the matching happens here, where JSON is parsed properly.
+          taskSkipped: allTargetTasksSkipped(
+            Array.isArray(parsed.taskPaths) ? parsed.taskPaths : [],
+            await readTaskStatusEntries(String(parsed.jobId))
+          ),
         });
       }
     } catch (err) {
@@ -107,6 +152,18 @@ async function readJobStatuses(): Promise<JobStatusWithSignals[]> {
     }
   }
   return statuses;
+}
+
+// Read the per-job copy of gradle-runner's task-status.json. Absent/unreadable -> no entries, which
+// allTargetTasksSkipped treats as "no verdict" rather than as "not skipped by onlyIf".
+async function readTaskStatusEntries(jobId: string): Promise<TaskStatusEntry[]> {
+  try {
+    const raw = await readFile(join(STATUS_DIR, `${TASK_STATUS_COPY_PREFIX}${jobId}.json`), "utf8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed?.tasks) ? parsed.tasks : [];
+  } catch {
+    return [];
+  }
 }
 
 // Download one job's JUnit XML into its own dir. Returns the dir, which may be
@@ -139,7 +196,7 @@ function downloadJobReports(jobId: string): string {
 async function buildPayload(statusWithSignals: JobStatusWithSignals): Promise<FlakinessPayload> {
   // Split the classification-only signals from the fields that belong in the
   // payload (spread below).
-  const { oomDetected, ...status } = statusWithSignals;
+  const { oomDetected, taskSkipped, ...status } = statusWithSignals;
   let realFailures = 0;
   let suiteTimeouts = 0;
   let totalCases = 0;
@@ -154,7 +211,15 @@ async function buildPayload(statusWithSignals: JobStatusWithSignals): Promise<Fl
   } catch (err) {
     console.error(`Failed to analyze reports for job ${status.jobId}; classifying from rc/duration only:`, err);
   }
-  const derived = deriveOutcome({ rc: status.rc, durationSec: status.durationSec, realFailures, totalCases, timeoutThresholdSec: INNER_TIMEOUT_SEC, oomDetected });
+  const derived = deriveOutcome({
+    rc: status.rc,
+    durationSec: status.durationSec,
+    realFailures,
+    totalCases,
+    timeoutThresholdSec: INNER_TIMEOUT_SEC,
+    oomDetected,
+    taskSkipped,
+  });
   const payload: FlakinessPayload = {
     ...status,
     realFailures,
@@ -166,6 +231,11 @@ async function buildPayload(statusWithSignals: JobStatusWithSignals): Promise<Fl
   };
   if (derived.infraSubtype) {
     payload.infraSubtype = derived.infraSubtype;
+  }
+  // Give the reason the same shape the resolver's own not_applicable records use, so downstream can group
+  // "could not be re-run" by cause regardless of whether the resolver or Gradle itself decided it.
+  if (derived.outcome === "not_applicable" && taskSkipped) {
+    payload.reason = "task-skipped";
   }
   return payload;
 }

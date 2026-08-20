@@ -51,5 +51,7 @@ export function planCommandsToRunnable(commands: PlanCommand[], target: "buildki
     label: c.label,
     key: c.key,
     command: withGradleBinary(c.command, target),
+    // A plan written before taskPaths existed simply yields none; the wrapper then skips the check.
+    taskPaths: c.taskPaths ?? [],
   }));
 }

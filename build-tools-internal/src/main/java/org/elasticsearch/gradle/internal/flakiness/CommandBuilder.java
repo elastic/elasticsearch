@@ -101,7 +101,15 @@ public final class CommandBuilder {
             int cap = Kinds.KIND_CAP.get(kind);
             for (int i = 0; i < kindUnits.size(); i += cap) {
                 List<RunUnit> batch = kindUnits.subList(i, Math.min(i + cap, kindUnits.size()));
-                out.add(new PlanCommand(kind, Kinds.KIND_LABEL.get(kind), Kinds.KIND_KEY.get(kind), batchCommand(batch, cfg)));
+                out.add(
+                    new PlanCommand(
+                        kind,
+                        Kinds.KIND_LABEL.get(kind),
+                        Kinds.KIND_KEY.get(kind),
+                        batchCommand(batch, cfg),
+                        taskPathsOf(batch)
+                    )
+                );
             }
         }
         return out;
@@ -239,6 +247,14 @@ public final class CommandBuilder {
      * Gradle task-level options ({@code --tests}, {@code --rerun}) bind to the most recently named task on
      * the command line, so per-task options must follow each {@code :project:taskName} they apply to.
      */
+    /**
+     * The distinct task paths a batch invokes, in first-seen order - the same order and grouping
+     * {@link #tasksWithFilters} emits into the command, so the two never disagree.
+     */
+    private static List<String> taskPathsOf(List<RunUnit> batch) {
+        return batch.stream().map(RunUnit::taskPath).distinct().toList();
+    }
+
     private static String tasksWithFilters(List<RunUnit> batch, Function<PlanEntry, String> toFilter, String perTaskSuffix) {
         Map<String, List<String>> byTask = new LinkedHashMap<>();
         for (RunUnit u : batch) {

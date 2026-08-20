@@ -121,7 +121,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // load_all shares load's restrictions and adds one: it only supports a fixed command allow-list, so any other
         // generated command (STATS, JOIN, FORK, ENRICH, ...) is rejected until its interaction with the expanded column is designed.
         GenerativeFeature.UNMAPPED_FIELDS_LOAD_ALL,
-        Sets.union(UNMAPPED_FIELDS_LOAD_ERRORS, Set.of("only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT and LIMIT")),
+        Sets.union(UNMAPPED_FIELDS_LOAD_ERRORS, Set.of("only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT and STATS")),
         GenerativeFeature.PARQUET_DATASET,
         Set.of(
             // Mixed FROM patterns (e.g. "FROM parquet_employees, employees") may produce type conflicts

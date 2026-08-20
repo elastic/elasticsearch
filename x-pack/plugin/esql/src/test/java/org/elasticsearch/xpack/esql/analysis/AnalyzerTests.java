@@ -4672,7 +4672,7 @@ public class AnalyzerTests extends ESTestCase {
         EsIndex index = new EsIndex(
             "conflict-*",
             Map.of("my_field", parent),
-            Map.of("conflict-a", new IndexProperties(IndexMode.STANDARD, 0), "conflict-b", new IndexProperties(IndexMode.STANDARD, 0)),
+            Map.of("conflict-a", IndexMode.STANDARD, "conflict-b", IndexMode.STANDARD),
             Map.of(),
             Map.of()
         );
@@ -4794,13 +4794,7 @@ public class AnalyzerTests extends ESTestCase {
         // stay unsupported and keep its original types, otherwise it drops out of the Verifier and loses original_types.
         EsField raw = new UnsupportedEsField("raw", List.of("ip_range"), "ip_range", Map.of());
         EsField parent = new UnsupportedEsField("f", List.of("ip_range"), null, Map.of("raw", raw));
-        EsIndex index = new EsIndex(
-            "idx",
-            Map.of("f", parent),
-            Map.of("idx-a", new IndexProperties(IndexMode.STANDARD, 0)),
-            Map.of(),
-            Map.of()
-        );
+        EsIndex index = new EsIndex("idx", Map.of("f", parent), Map.of("idx-a", IndexMode.STANDARD), Map.of(), Map.of());
 
         LogicalPlan plan = analyzer().addIndex(IndexResolution.valid(index)).query("FROM idx | LIMIT 2");
 
@@ -4821,7 +4815,7 @@ public class AnalyzerTests extends ESTestCase {
         EsIndex index = new EsIndex(
             "idx",
             Map.of(fieldName, field),
-            Map.of("idx-a", new IndexProperties(IndexMode.STANDARD, 0), "idx-b", new IndexProperties(IndexMode.STANDARD, 0)),
+            Map.of("idx-a", IndexMode.STANDARD, "idx-b", IndexMode.STANDARD),
             Map.of(),
             Map.of()
         );

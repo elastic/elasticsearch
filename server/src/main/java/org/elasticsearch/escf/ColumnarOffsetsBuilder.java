@@ -11,9 +11,12 @@ package org.elasticsearch.escf;
 
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.column.LongTupleCursor;
+import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefHash;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Nullable;
@@ -21,38 +24,29 @@ import org.elasticsearch.core.Nullable;
 import java.util.Arrays;
 
 /**
- * Builds the {@code <field>.offsets} sidecar column for a multi-valued numeric field on the columnar
- * indexing path — the columnar counterpart of the row path's {@code FieldArrayContext.Offsets}.
+ * Builds the {@code <field>.offsets} sidecar column on the columnar indexing path — the counterpart of
+ * the row path's {@code FieldArrayContext.Offsets}, and what lets synthetic {@code _source} recover a
+ * leaf array's original order and duplicates.
  *
- * <p>Offsets exist to compact synthetic {@code _source}: rather than storing the source array, the
- * values column stores each document's sorted distinct values and this sidecar stores one ordinal per
- * source slot, which is what makes the original order and the duplicates recoverable. The saving comes
- * entirely from repetition — with every value distinct there is nothing to fold away and the ordinals
- * are pure overhead, so in the worst case this costs more than the source it replaces. What remains to
- * squeeze is the ordinal encoding: zig-zag varint per ordinal is what the shared decoder expects today,
- * but the sidecar carries ordering only, never values, so it could be packed denser or inlined into the
- * values column (as high-cardinality keyword already does) without touching the values themselves.
+ * <p>Doc values keep each document's values sorted and deduplicated, which discards both the array's
+ * order and its repeats. Rather than also store the array, this sidecar stores one ordinal per source
+ * slot — an index into those sorted distinct values — and the reader reassembles the array from the two
+ * halves. So the ordering work happens twice: once to write the values, once to describe how to undo it.
+ * The win comes from the repeats, which means an array of all-distinct values pays for its ordinals and
+ * saves nothing.
  *
- * <p>Each emitted document holds {@code [slot count][ordinal 0][ordinal 1]...}, every entry a zig-zag
- * encoded vint — byte-compatible with {@code FieldArrayContext#encodeOffsetArray} by obligation rather
- * than by shared code, since the decoders are shared with the row path. Ordinals index the sorted
- * distinct values, not the raw doc-values entries: {@code SortedNumericDocValues} retains duplicates
- * and the read side collapses them itself.
+ * <p>Each recorded document holds {@code [slot count][ordinal 0][ordinal 1]...}, every entry a zig-zag
+ * encoded vint. The decoders are shared with the row path, so this has to stay byte-compatible with
+ * {@code FieldArrayContext#encodeOffsetArray}.
  *
- * <p>The input must be the sortable-long column produced by {@link NumberColumnTransform}, not the raw
- * source column. Sorting that encoding is order-preserving, so ordinal order matches the order the
- * values are read back in; and for {@code float} / {@code half_float} its precision loss has to
- * collapse two source values into a single ordinal exactly as the row path's {@code toSortableLong}
- * call does.
+ * <p>{@code source} is an {@code ARRAY} column whose elements are already in the encoding the doc-values
+ * writer will sort — for {@code LONG} elements, the sortable-long output of
+ * {@link NumberColumnTransform}. Ordinals have to agree with the order the values are read back in, so a
+ * column encoded any other way misorders the array silently. Byte-string elements are limited to
+ * {@code IndexWriter.MAX_TERM_LENGTH}.
  *
- * <p>Producing the ordinals is the awkward part, because the source is not a {@code long[]}: values
- * arrive one element at a time from a cursor that knows nothing about document boundaries, while the
- * boundaries live in a separate row-offsets vector. Hence, the per-document pipeline — gather, sort,
- * dedup, ordinals, encode — with the column assembled from the encoded blobs at the end.
- *
- * <p>Only {@code ARRAY} columns with {@code LONG} elements are handled, so no {@code NULL_ORD} slot is
- * ever emitted: a null element or a mixed null/array batch produces a {@code UNION} column, which the
- * columnar numeric path rejects in favour of the row path.
+ * <p>Elements must be {@code LONG}, {@code STRING} or {@code BINARY}, which is also why no
+ * {@code NULL_ORD} slot is ever emitted: a null element makes the element child a {@code UNION}.
  */
 public final class ColumnarOffsetsBuilder {
 
@@ -60,36 +54,46 @@ public final class ColumnarOffsetsBuilder {
     private static final IndexableFieldType OFFSETS_FIELD_TYPE = SortedDocValuesField.TYPE;
 
     /**
-     * Documents with fewer slots than this record nothing: a single value carries no ordering or shape
-     * information the values column does not already have. The row path applies the same skip in
+     * Documents with fewer slots than this record nothing: the values column already carries everything a
+     * single value can express about order and shape. The row path applies the same skip in
      * {@code FieldArrayContext#addToLuceneDocument}.
+     *
+     * <p>An {@code ARRAY} column represents an absent row as a zero-width offset range, so this one check
+     * also excludes absent rows and empty arrays.
      */
     static final int MIN_RECORDED_SLOTS = 2;
 
     private ColumnarOffsetsBuilder() {}
 
     /**
-     * Builds the sidecar column for {@code source}, which must be an {@code ARRAY} column of
-     * sortable-long elements.
+     * Builds the sidecar column for {@code source}, an {@code ARRAY} column of long, string or binary
+     * elements already in the doc-values encoding described on the class javadoc.
      *
-     * @return the sidecar column, or {@code null} when no document in the batch has enough slots to
-     *         record — in which case the caller must not add a column at all
+     * @return the sidecar column, or {@code null} when no document in the batch had enough slots to record
      */
     @Nullable
     public static LuceneBinaryColumn build(EscfColumn source, String offsetsFieldName, Recycler<BytesRef> recycler) {
-        assert source.kind() == EscfColumnKind.ARRAY : "expected ARRAY, got " + EscfColumnKind.name(source.kind());
-        assert source.leafValueKind() == EscfColumnKind.LONG : "expected LONG elements, got " + EscfColumnKind.name(source.leafValueKind());
+        // ARRAY is EscfArrayColumn by construction; see EscfColumn#from, the only place columns are built.
+        assert source instanceof EscfArrayColumn : "expected ARRAY, got " + EscfColumnKind.name(source.kind());
+        final EscfArrayColumn arrayColumn = (EscfArrayColumn) source;
 
-        final EscfColumnData data = source.columnData();
-        final int maxSlotCount = findMaxSlotCount(data.offsets(), data.docCount());
+        final EscfColumnData data = arrayColumn.columnData();
+        final int[] rowOffsets = data.offsets();
+        final int docCount = data.docCount();
+        final int maxSlotCount = findMaxSlotCount(rowOffsets, docCount);
         // Also the empty-batch test: if any document records at all, maxSlotCount reaches MIN_RECORDED_SLOTS.
         if (maxSlotCount < MIN_RECORDED_SLOTS) {
             return null;
         }
-        return encodeColumn(source, data, maxSlotCount, offsetsFieldName, recycler);
+        final LongTupleCursor cursor = switch (arrayColumn.leafValueKind()) {
+            case EscfColumnKind.LONG -> arrayColumn.longCursor();
+            case EscfColumnKind.STRING, EscfColumnKind.BINARY -> batchRankCursor(arrayColumn, rowOffsets, docCount);
+            default -> throw new AssertionError("unexpected element kind: " + EscfColumnKind.name(arrayColumn.leafValueKind()));
+        };
+        return encodeColumn(cursor, rowOffsets, docCount, maxSlotCount, offsetsFieldName, recycler);
     }
 
-    /** Widest per-document slot range, which bounds the scratch arrays. */
+    /** Widest per-document slot range. */
     private static int findMaxSlotCount(int[] rowOffsets, int docCount) {
         int max = 0;
         for (int doc = 0; doc < docCount; doc++) {
@@ -99,17 +103,14 @@ public final class ColumnarOffsetsBuilder {
     }
 
     private static LuceneBinaryColumn encodeColumn(
-        EscfColumn source,
-        EscfColumnData data,
+        LongTupleCursor cursor,
+        int[] rowOffsets,
+        int docCount,
         int maxSlotCount,
         String offsetsFieldName,
         Recycler<BytesRef> recycler
     ) {
-        final int[] rowOffsets = data.offsets();
-        final int docCount = data.docCount();
         final EscfColumnBuilder columnBuilder = newBinaryBuilder(recycler);
-        final LongTupleCursor cursor = source.longCursor();
-
         final long[] slotValues = new long[maxSlotCount];
         final long[] sortScratch = new long[maxSlotCount];
         final int[] slotOrdinals = new int[maxSlotCount];
@@ -120,8 +121,8 @@ public final class ColumnarOffsetsBuilder {
         try (RecyclerBytesStreamOutput encoded = new RecyclerBytesStreamOutput(recycler)) {
             for (int doc = 0; doc < docCount; doc++) {
                 final int slotCount = rowOffsets[doc + 1] - rowOffsets[doc];
-                // Runs for skipped documents too: the cursor advances per element, so not draining a
-                // document's slots would desynchronize it from rowOffsets.
+                // Drains skipped documents too: the cursor advances per element, so every document's slots
+                // are consumed to keep it in step with rowOffsets.
                 gatherSlots(cursor, doc, slotCount, slotValues);
                 if (slotCount < MIN_RECORDED_SLOTS) {
                     continue;
@@ -146,7 +147,6 @@ public final class ColumnarOffsetsBuilder {
         }
     }
 
-    /** Copies before sorting, because ordinal assignment still needs {@code slotValues} in source order. */
     private static void copySorted(long[] slotValues, int slotCount, long[] sorted) {
         System.arraycopy(slotValues, 0, sorted, 0, slotCount);
         Arrays.sort(sorted, 0, slotCount);
@@ -158,6 +158,7 @@ public final class ColumnarOffsetsBuilder {
      * @return the number of distinct values, which is the length of the compacted prefix
      */
     private static int dedupSorted(long[] sorted, int slotCount) {
+        assert slotCount >= MIN_RECORDED_SLOTS : "slotCount " + slotCount;
         int distinctCount = 1;
         for (int i = 1; i < slotCount; i++) {
             if (sorted[i] != sorted[distinctCount - 1]) {
@@ -175,7 +176,6 @@ public final class ColumnarOffsetsBuilder {
         }
     }
 
-    /** Zig-zag costs nothing for these non-negative values and is what lets the shared decoder read the row path's {@code -1}. */
     private static void writeSlotOrdinals(RecyclerBytesStreamOutput out, int[] slotOrdinals, int slotCount) {
         out.writeVInt(BitUtil.zigZagEncode(slotCount));
         for (int slot = 0; slot < slotCount; slot++) {
@@ -187,5 +187,73 @@ public final class ColumnarOffsetsBuilder {
         final EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler);
         builder.lockScalar(EscfColumnKind.BINARY);
         return builder;
+    }
+
+    /**
+     * Returns each element's rank among the batch's distinct values, in element order. Ranks are unsigned
+     * byte order, which is what {@code BytesRef#compareTo} implements and therefore the order
+     * {@code SortedSetDocValues} assigns its ordinals in.
+     */
+    private static int[] batchRanksPerSlot(EscfArrayColumn source, int slotCount) {
+        final BytesRefHash values = new BytesRefHash();
+        final int[] termIds = new int[slotCount];
+        // retainValues=false: add() copies each value into the hash's pool before the cursor advances.
+        final ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
+        for (int slot = 0; slot < slotCount; slot++) {
+            final int advanced = cursor.nextDoc();
+            assert advanced != DocIdSetIterator.NO_MORE_DOCS : "cursor exhausted at slot " + slot + " of " + slotCount;
+            final int id = values.add(cursor.value());
+            // add() returns -(id)-1 for a value it has already interned.
+            termIds[slot] = id < 0 ? -id - 1 : id;
+        }
+
+        // sort() returns ids in lexicographic order, so inverting it maps an id to its rank. It also
+        // consumes the hash table, which is why nothing looks a value up after this point.
+        final int[] sortedIds = values.sort();
+        final int[] rankPerId = new int[values.size()];
+        for (int rank = 0; rank < rankPerId.length; rank++) {
+            rankPerId[sortedIds[rank]] = rank;
+        }
+        for (int slot = 0; slot < slotCount; slot++) {
+            termIds[slot] = rankPerId[termIds[slot]];
+        }
+        return termIds;
+    }
+
+    /**
+     * Exposes {@link #batchRanksPerSlot} as a cursor with the same shape {@link EscfArrayColumn#longCursor}
+     * produces: one doc id per element, with empty and absent rows skipped by their zero-width offset range.
+     */
+    private static LongTupleCursor batchRankCursor(EscfArrayColumn source, int[] rowOffsets, int docCount) {
+        final int[] slotRanks = batchRanksPerSlot(source, rowOffsets[docCount]);
+        return new LongTupleCursor() {
+            private int currentDoc = -1;
+            private int rowEnd = 0;
+            private int remainingInRow = 0;
+            private int nextSlot = 0;
+            private long currentValue;
+
+            @Override
+            public int nextDoc() {
+                while (remainingInRow == 0) {
+                    if (currentDoc + 1 >= docCount) {
+                        return DocIdSetIterator.NO_MORE_DOCS;
+                    }
+                    currentDoc++;
+                    final int nextEnd = rowOffsets[currentDoc + 1];
+                    remainingInRow = nextEnd - rowEnd;
+                    rowEnd = nextEnd;
+                }
+                remainingInRow--;
+                // longValue() may be called more than once per nextDoc(), so the value is read here.
+                currentValue = slotRanks[nextSlot++];
+                return currentDoc;
+            }
+
+            @Override
+            public long longValue() {
+                return currentValue;
+            }
+        };
     }
 }

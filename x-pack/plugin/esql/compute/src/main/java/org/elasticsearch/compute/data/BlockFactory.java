@@ -8,8 +8,6 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
-import org.apache.arrow.memory.rounding.RoundingPolicy;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -18,6 +16,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block.MvOrdering;
 import org.elasticsearch.compute.data.arrow.CircuitBreakerAllocationListener;
+import org.elasticsearch.compute.data.arrow.DirectBufferAllocationManager;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -41,15 +40,6 @@ public class BlockFactory {
     public static final ByteSizeValue DEFAULT_BYTES_REF_RAM_OVERESTIMATE_THRESHOLD = ByteSizeValue.ofMb(1);
     // The same as PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_FACTOR
     public static final double DEFAULT_BYTES_REF_RAM_OVERESTIMATE_FACTOR = 2.5;
-
-    /**
-     * Exact-fit rounding policy for the Arrow root allocator. We use {@code arrow-memory-unsafe},
-     * whose {@code UnsafeAllocationManager} is a straight malloc/free with no free list or size
-     * classes. The default power-of-two rounding exists to feed a pooled allocator
-     * ({@code arrow-memory-netty}); without that pool, it only wastes memory (up to 2x for
-     * sub-16 MiB allocations). Pass this policy to let the OS allocator handle alignment.
-     */
-    private static final RoundingPolicy EXACT_FIT_ROUNDING_POLICY = requestSize -> requestSize;
 
     private static final Logger log = LogManager.getLogger(BlockFactory.class);
 
@@ -100,9 +90,13 @@ public class BlockFactory {
             synchronized (this) {
                 if (arrowAllocator == null) {
                     if (this.parent == null) {
-                        // Root block factory
+                        // Root block factory. DirectByteBuffer backing so Arrow is visible to
+                        // MaxDirectMemorySize; cap is MaxDirect minus a small NIO reserve.
                         var listener = new CircuitBreakerAllocationListener(breaker);
-                        var allocator = new RootAllocator(listener, Long.MAX_VALUE, EXACT_FIT_ROUNDING_POLICY);
+                        var allocator = DirectBufferAllocationManager.createRootAllocator(
+                            listener,
+                            DirectBufferAllocationManager.arrowDirectMemoryLimit()
+                        );
                         cleaner.register(this, () -> {
                             try {
                                 allocator.close();

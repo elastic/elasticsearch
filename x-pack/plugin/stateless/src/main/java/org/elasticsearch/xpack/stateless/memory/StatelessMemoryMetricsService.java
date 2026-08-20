@@ -14,6 +14,8 @@ import org.elasticsearch.cluster.NodeHeapEstimates;
 import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.cluster.ShardHeapUsageEstimates;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -40,9 +42,11 @@ import org.elasticsearch.xpack.stateless.MetricQuality;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -144,6 +148,11 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     // The memory overhead of each field found in Lucene segments
     public static final ByteSizeValue ADAPTIVE_FIELD_MEMORY_OVERHEAD = ByteSizeValue.ofBytes(1024);
 
+    /**
+     * Fixed per-index heap overhead used by {@link #getIndexMemoryOverhead()} (legacy node-base estimate).
+     * The object-size estimate from {@link #getIndexMetadataEstimatedHeapBytes()} is approximate
+     * and expected to be lower than {@code INDEX_MEMORY_OVERHEAD} per index for typical index metadata.
+     */
     // visible for testing
     public static final long INDEX_MEMORY_OVERHEAD = ByteSizeValue.ofKb(350).getBytes();
 
@@ -169,6 +178,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      */
     private final Map<ShardId, ShardMemoryMetrics> shardMemoryMetrics = new ConcurrentHashMap<>();
     private volatile int totalIndices;
+    private volatile long indexMetadataEstimatedHeapBytes;
     private final AtomicReference<IndexingOperationsMemoryRequirements> indexingOperationsHeapMemoryRequirementsRef =
         new AtomicReference<>();
 
@@ -270,6 +280,20 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
 
     public long getIndexMemoryOverhead() {
         return INDEX_MEMORY_OVERHEAD * totalIndices;
+    }
+
+    /**
+     * Estimated heap used by index metadata objects in the current cluster state, recalculated on master
+     * {@link #clusterChanged} events. This is an approximate {@link org.apache.lucene.util.Accountable} walk
+     * (not measured RSS): shared {@link MappingMetadata} instances are counted once, some fields are omitted,
+     * and interned settings strings are not attributed per index.
+     * <p>
+     * Expected to be lower than {@link #INDEX_MEMORY_OVERHEAD} times the index count for typical metadata;
+     * callers that previously used the fixed overhead should treat this as a reduction, not a drop-in for
+     * absolute heap accounting.
+     */
+    public long getIndexMetadataEstimatedHeapBytes() {
+        return indexMetadataEstimatedHeapBytes;
     }
 
     public long getNodeBaseHeapEstimateInBytes() {
@@ -474,6 +498,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             return;
         }
         this.totalIndices = event.state().metadata().getTotalNumberOfIndices();
+        this.indexMetadataEstimatedHeapBytes = estimateIndexMetadataHeapBytes(event.state().metadata());
 
         // new master use case: no indices exist in internal map
         if (event.nodesDelta().masterNodeChanged() || initialized == false) {
@@ -572,6 +597,23 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         }
 
         clusterStateVersion = event.state().version();
+    }
+
+    /**
+     * Sums {@link IndexMetadata#ramBytesUsed()} across projects, counting each shared
+     * {@link MappingMetadata} instance once. Expected to stay below {@link #INDEX_MEMORY_OVERHEAD} per index for typical configurations.
+     */
+    private static long estimateIndexMetadataHeapBytes(Metadata metadata) {
+        long total = 0;
+        Set<MappingMetadata> seenMappings = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (IndexMetadata indexMetadata : metadata.indicesAllProjects()) {
+            total += indexMetadata.ramBytesUsed();
+            MappingMetadata mapping = indexMetadata.mapping();
+            if (mapping != null && seenMappings.add(mapping) == false) {
+                total -= mapping.ramBytesUsed();
+            }
+        }
+        return total;
     }
 
     public boolean isInitialized() {

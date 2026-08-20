@@ -41,6 +41,7 @@ public final class LongIntBlockHash extends BlockHash {
     private final long[] batchKeys1;
     private final long[] batchKeys2;
     private final int[] batchIds;
+    // defaults to false, switch to true if we ever see input blocks
     private boolean seenBlocks = false;
 
     public LongIntBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize, boolean reverseOutput) {
@@ -134,6 +135,12 @@ public final class LongIntBlockHash extends BlockHash {
         }
     }
 
+    /*
+     * longValue, intValue  -> longValue, intValue & WIDEN
+     * longValue, null      -> 0, intValue & WIDEN | LONG_NULL_MASK
+     * longValue, intValue  -> longValue, INT_NULL_MASK
+     * null, null           -> 0, LONG_NULL_MASK | INT_NULL_MASK
+     */
     static final long LONG_NULL_MASK = 0x00F0_0000_0000_0000L;
     static final long INT_NULL_MASK = 0x000F_0000_0000_0000L;
     static final long WIDEN = 0xFFFFFFFFL;

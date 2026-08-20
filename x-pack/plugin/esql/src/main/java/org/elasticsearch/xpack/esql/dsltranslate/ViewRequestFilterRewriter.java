@@ -127,53 +127,59 @@ public final class ViewRequestFilterRewriter {
         // subquery branches are NOT view branches and are handled by the existing Lucene-scan request-filter
         // path (or pass through unchanged). Use vua.isViewBranch(key) to distinguish: key != null is NOT
         // sufficient because bare-index branches carry "main" and literal subqueries carry "unnamed_view_<hash>".
-        // Translation is fail-closed: an unsupported construct throws out of the transformUp and becomes a 400.
-        try {
-            LogicalPlan rewritten = analyzed.transformUp(ViewUnionAll.class, vua -> {
-                LinkedHashMap<String, LogicalPlan> newSubqueries = new LinkedHashMap<>();
-                boolean changed = false;
-                for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
-                    String key = entry.getKey();
-                    LogicalPlan child = entry.getValue();
-                    if (vua.isViewBranch(key) == false) {
-                        // Bare-index or literal-subquery branch: the existing Lucene-scan filter path handles it.
+        // Translation is fail-closed: an unsupported construct produces a 400.
+        LogicalPlan rewritten = analyzed.transformUp(ViewUnionAll.class, vua -> {
+            LinkedHashMap<String, LogicalPlan> newSubqueries = new LinkedHashMap<>();
+            boolean changed = false;
+            for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
+                String key = entry.getKey();
+                LogicalPlan child = entry.getValue();
+                if (vua.isViewBranch(key) == false) {
+                    // Bare-index or literal-subquery branch: the existing Lucene-scan filter path handles it.
+                    newSubqueries.put(key, child);
+                } else {
+                    // View subplan: apply the filter against the view's output schema. Fail-closed: any
+                    // unsupported construct is an error — the filter cannot be safely approximated on a view.
+                    QueryDslTranslator.TranslationResult result = translateFilter(child.output(), requestFilter, configuration);
+                    if (result.isComplete() == false) {
+                        throw new IllegalArgumentException(
+                            "The request filter uses a Query DSL construct not supported on views: ["
+                                + result.unsupported().get(0).construct()
+                                + "]"
+                        );
+                    }
+                    Expression condition = result.applied();
+                    if (condition == Literal.TRUE) {
+                        // match_all → no-op; leave this view unfiltered.
                         newSubqueries.put(key, child);
                     } else {
-                        // View subplan: apply the filter against the view's output schema.
-                        Expression condition = translateFilter(child.output(), requestFilter, configuration);
-                        if (condition == Literal.TRUE) {
-                            // match_all → no-op; leave this view unfiltered.
-                            newSubqueries.put(key, child);
-                        } else {
-                            newSubqueries.put(key, new Filter(child.source(), child, condition));
-                            changed = true;
-                        }
+                        newSubqueries.put(key, new Filter(child.source(), child, condition));
+                        changed = true;
                     }
                 }
-                if (changed == false) {
-                    return vua;
-                }
-                // Output columns are unchanged: a Filter never adds columns. Preserve viewBranchKeys.
-                return new ViewUnionAll(vua.source(), newSubqueries, vua.viewBranchKeys(), vua.output());
-            });
-            // The inserted Filter nodes and the spine rebuilt above them are at stage NEW; the plan was already
-            // analyzed, so mark the whole tree analyzed to satisfy the pre-optimizer.
-            rewritten.forEachDown(LogicalPlan.class, LogicalPlan::setAnalyzed);
-            return rewritten;
-        } catch (TranslationUnsupportedException e) {
-            throw new IllegalArgumentException(
-                "The request filter uses a Query DSL construct not supported on views: [" + e.construct() + "]",
-                e
-            );
-        }
+            }
+            if (changed == false) {
+                return vua;
+            }
+            // Output columns are unchanged: a Filter never adds columns. Preserve viewBranchKeys.
+            return new ViewUnionAll(vua.source(), newSubqueries, vua.viewBranchKeys(), vua.output());
+        });
+        // The inserted Filter nodes and the spine rebuilt above them are at stage NEW; the plan was already
+        // analyzed, so mark the whole tree analyzed to satisfy the pre-optimizer.
+        rewritten.forEachDown(LogicalPlan.class, LogicalPlan::setAnalyzed);
+        return rewritten;
     }
 
     /**
-     * Translates {@code filter} into an ES|QL {@link Expression} bound against the given output schema. A field present
-     * in {@code output} binds to its {@link Attribute}; a field absent from {@code output} binds to
-     * {@link Literal#NULL} so that the DSL's missing-field leniency is reproduced automatically.
+     * Translates {@code filter} into a {@link QueryDslTranslator.TranslationResult} bound against the given output
+     * schema. A field present in {@code output} binds to its {@link Attribute}; a field absent from {@code output}
+     * binds to {@link Literal#NULL} so that the DSL's missing-field leniency is reproduced automatically.
      */
-    private static Expression translateFilter(List<Attribute> output, QueryBuilder filter, Configuration configuration) {
+    private static QueryDslTranslator.TranslationResult translateFilter(
+        List<Attribute> output,
+        QueryBuilder filter,
+        Configuration configuration
+    ) {
         Map<String, Attribute> byName = new HashMap<>();
         for (Attribute a : output) {
             byName.put(a.name(), a);

@@ -107,8 +107,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
-import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.bccSizeBucket;
-import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.bccTimestampSpanMinutes;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;

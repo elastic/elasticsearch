@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
-public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTestCase {
+public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractLegacyLogsdbRollingUpgradeTestCase {
 
     private static final String DATA_STREAM = "logs-bwc-test";
 

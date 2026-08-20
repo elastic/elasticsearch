@@ -1,0 +1,14 @@
+steps:
+  - label: native-vec
+    command: .buildkite/scripts/native-vec-build.sh
+    env:
+      VEC_NATIVE_BUILD: docker
+      USE_PROD_DOCKER_CREDENTIALS: "true"
+    timeout_in_minutes: 120
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n4-standard-32
+      diskType: hyperdisk-balanced
+      buildDirectory: /dev/shm/bk
+      preemptible: true

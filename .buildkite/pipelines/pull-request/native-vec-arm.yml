@@ -1,0 +1,16 @@
+config:
+  allow-labels: "test-arm"
+steps:
+  - label: native-vec-arm
+    command: .buildkite/scripts/native-vec-build.sh
+    env:
+      VEC_NATIVE_BUILD: docker
+      USE_PROD_DOCKER_CREDENTIALS: "true"
+    timeout_in_minutes: 120
+    agents:
+      provider: aws
+      imagePrefix: elasticsearch-ubuntu-2404-aarch64
+      instanceType: m6g.8xlarge
+      diskSizeGb: 350
+      diskType: gp3
+      diskName: /dev/sda1

@@ -639,6 +639,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         });
     }
 
+    /**
+     * Reads the {@code @timestamp} field value range for the additional segments in the given commit.
+     * Package protected so that tests can override this to simulate legacy compound commits that lack a timestamp range.
+     */
+    @Nullable
+    TimestampFieldValueRange readTimestampFieldValueRange(ShardCommitState commitState, StatelessCommitRef reference) {
+        return commitState.readTimestampFieldValueRangeAcrossAdditionalSegments(reference);
+    }
+
     public void onCommitCreation(StatelessCommitRef reference) {
         boolean success = false;
         try {
@@ -668,7 +677,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             final boolean commitAfterRelocationStarted;
             final Optional<IndexShardRoutingTable> shardRoutingTable = shardRoutingFinder.apply(shardId);
             // reads the timestamp field value range outside the commit state synchronized block (because this does blocking IO)
-            var timestampFieldValueRange = commitState.readTimestampFieldValueRangeAcrossAdditionalSegments(reference);
+            var timestampFieldValueRange = readTimestampFieldValueRange(commitState, reference);
             synchronized (commitState) {
                 // Have to check under lock before creating vbcc to ensure that the shard has not closed.
                 if (commitState.isClosed()) {

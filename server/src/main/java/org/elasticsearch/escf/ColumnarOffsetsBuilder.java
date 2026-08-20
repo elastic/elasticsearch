@@ -98,11 +98,6 @@ public final class ColumnarOffsetsBuilder {
         return max;
     }
 
-    /**
-     * Ignores {@code data.validity()}: an {@code ARRAY} column marks an absent row as a zero-width
-     * offset range rather than a gap in the element child, so absent rows and empty arrays alike are
-     * already excluded by the slot-count check.
-     */
     private static LuceneBinaryColumn encodeColumn(
         EscfColumn source,
         EscfColumnData data,

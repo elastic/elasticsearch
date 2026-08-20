@@ -115,6 +115,13 @@
       reason: "the API path changed in 8.7"
 
   - do:
+      cluster.put_settings:
+        body:
+          transient:
+            # By default, replicas have a 25s grace window before the indicator turns yellow
+            health.shards_availability.replica_unassigned_buffer_time: 0s
+
+  - do:
       indices.create:
         index: red_replica_index
         master_timeout: 1s
@@ -166,3 +173,9 @@
   - length: { indicators.shards_availability.diagnosis: 1 }
   - match: { indicators.shards_availability.diagnosis.0.id: "elasticsearch:health:shards_availability:diagnosis:enable_index_allocations" }
   - match: { indicators.shards_availability.diagnosis.0.affected_resources.indices.0: "${_project_id_prefix_}red_replica_index" }
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            health.shards_availability.replica_unassigned_buffer_time: null

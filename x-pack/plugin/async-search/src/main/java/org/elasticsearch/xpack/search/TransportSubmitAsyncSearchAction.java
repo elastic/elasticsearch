@@ -89,7 +89,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
     @Override
     protected void doExecute(Task submitTask, SubmitAsyncSearchRequest request, ActionListener<AsyncSearchResponse> submitListener) {
         if (request.getKeepAlive().equals(SubmitAsyncSearchRequest.DEFAULT_KEEP_ALIVE) == false) {
-            logger.info("async search submitted with non-default keep_alive [{}]", request.getKeepAlive());
+            logger.debug("async search submitted with non-default keep_alive [{}]", request.getKeepAlive());
         }
         final SearchRequest searchRequest = createSearchRequest(request, submitTask, request.getKeepAlive());
         try (var ignored = threadContext.newTraceContext()) {

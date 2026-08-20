@@ -1,0 +1,5 @@
+area: Aggregations
+issues: []
+pr: 150111
+summary: "AGGS: Limit buckets of `date_histogram` on range"
+type: bug

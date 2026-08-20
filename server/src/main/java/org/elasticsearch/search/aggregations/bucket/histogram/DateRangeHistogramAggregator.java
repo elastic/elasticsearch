@@ -50,6 +50,8 @@ import static java.lang.Long.min;
  */
 class DateRangeHistogramAggregator extends BucketsAggregator {
 
+    private static final int MAX_BUCKETS_PER_DOC = 10_000;
+
     private final ValuesSource.Range valuesSource;
     private final DocValueFormat formatter;
     private final Rounding rounding;
@@ -130,6 +132,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                     long previousKey = Long.MIN_VALUE;
                     final List<RangeFieldMapper.Range> ranges = rangeType.decodeRanges(values.binaryValue());
                     long previousFrom = Long.MIN_VALUE;
+                    int bucketsCollected = 0;
                     for (RangeFieldMapper.Range range : ranges) {
                         Long from = (Long) range.getFrom();
                         // The encoding should ensure that this assert is always true.
@@ -145,6 +148,16 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                             if (key == previousKey) {
                                 continue;
                             }
+                            if (bucketsCollected >= MAX_BUCKETS_PER_DOC) {
+                                throw new IllegalArgumentException(
+                                    "date_histogram on date_range field ["
+                                        + name
+                                        + "] exceeded the maximum number of buckets per document ["
+                                        + MAX_BUCKETS_PER_DOC
+                                        + "]"
+                                );
+                            }
+                            bucketsCollected++;
                             // Bucket collection identical to NumericHistogramAggregator, could be refactored
                             long bucketOrd = bucketOrds.add(owningBucketOrd, key);
                             if (bucketOrd < 0) { // already seen

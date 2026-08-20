@@ -19,6 +19,7 @@ import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -29,12 +30,14 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -692,13 +695,14 @@ public class OptimizedParquetReaderTests extends ESTestCase {
 
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true);
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
+        Exception ex = expectThrows(Exception.class, () -> {
             try (CloseableIterator<Page> iterator = reader.read(storageObject, FormatReadContext.of(null, 100))) {
                 while (iterator.hasNext()) {
                     iterator.next().releaseBlocks();
                 }
             }
         });
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(ex)));
         assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("id"));
     }
 

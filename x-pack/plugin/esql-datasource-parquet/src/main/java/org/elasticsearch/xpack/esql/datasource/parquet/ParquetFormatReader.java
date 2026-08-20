@@ -2879,9 +2879,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             try {
                 return advanceRowGroup();
             } catch (IOException e) {
-                throw new IllegalArgumentException(
-                    "Failed to read Parquet row group [" + (rowGroupOrdinal + 1) + "] in file [" + fileLocation + "]: " + e.getMessage(),
-                    e
+                throw ParquetReadFailures.wrap(
+                    e,
+                    "Failed to read Parquet row group [" + (rowGroupOrdinal + 1) + "] in file [" + fileLocation + "]"
                 );
             }
         }
@@ -3001,12 +3001,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                                     blocks[col] = readColumnBlock(columnReaders[col], info, rowsToRead, col);
                                 }
                             } catch (CircuitBreakingException e) {
-                                Releasables.closeExpectNoException(blocks);
                                 throw e;
                             } catch (Exception e) {
-                                Releasables.closeExpectNoException(blocks);
                                 Attribute attr = attributes.get(col);
-                                throw new IllegalArgumentException(
+                                throw ParquetReadFailures.wrap(
+                                    e,
                                     "Failed to read Parquet column ["
                                         + attr.name()
                                         + "] (type "
@@ -3017,27 +3016,25 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                                         + pageBatchIndexInRowGroup
                                         + "] in file ["
                                         + fileLocation
-                                        + "]: "
-                                        + e.getMessage(),
-                                    e
+                                        + "]"
                                 );
                             }
                         }
                     }
-                } catch (IllegalArgumentException | CircuitBreakingException e) {
+                } catch (CircuitBreakingException e) {
+                    Releasables.closeExpectNoException(blocks);
                     throw e;
                 } catch (Exception e) {
                     Releasables.closeExpectNoException(blocks);
-                    throw new IllegalArgumentException(
+                    throw ParquetReadFailures.wrap(
+                        e,
                         "Failed to create Page batch at row group ["
                             + (rowGroupOrdinal + 1)
                             + "] page batch ["
                             + pageBatchIndexInRowGroup
                             + "] in file ["
                             + fileLocation
-                            + "]: "
-                            + e.getMessage(),
-                        e
+                            + "]"
                     );
                 }
 

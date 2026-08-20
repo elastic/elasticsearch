@@ -18,6 +18,7 @@ import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.logging.LogManager;
@@ -136,9 +137,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     /**
      * Maps a failure from the S3 client into the exception to surface to ES|QL. A retryable transport
      * status (5xx/429) becomes an {@link ExternalUnavailableException} (503 — the read may succeed on
-     * retry); a missing object or any other failure becomes an {@link IOException}, which the external
-     * source operator classifies as a client-class 400. Returns the exception (never throws) so both
-     * the synchronous and async read paths can route it.
+     * retry). An {@link IllegalStateException} in the cause chain (typically Apache
+     * {@code Connection pool shut down} after the SDK client is closed) is the same 503: the client
+     * is gone, not the object. A missing object or any other failure becomes an {@link IOException},
+     * which the external source operator classifies as a client-class 400. Returns the exception
+     * (never throws) so both the synchronous and async read paths can route it.
      */
     private Exception mapReadFailure(String context, Throwable cause) {
         if (cause instanceof S3Exception s3 && ExternalUnavailableException.isRetryableStatus(s3.statusCode())) {
@@ -153,6 +156,15 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         }
         if (cause instanceof NoSuchKeyException) {
             return new IOException("Object not found: " + path, cause);
+        }
+        if (ExceptionsHelper.unwrap(cause, IllegalStateException.class) != null) {
+            return new ExternalUnavailableException(
+                false,
+                cause,
+                "S3 client unavailable reading [{}]: {}",
+                path,
+                S3FailureDetail.of(cause)
+            );
         }
         return new IOException(context + " " + path + ": " + S3FailureDetail.of(cause), cause);
     }

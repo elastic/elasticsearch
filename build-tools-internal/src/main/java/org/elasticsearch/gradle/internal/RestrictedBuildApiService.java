@@ -29,13 +29,9 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         ListMultimap<Class<?>, String> map = ArrayListMultimap.create(1, 200);
         // Projects that apply LegacyRestTestBasePlugin directly via the legacy-yaml-rest-test or legacy-java-rest-test plugins.
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ml:qa:basic-multi-node");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ml:qa:disabled");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ml:qa:ml-with-security");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ml:qa:native-multi-node-tests");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:searchable-snapshots:qa:rest");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:shutdown:qa:multi-node");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:snapshot-based-recoveries:qa:license-enforcing");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:snapshot-repo-test-kit:qa:rest");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:text-structure:qa:text-structure-with-security");
 
         // Projects that apply LegacyRestTestBasePlugin transitively via the standalone-rest-test plugin.
@@ -47,9 +43,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:shutdown:qa:rolling-upgrade");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:transform:qa:multi-cluster-tests-with-security");
 
-        // Projects that inherit the legacy-yaml-rest-test plugin from their parent's subprojects { } configuration.
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:runtime-fields:core-with-mapped");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:runtime-fields:core-with-search");
         return map;
     }
 

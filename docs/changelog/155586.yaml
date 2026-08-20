@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 155586
-summary: ES|QL:Fix/tdigest percentiles circuit breaker
+summary: Account for t-digest percentiles memory in the request circuit breaker
 type: bug

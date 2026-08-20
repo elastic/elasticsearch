@@ -189,6 +189,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -278,6 +279,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     private TestDataSource testAllMapping; // k8s metrics index with time-series fields
 
     private final Configuration config;
+    /** Supplies the transport version to analyze at for this run — {@code current} or a fresh historical one. */
+    private final Supplier<TransportVersion> minimumVersion;
     private PlannerSettings plannerSettings;
 
     private record TestDataSource(Map<String, EsField> mapping, EsIndex index, Analyzer analyzer, SearchStats stats) {
@@ -302,18 +305,36 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> params() {
-        return settings().stream().map(t -> {
-            var settings = Settings.builder().loadFromMap(t.v2()).build();
-            return new Object[] { t.v1(), configuration(new QueryPragmas(settings)) };
-        }).toList();
+        List<Object[]> params = new ArrayList<>();
+        for (Tuple<String, Map<String, Object>> setting : settings()) {
+            var settings = Settings.builder().loadFromMap(setting.v2()).build();
+            for (VersionMode mode : minimumVersionModes()) {
+                params.add(new Object[] { setting.v1() + " " + mode.name(), configuration(new QueryPragmas(settings)), mode.version() });
+            }
+        }
+        return params;
+    }
+
+    private record VersionMode(String name, Supplier<TransportVersion> version) {}
+
+    /**
+     * The two runs of each test. {@code current} pins {@link TransportVersion#current()} so a version-gated plan change is
+     * exercised in its own PR; {@code historical} keeps the pre-existing per-build random version.
+     */
+    private static List<VersionMode> minimumVersionModes() {
+        return List.of(
+            new VersionMode("current", TransportVersion::current),
+            new VersionMode("historical", EsqlTestUtils::randomMinimumVersion)
+        );
     }
 
     private static List<Tuple<String, Map<String, Object>>> settings() {
-        return asList(new Tuple<>("default", Map.of()));
+        return List.of(new Tuple<>("default", Map.of()));
     }
 
-    public PhysicalPlanOptimizerTests(String name, Configuration config) {
+    public PhysicalPlanOptimizerTests(String name, Configuration config, Supplier<TransportVersion> minimumVersion) {
         this.config = config;
+        this.minimumVersion = minimumVersion;
     }
 
     @Before
@@ -390,6 +411,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         Map<String, EsField> mapping = loadMapping(mappingFileName);
         EsIndex index = EsIndexGenerator.esIndex(indexName, mapping, Map.of(indexName, IndexMode.STANDARD));
         TestAnalyzer builder = analyzer().configuration(config).addIndex(index);
+        builder.minimumTransportVersion(minimumVersion.get());
         setupEnrichPolicies(builder);
         for (IndexResolution lookupIndex : lookupResolution.values()) {
             builder.addIndex(lookupIndex);

@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.ProjectStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
@@ -50,7 +51,6 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -84,7 +84,6 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executor;
@@ -111,6 +110,7 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
     private final IndicesService indicesService;
     private final NodeClient client;
 
+    @SuppressWarnings("this-escape")
     @Inject
     public TransportUpdateAction(
         ThreadPool threadPool,
@@ -124,37 +124,7 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
         AutoCreateIndex autoCreateIndex,
         NodeClient client
     ) {
-        this(
-            NAME,
-            threadPool,
-            clusterService,
-            projectResolver,
-            transportService,
-            updateHelper,
-            actionFilters,
-            indexNameExpressionResolver,
-            indicesService,
-            autoCreateIndex,
-            client
-        );
-    }
-
-    // visible for test
-    @SuppressWarnings("this-escape")
-    protected TransportUpdateAction(
-        String actionName,
-        ThreadPool threadPool,
-        ClusterService clusterService,
-        ProjectResolver projectResolver,
-        TransportService transportService,
-        UpdateHelper updateHelper,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        IndicesService indicesService,
-        AutoCreateIndex autoCreateIndex,
-        NodeClient client
-    ) {
-        super(actionName, transportService, actionFilters, UpdateRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(NAME, transportService, actionFilters, UpdateRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
@@ -186,22 +156,6 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
         return threadPool.executor(indexService.getIndexSettings().getIndexMetadata().isSystem() ? Names.SYSTEM_WRITE : Names.WRITE);
     }
 
-    protected UpdateResponse newResponse(StreamInput in) throws IOException {
-        return new UpdateResponse(in);
-    }
-
-    private static ClusterBlockException checkGlobalBlock(ProjectState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
-    }
-
-    private ClusterBlockException checkRequestBlock(ProjectState state, UpdateRequest request) {
-        return state.blocks().indexBlockedException(state.projectId(), ClusterBlockLevel.WRITE, request.concreteIndex());
-    }
-
-    private boolean retryOnFailure(Exception e) {
-        return TransportActions.isShardNotAvailableException(e);
-    }
-
     /**
      * Resolves the request. Throws an exception if the request cannot be resolved.
      */
@@ -216,7 +170,7 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
         }
         final String concreteName = IndexNameExpressionResolver.resolveDateMathExpression(request.index());
         final boolean sliceEnabled = Optional.ofNullable(state.metadata().getIndicesLookup().get(concreteName))
-            .map(indexAbstraction -> indexAbstraction.getWriteIndex())
+            .map(IndexAbstraction::getWriteIndex)
             .map(state.metadata()::index)
             .map(metadata -> IndexSettings.SLICE_ENABLED.get(metadata.getSettings()))
             .orElse(false);
@@ -293,24 +247,11 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
 
     private void handleShardRequest(UpdateRequest request, TransportChannel channel, Task task) {
         executor(request.shardId).execute(
-            ActionRunnable.wrap(new ChannelActionListener<UpdateResponse>(channel), l -> shardOperation(request, l))
+            ActionRunnable.wrap(new ChannelActionListener<UpdateResponse>(channel), l -> shardOperation(request, l, 0))
         );
     }
 
-    protected static TransportRequestOptions transportOptions() {
-        return TransportRequestOptions.EMPTY;
-    }
-
-    protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
-        try {
-            shardOperation(request, listener, 0);
-        } catch (IOException e) {
-            listener.onFailure(e);
-        }
-    }
-
-    protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener, final int retryCount)
-        throws IOException {
+    private void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener, final int retryCount) {
         final ShardId shardId = request.getShardId();
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard indexShard = indexService.getShard(shardId.getId());
@@ -623,7 +564,7 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
 
         protected void doStart(ProjectState projectState) {
             try {
-                ClusterBlockException blockException = checkGlobalBlock(projectState);
+                ClusterBlockException blockException = projectState.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
                 if (blockException != null) {
                     if (blockException.retryable()) {
                         retry(blockException);
@@ -642,7 +583,7 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                     }
                 }
                 resolveRequest(projectState, request);
-                blockException = checkRequestBlock(projectState, request);
+                blockException = projectState.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.concreteIndex());
                 if (blockException != null) {
                     if (blockException.retryable()) {
                         retry(blockException);
@@ -680,17 +621,15 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                 node,
                 shardActionName,
                 request,
-                transportOptions(),
-                new ActionListenerResponseHandler<>(
-                    listener,
-                    TransportUpdateAction.this::newResponse,
-                    TransportResponseHandler.TRANSPORT_WORKER
-                ) {
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(listener, UpdateResponse::new, TransportResponseHandler.TRANSPORT_WORKER) {
                     @Override
                     public void handleException(TransportException exp) {
                         final Throwable cause = exp.unwrapCause();
                         // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
-                        if (cause instanceof ConnectTransportException || cause instanceof NodeClosedException || retryOnFailure(exp)) {
+                        if (cause instanceof ConnectTransportException
+                            || cause instanceof NodeClosedException
+                            || TransportActions.isShardNotAvailableException(exp)) {
                             retry((Exception) cause);
                         } else {
                             listener.onFailure(exp);

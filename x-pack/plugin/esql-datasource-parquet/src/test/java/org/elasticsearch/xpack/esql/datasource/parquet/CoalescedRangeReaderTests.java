@@ -42,6 +42,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class CoalescedRangeReaderTests extends ESTestCase {
@@ -194,29 +195,32 @@ public class CoalescedRangeReaderTests extends ESTestCase {
 
         CoalescedRangeResult coalescedResult = resultRef.get();
         assertNotNull(coalescedResult);
-        Map<ByteRange, ByteBuffer> results = coalescedResult.ranges();
         Releasable release = coalescedResult.release();
-        assertEquals(3, results.size());
+        try {
+            Map<ByteRange, ByteBuffer> results = coalescedResult.ranges();
+            assertEquals(3, results.size());
 
-        // Adjacent ranges [0,100) and [100,300) should be merged into one async call
-        // Range [500,600) is separate -> 2 async calls total
-        assertEquals(2, asyncCallCount.get());
+            // Adjacent ranges [0,100) and [100,300) should be merged into one async call
+            // Range [500,600) is separate -> 2 async calls total
+            assertEquals(2, asyncCallCount.get());
 
-        ByteBuffer buf0 = results.get(new ByteRange(0, 100));
-        assertNotNull(buf0);
-        assertEquals(100, buf0.remaining());
-        assertEquals((byte) 0, buf0.get(0));
+            ByteBuffer buf0 = results.get(new ByteRange(0, 100));
+            assertNotNull(buf0);
+            assertEquals(100, buf0.remaining());
+            assertEquals((byte) 0, buf0.get(0));
 
-        ByteBuffer buf1 = results.get(new ByteRange(100, 200));
-        assertNotNull(buf1);
-        assertEquals(200, buf1.remaining());
-        assertEquals((byte) 100, buf1.get(0));
+            ByteBuffer buf1 = results.get(new ByteRange(100, 200));
+            assertNotNull(buf1);
+            assertEquals(200, buf1.remaining());
+            assertEquals((byte) 100, buf1.get(0));
 
-        ByteBuffer buf2 = results.get(new ByteRange(500, 100));
-        assertNotNull(buf2);
-        assertEquals(100, buf2.remaining());
-        assertEquals((byte) (500 & 0xFF), buf2.get(0));
-        release.close();
+            ByteBuffer buf2 = results.get(new ByteRange(500, 100));
+            assertNotNull(buf2);
+            assertEquals(100, buf2.remaining());
+            assertEquals((byte) (500 & 0xFF), buf2.get(0));
+        } finally {
+            release.close();
+        }
     }
 
     public void testReadCoalescedEmptyRanges() throws Exception {
@@ -306,16 +310,22 @@ public class CoalescedRangeReaderTests extends ESTestCase {
     }
 
     /**
-     * Slicing the far constituent of a coalesced buffer that only received a short read must throw
-     * rather than hand out a truncated view. Here 100 bytes were requested but only 10 arrived, so
-     * positioning at the second constituent (offset 90) runs past the delivered limit.
+     * A coalesced buffer that only received a short read must throw before any constituent is
+     * sliced, rather than hand out a truncated view. Here 100 bytes were requested but only 10
+     * arrived.
      */
     public void testSliceConstituentsShortReadThrows() {
         ByteBuffer shortBuffer = ByteBuffer.allocate(100);
         shortBuffer.position(0).limit(10);
         MergedRange mr = new MergedRange(0, 100, List.of(new ByteRange(0, 10), new ByteRange(90, 10)));
         Map<ByteRange, ByteBuffer> results = new HashMap<>();
-        expectThrows(IllegalArgumentException.class, () -> CoalescedRangeReader.sliceConstituents(shortBuffer, mr, results));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> CoalescedRangeReader.sliceConstituents(shortBuffer, mr, results)
+        );
+        assertThat(e.getMessage(), containsString("received [10] bytes but merged range requires [100]"));
+        // The short-read check runs before the loop, so no constituent is inserted.
+        assertEquals(0, results.size());
     }
 
     /**
@@ -413,6 +423,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         }
         assertNotNull(failureRef.get());
         assertThat(failureRef.get(), instanceOf(IllegalArgumentException.class));
+        assertThat(failureRef.get().getMessage(), containsString("Short read"));
         // The coalesced buffer was charged against the circuit breaker on allocate; the failure path
         // must uncharge it. Without the fix the throw skips complete(), the buffer stays charged, and
         // this assertion fails (the earlier hang is caught by the latch timeout above).

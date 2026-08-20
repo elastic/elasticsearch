@@ -115,9 +115,9 @@ final class CoalescedRangeReader {
                 public void onResponse(DirectReadBuffer result) {
                     try {
                         synchronized (results) {
-                            // Track the buffer before slicing so a slice failure (e.g. a short read whose
-                            // constituent offset runs past the delivered bytes) still hands ownership to the
-                            // terminal complete(), which closes it along with its siblings.
+                            // Track the buffer before slicing so a short-read (or any slice) failure
+                            // still hands ownership to the terminal complete(), which closes it
+                            // along with its siblings.
                             buffers.add(result);
                             sliceConstituents(result.buffer(), mr, results);
                         }
@@ -168,12 +168,19 @@ final class CoalescedRangeReader {
      * resulting view in {@code results}. Package-private and free of I/O so the short-read boundary
      * math is directly testable.
      *
-     * <p>A short read delivers a buffer whose {@code limit()} is below the requested length. When a
-     * constituent's relative offset (or its end) falls past that limit, {@link ByteBuffer#position}
-     * / {@link ByteBuffer#limit} throw {@link IllegalArgumentException}; the caller folds that into
-     * the coalesced read's failure rather than delivering a truncated slice.
+     * <p>A short read delivers a buffer whose {@code remaining()} is below the merged range
+     * length. That is rejected up front with a descriptive {@link IllegalArgumentException}
+     * rather than letting {@link ByteBuffer#position}/{@link ByteBuffer#limit} throw a terse
+     * bounds error mid-loop (and rather than delivering a truncated slice). The caller folds
+     * the failure into the coalesced read.
      */
     static void sliceConstituents(ByteBuffer buffer, MergedRange mr, Map<ByteRange, ByteBuffer> results) {
+        int delivered = buffer.remaining();
+        if (delivered < mr.length()) {
+            throw new IllegalArgumentException(
+                "Short read: received [" + delivered + "] bytes but merged range requires [" + mr.length() + "]"
+            );
+        }
         for (ByteRange original : mr.constituents()) {
             int relativeOffset = (int) (original.offset() - mr.offset());
             ByteBuffer slice = buffer.duplicate();

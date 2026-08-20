@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
+import org.elasticsearch.xpack.stateless.lucene.StatelessAdviceHint;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -75,6 +76,11 @@ public class CacheFileReader {
     // Enabled on snapshot builds for benchmarking; disabled in production.
     // Override with -Des.blob_cache_madvise_random_feature_flag_enabled=true|false.
     static final FeatureFlag MADVISE_RANDOM_FEATURE_FLAG = new FeatureFlag("blob_cache_madvise_random");
+
+    // Separate feature flag for selectively enabling MADV_RANDOM on the indexing tier
+    // for use-cases that have been individually validated (e.g. stored fields).
+    // Override with -Des.stateless_index_tier_madvise_random_feature_flag_enabled=true|false.
+    static final FeatureFlag INDEX_TIER_MADVISE_RANDOM_FEATURE_FLAG = new FeatureFlag("stateless_index_tier_madvise_random");
 
     private final StatelessSharedBlobCacheService.CacheFile cacheFile;
     private final CacheBlobReader cacheBlobReader;
@@ -120,7 +126,7 @@ public class CacheFileReader {
     /**
      * Creates a reader for a top-level file opened via {@code BlobStoreCacheDirectory.openInput}.
      * Top-level files exclusively own their blob, so all cache regions contain only this file's data.
-     * If the IOContext contains {@link DataAccessHint#RANDOM} and the feature flag is enabled,
+     * The IOContext will be passed to {@link #contextToAdvice} to determine if
      * {@code MADV_RANDOM} will be applied to all regions.
      */
     public CacheFileReader(
@@ -195,7 +201,8 @@ public class CacheFileReader {
      * only those interior regions will receive {@code MADV_RANDOM}. Boundary regions that
      * contain data from adjacent sub-files fall back to {@code MADV_NORMAL}.
      *
-     * @param context the IOContext for the sub-file (may contain {@link DataAccessHint#RANDOM})
+     * @param context the IOContext will be passed to {@link #contextToAdvice} to determine
+     *                if {@code MADV_RANDOM} will be applied to interior regions
      * @param subFileOffset the sub-file's absolute byte offset within the blob
      * @param subFileLength the sub-file's length in bytes
      */
@@ -225,16 +232,45 @@ public class CacheFileReader {
     }
 
     /**
-     * Maps Lucene's {@link DataAccessHint} to the corresponding {@code madvise} advice.
-     * Returns {@code MADV_RANDOM} only when the node has the search role, the feature flag
-     * is enabled, and the context contains {@link DataAccessHint#RANDOM}. On non-search nodes
-     * (e.g. during indexing or merge), sequential read-ahead is preserved.
+     * Maps Lucene's {@link DataAccessHint} and ES-specific {@link StatelessAdviceHint} to the
+     * corresponding {@code madvise} advice, branched by node role.
      */
     static int contextToAdvice(IOContext context, boolean hasSearchRole) {
-        if (hasSearchRole && MADVISE_RANDOM_FEATURE_FLAG.isEnabled() && context.hints().contains(DataAccessHint.RANDOM)) {
+        if (hasSearchRole) {
+            return searchAdvice(context);
+        } else {
+            return indexingAdvice(context);
+        }
+    }
+
+    private static int searchAdvice(IOContext context) {
+        if (MADVISE_RANDOM_FEATURE_FLAG.isEnabled() && context.hints().contains(DataAccessHint.RANDOM)) {
             return SharedBytes.MADV_RANDOM;
         }
         return SharedBytes.MADV_NORMAL;
+    }
+
+    /**
+     * On indexing nodes, returns {@code MADV_RANDOM} only for use-cases that have been individually
+     * validated via {@link StatelessAdviceHint}. Once all use-cases are validated, the
+     * {@link StatelessAdviceHint} gate can be removed to match {@link #searchAdvice}.
+     */
+    private static int indexingAdvice(IOContext context) {
+        if (INDEX_TIER_MADVISE_RANDOM_FEATURE_FLAG.isEnabled()
+            && context.hints().contains(DataAccessHint.RANDOM)
+            && containsStatelessAdviceHint(context)) {
+            return SharedBytes.MADV_RANDOM;
+        }
+        return SharedBytes.MADV_NORMAL;
+    }
+
+    private static boolean containsStatelessAdviceHint(IOContext context) {
+        for (var hint : context.hints()) {
+            if (hint instanceof StatelessAdviceHint) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

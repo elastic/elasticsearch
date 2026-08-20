@@ -196,13 +196,27 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
+    /**
+     * Prunes attributes the rest of the plan never references, for the two index modes where keeping them is not free.
+     * <p>
+     * {@link IndexMode#LOOKUP}: {@code InsertFieldExtraction} can't currently be used for the right-hand index of a LOOKUP JOIN, which
+     * instead extracts every field the relation has other than the join key.
+     * <p>
+     * {@link IndexMode#TIME_SERIES}: a {@code TS} relation resolves the index's dimensions, so on a wide metrics mapping it carries
+     * hundreds of attributes that the query never names. They are all serialized into the plan fragment shipped to every data node. That
+     * is wasted bandwidth, and it is also a correctness hazard: an unreferenced field drags its sub-fields along inside
+     * {@code EsField#properties}, and a sub-field whose type conflicts across indices cannot be serialized at all (#152322).
+     * <p>
+     * Every rule that reads dimensions off the relation runs in the analyzer, before this one: {@code TranslatePromqlToEsqlPlan},
+     * {@code TranslateTimeSeriesWithout} and {@code TranslateTimeSeriesAggregate}. By the time we get here, whatever they need is
+     * referenced and therefore retained.
+     * <p>
+     * Other modes are left alone because {@code InsertFieldExtraction} only extracts the fields they actually need.
+     */
     private static LogicalPlan pruneColumnsInEsRelation(EsRelation esr, AttributeSet.Builder used) {
         LogicalPlan p = esr;
 
-        if (esr.indexMode() == IndexMode.LOOKUP) {
-            // Normally, pruning EsRelation has no effect because InsertFieldExtraction only extracts the required fields, anyway.
-            // However, InsertFieldExtraction can't be currently used in LOOKUP JOIN right index,
-            // it works differently as we extract all fields (other than the join key) that the EsRelation has.
+        if (esr.indexMode() == IndexMode.LOOKUP || esr.indexMode() == IndexMode.TIME_SERIES) {
             var remaining = pruneUnusedAndAddReferences(esr.output(), used);
             if (remaining != null) {
                 p = esr.withAttributes(remaining);

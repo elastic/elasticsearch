@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -259,7 +260,7 @@ public class ResolveViewShadowTests extends ESTestCase {
         LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
         children.put(strictName, strict);
         children.put(shadow.viewName() + "#shadow", shadow);
-        return new ViewUnionAll(EMPTY, children, List.of());
+        return new ViewUnionAll(EMPTY, children, Set.of(), List.of());
     }
 
     /** Walks past one analyzer-inserted {@link Project} wrapper to expose the underlying relation. */

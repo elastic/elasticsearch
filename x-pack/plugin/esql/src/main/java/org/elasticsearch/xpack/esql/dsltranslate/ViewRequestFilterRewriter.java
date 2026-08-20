@@ -123,8 +123,10 @@ public final class ViewRequestFilterRewriter {
             warnNotApplied(analyzed, "the cluster contains a node too old to evaluate the translated filter");
             return analyzed;
         }
-        // Target the non-index (view) children of each ViewUnionAll in the plan. Null-key children are bare index
-        // relations handled by the existing Lucene-scan request-filter path.
+        // Target only the actual view branches of each ViewUnionAll in the plan. Bare-index and literal
+        // subquery branches are NOT view branches and are handled by the existing Lucene-scan request-filter
+        // path (or pass through unchanged). Use vua.isViewBranch(key) to distinguish: key != null is NOT
+        // sufficient because bare-index branches carry "main" and literal subqueries carry "unnamed_view_<hash>".
         // Translation is fail-closed: an unsupported construct throws out of the transformUp and becomes a 400.
         try {
             LogicalPlan rewritten = analyzed.transformUp(ViewUnionAll.class, vua -> {
@@ -133,9 +135,9 @@ public final class ViewRequestFilterRewriter {
                 for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
                     String key = entry.getKey();
                     LogicalPlan child = entry.getValue();
-                    if (key == null) {
-                        // Bare index relation: the existing Lucene-scan filter path handles it.
-                        newSubqueries.put(null, child);
+                    if (vua.isViewBranch(key) == false) {
+                        // Bare-index or literal-subquery branch: the existing Lucene-scan filter path handles it.
+                        newSubqueries.put(key, child);
                     } else {
                         // View subplan: apply the filter against the view's output schema.
                         Expression condition = translateFilter(child.output(), requestFilter, configuration);
@@ -151,8 +153,8 @@ public final class ViewRequestFilterRewriter {
                 if (changed == false) {
                     return vua;
                 }
-                // Output columns are unchanged: a Filter never adds columns.
-                return new ViewUnionAll(vua.source(), newSubqueries, vua.output());
+                // Output columns are unchanged: a Filter never adds columns. Preserve viewBranchKeys.
+                return new ViewUnionAll(vua.source(), newSubqueries, vua.viewBranchKeys(), vua.output());
             });
             // The inserted Filter nodes and the spine rebuilt above them are at stage NEW; the plan was already
             // analyzed, so mark the whole tree analyzed to satisfy the pre-optimizer.
@@ -190,13 +192,11 @@ public final class ViewRequestFilterRewriter {
     private static void warnNotApplied(LogicalPlan plan, String reason) {
         List<String> viewNames = new ArrayList<>();
         plan.forEachDown(ViewUnionAll.class, vua -> {
-            for (String key : vua.namedSubqueries().keySet()) {
-                if (key != null) {
-                    viewNames.add(key);
-                }
+            for (String key : vua.viewBranchKeys()) {
+                viewNames.add(key);
             }
         });
-        List<String> distinct = viewNames.stream().distinct().toList();
+        List<String> distinct = viewNames.stream().distinct().sorted().toList();
         if (distinct.isEmpty() == false) {
             HeaderWarning.addWarning(
                 "The request filter was not applied to view(s) [{}] because {}; they were read unfiltered. "

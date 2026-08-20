@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class ViewUnionAllTests extends ESTestCase {
 
     public void testIsInstanceOfUnionAll() {
-        ViewUnionAll viewUnion = new ViewUnionAll(Source.EMPTY, viewMap(), List.of());
+        ViewUnionAll viewUnion = viewUnionAll();
         assertThat(viewUnion, instanceOf(UnionAll.class));
         assertThat(viewUnion, instanceOf(Fork.class));
     }
@@ -33,7 +33,7 @@ public class ViewUnionAllTests extends ESTestCase {
     public void testReplaceChildrenPreservesType() {
         LogicalPlan child1 = relation("index1");
         LogicalPlan child2 = relation("index2");
-        ViewUnionAll original = new ViewUnionAll(Source.EMPTY, viewMap(child1), List.of());
+        ViewUnionAll original = viewUnionAll(child1);
 
         LogicalPlan replaced = original.replaceChildren(List.of(child2));
         assertThat(replaced, instanceOf(ViewUnionAll.class));
@@ -43,7 +43,7 @@ public class ViewUnionAllTests extends ESTestCase {
     public void testReplaceSubPlansPreservesType() {
         LogicalPlan child1 = relation("index1");
         LogicalPlan child2 = relation("index2");
-        ViewUnionAll original = new ViewUnionAll(Source.EMPTY, viewMap(child1), List.of());
+        ViewUnionAll original = viewUnionAll(child1);
         assertThat(original.namedSubqueries(), equalTo(Map.of("view_0", child1)));
 
         ViewUnionAll replaced = original.replaceSubPlans(List.of(child2));
@@ -54,7 +54,7 @@ public class ViewUnionAllTests extends ESTestCase {
     public void testReplaceSubPlansAndOutputPreservesType() {
         LogicalPlan child1 = relation("index1");
         LogicalPlan child2 = relation("index2");
-        ViewUnionAll original = new ViewUnionAll(Source.EMPTY, viewMap(child1), List.of());
+        ViewUnionAll original = viewUnionAll(child1);
         assertThat(original.namedSubqueries(), equalTo(Map.of("view_0", child1)));
 
         Attribute col1 = new ReferenceAttribute(Source.EMPTY, null, "col", DataType.KEYWORD);
@@ -68,10 +68,10 @@ public class ViewUnionAllTests extends ESTestCase {
         LogicalPlan child1 = relation("index1");
         LogicalPlan child2 = relation("index2");
 
-        ViewUnionAll a = new ViewUnionAll(Source.EMPTY, viewMap(child1, child2), List.of());
-        ViewUnionAll b = new ViewUnionAll(Source.EMPTY, viewMap(child1, child2), List.of());
-        ViewUnionAll c = new ViewUnionAll(Source.EMPTY, viewMap(child1), List.of());
-        ViewUnionAll d = new ViewUnionAll(Source.EMPTY, viewMap(child2, child1), List.of());
+        ViewUnionAll a = viewUnionAll(child1, child2);
+        ViewUnionAll b = viewUnionAll(child1, child2);
+        ViewUnionAll c = viewUnionAll(child1);
+        ViewUnionAll d = viewUnionAll(child2, child1);
 
         // a and b are identical
         assertEquals(a, b);
@@ -102,7 +102,7 @@ public class ViewUnionAllTests extends ESTestCase {
     public void testReplaceChildrenDoesNotMutateOriginalInstance() {
         LogicalPlan child1 = relation("index1");
         LogicalPlan child2 = relation("index2");
-        ViewUnionAll original = new ViewUnionAll(Source.EMPTY, viewMap(child1, child2), List.of());
+        ViewUnionAll original = viewUnionAll(child1, child2);
 
         original.replaceChildren(List.of(child1, child2));
         assertThat(original.namedSubqueries(), equalTo(Map.of("view_0", child1, "view_1", child2)));
@@ -116,7 +116,7 @@ public class ViewUnionAllTests extends ESTestCase {
     public void testNotEqualToPlainUnionAll() {
         LogicalPlan child = relation("index1");
 
-        ViewUnionAll viewUnion = new ViewUnionAll(Source.EMPTY, viewMap(child), List.of());
+        ViewUnionAll viewUnion = viewUnionAll(child);
         UnionAll plainUnion = new UnionAll(Source.EMPTY, List.of(child), List.of());
 
         // ViewUnionAll and UnionAll with same children should NOT be equal (different getClass())
@@ -124,12 +124,13 @@ public class ViewUnionAllTests extends ESTestCase {
         assertNotEquals(plainUnion, viewUnion);
     }
 
-    private LinkedHashMap<String, LogicalPlan> viewMap(LogicalPlan... children) {
+    /** Builds a {@link ViewUnionAll} where every branch is a view branch (keys {@code "view_0"}, {@code "view_1"}, …). */
+    private static ViewUnionAll viewUnionAll(LogicalPlan... children) {
         LinkedHashMap<String, LogicalPlan> namedChildren = LinkedHashMap.newLinkedHashMap(children.length);
         for (int i = 0; i < children.length; i++) {
             namedChildren.put("view_" + i, children[i]);
         }
-        return namedChildren;
+        return new ViewUnionAll(Source.EMPTY, namedChildren, namedChildren.keySet(), List.of());
     }
 
     private static UnresolvedRelation relation(String name) {

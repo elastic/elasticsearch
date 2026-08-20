@@ -60,7 +60,6 @@ import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 
 /**
@@ -342,12 +341,14 @@ public class Mapper {
         List<PhysicalPlan> newChildren = new ArrayList<>(childSize);
         List<LogicalPlan> logicalChildren = fork.children();
         ViewUnionAll vua = isViewUnionAll ? (ViewUnionAll) fork : null;
+        // Use a positional list of keys so we can look up isViewBranch per child index.
         List<String> viewKeys = isViewUnionAll ? vua.namedSubqueries().keySet().stream().toList() : null;
 
         for (int i = 0; i < childSize; i++) {
             PhysicalPlan child = mapInner(logicalChildren.get(i));
-            if (isViewUnionAll && viewKeys.get(i) != null) {
-                // View branch: mark every FragmentExec in the subtree so integrateEsFilterIntoFragment skips them.
+            if (isViewUnionAll && vua.isViewBranch(viewKeys.get(i))) {
+                // Actual view branch: mark every FragmentExec in the subtree so integrateEsFilterIntoFragment skips them.
+                // Bare-index branches (key "main") and literal-subquery branches ("unnamed_view_<hash>") are excluded.
                 child = child.transformDown(FragmentExec.class, FragmentExec::asFromViewBranch);
             }
             if (child instanceof FragmentExec) {

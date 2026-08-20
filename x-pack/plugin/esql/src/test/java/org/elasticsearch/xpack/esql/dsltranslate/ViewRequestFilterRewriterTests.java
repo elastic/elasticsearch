@@ -30,6 +30,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -38,7 +39,8 @@ import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Unit tests for {@link ViewRequestFilterRewriter}: the request-filter policy that installs a {@link Filter} above each
- * view subplan boundary ({@link ViewUnionAll} entries with non-null keys), bound against the view's output schema.
+ * view branch in a {@link ViewUnionAll} (identified via {@link ViewUnionAll#isViewBranch(String)}), bound against the
+ * view's output schema.
  */
 public class ViewRequestFilterRewriterTests extends ESTestCase {
 
@@ -71,14 +73,15 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
 
     /**
      * Builds a {@link ViewUnionAll} with one null-key (bare index) child and one named (view) child that outputs
-     * the given attribute.
+     * the given attribute. The view child is registered in {@code viewBranchKeys} so that
+     * {@link ViewUnionAll#isViewBranch(String)} returns {@code true} for it.
      */
     private static ViewUnionAll unionWithView(String viewName, Attribute viewOutputAttr) {
         LogicalPlan viewPlan = viewSubplan(viewName, viewOutputAttr);
         LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
         map.put(null, bareIndex());
         map.put(viewName, viewPlan);
-        return new ViewUnionAll(Source.EMPTY, map, List.of(viewOutputAttr));
+        return new ViewUnionAll(Source.EMPTY, map, Set.of(viewName), List.of(viewOutputAttr));
     }
 
     /** Retrieves the named subplan for {@code viewName} from a (possibly rewritten) {@link ViewUnionAll}. */
@@ -89,7 +92,11 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         return child;
     }
 
-    /** Retrieves the null-key (bare index) child from a (possibly rewritten) {@link ViewUnionAll}. */
+    /**
+     * Retrieves the null-key (bare index) child from a (possibly rewritten) {@link ViewUnionAll}.
+     * In tests, bare-index branches are stored under the {@code null} key to match the
+     * {@link org.elasticsearch.xpack.esql.view.ViewCompaction} convention.
+     */
     private static LogicalPlan bareIndexChild(LogicalPlan plan) {
         assertThat(plan, instanceOf(ViewUnionAll.class));
         LogicalPlan child = ((ViewUnionAll) plan).namedSubqueries().get(null);
@@ -130,7 +137,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
         map.put(null, bare);
         map.put("myView", viewSubplan("myView", attr("y", DataType.INTEGER)));
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, List.of(attr("y", DataType.INTEGER)));
+        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of("myView"), List.of(attr("y", DataType.INTEGER)));
 
         LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 42), true, CONFIG, CURRENT);
         assertThat(bareIndexChild(result), sameInstance(bare));
@@ -144,7 +151,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
     public void testPlanWithNoViewSubplansIsUnchanged() {
         LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
         map.put(null, bareIndex());
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, List.of());
+        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of(), List.of());
 
         LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 42), true, CONFIG, CURRENT);
         assertSame(vua, result);
@@ -183,7 +190,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
         map.put("viewA", viewSubplan("viewA", y));
         map.put("viewB", viewSubplan("viewB", z));
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, List.of(y, z));
+        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of("viewA", "viewB"), List.of(y, z));
 
         LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 1), true, CONFIG, CURRENT);
 
@@ -296,7 +303,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
         map.put("viewA", viewSubplan("viewA", y));
         map.put("viewB", viewSubplan("viewB", y));
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, List.of(y));
+        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of("viewA", "viewB"), List.of(y));
 
         ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 1), true, CONFIG, TOO_OLD);
         assertWarnings(

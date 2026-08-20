@@ -58,9 +58,11 @@ import org.hamcrest.Matchers;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -694,13 +696,15 @@ public class TestAnalyzer {
             String indexPattern = unresolvedRelations.stream().map(u -> u.indexPattern().indexPattern()).collect(Collectors.joining(","));
             subplans.put(null, makeUnresolvedRelation(unresolvedRelations.get(0), indexPattern));
         }
+        Set<String> viewBranchKeys = new HashSet<>();
         for (NamedSubquery namedSubquery : namedSubqueries) {
             subplans.put(namedSubquery.name(), namedSubquery.child());
+            viewBranchKeys.add(namedSubquery.name());
         }
         if (subplans.size() == 1) {
             return namedSubqueries.get(0).child();
         } else {
-            return new ViewUnionAll(ur.source(), subplans, List.of());
+            return new ViewUnionAll(ur.source(), subplans, viewBranchKeys, List.of());
         }
     }
 

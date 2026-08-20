@@ -843,13 +843,21 @@ public class ViewResolver {
     private LogicalPlan buildPlanFromBranches(UnresolvedRelation ur, List<ViewPlan> subqueries, int depth) {
         // Pass 1: Build all branches as named entries.
         LinkedHashMap<String, LogicalPlan> plans = new LinkedHashMap<>();
+        // Track which keys are actual resolved view branches.
+        // ViewShadowRelation branches always have a "#shadow"-suffixed name and are handled separately
+        // below — they are removed by ViewCompaction and never constitute view branches.
+        // Bare UnresolvedRelation branches (concrete index/alias refs) are also not view branches.
+        // Only NamedSubquery entries and fully-resolved non-UR plans are actual view branches.
+        Set<String> viewBranchKeys = new HashSet<>();
         for (ViewPlan vp : subqueries) {
             String key = makeUniqueKey(plans, vp.name);
             if (vp.plan instanceof NamedSubquery ns) {
                 assertNamesMatch("Unexpected subquery name mismatch", ns.name(), vp.name);
                 plans.put(key, ns);
+                viewBranchKeys.add(key);
             } else if (vp.plan instanceof UnresolvedRelation urp && urp.indexMode() == IndexMode.STANDARD) {
                 plans.put(key, urp);
+                // Bare UnresolvedRelation branch: a concrete index/alias ref, NOT a view branch.
             } else if (vp.plan instanceof ViewShadowRelation) {
                 // Leave ViewShadowRelation bare — Phase A's ViewCompaction strip recognises it by
                 // type and removes it directly. Wrapping in NamedSubquery would hide it from the
@@ -857,6 +865,7 @@ public class ViewResolver {
                 plans.put(key, vp.plan);
             } else {
                 plans.put(key, new NamedSubquery(ur.source(), vp.plan, key));
+                viewBranchKeys.add(key);
             }
         }
 
@@ -866,12 +875,14 @@ public class ViewResolver {
         // of compactable views) folds into a single {@link UnresolvedRelation} entry rather than a
         // ViewUnionAll that would later trip {@link Fork#MAX_BRANCHES} at post-analysis verification.
         mergeCompatibleUnresolvedRelations(plans, buildAliasResolver());
+        // Remove any view-branch keys that were merged away (bare UR merge can eliminate entries).
+        viewBranchKeys.retainAll(plans.keySet());
 
         if (plans.size() == 1) {
             return plans.values().iterator().next();
         }
         traceUnionAllBranches(depth, plans);
-        return new ViewUnionAll(ur.source(), plans, List.of());
+        return new ViewUnionAll(ur.source(), plans, viewBranchKeys, List.of());
     }
 
     /**

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -162,20 +163,25 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
                 return unionAll;
             }
             LinkedHashMap<String, LogicalPlan> subPlans = new LinkedHashMap<>();
+            // Only NamedSubquery children come from view resolution; Subquery and bare-plan children are not view branches.
+            Set<String> viewBranchKeys = new HashSet<>();
             for (LogicalPlan child : unionAll.children()) {
                 if (child instanceof NamedSubquery named) {
                     assertSubqueryDoesNotExist(subPlans, named.name());
                     subPlans.put(named.name(), named.child());
+                    viewBranchKeys.add(named.name());
                 } else if (child instanceof Subquery unnamed) {
                     String name = "unnamed_view_" + Integer.toHexString(unnamed.toString().hashCode());
                     assertSubqueryDoesNotExist(subPlans, name);
                     subPlans.put(name, unnamed.child());
+                    // Literal user-written subquery: NOT a view branch.
                 } else {
                     assertSubqueryDoesNotExist(subPlans, null);
                     subPlans.put(null, child);
+                    // Bare plan: NOT a view branch.
                 }
             }
-            return new ViewUnionAll(unionAll.source(), subPlans, unionAll.output());
+            return new ViewUnionAll(unionAll.source(), subPlans, viewBranchKeys, unionAll.output());
         });
         return plan;
     }
@@ -223,6 +229,8 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         // Inner Forks/UnionAlls (from user-written subqueries inside views) are also lifted,
         // with each child becoming a separate named entry suffixed from the parent view name.
         LinkedHashMap<String, LogicalPlan> flat = new LinkedHashMap<>();
+        // Tracks which keys in `flat` correspond to actual resolved view branches.
+        Set<String> flatViewBranchKeys = new HashSet<>();
 
         // Process non-fork entries first so that all outer keys are in `flat` before we attempt
         // to flatten inner forks. This makes the conflict check order-independent —
@@ -237,11 +245,16 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
                 forkEntries.add(entry);
             } else if (value instanceof UnresolvedRelation) {
                 flat.put(makeUniqueKey(flat, key), value);
+                // Bare UnresolvedRelation branches are not view branches.
             } else {
                 if (flat.containsKey(key)) {
                     return vua; // conflict
                 }
                 flat.put(key, value);
+                // Propagate view-branch status from the outer ViewUnionAll.
+                if (vua.isViewBranch(key)) {
+                    flatViewBranchKeys.add(key);
+                }
             }
         }
 
@@ -261,7 +274,12 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
                     if (innerValue instanceof UnresolvedRelation innerUr && containsExclusion(innerUr)) {
                         innerValue = new NamedSubquery(innerUr.source(), innerUr, innerKey);
                     }
-                    flat.put(makeUniqueKey(flat, innerKey), innerValue);
+                    String assignedKey = makeUniqueKey(flat, innerKey);
+                    flat.put(assignedKey, innerValue);
+                    // Propagate view-branch status from the inner ViewUnionAll.
+                    if (innerVua.isViewBranch(innerKey)) {
+                        flatViewBranchKeys.add(assignedKey);
+                    }
                 }
             } else {
                 // Plain Fork/UnionAll from user-written subqueries: lift children with suffixed
@@ -293,6 +311,8 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         // (which runs both phases without ResolveTable in between), and only for the
         // multi-level nesting variant of the alias scenario — not a production concern.
         mergeUnresolvedRelationEntries(flat);
+        // Remove any view-branch keys that the merge step may have removed.
+        flatViewBranchKeys.retainAll(flat.keySet());
 
         if (flat.size() > Fork.MAX_BRANCHES) {
             return vua; // flattening would exceed the branch limit, keep the nested structure
@@ -300,7 +320,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         if (flat.size() == 1) {
             return flat.values().iterator().next();
         }
-        return new ViewUnionAll(vua.source(), flat, vua.output());
+        return new ViewUnionAll(vua.source(), flat, flatViewBranchKeys, vua.output());
     }
 
     /**

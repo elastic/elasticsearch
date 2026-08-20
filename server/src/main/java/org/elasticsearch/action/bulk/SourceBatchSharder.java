@@ -66,6 +66,8 @@ final class SourceBatchSharder implements Releasable {
         /** Next free partition base; also the discard partition once every target is bound. */
         private int nextPartition = 0;
         private int lastRow = -1;
+        private int routedCount = 0;
+        private ConcreteIndexTarget lastTarget;
 
         BatchGroup(EscfBatch source) {
             this.source = source;
@@ -76,12 +78,34 @@ final class SourceBatchSharder implements Releasable {
 
         @Nullable
         ConcreteIndexTarget targetFor(Index concreteIndex) {
+            ConcreteIndexTarget cached = lastTarget;
+            if (cached != null && cached.index == concreteIndex) {
+                return cached;
+            }
             for (ConcreteIndexTarget target : targets) {
                 if (target.index.equals(concreteIndex)) {
+                    lastTarget = target;
                     return target;
                 }
             }
             return null;
+        }
+
+        /**
+         * The one shard every row of this batch routed to, or {@code null} if the rows must be scattered.
+         *
+         * <p>When non-null the source batch already <em>is</em> the shard batch: its rows line up 1:1 and in
+         * order with the shard's items and each item's row index already points at its own row, so there is
+         * nothing to copy and nothing to re-point. Scattering it would copy every value of every column.
+         */
+        @Nullable
+        ShardId passThroughShard() {
+            // More than one index, or a dropped row that has to be filtered out, needs a real scatter.
+            if (targets.size() != 1 || routedCount != source.docCount()) {
+                return null;
+            }
+            ConcreteIndexTarget target = targets.get(0);
+            return target.shardCount == 1 ? new ShardId(target.index, 0) : null;
         }
     }
 
@@ -137,16 +161,41 @@ final class SourceBatchSharder implements Releasable {
             group.partitionIds[rowIndex] = partitionBase + shardId;
             group.items[rowIndex] = request;
             group.lastRow = rowIndex;
+            group.routedCount++;
         }
     }
 
+    /** The only batch name, when exactly one batch was supplied; null otherwise. */
+    @Nullable
+    private final String soleName;
+    /** The only batch, when exactly one batch was supplied; null otherwise. */
+    @Nullable
+    private final BatchGroup soleGroup;
+    /** Every batch keyed by name. Null when exactly one batch was supplied, so no name is ever hashed. */
+    @Nullable
     private final Map<String, BatchGroup> groups;
-    /** Index -> the batch key feeding it; two batches for one index is a shape no shard batch can carry. */
-    private final Map<Index, String> indexOwners = new HashMap<>();
+    /**
+     * Index -> the batch key feeding it; two batches for one index is a shape no shard batch can carry. Null
+     * when only one batch was supplied, since a batch cannot conflict with itself.
+     */
+    @Nullable
+    private final Map<Index, String> indexOwners;
     private boolean scattered;
 
+    /** Single-batch shape: no name map, no owner map. */
+    private SourceBatchSharder(String soleName, BatchGroup soleGroup) {
+        this.soleName = soleName;
+        this.soleGroup = soleGroup;
+        this.groups = null;
+        this.indexOwners = null;
+    }
+
+    /** General shape: several batch names, each of which may fan out over several indices. */
     private SourceBatchSharder(Map<String, BatchGroup> groups) {
+        this.soleName = null;
+        this.soleGroup = null;
         this.groups = groups;
+        this.indexOwners = new HashMap<>();
     }
 
     /** Returns a sharder for {@code bulkRequest}'s pre-built batches, or {@code null} if it has none. */
@@ -156,18 +205,25 @@ final class SourceBatchSharder implements Releasable {
         if (batches == null || batches.isEmpty()) {
             return null;
         }
+        if (batches.size() == 1) {
+            // The common shape: nothing to key on, so build neither map.
+            Map.Entry<String, SourceBatch> only = batches.entrySet().iterator().next();
+            return new SourceBatchSharder(only.getKey(), new BatchGroup(requireEscfBatch(only.getKey(), only.getValue())));
+        }
         Map<String, BatchGroup> groups = new HashMap<>(batches.size());
         for (Map.Entry<String, SourceBatch> entry : batches.entrySet()) {
-            SourceBatch sb = entry.getValue();
-            if (sb instanceof EscfBatch escfBatch) {
-                groups.put(entry.getKey(), new BatchGroup(escfBatch));
-            } else {
-                throw new IllegalArgumentException(
-                    "pre-built batch for index [" + entry.getKey() + "] must be an EscfBatch but was [" + sb.getClass().getName() + "]"
-                );
-            }
+            groups.put(entry.getKey(), new BatchGroup(requireEscfBatch(entry.getKey(), entry.getValue())));
         }
         return new SourceBatchSharder(groups);
+    }
+
+    private static EscfBatch requireEscfBatch(String batchName, SourceBatch batch) {
+        if (batch instanceof EscfBatch escfBatch) {
+            return escfBatch;
+        }
+        throw new IllegalArgumentException(
+            "pre-built batch for index [" + batchName + "] must be an EscfBatch but was [" + batch.getClass().getName() + "]"
+        );
     }
 
     /**
@@ -202,7 +258,7 @@ final class SourceBatchSharder implements Releasable {
      *                                  routing needs _source
      */
     ConcreteIndexTarget prepareRouting(IndexRequest request, Index concreteIndex, IndexRouting routing, ProjectMetadata project) {
-        BatchGroup group = groups.get(request.index());
+        BatchGroup group = groupFor(request.index());
         if (group == null) {
             if (request.indexSource().hasSourceRow()) {
                 throw new IllegalArgumentException(
@@ -238,6 +294,17 @@ final class SourceBatchSharder implements Releasable {
         return target;
     }
 
+    /** The batch the item's target name is keyed under, or {@code null} if this bulk supplied none for it. */
+    @Nullable
+    private BatchGroup groupFor(String batchName) {
+        if (groups == null) {
+            // One String.equals, which short-circuits on the reference compare in the usual case where every
+            // item of the bulk was built from the same index-name instance.
+            return soleName.equals(batchName) ? soleGroup : null;
+        }
+        return groups.get(batchName);
+    }
+
     /** Validates the index's routing strategy and reserves its block of the partition space. */
     private ConcreteIndexTarget bind(
         BatchGroup group,
@@ -246,18 +313,20 @@ final class SourceBatchSharder implements Releasable {
         IndexRouting routing,
         ProjectMetadata project
     ) {
-        String owner = indexOwners.get(concreteIndex);
-        if (owner != null && owner.equals(batchName) == false) {
-            // A shard batch is scattered from exactly one source batch.
-            throw new IllegalArgumentException(
-                "index ["
-                    + concreteIndex.getName()
-                    + "] receives rows from pre-built batches ["
-                    + owner
-                    + "] and ["
-                    + batchName
-                    + "]; an index may only be fed by one batch"
-            );
+        if (indexOwners != null) {
+            String owner = indexOwners.get(concreteIndex);
+            if (owner != null && owner.equals(batchName) == false) {
+                // A shard batch is scattered from exactly one source batch.
+                throw new IllegalArgumentException(
+                    "index ["
+                        + concreteIndex.getName()
+                        + "] receives rows from pre-built batches ["
+                        + owner
+                        + "] and ["
+                        + batchName
+                        + "]; an index may only be fed by one batch"
+                );
+            }
         }
         boolean requiresPrecomputedTsid = false;
         if (routing instanceof IndexRouting.ExtractFromSource) {
@@ -283,14 +352,18 @@ final class SourceBatchSharder implements Releasable {
         );
         group.nextPartition += shardCount;
         group.targets.add(target);
-        indexOwners.put(concreteIndex, batchName);
+        group.lastTarget = target;
+        if (indexOwners != null) {
+            indexOwners.put(concreteIndex, batchName);
+        }
         return target;
     }
 
     /**
      * Scatters each batch per (concrete index, shard) and re-points every recorded item at its shard-local
-     * row. Unrouted rows — items dropped by validation — go to a discard bucket, closed here. Returned
-     * batches must not be closed by the caller.
+     * row. Unrouted rows — items dropped by validation — go to a discard bucket, closed here. A batch whose
+     * rows all landed on a single shard skips the scatter entirely. Returned batches must not be closed by
+     * the caller.
      *
      * <p>Empty on any call after the first: the failure-store redirect pass re-enters
      * {@code executeBulkRequestsByShard} and must not re-scatter batches already in flight.
@@ -300,34 +373,85 @@ final class SourceBatchSharder implements Releasable {
             return Map.of();
         }
         scattered = true;
+        if (groups == null) {
+            return soleShardBatches();
+        }
         Map<ShardId, SourceBatch> result = new HashMap<>();
-        for (BatchGroup group : groups.values()) {
-            if (group.nextPartition == 0) {
-                // No item of this batch reached routing; nothing to scatter.
-                continue;
+        // One scatterer for every batch that needs one: its scratch arrays grow to the widest fan-out and are
+        // then reused. Created lazily so an all-passthrough bulk allocates none.
+        EscfBatchScatterer scatterer = null;
+        try {
+            for (BatchGroup group : groups.values()) {
+                if (group.nextPartition == 0) {
+                    // No item of this batch reached routing; nothing to scatter.
+                    continue;
+                }
+                ShardId passThroughShard = group.passThroughShard();
+                if (passThroughShard != null) {
+                    putShardBatch(result, passThroughShard, group.source);
+                    continue;
+                }
+                if (scatterer == null) {
+                    scatterer = new EscfBatchScatterer(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+                }
+                scatterGroup(scatterer, group, result);
             }
-            scatterGroup(group, result);
+        } finally {
+            if (scatterer != null) {
+                scatterer.close();
+            }
         }
         return result;
     }
 
-    private static void scatterGroup(BatchGroup group, Map<ShardId, SourceBatch> result) {
-        final int discardPartition = group.nextPartition;
-        final int[] partitionIds = group.partitionIds;
-        for (int row = 0; row < partitionIds.length; row++) {
-            if (partitionIds[row] == UNROUTED) {
-                partitionIds[row] = discardPartition;
-            }
+    /** The single-batch path: one batch means at most one shard mapping to build, and often a passthrough. */
+    private Map<ShardId, SourceBatch> soleShardBatches() {
+        if (soleGroup.nextPartition == 0) {
+            // No item reached routing; nothing to scatter.
+            return Map.of();
         }
-        EscfBatch[] parts;
+        ShardId passThroughShard = soleGroup.passThroughShard();
+        if (passThroughShard != null) {
+            return Map.of(passThroughShard, soleGroup.source);
+        }
+        Map<ShardId, SourceBatch> result = new HashMap<>();
         try (EscfBatchScatterer scatterer = new EscfBatchScatterer(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
-            parts = scatterer.scatter(group.source, partitionIds, discardPartition + 1);
+            scatterGroup(scatterer, soleGroup, result);
         }
-        // Close the discard bucket immediately; dropped rows are not indexed.
-        EscfBatch discardBucket = parts[discardPartition];
-        if (discardBucket != null) {
-            discardBucket.close();
-            parts[discardPartition] = null;
+        return result;
+    }
+
+    private static void putShardBatch(Map<ShardId, SourceBatch> result, ShardId shardId, SourceBatch batch) {
+        SourceBatch previous = result.put(shardId, batch);
+        if (previous != null) {
+            throw new IllegalStateException("shard [" + shardId + "] was assigned two source batches");
+        }
+    }
+
+    private static void scatterGroup(EscfBatchScatterer scatterer, BatchGroup group, Map<ShardId, SourceBatch> result) {
+        final int[] partitionIds = group.partitionIds;
+        // A discard partition costs a builder per column plus a batch, so only ask for one if a row needs it.
+        final boolean hasUnrouted = group.routedCount != partitionIds.length;
+        final int discardPartition = hasUnrouted ? group.nextPartition : -1;
+        final int partitionCount;
+        if (hasUnrouted) {
+            for (int row = 0; row < partitionIds.length; row++) {
+                if (partitionIds[row] == UNROUTED) {
+                    partitionIds[row] = discardPartition;
+                }
+            }
+            partitionCount = discardPartition + 1;
+        } else {
+            partitionCount = group.nextPartition;
+        }
+        EscfBatch[] parts = scatterer.scatter(group.source, partitionIds, partitionCount);
+        if (hasUnrouted) {
+            // Close the discard bucket immediately; dropped rows are not indexed.
+            EscfBatch discardBucket = parts[discardPartition];
+            if (discardBucket != null) {
+                discardBucket.close();
+                parts[discardPartition] = null;
+            }
         }
 
         // A partition is non-null iff it received a row, so walk the partition space, not the rows.
@@ -335,17 +459,13 @@ final class SourceBatchSharder implements Releasable {
             for (int shard = 0; shard < target.shardCount; shard++) {
                 EscfBatch part = parts[target.partitionBase + shard];
                 if (part != null) {
-                    ShardId shardId = new ShardId(target.index, shard);
-                    SourceBatch previous = result.put(shardId, part);
-                    if (previous != null) {
-                        throw new IllegalStateException("shard [" + shardId + "] was assigned two source batches");
-                    }
+                    putShardBatch(result, new ShardId(target.index, shard), part);
                 }
             }
         }
 
         // Ascending row order matches the order the scatterer appended rows within a partition.
-        int[] nextRow = new int[discardPartition];
+        int[] nextRow = new int[group.nextPartition];
         for (int row = 0; row < partitionIds.length; row++) {
             IndexRequest item = group.items[row];
             if (item == null) {

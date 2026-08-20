@@ -472,7 +472,8 @@ public class BulkRequest extends UntypedActionRequest
     }
 
     /**
-     * Attaches pre-built ESCF batches to this request, keyed by the index name.
+     * Attaches pre-built ESCF batches to this request, keyed by the name its items target — index, alias, or
+     * data stream.
      *
      * <p>TODO: implement serialization for ingest-node forwarding.
      */

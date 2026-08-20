@@ -719,6 +719,204 @@ public class SourceBatchSharderTests extends ESTestCase {
         sharder.close();
     }
 
+    public void testSingleShardPassthroughHandsSourceBatchThrough() throws IOException {
+        int numDocs = randomIntBetween(3, 20);
+        Docs docs = buildDocs(numDocs);
+        BulkRequest bulkRequest = buildBulkRequest("myindex", docs.batch(), numDocs);
+        IndexMetadata md = plainMetadata("myindex", 1);
+        ProjectMetadata project = project(md);
+
+        SourceBatchSharder sharder = SourceBatchSharder.create(bulkRequest);
+        var requestsByShard = routeAll(sharder, bulkRequest, project);
+        Map<ShardId, SourceBatch> result = sharder.shardBatches();
+
+        assertThat(result.size(), equalTo(1));
+        assertSame(docs.batch(), result.get(new ShardId(md.getIndex(), 0)));
+        assertShardsAligned(requestsByShard, result);
+
+        // The items were never re-pointed, so each one still materializes the document it was built from.
+        for (int i = 0; i < numDocs; i++) {
+            IndexRequest request = (IndexRequest) bulkRequest.requests.get(i);
+            assertThat(request.indexSource().rowIndex(), equalTo(i));
+            request.indexSource().ensureInlineSource();
+            assertThat("row " + i + " content", asMap(request.indexSource().bytes()), equalTo(asMap(docs.sources().get(i))));
+        }
+        sharder.close();
+    }
+
+    /** A dropped row has to be filtered out of the batch, so a single shard is not enough to pass through. */
+    public void testSingleShardWithDroppedRowsStillScatters() throws IOException {
+        int numDocs = randomIntBetween(3, 20);
+        EscfBatch batch = buildBatch(numDocs);
+        BulkRequest bulkRequest = buildBulkRequest("myindex", batch, numDocs);
+        IndexMetadata md = plainMetadata("myindex", 1);
+        ProjectMetadata project = project(md);
+
+        SourceBatchSharder sharder = SourceBatchSharder.create(bulkRequest);
+        var requestsByShard = routeAll(sharder, bulkRequest, project, Set.of(randomIntBetween(0, numDocs - 1)));
+        Map<ShardId, SourceBatch> result = sharder.shardBatches();
+
+        SourceBatch shardBatch = result.get(new ShardId(md.getIndex(), 0));
+        assertNotSame(batch, shardBatch);
+        assertThat(shardBatch.docCount(), equalTo(numDocs - 1));
+        assertShardsAligned(requestsByShard, result);
+        sharder.close();
+    }
+
+    /** More than one shard means the rows genuinely have to be split, whatever they happened to route to. */
+    public void testMultiShardDoesNotPassThrough() throws IOException {
+        int numDocs = randomIntBetween(10, 50);
+        EscfBatch batch = buildBatch(numDocs);
+        BulkRequest bulkRequest = buildBulkRequest("myindex", batch, numDocs);
+        ProjectMetadata project = project(plainMetadata("myindex", randomIntBetween(2, 5)));
+
+        SourceBatchSharder sharder = SourceBatchSharder.create(bulkRequest);
+        var requestsByShard = routeAll(sharder, bulkRequest, project);
+        Map<ShardId, SourceBatch> result = sharder.shardBatches();
+
+        for (Map.Entry<ShardId, SourceBatch> entry : result.entrySet()) {
+            assertNotSame("shard " + entry.getKey() + " was handed the whole batch", batch, entry.getValue());
+        }
+        assertShardsAligned(requestsByShard, result);
+        sharder.close();
+    }
+
+    /** The passthrough is decided per batch, not per bulk: two single-shard batches both take it. */
+    public void testEachSingleShardGroupPassesThrough() throws IOException {
+        int rowsPerIndex = randomIntBetween(2, 10);
+        EscfBatch batchA = buildBatch(rowsPerIndex);
+        EscfBatch batchB = buildBatch(rowsPerIndex);
+        IndexMetadata mdA = plainMetadata("index-a", 1);
+        IndexMetadata mdB = plainMetadata("index-b", 1);
+        ProjectMetadata project = project(mdA, mdB);
+
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < rowsPerIndex; i++) {
+            bulkRequest.add(rowRequest("index-a", batchA, i));
+            bulkRequest.add(rowRequest("index-b", batchB, i));
+        }
+        bulkRequest.setPreBuiltBatches(Map.of("index-a", batchA, "index-b", batchB));
+
+        SourceBatchSharder sharder = SourceBatchSharder.create(bulkRequest);
+        var requestsByShard = routeAll(sharder, bulkRequest, project);
+        Map<ShardId, SourceBatch> result = sharder.shardBatches();
+
+        assertThat(result.size(), equalTo(2));
+        assertSame(batchA, result.get(new ShardId(mdA.getIndex(), 0)));
+        assertSame(batchB, result.get(new ShardId(mdB.getIndex(), 0)));
+        assertShardsAligned(requestsByShard, result);
+        sharder.close();
+    }
+
+    public void testFanOutOfSingleShardBackingIndicesStillScatters() throws IOException {
+        int numDocs = randomIntBetween(4, 20);
+        IndexMetadata gen1 = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
+        IndexMetadata gen2 = tsdbBackingIndex(2, 1, GEN_2_START, GEN_2_END);
+        ProjectMetadata project = projectWithDataStream(gen1, gen2);
+
+        EscfBatch batch = buildBatch(numDocs);
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            bulkRequest.add(tsdbRowRequest(DATA_STREAM, batch, i, i % 2 == 0 ? IN_GEN_1 : IN_GEN_2));
+        }
+        bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
+
+        SourceBatchSharder sharder = SourceBatchSharder.create(bulkRequest);
+        var requestsByShard = routeAll(sharder, bulkRequest, project);
+        Map<ShardId, SourceBatch> result = sharder.shardBatches();
+
+        assertThat(result.keySet(), equalTo(Set.of(new ShardId(gen1.getIndex(), 0), new ShardId(gen2.getIndex(), 0))));
+        for (Map.Entry<ShardId, SourceBatch> entry : result.entrySet()) {
+            assertNotSame("shard " + entry.getKey() + " was handed the whole batch", batch, entry.getValue());
+        }
+        assertThat(result.values().stream().mapToInt(SourceBatch::docCount).sum(), equalTo(numDocs));
+        assertShardsAligned(requestsByShard, result);
+        sharder.close();
+    }
+
+    public void testInterleavedBatchNamesResolveCorrectly() throws IOException {
+        int rowsPerIndex = randomIntBetween(4, 15);
+        Docs docsA = buildDocs(rowsPerIndex);
+        Docs docsB = buildDocs(rowsPerIndex);
+        ProjectMetadata project = project(plainMetadata("index-a", 3), plainMetadata("index-b", 2));
+
+        BulkRequest bulkRequest = new BulkRequest();
+        List<IndexRequest> aRequests = new ArrayList<>();
+        List<IndexRequest> bRequests = new ArrayList<>();
+        for (int i = 0; i < rowsPerIndex; i++) {
+            IndexRequest a = rowRequest("index-a", docsA.batch(), i);
+            IndexRequest b = rowRequest("index-b", docsB.batch(), i);
+            aRequests.add(a);
+            bRequests.add(b);
+            bulkRequest.add(a);
+            bulkRequest.add(b);
+        }
+        bulkRequest.setPreBuiltBatches(Map.of("index-a", docsA.batch(), "index-b", docsB.batch()));
+
+        SourceBatchSharder sharder = SourceBatchSharder.create(bulkRequest);
+        var requestsByShard = routeAll(sharder, bulkRequest, project);
+        Map<ShardId, SourceBatch> result = sharder.shardBatches();
+
+        assertShardsAligned(requestsByShard, result);
+        // Each item still resolves to the document its own batch held for that row.
+        for (int i = 0; i < rowsPerIndex; i++) {
+            aRequests.get(i).indexSource().ensureInlineSource();
+            assertThat("index-a row " + i, asMap(aRequests.get(i).indexSource().bytes()), equalTo(asMap(docsA.sources().get(i))));
+            bRequests.get(i).indexSource().ensureInlineSource();
+            assertThat("index-b row " + i, asMap(bRequests.get(i).indexSource().bytes()), equalTo(asMap(docsB.sources().get(i))));
+        }
+        sharder.close();
+    }
+
+    /** Resolving an already-bound target must not skip the per-item {@code _tsid} check. */
+    public void testBoundTargetStillValidatesTsid() throws IOException {
+        IndexMetadata md = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
+        IndexRouting routing = IndexRouting.fromIndexMetadata(md);
+        ProjectMetadata project = projectWithDataStream(md);
+
+        EscfBatch batch = buildBatch(2);
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(tsdbRowRequest(DATA_STREAM, batch, 0, IN_GEN_1));
+        IndexRequest withoutTsid = new IndexRequest(DATA_STREAM).opType(DocWriteRequest.OpType.CREATE);
+        withoutTsid.indexSource().setSourceRow(batch, 1, XContentType.JSON);
+        withoutTsid.setTimeSeriesTimestamp(IN_GEN_1); // but no tsid
+        bulkRequest.add(withoutTsid);
+        bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
+
+        SourceBatchSharder sharder = SourceBatchSharder.create(bulkRequest);
+        // The first item binds the target; the second resolves the same one and must still be rejected.
+        IndexRequest first = (IndexRequest) bulkRequest.requests.get(0);
+        sharder.prepareRouting(first, md.getIndex(), routing, project);
+        var e = expectThrows(IllegalArgumentException.class, () -> sharder.prepareRouting(withoutTsid, md.getIndex(), routing, project));
+        assertThat(e.getMessage(), containsString("routes on _tsid"));
+        sharder.close();
+    }
+
+    /** A bulk with a single batch still checks the name every item targets, not just the first. */
+    public void testSingleBatchStillValidatesNameAfterFirstItem() throws IOException {
+        EscfBatch batch = buildBatch(2);
+        IndexMetadata md = plainMetadata("myindex", 1);
+        IndexMetadata other = plainMetadata("otherindex", 1);
+        ProjectMetadata project = project(md, other);
+
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(rowRequest("myindex", batch, 0));
+        bulkRequest.setPreBuiltBatches(Map.of("myindex", batch));
+
+        SourceBatchSharder sharder = SourceBatchSharder.create(bulkRequest);
+        IndexRequest first = (IndexRequest) bulkRequest.requests.get(0);
+        IndexRouting routing = IndexRouting.fromIndexMetadata(md);
+        sharder.prepareRouting(first, md.getIndex(), routing, project).recordRoutedShard(first, first.route(routing));
+
+        IndexRequest rewritten = rowRequest("otherindex", batch, 1);
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> sharder.prepareRouting(rewritten, other.getIndex(), IndexRouting.fromIndexMetadata(other), project)
+        );
+        assertThat(e.getMessage(), containsString("no pre-built batch was supplied under that name"));
+        sharder.close();
+    }
+
     public void testValidateRejectsRowBearingItemWithNoBatch() throws IOException {
         EscfBatch batch = buildBatch(1);
         ShardId shardId = new ShardId(new Index("myindex", "myindex-uuid"), 0);

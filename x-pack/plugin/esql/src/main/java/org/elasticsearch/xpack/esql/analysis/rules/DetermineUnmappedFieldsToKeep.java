@@ -27,6 +27,10 @@ import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
  * would survive to the query output. Expanding the {@code _unmapped_fields} column into per-field
  * output columns is a coordinator-level post-processing step and does not affect data-node execution.
  *
+ * <p>When the computed pattern is {@link UnmappedFieldsPattern#NONE}—e.g., a pattern-less {@code KEEP}
+ * that can never let an unmapped source field through—the rule leaves the plan untouched, so data nodes
+ * never load {@code _source} for expansion.
+ *
  * <p>The rule runs in the Finish Analysis batch <em>before</em> {@link ResolvedProjects}, so
  * {@link ResolvingProject} nodes — which carry the original wildcard patterns — are still present.
  * For any other {@link UnmappedResolution} the rule is a no-op.
@@ -39,6 +43,9 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             return plan;
         }
         UnmappedFieldsPattern pattern = computeUnmappedFieldsToKeep(plan);
+        if (pattern.isNone()) {
+            return plan;
+        }
         return plan.transformUp(EsRelation.class, esr -> {
             if (esr.indexMode() == IndexMode.LOOKUP) {
                 return esr;

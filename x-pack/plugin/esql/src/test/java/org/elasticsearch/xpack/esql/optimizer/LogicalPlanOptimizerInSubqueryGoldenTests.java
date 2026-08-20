@@ -35,6 +35,10 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION);
 
+    private static void requireMultiColumnInSubquerySupport() {
+        assumeTrue("Requires multi-column IN subquery support", EsqlCapabilities.Cap.WHERE_IN_MULTI_COLUMN_SUBQUERY.isEnabled());
+    }
+
     public void testDisjunctiveInSubqueryAtTopLevel() {
         runGoldenTest("""
             FROM employees
@@ -514,5 +518,131 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
               AND (salary > 50000 OR languages IN (FROM employees | KEEP languages))
             """, STAGES);
+    }
+
+    // -- multi-column IN / NOT IN subqueries: WHERE (field1, field2) IN (subquery) --
+
+    public void testMultiColumnInSubqueryAtTopLevel() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, languages) IN (FROM employees | KEEP emp_no, languages)
+            """, STAGES);
+    }
+
+    public void testMultiColumnNotInSubqueryAtTopLevel() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, languages) NOT IN (FROM employees | KEEP emp_no, languages)
+            """, STAGES);
+    }
+
+    public void testDisjunctiveMultiColumnInSubqueryAtTopLevel() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, languages) IN (FROM employees | KEEP emp_no, languages) OR salary > 50000
+            """, STAGES);
+    }
+
+    public void testDisjunctiveMultiColumnInSubqueryInsideFromSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees,
+                 (FROM employees | WHERE (emp_no, languages) IN (FROM employees | KEEP emp_no, languages) OR salary > 50000 | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testDisjunctiveMultiColumnNotInSubqueryInsideFromSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees,
+                 (FROM employees
+                  | WHERE (emp_no, languages) NOT IN (FROM employees | KEEP emp_no, languages) OR salary > 50000
+                  | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testNestedDisjunctiveMultiColumnInSubqueries() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, languages) IN (
+                FROM employees
+                | WHERE (salary, languages) IN (FROM employees | KEEP salary, languages) OR languages > 2
+                | KEEP emp_no, languages
+              ) OR salary > 50000
+            """, STAGES);
+    }
+
+    public void testDisjunctiveMultiColumnInSubqueryWithFork() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, languages) IN (FROM employees | KEEP emp_no, languages) OR salary > 50000
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no < 10050)
+            """, STAGES);
+    }
+
+    public void testSortWithLimitInMultiColumnInSubqueryIsAllowed() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, languages) IN (FROM employees | SORT emp_no | LIMIT 5 | KEEP emp_no, languages)
+            """, STAGES);
+    }
+
+    public void testStatsWithSortLimitInMultiColumnInSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, languages) IN (FROM employees | STATS m = MAX(emp_no) BY languages | SORT m | LIMIT 3 | KEEP m, languages)
+            """, STAGES);
+    }
+
+    public void testMultipleFiltersInMultiColumnInSubqueryCombined() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, languages) IN (FROM employees | WHERE salary > 50000 | WHERE languages > 2 | KEEP emp_no, languages)
+            """, STAGES);
+    }
+
+    public void testCombineDisjunctionsInsideMultiColumnInSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, languages) IN (FROM employees | WHERE salary == 50000 or salary == 10000 | KEEP emp_no, languages)
+            """, STAGES);
+    }
+
+    // -- IN subquery combined with LOOKUP JOIN --
+
+    public void testInSubqueryWithLimitFollowedByLookupJoin() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | SORT emp_no | LIMIT 3 | KEEP emp_no)
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryReferencingView() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, languages) IN (FROM emps_view)
+            | KEEP emp_no, first_name
+            """, STAGES, Map.of("emps_view", "FROM employees | KEEP emp_no, languages"));
+    }
+
+    public void testMultiColumnNotInSubqueryReferencingView() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, languages) NOT IN (FROM emps_view)
+            | KEEP emp_no
+            """, STAGES, Map.of("emps_view", "FROM employees | WHERE salary > 50000 | KEEP emp_no, languages"));
     }
 }

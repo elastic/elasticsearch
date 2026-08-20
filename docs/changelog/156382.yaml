@@ -1,0 +1,6 @@
+area: Infra/Core
+issues:
+ - 156289
+pr: 156382
+summary: Fix `IllegalStateException` when a truncated string cuts off in the middle of a JSON object
+type: bug

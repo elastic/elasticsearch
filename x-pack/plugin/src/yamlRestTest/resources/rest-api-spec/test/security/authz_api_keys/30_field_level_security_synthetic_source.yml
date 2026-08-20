@@ -1327,3 +1327,170 @@ TS_INFO with field level security excluding specific metrics:
   - length: {values: 2}
   - match: {values.0.0: "cpu"}
   - match: {values.1.0: "cpu"}
+
+---
+Fields under a disabled object in logsdb - uses _ignored_source doc values:
+  # logsdb stores the disabled object's bytes in _ignored_source binary doc values. When the object is an array the blob
+  # holds multiple values, so FLS must drop the excepted entries and hand back the survivors without a stale .counts
+  # leaking through to the reader.
+  - do:
+      indices.create:
+        index: index_fls_logsdb
+        body:
+          settings:
+            index:
+              mode: logsdb
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              name:
+                type: keyword
+              object:
+                type: object
+                enabled: false
+
+  - do:
+      bulk:
+        index: index_fls_logsdb
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"@timestamp": "2026-07-07T08:09:00Z", "name": "A", "object": [ { "secret":"mission1", "public":"interest1" }, { "secret":"mission2", "public":"interest2" } ] }'
+          - '{"create": { }}'
+          - '{"@timestamp": "2026-07-07T08:10:00Z", "name": "B", "object": { "secret":"mission", "public":"interest" } }'
+          - '{"create": { }}'
+          - '{"@timestamp": "2026-07-07T08:11:00Z", "name": "C", "object": { "foo":"bar", "public":"interest" } }'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls_logsdb" ]
+                  privileges: [ "read", "monitor" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "object.secret" ]
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser...
+  - do:
+      search:
+        index: index_fls_logsdb
+        sort: name
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.object.0.secret: mission1 }
+  - match: { hits.hits.0._source.object.0.public: interest1 }
+  - match: { hits.hits.0._source.object.1.secret: mission2 }
+  - match: { hits.hits.0._source.object.1.public: interest2 }
+  - match: { hits.hits.1._source.name: B }
+  - match: { hits.hits.1._source.object.secret: mission }
+  - match: { hits.hits.1._source.object.public: interest }
+  - match: { hits.hits.2._source.name: C }
+  - match: { hits.hits.2._source.object.foo: bar }
+  - match: { hits.hits.2._source.object.public: interest }
+
+  # With FLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls_logsdb
+        sort: name
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.object.0.public: interest1 }
+  - match: { hits.hits.0._source.object.1.public: interest2 }
+  - is_false: "hits.hits.0._source.object.0.secret"
+  - is_false: "hits.hits.0._source.object.1.secret"
+  - match: { hits.hits.1._source.name: B }
+  - match: { hits.hits.1._source.object.public: interest }
+  - is_false: "hits.hits.1._source.object.secret"
+  - match: { hits.hits.2._source.name: C }
+  - match: { hits.hits.2._source.object.foo: bar }
+  - match: { hits.hits.2._source.object.public: interest }
+
+---
+Fields with ignore_above in logsdb_columnar - uses _ignored_source doc values:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "Strict columnar index modes are only available on builds where the columnar feature flag is enabled"
+
+  - do:
+      indices.create:
+        index: index_fls_columnar
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              name:
+                type: keyword
+              secret:
+                type: keyword
+                ignore_above: 3
+              note:
+                type: keyword
+                ignore_above: 3
+
+  - do:
+      bulk:
+        index: index_fls_columnar
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"@timestamp": "2026-07-07T08:09:00Z", "name": "A", "secret": "squirrel", "note": "elephant" }'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls_columnar" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "secret" ]
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser...
+  - do:
+      search:
+        index: index_fls_columnar
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.secret: squirrel }
+  - match: { hits.hits.0._source.note: elephant }
+
+  # With FLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls_columnar
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.note: elephant }
+  - is_false: "hits.hits.0._source.secret"

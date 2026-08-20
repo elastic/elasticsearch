@@ -82,14 +82,20 @@ public class VectorScorerStatelessDirectoryTests extends BenchmarkTest {
     }
 
     public void testBulkScoresMatchMemoryMapped() throws IOException {
-        var data = new VectorScorerInt4BulkBenchmark.VectorData(DIMS, NUM_VECTORS, NUM_VECTORS_TO_SCORE, random());
+        var data = new VectorScorerInt4BulkBenchmark.VectorData(
+            DIMS,
+            NUM_VECTORS,
+            NUM_VECTORS_TO_SCORE,
+            random(),
+            DataAccessPattern.RANDOM
+        );
 
-        var memoryMapped = createBenchmark(data, DirectoryType.MMAP);
+        var memoryMapped = createBenchmark(data, DirectoryType.MMAP, DataAccessPattern.RANDOM);
         try {
-            float[] expected = memoryMapped.scoreMultipleRandomBulk();
-            var stateless = createBenchmark(data, DirectoryType.STATELESS_INDEX_LOCAL);
+            float[] expected = memoryMapped.scoreMultipleBulk();
+            var stateless = createBenchmark(data, DirectoryType.STATELESS_INDEX_LOCAL, DataAccessPattern.RANDOM);
             try {
-                assertArrayEquals(expected, stateless.scoreMultipleRandomBulk(), DELTA);
+                assertArrayEquals(expected, stateless.scoreMultipleBulk(), DELTA);
             } finally {
                 stateless.teardown();
             }
@@ -98,8 +104,11 @@ public class VectorScorerStatelessDirectoryTests extends BenchmarkTest {
         }
     }
 
-    private static VectorScorerInt4BulkBenchmark createBenchmark(VectorScorerInt4BulkBenchmark.VectorData data, DirectoryType directoryType)
-        throws IOException {
+    private static VectorScorerInt4BulkBenchmark createBenchmark(
+        VectorScorerInt4BulkBenchmark.VectorData data,
+        DirectoryType directoryType,
+        DataAccessPattern accessMode
+    ) throws IOException {
         var bench = new VectorScorerInt4BulkBenchmark();
         bench.function = VectorSimilarityType.DOT_PRODUCT;
         // only the native scorers route through IndexInputUtils; the others never reach it
@@ -109,6 +118,7 @@ public class VectorScorerStatelessDirectoryTests extends BenchmarkTest {
         bench.numVectors = NUM_VECTORS;
         bench.numVectorsToScore = NUM_VECTORS_TO_SCORE;
         bench.bulkSize = NUM_VECTORS_TO_SCORE;
+        bench.accessMode = accessMode;
         bench.setup(data);
         return bench;
     }

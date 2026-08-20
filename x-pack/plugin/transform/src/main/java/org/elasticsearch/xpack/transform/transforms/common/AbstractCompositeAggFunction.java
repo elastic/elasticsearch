@@ -16,6 +16,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.TimeValue;
@@ -70,6 +71,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
         TimeValue timeout,
         Map<String, String> headers,
         SourceConfig sourceConfig,
+        IndicesOptions indicesOptions,
         Map<String, String> fieldTypeMap,
         int numberOfBuckets,
         ActionListener<List<Map<String, Object>>> listener
@@ -81,7 +83,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
             client,
             TransportSearchAction.TYPE,
             true,
-            buildSearchRequestForValidation("preview", sourceConfig, timeout, numberOfBuckets),
+            buildSearchRequestForValidation("preview", sourceConfig, indicesOptions, timeout, numberOfBuckets),
             listener.delegateFailureAndWrap((l, r) -> {
                 try {
                     final InternalAggregations aggregations = r.getAggregations();
@@ -121,10 +123,17 @@ public abstract class AbstractCompositeAggFunction implements Function {
         Client client,
         Map<String, String> headers,
         SourceConfig sourceConfig,
+        IndicesOptions indicesOptions,
         TimeValue timeout,
         ActionListener<Boolean> listener
     ) {
-        SearchRequest searchRequest = buildSearchRequestForValidation("validate", sourceConfig, timeout, TEST_QUERY_PAGE_SIZE);
+        SearchRequest searchRequest = buildSearchRequestForValidation(
+            "validate",
+            sourceConfig,
+            indicesOptions,
+            timeout,
+            TEST_QUERY_PAGE_SIZE
+        );
         ClientHelper.executeWithHeadersAsync(
             headers,
             ClientHelper.TRANSFORM_ORIGIN,
@@ -215,14 +224,19 @@ public abstract class AbstractCompositeAggFunction implements Function {
         TransformProgress progress
     );
 
-    private SearchRequest buildSearchRequestForValidation(String logId, SourceConfig sourceConfig, TimeValue timeout, int pageSize) {
+    private SearchRequest buildSearchRequestForValidation(
+        String logId,
+        SourceConfig sourceConfig,
+        IndicesOptions indicesOptions,
+        TimeValue timeout,
+        int pageSize
+    ) {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(sourceConfig.getQueryConfig().getQuery())
             .runtimeMappings(sourceConfig.getRuntimeMappings())
             .timeout(timeout);
         buildSearchQuery(sourceBuilder, null, pageSize);
         logger.debug("[{}] Querying {} for data: {}", logId, sourceConfig.getIndex(), sourceBuilder);
-        SearchRequest searchRequest = new SearchRequest(sourceConfig.getIndex()).source(sourceBuilder)
-            .indicesOptions(sourceConfig.indicesOptions());
+        SearchRequest searchRequest = new SearchRequest(sourceConfig.getIndex()).source(sourceBuilder).indicesOptions(indicesOptions);
         if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
             searchRequest.setProjectRouting(sourceConfig.getProjectRouting());
         }

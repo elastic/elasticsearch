@@ -136,6 +136,9 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         var rawClient = new ParentTaskAssigningClient(client, parentTaskId);
         var parentClient = cloudCredentialManager.wrapWithUiamIfPresent(rawClient, request.cloudCredential());
+        // These validation searches run under the caller's live credential (not the stored config
+        // headers). Scope cross-project resolution to whether that credential can actually fan out.
+        var sourceIndicesOptions = config.getSource().indicesOptions(request.cloudCredential() != null);
 
         // <6> Final listener
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(deducedMappings -> {
@@ -151,7 +154,14 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             if (request.isDeferValidation()) {
                 deduceMappingsListener.onResponse(emptyMap());
             } else {
-                function.deduceMappings(parentClient, config.getHeaders(), config.getId(), config.getSource(), deduceMappingsListener);
+                function.deduceMappings(
+                    parentClient,
+                    config.getHeaders(),
+                    config.getId(),
+                    config.getSource(),
+                    sourceIndicesOptions,
+                    deduceMappingsListener
+                );
             }
         }, listener::onFailure);
 
@@ -160,7 +170,14 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             if (request.isDeferValidation()) {
                 l.onResponse(true);
             } else {
-                function.validateQuery(parentClient, config.getHeaders(), config.getSource(), request.ackTimeout(), l);
+                function.validateQuery(
+                    parentClient,
+                    config.getHeaders(),
+                    config.getSource(),
+                    sourceIndicesOptions,
+                    request.ackTimeout(),
+                    l
+                );
             }
         });
 

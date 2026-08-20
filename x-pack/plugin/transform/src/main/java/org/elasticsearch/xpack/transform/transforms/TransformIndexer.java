@@ -169,8 +169,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         this.nextCheckpoint = ExceptionsHelper.requireNonNull(nextCheckpoint, "nextCheckpoint");
         this.context = ExceptionsHelper.requireNonNull(context, "context");
         ExceptionsHelper.requireNonNull(transformServices.crossProjectModeDecider(), "crossProjectModeDecider");
+        // Only enable cross-project resolution when the transform holds a minted cloud credential.
+        // Without one, the stored identity carries no cloud token, so cross-project resolution would
+        // fail closed; keeping the request local-only makes the auth layer skip it.
         this.strictIndicesOptions = transformServices.crossProjectModeDecider().crossProjectEnabled()
             && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+            && transformConfig.getCredentialId() != null
                 ? SearchRequest.DEFAULT_CPS_INDICES_OPTIONS
                 : SearchRequest.DEFAULT_INDICES_OPTIONS;
         // give runState a default
@@ -1182,7 +1186,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
 
         request.allowPartialSearchResults(false) // shard failures should fail the request
-            .indicesOptions(getConfig().getSource().indicesOptions());
+            .indicesOptions(getConfig().getScopedIndicesOptions());
 
         changeCollector.buildChangesQuery(sourceBuilder, position != null ? position.getBucketsPosition() : null, context.getPageSize());
 
@@ -1248,7 +1252,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         return request.source(sourceBuilder)
             .allowPartialSearchResults(false) // shard failures should fail the request
-            .indicesOptions(getConfig().getSource().indicesOptions());
+            .indicesOptions(getConfig().getScopedIndicesOptions());
     }
 
     /**

@@ -221,10 +221,10 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     @Override
     public String getTimeDateFunctions() throws SQLException {
         // https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/time-date-and-interval-functions?view=sql-server-2017
-        return "DAYNAME,DAYOFMONTH,DAYOFWEEK,DAYOFYEAR"
+        return "DAYNAME,DAYOFMONTH,DAYOFWEEK,DAYOFYEAR,"
             + "EXTRACT,"
             + "HOUR,"
-            + "MINUTE,MONTH,MONTHNAME"
+            + "MINUTE,MONTH,MONTHNAME,"
             + "QUARTER,"
             + "SECOND,"
             + "WEEK,"
@@ -783,7 +783,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern)
         throws SQLException {
         PreparedStatement ps = con.prepareStatement("SYS COLUMNS CATALOG ? TABLE LIKE ? ESCAPE '\\' LIKE ? ESCAPE '\\'");
-        // NB: catalog is not a pattern hence why null is send instead
+        // NB: catalog is not a pattern hence why null is sent instead
         ps.setString(1, catalog != null ? catalog.trim() : null);
         ps.setString(2, tableNamePattern != null ? tableNamePattern.trim() : WILDCARD);
         ps.setString(3, columnNamePattern != null ? columnNamePattern.trim() : WILDCARD);

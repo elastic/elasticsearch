@@ -416,7 +416,12 @@ public class IndicesService extends AbstractLifecycleComponent
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
 
         this.timestampFieldMapperService = new TimestampFieldMapperService(settings, threadPool, this);
-        this.postRecoveryMerger = new PostRecoveryMerger(settings, threadPool.executor(ThreadPool.Names.FORCE_MERGE), this::getShardOrNull);
+        this.postRecoveryMerger = new PostRecoveryMerger(
+            settings,
+            threadPool.scheduler(),
+            threadPool.executor(ThreadPool.Names.FORCE_MERGE),
+            this::getShardOrNull
+        );
         this.searchOperationListeners = builder.searchOperationListener;
         this.loggingFieldsProvider = builder.loggingFieldsProvider;
         this.indexStatsSettings = new IndexingStatsSettings(clusterService.getClusterSettings());

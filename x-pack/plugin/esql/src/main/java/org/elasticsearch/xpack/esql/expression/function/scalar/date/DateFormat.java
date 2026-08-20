@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
@@ -62,6 +63,9 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "keyword",
+        signatures = {
+            @Signature(params = { "date|date_nanos" }, returnType = "keyword"),
+            @Signature(params = { "STRING", "date|date_nanos" }, returnType = "keyword") },
         briefSummary = "Returns a string representation of a date, in the provided format.",
         description = "Returns a string representation of a date, in the provided format.",
         examples = @Example(file = "date", tag = "docsDateFormat")

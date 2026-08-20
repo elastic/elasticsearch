@@ -1332,7 +1332,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
-    private void validateCreateShardRetry(ShardRouting retryRouting, ClusterState state, ActionListener<ShardRouting> listener) {
+    /// When we [createShard] during normal cluster state application ([applyClusterState]) we do that under synchronized lock.
+    /// That's why we also use synchronized here, to align as much as possible with standard application.
+    private synchronized void validateCreateShardRetry(
+        ShardRouting retryRouting,
+        ClusterState state,
+        ActionListener<ShardRouting> listener
+    ) {
         try {
             // Running on cluster state applier thread
             assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);

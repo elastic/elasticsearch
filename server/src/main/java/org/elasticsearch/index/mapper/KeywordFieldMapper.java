@@ -76,6 +76,7 @@ import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRangeQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
@@ -92,7 +93,6 @@ import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldFuzzyQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
-import org.elasticsearch.search.runtime.StringScriptFieldRangeQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.Text;
@@ -797,14 +797,13 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return super.rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
             } else if (usesBinaryDocValues) {
-                return new StringScriptFieldRangeQuery(
-                    new Script(""),
-                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx, indexVersion),
+                return new ScanningBinaryDocValuesRangeQuery(
                     name(),
-                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm).utf8ToString(),
-                    upperTerm == null ? null : indexedValueForSearch(upperTerm).utf8ToString(),
+                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                    upperTerm == null ? null : indexedValueForSearch(upperTerm),
                     includeLower,
-                    includeUpper
+                    includeUpper,
+                    useArrayOrderBinaryDocValues
                 );
             } else {
                 return SortedSetDocValuesField.newSlowRangeQuery(

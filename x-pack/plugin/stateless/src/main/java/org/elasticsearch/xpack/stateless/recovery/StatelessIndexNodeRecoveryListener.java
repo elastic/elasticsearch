@@ -164,7 +164,7 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
             new ThreadedActionListener<>(
                 threadPool.generic(),
                 listener.delegateFailureAndWrap(
-                    (listener1, unused) -> beforeRecoveryOnIndexingShard(indexShard, existingBlobContainer, listener)
+                    (listener1, unused) -> beforeRecoveryOnIndexingShard(indexShard, existingBlobContainer, listener1)
                 )
             )
         );

@@ -47,6 +47,7 @@ import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.index.ActionLoggingFieldsContext;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
+import org.elasticsearch.index.CompositeIndexEventListener;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
@@ -298,7 +299,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
     public static class TestPlugin extends Plugin implements MapperPlugin {
 
-        private static final List<IndexEventListener> indexEventListeners = new CopyOnWriteArrayList<>();
+        private static final CopyOnWriteArrayList<IndexEventListener> indexEventListeners = new CopyOnWriteArrayList<>();
 
         public TestPlugin() {}
 
@@ -327,11 +328,12 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             indexModule.addIndexEventListener(new IndexEventListener() {
                 @Override
                 public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
-                    for (IndexEventListener indexEventListener : indexEventListeners) {
-                        indexEventListener.beforeIndexShardRecovery(indexShard, indexSettings, listener);
-                        return;
-                    }
-                    listener.onResponse(null);
+                    // CompositeIndexEventListener already does `List.copyOf(listeners)` in its constructor
+                    new CompositeIndexEventListener(indexSettings, indexEventListeners).beforeIndexShardRecovery(
+                        indexShard,
+                        indexSettings,
+                        listener
+                    );
                 }
             });
         }

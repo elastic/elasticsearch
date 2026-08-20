@@ -1,0 +1,21 @@
+pr: 149354
+issues:
+ - 118636
+summary: Deprecate the get field mapping API
+area: Mapping
+type: deprecation
+deprecation:
+  area: REST API
+  title: The get field mapping API is deprecated
+  details: |-
+    The get field mapping API (`GET /_mapping/field/<fields>` and
+    `GET /<index>/_mapping/field/<fields>`) is no longer maintained and does
+    not return mappings for field types that ship with internal synthetic
+    sub-fields (such as `search_as_you_type` and `join`). Requests now emit
+    a `Warning:` HTTP response header pointing callers at the get mapping
+    API (`GET /<index>/_mapping`).
+  impact: |-
+    Callers of the get field mapping API will receive a deprecation
+    `Warning:` HTTP response header. The endpoint continues to work for now;
+    migrate to the get mapping API (`GET /<index>/_mapping`) to retain
+    complete mapping information for all field types.

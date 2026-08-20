@@ -15,6 +15,8 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRespon
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -32,9 +34,16 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetFieldMappingAction extends BaseRestHandler {
 
+    static final String DEPRECATION_MESSAGE = "The get field mapping API is no longer maintained. "
+        + "Use the get mapping API (`GET /<index>/_mapping`) instead.";
+
     @Override
+    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_FOUNDATIONS)
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_mapping/field/{fields}"), new Route(GET, "/{index}/_mapping/field/{fields}"));
+        return List.of(
+            Route.builder(GET, "/_mapping/field/{fields}").deprecatedForRemoval(DEPRECATION_MESSAGE, RestApiVersion.V_9).build(),
+            Route.builder(GET, "/{index}/_mapping/field/{fields}").deprecatedForRemoval(DEPRECATION_MESSAGE, RestApiVersion.V_9).build()
+        );
     }
 
     @Override

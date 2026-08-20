@@ -2,6 +2,7 @@ setup:
   - requires:
       cluster_features: "gte_v8.15.0"
       reason: semantic_text introduced in 8.15.0
+      test_runner_features: ["allowed_warnings"]
 
   - do:
       inference.put:
@@ -1400,6 +1401,8 @@ setup:
   - not_exists: test-index-options-sparse.mappings.semantic_field.mapping.index_options
 
   - do:
+      allowed_warnings:
+        - "The get field mapping API is no longer maintained. Use the get mapping API (`GET /<index>/_mapping`) instead."
       indices.get_field_mapping:
         index: test-index-options-sparse
         fields: semantic_field
@@ -1440,6 +1443,8 @@ setup:
   - match: { "test-index-options-sparse2.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_weight_threshold": 0.4 }
 
   - do:
+      allowed_warnings:
+        - "The get field mapping API is no longer maintained. Use the get mapping API (`GET /<index>/_mapping`) instead."
       indices.get_field_mapping:
         index: test-index-options-sparse2
         fields: semantic_field

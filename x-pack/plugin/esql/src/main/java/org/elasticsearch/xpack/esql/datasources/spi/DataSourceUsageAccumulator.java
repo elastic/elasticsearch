@@ -203,25 +203,25 @@ public final class DataSourceUsageAccumulator {
 
     // ---- snapshot accessors (read by the stats/conversion layer) ----
 
-    /** @param schemeIndex one of {@link #SCHEME_S3}, {@link #SCHEME_GCS}, {@link #SCHEME_AZURE}, {@link #SCHEME_HTTP}, {@link #SCHEME_FILE}, {@link #SCHEME_UNKNOWN} */
+    /** @param schemeIndex one of the {@code SCHEME_*} constants */
     public long storageRequests(int schemeIndex) {
         checkSchemeIndex(schemeIndex);
         return storageRequests[schemeIndex].sum();
     }
 
-    /** @param schemeIndex one of {@link #SCHEME_S3}, {@link #SCHEME_GCS}, {@link #SCHEME_AZURE}, {@link #SCHEME_HTTP}, {@link #SCHEME_FILE}, {@link #SCHEME_UNKNOWN} */
+    /** @param schemeIndex one of the {@code SCHEME_*} constants */
     public long storageBytesRead(int schemeIndex) {
         checkSchemeIndex(schemeIndex);
         return storageBytesRead[schemeIndex].sum();
     }
 
-    /** @param schemeIndex one of {@link #SCHEME_S3}, {@link #SCHEME_GCS}, {@link #SCHEME_AZURE}, {@link #SCHEME_HTTP}, {@link #SCHEME_FILE}, {@link #SCHEME_UNKNOWN} */
+    /** @param schemeIndex one of the {@code SCHEME_*} constants */
     public long storageErrors(int schemeIndex) {
         checkSchemeIndex(schemeIndex);
         return storageErrors[schemeIndex].sum();
     }
 
-    /** @param schemeIndex one of {@link #SCHEME_S3}, {@link #SCHEME_GCS}, {@link #SCHEME_AZURE}, {@link #SCHEME_HTTP}, {@link #SCHEME_FILE}, {@link #SCHEME_UNKNOWN} */
+    /** @param schemeIndex one of the {@code SCHEME_*} constants */
     public long storageThrottled(int schemeIndex) {
         checkSchemeIndex(schemeIndex);
         return storageThrottled[schemeIndex].sum();
@@ -231,7 +231,7 @@ public final class DataSourceUsageAccumulator {
         return storageRetries.sum();
     }
 
-    /** @param outcomeIndex one of {@link #OUTCOME_SUCCESS}, {@link #OUTCOME_FAILURE}, {@link #OUTCOME_CANCELLED} */
+    /** @param outcomeIndex one of the {@code OUTCOME_*} constants */
     public long queries(int outcomeIndex) {
         checkOutcomeIndex(outcomeIndex);
         return queries[outcomeIndex].sum();

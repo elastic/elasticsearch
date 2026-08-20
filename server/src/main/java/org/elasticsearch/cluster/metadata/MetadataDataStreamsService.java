@@ -519,7 +519,8 @@ public class MetadataDataStreamsService {
                 mergedEffectiveSettings
             ),
             effectiveMappings,
-            indicesService
+            indicesService,
+            dataStreamName
         );
 
         return dataStream.copy().setSettings(mergedDataStreamSettings).build();
@@ -588,7 +589,8 @@ public class MetadataDataStreamsService {
         MetadataIndexTemplateService.validateTemplate(
             getEffectiveSettings(projectMetadata, dataStream, mappingsOverrides),
             effectiveMappings,
-            indicesService
+            indicesService,
+            dataStreamName
         );
         return dataStream.copy().setMappings(mappingsOverrides).build();
     }

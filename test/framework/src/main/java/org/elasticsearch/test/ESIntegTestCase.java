@@ -1392,7 +1392,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         final var sourceEnabled = mapperService.mappingLookup().isSourceEnabled();
         // Some integration tests use synthetic source/id, so the original source/id stored field might have been trimmed during merges.
         // Here we set up a source loader similar to what search fetch phase use to force loading the source, or id, before comparing docs.
-        final var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+        final var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
         final var storedFieldLoader = StoredFieldLoader.create(true, sourceLoader.requiredStoredFields());
 
         // Some indices merge away the _id field
@@ -1432,7 +1432,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
                 int[] docIdsArray = segmentDocIds.stream().mapToInt(Integer::intValue).toArray();
                 var leafStoredFieldLoader = storedFieldLoader.getLoader(leaf, docIdsArray);
-                var leafSourceLoader = sourceLoader.leaf(leafReader, docIdsArray);
+                var leafSourceLoader = sourceLoader.leaf(leafReader.getContext(), docIdsArray);
                 var leafIdLoader = idLoader.leaf(leafStoredFieldLoader, leafReader, docIdsArray);
 
                 primaryTermDocValues = leafReader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);

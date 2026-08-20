@@ -91,9 +91,11 @@ final class RequestXContent {
     static final ParseField KEEP_ALIVE = new ParseField("keep_alive");
     static final ParseField KEEP_ON_COMPLETION = new ParseField("keep_on_completion");
     static final ParseField SETTINGS_FIELD = new ParseField("settings");
+    static final ParseField PAGE_SIZE_FIELD = new ParseField("page_size");
 
     private static final ObjectParser<EsqlQueryRequest, Void> SYNC_PARSER = objectParserSync(() -> syncEsqlQueryRequest(null));
     private static final ObjectParser<EsqlQueryRequest, Void> ASYNC_PARSER = objectParserAsync(() -> asyncEsqlQueryRequest(null));
+    private static final ObjectParser<EsqlQueryRequest, Void> STREAM_PARSER = objectParserStream(() -> syncEsqlQueryRequest(null));
 
     /** Parses a synchronous request. */
     static EsqlQueryRequest parseSync(XContentParser parser) {
@@ -105,6 +107,13 @@ final class RequestXContent {
     /** Parses an asynchronous request. */
     static EsqlQueryRequest parseAsync(XContentParser parser) {
         EsqlQueryRequest request = ASYNC_PARSER.apply(parser, null);
+        request.applyCanonicalRequestSettings();
+        return request;
+    }
+
+    /** Parses a streaming request (the only endpoint that accepts {@code page_size}). */
+    static EsqlQueryRequest parseStream(XContentParser parser) {
+        EsqlQueryRequest request = STREAM_PARSER.apply(parser, null);
         request.applyCanonicalRequestSettings();
         return request;
     }
@@ -206,6 +215,23 @@ final class RequestXContent {
     private static ObjectParser<EsqlQueryRequest, Void> objectParserSync(Supplier<EsqlQueryRequest> supplier) {
         ObjectParser<EsqlQueryRequest, Void> parser = new ObjectParser<>("esql/query", false, supplier);
         objectParserCommon(parser);
+        return parser;
+    }
+
+    private static ObjectParser<EsqlQueryRequest, Void> objectParserStream(Supplier<EsqlQueryRequest> supplier) {
+        ObjectParser<EsqlQueryRequest, Void> parser = new ObjectParser<>("esql/stream_query", false, supplier);
+        parser.declareString(EsqlQueryRequest::query, QUERY_FIELD);
+        parser.declareObject(EsqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER_FIELD);
+        parser.declareBoolean(EsqlQueryRequest::acceptedPragmaRisks, ACCEPT_PRAGMA_RISKS);
+        parser.declareObject(
+            EsqlQueryRequest::pragmas,
+            (p, c) -> new QueryPragmas(Settings.builder().loadFromMap(p.map()).build()),
+            PRAGMA_FIELD
+        );
+        parser.declareField(EsqlQueryRequest::params, RequestXContent::parseParams, PARAMS_FIELD, VALUE_OBJECT_ARRAY);
+        parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
+        parser.declareField((p, r, c) -> new ParseTables(r, p).parseTables(), TABLES_FIELD, ObjectParser.ValueType.OBJECT);
+        parser.declareInt(EsqlQueryRequest::pageSize, PAGE_SIZE_FIELD);
         return parser;
     }
 

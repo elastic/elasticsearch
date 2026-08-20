@@ -92,6 +92,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.ExplainPlanTransformer;
@@ -726,7 +727,9 @@ public class ComputeService {
         }
 
         final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
-        PhysicalPlan mainPlan = new OutputExec(subplansAndMainPlan.v2(), collectedPages::add);
+        PhysicalPlan mainPlan = subplansAndMainPlan.v2() instanceof StreamingOutputExec
+            ? subplansAndMainPlan.v2()
+            : new OutputExec(subplansAndMainPlan.v2(), collectedPages::add);
 
         listener = listener.delegateResponse((l, e) -> {
             collectedPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
@@ -954,7 +957,9 @@ public class ComputeService {
         PhysicalPlan coordinatorPlan = coordinatorAndDataNodePlan.v1();
 
         if (exchangeSinkSupplier == null) {
-            coordinatorPlan = new OutputExec(coordinatorAndDataNodePlan.v1(), collectedPages::add);
+            if (coordinatorPlan instanceof StreamingOutputExec == false) {
+                coordinatorPlan = new OutputExec(coordinatorAndDataNodePlan.v1(), collectedPages::add);
+            }
         }
 
         PhysicalPlan dataNodePlan = coordinatorAndDataNodePlan.v2();

@@ -331,7 +331,8 @@ public class Driver implements Releasable, Describable {
                 assert nextOp.isFinished() == false
                     || nextOp instanceof ExchangeSinkOperator
                     || nextOp instanceof LimitOperator
-                    || nextOp instanceof PageToBatchPageOperator : "next operator should not be finished yet: " + nextOp;
+                    || nextOp instanceof PageToBatchPageOperator
+                    || nextOp instanceof StreamingPageOperator : "next operator should not be finished yet: " + nextOp;
                 Page page = op.getOutput();
                 if (page == null) {
                     // No result, just move to the next iteration
@@ -482,6 +483,8 @@ public class Driver implements Releasable, Describable {
         if (driver.activeOperators.isEmpty() == false) {
             if (driver.activeOperators.getLast() instanceof ExchangeSinkOperator sinkOperator) {
                 sinkOperator.addCompletionListener(ActionListener.running(driver::finishEarly));
+            } else if (driver.activeOperators.getLast() instanceof StreamingPageOperator streamingOperator) {
+                streamingOperator.addCompletionListener(ActionListener.running(driver::finishEarly));
             }
         }
     }

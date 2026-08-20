@@ -18,16 +18,21 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -228,6 +233,48 @@ public abstract class HeapAttackRestHelpers extends ESRestTestCase {
             "{\"persistent\": {\"indices.breaker.request.limit\": " + (limit == null ? "null" : "\"" + limit + "\"") + "}}"
         );
         adminClient().performRequest(request);
+    }
+
+    protected record StreamSummary(List<Map<String, Object>> columns, long rowCount, Map<String, Object> footer, boolean sawError) {}
+
+    @SuppressWarnings("unchecked")
+    protected StreamSummary streamQuery(String esqlQuery, int pageSize) throws IOException {
+        Request request = new Request("POST", "/_query/stream");
+        request.addParameter("error_trace", "");
+        String body = "{\"query\":\"" + esqlQuery.replace("\n", "\\n") + "\",\"page_size\":" + pageSize + "}";
+        request.setJsonEntity(body);
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .setRequestConfig(RequestConfig.custom().setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(6).millis())).build())
+                .setWarningsHandler(WarningsHandler.PERMISSIVE)
+        );
+        logger.info("Running streaming query: {}", esqlQuery);
+        Response response = runQuery(() -> client().performRequest(request));
+
+        List<Map<String, Object>> columns = null;
+        long rowCount = 0L;
+        Map<String, Object> footer = null;
+        boolean sawError = false;
+
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.isBlank()) {
+                    continue;
+                }
+                Map<String, Object> parsed = XContentHelper.convertToMap(XContentType.JSON.xContent(), line, false);
+                if (parsed.containsKey("error")) {
+                    sawError = true;
+                } else if (parsed.containsKey("columns")) {
+                    columns = (List<Map<String, Object>>) parsed.get("columns");
+                } else if (parsed.containsKey("values")) {
+                    rowCount += ((List<List<Object>>) parsed.get("values")).size();
+                } else if (parsed.containsKey("took")) {
+                    footer = parsed;
+                }
+            }
+        }
+        return new StreamSummary(columns, rowCount, footer, sawError);
     }
 
     protected static boolean isServerless() throws IOException {

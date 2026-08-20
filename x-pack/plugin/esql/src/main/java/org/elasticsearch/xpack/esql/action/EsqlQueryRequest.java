@@ -67,6 +67,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean acceptedPragmaRisks = false;
     private Boolean allowPartialResults = null;
     private Boolean allowPartialDslFilter = null;
+    private Integer pageSize = null;
 
     private final Map<QuerySettingDef<?>, Object> requestSettings = new HashMap<>();
     /**
@@ -118,6 +119,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.acceptedPragmaRisks = source.acceptedPragmaRisks;
         this.allowPartialResults = source.allowPartialResults;
         this.allowPartialDslFilter = source.allowPartialDslFilter;
+        this.pageSize = source.pageSize;
         this.requestSettings.putAll(source.requestSettings);
         this.canonicalRequestSettings.putAll(source.canonicalRequestSettings);
         this.tables.putAll(source.tables);
@@ -331,6 +333,15 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     public EsqlQueryRequest allowPartialResults(boolean allowPartialResults) {
         this.allowPartialResults = allowPartialResults;
+        return this;
+    }
+
+    public Integer pageSize() {
+        return pageSize;
+    }
+
+    public EsqlQueryRequest pageSize(int pageSize) {
+        this.pageSize = pageSize;
         return this;
     }
 

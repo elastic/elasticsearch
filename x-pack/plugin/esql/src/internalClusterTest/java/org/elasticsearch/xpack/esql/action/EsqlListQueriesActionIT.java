@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.test.IntOrLongMatcher;
@@ -17,7 +19,9 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.jsonEntityToMap;
@@ -89,6 +93,31 @@ public class EsqlListQueriesActionIT extends AbstractPausableIntegTestCase {
         );
     }
 
+    public void testRunningStreamingQueries() throws Exception {
+        scriptPermits.drainPermits();
+        scriptPermits.release(between(1, 5));
+
+        EsqlQueryRequest source = syncEsqlQueryRequest(QUERY);
+        source.pageSize(between(1, 10));
+        DrainingSubscriber subscriber = new DrainingSubscriber();
+        EsqlStreamQueryRequest streamRequest = EsqlStreamQueryRequest.from(
+            source,
+            ActionListener.wrap(start -> start.publisher().subscribe(subscriber), e -> {
+                throw new AssertionError("stream-start failed", e);
+            }),
+            false
+        );
+        ActionFuture<ActionResponse.Empty> future = client().execute(EsqlStreamQueryAction.INSTANCE, streamRequest);
+        try {
+            scriptWaits.acquire();
+            assertRunningQueries();
+        } finally {
+            scriptPermits.release(numberOfDocs());
+            future.actionGet(timeValueSeconds(60));
+            subscriber.rethrowIfFailed();
+        }
+    }
+
     private EsqlQueryResponse sendAsyncQuery() {
         scriptPermits.drainPermits();
         scriptPermits.release(between(1, 5));
@@ -99,5 +128,43 @@ public class EsqlListQueriesActionIT extends AbstractPausableIntegTestCase {
         scriptPermits.drainPermits();
         scriptPermits.release(between(1, 5));
         return client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(QUERY));
+    }
+
+    private static class DrainingSubscriber implements Flow.Subscriber<org.elasticsearch.compute.data.Page> {
+
+        private volatile Flow.Subscription subscription;
+        private final AtomicReference<Throwable> failure = new AtomicReference<>();
+
+        @Override
+        public void onSubscribe(Flow.Subscription subscription) {
+            this.subscription = subscription;
+            subscription.request(1);
+        }
+
+        @Override
+        public void onNext(org.elasticsearch.compute.data.Page page) {
+            try {
+                page.releaseBlocks();
+            } finally {
+                subscription.request(1);
+            }
+        }
+
+        @Override
+        public void onError(Throwable throwable) {
+            failure.set(throwable);
+        }
+
+        @Override
+        public void onComplete() {}
+
+        void rethrowIfFailed() throws Exception {
+            Throwable t = failure.get();
+            if (t instanceof Exception e) {
+                throw e;
+            } else if (t != null) {
+                throw new AssertionError("subscriber received unexpected error", t);
+            }
+        }
     }
 }

@@ -10,10 +10,14 @@ package org.elasticsearch.xpack.esql.action;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -23,6 +27,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.logging.activity.QueryLogger.QUERY_LOGGER_ENABLED;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
@@ -32,6 +37,7 @@ import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
 import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -110,6 +116,48 @@ public class CrossClusterLoggingIT extends AbstractCrossClusterTestCase {
         assertNotNull(event);
         Map<String, String> message = getMessageData(event);
         assertMessageSuccess(message, EsqlLogContext.TYPE, "from logs-*");
+        assertThat(message.get(QUERY_FIELD_REMOTE_COUNT), equalTo("2"));
+        assertThat(message.get(QUERY_FIELD_REMOTES), containsString(REMOTE_CLUSTER_1));
+        assertThat(message.get(QUERY_FIELD_REMOTES), containsString(REMOTE_CLUSTER_2));
+        assertThat(
+            message.get(QUERY_FIELD_INDICES).split(","),
+            arrayContainingInAnyOrder("logs-*", REMOTE_CLUSTER_1 + ":logs-*", REMOTE_CLUSTER_2 + ":logs-*")
+        );
+    }
+
+    /**
+     * Streaming remote query: the {@code elasticsearch.querylog} event for a {@code /_query/stream}
+     * cross-cluster query must carry {@code remote_count}, {@code remotes}, and remote-qualified
+     * {@code indices} — confirming that hardcoding {@code IncludeExecutionMetadata.NEVER} in the
+     * streaming action gates only response rendering, not {@code clusterInfo} tracking.
+     */
+    public void testStreamingRemoteQueryLogging() throws Exception {
+        setupClusters(3);
+        String query = "from logs-*,*:logs-* | stats sum (v)";
+        EsqlQueryRequest source = syncEsqlQueryRequest(query);
+        source.pageSize(between(1, 10));
+
+        AtomicReference<Throwable> startError = new AtomicReference<>();
+        StreamQueryTestUtils.CountingStreamSubscriber subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
+        ActionFuture<ActionResponse.Empty> future = client(LOCAL_CLUSTER).execute(
+            EsqlStreamQueryAction.INSTANCE,
+            EsqlStreamQueryRequest.from(
+                source,
+                ActionListener.wrap(start -> start.publisher().subscribe(subscriber), startError::set),
+                false
+            )
+        );
+        future.actionGet(TimeValue.timeValueSeconds(30));
+
+        if (startError.get() != null) {
+            throw new AssertionError("stream start failed", startError.get());
+        }
+        subscriber.rethrowIfFailed();
+
+        var event = appender.getLastEventAndReset();
+        assertNotNull("expected a query-log event for /_query/stream CCS query", event);
+        Map<String, String> message = getMessageData(event);
+        assertMessageSuccess(message, EsqlLogContext.TYPE, query);
         assertThat(message.get(QUERY_FIELD_REMOTE_COUNT), equalTo("2"));
         assertThat(message.get(QUERY_FIELD_REMOTES), containsString(REMOTE_CLUSTER_1));
         assertThat(message.get(QUERY_FIELD_REMOTES), containsString(REMOTE_CLUSTER_2));

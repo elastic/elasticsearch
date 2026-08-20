@@ -38,9 +38,11 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.StreamingPageOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -105,6 +107,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -766,6 +769,37 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             sourceFactory,
             instanceOf(LocalSourceOperator.LocalSourceFactory.class)
         );
+    }
+
+    public void testStreamingOutput() throws IOException {
+        int estimatedRowSize = randomEstimatedRowSize(estimatedRowSizeIsHuge);
+        EsQueryExec esQueryExec = new EsQueryExec(
+            Source.EMPTY,
+            EsIndexGenerator.esIndex("test").name(),
+            IndexMode.STANDARD,
+            List.of(),
+            null,
+            null,
+            estimatedRowSize,
+            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
+        );
+        PageStreamPublisher pageStream = new PageStreamPublisher(randomIntBetween(1, 1000));
+        StreamingOutputExec streamingOutput = new StreamingOutputExec(Source.EMPTY, esQueryExec, pageStream);
+
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            streamingOutput,
+            EmptyIndexedByShardId.instance()
+        );
+
+        assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
+        var physicalOperation = plan.driverFactories.get(0).driverSupplier().physicalOperation();
+        assertThat(physicalOperation.sourceOperatorFactory, instanceOf(LuceneSourceOperator.Factory.class));
+        var sinkFactory = (StreamingPageOperator.Factory) physicalOperation.sinkOperatorFactory;
+        assertThat(sinkFactory.stream(), sameInstance(pageStream));
+        assertThat(sinkFactory.alignment(), notNullValue());
     }
 
     private static List<Attribute> buildMetricsInfoAttributes() {

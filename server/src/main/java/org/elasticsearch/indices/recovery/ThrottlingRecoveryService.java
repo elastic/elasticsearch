@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -59,11 +60,38 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
     private static final Logger logger = LogManager.getLogger(ThrottlingRecoveryService.class);
 
-    /// Controls the max number of concurrent recoveries allowed on this data node (excludes peer recoveries for which this
-    /// node is the source, see [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING]).
+    /// Controls the max number of concurrent recoveries allowed on this data node. Excludes peer recoveries for which this
+    /// node is the source, see [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING]. Includes both
+    /// recoveries of unassigned shards and relocations. See also [#INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING] which
+    /// imposes an additional throttle on relocations only.
     ///
     public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING = Setting.intSetting(
         "indices.recovery.max_concurrent_recoveries",
+        // Throttling handled by master allocation for now.
+        Integer.MAX_VALUE,
+        1,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /// Controls the max number of concurrent _relocation_ recoveries allowed on this data node. Excludes peer recoveries for which this
+    /// node is the source, see [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING]. Includes both
+    /// recoveries of unassigned shards and relocations.
+    ///
+    /// If this is set to a value less than [#INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING] then:
+    /// - The total number of slots will be [#INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING] slots.
+    /// - Recoveries from unassigned shards can use any of those slots.
+    /// - Relocations can only use a subset of those slots given by [#INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING].
+    /// - Therefore, there will be a number of slots given by [#INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING] which can be
+    /// used by either type of recovery...
+    /// - ...while there will be an additional number of slots given by the difference between the two settings that can only be used by
+    /// recoveries from unassigned shards.
+    ///
+    /// If this is set to a value equal to or greater than [#INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING] then this setting has no
+    /// effect.
+    ///
+    public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING = Setting.intSetting(
+        "indices.recovery.max_concurrent_relocation_recoveries",
         // Throttling handled by master allocation for now.
         Integer.MAX_VALUE,
         1,
@@ -80,8 +108,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     private final RecoveryGateMonitor recoveryGateMonitor;
     private final AtomicReference<BlockedState> blockedState = new AtomicReference<>();
 
-    private int maxConcurrentRecoveries;
-    private int runningRecoveries = 0;
+    private final RecoveriesThrottle recoveriesThrottle = new RecoveriesThrottle();
 
     private static final Comparator<PendingRecovery> RECOVERY_ORDERING =
         // Order first by the recovery priority in the recovery state, then by using PriorityComparator on the index metadata:
@@ -116,6 +143,11 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         clusterService.addListener(this);
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING, this::setMaxConcurrentRecoveries);
+        clusterService.getClusterSettings()
+            .initializeAndWatchIfRegistered(
+                INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING,
+                this::setMaxConcurrentRelocationRecoveries
+            );
     }
 
     /// Enqueues a recovery task and/or dispatches it to the executor if there are any available slots.
@@ -340,12 +372,30 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             if (isClosed()) {
                 return;
             }
-            while (pendingRecoveries.isEmpty() == false && runningRecoveries < maxConcurrentRecoveries) {
+            // Pull pending recoveries from the priority queue up for as long as the RecoveriesThrottle will allow us to. Note that we just
+            // peek at the item at the head of the queue here. This relies on the connection of these two facts:
+            // 1. Recoveries from unassigned shards will always appear in the queue ahead of relocations;
+            // 2. We will never throttle unassigned recoveries more tightly than relocations.
+            // This means that the recoveriesThrottle.shouldStartNextPendingRecovery() will never return false for the item at the head of
+            // the queue when it might have returned true for an item lower down the queue.
+            while (pendingRecoveries.isEmpty() == false && recoveriesThrottle.shouldStartNextPendingRecovery(pendingRecoveries.peek())) {
                 final PendingRecovery recovery = pendingRecoveries.poll();
+                assert recovery != null;
                 recoveriesToDispatch.add(recovery);
-                runningRecoveries++;
+                recoveriesThrottle.incrementRunning(recovery);
                 recovery.stats().targetRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType());
             }
+            // Assert on the postcondition described above:
+            assert pendingRecoveries.stream().noneMatch(recoveriesThrottle::shouldStartNextPendingRecovery)
+                : Strings.format(
+                    """
+                        The recovery at the head of the queue was throttled, but at least one recovery elsewhere in the queue would not have
+                        been. This violates the expectation that we will never have a category of recovery which is prioritized more highly
+                        but throttled more tightly than another. Highest priority recovery: %s. Non-throttled recoveries: %s.
+                        """,
+                    pendingRecoveries.peek(),
+                    pendingRecoveries.stream().filter(recoveriesThrottle::shouldStartNextPendingRecovery).toList()
+                );
         }
         for (PendingRecovery recovery : recoveriesToDispatch) {
             final RecoveryListener wrapped = wrapListenerForExecution(recovery.listener, recovery);
@@ -413,11 +463,8 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
     private void releaseSlot(PendingRecovery recovery) {
         final RecoverySource source = recovery.recoveryState().getRecoverySource();
-        final int currentRunning;
         synchronized (this) {
-            runningRecoveries--;
-            currentRunning = runningRecoveries;
-            assert currentRunning >= 0 : "negative number of running recoveries " + currentRunning;
+            recoveriesThrottle.decrementRunning(recovery);
             recovery.stats().targetRecoveryCompleted(source.getType());
         }
         logger.trace("recovery slot released: {}", recovery.recoveryState());
@@ -428,10 +475,21 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     private void setMaxConcurrentRecoveries(int newMaxConcurrentRecoveries) {
         final int previousLimit;
         synchronized (this) {
-            previousLimit = this.maxConcurrentRecoveries;
-            this.maxConcurrentRecoveries = newMaxConcurrentRecoveries;
+            previousLimit = recoveriesThrottle.maxConcurrentRecoveries;
+            recoveriesThrottle.maxConcurrentRecoveries = newMaxConcurrentRecoveries;
         }
         if (previousLimit < newMaxConcurrentRecoveries && lifecycle.started() /* calls before start can (must) be ignored */) {
+            fillSlots();
+        }
+    }
+
+    private void setMaxConcurrentRelocationRecoveries(int newMaxConcurrentRelocationRecoveries) {
+        final int previousLimit;
+        synchronized (this) {
+            previousLimit = recoveriesThrottle.maxConcurrentRelocationRecoveries;
+            recoveriesThrottle.maxConcurrentRelocationRecoveries = newMaxConcurrentRelocationRecoveries;
+        }
+        if (previousLimit < newMaxConcurrentRelocationRecoveries && lifecycle.started() /* calls before start can (must) be ignored */) {
             fillSlots();
         }
     }
@@ -454,7 +512,55 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         RecoveryListener listener,
         FailureStrategySelector failureStrategySelector,
         Supplier<ThreadContext.StoredContext> context
-    ) {}
+    ) {
+
+        boolean isUnassigned() {
+            return switch (recoveryState.getRecoveryPriority()) {
+                case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED, UNASSIGNED_EXPECTED -> true;
+                case RELOCATION_CAN_REMAIN_NO, RELOCATION_CAN_REMAIN_NOT_PREFERRED, RELOCATE_REBALANCING -> false;
+                case UNKNOWN -> {
+                    assert false : "should never see RecoveryState with UNKNOWN priority in cluster state: " + recoveryState;
+                    yield false; // fall back to false, as we treat this as the lowest priority, so it is ordered more like a relocation
+                }
+            };
+        }
+    }
+
+    /// Helper class which manages throttling the number of running recoveries.
+    private static class RecoveriesThrottle {
+
+        /// The maximum number of concurrent recoveries, including recoveries from unassigned + relocations. See
+        /// [#INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING].
+        private int maxConcurrentRecoveries;
+        /// The maximum number of concurrent relocation recoveries. See [#INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING].
+        private int maxConcurrentRelocationRecoveries;
+        /// The number of concurrent recoveries currently running, including recoveries from unassigned + relocations. Must not exceed
+        /// [#maxConcurrentRecoveries].
+        private int runningRecoveries = 0;
+        /// The number of concurrent relocation recoveries currently running. Must not exceed [#maxConcurrentRelocationRecoveries].
+        private int runningRelocationRecoveries = 0;
+
+        void incrementRunning(PendingRecovery recoveryNowRunning) {
+            runningRecoveries++;
+            if (!recoveryNowRunning.isUnassigned()) {
+                runningRelocationRecoveries++;
+            }
+        }
+
+        void decrementRunning(PendingRecovery recoveryNowFinished) {
+            runningRecoveries--;
+            assert runningRecoveries >= 0 : "negative number of running unassigned recoveries " + runningRecoveries;
+            if (!recoveryNowFinished.isUnassigned()) {
+                runningRelocationRecoveries--;
+                assert runningRelocationRecoveries >= 0 : "negative number of running relocation recoveries " + runningRelocationRecoveries;
+            }
+        }
+
+        boolean shouldStartNextPendingRecovery(PendingRecovery nextPendingRecovery) {
+            return runningRecoveries < maxConcurrentRecoveries
+                && (nextPendingRecovery.isUnassigned() || (runningRelocationRecoveries < maxConcurrentRelocationRecoveries));
+        }
+    }
 
     /// Executable wrapper for a dispatched recovery. The provided recovery listener (from [PendingRecovery]) is wrapped
     /// with `assertOnce` (to ensure there is only one terminal callback).

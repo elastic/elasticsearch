@@ -46,7 +46,6 @@ import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.escf.LuceneLongColumn;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -117,8 +116,6 @@ public final class DateFieldMapper extends FieldMapper {
     ).withLocale(DEFAULT_LOCALE);
     private static final DateFormatter EPOCH_MILLIS_FORMATTER = DateFormatter.forPattern("epoch_millis").withLocale(DEFAULT_LOCALE);
     private static final DateMathParser EPOCH_MILLIS_PARSER = EPOCH_MILLIS_FORMATTER.toDateMathParser();
-    public static final NodeFeature INVALID_DATE_FIX = new NodeFeature("mapper.range.invalid_date_fix");
-
     // FieldType constants for the Lucene field variants emitted by the columnar parse path.
     // The compat harness compares frozen FieldType, so the column must carry exactly the same type
     // as the corresponding field produced by the row-major path.
@@ -1371,7 +1368,7 @@ public final class DateFieldMapper extends FieldMapper {
                 if (ignoreMalformed) {
                     context.addIgnoredField(mappedFieldType.name());
                     if (isSourceSynthetic) {
-                        IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
+                        FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED);
                     } else {
                         context.parser().skipChildren();
                     }
@@ -1388,7 +1385,7 @@ public final class DateFieldMapper extends FieldMapper {
                         context.addIgnoredField(mappedFieldType.name());
                         if (isSourceSynthetic) {
                             // Save a copy of the field so synthetic source can load it
-                            IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
+                            FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED);
                         }
                         return;
                     } else {

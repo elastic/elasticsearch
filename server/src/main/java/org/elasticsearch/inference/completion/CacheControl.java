@@ -52,7 +52,7 @@ public final class CacheControl implements Accountable, ToXContentObject, Writea
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(CacheControl.class);
     private static final long SHALLOW_SIZE_TIME_VALUE = RamUsageEstimator.shallowSizeOfInstance(TimeValue.class);
-    private static final long SHALLOW_SIZE_TIME_VALUE_UNIT = RamUsageEstimator.shallowSizeOfInstance(TimeUnit.class);
+    private static final long SHALLOW_SIZE_TIME_UNIT = RamUsageEstimator.shallowSizeOfInstance(TimeUnit.class);
 
     private static ConstructingObjectParser<CacheControl, Void> createParser(boolean ignoreUnknownFields) {
         var parser = new ConstructingObjectParser<CacheControl, Void>(CacheControl.class.getSimpleName(), ignoreUnknownFields, args -> {
@@ -136,7 +136,7 @@ public final class CacheControl implements Accountable, ToXContentObject, Writea
 
     @Override
     public long ramBytesUsed() {
-        var ttlRamBytesUsed = ttl() == null ? 0L : SHALLOW_SIZE_TIME_VALUE + SHALLOW_SIZE_TIME_VALUE_UNIT;
+        var ttlRamBytesUsed = ttl() == null ? 0L : SHALLOW_SIZE_TIME_VALUE + SHALLOW_SIZE_TIME_UNIT;
         return SHALLOW_SIZE + RamUsageEstimator.sizeOf(type()) + ttlRamBytesUsed;
     }
 }

@@ -370,10 +370,14 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                 params = { "date_nanos", "integer|long", "date|date_nanos|STRING", "date|date_nanos|STRING" },
                 returnType = "date_nanos"
             ),
-            // unsigned_long works as a numeric field. It is not a valid buckets/count/span argument.
+            // unsigned_long works as a numeric field and as a from/to bound. It is not a valid buckets/count/span argument.
             @Signature(params = { "integer|long|double|unsigned_long", "double|integer|long" }, returnType = "double"),
             @Signature(
-                params = { "integer|long|double|unsigned_long", "integer|long", "integer|long|double", "integer|long|double" },
+                params = {
+                    "integer|long|double|unsigned_long",
+                    "integer|long",
+                    "integer|long|double|unsigned_long",
+                    "integer|long|double|unsigned_long" },
                 returnType = "double"
             ) },
         briefSummary = "Creates groups of values (buckets) from a datetime or numeric input.",
@@ -484,14 +488,14 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         ) Expression buckets,
         @Param(
             name = "from",
-            type = { "integer", "long", "double", "date", "date_nanos", "keyword", "text" },
+            type = { "integer", "long", "double", "unsigned_long", "date", "date_nanos", "keyword", "text" },
             hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             optional = true,
             description = "Start of the range. Can be a number, a date or a date expressed as a string."
         ) Expression from,
         @Param(
             name = "to",
-            type = { "integer", "long", "double", "date", "date_nanos", "keyword", "text" },
+            type = { "integer", "long", "double", "unsigned_long", "date", "date_nanos", "keyword", "text" },
             hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             optional = true,
             description = "End of the range. Can be a number, a date or a date expressed as a string."

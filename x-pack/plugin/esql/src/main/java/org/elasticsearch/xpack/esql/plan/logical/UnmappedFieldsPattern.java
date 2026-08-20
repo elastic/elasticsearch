@@ -21,10 +21,12 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Describes which additional (not already in {@link EsRelation}) source fields a
@@ -70,7 +72,7 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
     private final List<String> excludes;
 
     /** Literal names of columns the plan already outputs, matched exactly */
-    private final List<String> exactExcludes;
+    private final Set<String> exactExcludes;
 
     public static UnmappedFieldsPattern excludes(List<String> excludes) {
         return excludes.isEmpty() ? ALL : new UnmappedFieldsPattern(INCLUDES_ALL, excludes, List.of());
@@ -189,10 +191,10 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
         );
     }
 
-    private UnmappedFieldsPattern(List<List<String>> includeGroups, List<String> excludes, List<String> exactExcludes) {
+    private UnmappedFieldsPattern(List<List<String>> includeGroups, List<String> excludes, Collection<String> exactExcludes) {
         this.includeGroups = includeGroups.stream().map(List::copyOf).toList();
         this.excludes = List.copyOf(excludes);
-        this.exactExcludes = List.copyOf(exactExcludes);
+        this.exactExcludes = Set.copyOf(new LinkedHashSet<>(exactExcludes));
     }
 
     /**
@@ -209,7 +211,7 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
             );
     }
 
-    private static List<String> combineDeduping(List<String> l1, List<String> l2) {
+    private static List<String> combineDeduping(Collection<String> l1, Collection<String> l2) {
         LinkedHashSet<String> merged = new LinkedHashSet<>(l1.size() + l2.size());
         merged.addAll(l1);
         merged.addAll(l2);
@@ -291,7 +293,7 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
         LinkedHashSet<String> merged = new LinkedHashSet<>(exactExcludes.size() + names.size());
         merged.addAll(exactExcludes);
         merged.addAll(names);
-        return new UnmappedFieldsPattern(includeGroups, excludes, new ArrayList<>(merged));
+        return new UnmappedFieldsPattern(includeGroups, excludes, merged);
     }
 
     @Override

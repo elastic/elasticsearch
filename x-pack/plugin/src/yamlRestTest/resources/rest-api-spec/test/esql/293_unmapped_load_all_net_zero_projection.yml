@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [optional_fields_load_all, optional_fields_load_all_net_zero_projection]
+          capabilities: [optional_fields_load_all, optional_fields_load_all_net_zero_projection, optional_fields_fix_load_object_from_synthetic_source]
       reason: "net-zero projection under SET unmapped_fields=\"load_all\" returns zero columns instead of failing"
 
   - do:

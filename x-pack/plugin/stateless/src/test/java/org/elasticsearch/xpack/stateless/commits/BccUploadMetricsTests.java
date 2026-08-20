@@ -56,7 +56,9 @@ public class BccUploadMetricsTests extends ESTestCase {
         {
             final long min = randomLongBetween(0, tenYearsMillis);
             final long max = min + randomLongBetween(0, oneYearMillis);
-            final OptionalDouble span = bccTimestampSpanMinutes(List.of(new StatelessCompoundCommit.TimestampFieldValueRange(min, max)).iterator());
+            final OptionalDouble span = bccTimestampSpanMinutes(
+                List.of(new StatelessCompoundCommit.TimestampFieldValueRange(min, max)).iterator()
+            );
             assertThat(span.isPresent(), is(true));
             assertThat(span.getAsDouble(), closeTo((double) (max - min) / 60_000d, 1e-9));
         }
@@ -64,7 +66,9 @@ public class BccUploadMetricsTests extends ESTestCase {
         // zero-width range -> 0.0
         {
             final long ts = randomLongBetween(0, tenYearsMillis);
-            final OptionalDouble span = bccTimestampSpanMinutes(List.of(new StatelessCompoundCommit.TimestampFieldValueRange(ts, ts)).iterator());
+            final OptionalDouble span = bccTimestampSpanMinutes(
+                List.of(new StatelessCompoundCommit.TimestampFieldValueRange(ts, ts)).iterator()
+            );
             assertThat(span.isPresent(), is(true));
             assertThat(span.getAsDouble(), closeTo(0.0, 1e-9));
         }

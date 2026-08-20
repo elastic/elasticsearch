@@ -398,7 +398,7 @@ public class SearchContextStats implements SearchStats {
             };
         } else if (fieldType instanceof KeywordFieldType keywordFieldType) {
             // NOTE: Terms cannot prove value cardinality for these keyword storage shapes.
-            if (keywordFieldType.usesMultivaluedBinaryDocValues() || keywordFieldType.indexType().hasTerms() == false) {
+            if (canUseKeywordTermsForDocValueCountEquality(keywordFieldType) == false) {
                 return false;
             }
             tester = lr -> {
@@ -420,6 +420,10 @@ public class SearchContextStats implements SearchStats {
 
         // unsupported type - default to MV
         return false;
+    }
+
+    private static boolean canUseKeywordTermsForDocValueCountEquality(KeywordFieldType fieldType) {
+        return fieldType.usesMultivaluedBinaryDocValues() == false && fieldType.indexType().hasTerms();
     }
 
     @Override

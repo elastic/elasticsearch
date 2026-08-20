@@ -138,8 +138,8 @@ public class VectorScorerInt8BulkBenchmark extends VectorScorerBulkBenchmark {
         private final byte[][] vectorData;
         private final byte[] queryVector;
 
-        VectorData(int dims, int numVectors, int numVectorsToScore, Random random) {
-            super(numVectors, numVectorsToScore, random);
+        VectorData(int dims, int numVectors, int numVectorsToScore, Random random, DataAccessPattern accessMode) {
+            super(numVectors, numVectorsToScore, random, accessMode);
 
             vectorData = new byte[numVectors][];
             for (int v = 0; v < numVectors; v++) {
@@ -159,7 +159,7 @@ public class VectorScorerInt8BulkBenchmark extends VectorScorerBulkBenchmark {
 
     @Setup
     public void setup() throws IOException {
-        setup(new VectorData(dims, numVectors, Math.min(numVectors, 20_000), ThreadLocalRandom.current()));
+        setup(new VectorData(dims, numVectors, Math.min(numVectors, 20_000), ThreadLocalRandom.current(), accessMode));
     }
 
     void setup(VectorData vectorData) throws IOException {

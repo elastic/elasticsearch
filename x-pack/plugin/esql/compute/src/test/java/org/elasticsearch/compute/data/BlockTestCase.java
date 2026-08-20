@@ -112,6 +112,15 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
         return false;
     }
 
+    /**
+     * Whether {@link Block#asVector()} returns a stable instance comparable with {@code sameInstance}
+     * and safe to round-trip via {@link Vector#asBlock()} / close. Override when {@code asVector()}
+     * allocates a fresh wrapper on each call.
+     */
+    protected boolean supportsReusableVectorView() {
+        return true;
+    }
+
     protected B createConstantBlock(BlockFactory blockFactory, V value, int positions) {
         throw new UnsupportedOperationException();
     }
@@ -164,7 +173,9 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
         try (B block = buildBlock(blockFactory(), expected)) {
             Vector vector = block.asVector();
             assertThat(vector, notNullValue());
-            BasicBlockTests.assertKeepMask(vector);
+            if (supportsReusableVectorView()) {
+                BasicBlockTests.assertKeepMask(vector);
+            }
             BasicBlockTests.assertFilter(vector);
             BasicBlockTests.assertSlice(vector);
             BasicBlockTests.assertDeepCopy(block);
@@ -173,8 +184,7 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
 
     /**
      * Smoke-test {@code toString} for a tiny block. When the block exposes a {@link Vector},
-     * also checks filter/slice shapes that collapse to constants — coverage formerly in
-     * {@link BasicBlockTests#testToStringSmall}.
+     * also checks filter/slice shapes that collapse to constants.
      */
     public final void testToStringSmall() {
         V first = randomValue();
@@ -834,9 +844,11 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
             for (int p = 0; p < expected.size(); p++) {
                 assertThat(block.getFirstValueIndex(p), equalTo(p));
             }
-            vector.incRef();
-            try (Block vectorBlock = vector.asBlock()) {
-                assertThat(vectorBlock, equalTo(block));
+            if (supportsReusableVectorView()) {
+                vector.incRef();
+                try (Block vectorBlock = vector.asBlock()) {
+                    assertThat(vectorBlock, equalTo(block));
+                }
             }
         } else {
             assertThat(block.asVector(), nullValue());
@@ -847,7 +859,7 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
         try (Block sliced = block.slice(0, block.getPositionCount())) {
             // Full-range slice reuses the block; *VectorBlock wraps via asBlock() so only the vector is reused.
             Vector vector = block.asVector();
-            if (vector != null) {
+            if (vector != null && supportsReusableVectorView()) {
                 assertThat(sliced.asVector(), sameInstance(vector));
             } else {
                 assertThat(sliced, sameInstance(block));

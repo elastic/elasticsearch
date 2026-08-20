@@ -92,7 +92,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final var schedulingListeners = new CompositeRecoverySchedulingListener();
         schedulingListeners.addListener(new RecoverySchedulingListener() {
             @Override
-            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {
                 completedListener.countDown();
             }
         });
@@ -136,12 +136,12 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final var schedulingListeners = new CompositeRecoverySchedulingListener();
         schedulingListeners.addListener(new RecoverySchedulingListener() {
             @Override
-            public void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role) {
+            public void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {
                 callOrder.add("queued");
             }
 
             @Override
-            public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {
+            public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {
                 callOrder.add("dequeued");
                 allRecoveriesStarted.countDown();
             }
@@ -175,7 +175,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final var schedulingListeners = new CompositeRecoverySchedulingListener();
         schedulingListeners.addListener(new RecoverySchedulingListener() {
             @Override
-            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {
                 allRecoveriesCompleted.countDown();
             }
         });
@@ -370,7 +370,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         // guarantees the handler is gone from activeRecoveries.
         schedulingListeners.addListener(new RecoverySchedulingListener() {
             @Override
-            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {
                 firstComplete.countDown();
             }
         });
@@ -409,7 +409,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             final var secondComplete = new CountDownLatch(1);
             schedulingListeners.addListener(new RecoverySchedulingListener() {
                 @Override
-                public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+                public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {
                     secondComplete.countDown();
                 }
             });
@@ -755,7 +755,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             final var dequeuedCount = new AtomicInteger();
             schedulingListeners.addListener(new RecoverySchedulingListener() {
                 @Override
-                public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {
+                public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {
                     dequeuedCount.incrementAndGet();
                 }
             });
@@ -793,7 +793,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             final var dequeuedCount = new AtomicInteger();
             schedulingListeners.addListener(new RecoverySchedulingListener() {
                 @Override
-                public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {
+                public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {
                     dequeuedCount.incrementAndGet();
                 }
             });
@@ -858,7 +858,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final var schedulingListeners = new CompositeRecoverySchedulingListener();
         schedulingListeners.addListener(new RecoverySchedulingListener() {
             @Override
-            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {
                 recoveriesCompleted.countDown();
             }
         });
@@ -913,7 +913,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final var schedulingListeners = new CompositeRecoverySchedulingListener();
         schedulingListeners.addListener(new RecoverySchedulingListener() {
             @Override
-            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {
                 recoveriesCompleted.countDown();
             }
         });
@@ -970,7 +970,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final var schedulingListeners = new CompositeRecoverySchedulingListener();
         schedulingListeners.addListener(new RecoverySchedulingListener() {
             @Override
-            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {
                 recoveriesCompleted.countDown();
             }
         });

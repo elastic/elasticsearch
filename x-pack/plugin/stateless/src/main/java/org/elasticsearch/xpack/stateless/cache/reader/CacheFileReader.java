@@ -426,6 +426,7 @@ public class CacheFileReader {
      * @throws IOException if an I/O error occurs
      */
     public final boolean tryRead(ByteBuffer b, long position) throws IOException {
+        // what the caller asks the cache for, so a readByte that refills a buffer accounts the whole fill
         final int length = b.remaining();
         final boolean read;
         if (desiredMAdvice == SharedBytes.MADV_NORMAL) {

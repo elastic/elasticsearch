@@ -1000,7 +1000,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         final String synthetic1;
         final XContent xContent;
         {
-            SourceProvider provider = SourceProvider.fromLookup(mapper.mappers(), filter, SourceFieldMetrics.NOOP);
+            SourceProvider provider = SourceProvider.fromLookup(mapper.mappers(), filter, SourceFieldMetrics.NOOP, null);
             var source = provider.getSource(leafReader.getContext(), docId);
             synthetic1 = source.internalSourceRef().utf8ToString();
             xContent = source.sourceContentType().xContent();
@@ -1015,7 +1015,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 SourceFieldMetrics.NOOP,
                 mapper.mapping().ignoredSourceFormat()
             );
-            var sourceLeafLoader = sourceLoader.leaf(getOnlyLeafReader(reader), docIds);
+            var sourceLeafLoader = sourceLoader.leaf(getOnlyLeafReader(reader).getContext(), docIds);
             var storedFieldLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields())
                 .getLoader(leafReader.getContext(), docIds);
             storedFieldLoader.advanceTo(docId);

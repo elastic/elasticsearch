@@ -221,8 +221,8 @@ import java.util.stream.IntStream;
  * ./gradlew -p benchmarks run --args 'FlattenedFieldExtractBenchmark -f 3'
  * }</pre>
  */
-@Warmup(iterations = 5)
-@Measurement(iterations = 7)
+@Warmup(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 7, time = 1, timeUnit = TimeUnit.SECONDS)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Thread)

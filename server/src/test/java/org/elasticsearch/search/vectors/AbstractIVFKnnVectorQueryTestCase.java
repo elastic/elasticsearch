@@ -907,7 +907,7 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
      * inert. Wiring regression: fails if the accumulator is (re)created per collector manager.
      */
     public void testAccumulatorSharedAcrossLeaves() throws IOException {
-        try (Directory dir = buildMultiSegmentIndex(4, 3, 8); IndexReader reader = DirectoryReader.open(dir)) {
+        try (Directory dir = buildMultiSegmentIndex(); IndexReader reader = DirectoryReader.open(dir)) {
             assertTrue("test requires multiple segments", reader.leaves().size() > 1);
             List<LongAccumulator> captured = Collections.synchronizedList(new ArrayList<>());
             new AccumulatorCapturingQuery("field", 3, testResolver(), captured).rewrite(newSearcher(reader));
@@ -922,13 +922,15 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
 
     /** With a single leaf there is nothing to share, so the accumulator is left null (no atomic churn). */
     public void testAccumulatorNullForSingleLeaf() throws IOException {
+        int dim = randomIntBetween(4, 64);
+        int numDocs = randomIntBetween(10, 100);
         try (Directory dir = newDirectoryForTest()) {
             IndexWriterConfig iwc = new IndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format));
             decorateIWC(iwc);
             try (IndexWriter w = new IndexWriter(dir, iwc)) {
-                for (int i = 0; i < 8; i++) {
+                for (int i = 0; i < numDocs; i++) {
                     Document doc = getDocumentToIndex();
-                    doc.add(getKnnVectorField("field", randomVector(8)));
+                    doc.add(getKnnVectorField("field", randomVector(dim)));
                     w.addDocument(doc);
                 }
                 w.forceMerge(1);
@@ -943,13 +945,16 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
         }
     }
 
-    private Directory buildMultiSegmentIndex(int numSegments, int docsPerSegment, int dim) throws IOException {
+    private Directory buildMultiSegmentIndex() throws IOException {
+        int numSegments = randomIntBetween(2, 10);
+        int dim = randomIntBetween(4, 64);
         Directory dir = newDirectoryForTest();
         IndexWriterConfig iwc = new IndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
         decorateIWC(iwc);
         try (IndexWriter w = new IndexWriter(dir, iwc)) {
             for (int s = 0; s < numSegments; s++) {
+                int docsPerSegment = randomIntBetween(1, 20);
                 for (int i = 0; i < docsPerSegment; i++) {
                     Document doc = getDocumentToIndex();
                     doc.add(getKnnVectorField("field", randomVector(dim)));

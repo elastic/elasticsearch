@@ -1234,6 +1234,16 @@ public final class RestoreService implements ClusterStateApplier {
             return false;
         }
         if (entry.snapshot().equals(source.snapshot()) == false) {
+            assert false
+                : "shard ["
+                    + primary.shardId()
+                    + "] has restore UUID ["
+                    + source.restoreUUID()
+                    + "] that resolves to snapshot ["
+                    + entry.snapshot()
+                    + "] but routing recovery source names snapshot ["
+                    + source.snapshot()
+                    + "]";
             logger.error(
                 "shard [{}] has restore UUID [{}] that resolves to snapshot [{}] but routing recovery source names snapshot [{}]; "
                     + "treating shard as not actively restoring",

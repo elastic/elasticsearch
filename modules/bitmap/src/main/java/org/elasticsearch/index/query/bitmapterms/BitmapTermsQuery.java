@@ -26,8 +26,6 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
@@ -47,7 +45,7 @@ import java.util.Objects;
  * everything below.
  * <p>
  * On a segment sorted by this field the matches come out of that scan already in doc order, so they
- * are streamed rather than collected; see {@link StreamingScan}. Otherwise they are collected into a
+ * are streamed rather than collected; see {@link StreamingDocIdIterator}. Otherwise they are collected into a
  * {@link DocIdSetBuilder} first, which is what puts them in order.
  * <p>
  * The field's width lives entirely in the {@link BitmapValues}, so this handles {@code integer} and
@@ -92,9 +90,9 @@ public class BitmapTermsQuery extends Query implements Accountable {
                         public Scorer get(long leadCost) throws IOException {
                             // Opened here rather than per supplier, so a supplier asked only for its cost
                             // does not read doc values and each scorer gets its own cursor over them.
-                            NumericDocValues skipValues = DocValues.unwrapSingleton(DocValues.getSortedNumeric(reader, field));
+                            NumericDocValues docValues = DocValues.unwrapSingleton(DocValues.getSortedNumeric(reader, field));
                             TermMerge merge = new TermMerge(terms.iterator());
-                            StreamingScan scan = new StreamingScan(merge, skipValues, reader.maxDoc(), estimatedCost);
+                            StreamingDocIdIterator scan = new StreamingDocIdIterator(merge, docValues, reader.maxDoc(), estimatedCost);
                             return new ConstantScoreScorer(score(), scoreMode, scan);
                         }
 
@@ -159,7 +157,7 @@ public class BitmapTermsQuery extends Query implements Accountable {
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
                 // Only the streaming path reads doc values, to skip with, and those are updatable.
-                return sortedByField(ctx.reader(), field) == false || DocValues.isCacheable(ctx, field);
+                return SegmentSort.ascendingBy(ctx.reader(), field) == false || DocValues.isCacheable(ctx, field);
             }
         };
     }
@@ -175,27 +173,17 @@ public class BitmapTermsQuery extends Query implements Accountable {
      * Documents missing a value are fine, and where the sort's missing value places them does not matter.
      * They carry no term, so they can only leave gaps in the doc ids a term's postings cover; two
      * documents with values V1 &lt; V2 still sort in that order, so {@code term(V1)}'s postings still
-     * precede {@code term(V2)}'s. Nor is the missing value visible to {@link StreamingScan#skipTo}, which
+     * precede {@code term(V2)}'s. Nor is the missing value visible to {@link StreamingDocIdIterator#skipTo}, which
      * reads doc values rather than the sort key: {@link NumericDocValues#advanceExact} simply reports
      * false for such a document and the skip is declined.
      */
     private boolean canStream(LeafReader reader, Terms terms) throws IOException {
-        return sortedByField(reader, field) && singleValued(terms);
+        return SegmentSort.ascendingBy(reader, field) && singleValued(terms);
     }
 
     /** Every document with this field carries exactly one value, so no document repeats across terms. */
     private static boolean singleValued(Terms terms) throws IOException {
         return terms.getSumDocFreq() == terms.getDocCount();
-    }
-
-    /** Whether the segment's primary sort is an ascending sort on {@code field}. */
-    private static boolean sortedByField(LeafReader reader, String field) {
-        Sort sort = reader.getMetaData().sort();
-        if (sort == null || sort.getSort().length == 0) {
-            return false;
-        }
-        SortField primary = sort.getSort()[0];
-        return field.equals(primary.getField()) && primary.getReverse() == false;
     }
 
     /**
@@ -340,9 +328,9 @@ public class BitmapTermsQuery extends Query implements Accountable {
      * paying it up front is what stops a consumer from finishing early: a top-N collector cannot reach
      * its limit until the whole match set has been built.
      */
-    private static final class StreamingScan extends DocIdSetIterator {
+    private static final class StreamingDocIdIterator extends DocIdSetIterator {
         private final TermMerge merge;
-        private final NumericDocValues skipValues;
+        private final NumericDocValues docValues;
         private final int maxDoc;
         private final long cost;
         /** Kept across terms so each one recycles the last one's enum rather than allocating. */
@@ -351,9 +339,9 @@ public class BitmapTermsQuery extends Query implements Accountable {
         private boolean draining;
         private int doc = -1;
 
-        StreamingScan(TermMerge merge, NumericDocValues skipValues, int maxDoc, long cost) {
+        StreamingDocIdIterator(TermMerge merge, NumericDocValues docValues, int maxDoc, long cost) {
             this.merge = merge;
-            this.skipValues = skipValues;
+            this.docValues = docValues;
             this.maxDoc = maxDoc;
             this.cost = cost;
         }
@@ -412,10 +400,10 @@ public class BitmapTermsQuery extends Query implements Accountable {
          * because advance targets increase monotonically.
          */
         private void skipTo(int targetDoc) throws IOException {
-            if (skipValues == null || skipValues.advanceExact(targetDoc) == false) {
+            if (docValues == null || docValues.advanceExact(targetDoc) == false) {
                 return;
             }
-            merge.skipTo(skipValues.longValue());
+            merge.skipTo(docValues.longValue());
         }
 
         @Override

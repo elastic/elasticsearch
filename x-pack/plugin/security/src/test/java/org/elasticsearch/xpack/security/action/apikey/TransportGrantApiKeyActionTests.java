@@ -90,7 +90,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
 
         action = new TransportGrantApiKeyAction(
             transportService,
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             threadContext,
             authenticationService,
             authorizationService,

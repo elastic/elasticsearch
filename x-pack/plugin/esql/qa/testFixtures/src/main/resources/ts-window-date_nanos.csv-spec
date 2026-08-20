@@ -97,12 +97,13 @@ s:long | dim:keyword | time_bucket:date_nanos
 ;
 
 ###############################################
-# Non-multiple window/bucket combos (GCD-based sub-bucketing)
+# Non-multiple window/bucket combos (full buckets plus a partial channel per aggregate)
 ###############################################
 
 sum_over_time_non_multiple_7m_window_5m_bucket_datenanos
 required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
+required_capability: per_aggregate_windows
 required_capability: fix_time_series_window_backward
 required_capability: fix_time_series_date_nanos_mixed_rounding
 
@@ -112,23 +113,24 @@ TS ts_window_nanos
 | LIMIT 20;
 
 s:long | dim:keyword | time_bucket:date_nanos
-1      | a           | 2024-01-01T00:00:00.000Z
-10     | b           | 2024-01-01T00:00:00.000Z
-21     | a           | 2024-01-01T00:05:00.000Z
-210    | b           | 2024-01-01T00:05:00.000Z
-56     | a           | 2024-01-01T00:10:00.000Z
-560    | b           | 2024-01-01T00:10:00.000Z
-91     | a           | 2024-01-01T00:15:00.000Z
-910    | b           | 2024-01-01T00:15:00.000Z
-126    | a           | 2024-01-01T00:20:00.000Z
-1260   | b           | 2024-01-01T00:20:00.000Z
-161    | a           | 2024-01-01T00:25:00.000Z
-1610   | b           | 2024-01-01T00:25:00.000Z
+15     | a           | 2024-01-01T00:00:00.000Z
+150    | b           | 2024-01-01T00:00:00.000Z
+49     | a           | 2024-01-01T00:05:00.000Z
+490    | b           | 2024-01-01T00:05:00.000Z
+84     | a           | 2024-01-01T00:10:00.000Z
+840    | b           | 2024-01-01T00:10:00.000Z
+119    | a           | 2024-01-01T00:15:00.000Z
+1190   | b           | 2024-01-01T00:15:00.000Z
+154    | a           | 2024-01-01T00:20:00.000Z
+1540   | b           | 2024-01-01T00:20:00.000Z
+189    | a           | 2024-01-01T00:25:00.000Z
+1890   | b           | 2024-01-01T00:25:00.000Z
 ;
 
 sum_over_time_non_multiple_11m_window_5m_bucket_datenanos
 required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
+required_capability: per_aggregate_windows
 required_capability: fix_time_series_window_backward
 required_capability: fix_time_series_date_nanos_mixed_rounding
 
@@ -138,23 +140,24 @@ TS ts_window_nanos
 | LIMIT 20;
 
 s:long | dim:keyword | time_bucket:date_nanos
-1      | a           | 2024-01-01T00:00:00.000Z
-10     | b           | 2024-01-01T00:00:00.000Z
-21     | a           | 2024-01-01T00:05:00.000Z
-210    | b           | 2024-01-01T00:05:00.000Z
-66     | a           | 2024-01-01T00:10:00.000Z
-660    | b           | 2024-01-01T00:10:00.000Z
-121    | a           | 2024-01-01T00:15:00.000Z
-1210   | b           | 2024-01-01T00:15:00.000Z
-176    | a           | 2024-01-01T00:20:00.000Z
-1760   | b           | 2024-01-01T00:20:00.000Z
-231    | a           | 2024-01-01T00:25:00.000Z
-2310   | b           | 2024-01-01T00:25:00.000Z
+15     | a           | 2024-01-01T00:00:00.000Z
+150    | b           | 2024-01-01T00:00:00.000Z
+55     | a           | 2024-01-01T00:05:00.000Z
+550    | b           | 2024-01-01T00:05:00.000Z
+110    | a           | 2024-01-01T00:10:00.000Z
+1100   | b           | 2024-01-01T00:10:00.000Z
+165    | a           | 2024-01-01T00:15:00.000Z
+1650   | b           | 2024-01-01T00:15:00.000Z
+220    | a           | 2024-01-01T00:20:00.000Z
+2200   | b           | 2024-01-01T00:20:00.000Z
+275    | a           | 2024-01-01T00:25:00.000Z
+2750   | b           | 2024-01-01T00:25:00.000Z
 ;
 
 count_over_time_non_multiple_7m_window_5m_bucket_datenanos
 required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
+required_capability: per_aggregate_windows
 required_capability: fix_time_series_window_backward
 required_capability: fix_time_series_date_nanos_mixed_rounding
 
@@ -164,10 +167,10 @@ TS ts_window_nanos
 | LIMIT 20;
 
 c:long | dim:keyword | time_bucket:date_nanos
-1      | a           | 2024-01-01T00:00:00.000Z
-1      | b           | 2024-01-01T00:00:00.000Z
-6      | a           | 2024-01-01T00:05:00.000Z
-6      | b           | 2024-01-01T00:05:00.000Z
+5      | a           | 2024-01-01T00:00:00.000Z
+5      | b           | 2024-01-01T00:00:00.000Z
+7      | a           | 2024-01-01T00:05:00.000Z
+7      | b           | 2024-01-01T00:05:00.000Z
 7      | a           | 2024-01-01T00:10:00.000Z
 7      | b           | 2024-01-01T00:10:00.000Z
 7      | a           | 2024-01-01T00:15:00.000Z
@@ -181,6 +184,7 @@ c:long | dim:keyword | time_bucket:date_nanos
 min_over_time_non_multiple_7m_window_5m_bucket_datenanos
 required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
+required_capability: per_aggregate_windows
 required_capability: fix_time_series_window_backward
 required_capability: fix_time_series_date_nanos_mixed_rounding
 
@@ -192,21 +196,22 @@ TS ts_window_nanos
 mn:long | dim:keyword | time_bucket:date_nanos
 1      | a           | 2024-01-01T00:00:00.000Z
 10     | b           | 2024-01-01T00:00:00.000Z
-1      | a           | 2024-01-01T00:05:00.000Z
-10     | b           | 2024-01-01T00:05:00.000Z
-5      | a           | 2024-01-01T00:10:00.000Z
-50     | b           | 2024-01-01T00:10:00.000Z
-10     | a           | 2024-01-01T00:15:00.000Z
-100    | b           | 2024-01-01T00:15:00.000Z
-15     | a           | 2024-01-01T00:20:00.000Z
-150    | b           | 2024-01-01T00:20:00.000Z
-20     | a           | 2024-01-01T00:25:00.000Z
-200    | b           | 2024-01-01T00:25:00.000Z
+4      | a           | 2024-01-01T00:05:00.000Z
+40     | b           | 2024-01-01T00:05:00.000Z
+9      | a           | 2024-01-01T00:10:00.000Z
+90     | b           | 2024-01-01T00:10:00.000Z
+14     | a           | 2024-01-01T00:15:00.000Z
+140    | b           | 2024-01-01T00:15:00.000Z
+19     | a           | 2024-01-01T00:20:00.000Z
+190    | b           | 2024-01-01T00:20:00.000Z
+24     | a           | 2024-01-01T00:25:00.000Z
+240    | b           | 2024-01-01T00:25:00.000Z
 ;
 
 avg_over_time_non_multiple_7m_window_5m_bucket_datenanos
 required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
+required_capability: per_aggregate_windows
 required_capability: fix_time_series_window_backward
 required_capability: fix_time_series_date_nanos_mixed_rounding
 
@@ -216,23 +221,24 @@ TS ts_window_nanos
 | LIMIT 20;
 
 a:double | dim:keyword | time_bucket:date_nanos
-1.0      | a           | 2024-01-01T00:00:00.000Z
-10.0     | b           | 2024-01-01T00:00:00.000Z
-3.5      | a           | 2024-01-01T00:05:00.000Z
-35.0     | b           | 2024-01-01T00:05:00.000Z
-8.0      | a           | 2024-01-01T00:10:00.000Z
-80.0     | b           | 2024-01-01T00:10:00.000Z
-13.0     | a           | 2024-01-01T00:15:00.000Z
-130.0    | b           | 2024-01-01T00:15:00.000Z
-18.0     | a           | 2024-01-01T00:20:00.000Z
-180.0    | b           | 2024-01-01T00:20:00.000Z
-23.0     | a           | 2024-01-01T00:25:00.000Z
-230.0    | b           | 2024-01-01T00:25:00.000Z
+3.0      | a           | 2024-01-01T00:00:00.000Z
+30.0     | b           | 2024-01-01T00:00:00.000Z
+7.0      | a           | 2024-01-01T00:05:00.000Z
+70.0     | b           | 2024-01-01T00:05:00.000Z
+12.0     | a           | 2024-01-01T00:10:00.000Z
+120.0    | b           | 2024-01-01T00:10:00.000Z
+17.0     | a           | 2024-01-01T00:15:00.000Z
+170.0    | b           | 2024-01-01T00:15:00.000Z
+22.0     | a           | 2024-01-01T00:20:00.000Z
+220.0    | b           | 2024-01-01T00:20:00.000Z
+27.0     | a           | 2024-01-01T00:25:00.000Z
+270.0    | b           | 2024-01-01T00:25:00.000Z
 ;
 
 sum_over_time_non_multiple_with_trange_datenanos
 required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
+required_capability: per_aggregate_windows
 required_capability: fix_time_series_window_backward
 required_capability: fix_time_series_date_nanos_mixed_rounding
 
@@ -243,12 +249,14 @@ TS ts_window_nanos
 | LIMIT 10;
 
 s:long | dim:keyword | time_bucket:date_nanos
-45     | a           | 2024-01-01T00:10:00.000Z
-450    | b           | 2024-01-01T00:10:00.000Z
-91     | a           | 2024-01-01T00:15:00.000Z
-910    | b           | 2024-01-01T00:15:00.000Z
-126    | a           | 2024-01-01T00:20:00.000Z
-1260   | b           | 2024-01-01T00:20:00.000Z
+34     | a           | 2024-01-01T00:05:00.000Z
+340    | b           | 2024-01-01T00:05:00.000Z
+84     | a           | 2024-01-01T00:10:00.000Z
+840    | b           | 2024-01-01T00:10:00.000Z
+119    | a           | 2024-01-01T00:15:00.000Z
+1190   | b           | 2024-01-01T00:15:00.000Z
+60     | a           | 2024-01-01T00:20:00.000Z
+600    | b           | 2024-01-01T00:20:00.000Z
 ;
 
 ###############################################
@@ -258,6 +266,7 @@ s:long | dim:keyword | time_bucket:date_nanos
 rate_non_multiple_avg_rate_7m_window_5m_bucket_datenanos
 required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
+required_capability: per_aggregate_windows
 required_capability: fix_time_series_window_backward
 required_capability: rate_with_interpolation
 required_capability: fix_time_series_date_nanos_mixed_rounding
@@ -269,18 +278,18 @@ TS ts_window_nanos
 | LIMIT 20;
 
 dim:keyword | time_bucket:date_nanos   | r:double
-a           | 2024-01-01T00:00:00.000Z | null
-b           | 2024-01-01T00:00:00.000Z | null
-a           | 2024-01-01T00:05:00.000Z | 0.053968
-b           | 2024-01-01T00:05:00.000Z | 0.539683
-a           | 2024-01-01T00:10:00.000Z | 0.130102
-b           | 2024-01-01T00:10:00.000Z | 1.30102
-a           | 2024-01-01T00:15:00.000Z | 0.206633
-b           | 2024-01-01T00:15:00.000Z | 2.066327
-a           | 2024-01-01T00:20:00.000Z | 0.283163
-b           | 2024-01-01T00:20:00.000Z | 2.831633
-a           | 2024-01-01T00:25:00.000Z | 0.359694
-b           | 2024-01-01T00:25:00.000Z | 3.596939
+a           | 2024-01-01T00:00:00.000Z | 0.039048
+b           | 2024-01-01T00:00:00.000Z | 0.390476
+a           | 2024-01-01T00:05:00.000Z | 0.114796
+b           | 2024-01-01T00:05:00.000Z | 1.147959
+a           | 2024-01-01T00:10:00.000Z | 0.191327
+b           | 2024-01-01T00:10:00.000Z | 1.913265
+a           | 2024-01-01T00:15:00.000Z | 0.267857
+b           | 2024-01-01T00:15:00.000Z | 2.678571
+a           | 2024-01-01T00:20:00.000Z | 0.344388
+b           | 2024-01-01T00:20:00.000Z | 3.443878
+a           | 2024-01-01T00:25:00.000Z | 0.420918
+b           | 2024-01-01T00:25:00.000Z | 4.209184
 ;
 
 rate_5m_tbucket_datenanos
@@ -312,6 +321,7 @@ r:double | time_bucket:date_nanos
 sum_over_time_non_multiple_7m_window_5m_tstep_datenanos
 required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
+required_capability: per_aggregate_windows
 required_capability: fix_time_series_window_backward
 required_capability: tstep
 required_capability: fix_tstep_bucket_rounding
@@ -341,6 +351,7 @@ s:long | dim:keyword | time_bucket:date_nanos
 sum_over_time_non_multiple_11m_window_5m_tstep_datenanos
 required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
+required_capability: per_aggregate_windows
 required_capability: fix_time_series_window_backward
 required_capability: tstep
 required_capability: fix_tstep_bucket_rounding

@@ -22,9 +22,9 @@ public interface RecoverySchedulingListener {
     /// Enumerates the priority groups for a recovery. These groups can affect throttling, e.g. we can throttle relocations more tightly
     /// than recoveries from unassigned shards. Applies only to the target (in the [RecoveryRole] sense), not the source.
     enum PriorityGroup {
-        /// Recovering an unassigned shard
+        /** Recovering an unassigned shard */
         UNASSIGNED,
-        /// Recovering a shard to relocate it
+        /** Recovering a shard to relocate it */
         RELOCATION,
     }
 

@@ -20,6 +20,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
@@ -216,7 +217,7 @@ public class PlanExecutor {
 
         var begin = System.nanoTime();
         ActionListener<Versioned<Result>> executeListener = wrap(
-            x -> onQuerySuccess(request, listener, x, planTelemetry, begin),
+            x -> onQuerySuccess(request, listener, x, planTelemetry, services.usageService(), executionInfo, begin),
             ex -> onQueryFailure(request, listener, ex, clientId, planTelemetry, begin)
         );
         // Wrap it in a listener so that if we have any exceptions during execution, the listener picks it up
@@ -229,6 +230,8 @@ public class PlanExecutor {
         ActionListener<Versioned<Result>> listener,
         Versioned<Result> x,
         PlanTelemetry planTelemetry,
+        UsageService usageService,
+        EsqlExecutionInfo executionInfo,
         long begin
     ) {
         planTelemetryManager.publish(planTelemetry, true);
@@ -241,6 +244,13 @@ public class PlanExecutor {
             null
         );
         queryLog.onQueryPhase(x, request.queryDescription());
+        // record routing usage telemetry
+        usageService.getProjectRoutingUsageHolder()
+            .recordEsql(
+                executionInfo.getProjectRoutingInfo(),
+                planTelemetry.settings().containsKey("project_routing"),
+                executionInfo.isHasLinkedProjects()
+            );
         listener.onResponse(x);
     }
 

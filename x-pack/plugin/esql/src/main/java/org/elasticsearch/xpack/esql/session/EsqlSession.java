@@ -400,7 +400,6 @@ public class EsqlSession {
             statement,
             SettingsValidationContext.from(remoteClusterService)
         );
-        executionInfo.setSetClauseUsed(statement.setting("project_routing") != null);
         if (explainContext == null) {
             gatherSettingsMetrics(request, statement);
         }

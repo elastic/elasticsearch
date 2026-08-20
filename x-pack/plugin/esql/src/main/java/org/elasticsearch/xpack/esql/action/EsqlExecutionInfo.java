@@ -111,8 +111,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      */
     private final transient List<BooleanSupplier> stopHooks = new CopyOnWriteArrayList<>();
 
-    // Project routing telemetry — coordinator-only, not serialized, see: https://github.com/elastic/elasticsearch-team/issues/4560
-    private transient boolean setClauseUsed;
+    // Project routing telemetry — coordinator-only, not serialized
     private transient ProjectRoutingRequestInfo projectRoutingInfo;
     private transient boolean hasLinkedProjects;
 
@@ -185,15 +184,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public IncludeExecutionMetadata includeExecutionMetadata() {
         return includeExecutionMetadata;
-    }
-
-    /** Sets whether the {@code project_routing} expression came from an in-query {@code SET} clause. */
-    public void setSetClauseUsed(boolean setClauseUsed) {
-        this.setClauseUsed = setClauseUsed;
-    }
-
-    public boolean isSetClauseUsed() {
-        return setClauseUsed;
     }
 
     /** Stores routing metadata captured from the first field-caps round. */

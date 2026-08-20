@@ -411,13 +411,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(result -> {
                 recordCCSTelemetry(task, executionInfo, request, null);
-                // record routing usage telemetry
-                usageService.getProjectRoutingUsageHolder()
-                    .recordEsql(
-                        executionInfo.getProjectRoutingInfo(),
-                        executionInfo.isSetClauseUsed(),
-                        executionInfo.isHasLinkedProjects()
-                    );
                 planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
                 collectMetrics(result.inner());
                 var response = toResponse(task, request, request.profile(), result);

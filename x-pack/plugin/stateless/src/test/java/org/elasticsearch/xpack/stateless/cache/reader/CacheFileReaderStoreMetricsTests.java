@@ -116,6 +116,32 @@ public class CacheFileReaderStoreMetricsTests extends ESTestCase {
         assertThat("clones and slices of an input reuse the reader's holder", bytesRead(), equalTo(1024L));
     }
 
+    public void testCopiesAccountToTheThreadThatReads() throws Exception {
+        when(cacheFile.copy()).thenReturn(cacheFile);
+        when(cacheFile.tryRead(any(), anyLong())).thenReturn(true);
+        when(cacheFile.tryRead(any(), anyLong(), anyInt())).thenReturn(true);
+
+        CacheFileReader reader = newReader(holder.singleThreaded());
+        assertTrue(reader.tryRead(ByteBuffer.allocate(1024), 0L));
+        assertThat(bytesRead(), equalTo(1024L));
+
+        // a copy is what an input hands out from clone() and slice(), and may be read from another thread
+        CacheFileReader copy = reader.copy();
+        Thread otherThread = new Thread(() -> {
+            try {
+                assertThat(bytesRead(), equalTo(0L));
+                assertTrue(copy.tryRead(ByteBuffer.allocate(512), 0L));
+                assertThat(bytesRead(), equalTo(512L));
+            } catch (IOException e) {
+                fail("IOException thrown in other thread: " + e.getMessage());
+            }
+        });
+        otherThread.start();
+        otherThread.join();
+
+        assertThat("the reads of the other thread are accounted to it", bytesRead(), equalTo(1024L));
+    }
+
     public void testAccountsNothingWithoutAHolder() throws IOException {
         when(cacheFile.tryRead(any(), anyLong())).thenReturn(true);
         when(cacheFile.tryRead(any(), anyLong(), anyInt())).thenReturn(true);

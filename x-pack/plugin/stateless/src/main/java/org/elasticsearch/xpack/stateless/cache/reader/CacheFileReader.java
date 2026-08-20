@@ -189,6 +189,7 @@ public class CacheFileReader {
      * read from or copied.
      */
     public void accountBytesReadTo(PluggableDirectoryMetricsHolder<StoreMetrics> holder) {
+        assert storeMetrics == StoreMetrics.NOOP_HOLDER : "already accounting to " + storeMetrics;
         this.storeMetrics = holder;
     }
 

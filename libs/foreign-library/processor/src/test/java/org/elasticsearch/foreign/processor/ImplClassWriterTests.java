@@ -36,8 +36,10 @@ import java.util.Map;
  * {@link #loadLibrary}) and invoke its methods end to end. Compile-error diagnostics for invalid inputs
  * live in the per-feature suites such as {@link BoundsCheckTests} and {@link LibraryProcessorTests}.
  *
- * <p>The behavioral test binds to a ubiquitous libc symbol reachable through the default linker lookup —
- * POSIX {@code qsort} (for {@code @Upcall} callbacks) — so it needs no native library build dependency.
+ * <p>The behavioral tests need no native library build dependency: the {@code @Upcall} codegen is
+ * exercised both cross-platform (the generated stub is driven through a custom {@code MethodHandleResolver},
+ * no external symbol required) and end to end against POSIX {@code qsort} where it is reachable through
+ * the default linker lookup.
  */
 @SuppressForbidden(reason = "tests verify private fields of processor-generated classes; getDeclaredField is the only way to access them")
 public class ImplClassWriterTests extends ProcessorTestCase {
@@ -1282,73 +1284,6 @@ public class ImplClassWriterTests extends ProcessorTestCase {
     }
 
     /**
-     * A {@code @Function} method with an {@code Arena} parameter and a parameter of an
-     * {@code @Upcall}-typed callback interface must generate static {@code $upcallFd} /
-     * {@code $upcallMh} fields (keyed by the callback's parameter index) and a method body that
-     * installs the stub via {@code LinkerHelper.upcallStub(...)} before the downcall. Verified
-     * structurally via {@code loadClassNoInit} — building the downcall {@code MethodHandle} in
-     * {@code <clinit>} would require a real native symbol, but the upcall fields and bytecode
-     * shape can be asserted without initializing the class.
-     */
-    public void testUpcallParamGeneratesStubCall() throws Exception {
-        String source = """
-            package test;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.Upcall;
-            @Upcall
-            @FunctionalInterface
-            interface IntCallback {
-                int call(int x);
-            }
-            @LibrarySpecification(name = "testlib")
-            public interface CallbackLib {
-                @Function("native_fn")
-                void fn(IntCallback cb);
-            }
-            """;
-
-        CompilationResult result = compile("test.CallbackLib", source);
-        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
-
-        Class<?> implClass = result.loadClassNoInit("test.CallbackLib$Impl");
-        assertNotNull("Generated CallbackLib$Impl class not found", implClass);
-
-        // The callback is the first parameter (index 0), so the field names are keyed "upcall0".
-        java.lang.reflect.Field fdField = implClass.getDeclaredField("fn$upcall0Fd");
-        assertEquals("fn$upcall0Fd must be a FunctionDescriptor", java.lang.foreign.FunctionDescriptor.class, fdField.getType());
-        assertTrue("fn$upcall0Fd must be static", Modifier.isStatic(fdField.getModifiers()));
-
-        java.lang.reflect.Field mhField = implClass.getDeclaredField("fn$upcall0Mh");
-        assertEquals("fn$upcall0Mh must be a MethodHandle", MethodHandle.class, mhField.getType());
-        assertTrue("fn$upcall0Mh must be static", Modifier.isStatic(mhField.getModifiers()));
-
-        // The generated method keeps the real Java signature: (IntCallback), not (MemorySegment).
-        // Load IntCallback through implClass's own classloader so the Class objects are comparable.
-        Class<?> callbackClass = Class.forName("test.IntCallback", false, implClass.getClassLoader());
-        java.lang.reflect.Method method = implClass.getMethod("fn", callbackClass);
-        assertEquals("fn must return void", void.class, method.getReturnType());
-
-        // The method body must install the stub via LinkerHelper.upcallStub before the downcall.
-        Path classFile = result.outputDir().resolve("test/CallbackLib$Impl.class");
-        assertTrue("Generated CallbackLib$Impl.class not found", Files.exists(classFile));
-        byte[] bytes = Files.readAllBytes(classFile);
-        var cm = ClassFile.of().parse(bytes);
-        boolean hasUpcallStubCall = cm.methods()
-            .stream()
-            .filter(m -> m.methodName().equalsString("fn"))
-            .flatMap(m -> m.code().stream())
-            .flatMap(ca -> ca.elementStream())
-            .anyMatch(
-                e -> e instanceof InvokeInstruction ii
-                    && ii.opcode() == Opcode.INVOKESTATIC
-                    && ii.owner().asInternalName().equals("org/elasticsearch/foreign/LinkerHelper")
-                    && ii.name().equalsString("upcallStub")
-            );
-        assertTrue("Generated fn body must invoke LinkerHelper.upcallStub", hasUpcallStubCall);
-    }
-
-    /**
      * Two overloaded Java methods binding to the same C symbol must generate two distinct
      * {@code MethodHandle} fields using the ordinal-suffix naming strategy:
      * {@code open$0$mh} and {@code open$1$mh}.
@@ -1822,5 +1757,96 @@ public class ImplClassWriterTests extends ProcessorTestCase {
             }
             assertEquals("qsort must sort ascending via the upcall comparator", "[1, 2, 3, 4, 5]", Arrays.toString(sorted));
         }
+    }
+
+    /**
+     * Cross-platform behavioral proof that the generated {@code @Upcall} marshaling works, without
+     * depending on any specific native symbol (so unlike {@link #testQsortUpcallSortsArray} it also runs
+     * on Windows). The generated {@code apply(IntCallback)} builds an FFM upcall stub from the Java
+     * callback and passes its address to the downcall; a custom {@link org.elasticsearch.foreign.MethodHandleResolver}
+     * stands in for the native function, receiving that stub, building a downcall onto it, and invoking
+     * it with a fixed argument. If the emitted stub-creation code is correct the Java callback runs and
+     * its result flows back out, so asserting on the returned value alone exercises the whole path with
+     * no reflection into {@code $Impl}.
+     */
+    public void testUpcallStubInvokesJavaCallback() throws Throwable {
+        Map<String, String> sources = new LinkedHashMap<>();
+        sources.put("test.CallbackLib", """
+            package test;
+            import java.lang.foreign.FunctionDescriptor;
+            import java.lang.foreign.Linker;
+            import java.lang.foreign.MemorySegment;
+            import java.lang.foreign.SymbolLookup;
+            import java.lang.foreign.ValueLayout;
+            import java.lang.invoke.MethodHandle;
+            import java.lang.invoke.MethodHandles;
+            import java.lang.invoke.MethodType;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.LinkerHelper;
+            import org.elasticsearch.foreign.MethodHandleResolver;
+            import org.elasticsearch.foreign.ResolvedSymbol;
+            import org.elasticsearch.foreign.SymbolResolver;
+            import org.elasticsearch.foreign.Upcall;
+            @Upcall
+            @FunctionalInterface
+            interface IntCallback {
+                int call(int x);
+            }
+            @LibrarySpecification(
+                symbolResolver = CallbackLib.FakeSymbolResolver.class,
+                methodHandleResolver = CallbackLib.StubInvokingResolver.class
+            )
+            public interface CallbackLib {
+                @Function("apply")
+                int apply(IntCallback cb);
+
+                // Stands in for the native function. The generated apply() creates an upcall stub from the
+                // Java callback and passes its address here; build a downcall onto that stub and call it
+                // with a fixed argument, returning whatever the callback computed. Linking goes through
+                // LinkerHelper so the restricted Linker call runs in the native-access-enabled module.
+                static int invokeStub(MemorySegment stub) throws Throwable {
+                    MethodHandle mh = LinkerHelper.downcallHandle(
+                        stub,
+                        FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT)
+                    );
+                    return (int) mh.invokeExact(21);
+                }
+
+                class FakeSymbolResolver implements SymbolResolver {
+                    public FakeSymbolResolver() {}
+                    public ResolvedSymbol resolve(String name, SymbolLookup lookup) {
+                        return new ResolvedSymbol(name, MemorySegment.ofAddress(1L));
+                    }
+                }
+
+                class StubInvokingResolver implements MethodHandleResolver {
+                    public StubInvokingResolver() {}
+                    public MethodHandle resolve(ResolvedSymbol symbol, FunctionDescriptor descriptor,
+                                                Linker linker, Linker.Option... options) {
+                        try {
+                            return MethodHandles.lookup()
+                                .findStatic(CallbackLib.class, "invokeStub",
+                                    MethodType.methodType(int.class, MemorySegment.class));
+                        } catch (ReflectiveOperationException e) {
+                            throw new AssertionError(e);
+                        }
+                    }
+                }
+            }
+            """);
+        sources.put("test.Doubler", """
+            package test;
+            public final class Doubler implements IntCallback {
+                public Doubler() {}
+                public int call(int x) {
+                    return x * 2;
+                }
+            }
+            """);
+
+        LoadedLibrary lib = loadLibrary(sources, "test.CallbackLib");
+        Object callback = lib.newInstance("test.Doubler");
+        assertEquals("the upcall stub must invoke the Java callback (21 doubled)", 42, (int) lib.call("apply", callback));
     }
 }

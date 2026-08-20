@@ -14,11 +14,37 @@ import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentClo
 
 import java.util.Map;
 
+/**
+ * Visitor interface for creating executable actions for TencentCloud inference models.
+ * This interface defines methods to create actions for embeddings, rerank, and chat completion models, each taking the
+ * request's task settings.
+ */
 public interface TencentCloudActionVisitor {
 
+    /**
+     * Creates an executable action for the given TencentCloud embeddings model.
+     *
+     * @param model the TencentCloud embeddings model
+     * @param taskSettings the task-level settings for this request
+     * @return an executable action for the embeddings model
+     */
     ExecutableAction create(TencentCloudEmbeddingsModel model, Map<String, Object> taskSettings);
 
+    /**
+     * Creates an executable action for the given TencentCloud rerank model.
+     *
+     * @param model the TencentCloud rerank model
+     * @param taskSettings the task-level settings for this request
+     * @return an executable action for the rerank model
+     */
     ExecutableAction create(TencentCloudRerankModel model, Map<String, Object> taskSettings);
 
+    /**
+     * Creates an executable action for the given TencentCloud chat completion model.
+     *
+     * @param model the TencentCloud chat completion model
+     * @param taskSettings the task-level settings for this request
+     * @return an executable action for the chat completion model
+     */
     ExecutableAction create(TencentCloudChatCompletionModel model, Map<String, Object> taskSettings);
 }

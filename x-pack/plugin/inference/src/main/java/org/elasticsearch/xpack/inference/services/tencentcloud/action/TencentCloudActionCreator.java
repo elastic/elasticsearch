@@ -63,11 +63,24 @@ public class TencentCloudActionCreator implements TencentCloudActionVisitor {
     private final Sender sender;
     private final ServiceComponents serviceComponents;
 
+    /**
+     * Constructs a new TencentCloudActionCreator with the specified sender and service components.
+     *
+     * @param sender the sender to use for executing actions
+     * @param serviceComponents the service components providing necessary services
+     */
     public TencentCloudActionCreator(Sender sender, ServiceComponents serviceComponents) {
         this.sender = Objects.requireNonNull(sender);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
     }
 
+    /**
+     * Creates an executable action for the given TencentCloud embeddings model.
+     *
+     * @param model the TencentCloud embeddings model
+     * @param taskSettings the task-level settings for this request
+     * @return an executable action for the embeddings model
+     */
     @Override
     public ExecutableAction create(TencentCloudEmbeddingsModel model, Map<String, Object> taskSettings) {
         var requestManager = new GenericRequestManager<>(
@@ -80,6 +93,14 @@ public class TencentCloudActionCreator implements TencentCloudActionVisitor {
         return new SenderExecutableAction(sender, requestManager, constructFailedToSendRequestMessage("TencentCloud embeddings"));
     }
 
+    /**
+     * Creates an executable action for the given TencentCloud rerank model, applying any rerank task settings
+     * overrides carried by the request.
+     *
+     * @param model the TencentCloud rerank model
+     * @param taskSettings the task-level settings for this request, used to override the model's rerank task settings
+     * @return an executable action for the rerank model
+     */
     @Override
     public ExecutableAction create(TencentCloudRerankModel model, Map<String, Object> taskSettings) {
         var overriddenModel = TencentCloudRerankModel.of(model, taskSettings);
@@ -99,6 +120,13 @@ public class TencentCloudActionCreator implements TencentCloudActionVisitor {
         return new SenderExecutableAction(sender, requestManager, constructFailedToSendRequestMessage("TencentCloud rerank"));
     }
 
+    /**
+     * Creates an executable action for the given TencentCloud chat completion model.
+     *
+     * @param model the TencentCloud chat completion model
+     * @param taskSettings the task-level settings for this request
+     * @return an executable action for the chat completion model
+     */
     @Override
     public ExecutableAction create(TencentCloudChatCompletionModel model, Map<String, Object> taskSettings) {
         var requestManager = new GenericRequestManager<>(

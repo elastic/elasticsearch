@@ -107,6 +107,14 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
         );
     }
 
+    /**
+     * Constructor for creating a TencentCloudService with the specified HTTP request sender factory, service components,
+     * and factory context.
+     *
+     * @param factory the factory to create HTTP request senders
+     * @param serviceComponents the components required for the inference service
+     * @param context the context for the inference service factory
+     */
     public TencentCloudService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
@@ -115,6 +123,14 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
         this(factory, serviceComponents, context.clusterService());
     }
 
+    /**
+     * Constructor for creating a TencentCloudService with the specified HTTP request sender factory, service components,
+     * and cluster service.
+     *
+     * @param factory the factory to create HTTP request senders
+     * @param serviceComponents the components required for the inference service
+     * @param clusterService the cluster service used to resolve cluster state
+     */
     public TencentCloudService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
         super(factory, serviceComponents, clusterService, MODEL_CREATORS);
     }
@@ -139,6 +155,16 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
         return SUPPORTED_STREAMING_TASKS;
     }
 
+    /**
+     * Performs inference for a TencentCloud model (embeddings or completion) by creating an executable action via the
+     * {@link TencentCloudActionCreator} and executing it.
+     *
+     * @param model the model to run inference against
+     * @param inputs the inference inputs
+     * @param taskSettings the task-level settings for this request
+     * @param timeout the request timeout
+     * @param listener the listener to notify with results or failure
+     */
     @Override
     protected void doInfer(
         Model model,
@@ -157,6 +183,14 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
         listener.onFailure(createInvalidModelException(model));
     }
 
+    /**
+     * Performs unified chat completion inference for a TencentCloud chat completion model.
+     *
+     * @param model the model to run inference against
+     * @param inputs the unified chat input
+     * @param timeout the request timeout
+     * @param listener the listener to notify with results or failure
+     */
     @Override
     protected void doUnifiedCompletionInfer(
         Model model,
@@ -180,6 +214,15 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
         }
     }
 
+    /**
+     * Performs rerank inference for a TencentCloud rerank model by creating an executable action via the
+     * {@link TencentCloudActionCreator} and executing it.
+     *
+     * @param model the model to run inference against
+     * @param request the rerank request containing the query, documents, and task settings
+     * @param timeout the request timeout
+     * @param listener the listener to notify with results or failure
+     */
     @Override
     protected void doRerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         if (model instanceof TencentCloudRerankModel rerankModel) {
@@ -191,6 +234,17 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
         }
     }
 
+    /**
+     * Performs chunked inference for a TencentCloud embeddings model, batching the inputs and executing one
+     * executable action per batch.
+     *
+     * @param model the model to run inference against
+     * @param inputs the chunked inference inputs
+     * @param taskSettings the task-level settings for this request
+     * @param inputType the input type for embeddings
+     * @param timeout the request timeout
+     * @param listener the listener to notify with results or failure
+     */
     @Override
     protected void doChunkedInfer(
         Model model,
@@ -224,11 +278,26 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
         }
     }
 
+    /**
+     * Validates that the input type is permitted for TencentCloud models.
+     *
+     * @param inputType the input type to validate
+     * @param model the model the inference is run against
+     * @param validationException the exception to collect validation errors into
+     */
     @Override
     protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
         ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(inputType, validationException);
     }
 
+    /**
+     * Updates an embeddings model with the embedding size (and derived similarity) returned by the service, returning a
+     * new model when the service settings changed.
+     *
+     * @param model the model to update
+     * @param embeddingSize the embedding size reported by the service
+     * @return a new model with updated service settings, or the original model when no change is needed
+     */
     @Override
     public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
         if (model instanceof TencentCloudEmbeddingsModel embeddingsModel) {
@@ -255,6 +324,13 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
         return true;
     }
 
+    /**
+     * Returns the conservative static rerank context window (in tokens) used for all TencentCloud rerank models, since
+     * the gateway does not publish a fixed rerank context window or validate the model id at configuration time.
+     *
+     * @param modelId the rerank model identifier
+     * @return the reranker window size in tokens
+     */
     @Override
     public int rerankerWindowSize(String modelId) {
         // The TencentCloud AI Gateway does not publish a fixed rerank context window and does not validate the model id
@@ -263,7 +339,16 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
         return 350;
     }
 
+    /**
+     * Configuration class for the TencentCloud inference service.
+     * It provides the settings and configurations required for the service.
+     */
     public static class Configuration {
+        /**
+         * Returns the lazily computed {@link InferenceServiceConfiguration} for the TencentCloud service.
+         *
+         * @return the inference service configuration
+         */
         public static InferenceServiceConfiguration get() {
             return CONFIGURATION.getOrCompute();
         }

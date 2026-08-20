@@ -102,7 +102,7 @@ public class VectorScorerFloat32BulkOperationBenchmark {
         private final float[][] vectors;
 
         VectorData(int dims, int numVectors, int numVectorsToScore, Random random) {
-            super(numVectors, numVectorsToScore, random, VectorScorerBulkBenchmark.AccessMode.RANDOM);
+            super(numVectors, numVectorsToScore, random, DataAccessPattern.RANDOM);
 
             vectors = new float[numVectors][];
             for (int v = 0; v < numVectors; v++) {

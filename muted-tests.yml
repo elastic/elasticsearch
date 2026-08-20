@@ -779,3 +779,9 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessSearchIT
   method: testRefreshOnBulkWithNewShardAllocation
   issue: https://github.com/elastic/elasticsearch/issues/157260
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=termvectors/30_realtime/Realtime Term Vectors}
+  issue: https://github.com/elastic/elasticsearch/issues/157310
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search/395_binary_doc_values_search/Test keyword range uses indexed byte ordering for binary doc values}
+  issue: https://github.com/elastic/elasticsearch/issues/157314

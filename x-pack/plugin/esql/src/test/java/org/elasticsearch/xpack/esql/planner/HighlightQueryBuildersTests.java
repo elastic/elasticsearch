@@ -39,8 +39,11 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
@@ -59,7 +62,9 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -160,9 +165,95 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         };
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> HighlightQueryBuilders.verify(of("fox"), TITLE, analyzer)
+            () -> HighlightQueryBuilders.verify(of("fox"), TITLE, analyzer, true)
         );
         assertThat(e.getMessage(), containsString("test analyzer was used"));
+    }
+
+    public void testVerifyCanSkipExplicitOnFieldEnforcement() {
+        Expression query = match("body", "fox", null);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HighlightQueryBuilders.verify(query, TITLE, Lucene.STANDARD_ANALYZER, true)
+        );
+        assertThat(e.getMessage(), containsString("HIGHLIGHT query field [body] is not in ON fields [title]"));
+        HighlightQueryBuilders.verify(query, TITLE, Lucene.STANDARD_ANALYZER, false);
+    }
+
+    public void testSupportedImplicitPredicateShapes() {
+        Match match = match("title", "fox", null);
+        MatchPhrase phrase = matchPhrase("body", "quick fox", null);
+        QueryString qstr = queryString("fox", null);
+        Kql kql = new Kql(EMPTY, of("title: fox"), null, TEST_CFG);
+
+        assertTrue(HighlightQueryBuilders.isSupportedImplicitPredicate(match));
+        assertTrue(HighlightQueryBuilders.isSupportedImplicitPredicate(phrase));
+        assertTrue(HighlightQueryBuilders.isSupportedImplicitPredicate(qstr));
+        assertTrue(HighlightQueryBuilders.isSupportedImplicitPredicate(kql));
+        assertTrue(HighlightQueryBuilders.isSupportedImplicitPredicate(new And(EMPTY, match, phrase)));
+        assertTrue(HighlightQueryBuilders.isSupportedImplicitPredicate(new Or(EMPTY, qstr, kql)));
+        assertFalse(HighlightQueryBuilders.isSupportedImplicitPredicate(new Not(EMPTY, match)));
+        assertFalse(HighlightQueryBuilders.isSupportedImplicitPredicate(of("fox")));
+        assertFalse(HighlightQueryBuilders.isSupportedImplicitPredicate(new And(EMPTY, match, new Not(EMPTY, phrase))));
+    }
+
+    public void testAllHighlightableFieldsFiltersAndDeduplicates() {
+        Attribute firstDuplicate = getFieldAttribute("duplicate", KEYWORD);
+        Attribute integer = getFieldAttribute("count", INTEGER);
+        Attribute metadata = new MetadataAttribute(EMPTY, MetadataAttribute.INDEX, KEYWORD, true);
+        Attribute lastDuplicate = getFieldAttribute("duplicate", TEXT);
+        Attribute body = getFieldAttribute("body", TEXT);
+
+        List<NamedExpression> fields = HighlightQueryBuilders.allHighlightableFields(
+            List.of(firstDuplicate, integer, metadata, lastDuplicate, body)
+        );
+
+        assertThat(fields, equalTo(List.of(lastDuplicate, body)));
+    }
+
+    public void testDeriveFieldsFromPositiveQueryReferences() {
+        Attribute title = getFieldAttribute("title", TEXT);
+        Attribute body = getFieldAttribute("body", TEXT);
+        Expression query = new And(EMPTY, match("title", "fox", null), new Not(EMPTY, match("body", "bar", null)));
+
+        assertThat(HighlightQueryBuilders.deriveFields(query, List.of(title, body)), equalTo(List.of(title)));
+        assertTrue(HighlightQueryBuilders.deriveFields(new Not(EMPTY, match("body", "bar", null)), List.of(title, body)).isEmpty());
+    }
+
+    public void testDeriveFieldsUsesConcreteQueryStringDefaultField() {
+        Attribute title = getFieldAttribute("title", TEXT);
+        Attribute body = getFieldAttribute("body", KEYWORD);
+
+        assertThat(
+            HighlightQueryBuilders.deriveFields(queryString("fox", options("default_field", "title")), List.of(title, body)),
+            equalTo(List.of(title))
+        );
+    }
+
+    public void testDeriveFieldsFallsBackWhenNoSpecificFieldExists() {
+        Attribute title = getFieldAttribute("title", TEXT);
+        Attribute body = getFieldAttribute("body", KEYWORD);
+        Attribute count = getFieldAttribute("count", INTEGER);
+        List<Attribute> output = List.of(title, body, count);
+
+        assertThat(HighlightQueryBuilders.deriveFields(of("fox"), output), equalTo(List.of(title, body)));
+        assertThat(HighlightQueryBuilders.deriveFields(queryString("fox", null), output), equalTo(List.of(title, body)));
+        assertThat(
+            HighlightQueryBuilders.deriveFields(queryString("fox", options("default_field", "ti*")), output),
+            equalTo(List.of(title, body))
+        );
+        assertThat(
+            HighlightQueryBuilders.deriveFields(new Kql(EMPTY, of("title: fox"), null, TEST_CFG), output),
+            equalTo(List.of(title, body))
+        );
+    }
+
+    public void testDeriveFieldsSkipsMissingAndNonStringReferences() {
+        Attribute title = getFieldAttribute("title", TEXT);
+        Attribute count = getFieldAttribute("count", INTEGER);
+        Expression query = new And(EMPTY, match("missing", "fox", null), match("count", "1", null));
+
+        assertTrue(HighlightQueryBuilders.deriveFields(query, List.of(title, count)).isEmpty());
     }
 
     // The registry hands plugin analyzers (AnalysisPlugin#getAnalyzers) back as bare Lucene analyzers with no position

@@ -27,8 +27,20 @@ public class HighlightSerializationTests extends AbstractLogicalPlanSerializatio
         Source source = randomSource();
         LogicalPlan child = randomChild(0);
         String prefix = randomPrefix();
+        boolean implicitQuery = randomBoolean();
+        boolean derivedFields = randomBoolean();
         List<NamedExpression> fields = randomFields();
-        return new Highlight(source, child, prefix, randomQuery(), fields, randomNonNullOptions(), generatedFor(prefix, fields));
+        return new Highlight(
+            source,
+            child,
+            prefix,
+            randomQuery(),
+            implicitQuery,
+            derivedFields,
+            fields,
+            randomNonNullOptions(),
+            generatedFor(prefix, fields)
+        );
     }
 
     @Override
@@ -36,17 +48,31 @@ public class HighlightSerializationTests extends AbstractLogicalPlanSerializatio
         LogicalPlan child = instance.child();
         String prefix = instance.prefix();
         Expression query = instance.query();
+        boolean implicitQuery = instance.implicitQuery();
+        boolean derivedFields = instance.derivedFields();
         List<NamedExpression> fields = instance.fields();
         MapExpression options = instance.options();
 
-        switch (between(0, 4)) {
+        switch (between(0, 6)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> prefix = randomValueOtherThan(prefix, HighlightSerializationTests::randomPrefix);
             case 2 -> query = randomValueOtherThan(query, HighlightSerializationTests::randomQuery);
-            case 3 -> fields = randomValueOtherThan(fields, HighlightSerializationTests::randomFields);
-            case 4 -> options = randomValueOtherThan(options, HighlightSerializationTests::randomOptions);
+            case 3 -> implicitQuery = implicitQuery == false;
+            case 4 -> derivedFields = derivedFields == false;
+            case 5 -> fields = randomValueOtherThan(fields, HighlightSerializationTests::randomFields);
+            case 6 -> options = randomValueOtherThan(options, HighlightSerializationTests::randomOptions);
         }
-        return new Highlight(instance.source(), child, prefix, query, fields, options, generatedFor(prefix, fields));
+        return new Highlight(
+            instance.source(),
+            child,
+            prefix,
+            query,
+            implicitQuery,
+            derivedFields,
+            fields,
+            options,
+            generatedFor(prefix, fields)
+        );
     }
 
     private static String randomPrefix() {

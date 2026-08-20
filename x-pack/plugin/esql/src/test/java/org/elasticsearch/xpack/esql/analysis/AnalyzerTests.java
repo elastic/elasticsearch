@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Wild
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.function.vector.Magnitude;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -103,6 +104,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -5805,6 +5807,181 @@ public class AnalyzerTests extends ESTestCase {
 
     private boolean isMultiTypeEsField(Expression e) {
         return e instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField;
+    }
+
+    public void testHighlightCombinesImplicitQueriesFromMultipleWhereCommands() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = analyzedHighlight(basic().query("""
+            FROM test
+            | WHERE MATCH(first_name, "x")
+            | WHERE MATCH(last_name, "y")
+            | HIGHLIGHT ON first_name
+            """));
+
+        Or query = as(highlight.query(), Or.class);
+        assertThat(query.left(), instanceOf(Match.class));
+        assertThat(query.right(), instanceOf(Match.class));
+    }
+
+    public void testHighlightCollectsOnlyPositiveFullTextConjuncts() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = analyzedHighlight(basic().query("""
+            FROM test
+            | WHERE MATCH(first_name, "x") AND salary > 3 AND NOT MATCH(last_name, "y")
+            | HIGHLIGHT ON first_name
+            """));
+        assertThat(highlight.query(), instanceOf(Match.class));
+
+        basic().error(
+            "FROM test | WHERE MATCH(first_name, \"x\") OR salary > 3 | HIGHLIGHT ON first_name",
+            containsString("HIGHLIGHT requires a query or a preceding full-text WHERE")
+        );
+        basic().error(
+            "FROM test | WHERE NOT MATCH(first_name, \"x\") | HIGHLIGHT ON first_name",
+            containsString("HIGHLIGHT requires a query or a preceding full-text WHERE")
+        );
+    }
+
+    public void testHighlightImplicitQueryStopsAtStats() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        basic().error(
+            "FROM test | WHERE MATCH(first_name, \"x\") | STATS c = COUNT(*) BY first_name | HIGHLIGHT ON first_name",
+            containsString("HIGHLIGHT requires a query or a preceding full-text WHERE")
+        );
+    }
+
+    public void testHighlightImplicitQueryPassesDocLevelCommands() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = analyzedHighlight(basic().query("""
+            FROM test
+            | WHERE MATCH(first_name, "x")
+            | EVAL copy = first_name
+            | KEEP first_name, last_name, copy
+            | SORT first_name
+            | LIMIT 10
+            | DISSECT copy "%{part}"
+            | HIGHLIGHT ON first_name
+            """));
+
+        assertThat(highlight.query(), instanceOf(Match.class));
+        assertTrue(highlight.implicitQuery());
+    }
+
+    /**
+     * Commands that only add columns to a row or drop whole rows keep every surviving row bound to the document it came from,
+     * so an upstream WHERE is still a valid highlight query across them. This pins the ones that are easy to get wrong because
+     * they are neither projections nor filters.
+     */
+    public void testHighlightImplicitQueryPassesRowPreservingCommands() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = analyzedHighlight(basicWithEnrich().query("""
+            FROM test
+            | WHERE MATCH(first_name, "x")
+            | EVAL x = to_string(languages)
+            | ENRICH languages ON x
+            | SAMPLE 0.5
+            | HIGHLIGHT ON first_name
+            """));
+
+        assertThat(highlight.query(), instanceOf(Match.class));
+        assertTrue(highlight.implicitQuery());
+    }
+
+    public void testBareHighlightDerivesQueryFieldsAndGeneratedOutput() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = analyzedHighlight(basic().query("""
+            FROM test
+            | WHERE MATCH(first_name, "x")
+            | HIGHLIGHT
+            """));
+
+        assertThat(highlight.query(), instanceOf(Match.class));
+        assertTrue(highlight.implicitQuery());
+        assertThat(highlightFieldNames(highlight), equalTo(List.of("first_name")));
+        assertThat(highlight.generatedAttributes(), hasSize(1));
+        Attribute generated = highlight.generatedAttributes().getFirst();
+        assertThat(generated.name(), equalTo("highlight_first_name"));
+        assertThat(generated.dataType(), equalTo(KEYWORD));
+        assertTrue(highlight.output().contains(generated));
+    }
+
+    public void testBareHighlightFallsBackToAllStringFields() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = analyzedHighlight(basic().query("FROM test | HIGHLIGHT \"fox\""));
+        List<String> expected = highlight.child()
+            .output()
+            .stream()
+            .filter(a -> DataType.isString(a.dataType()) && a instanceof MetadataAttribute == false)
+            .map(Attribute::name)
+            .toList();
+
+        assertThat(highlightFieldNames(highlight), equalTo(expected));
+    }
+
+    public void testHighlightExplicitQueryBeatsUpstreamWhere() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = analyzedHighlight(basic().query("""
+            FROM test
+            | WHERE MATCH(first_name, "x")
+            | HIGHLIGHT MATCH(last_name, "y") ON last_name
+            """));
+
+        Match match = as(highlight.query(), Match.class);
+        assertThat(Expressions.name(match.field()), equalTo("last_name"));
+        assertFalse(highlight.implicitQuery());
+    }
+
+    public void testHighlightDerivedFieldsIgnoreNegativeExplicitSubtrees() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = analyzedHighlight(
+            basic().query("FROM test | HIGHLIGHT MATCH(first_name, \"x\") AND NOT MATCH(last_name, \"y\")")
+        );
+
+        assertThat(highlightFieldNames(highlight), equalTo(List.of("first_name")));
+        assertTrue(highlight.derivedFields());
+    }
+
+    public void testHighlightCollectsPredicateForDroppedField() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = analyzedHighlight(basic().query("""
+            FROM test
+            | WHERE MATCH(first_name, "x")
+            | DROP first_name
+            | HIGHLIGHT ON last_name
+            """));
+
+        assertThat(highlight.query(), instanceOf(Match.class));
+        assertTrue(highlight.implicitQuery());
+        basic().error(
+            "FROM test | WHERE MATCH(first_name, \"x\") | DROP first_name | HIGHLIGHT",
+            containsString("HIGHLIGHT found no text or keyword fields to highlight; add an explicit ON clause")
+        );
+    }
+
+    public void testHighlightAnalysisConverges() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        TestAnalyzer testAnalyzer = basic();
+        LogicalPlan analyzed = testAnalyzer.query("FROM test | WHERE MATCH(first_name, \"x\") | HIGHLIGHT");
+        LogicalPlan analyzedAgain = testAnalyzer.buildAnalyzer().analyze(analyzed);
+
+        assertThat(analyzedHighlight(analyzedAgain), equalTo(analyzedHighlight(analyzed)));
+    }
+
+    private static void assumeHighlightImplicitQueryAndFieldsEnabled() {
+        assumeTrue(
+            "requires HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS capability",
+            EsqlCapabilities.Cap.HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS.isEnabled()
+        );
+    }
+
+    private static Highlight analyzedHighlight(LogicalPlan plan) {
+        List<Highlight> highlights = plan.collect(Highlight.class);
+        assertThat(highlights, hasSize(1));
+        return highlights.getFirst();
+    }
+
+    private static List<String> highlightFieldNames(Highlight highlight) {
+        return highlight.fields().stream().map(NamedExpression::name).toList();
     }
 
     @Override

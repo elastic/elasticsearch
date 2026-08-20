@@ -206,8 +206,15 @@ identifier
 
 identifierPattern
     : ID_PATTERN
+    | expressionModeIdentifierPattern
     | parameter
     | doubleParameter
+    ;
+
+// HIGHLIGHT remains in EXPRESSION_MODE after ON, where identifier patterns are emitted as identifier/ASTERISK tokens.
+expressionModeIdentifierPattern
+    : identifier? ASTERISK (identifier | ASTERISK)*
+    | identifier
     ;
 
 parameter
@@ -396,7 +403,7 @@ dedupCommand
     ;
 
 highlightCommand
-    : DEV_HIGHLIGHT (prefixKeyword=identifier ASSIGN prefix=string)? queryExpression=booleanExpression ON highlightFields=qualifiedNames commandNamedParameters
+    : DEV_HIGHLIGHT (prefixKeyword=identifier ASSIGN prefix=string)? queryExpression=booleanExpression? (ON highlightFields=qualifiedNamePatterns)? commandNamedParameters
     ;
 
 qualifiedNames

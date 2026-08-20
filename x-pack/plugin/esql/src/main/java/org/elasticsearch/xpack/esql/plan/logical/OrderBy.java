@@ -35,7 +35,8 @@ public class OrderBy extends UnaryPlan
         PostOptimizationPlanVerificationAware,
         TelemetryAware,
         SortAgnostic,
-        PipelineBreaker {
+        PipelineBreaker,
+        DocPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "OrderBy", OrderBy::new);
 
     private final List<Order> order;

@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Location;
@@ -1259,12 +1260,58 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(relation.indexPattern().indexPattern(), equalTo("foo"));
     }
 
-    public void testHighlightRequiresQueryAndOnClause() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
-        // Query and ON are currently required by grammar.
-        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT"));
-        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\""));
-        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT ON title"));
+    public void testBareHighlight() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = as(query("FROM foo | HIGHLIGHT"), Highlight.class);
+        assertThat(highlight.query(), nullValue());
+        assertTrue(highlight.fields().isEmpty());
+        assertTrue(highlight.derivedFields());
+        assertThat(highlight.prefix(), equalTo(Highlight.DEFAULT_PREFIX));
+    }
+
+    public void testHighlightOnFieldsWithoutQuery() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = as(query("FROM foo | HIGHLIGHT ON title, body"), Highlight.class);
+        assertThat(highlight.query(), nullValue());
+        assertThat(highlight.fields(), hasSize(2));
+        assertThat(((UnresolvedAttribute) highlight.fields().get(0)).name(), equalTo("title"));
+        assertThat(((UnresolvedAttribute) highlight.fields().get(1)).name(), equalTo("body"));
+        assertFalse(highlight.derivedFields());
+    }
+
+    public void testHighlightQueryWithoutOnFields() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = as(query("FROM foo | HIGHLIGHT \"fox\""), Highlight.class);
+        assertThat(highlight.query(), instanceOf(Literal.class));
+        assertTrue(highlight.fields().isEmpty());
+        assertTrue(highlight.derivedFields());
+    }
+
+    public void testHighlightOnStar() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = as(query("FROM foo | HIGHLIGHT ON *"), Highlight.class);
+        assertThat(highlight.query(), nullValue());
+        assertThat(highlight.fields(), hasSize(1));
+        assertThat(highlight.fields().getFirst(), instanceOf(UnresolvedStar.class));
+        assertTrue(highlight.derivedFields());
+    }
+
+    public void testHighlightRejectsOnNamePattern() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        expectThrows(
+            ParsingException.class,
+            containsString("Invalid pattern [title*] in HIGHLIGHT ON, expected field names or [*]"),
+            () -> query("FROM foo | HIGHLIGHT ON title*")
+        );
+    }
+
+    public void testHighlightRejectsStarCombinedWithFields() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        expectThrows(
+            ParsingException.class,
+            containsString("HIGHLIGHT ON [*] cannot be combined with other fields"),
+            () -> query("FROM foo | HIGHLIGHT ON title, *")
+        );
     }
 
     public void testHighlightCustomPrefix() {
@@ -1378,17 +1425,19 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(as(highlight.query(), UnresolvedFunction.class).name(), equalTo("MATCH"));
     }
 
-    public void testHighlightRejectsWildcardFields() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
-        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON *"));
-    }
-
     public void testHighlightNotInReleaseBuild() {
         assumeFalse("only runs on release build", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("mismatched input 'HIGHLIGHT'"),
             () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title")
+        );
+    }
+
+    private static void assumeHighlightImplicitQueryAndFieldsEnabled() {
+        assumeTrue(
+            "requires HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS capability",
+            EsqlCapabilities.Cap.HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS.isEnabled()
         );
     }
 

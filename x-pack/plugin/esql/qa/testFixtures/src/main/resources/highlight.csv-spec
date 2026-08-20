@@ -1858,3 +1858,112 @@ ROW title = to_text("The Lord of the Rings")
 highlight_title:keyword
 The Lord of the <em>Rings</em>
 ;
+
+
+# HIGHLIGHT Part C: implicit full-text queries, derived fields, and ON * expansion.
+
+# A bare HIGHLIGHT derives both its query and target field from the upstream full-text WHERE.
+implicitQueryBareForm
+required_capability: highlight_implicit_query_and_fields
+required_capability: match_function
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT
+| KEEP title, highlight_title
+| SORT title
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+Return of the Shadow                                             | <em>Return</em> of the Shadow
+;
+
+
+# Implicit queries may target an unrelated ON field; unmatched highlights are null rather than verification errors.
+implicitQueryUntargetedOnFieldIsNull
+required_capability: highlight_implicit_query_and_fields
+required_capability: match_function
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT ON description
+| KEEP title, highlight_description
+| SORT title
+;
+
+title:text | highlight_description:keyword
+Return of the King Being the Third Part of The Lord of the Rings | null
+Return of the Shadow                                             | null
+;
+
+
+# Full-text predicates from separate WHERE commands are OR-ed for highlighting while both filters still select the rows.
+implicitQueryTwoWheresOrTogether
+required_capability: highlight_implicit_query_and_fields
+required_capability: match_function
+
+FROM books
+| WHERE MATCH(title, "Return")
+| WHERE MATCH(author, "Tolkien")
+| HIGHLIGHT
+| KEEP title, author, highlight_title, highlight_author
+| SORT title
+;
+
+title:text | author:text | highlight_title:keyword | highlight_author:keyword
+Return of the King Being the Third Part of The Lord of the Rings | J. R. R. Tolkien                                 | <em>Return</em> of the King Being the Third Part of The Lord of the Rings | <em>Tolkien</em>
+Return of the Shadow                                             | [Christopher Tolkien, John Ronald Reuel Tolkien] | <em>Return</em> of the Shadow                                             | [Christopher <em>Tolkien</em>, John Ronald Reuel <em>Tolkien</em>]
+;
+
+
+# ON * expands every text/keyword field, including the author.keyword multi-field, in child-output order.
+highlightOnStar
+required_capability: highlight_implicit_query_and_fields
+required_capability: match_function
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT ON *
+| KEEP highlight_*
+| SORT highlight_title
+;
+
+highlight_author:keyword | highlight_author.keyword:keyword | highlight_book_no:keyword | highlight_collection:keyword | highlight_description:keyword | highlight_publisher:keyword | highlight_title:keyword
+null                     | null                             | null                      | null                         | null                          | null                        | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+null                     | null                             | null                      | null                         | null                          | null                        | <em>Return</em> of the Shadow
+;
+
+
+# With an explicit query and no ON clause, HIGHLIGHT falls back to every text/keyword field.
+explicitQueryNoOnFallsBackToAllFields
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| HIGHLIGHT "Tolkien"
+| WHERE book_no == "8875"
+| DROP author, `author.keyword`, book_no, collection, description, publisher, ratings, title, year
+;
+
+highlight_author:keyword           | highlight_author.keyword:keyword   | highlight_book_no:keyword | highlight_collection:keyword | highlight_description:keyword | highlight_publisher:keyword | highlight_title:keyword
+John Ronald Reuel <em>Tolkien</em> | John Ronald Reuel <em>Tolkien</em> | null                      | null                         | null                          | null                        | null
+;
+
+
+# ON * includes semantic_text fields, which surface as text columns to ES|QL.
+implicitOnSemanticTextViaStar
+required_capability: highlight_implicit_query_and_fields
+required_capability: match_function
+
+FROM semantic_text
+| WHERE MATCH(semantic_text_field, "prosper")
+| HIGHLIGHT ON *
+| KEEP semantic_text_field, highlight_semantic_text_field
+| SORT semantic_text_field
+;
+
+semantic_text_field:text | highlight_semantic_text_field:keyword
+all we have to decide is what to do with the time that is given to us | null
+be excellent to each other                                            | null
+live long and prosper                                                 | live long and <em>prosper</em>
+;

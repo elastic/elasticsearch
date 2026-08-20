@@ -408,7 +408,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (patterns.size() == 1) {
             var idCtx = patterns.get(0);
             boolean unresolvedStar = false;
-            if (idCtx.ID_PATTERN() != null && idCtx.ID_PATTERN().getText().equals(WILDCARD)) {
+            if (idCtx.getText().equals(WILDCARD)) {
                 unresolvedStar = true;
             }
             if (idCtx.parameter() != null || idCtx.doubleParameter() != null) {
@@ -442,6 +442,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             EsqlBaseParser.IdentifierPatternContext pattern = patterns.get(i);
             if (pattern.ID_PATTERN() != null) {
                 patternContext = pattern.ID_PATTERN().getText();
+            } else if (pattern.expressionModeIdentifierPattern() != null) {
+                patternContext = pattern.expressionModeIdentifierPattern().getText();
             } else if (pattern.parameter() != null || pattern.doubleParameter() != null) {
                 Expression exp = resolveParamInIdentifierPosition(pattern, src, unqualifiedCtx.getText());
                 if (exp instanceof UnresolvedAttribute ua) { // identifier provided in QueryParam is treated as unquoted string

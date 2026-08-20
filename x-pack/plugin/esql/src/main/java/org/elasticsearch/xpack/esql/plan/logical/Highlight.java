@@ -43,7 +43,12 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPlan<Highlight>, PostAnalysisVerificationAware {
+public class Highlight extends UnaryPlan
+    implements
+        TelemetryAware,
+        GeneratingPlan<Highlight>,
+        PostAnalysisVerificationAware,
+        DocPreserving {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -81,6 +86,8 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
 
     private final String prefix;
     private final Expression query;
+    private final boolean implicitQuery;
+    private final boolean derivedFields;
     private final List<NamedExpression> fields;
     private final MapExpression options;
     /**
@@ -95,6 +102,8 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         LogicalPlan child,
         String prefix,
         Expression query,
+        boolean implicitQuery,
+        boolean derivedFields,
         List<NamedExpression> fields,
         MapExpression options,
         List<Attribute> generatedFields
@@ -102,6 +111,8 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         super(source, child);
         this.prefix = prefix;
         this.query = query;
+        this.implicitQuery = implicitQuery;
+        this.derivedFields = derivedFields;
         this.fields = fields;
         this.options = options;
         this.generatedFields = generatedFields;
@@ -113,6 +124,8 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
             in.readNamedWriteable(LogicalPlan.class),
             in.readString(),
             in.readOptionalNamedWriteable(Expression.class),
+            in.readBoolean(),
+            in.readBoolean(),
             in.readNamedWriteableCollectionAsList(NamedExpression.class),
             // MapExpression is registered under the Expression category, not its own, so read it as an Expression.
             (MapExpression) in.readOptionalNamedWriteable(Expression.class),
@@ -126,6 +139,8 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         out.writeNamedWriteable(child());
         out.writeString(prefix);
         out.writeOptionalNamedWriteable(query);
+        out.writeBoolean(implicitQuery);
+        out.writeBoolean(derivedFields);
         out.writeNamedWriteableCollection(fields);
         out.writeOptionalNamedWriteable(options);
         out.writeNamedWriteableCollection(generatedFields);
@@ -142,6 +157,14 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
 
     public Expression query() {
         return query;
+    }
+
+    public boolean implicitQuery() {
+        return implicitQuery;
+    }
+
+    public boolean derivedFields() {
+        return derivedFields;
     }
 
     public List<NamedExpression> fields() {
@@ -170,17 +193,38 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         if (Objects.equals(options, newOptions)) {
             return this;
         }
-        return new Highlight(source(), child(), prefix, query, fields, newOptions, generatedFields);
+        return new Highlight(source(), child(), prefix, query, implicitQuery, derivedFields, fields, newOptions, generatedFields);
+    }
+
+    /** Returns a copy with the analyzer-derived query and fields. */
+    public Highlight withResolved(
+        Expression newQuery,
+        boolean newImplicitQuery,
+        List<NamedExpression> newFields,
+        List<Attribute> newGeneratedFields
+    ) {
+        return new Highlight(source(), child(), prefix, newQuery, newImplicitQuery, derivedFields, newFields, options, newGeneratedFields);
     }
 
     @Override
     public Highlight replaceChild(LogicalPlan newChild) {
-        return new Highlight(source(), newChild, prefix, query, fields, options, generatedFields);
+        return new Highlight(source(), newChild, prefix, query, implicitQuery, derivedFields, fields, options, generatedFields);
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Highlight::new, child(), prefix, query, fields, options, generatedFields);
+        return NodeInfo.create(
+            this,
+            Highlight::new,
+            child(),
+            prefix,
+            query,
+            implicitQuery,
+            derivedFields,
+            fields,
+            options,
+            generatedFields
+        );
     }
 
     @Override
@@ -202,7 +246,7 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
             String newName = newNames.get(i);
             renamed.add(newName.equals(attr.name()) ? attr : attr.withName(newName).withId(new NameId()));
         }
-        return new Highlight(source(), child(), prefix, query, fields, options, renamed);
+        return new Highlight(source(), child(), prefix, query, implicitQuery, derivedFields, fields, options, renamed);
     }
 
     @Override
@@ -213,6 +257,12 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
 
     @Override
     public boolean expressionsResolved() {
+        if (fields.isEmpty()) {
+            // The bare and ON * forms have their fields derived during analysis, and the generated <prefix><field> columns follow from
+            // them. Until that happens output() is incomplete, so reporting resolved here would let a downstream KEEP of a generated
+            // column resolve against a schema that does not have it yet and record a permanent "Unknown column".
+            return false;
+        }
         if (query != null && query.resolved() == false) {
             return false;
         }
@@ -227,6 +277,11 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
     @Override
     public void postAnalysisVerification(Failures failures) {
         verifyFieldTypes(failures);
+        if (query == null) {
+            failures.add(fail(this, "HIGHLIGHT requires a query or a preceding full-text WHERE (MATCH, MATCH_PHRASE, QSTR or KQL)"));
+        } else if (fields.isEmpty()) {
+            failures.add(fail(this, "HIGHLIGHT found no text or keyword fields to highlight; add an explicit ON clause"));
+        }
         if (options == null) {
             return;
         }
@@ -271,12 +326,13 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
     }
 
     private void verifyQuery(Analyzer analyzer, Failures failures) {
-        if (query == null || query.resolved() == false) {
+        if (query == null || query.resolved() == false || fields.isEmpty()) {
             return;
         }
         List<String> fieldNames = fields.stream().map(NamedExpression::name).toList();
         try {
-            HighlightQueryBuilders.verify(query, fieldNames, analyzer);
+            boolean enforceOnFields = implicitQuery == false && derivedFields == false;
+            HighlightQueryBuilders.verify(query, fieldNames, analyzer, enforceOnFields);
         } catch (IllegalArgumentException e) {
             // Attach to the query node, not this Highlight node: failures dedupe by node, so pinning it here would let a
             // co-located option/analyzer failure on this node swallow the query error (see VerifierTests#testHighlightAnalyzerOption).
@@ -339,6 +395,8 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         Highlight other = (Highlight) o;
         return Objects.equals(prefix, other.prefix)
             && Objects.equals(query, other.query)
+            && implicitQuery == other.implicitQuery
+            && derivedFields == other.derivedFields
             && Objects.equals(fields, other.fields)
             && Objects.equals(options, other.options)
             && Objects.equals(generatedFields, other.generatedFields);
@@ -346,6 +404,6 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), prefix, query, fields, options, generatedFields);
+        return Objects.hash(super.hashCode(), prefix, query, implicitQuery, derivedFields, fields, options, generatedFields);
     }
 }

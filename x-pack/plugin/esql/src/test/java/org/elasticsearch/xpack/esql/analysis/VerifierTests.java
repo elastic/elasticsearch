@@ -4633,6 +4633,49 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().query("FROM test | EVAL x = TOP_SNIPPETS(first_name, CONCAT(\"search\", \" terms\"))");
     }
 
+    public void testBareHighlightRequiresQuery() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT",
+            containsString("HIGHLIGHT requires a query or a preceding full-text WHERE (MATCH, MATCH_PHRASE, QSTR or KQL)")
+        );
+    }
+
+    public void testHighlightOnStarRequiresHighlightableFields() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        defaultAnalyzer().error(
+            "ROW i = 1 | HIGHLIGHT \"x\" ON *",
+            allOf(
+                containsString("HIGHLIGHT found no text or keyword fields to highlight; add an explicit ON clause"),
+                not(containsString("Invalid query"))
+            )
+        );
+    }
+
+    public void testBarePureNegativeHighlightRequiresExplicitOn() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        fullText().error(
+            "FROM test | HIGHLIGHT NOT MATCH(title, \"x\")",
+            containsString("HIGHLIGHT found no text or keyword fields to highlight; add an explicit ON clause")
+        );
+    }
+
+    public void testHighlightExplicitOnStrictnessAndImplicitLeniency() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        fullText().error(
+            "FROM test | HIGHLIGHT MATCH(title, \"x\") ON body",
+            containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
+        );
+        fullText().query("FROM test | WHERE MATCH(title, \"x\") | HIGHLIGHT ON body");
+    }
+
+    private static void assumeHighlightImplicitQueryAndFieldsEnabled() {
+        assumeTrue(
+            "requires HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS capability",
+            EsqlCapabilities.Cap.HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS.isEnabled()
+        );
+    }
+
     public void testHighlightRejectsInvalidOptionEnums() {
         assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         assertInvalidHighlightOption("encoder", "xml");

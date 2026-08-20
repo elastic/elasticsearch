@@ -28,10 +28,7 @@ import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomSubsetOf;
 import static org.elasticsearch.xpack.esql.generator.function.FullTextFunctionGenerator.randomQueryWord;
 
-/**
- * Generates {@code HIGHLIGHT} commands with string and full-text queries. Queries only reference fields in the
- * {@code ON} clause, as required by HIGHLIGHT.
- */
+/** Generates {@code HIGHLIGHT} commands with explicit {@code ON} clauses. */
 public class HighlightGenerator implements CommandGenerator {
 
     public static final String HIGHLIGHT = "highlight";

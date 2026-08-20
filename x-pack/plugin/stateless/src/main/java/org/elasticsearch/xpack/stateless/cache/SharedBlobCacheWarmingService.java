@@ -1220,20 +1220,14 @@ public class SharedBlobCacheWarmingService {
         if (shardsOnSource <= 0) {
             shardsOnSource = 1;
         }
-        int ongoingRelocations = countOngoingRelocationsBetween(state, sourceNodeId, targetNodeId);
-        // The current shard is itself one such relocation; floor at 1 in case it is not yet visible on the source's RoutingNode.
-        if (ongoingRelocations <= 0) {
-            ongoingRelocations = 1;
-        }
-        final double equalShareMs = (remaining / (double) shardsOnSource) * searchRecoveryWarmingSourceShutdownShareFactor
-            * ongoingRelocations;
+        final double equalShareMs = (remaining / (double) shardsOnSource) * searchRecoveryWarmingSourceShutdownShareFactor;
 
         // Data-volume-proportional heuristic: scale remaining time by the fraction of the warming cache this shard occupies.
         final long totalBytesToWarm = endTargetsToWarm.values().stream().mapToLong(WarmTarget::endOffset).sum();
         final long warmingCacheBytes = Math.round(cacheService.getCacheSize() * searchRecoveryWarmingCacheRatio);
         final double dataVolumeMs = warmingCacheBytes > 0 ? ((double) totalBytesToWarm / warmingCacheBytes) * remaining : 0;
 
-        final double timeoutMs;
+        double timeoutMs;
         final String context;
         if (dataVolumeMs > equalShareMs) {
             timeoutMs = dataVolumeMs;
@@ -1242,6 +1236,12 @@ public class SharedBlobCacheWarmingService {
             timeoutMs = equalShareMs;
             context = "relocation source shutting down (equal share of remaining time to capped grace deadline)";
         }
+        int ongoingRelocations = countOngoingRelocationsBetween(state, sourceNodeId, targetNodeId);
+        // The current shard is itself one such relocation; floor at 1 in case it is not yet visible on the source's RoutingNode.
+        if (ongoingRelocations <= 0) {
+            ongoingRelocations = 1;
+        }
+        timeoutMs = Math.min(remaining, timeoutMs * ongoingRelocations);
         return new SearchRecoveryTimeout(TimeValue.timeValueMillis(Math.round(timeoutMs)), context);
     }
 

@@ -108,6 +108,20 @@ public abstract class FlakinessScanTask extends DefaultTask {
 
         // Sorted so the fold is reproducible regardless of file-collection iteration order.
         List<File> files = getProjectTargetsFiles().getFiles().stream().sorted(Comparator.comparing(File::getPath)).toList();
+        if (files.isEmpty() && refs.isEmpty() == false) {
+            // Fail loudly rather than write a plan in which every ref is "unresolved". Zero per-project files
+            // with refs to resolve means the resolve step did not run, ran without -Pflakiness.resolve, or had
+            // its output directory removed - none of which are "these refs matched nothing". Writing a plan
+            // here would produce a green build that silently re-runs no tests at all.
+            throw new GradleException(
+                "No per-project resolve output found under "
+                    + FlakinessProjectResolvePlugin.TARGETS_DIR
+                    + " but there are "
+                    + refs.size()
+                    + " refs to resolve. Run `flakinessResolveProject` (unqualified, with -Pflakiness.resolve) "
+                    + "before flakinessScan; see JAVA_RESOLVER_NOTES.md."
+            );
+        }
         List<FlakinessJson.ProjectTargetsFile> perProject = new ArrayList<>(files.size());
         for (File f : files) {
             perProject.add(FlakinessJson.parseProjectTargets(Files.readString(f.toPath())));

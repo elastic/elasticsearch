@@ -163,8 +163,30 @@ public class FlakinessResolverTests {
         assertThat(yamlCase.yamlTest(), equalTo("test {yaml=esql/10_foo/Case}"));
 
         assertThat(r.unresolved(), hasSize(1));
-        assertThat(r.unresolved().get(0).reason(), equalTo("no-source-file"));
+        assertThat(r.unresolved().get(0).reason(), equalTo(RefResolver.REASON_NO_SOURCE_FILE));
         assertThat(r.unresolved().get(0).ref().className(), equalTo("org.elasticsearch.DoesNotExist"));
+    }
+
+    /**
+     * A malformed refs file is an input defect, not a programming error: a missing or misspelled
+     * {@code source} must be reported as {@code unknown-source} rather than thrown as an NPE from the switch.
+     * Under the per-project topology this runs inside the ownership probe of every project at once, so an NPE
+     * here surfaces as a wall of unreadable stack traces with no mention of the refs file.
+     */
+    @Test
+    public void testMalformedRefSourceIsReportedRatherThanThrown() throws IOException {
+        Path repo = tmp.newFolder("malformed-repo").toPath();
+        ProjectInfo server = new ProjectInfo(":server", repo.resolve("server"), List.of(ssi(repo, "server", ":server", "test")));
+
+        FlakinessRef nullSource = new FlakinessRef(null, null, "org.elasticsearch.FooTests", null, null);
+        FlakinessRef bogusSource = new FlakinessRef("typo-source", "server/src/test/java/X.java", null, null, null);
+
+        RefResolver.Resolution r = resolver(repo, List.of(server)).resolve(List.of(nullSource, bogusSource));
+
+        assertThat(r.targets(), empty());
+        assertThat(r.unresolved(), hasSize(2));
+        assertThat(r.unresolved().get(0).reason(), equalTo(RefResolver.REASON_UNKNOWN_SOURCE));
+        assertThat(r.unresolved().get(1).reason(), equalTo(RefResolver.REASON_UNKNOWN_SOURCE));
     }
 
     // ---- PlanBuilder ----

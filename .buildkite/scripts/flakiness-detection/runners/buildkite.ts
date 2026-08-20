@@ -198,9 +198,16 @@ const FLAKINESS_REFS_ARTIFACT = "flakiness-refs.json";
 const FLAKINESS_PLAN_ARTIFACT = "flakiness-plan.json";
 // Where each project drops its share of the resolve answer: `<project>.json` (consumed by the scan step)
 // and `<project>.compile-tasks.txt` (concatenated by the compile phase). Shell/Java contracts only (no TS
-// type). Keep in sync with FlakinessProjectResolve.TARGETS_DIR on the Java side.
+// type). Keep in sync with FlakinessProjectResolvePlugin.TARGETS_DIR on the Java side.
 const FLAKINESS_TARGETS_DIR = "build/flakiness/project-targets";
-const FLAKINESS_TARGETS_ARTIFACTS = `${FLAKINESS_TARGETS_DIR}/*.json`;
+// The per-project files are uploaded as ONE tarball rather than as ~450 individual artifacts: every project
+// writes its share (owners and non-owners alike), so a `*.json` glob would mean ~450 uploads per build for
+// what is purely post-hoc debugging detail - nothing downstream reads them (resolve, compile and scan all
+// share one agent, so the scan step reads them straight off local disk).
+const FLAKINESS_TARGETS_ARCHIVE = "flakiness-project-targets.tgz";
+// The exact task list the compile phase invoked, flattened out of the per-project files. Uploaded on its own
+// because "what did we actually compile?" is the first question when a build_failed is being triaged.
+const FLAKINESS_COMPILE_TASKS_ARTIFACT = "flakiness-compile-tasks.txt";
 
 const ORCHESTRATION_KEY = "flakiness-orchestration:run";
 const GENERATE_KEY = "flakiness-orchestration:generate";
@@ -266,10 +273,15 @@ function orchestrationCommand(): string {
     "  exit $$rc",
     "fi",
     "",
+    // Pack the per-project answers into one artifact instead of ~450 individual uploads (debug detail only).
+    `tar -czf ${FLAKINESS_TARGETS_ARCHIVE} -C ${FLAKINESS_TARGETS_DIR} . 2>/dev/null || true`,
+    "",
     "# --- compile (plain invocation of the resolved task list; empty list = clean skip) ---",
     // The only glue the per-project topology needs: concatenate what the owning projects each wrote. No
     // Gradle task and no JSON parsing in shell - the per-project files are plain newline-terminated lists.
     `TASKS=$(cat ${FLAKINESS_TARGETS_DIR}/*.compile-tasks.txt 2>/dev/null | sort -u)`,
+    // Persist the flattened list so a build_failed can be triaged without re-deriving it from the tarball.
+    `printf '%s\\n' "$$TASKS" > ${FLAKINESS_COMPILE_TASKS_ARTIFACT}`,
     `if [ -n "$$TASKS" ]; then`,
     `  ${innerGradleTimeout(COMPILE_TIMEOUT_MINUTES)} .ci/scripts/run-gradle.sh $$TASKS`,
     "  rc=$?",
@@ -331,7 +343,12 @@ export function toResolvePipeline(cfg: AgentConfig): Pipeline {
     agents: { ...cfg.agents },
     // Everything a later, separate agent needs: the plan, the precompile marker (compile failure), plus the
     // intermediates for debugging. The generate step downloads the plan from here.
-    artifact_paths: [FLAKINESS_TARGETS_ARTIFACTS, FLAKINESS_PLAN_ARTIFACT, FLAKINESS_PRECOMPILE_ARTIFACT],
+    artifact_paths: [
+      FLAKINESS_TARGETS_ARCHIVE,
+      FLAKINESS_COMPILE_TASKS_ARTIFACT,
+      FLAKINESS_PLAN_ARTIFACT,
+      FLAKINESS_PRECOMPILE_ARTIFACT,
+    ],
     retry: NO_AUTO_RETRY,
   };
   const generate: PipelineStep = {

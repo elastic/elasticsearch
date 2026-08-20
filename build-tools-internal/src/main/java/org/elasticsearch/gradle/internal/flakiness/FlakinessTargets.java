@@ -36,8 +36,11 @@ public final class FlakinessTargets {
      *   <li><b>ref ordering</b> - each per-project file carries the index of the ref that produced each
      *       target, so the merged list reproduces the order of the refs file;</li>
      *   <li><b>the unresolved verdict</b> - a class ref is only unresolved if <em>no</em> project resolved it.
-     *       Only {@code unmute}/{@code explicit} refs are surfaced as unresolved; an unmatched
-     *       {@code changed-file} ref is silently ignored (it is simply not a test).</li>
+     *       Only {@code unmute}/{@code explicit} refs are surfaced as {@code no-source-file}; an unmatched
+     *       {@code changed-file} ref is silently ignored (it is simply not a test). A ref carrying a
+     *       {@code source} this resolver does not know is surfaced as {@code unknown-source}, mirroring
+     *       {@link RefResolver#resolve}: the per-project verdicts are discarded, so without this the ref
+     *       would vanish and a TS/Java contract drift would read as "nothing to run".</li>
      * </ul>
      *
      * @param perProject the parsed per-project files, in a deterministic order (the caller sorts by path), so
@@ -60,9 +63,14 @@ public final class FlakinessTargets {
         List<FlakinessPlan.Unresolved> unresolved = new ArrayList<>();
         for (int i = 0; i < refs.size(); i++) {
             FlakinessRef ref = refs.get(i);
+            if (resolvedRefs.get(i)) {
+                continue;
+            }
             boolean classRef = FlakinessRef.SOURCE_UNMUTE.equals(ref.source()) || FlakinessRef.SOURCE_EXPLICIT.equals(ref.source());
-            if (classRef && resolvedRefs.get(i) == false) {
-                unresolved.add(new FlakinessPlan.Unresolved(ref, "no-source-file"));
+            if (classRef) {
+                unresolved.add(new FlakinessPlan.Unresolved(ref, RefResolver.REASON_NO_SOURCE_FILE));
+            } else if (FlakinessRef.SOURCE_CHANGED_FILE.equals(ref.source()) == false) {
+                unresolved.add(new FlakinessPlan.Unresolved(ref, RefResolver.REASON_UNKNOWN_SOURCE));
             }
         }
         return new FlakinessJson.BaseTargetsFile(targets, unresolved);

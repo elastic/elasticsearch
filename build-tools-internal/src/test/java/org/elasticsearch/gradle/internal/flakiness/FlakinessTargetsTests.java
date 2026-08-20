@@ -98,7 +98,31 @@ public class FlakinessTargetsTests {
 
         assertThat(merged.targets().size(), is(1));
         assertThat(merged.unresolved().stream().map(u -> u.ref()).toList(), contains(orphanUnmute, orphanExplicit));
-        assertThat(merged.unresolved().get(0).reason(), is("no-source-file"));
+        assertThat(merged.unresolved().get(0).reason(), is(RefResolver.REASON_NO_SOURCE_FILE));
+    }
+
+    /**
+     * A ref whose {@code source} this resolver does not know is a TS/Java contract defect, so it must be
+     * reported. The per-project task discards {@link RefResolver}'s own unresolved verdicts (they mean "not in
+     * THIS project", not "not anywhere"), so the merge is the only place left that can surface it - without
+     * this the ref would vanish and the drift would read as "nothing to run".
+     */
+    @Test
+    public void testUnknownRefSourceIsReportedNotSilentlyDropped() {
+        FlakinessRef futureSource = new FlakinessRef("some-future-source", null, "org.foo.ATests", null, null);
+        FlakinessRef missingSource = new FlakinessRef(null, null, "org.foo.BTests", null, null);
+
+        FlakinessJson.BaseTargetsFile merged = FlakinessTargets.merge(
+            List.of(futureSource, missingSource),
+            List.of(new FlakinessJson.ProjectTargetsFile(":a", List.of()))
+        );
+
+        assertThat(merged.targets(), is(empty()));
+        assertThat(merged.unresolved().stream().map(u -> u.ref()).toList(), contains(futureSource, missingSource));
+        assertThat(
+            merged.unresolved().stream().map(u -> u.reason()).distinct().toList(),
+            contains(RefResolver.REASON_UNKNOWN_SOURCE)
+        );
     }
 
     /** Two projects resolving the same identity collapse to one target (the resolver's dedupe rule). */

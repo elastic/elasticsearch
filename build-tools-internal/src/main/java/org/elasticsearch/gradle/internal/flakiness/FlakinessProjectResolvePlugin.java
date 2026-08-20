@@ -131,11 +131,19 @@ public class FlakinessProjectResolvePlugin implements Plugin<Project> {
 
     /**
      * A filesystem-safe, collision-free file name for a Gradle project path: {@code :x-pack:plugin:logsdb} ->
-     * {@code x-pack.plugin.logsdb}, and the root project ({@code :}) -> {@code root}. Project path segments
-     * cannot contain {@code :}, so the mapping is injective.
+     * {@code x-pack.plugin.logsdb}, and the root project ({@code :}) -> {@code root}.
+     *
+     * <p>The mapping must be <b>injective</b>: every project writes into one shared directory, so two paths
+     * mapping to the same name would make one project's task silently overwrite the other's output. Project
+     * path segments cannot contain {@code :}, but they <em>can</em> contain {@code .} (segment names come from
+     * directory names), so replacing {@code :} with {@code .} alone is not injective - {@code :libs:x.y} and
+     * {@code :libs:x:y} would collide. The {@code .} (and the {@code %} of the escape itself) are therefore
+     * percent-encoded first. No Elasticsearch project has a dotted name today, so in practice every real name
+     * is left unchanged.
      */
     static String fileBaseName(String projectPath) {
-        String stripped = projectPath.replace(':', '.');
+        // Escape '%' before '.', so decoding stays unambiguous.
+        String stripped = projectPath.replace("%", "%25").replace(".", "%2E").replace(':', '.');
         while (stripped.startsWith(".")) {
             stripped = stripped.substring(1);
         }

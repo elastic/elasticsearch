@@ -55,6 +55,16 @@ import java.util.regex.Pattern;
  */
 public final class RefResolver {
 
+    /** Unresolved reason: the ref names a class, but no source file for it exists in any source set. */
+    public static final String REASON_NO_SOURCE_FILE = "no-source-file";
+
+    /**
+     * Unresolved reason: the ref's {@code source} discriminator is absent or not one this resolver knows.
+     * That is a contract defect between the TypeScript bootstrap (which writes {@code flakiness-refs.json})
+     * and this resolver, so it is reported rather than skipped - a dropped ref would read as "nothing to run".
+     */
+    public static final String REASON_UNKNOWN_SOURCE = "unknown-source";
+
     private static final Pattern YAML_METHOD = Pattern.compile("^test \\{yaml=.+\\}$");
     private static final String YAML_METHOD_PREFIX = "test {yaml=";
     // Java method identifier heuristic used to split "Class.method" specs (camelCase starting lowercase).
@@ -101,17 +111,25 @@ public final class RefResolver {
         List<BaseTarget> targets = new ArrayList<>();
         List<Unresolved> unresolved = new ArrayList<>();
         for (FlakinessRef ref : refs) {
-            switch (ref.source()) {
+            // A null source would make the switch below throw NPE. A refs file with a missing/misspelled
+            // `source` is a malformed input, not a programming error, so it is reported as unknown-source
+            // like any other unrecognised discriminator.
+            String source = ref.source();
+            if (source == null) {
+                unresolved.add(new Unresolved(ref, REASON_UNKNOWN_SOURCE));
+                continue;
+            }
+            switch (source) {
                 case FlakinessRef.SOURCE_CHANGED_FILE -> resolveChangedFile(ref).ifPresent(targets::add);
                 case FlakinessRef.SOURCE_UNMUTE, FlakinessRef.SOURCE_EXPLICIT -> {
                     Optional<BaseTarget> t = resolveClassRef(ref);
                     if (t.isPresent()) {
                         targets.add(t.get());
                     } else {
-                        unresolved.add(new Unresolved(ref, "no-source-file"));
+                        unresolved.add(new Unresolved(ref, REASON_NO_SOURCE_FILE));
                     }
                 }
-                default -> unresolved.add(new Unresolved(ref, "unknown-source"));
+                default -> unresolved.add(new Unresolved(ref, REASON_UNKNOWN_SOURCE));
             }
         }
         return new Resolution(dedupe(targets), unresolved);

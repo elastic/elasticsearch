@@ -313,11 +313,17 @@ describe("toResolvePipeline (orchestration + separate generate step)", () => {
     // It must NOT run node generate.ts anywhere.
     expect(cmd).not.toContain("node .buildkite/scripts/flakiness-detection/entrypoints/generate.ts");
     // Uploads the plan (+ precompile marker) the separate generate agent downloads, plus intermediates.
+    // The per-project answers go up as ONE tarball, not a `*.json` glob: every project writes its share, so
+    // a glob would mean ~450 uploads per build of what is debug-only detail.
     expect(orchestration.artifact_paths).toEqual([
-      "build/flakiness/project-targets/*.json",
+      "flakiness-project-targets.tgz",
+      "flakiness-compile-tasks.txt",
       "flakiness-plan.json",
       "flakiness-precompile.json",
     ]);
+    expect(cmd).toContain("tar -czf flakiness-project-targets.tgz");
+    // The flattened compile list is persisted so a build_failed can be triaged from artifacts alone.
+    expect(cmd).toContain('printf \'%s\\n\' "$$TASKS" > flakiness-compile-tasks.txt');
   });
 
   test("generate step: no agents pin, depends_on orchestration allow_failure, downloads plan, uploads outputs", () => {

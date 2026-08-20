@@ -74,7 +74,7 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitTestUtils;
-import org.elasticsearch.xpack.stateless.commits.metering.BccUploadMetrics;
+import org.elasticsearch.xpack.stateless.commits.BccUploadMetrics;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;

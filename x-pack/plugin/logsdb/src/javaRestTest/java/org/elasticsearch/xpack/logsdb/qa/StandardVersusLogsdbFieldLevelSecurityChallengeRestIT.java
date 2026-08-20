@@ -17,8 +17,11 @@ import org.elasticsearch.datageneration.matchers.Matcher;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -45,6 +48,26 @@ public class StandardVersusLogsdbFieldLevelSecurityChallengeRestIT extends BulkC
      * exclude these types from the denied-field candidates rather than assert an equivalence that cannot hold.
      */
     private static final Set<String> DENY_INCOMPATIBLE_FIELD_TYPES = Set.of("geo_point", "geo_shape", "shape");
+
+    @ClassRule()
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .module("data-streams")
+        .module("x-pack-stack")
+        .user("test_admin", "x-pack-test-password")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.autoconfiguration.enabled", "false")
+        .setting("xpack.security.http.ssl.enabled", "false")
+        .setting("xpack.security.transport.ssl.enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("cluster.logsdb.enabled", "true")
+        .setting("xpack.ml.enabled", "false")
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     public StandardVersusLogsdbFieldLevelSecurityChallengeRestIT() {}
 

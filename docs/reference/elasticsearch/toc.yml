@@ -58,6 +58,7 @@ toc:
             - file: index-settings/total-shards-per-node.md
         - file: index-settings/history-retention.md
         - file: index-settings/index-block.md
+        - file: index-settings/doc-values.md
         - file: index-settings/mapping-limit.md
         - file: index-settings/merge.md
         - file: index-settings/similarity.md

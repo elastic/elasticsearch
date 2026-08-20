@@ -87,7 +87,7 @@ serverless: preview
 This setting requires a [`columnar`](/reference/elasticsearch/columnar/index.md) mode index.
 ::::
 
-By default, all fields allow multiple values per document. In columnar indices, you can restrict a field to at most one value per document by setting `multi_value: false` in the `doc_values` object. If a document is indexed with more than one value for that field, the indexing request is rejected.
+By default, all fields allow multiple values per document. In columnar indices, you can restrict a field to at most one value per document by setting `multi_value: false` in the `doc_values` object. If a document is indexed with more than one value for that field, the indexing request is rejected by default. You can change this behavior with the [`on_failure`](#doc-values-on-failure) parameter.
 
 ```console
 PUT my-index-000001
@@ -119,7 +119,7 @@ This setting requires a [`columnar`](/reference/elasticsearch/columnar/index.md)
 ::::
 
 
-By default, all fields allow missing or null values. In columnar indices, you can require a field to always carry a value by setting `nullability: false` in the `doc_values` object. If a document is indexed without a value for the field, or with an explicit `null`, the indexing request is rejected.
+By default, all fields allow missing or null values. In columnar indices, you can require a field to always carry a value by setting `nullability: false` in the `doc_values` object. If a document is indexed without a value for the field, or with an explicit `null`, the indexing request is rejected by default. You can change this behavior with the [`on_failure`](#doc-values-on-failure) parameter.
 
 ```console
 PUT my-index-000001
@@ -140,6 +140,91 @@ PUT my-index-000001
 If `null_value` is also defined on the field, it serves as a sentinel value for explicit `null` inputs. In that case, `nullability: false` only rejects documents where the field is entirely absent — an explicit `null` is substituted by the sentinel value and accepted.
 
 The index-level setting `index.mapping.doc_values.nullability` will control the default for all fields in the index. It will default to `true` (null values allowed).
+
+## Handling doc_values constraint violations [doc-values-on-failure]
+
+```{applies_to}
+stack: preview 9.5
+serverless: preview
+```
+
+::::{note}
+This setting requires a [`columnar`](/reference/elasticsearch/columnar/index.md) mode index.
+::::
+
+The `on_failure` sub-parameter of `doc_values` controls what happens when a document violates a `multi_value: false` or `nullability: false` constraint. Valid values are `fail` (default) and `ignore`.
+
+```console
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "status_code": { <1>
+        "type": "keyword",
+        "doc_values": {
+          "multi_value": false,
+          "on_failure": "fail"
+        }
+      },
+      "tags": { <2>
+        "type": "keyword",
+        "doc_values": {
+          "multi_value": false,
+          "on_failure": "ignore"
+        }
+      }
+    }
+  }
+}
+```
+
+1. The `status_code` field rejects any document that contains more than one value.
+2. The `tags` field accepts documents with multiple values; only the first value is stored as a queryable doc value, and the rest are redirected to a hidden sidecar.
+
+**`on_failure: fail`** (default)
+
+The whole indexing request for that document is rejected with an error:
+
+- For a `multi_value: false` violation: `Field [x] is configured with [multi_value=false] but encountered multiple values in the same document`
+- For a `nullability: false` violation: `Field(s) [x] are configured with [nullability=false] but no value was provided`
+
+**`on_failure: ignore`**
+
+The document is accepted. The behavior depends on which constraint was violated:
+
+- **`multi_value: false`**: The first value is stored in the field's normal doc values. Each additional value is redirected to a hidden per-field `<field>._on_failure` sidecar column. The field name is recorded in [`_ignored`](/reference/elasticsearch/mapping-reference/mapping-ignored-field.md).
+- **`nullability: false`**: The missing field is recorded in `_ignored`. There is no value to redirect.
+
+::::{warning}
+Redirected values are visible in [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) only. The sidecar is **not** searchable, not returned by the `fields` API, and not visible to aggregations or ES|QL — the field continues to present itself as single-valued to all of those paths. Only the first value per document participates in search, aggregation, and ES|QL queries.
+::::
+
+The following example demonstrates the round-trip. Indexing `["val1","val2","val3"]` into a field mapped with `multi_value: false, on_failure: ignore` keeps `val1` as the queryable doc value and redirects `val2` and `val3` to the sidecar. The `_source` reconstruction returns all three values in their original order; `_ignored` records the field name; and a `term` query on the redirected values finds no documents:
+
+```console
+PUT my-on-failure-index
+{
+  "settings": { "mode": "columnar" },
+  "mappings": {
+    "properties": {
+      "kw": {
+        "type": "keyword",
+        "doc_values": { "multi_value": false, "on_failure": "ignore" }
+      }
+    }
+  }
+}
+
+PUT my-on-failure-index/_doc/1
+{ "kw": ["val1", "val2", "val3"] }
+
+GET my-on-failure-index/_doc/1
+```
+% TEST[skip:requires the doc_values_on_failure feature flag]
+
+The response returns `_source.kw: ["val1","val2","val3"]` and `_ignored: ["kw"]`. A `term` query on `val2` or `val3` returns zero hits.
+
+The index-level setting `index.mapping.doc_values.on_failure` controls the default for all fields in the index. It defaults to `fail`. A field-level value overrides the index setting. Neither can be changed after index creation. Refer to [Doc values settings](/reference/elasticsearch/index-settings/doc-values.md) for a full description of the `index.mapping.doc_values.*` index settings.
 
 ## Multi-valued doc values ordering
 

@@ -156,9 +156,9 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
                 getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var failureListener = getModelListenerForException(
+            var failureListener = getModelListenerForExceptionWithMessageEnding(
                 XContentParseException.class,
-                "[service_settings] unknown field [extra_key]"
+                Strings.format("[%s] unknown field [extra_key]", ModelConfigurations.SERVICE_SETTINGS)
             );
             service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.COMPLETION, config, failureListener);
         }
@@ -194,9 +194,9 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
                 secretSettings
             );
 
-            var failureListener = getModelListenerForException(
+            var failureListener = getModelListenerForExceptionWithMessageEnding(
                 XContentParseException.class,
-                "[service_settings] unknown field [extra_key]"
+                Strings.format("[%s] unknown field [extra_key]", ModelConfigurations.SERVICE_SETTINGS)
             );
             service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.COMPLETION, config, failureListener);
         }
@@ -804,5 +804,12 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
             var resultModel = inferenceService.buildModelFromConfigAndSecrets(model.getConfigurations(), model.getSecrets());
             assertThat(resultModel, is(model));
         }
+    }
+
+    private static ActionListener<Model> getModelListenerForExceptionWithMessageEnding(Class<?> exceptionClass, String expectedEnding) {
+        return ActionListener.wrap(model -> fail("Model parsing should have failed"), e -> {
+            assertThat(e, instanceOf(exceptionClass));
+            assertThat(e.getMessage(), Matchers.endsWith(expectedEnding));
+        });
     }
 }

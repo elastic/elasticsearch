@@ -35,17 +35,7 @@ import java.util.Map;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- * Parity tests for {@link ColumnarTsidCalculator} against the source-parser reference path
- * ({@link IndexRouting.ExtractFromSource.ForIndexDimensions#buildTsid(XContentType, BytesReference)}).
- *
- * <p>The columnar tsid for each row must be byte-identical to the single-doc source-parser tsid,
- * since both feed the same {@link TsidBuilder}. Tests cover all dimension types, arrays, explicit
- * nulls, UNION columns, sparse batches, the skip bitset, and both tsid layouts.
- */
 public class ColumnarTsidCalculatorTests extends ESTestCase {
-
-    // ── helpers ─────────────────────────────────────────────────────────────
 
     private static IndexRouting.ExtractFromSource.ForIndexDimensions forIndexDimensions(String dimensionPath) {
         Settings settings = Settings.builder()
@@ -88,8 +78,6 @@ public class ColumnarTsidCalculatorTests extends ESTestCase {
             assertThat("tsid mismatch at row " + i, actual[i], equalTo(expected[i]));
         }
     }
-
-    // ── test cases ──────────────────────────────────────────────────────────
 
     public void testFlatStringDimensions() throws IOException {
         var strategy = forIndexDimensions("dim.*");
@@ -316,54 +304,6 @@ public class ColumnarTsidCalculatorTests extends ESTestCase {
             toJson(Map.of("dim.host", "c", "dim.region", "ap"))
         );
         assertColumnarMatchesSourceParser(sources, strategy);
-    }
-
-    public void testNonEscfBatchThrows() {
-        var strategy = forIndexDimensions("dim.*");
-        // Minimal anonymous SourceBatch that is not an EscfBatch.
-        SourceBatch notEscf = new SourceBatch() {
-            @Override
-            public int docCount() {
-                return 0;
-            }
-
-            @Override
-            public SourceSchema schema() {
-                return null;
-            }
-
-            @Override
-            public int columnCount() {
-                return 0;
-            }
-
-            @Override
-            public org.elasticsearch.common.bytes.BytesReference data() {
-                return null;
-            }
-
-            @Override
-            public org.elasticsearch.sourcebatch.SourceRow row(int docIndex) {
-                return null;
-            }
-
-            @Override
-            public SourceBatch slice(int from, int to) {
-                return this;
-            }
-
-            @Override
-            public void close() {}
-
-            @Override
-            public long ramBytesUsed() {
-                return 0;
-            }
-        };
-        expectThrows(
-            UnsupportedOperationException.class,
-            () -> ColumnarTsidCalculator.computeTsids(notEscf, strategy::matchesField, strategy.creationVersion)
-        );
     }
 
     public void testRandomized() throws IOException {

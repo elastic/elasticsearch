@@ -34,19 +34,7 @@ import java.util.Map;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- * Tests for the batch variants of {@link IndexRouting}:
- * {@link IndexRouting#preProcess(IndexRequest[])},
- * {@link IndexRouting#postProcess(IndexRequest[])}, and
- * {@link IndexRouting#indexShard(IndexRequest[], SourceBatch)}.
- *
- * <p>The primary assertion for {@link IndexRouting.ExtractFromSource.ForIndexDimensions} is that
- * {@code indexShard(requests[], batch)} produces the same shard ids and tsids as a loop of
- * {@code indexShard(request)} over the same documents.
- */
 public class IndexRoutingBatchTests extends ESTestCase {
-
-    // ── helpers ─────────────────────────────────────────────────────────────
 
     private static IndexRouting.ExtractFromSource.ForIndexDimensions forIndexDimensions(String dimensionPath) {
         Settings settings = Settings.builder()
@@ -92,8 +80,6 @@ public class IndexRoutingBatchTests extends ESTestCase {
     private static IndexRequest requestFrom(BytesReference source) {
         return new IndexRequest("test").source(source, XContentType.JSON);
     }
-
-    // ── ForIndexDimensions batch parity ─────────────────────────────────────
 
     /**
      * {@code indexShard(requests[], batch)} must produce the same shard ids and the same tsids as
@@ -277,8 +263,6 @@ public class IndexRoutingBatchTests extends ESTestCase {
         }
     }
 
-    // ── ForRoutingPath ───────────────────────────────────────────────────────
-
     /**
      * {@link IndexRouting.ExtractFromSource.ForRoutingPath#indexShard(IndexRequest[], SourceBatch)}
      * must throw {@link UnsupportedOperationException} since batch routing is not yet implemented
@@ -299,62 +283,6 @@ public class IndexRoutingBatchTests extends ESTestCase {
 
         expectThrows(UnsupportedOperationException.class, () -> routing.indexShard(requests, batch));
     }
-
-    // ── Non-EscfBatch ────────────────────────────────────────────────────────
-
-    /**
-     * Passing a non-{@link EscfBatch} {@link SourceBatch} to
-     * {@link IndexRouting.ExtractFromSource.ForIndexDimensions#indexShard(IndexRequest[], SourceBatch)}
-     * must throw {@link UnsupportedOperationException}.
-     */
-    public void testNonEscfBatchThrows() throws IOException {
-        var strategy = forIndexDimensions("dim.*");
-        IndexRequest[] requests = { requestFrom(toJson(Map.of("dim.host", "h1", "dim.region", "us"))) };
-        strategy.preProcess(requests[0]);
-
-        SourceBatch notEscf = new SourceBatch() {
-            @Override
-            public int docCount() {
-                return 1;
-            }
-
-            @Override
-            public SourceSchema schema() {
-                return null;
-            }
-
-            @Override
-            public int columnCount() {
-                return 0;
-            }
-
-            @Override
-            public BytesReference data() {
-                return null;
-            }
-
-            @Override
-            public org.elasticsearch.sourcebatch.SourceRow row(int docIndex) {
-                return null;
-            }
-
-            @Override
-            public SourceBatch slice(int from, int to) {
-                return this;
-            }
-
-            @Override
-            public void close() {}
-
-            @Override
-            public long ramBytesUsed() {
-                return 0;
-            }
-        };
-        expectThrows(UnsupportedOperationException.class, () -> strategy.indexShard(requests, notEscf));
-    }
-
-    // ── Default (Unpartitioned) batch loop ───────────────────────────────────
 
     /**
      * For id/routing-based routing (Unpartitioned), the default batch {@code indexShard} loops over

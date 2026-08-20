@@ -593,4 +593,91 @@ public class IndexOperationBatchTests extends ESTestCase {
             assertThat(ops.get(i).id(), equalTo(parent.id(from + i)));
         }
     }
+
+    public void testVersionAccessorReflectsLateStamping() {
+        final int n = randomIntBetween(2, 8);
+        final IndexOperationBatch parent = primaryBatch(n);
+        final int from = randomIntBetween(0, n - 1);
+        final IndexOperationBatch slice = parent.slice(from, n);
+
+        final long[] expected = new long[slice.docCount()];
+        for (int i = 0; i < slice.docCount(); i++) {
+            expected[i] = randomNonNegativeLong();
+            ByteUtils.writeLongLE(expected[i], slice.versionBytes().bytes, (slice.offset() + i) * 8);
+        }
+        for (int i = 0; i < slice.docCount(); i++) {
+            assertThat("version at i=" + i, slice.version(i), equalTo(expected[i]));
+        }
+    }
+
+    public void testToTranslogRecord() throws IOException {
+        // One row per outcome: indexed, no-op (post-Lucene failure with a seqNo), and skipped
+        // (preflight failure, seqNo never assigned so it stays UNASSIGNED from the primary prefill).
+        final int n = 3;
+        try (EscfBatch escf = escfBatch(n)) {
+            final BulkItemRequest[] items = items(n);
+            items[0] = new BulkItemRequest(0, new IndexRequest("index").id("doc-0").source(src(0), XContentType.JSON).routing("route-0"));
+            final IndexOperationBatch batch = IndexOperationBatch.initFromBulk(items, 0, n, escf, Engine.Operation.Origin.PRIMARY, 7L, 0L);
+            ByteUtils.writeLongLE(10L, batch.seqNoBytes().bytes, 0);
+            ByteUtils.writeLongLE(3L, batch.versionBytes().bytes, 0);
+            ByteUtils.writeLongLE(11L, batch.seqNoBytes().bytes, 8);
+
+            final byte[] statuses = {
+                IndexOperationBatch.TranslogRecord.ROW_INDEXED,
+                IndexOperationBatch.TranslogRecord.ROW_NO_OP,
+                IndexOperationBatch.TranslogRecord.ROW_PREFLIGHT_ERROR };
+            final String[] reasons = { null, "post-lucene failure", null };
+            final IndexOperationBatch.TranslogRecord record = batch.toTranslogRecord(statuses, reasons);
+
+            assertThat(record.primaryTerm(), equalTo(7L));
+            assertThat(record.docCount(), equalTo(n));
+            assertThat(record.operationCount(), equalTo(2));
+            assertThat(record.batchData(), equalTo(escf.data()));
+
+            assertThat(record.seqNo(0), equalTo(10L));
+            assertThat(record.versions()[0], equalTo(3L));
+            assertThat(record.uids()[0], equalTo(Uid.encodeId("doc-0")));
+            assertThat(record.routings()[0], equalTo("route-0"));
+            assertThat(record.contentTypes()[0], equalTo(XContentType.JSON));
+            assertThat(record.noOpReasons()[0], nullValue());
+
+            assertThat(record.seqNo(1), equalTo(11L));
+            assertThat(record.noOpReasons()[1], equalTo("post-lucene failure"));
+            assertThat(record.uids()[1], nullValue());
+
+            assertThat(record.seqNo(2), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+            assertThat(record.uids()[2], nullValue());
+            assertThat(record.noOpReasons()[2], nullValue());
+        }
+    }
+
+    public void testToTranslogRecordOnSliceUsesSliceCoordinates() throws IOException {
+        final int n = randomIntBetween(3, 8);
+        try (EscfBatch escf = escfBatch(n)) {
+            final IndexOperationBatch parent = IndexOperationBatch.initFromBulk(
+                items(n),
+                0,
+                n,
+                escf,
+                Engine.Operation.Origin.PRIMARY,
+                1L,
+                0L
+            );
+            final int from = randomIntBetween(1, n - 1);
+            final IndexOperationBatch slice = parent.slice(from, n);
+            for (int d = 0; d < n; d++) {
+                ByteUtils.writeLongLE(100L + d, parent.seqNoBytes().bytes, d * 8);
+                ByteUtils.writeLongLE(1L, parent.versionBytes().bytes, d * 8);
+            }
+
+            final byte[] statuses = new byte[slice.docCount()]; // all ROW_INDEXED
+            final IndexOperationBatch.TranslogRecord record = slice.toTranslogRecord(statuses, null);
+
+            assertThat(record.docCount(), equalTo(slice.docCount()));
+            for (int i = 0; i < slice.docCount(); i++) {
+                assertThat("seqNo at i=" + i, record.seqNo(i), equalTo(100L + from + i));
+                assertThat("uid at i=" + i, record.uids()[i], equalTo(parent.uid(from + i)));
+            }
+        }
+    }
 }

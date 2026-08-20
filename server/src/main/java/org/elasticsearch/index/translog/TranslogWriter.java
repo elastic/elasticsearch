@@ -28,6 +28,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -272,6 +273,71 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         }
 
         return location;
+    }
+
+    /**
+     * Add a serialized {@link IndexOperationBatch.TranslogRecord} record.
+     */
+    public Translog.Location addBatch(final Translog.Serialized operation, final IndexOperationBatch.TranslogRecord batch)
+        throws IOException {
+        long bufferedBytesBeforeAdd = this.bufferedBytes;
+        if (bufferedBytesBeforeAdd >= forceWriteThreshold) {
+            writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= forceWriteThreshold * 4);
+        }
+
+        final Translog.Location location;
+        synchronized (this) {
+            ensureOpen();
+            if (buffer == null) {
+                buffer = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler());
+            }
+            assert bufferedBytes == buffer.size();
+            final long offset = totalOffset;
+            totalOffset += operation.length();
+            operation.writeToTranslogBuffer(buffer);
+
+            assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
+            assert maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
+
+            for (int i = 0; i < batch.docCount(); i++) {
+                if (batch.rowStatus(i) == IndexOperationBatch.TranslogRecord.ROW_PREFLIGHT_ERROR) {
+                    // never consumed a seqNo; contributes nothing to replay or checkpoints
+                    continue;
+                }
+                final long seqNo = batch.seqNo(i);
+                minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
+                maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
+                nonFsyncedSequenceNumbers.add(seqNo);
+            }
+
+            operationCounter += batch.operationCount();
+
+            assert assertNoSeqNumberConflict(batch);
+
+            location = new Translog.Location(generation, offset, operation.length());
+            // TODO: operationListener needs batch-aware support
+            bufferedBytes = buffer.size();
+        }
+
+        return location;
+    }
+
+    /**
+     * Batch variant of assertNoSeqNumberConflict
+     * Explode decodes the batch into one operation per replayable row and the assertion is then forwarded to the
+     * single operation variant.
+     */
+    private synchronized boolean assertNoSeqNumberConflict(IndexOperationBatch.TranslogRecord batch) throws IOException {
+        for (Translog.Operation op : batch.explode()) {
+            final Translog.Serialized operation;
+            try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())) {
+                Translog.writeHeaderWithSize(out, op);
+                final BytesReference source = op instanceof Translog.Index index ? index.source() : null;
+                operation = Translog.Serialized.create(out.bytes(), source, new CRC32());
+            }
+            assertNoSeqNumberConflict(op.seqNo(), operation);
+        }
+        return true;
     }
 
     /**

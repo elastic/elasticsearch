@@ -1536,6 +1536,8 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         // EMBEDDING requires an inference service unavailable in the csv-spec test cluster.
         "EMBEDDING:value is missing",
         "FIELD_EXTRACT:path is missing",
+        "FIELD_EXTRACT_FLATTENED:injected_key is missing",
+        "FIELD_EXTRACT_FLATTENED:path is missing",
 
         // MATCH_OPERATOR's field is a FieldAttribute, not a literal — we intentionally
         // do not add an ENTITY hint to it, so the csv-spec test cluster never exercises

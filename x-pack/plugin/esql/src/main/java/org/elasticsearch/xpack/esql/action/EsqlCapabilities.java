@@ -1481,6 +1481,14 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_WITH_VIEW,
 
         /**
+         * Fixes a false "Only a single FORK command is supported, but found multiple" error when a FORK appears
+         * inside an IN subquery that is itself nested inside another IN subquery containing a FORK. Each subquery
+         * is its own query scope, so FORKs in different subquery scopes are independent and must not be counted
+         * together.
+         */
+        FORK_INSIDE_IN_SUBQUERY_FIX,
+
+        /**
          * Support ROW as a source command inside subquery in the from command.
          */
         SUBQUERY_WITH_ROW,
@@ -3346,6 +3354,12 @@ public class EsqlCapabilities {
          * count. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
          */
         OPTIONAL_FIELDS_LOAD_ALL_NET_ZERO_PROJECTION(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
+
+        /**
+         * Support for {@code STATS} under {@code unmapped_fields="LOAD_ALL"}.
+         * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_STATS(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
 
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.

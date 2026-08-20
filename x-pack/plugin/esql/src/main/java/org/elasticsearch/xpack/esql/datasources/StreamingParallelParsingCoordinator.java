@@ -461,6 +461,8 @@ public final class StreamingParallelParsingCoordinator {
         private int currentChunk = 0;
         private Page buffered = null;
         private volatile boolean closed = false;
+        /** CAS guard ensuring {@link #close()} body runs exactly once even under concurrent callers. */
+        private final AtomicBoolean closedOnce = new AtomicBoolean(false);
         /**
          * Set when a non-strict {@link ErrorPolicy} converts a {@code external_max_record_size} cap-hit into a
          * graceful stop instead of a hard failure (see {@link #runSegmentator}). A truncated read is
@@ -1096,11 +1098,15 @@ public final class StreamingParallelParsingCoordinator {
             if (buf != null) {
                 return buf;
             }
-            if (buffersAllocated.incrementAndGet() <= bufferPoolSize) {
+            if (buffersAllocated.get() < bufferPoolSize) {
+                // Charge the breaker before recording the allocation so that a
+                // CircuitBreakingException leaves buffersAllocated unchanged — the
+                // tally must never exceed the number of successful charges or close()
+                // will refund more than was ever taken.
                 breaker.addEstimateBytesAndMaybeBreak(chunkSize, "streaming-parse-chunk-buffer");
+                buffersAllocated.incrementAndGet();
                 return new byte[chunkSize];
             }
-            buffersAllocated.decrementAndGet();
             return bufferPool.take();
         }
 
@@ -1519,7 +1525,7 @@ public final class StreamingParallelParsingCoordinator {
          */
         @Override
         public void close() throws IOException {
-            if (closed) {
+            if (closedOnce.compareAndSet(false, true) == false) {
                 return;
             }
             // Flip closed first: a segmentator already past the if(closed) check in dispatchChunk can
@@ -1573,7 +1579,7 @@ public final class StreamingParallelParsingCoordinator {
             if (cleanCompletion == false && captureSink != null && storageObject != null) {
                 poisonCapturedStats(storageObject.path().toString());
             }
-            long trackedBytes = (long) buffersAllocated.get() * chunkSize;
+            long trackedBytes = (long) buffersAllocated.getAndSet(0) * chunkSize;
             if (trackedBytes > 0) {
                 breaker.addWithoutBreaking(-trackedBytes);
             }

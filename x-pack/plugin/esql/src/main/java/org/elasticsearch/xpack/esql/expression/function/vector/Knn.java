@@ -12,6 +12,8 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -79,7 +81,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
@@ -342,9 +343,13 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         if (false == isRuntimeSearch()) {
             return super.toEvaluator(toEvaluator);
         }
+        return evaluatorForRuntimeSearch(toEvaluator);
+    }
+
+    private ExpressionEvaluator.Factory evaluatorForRuntimeSearch(ToEvaluator toEvaluator) {
         ExpressionEvaluator.Factory fieldFactory = toEvaluator.apply(field());
         float[] queryVector = queryAsFloats();
-        Float similarityThreshold = getSimilarityThreshold();
+        Float similarityThreshold = similarityThresholdOption();
         return new RuntimeKnnFilterEvaluatorFactory(fieldFactory, queryVector, CosineSimilarity.SIMILARITY_FUNCTION, similarityThreshold);
     }
 
@@ -353,13 +358,18 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         if (false == isRuntimeSearch()) {
             return super.toScorer(toScorer);
         }
+        return scorerForRuntimeSearch(toScorer);
+    }
+
+    private ExpressionEvaluator.Factory scorerForRuntimeSearch(ExpressionScoreMapper.ToScorer toScorer) {
         ExpressionEvaluator.Factory fieldFactory = toScorer.toEvaluator().apply(field());
         float[] queryVector = queryAsFloats();
         float boost = getBoost();
         return new RuntimeKnnScoreEvaluatorFactory(fieldFactory, queryVector, CosineSimilarity.SIMILARITY_FUNCTION, boost);
     }
 
-    private Float getSimilarityThreshold() {
+    @Nullable
+    private Float similarityThresholdOption() {
         if (options() == null) {
             return null;
         }
@@ -372,8 +382,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
             return 1.0f;
         }
         Map<String, Object> opts = queryOptions();
-        Float boost = (Float) opts.get(BOOST_FIELD.getPreferredName());
-        return boost != null ? boost : 1.0f;
+        return (Float) opts.getOrDefault(BOOST_FIELD.getPreferredName(), 1.0f);
     }
 
     @Override

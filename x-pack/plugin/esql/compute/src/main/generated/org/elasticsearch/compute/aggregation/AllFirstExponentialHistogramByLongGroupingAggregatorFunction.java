@@ -84,17 +84,17 @@ public final class AllFirstExponentialHistogramByLongGroupingAggregatorFunction 
       maybeEnableGroupIdTracking(seenGroupIds, valueBlock, sortKeyBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
+        public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
           addRawInput(positionOffset, groupIds, valueBlock, sortKeyBlock);
         }
 
         @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+        public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
           addRawInput(positionOffset, groupIds, valueBlock, sortKeyBlock);
         }
 
         @Override
-        public void add(int positionOffset, IntVector groupIds) {
+        public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
           addRawInput(positionOffset, groupIds, valueBlock, sortKeyBlock);
         }
 
@@ -105,17 +105,17 @@ public final class AllFirstExponentialHistogramByLongGroupingAggregatorFunction 
     }
     return new GroupingAggregatorFunction.AddInput() {
       @Override
-      public void add(int positionOffset, IntArrayBlock groupIds) {
+      public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
         addRawInput(positionOffset, groupIds, valueBlock, sortKeyVector);
       }
 
       @Override
-      public void add(int positionOffset, IntBigArrayBlock groupIds) {
+      public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
         addRawInput(positionOffset, groupIds, valueBlock, sortKeyVector);
       }
 
       @Override
-      public void add(int positionOffset, IntVector groupIds) {
+      public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
         addRawInput(positionOffset, groupIds, valueBlock, sortKeyVector);
       }
 
@@ -182,7 +182,8 @@ public final class AllFirstExponentialHistogramByLongGroupingAggregatorFunction 
   }
 
   @Override
-  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, int maxGroupId,
+      Page page) {
     assert channels.size() == intermediateBlockCount();
     Block sortKeysUncast = page.getBlock(channels.get(0));
     if (sortKeysUncast.areAllValuesNull()) {
@@ -299,7 +300,8 @@ public final class AllFirstExponentialHistogramByLongGroupingAggregatorFunction 
   }
 
   @Override
-  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, int maxGroupId,
+      Page page) {
     assert channels.size() == intermediateBlockCount();
     Block sortKeysUncast = page.getBlock(channels.get(0));
     if (sortKeysUncast.areAllValuesNull()) {
@@ -402,7 +404,8 @@ public final class AllFirstExponentialHistogramByLongGroupingAggregatorFunction 
   }
 
   @Override
-  public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
+  public void addIntermediateInput(int positionOffset, IntVector groups, int maxGroupId,
+      Page page) {
     assert channels.size() == intermediateBlockCount();
     Block sortKeysUncast = page.getBlock(channels.get(0));
     if (sortKeysUncast.areAllValuesNull()) {

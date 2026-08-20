@@ -370,17 +370,17 @@ public class TimeSeriesCollapseOperator extends HashAggregationOperator {
         public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {}
 
         @Override
-        public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page) {
+        public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, int maxGroupId, Page page) {
             throw new UnsupportedOperationException("time series collapse does not support intermediate input");
         }
 
         @Override
-        public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, Page page) {
+        public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, int maxGroupId, Page page) {
             throw new UnsupportedOperationException("time series collapse does not support intermediate input");
         }
 
         @Override
-        public void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page) {
+        public void addIntermediateInput(int positionOffset, IntVector groupIdVector, int maxGroupId, Page page) {
             throw new UnsupportedOperationException("time series collapse does not support intermediate input");
         }
 
@@ -490,17 +490,17 @@ public class TimeSeriesCollapseOperator extends HashAggregationOperator {
             LongBlock stepBlock = (LongBlock) rawStepBlock;
             return new GroupingAggregatorFunction.AddInput() {
                 @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {
+                public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                     addBlock(positionOffset, groupIds);
                 }
 
                 @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                     addBlock(positionOffset, groupIds);
                 }
 
                 @Override
-                public void add(int positionOffset, IntVector groupIds) {
+                public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                     for (int position = 0; position < groupIds.getPositionCount(); position++) {
                         addPosition(positionOffset + position, groupIds.getInt(position), stepBlock, valueBlock);
                     }

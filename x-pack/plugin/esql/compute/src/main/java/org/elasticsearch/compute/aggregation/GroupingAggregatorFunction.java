@@ -57,22 +57,25 @@ public interface GroupingAggregatorFunction extends Releasable {
          * </p>
          * @param positionOffset offset into the {@link Page} used to build this
          *                       {@link AddInput} of these ids
-         * @param groupIds {@link Block} of group id, some of which may be null
-         *                 or multivalued
+         * @param groupIds {@link Block} of group id, some of which may be null or multivalued
+         * @param maxGroupId an inclusive upper bound of the group ids in {@code groupIds}; no id in the
+         *                   block is larger than it, though it may exceed the largest id actually present.
+         *                   The aggregation can use it to grow its internal state once per call instead of
+         *                   checking capacity for every row.
          */
-        default void add(int positionOffset, IntBlock groupIds) {
+        default void add(int positionOffset, IntBlock groupIds, int maxGroupId) {
             switch (groupIds) {
                 case ConstantNullBlock ignored:
                     // No-op
                     break;
                 case IntVectorBlock b:
-                    add(positionOffset, b.asVector());
+                    add(positionOffset, b.asVector(), maxGroupId);
                     break;
                 case IntArrayBlock b:
-                    add(positionOffset, b);
+                    add(positionOffset, b, maxGroupId);
                     break;
                 case IntBigArrayBlock b:
-                    add(positionOffset, b);
+                    add(positionOffset, b, maxGroupId);
                     break;
                 default:
                     throw new IllegalStateException("unexpected block type for groupIds: " + groupIds.getClass());
@@ -80,21 +83,21 @@ public interface GroupingAggregatorFunction extends Releasable {
         }
 
         /**
-         * Implementation of {@link #add(int, IntBlock)} for a specific type of block.
+         * Implementation of {@link #add(int, IntBlock, int)} for a specific type of block.
          */
-        void add(int positionOffset, IntArrayBlock groupIds);
+        void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId);
 
         /**
-         * Implementation of {@link #add(int, IntBlock)} for a specific type of block.
+         * Implementation of {@link #add(int, IntBlock, int)} for a specific type of block.
          */
-        void add(int positionOffset, IntBigArrayBlock groupIds);
+        void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId);
 
         /**
          * Send a batch of group ids to the aggregator. The {@code groupIds}
          * may be offset from the start of the block to allow for sending chunks
          * of group ids.
          * <p>
-         *     See {@link #add(int, IntBlock)} for discussion on the offset. This
+         *     See {@link #add(int, IntBlock, int)} for discussion on the offset. This
          *     method can only be called with blocks contained in a {@link Vector}
          *     which only allows a single value per position.
          * </p>
@@ -102,8 +105,10 @@ public interface GroupingAggregatorFunction extends Releasable {
          *                       {@link AddInput} of these ids
          * @param groupIds {@link Vector} of group id, some of which may be null
          *                 or multivalued
+         * @param maxGroupId an inclusive upper bound of the group ids in {@code groupIds},
+         *                   see {@link #add(int, IntBlock, int)}
          */
-        void add(int positionOffset, IntVector groupIds);
+        void add(int positionOffset, IntVector groupIds, int maxGroupId);
     }
 
     /**
@@ -131,18 +136,18 @@ public interface GroupingAggregatorFunction extends Releasable {
 
     record IntermediateAddInput(GroupingAggregatorFunction fn, SeenGroupIds seenGroupIds, Page page) implements AddInput {
         @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
-            fn.addIntermediateInput(positionOffset, groupIds, page);
+        public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
+            fn.addIntermediateInput(positionOffset, groupIds, maxGroupId, page);
         }
 
         @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
-            fn.addIntermediateInput(positionOffset, groupIds, page);
+        public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
+            fn.addIntermediateInput(positionOffset, groupIds, maxGroupId, page);
         }
 
         @Override
-        public void add(int positionOffset, IntVector groupIds) {
-            fn.addIntermediateInput(positionOffset, groupIds, page);
+        public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
+            fn.addIntermediateInput(positionOffset, groupIds, maxGroupId, page);
         }
 
         @Override
@@ -163,18 +168,24 @@ public interface GroupingAggregatorFunction extends Releasable {
 
     /**
      * Add data produced by {@link #prepareEvaluateIntermediate}.
+     * @param maxGroupId an inclusive upper bound of the group ids in {@code groupIdVector},
+     *                   see {@link AddInput#add(int, IntBlock, int)}
      */
-    void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page);
+    void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, int maxGroupId, Page page);
 
     /**
      * Add data produced by {@link #prepareEvaluateIntermediate}.
+     * @param maxGroupId an inclusive upper bound of the group ids in {@code groupIdVector},
+     *                   see {@link AddInput#add(int, IntBlock, int)}
      */
-    void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, Page page);
+    void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, int maxGroupId, Page page);
 
     /**
      * Add data produced by {@link #prepareEvaluateIntermediate}.
+     * @param maxGroupId an inclusive upper bound of the group ids in {@code groupIdVector},
+     *                   see {@link AddInput#add(int, IntBlock, int)}
      */
-    void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page);
+    void addIntermediateInput(int positionOffset, IntVector groupIdVector, int maxGroupId, Page page);
 
     /**
      * View into the agg that's prepared to emit results. Built with a {@code selected} range.

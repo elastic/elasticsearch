@@ -131,17 +131,17 @@ class LossySumDoubleAggregator {
     ) {
         return new GroupingAggregatorFunction.AddInput() {
             @Override
-            public void add(int positionOffset, IntArrayBlock groupIds) {
-                delegate.add(positionOffset, groupIds);
+            public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
+                delegate.add(positionOffset, groupIds, maxGroupId);
             }
 
             @Override
-            public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                delegate.add(positionOffset, groupIds);
+            public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
+                delegate.add(positionOffset, groupIds, maxGroupId);
             }
 
             @Override
-            public void add(int positionOffset, IntVector groupIds) {
+            public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                 if (groupIds.isConstant()) {
                     double sum = 0.0;
                     final int to = positionOffset + groupIds.getPositionCount();
@@ -150,7 +150,7 @@ class LossySumDoubleAggregator {
                     }
                     state.add(sum, groupIds.getInt(0));
                 } else {
-                    delegate.add(positionOffset, groupIds);
+                    delegate.add(positionOffset, groupIds, maxGroupId);
                 }
             }
 

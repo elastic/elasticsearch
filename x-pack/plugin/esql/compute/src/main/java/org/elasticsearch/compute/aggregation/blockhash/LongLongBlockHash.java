@@ -54,13 +54,17 @@ final class LongLongBlockHash extends BlockHash {
         LongVector vector2 = block2.asVector();
         if (vector1 != null && vector2 != null) {
             try (IntBlock groupIds = add(vector1, vector2).asBlock()) {
-                addInput.add(0, groupIds.asVector());
+                addInput.add(0, groupIds.asVector(), maxGroupId());
             }
         } else {
             try (var addBlock = new LongLongBlockAdd(blockFactory, emitBatchSize, addInput, hash, block1, block2)) {
                 addBlock.add();
             }
         }
+    }
+
+    private int maxGroupId() {
+        return Math.toIntExact(hash.size()) - 1;
     }
 
     IntVector add(LongVector vector1, LongVector vector2) {

@@ -123,17 +123,17 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     }
 
                     @Override
-                    public void add(int positionOffset, IntArrayBlock groupIds) {
+                    public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                         addBlock(positionOffset, groupIds);
                     }
 
                     @Override
-                    public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                    public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                         addBlock(positionOffset, groupIds);
                     }
 
                     @Override
-                    public void add(int positionOffset, IntVector groupIds) {
+                    public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                         addBlock(positionOffset, groupIds.asBlock());
                     }
 
@@ -207,17 +207,17 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     }
 
                     @Override
-                    public void add(int positionOffset, IntArrayBlock groupIds) {
+                    public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                         addBlock(positionOffset, groupIds);
                     }
 
                     @Override
-                    public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                    public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                         addBlock(positionOffset, groupIds);
                     }
 
                     @Override
-                    public void add(int positionOffset, IntVector groupIds) {
+                    public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                         addBlock(positionOffset, groupIds.asBlock());
                     }
 
@@ -294,17 +294,17 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                 }
 
                 @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {
+                public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                     addBlock(positionOffset, groupIds);
                 }
 
                 @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                     addBlock(positionOffset, groupIds);
                 }
 
                 @Override
-                public void add(int positionOffset, IntVector groupIds) {
+                public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                     addBlock(positionOffset, groupIds.asBlock());
                 }
 
@@ -328,17 +328,17 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                 }
 
                 @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {
+                public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                     addBlock(positionOffset, groupIds);
                 }
 
                 @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                     addBlock(positionOffset, groupIds);
                 }
 
                 @Override
-                public void add(int positionOffset, IntVector groupIds) {
+                public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                     addBlock(positionOffset, groupIds.asBlock());
                 }
 
@@ -370,17 +370,17 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                 }
 
                 @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {
+                public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                     addBlock(positionOffset, groupIds);
                 }
 
                 @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                     addBlock(positionOffset, groupIds);
                 }
 
                 @Override
-                public void add(int positionOffset, IntVector groupIds) {
+                public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                     addBlock(positionOffset, groupIds.asBlock());
                 }
 
@@ -403,17 +403,17 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     }
 
                     @Override
-                    public void add(int positionOffset, IntArrayBlock groupIds) {
+                    public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                         addBlock(positionOffset, groupIds);
                     }
 
                     @Override
-                    public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                    public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                         addBlock(positionOffset, groupIds);
                     }
 
                     @Override
-                    public void add(int positionOffset, IntVector groupIds) {
+                    public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                         addBlock(positionOffset, groupIds.asBlock());
                     }
 

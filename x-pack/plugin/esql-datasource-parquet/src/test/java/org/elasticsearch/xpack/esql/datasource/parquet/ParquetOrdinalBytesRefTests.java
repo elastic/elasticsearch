@@ -295,14 +295,14 @@ public class ParquetOrdinalBytesRefTests extends ESTestCase {
         }
 
         @Override
-        public void add(int positionOffset, IntVector groupIds) {
+        public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
             for (int p = 0; p < groupIds.getPositionCount(); p++) {
                 target.put(keyAt(positionOffset + p), groupIds.getInt(p));
             }
         }
 
         @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
+        public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
             for (int p = 0; p < groupIds.getPositionCount(); p++) {
                 if (groupIds.isNull(p) || groupIds.getValueCount(p) != 1) {
                     throw new AssertionError("unexpected null/multivalue group at " + p + " (no nulls/MV in this test)");
@@ -312,7 +312,7 @@ public class ParquetOrdinalBytesRefTests extends ESTestCase {
         }
 
         @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+        public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
             for (int p = 0; p < groupIds.getPositionCount(); p++) {
                 if (groupIds.isNull(p) || groupIds.getValueCount(p) != 1) {
                     throw new AssertionError("unexpected null/multivalue group at " + p + " (no nulls/MV in this test)");
@@ -469,14 +469,14 @@ public class ParquetOrdinalBytesRefTests extends ESTestCase {
         }
 
         @Override
-        public void add(int positionOffset, IntVector groupIds) {
+        public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
             for (int i = 0; i < groupIds.getPositionCount(); i++) {
                 target[positionBase + positionOffset + i] = groupIds.getInt(i);
             }
         }
 
         @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
+        public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
             // No multivalues / nulls expected for this test (required column, no MV).
             for (int p = 0; p < groupIds.getPositionCount(); p++) {
                 if (groupIds.isNull(p) || groupIds.getValueCount(p) != 1) {
@@ -487,7 +487,7 @@ public class ParquetOrdinalBytesRefTests extends ESTestCase {
         }
 
         @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+        public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
             for (int p = 0; p < groupIds.getPositionCount(); p++) {
                 if (groupIds.isNull(p) || groupIds.getValueCount(p) != 1) {
                     throw new AssertionError("unexpected null/multivalue group at " + p);

@@ -32,7 +32,7 @@ final class ValuesBytesRefAggregators {
         IntBlock ordinalIds = valuesOrdinal.getOrdinalsBlock();
         return new GroupingAggregatorFunction.AddInput() {
             @Override
-            public void add(int positionOffset, IntArrayBlock groupIds) {
+            public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                 for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
                     if (groupIds.isNull(groupPosition)) {
                         continue;
@@ -54,7 +54,7 @@ final class ValuesBytesRefAggregators {
             }
 
             @Override
-            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+            public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                 for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
                     if (groupIds.isNull(groupPosition)) {
                         continue;
@@ -76,7 +76,7 @@ final class ValuesBytesRefAggregators {
             }
 
             @Override
-            public void add(int positionOffset, IntVector groupIds) {
+            public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                 addOrdinalInputBlock(state, positionOffset, groupIds, ordinalIds, hashIds);
             }
 
@@ -100,7 +100,7 @@ final class ValuesBytesRefAggregators {
         var ordinalIds = valuesOrdinal.getOrdinalsVector();
         return new GroupingAggregatorFunction.AddInput() {
             @Override
-            public void add(int positionOffset, IntArrayBlock groupIds) {
+            public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                 for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
                     if (groupIds.isNull(groupPosition)) {
                         continue;
@@ -115,7 +115,7 @@ final class ValuesBytesRefAggregators {
             }
 
             @Override
-            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+            public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                 for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
                     if (groupIds.isNull(groupPosition)) {
                         continue;
@@ -130,7 +130,7 @@ final class ValuesBytesRefAggregators {
             }
 
             @Override
-            public void add(int positionOffset, IntVector groupIds) {
+            public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                 addOrdinalInputVector(state, positionOffset, groupIds, ordinalIds, hashIds);
             }
 

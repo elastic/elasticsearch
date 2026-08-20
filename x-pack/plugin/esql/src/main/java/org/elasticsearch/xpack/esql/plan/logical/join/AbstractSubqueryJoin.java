@@ -644,13 +644,13 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
         ) {
             hash.add(new Page(input), new GroupingAggregatorFunction.AddInput() {
                 @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {}
+                public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {}
 
                 @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {}
+                public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {}
 
                 @Override
-                public void add(int positionOffset, IntVector groupIds) {}
+                public void add(int positionOffset, IntVector groupIds, int maxGroupId) {}
 
                 @Override
                 public void close() {}
@@ -1000,13 +1000,13 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
         try (BlockHash hash = BlockHash.build(specs, blockFactory, emitBatchSize, false)) {
             hash.add(new Page(inputs), new GroupingAggregatorFunction.AddInput() {
                 @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {}
+                public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {}
 
                 @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {}
+                public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {}
 
                 @Override
-                public void add(int positionOffset, IntVector groupIds) {}
+                public void add(int positionOffset, IntVector groupIds, int maxGroupId) {}
 
                 @Override
                 public void close() {}

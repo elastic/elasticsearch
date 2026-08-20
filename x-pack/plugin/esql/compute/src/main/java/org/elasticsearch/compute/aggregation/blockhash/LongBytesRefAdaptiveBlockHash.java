@@ -165,7 +165,7 @@ public final class LongBytesRefAdaptiveBlockHash extends AdaptiveBlockHash {
                 }
                 longLongHash.bulkAdd(batchKeys1, batchKeys2, batchIds, batchSize);
                 try (var groupIds = blockFactory.newIntArrayVector(batchIds, batchSize)) {
-                    addInput.add(offset, groupIds);
+                    addInput.add(offset, groupIds, Math.toIntExact(longLongHash.size()) - 1);
                 }
                 offset += batchSize;
             }
@@ -184,7 +184,7 @@ public final class LongBytesRefAdaptiveBlockHash extends AdaptiveBlockHash {
                         groupIdsBuilder.appendInt(i, Math.toIntExact(ord));
                     }
                     try (var groupIds = groupIdsBuilder.build()) {
-                        addInput.add(offset, groupIds);
+                        addInput.add(offset, groupIds, Math.toIntExact(longLongHash.size()) - 1);
                     }
                 }
                 offset += batchSize;

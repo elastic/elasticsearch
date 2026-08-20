@@ -90,7 +90,7 @@ $endif$
         if (block.areAllValuesNull()) {
             seenNull = true;
             try (IntVector groupIds = blockFactory.newConstantIntVector(0, block.getPositionCount())) {
-                addInput.add(0, groupIds);
+                addInput.add(0, groupIds, maxGroupId());
             }
             return;
         }
@@ -98,13 +98,21 @@ $endif$
         $Type$Vector vector = castBlock.asVector();
         if (vector == null) {
             try (IntBlock groupIds = add(castBlock)) {
-                addInput.add(0, groupIds);
+                addInput.add(0, groupIds, maxGroupId());
             }
             return;
         }
         try (IntVector groupIds = add(vector)) {
-            addInput.add(0, groupIds);
+            addInput.add(0, groupIds, maxGroupId());
         }
+    }
+
+    /**
+     * The largest group id assigned so far.
+     * Shifted by one to reserve {@code 0} for {@code null}.
+     */
+    private int maxGroupId() {
+        return Math.toIntExact(hash.size());
     }
 
     /**

@@ -56,7 +56,7 @@ public class FromPartialAggregatorFunction implements AggregatorFunction {
                 receivedInput = true;
             }
             final CompositeBlock inputBlock = page.getBlock(inputChannel);
-            groupingAggregator.addIntermediateInput(0, groupIds, inputBlock.asPage());
+            groupingAggregator.addIntermediateInput(0, groupIds, 0, inputBlock.asPage());
         }
     }
 

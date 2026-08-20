@@ -86,7 +86,7 @@ final class BytesRef2BlockHash extends BlockHash {
                 }
             }
             try (IntVector ords = ordsBuilder.build()) {
-                addInput.add(0, ords);
+                addInput.add(0, ords, Math.toIntExact(finalHash.size()) - 1);
             }
         }
     }
@@ -96,7 +96,7 @@ final class BytesRef2BlockHash extends BlockHash {
         final IntBlock b2;
 
         AddWork(IntBlock b1, IntBlock b2, GroupingAggregatorFunction.AddInput addInput) {
-            super(blockFactory, emitBatchSize, addInput);
+            super(blockFactory, () -> Math.toIntExact(finalHash.size()) - 1, emitBatchSize, addInput);
             this.b1 = b1;
             this.b2 = b2;
         }

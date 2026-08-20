@@ -62,24 +62,24 @@ public record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next
 
     private record FilteredAddInput(BooleanVector mask, AddInput nextAdd, int positionCount) implements AddInput {
         @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
-            addBlock(positionOffset, groupIds);
+        public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
+            addBlock(positionOffset, groupIds, maxGroupId);
         }
 
         @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
-            addBlock(positionOffset, groupIds);
+        public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
+            addBlock(positionOffset, groupIds, maxGroupId);
         }
 
         @Override
-        public void add(int positionOffset, IntVector groupIds) {
-            addBlock(positionOffset, groupIds.asBlock());
+        public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
+            addBlock(positionOffset, groupIds.asBlock(), maxGroupId);
         }
 
-        private void addBlock(int positionOffset, IntBlock groupIds) {
+        private void addBlock(int positionOffset, IntBlock groupIds, int maxGroupId) {
             if (positionOffset == 0) {
                 try (IntBlock filtered = groupIds.keepMask(mask)) {
-                    nextAdd.add(positionOffset, filtered);
+                    nextAdd.add(positionOffset, filtered, maxGroupId);
                 }
             } else {
                 try (
@@ -89,7 +89,7 @@ public record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next
                     );
                     IntBlock filtered = groupIds.keepMask(offsetMask)
                 ) {
-                    nextAdd.add(positionOffset, filtered);
+                    nextAdd.add(positionOffset, filtered, maxGroupId);
                 }
             }
         }
@@ -111,18 +111,18 @@ public record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page) {
-        next.addIntermediateInput(positionOffset, groupIdVector, page);
+    public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, int maxGroupId, Page page) {
+        next.addIntermediateInput(positionOffset, groupIdVector, maxGroupId, page);
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, Page page) {
-        next.addIntermediateInput(positionOffset, groupIdVector, page);
+    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, int maxGroupId, Page page) {
+        next.addIntermediateInput(positionOffset, groupIdVector, maxGroupId, page);
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page) {
-        next.addIntermediateInput(positionOffset, groupIdVector, page);
+    public void addIntermediateInput(int positionOffset, IntVector groupIdVector, int maxGroupId, Page page) {
+        next.addIntermediateInput(positionOffset, groupIdVector, maxGroupId, page);
     }
 
     @Override

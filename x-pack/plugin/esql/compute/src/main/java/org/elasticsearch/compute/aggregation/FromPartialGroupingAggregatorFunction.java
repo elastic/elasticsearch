@@ -43,26 +43,26 @@ public class FromPartialGroupingAggregatorFunction implements GroupingAggregator
     public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
         return new AddInput() {
             @Override
-            public void add(int positionOffset, IntBlock groupIds) {
+            public void add(int positionOffset, IntBlock groupIds, int maxGroupId) {
                 assert false : "Intermediate group id must not have nulls";
                 throw new IllegalStateException("Intermediate group id must not have nulls");
             }
 
             @Override
-            public void add(int positionOffset, IntArrayBlock groupIds) {
+            public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                 assert false : "Intermediate group id must not have nulls";
                 throw new IllegalStateException("Intermediate group id must not have nulls");
             }
 
             @Override
-            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+            public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                 assert false : "Intermediate group id must not have nulls";
                 throw new IllegalStateException("Intermediate group id must not have nulls");
             }
 
             @Override
-            public void add(int positionOffset, IntVector groupIds) {
-                addIntermediateInput(positionOffset, groupIds, page);
+            public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
+                addIntermediateInput(positionOffset, groupIds, maxGroupId, page);
             }
 
             @Override
@@ -81,21 +81,21 @@ public class FromPartialGroupingAggregatorFunction implements GroupingAggregator
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page) {
+    public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, int maxGroupId, Page page) {
         final CompositeBlock inputBlock = page.getBlock(inputChannel);
-        delegate.addIntermediateInput(positionOffset, groupIdVector, inputBlock.asPage());
+        delegate.addIntermediateInput(positionOffset, groupIdVector, maxGroupId, inputBlock.asPage());
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, Page page) {
+    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, int maxGroupId, Page page) {
         final CompositeBlock inputBlock = page.getBlock(inputChannel);
-        delegate.addIntermediateInput(positionOffset, groupIdVector, inputBlock.asPage());
+        delegate.addIntermediateInput(positionOffset, groupIdVector, maxGroupId, inputBlock.asPage());
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page) {
+    public void addIntermediateInput(int positionOffset, IntVector groupIdVector, int maxGroupId, Page page) {
         final CompositeBlock inputBlock = page.getBlock(inputChannel);
-        delegate.addIntermediateInput(positionOffset, groupIdVector, inputBlock.asPage());
+        delegate.addIntermediateInput(positionOffset, groupIdVector, maxGroupId, inputBlock.asPage());
     }
 
     @Override

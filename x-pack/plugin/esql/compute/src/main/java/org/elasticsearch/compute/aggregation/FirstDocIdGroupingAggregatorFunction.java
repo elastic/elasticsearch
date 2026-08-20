@@ -93,17 +93,17 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
         if (docBlock.areAllValuesNull()) {
             return new AddInput() {
                 @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {
+                public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
 
                 }
 
                 @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
 
                 }
 
                 @Override
-                public void add(int positionOffset, IntVector groupIds) {
+                public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
 
                 }
 
@@ -120,17 +120,17 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
         }
         return new AddInput() {
             @Override
-            public void add(int positionOffset, IntArrayBlock groupIds) {
+            public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+            public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            public void add(int positionOffset, IntVector groupIds) {
+            public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                 addRawInput(positionOffset, groupIds, docVector);
             }
 
@@ -180,17 +180,17 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+    public void addIntermediateInput(int positionOffset, IntArrayBlock groups, int maxGroupId, Page page) {
         throw new UnsupportedOperationException("first_doc_id does not handle intermediate input");
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, int maxGroupId, Page page) {
         throw new UnsupportedOperationException("first_doc_id does not handle intermediate input");
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
+    public void addIntermediateInput(int positionOffset, IntVector groups, int maxGroupId, Page page) {
         throw new UnsupportedOperationException("first_doc_id does not handle intermediate input");
     }
 

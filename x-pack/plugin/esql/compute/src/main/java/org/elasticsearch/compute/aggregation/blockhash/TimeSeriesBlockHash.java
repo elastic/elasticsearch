@@ -113,7 +113,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
         int prevGroupId = (int) hashOrdToGroup(finalHash.add(tsid, prevTimestamp));
         if (timestamps.isConstant() || constantTimestamp(timestamps, prevTimestamp, positionCount)) {
             try (var groups = blockFactory.newConstantIntVector(prevGroupId, positionCount)) {
-                addInput.add(0, groups);
+                addInput.add(0, groups, maxGroupId());
             }
             return;
         }
@@ -131,8 +131,12 @@ public final class TimeSeriesBlockHash extends BlockHash {
             groupsIds = groupBuilder.build();
         }
         try (groupsIds) {
-            addInput.add(0, groupsIds);
+            addInput.add(0, groupsIds, maxGroupId());
         }
+    }
+
+    private int maxGroupId() {
+        return Math.toIntExact(finalHash.size()) - 1;
     }
 
     private static boolean constantTimestamp(LongVector timestamps, long firstTimestamp, int positionCount) {
@@ -178,7 +182,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
             }
             try (var groupsVector = blockFactory.newIntArrayVector(groupIds, ordinalsLength, acquiredBytes)) {
                 acquiredBytes = 0;
-                addInput.add(0, groupsVector);
+                addInput.add(0, groupsVector, maxGroupId());
             }
         } finally {
             blockFactory.breaker().addWithoutBreaking(-acquiredBytes);
@@ -201,7 +205,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
             }
             try (var groupIds = blockFactory.newIntArrayVector(ords, positionCount, acquiredBytes)) {
                 acquiredBytes = 0;
-                addInput.add(0, groupIds);
+                addInput.add(0, groupIds, maxGroupId());
             }
         } finally {
             blockFactory.breaker().addWithoutBreaking(-acquiredBytes);

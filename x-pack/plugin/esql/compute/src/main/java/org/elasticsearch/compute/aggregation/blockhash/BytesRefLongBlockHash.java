@@ -88,11 +88,15 @@ public final class BytesRefLongBlockHash extends BlockHash {
         LongVector longsVector = longsBlock.asVector();
         if (longsVector != null) {
             try (IntVector ords = add(bytesHashes, longsVector)) {
-                addInput.add(0, ords);
+                addInput.add(0, ords, maxGroupId());
             }
         } else {
             add(bytesHashes.asBlock(), longsBlock, addInput);
         }
+    }
+
+    private int maxGroupId() {
+        return Math.toIntExact(finalHash.size()) - 1;
     }
 
     public void add(IntBlock bytesHashes, LongBlock longsBlock, GroupingAggregatorFunction.AddInput addInput) {

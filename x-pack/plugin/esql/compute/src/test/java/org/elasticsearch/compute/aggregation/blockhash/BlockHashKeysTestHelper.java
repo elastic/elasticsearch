@@ -191,17 +191,17 @@ class BlockHashKeysTestHelper implements Releasable {
     private void assertAddIsNoop(IntVector selected, Block[] keys) {
         blockHash.add(new Page(keys), new GroupingAggregatorFunction.AddInput() {
             @Override
-            public void add(int positionOffset, IntArrayBlock groupIds) {
+            public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                 fail("shouldn't be called");
             }
 
             @Override
-            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+            public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                 fail("shouldn't be called");
             }
 
             @Override
-            public void add(int positionOffset, IntVector groupIds) {
+            public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                 for (int p = 0; p < groupIds.getPositionCount(); p++) {
                     assertThat(groupIds.getInt(p), equalTo(selected.getInt(positionOffset + p)));
                 }

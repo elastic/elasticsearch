@@ -76,17 +76,17 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
         if (valuesBlock.areAllValuesNull()) {
             return new AddInput() {
                 @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {
+                public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
 
                 }
 
                 @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
 
                 }
 
                 @Override
-                public void add(int positionOffset, IntVector groupIds) {
+                public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
 
                 }
 
@@ -98,17 +98,17 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
         }
         return new AddInput() {
             @Override
-            public void add(int positionOffset, IntArrayBlock groupIds) {
+            public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                 addInputValuesBlock(positionOffset, groupIds, valuesBlock);
             }
 
             @Override
-            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+            public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                 addInputValuesBlock(positionOffset, groupIds, valuesBlock);
             }
 
             @Override
-            public void add(int positionOffset, IntVector groupIds) {
+            public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                 var valuesVector = valuesBlock.asVector();
                 if (valuesVector != null) {
                     addInputValuesVector(positionOffset, groupIds, valuesVector);
@@ -202,7 +202,7 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+    public void addIntermediateInput(int positionOffset, IntArrayBlock groups, int maxGroupId, Page page) {
         BytesRefBlock valuesBlock = page.getBlock(channel);
         if (valuesBlock.areAllValuesNull()) {
             return;
@@ -211,7 +211,7 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, int maxGroupId, Page page) {
         BytesRefBlock valuesBlock = page.getBlock(channel);
         if (valuesBlock.areAllValuesNull()) {
             return;
@@ -220,7 +220,7 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
+    public void addIntermediateInput(int positionOffset, IntVector groups, int maxGroupId, Page page) {
         BytesRefBlock valuesBlock = page.getBlock(channel);
         if (valuesBlock.areAllValuesNull()) {
             return;

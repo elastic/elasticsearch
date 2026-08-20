@@ -412,28 +412,28 @@ public class HashAggregationOperator implements Operator {
                 long aggStart;
 
                 @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {
+                public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
                     startAggEndHash();
                     for (GroupingAggregatorFunction.AddInput p : prepared) {
-                        p.add(positionOffset, groupIds);
+                        p.add(positionOffset, groupIds, maxGroupId);
                     }
                     end();
                 }
 
                 @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
                     startAggEndHash();
                     for (GroupingAggregatorFunction.AddInput p : prepared) {
-                        p.add(positionOffset, groupIds);
+                        p.add(positionOffset, groupIds, maxGroupId);
                     }
                     end();
                 }
 
                 @Override
-                public void add(int positionOffset, IntVector groupIds) {
+                public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
                     startAggEndHash();
                     for (GroupingAggregatorFunction.AddInput p : prepared) {
-                        p.add(positionOffset, groupIds);
+                        p.add(positionOffset, groupIds, maxGroupId);
                     }
                     end();
                 }

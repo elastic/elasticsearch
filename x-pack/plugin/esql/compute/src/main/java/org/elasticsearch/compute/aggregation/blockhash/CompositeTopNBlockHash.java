@@ -295,7 +295,7 @@ final class CompositeTopNBlockHash extends BlockHash {
         }
 
         @Override
-        public void add(int positionOffset, IntVector groupIds) {
+        public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
             int positions = groupIds.getPositionCount();
             boolean allCompetitive = true;
             for (int i = 0; i < positions; i++) {
@@ -305,7 +305,7 @@ final class CompositeTopNBlockHash extends BlockHash {
                 }
             }
             if (allCompetitive) {
-                delegate.add(positionOffset, groupIds);
+                delegate.add(positionOffset, groupIds, maxGroupId);
                 return;
             }
             // Build a filtered block directly without going through asBlock() to avoid the
@@ -319,22 +319,22 @@ final class CompositeTopNBlockHash extends BlockHash {
                     }
                 }
                 try (IntBlock filtered = builder.build()) {
-                    delegate.add(positionOffset, filtered);
+                    delegate.add(positionOffset, filtered, maxGroupId);
                 }
             }
         }
 
         @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
-            addFilteredBlock(positionOffset, groupIds);
+        public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
+            addFilteredBlock(positionOffset, groupIds, maxGroupId);
         }
 
         @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
-            addFilteredBlock(positionOffset, groupIds);
+        public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
+            addFilteredBlock(positionOffset, groupIds, maxGroupId);
         }
 
-        private void addFilteredBlock(int positionOffset, IntBlock groupIds) {
+        private void addFilteredBlock(int positionOffset, IntBlock groupIds, int maxGroupId) {
             int positions = groupIds.getPositionCount();
             // Fast path: all competitive → forward as-is.
             boolean allCompetitive = true;
@@ -345,7 +345,7 @@ final class CompositeTopNBlockHash extends BlockHash {
                 }
             }
             if (allCompetitive) {
-                delegate.add(positionOffset, groupIds);
+                delegate.add(positionOffset, groupIds, maxGroupId);
                 return;
             }
             // Build a filtered copy: null out non-competitive positions.
@@ -368,7 +368,7 @@ final class CompositeTopNBlockHash extends BlockHash {
                     }
                 }
                 try (IntBlock filtered = builder.build()) {
-                    delegate.add(positionOffset, filtered);
+                    delegate.add(positionOffset, filtered, maxGroupId);
                 }
             }
         }

@@ -803,7 +803,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                             dataSliceRemainingSize
                         )
                     ) {
-                        addInput.add(currentDataOffset, groups);
+                        addInput.add(currentDataOffset, groups, currentGroupOffset + groupSliceRemainingSize - 1);
                     }
 
                     currentDataOffset += dataSliceSize;

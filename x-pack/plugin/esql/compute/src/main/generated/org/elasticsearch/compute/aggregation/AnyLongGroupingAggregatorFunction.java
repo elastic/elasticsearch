@@ -66,17 +66,17 @@ public final class AnyLongGroupingAggregatorFunction implements GroupingAggregat
     maybeEnableGroupIdTracking(seenGroupIds, valuesBlock);
     return new GroupingAggregatorFunction.AddInput() {
       @Override
-      public void add(int positionOffset, IntArrayBlock groupIds) {
+      public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
         addRawInput(positionOffset, groupIds, valuesBlock);
       }
 
       @Override
-      public void add(int positionOffset, IntBigArrayBlock groupIds) {
+      public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
         addRawInput(positionOffset, groupIds, valuesBlock);
       }
 
       @Override
-      public void add(int positionOffset, IntVector groupIds) {
+      public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
         addRawInput(positionOffset, groupIds, valuesBlock);
       }
 
@@ -102,7 +102,8 @@ public final class AnyLongGroupingAggregatorFunction implements GroupingAggregat
   }
 
   @Override
-  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, int maxGroupId,
+      Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block observedUncast = page.getBlock(channels.get(0));
@@ -164,7 +165,8 @@ public final class AnyLongGroupingAggregatorFunction implements GroupingAggregat
   }
 
   @Override
-  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, int maxGroupId,
+      Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block observedUncast = page.getBlock(channels.get(0));
@@ -219,7 +221,8 @@ public final class AnyLongGroupingAggregatorFunction implements GroupingAggregat
   }
 
   @Override
-  public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
+  public void addIntermediateInput(int positionOffset, IntVector groups, int maxGroupId,
+      Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block observedUncast = page.getBlock(channels.get(0));

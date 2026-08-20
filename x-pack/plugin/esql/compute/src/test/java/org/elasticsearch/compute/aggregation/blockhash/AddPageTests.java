@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AddPageTests extends ESTestCase {
     private final BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
@@ -31,7 +32,7 @@ public class AddPageTests extends ESTestCase {
     public void testSv() {
         TestAddInput result = new TestAddInput();
         List<Added> expected = new ArrayList<>();
-        try (AddPage add = new AddPage(blockFactory, 3, result)) {
+        try (AddPage add = new AddPage(blockFactory, () -> 4, 3, result)) {
             add.appendOrdSv(0, 0);
             add.appendOrdSv(1, 2);
             add.appendOrdSv(2, 3);
@@ -48,7 +49,7 @@ public class AddPageTests extends ESTestCase {
     public void testMvBlockEndsOnBatchBoundary() {
         TestAddInput result = new TestAddInput();
         List<Added> expected = new ArrayList<>();
-        try (AddPage add = new AddPage(blockFactory, 3, result)) {
+        try (AddPage add = new AddPage(blockFactory, () -> 4, 3, result)) {
             add.appendOrdInMv(0, 0);
             add.appendOrdInMv(0, 2);
             add.appendOrdInMv(0, 3);
@@ -75,7 +76,7 @@ public class AddPageTests extends ESTestCase {
     public void testMvPositionEndOnBatchBoundary() {
         TestAddInput result = new TestAddInput();
         List<Added> expected = new ArrayList<>();
-        try (AddPage add = new AddPage(blockFactory, 4, result)) {
+        try (AddPage add = new AddPage(blockFactory, () -> 4, 4, result)) {
             add.appendOrdInMv(0, 0);
             add.appendOrdInMv(0, 2);
             add.appendOrdInMv(0, 3);
@@ -97,7 +98,7 @@ public class AddPageTests extends ESTestCase {
     public void testMv() {
         TestAddInput result = new TestAddInput();
         List<Added> expected = new ArrayList<>();
-        try (AddPage add = new AddPage(blockFactory, 5, result)) {
+        try (AddPage add = new AddPage(blockFactory, () -> 4, 5, result)) {
             add.appendOrdInMv(0, 0);
             add.appendOrdInMv(0, 2);
             add.appendOrdInMv(0, 3);
@@ -122,7 +123,7 @@ public class AddPageTests extends ESTestCase {
      */
     public void testMvBillions() {
         CountingAddInput counter = new CountingAddInput();
-        try (AddPage add = new AddPage(blockFactory, 5, counter)) {
+        try (AddPage add = new AddPage(blockFactory, () -> 0, 5, counter)) {
             for (int i = 0; i < Integer.MAX_VALUE; i++) {
                 add.appendOrdInMv(0, 0);
                 assertThat(add.added(), equalTo((long) i + 1));
@@ -158,7 +159,7 @@ public class AddPageTests extends ESTestCase {
     private class TestAddInput implements GroupingAggregatorFunction.AddInput {
         private final List<Added> added = new ArrayList<>();
 
-        private void addBlock(int positionOffset, IntBlock groupIds) {
+        private void addBlock(int positionOffset, IntBlock groupIds, int maxGroupId) {
             List<List<Integer>> result = new ArrayList<>(groupIds.getPositionCount());
             for (int p = 0; p < groupIds.getPositionCount(); p++) {
                 int valueCount = groupIds.getValueCount(p);
@@ -167,25 +168,27 @@ public class AddPageTests extends ESTestCase {
                 int start = groupIds.getFirstValueIndex(p);
                 int end = valueCount + start;
                 for (int i = start; i < end; i++) {
-                    r.add(groupIds.getInt(i));
+                    int ord = groupIds.getInt(i);
+                    assertThat("ord larger than maxGroupId", ord, lessThanOrEqualTo(maxGroupId));
+                    r.add(ord);
                 }
             }
             added.add(new Added(positionOffset, result));
         }
 
         @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
-            addBlock(positionOffset, groupIds);
+        public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
+            addBlock(positionOffset, groupIds, maxGroupId);
         }
 
         @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
-            addBlock(positionOffset, groupIds);
+        public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
+            addBlock(positionOffset, groupIds, maxGroupId);
         }
 
         @Override
-        public void add(int positionOffset, IntVector groupIds) {
-            addBlock(positionOffset, groupIds.asBlock());
+        public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
+            addBlock(positionOffset, groupIds.asBlock(), maxGroupId);
         }
 
         @Override
@@ -198,17 +201,17 @@ public class AddPageTests extends ESTestCase {
         private int count;
 
         @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
+        public void add(int positionOffset, IntArrayBlock groupIds, int maxGroupId) {
             count++;
         }
 
         @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+        public void add(int positionOffset, IntBigArrayBlock groupIds, int maxGroupId) {
             count++;
         }
 
         @Override
-        public void add(int positionOffset, IntVector groupIds) {
+        public void add(int positionOffset, IntVector groupIds, int maxGroupId) {
             count++;
         }
 

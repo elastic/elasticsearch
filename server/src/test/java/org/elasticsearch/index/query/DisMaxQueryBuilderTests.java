@@ -12,17 +12,25 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.CoreMatchers.containsString;
 
 public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBuilder> {
     /**
@@ -129,6 +137,40 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         assertEquals(json, 1.2, parsed.boost(), 0.0001);
         assertEquals(json, 0.7, parsed.tieBreaker(), 0.0001);
         assertEquals(json, 2, parsed.innerQueries().size());
+    }
+
+    public void testTooManyClausesRejectedAtParseTime() throws IOException {
+        int origMax = IndexSearcher.getMaxClauseCount();
+        int max = 5;
+        IndexSearcher.setMaxClauseCount(max);
+        try {
+            // dis_max with max inner clauses: clauseCount reaches max (container is free) — must succeed
+            DisMaxQueryBuilder okQuery = new DisMaxQueryBuilder();
+            for (int i = 0; i < max; i++) {
+                okQuery.add(new MatchAllQueryBuilder());
+            }
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(okQuery, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser); // must not throw
+                }
+            }
+
+            // dis_max with max+1 inner clauses: clauseCount reaches max+1 — must be rejected at parse time
+            DisMaxQueryBuilder bigQuery = new DisMaxQueryBuilder();
+            for (int i = 0; i < max + 1; i++) {
+                bigQuery.add(new MatchAllQueryBuilder());
+            }
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(bigQuery, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(parser));
+                    assertThat(e.getMessage(), containsString("too many clauses"));
+                }
+            }
+        } finally {
+            IndexSearcher.setMaxClauseCount(origMax);
+        }
     }
 
     public void testRewriteMultipleTimes() throws IOException {

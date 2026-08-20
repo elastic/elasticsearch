@@ -416,7 +416,8 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * Parses and returns a query (excluding the query field that wraps it). To be called by API that support
      * user provided queries. Note that the returned query may hold inner queries, and so on. Calling this method
      * will initialize the tracking of nested depth to make sure that there's a limit to the number of queries
-     * that can be nested within one another (see {@link org.elasticsearch.search.SearchModule#INDICES_MAX_NESTED_DEPTH_SETTING}.
+     * that can be nested within one another (see {@link org.elasticsearch.search.SearchModule#INDICES_MAX_NESTED_DEPTH_SETTING}),
+     * and the total clause count to ensure it does not exceed {@link org.apache.lucene.search.IndexSearcher#getMaxClauseCount()}.
      * This variant of the method does not support collecting statistics about queries usage.
      */
     public static QueryBuilder parseTopLevelQuery(XContentParser parser) throws IOException {
@@ -427,14 +428,17 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * Parses and returns a query (excluding the query field that wraps it). To be called by API that support
      * user provided queries. Note that the returned query may hold inner queries, and so on. Calling this method
      * will initialize the tracking of nested depth to make sure that there's a limit to the number of queries
-     * that can be nested within one another (see {@link org.elasticsearch.search.SearchModule#INDICES_MAX_NESTED_DEPTH_SETTING}.
+     * that can be nested within one another (see {@link org.elasticsearch.search.SearchModule#INDICES_MAX_NESTED_DEPTH_SETTING}),
+     * and the total clause count to ensure it does not exceed {@link org.apache.lucene.search.IndexSearcher#getMaxClauseCount()}.
      * The method accepts a string consumer that will be provided with each query type used in the parsed content, to be used
      * for instance to collect statistics about queries usage.
      */
     public static QueryBuilder parseTopLevelQuery(XContentParser parser, Consumer<String> queryNameConsumer) throws IOException {
         FilterXContentParser parserWrapper = new FilterXContentParserWrapper(parser) {
             int nestedDepth;
-
+            // Counts nested QueryBuilders.
+            int clauseCount;
+            final int maxClauses = IndexSearcher.getMaxClauseCount(); // snapshot; avoid concurrent mutation
             @Override
             public <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException {
                 if (categoryClass.equals(QueryBuilder.class)) {
@@ -444,6 +448,12 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
                             "The nested depth of the query exceeds the maximum nested depth for queries set in ["
                                 + INDICES_MAX_NESTED_DEPTH_SETTING.getKey()
                                 + "]"
+                        );
+                    }
+                    if (nestedDepth > 1 && (++clauseCount) > maxClauses) { // depth 1 == root, not a clause
+                        throw new ParsingException(
+                            getTokenLocation(),
+                            "query has too many clauses [" + clauseCount + "], max is [" + maxClauses + "]"
                         );
                     }
                 }

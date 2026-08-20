@@ -11,15 +11,19 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -859,6 +863,42 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             expectedPrefilters.addAll(query.mustNot().stream().map(q -> boolQuery().mustNot(q)).collect(Collectors.toList()));
         }
         return expectedPrefilters;
+    }
+
+    public void testTooManyClausesRejectedAtParseTime() throws IOException {
+        int origMax = IndexSearcher.getMaxClauseCount();
+        int max = 5;
+        IndexSearcher.setMaxClauseCount(max);
+        try {
+            // bool with max inner clauses: clauseCount reaches max (container is free) — must succeed
+            BoolQueryBuilder okQuery = boolQuery();
+            for (int i = 0; i < max; i++) {
+                okQuery.should(termQuery(TEXT_FIELD_NAME, "v"));
+            }
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(okQuery, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser); // must not throw
+                }
+            }
+
+            // bool with max+1 inner clauses: clauseCount reaches max+1 — must be rejected at parse time
+            BoolQueryBuilder bigQuery = boolQuery();
+            for (int i = 0; i < max + 1; i++) {
+                bigQuery.should(termQuery(TEXT_FIELD_NAME, "v"));
+            }
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(bigQuery, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    // ObjectParser wraps the root ParsingException in an XContentParseException
+                    XContentParseException ex = expectThrows(XContentParseException.class, () -> parseQuery(parser));
+                    assertThat(ex.getCause(), instanceOf(ParsingException.class));
+                    assertThat(ex.getCause().getMessage(), containsString("too many clauses"));
+                }
+            }
+        } finally {
+            IndexSearcher.setMaxClauseCount(origMax);
+        }
     }
 
     private static final class TestAutoPrefilteringQueryBuilder extends LeafQueryBuilder<TestAutoPrefilteringQueryBuilder> {

@@ -35,6 +35,14 @@ final class EscfArrayColumn extends EscfColumn {
         this.rowOffsets = rowOffsets;
     }
 
+    EscfColumn child() {
+        return child;
+    }
+
+    IntsRef rowOffsets() {
+        return rowOffsets;
+    }
+
     @Override
     public byte kind() {
         return EscfColumnKind.ARRAY;

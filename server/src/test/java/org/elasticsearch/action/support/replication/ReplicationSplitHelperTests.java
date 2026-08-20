@@ -43,7 +43,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -618,7 +617,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
                 mock(IndicesService.class),
                 mock(ThreadPool.class),
                 mock(ShardStateAction.class),
-                new ActionFilters(new HashSet<>()),
+                ActionFilters.EMPTY,
                 TestReplicationRequest::new,
                 TestReplicationRequest::new,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,

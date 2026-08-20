@@ -187,7 +187,7 @@ public record LibraryModel(
 
             StructModel structModel = kind == ElementKind.RECORD
                 ? StructSpecParser.fromRecord(typeElement, supportedPlatforms, messager)
-                : StructSpecParser.fromInterface(typeElement, structSimpleNames, supportedPlatforms, env, messager);
+                : StructSpecParser.fromInterface(typeElement, structSimpleNames, supportedPlatforms, unavailableOn, env, messager);
             if (structModel == null) {
                 hasError = true;
             } else {
@@ -215,7 +215,7 @@ public record LibraryModel(
                 }
             }
 
-            MethodModel methodModel = MethodModel.from(method, env, structSimpleNames);
+            MethodModel methodModel = MethodModel.from(method, env, structSimpleNames, unavailableOn);
             if (methodModel == null) {
                 hasError = true;
             } else {

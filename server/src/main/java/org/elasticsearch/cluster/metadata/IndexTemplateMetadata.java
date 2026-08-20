@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -35,7 +37,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetadata> {
+public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetadata>, Accountable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexTemplateMetadata.class);
 
     private final String name;
 
@@ -138,6 +142,19 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
 
     public Map<String, AliasMetadata> aliases() {
         return this.aliases;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long size = BASE_RAM_BYTES_USED;
+        size += RamUsageEstimator.sizeOf(name);
+        // version is a boxed Integer referenced from the shallow size; count the boxed instance when present.
+        size += RamUsageEstimator.shallowSizeOf(version);
+        size += RamUsageEstimator.sizeOfCollection(patterns);
+        size += settings.estimatedRamBytesUsed();
+        size += MetadataRamEstimators.ramBytesUsedByAccountableMap(mappings);
+        size += MetadataRamEstimators.ramBytesUsedByAccountableMap(aliases);
+        return size;
     }
 
     public Map<String, AliasMetadata> getAliases() {

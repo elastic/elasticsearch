@@ -9,7 +9,9 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.CollectionUtil;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -81,7 +83,9 @@ import static org.elasticsearch.cluster.metadata.Metadata.ALL;
 import static org.elasticsearch.cluster.project.ProjectStateRegistry.RESERVED_DIFF_VALUE_READER;
 import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
-public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<ProjectMetadata>, ChunkedToXContent {
+public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<ProjectMetadata>, ChunkedToXContent, Accountable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ProjectMetadata.class);
 
     private static final NamedDiffableValueSerializer<Metadata.ProjectCustom> PROJECT_CUSTOM_VALUE_SERIALIZER =
         new NamedDiffableValueSerializer<>(Metadata.ProjectCustom.class);
@@ -200,6 +204,28 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         assert Set.of(visibleClosedIndices)
             .equals(indicesByPredicate.apply(idx -> idx.isHidden() == false && idx.getState() == IndexMetadata.State.CLOSE));
         return true;
+    }
+
+    /**
+     * Returns a best-effort estimate of the heap footprint of this project's {@code indices} and {@code templates}. Each
+     * {@link IndexMetadata} contributes its own {@link IndexMetadata#ramBytesUsed()}, with {@link MappingMetadata} instances shared across
+     * indices (see {@link #mappingsByHash}) counted only once. Each {@link IndexTemplateMetadata} contributes its own
+     * {@link IndexTemplateMetadata#ramBytesUsed()}.
+     * <p>
+     * Known gaps (deliberately not counted to keep the scope small): the {@code customs} map (project-level custom metadata such as
+     * data streams, ILM, persistent tasks), the derived {@code aliasedIndices} map, the cached index-name arrays, the lazily-built
+     * {@code indicesLookup}, and the {@code mappingsByHash} lookup itself (whose values are the already-counted, deduplicated mappings).
+     * These reference structures either duplicate data counted elsewhere or are derived caches, so omitting them keeps the estimate a
+     * conservative lower bound dominated by index and template metadata.
+     */
+    @Override
+    public long ramBytesUsed() {
+        long size = BASE_RAM_BYTES_USED;
+        size += RamUsageEstimator.shallowSizeOf(id);
+        size += RamUsageEstimator.shallowSizeOf(oldestIndexVersion);
+        size += MetadataRamEstimators.ramBytesUsedByIndexMetadataMap(indices);
+        size += MetadataRamEstimators.ramBytesUsedByAccountableMap(templates);
+        return RamUsageEstimator.alignObjectSize(size);
     }
 
     /**

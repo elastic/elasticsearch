@@ -485,13 +485,10 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
      *       vector and returned as a singleton list. Throws if any element is not a {@link Number}.</li>
      *   <li><em>List of {@code float[]} vectors</em> (one entry per chunk for chunked {@code semantic_text} fields):
      *       each element is converted to a {@link VectorData} independently.</li>
-     *   <li><em>Sparse vector map</em> ({@code Map<String, Float>} — token-to-weight pairs from a
-     *       {@code sparse_vector} or {@code sparse_embedding} inference field): throws an {@link IllegalArgumentException}, since sparse
-     *       vectors are not supported by diversification. Any other {@link Map} shape is returned as an empty list.</li>
      * </ul>
      * Returns an empty list when the values are absent, null, or of an unrecognized type.
      *
-     * @throws IllegalArgumentException if the field contains sparse vectors, or malformed dense vectors
+     * @throws IllegalArgumentException if the field contains malformed dense vectors
      */
     private List<VectorData> extractDenseEmbeddings(List<Object> values) {
         if (values == null || values.isEmpty()) {

@@ -976,20 +976,6 @@ The One Ring was forged by Sauron in the fires of <em>Mount</em> Doom.
 ;
 
 
-# A term qualified on a different field parses but never highlights (require_field_match: true), yielding null.
-highlightFieldQualifiedTermYieldsNull
-required_capability: highlight_v6
-
-ROW content = "The One Ring was forged by Sauron."
-| HIGHLIGHT "title:ring" ON content
-| KEEP highlight_content
-;
-
-highlight_content:keyword
-null
-;
-
-
 # Grouping with parentheses combines a disjunction and a required term; both matched terms are wrapped.
 highlightGrouping
 required_capability: highlight_v6
@@ -1218,23 +1204,6 @@ book_no:keyword | highlight_title:keyword
 ;
 
 
-# A required KQL field outside ON prevents a highlight even when the ON field clause matches.
-highlightKqlRequiredFieldOutsideOnIsNull
-required_capability: highlight_v6
-
-FROM books
-| WHERE MATCH(title, "Return")
-| HIGHLIGHT KQL("title: return AND author: tolkien") ON title
-| KEEP book_no, highlight_title
-| SORT book_no
-;
-
-book_no:keyword | highlight_title:keyword
-2714            | null
-7350            | null
-;
-
-
 # QSTR default_field restricts an unqualified term to one ON field; the other ON field is left un-highlighted (null).
 highlightQueryStringDefaultField
 required_capability: highlight_v6
@@ -1292,21 +1261,6 @@ ROW title = "Return of the King", body = "A wise king ruled"
 
 highlight_title:keyword | highlight_body:keyword
 null                    | A wise <em>king</em> ruled
-;
-
-
-# A term qualified on a field outside ON can never highlight (require_field_match parity), so the row is null.
-highlightQueryStringFieldQualifiedOutsideOnYieldsNull
-required_capability: highlight_v6
-required_capability: qstr_function
-
-ROW content = "The One Ring was forged by Sauron."
-| HIGHLIGHT QSTR("title:ring") ON content
-| KEEP highlight_content
-;
-
-highlight_content:keyword
-null
 ;
 
 

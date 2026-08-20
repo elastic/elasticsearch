@@ -113,9 +113,9 @@ import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBui
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.bccSizeBucket;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.bccTimestampSpanMinutes;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
+import static org.elasticsearch.xpack.stateless.commits.metering.BccUploadMetricsCollector.bccSizeBucket;
+import static org.elasticsearch.xpack.stateless.commits.metering.BccUploadMetricsCollector.bccTimestampSpanMinutes;
 import static org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration.ZERO;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.empty;

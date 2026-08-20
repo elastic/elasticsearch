@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAc
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
+import org.elasticsearch.xpack.stateless.commits.metering.BccUploadMetricsCollector;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
@@ -105,16 +106,16 @@ import static org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoun
 import static org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure.CURRENT_CHUNKS_BYTES_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_MISSING_TIMESTAMP_METRIC;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_NUMBER_COMMITS_HISTOGRAM_METRIC;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_SIZE_ATTRIBUTE_KEY;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_TOTAL_SIZE_HISTOGRAM_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE;
+import static org.elasticsearch.xpack.stateless.commits.metering.BccUploadMetricsCollector.BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC;
+import static org.elasticsearch.xpack.stateless.commits.metering.BccUploadMetricsCollector.BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC;
+import static org.elasticsearch.xpack.stateless.commits.metering.BccUploadMetricsCollector.BCC_MISSING_TIMESTAMP_METRIC;
+import static org.elasticsearch.xpack.stateless.commits.metering.BccUploadMetricsCollector.BCC_NUMBER_COMMITS_HISTOGRAM_METRIC;
+import static org.elasticsearch.xpack.stateless.commits.metering.BccUploadMetricsCollector.BCC_SIZE_ATTRIBUTE_KEY;
+import static org.elasticsearch.xpack.stateless.commits.metering.BccUploadMetricsCollector.BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC;
+import static org.elasticsearch.xpack.stateless.commits.metering.BccUploadMetricsCollector.BCC_TOTAL_SIZE_HISTOGRAM_METRIC;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
@@ -1412,7 +1413,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         assertThat(measurements.get(0).getDouble(), closeTo((double) (max - min) / 60_000d, 1e-6));
         assertThat(
             measurements.get(0).attributes(),
-            equalTo(Map.of(BCC_SIZE_ATTRIBUTE_KEY, StatelessCommitService.bccSizeBucket(totalSize)))
+            equalTo(Map.of(BCC_SIZE_ATTRIBUTE_KEY, BccUploadMetricsCollector.bccSizeBucket(totalSize)))
         );
         assertThat(metricsPlugin.getLongCounterMeasurement(BCC_MISSING_TIMESTAMP_METRIC), empty());
     }

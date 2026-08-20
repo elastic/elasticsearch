@@ -10,13 +10,21 @@
 package org.elasticsearch.search.diversification;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
+import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.document.DocumentField;
@@ -33,17 +41,23 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.EmbeddingsField;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
+import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.search.retriever.TestRetrieverBuilder;
 import org.elasticsearch.search.vectors.TestQueryVectorBuilderPlugin;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.junit.Assert;
 
@@ -54,6 +68,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 public class DiversifyRetrieverBuilderTests extends ESTestCase {
@@ -255,6 +270,55 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
                 fail(e);
             }
         });
+    }
+
+    public void testCreatesMinimalSubSearchSource() {
+        var retriever = new DiversifyRetrieverBuilder(
+            new CompoundRetrieverBuilder.RetrieverSource(new StandardRetrieverBuilder(new MatchAllQueryBuilder()), null),
+            ResultDiversificationType.MMR,
+            "dense_vector_field",
+            10,
+            3,
+            new VectorData(getRandomFloatQueryVector(256)),
+            null,
+            0.3f
+        );
+
+        SetOnce<MultiSearchRequest> subSearchRequest = new SetOnce<>();
+        RuntimeException expectedFailure = new RuntimeException("sub-searches are not executed by this test");
+        try (var threadPool = createThreadPool()) {
+            // capture the sub-searches instead of running them, as we are only interested in what they ask for
+            var client = new NoOpClient(threadPool) {
+                @Override
+                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    assertEquals(TransportMultiSearchAction.TYPE, action);
+                    subSearchRequest.set((MultiSearchRequest) request);
+                    listener.onFailure(expectedFailure);
+                }
+            };
+
+            // rewrite the same way the search action does, so that we assert on the requests that would actually be sent
+            PlainActionFuture<RetrieverBuilder> future = new PlainActionFuture<>();
+            Rewriteable.rewriteAndFetch(retriever, getQueryRewriteContext(client), future);
+            assertTrue(future.isDone());
+            assertSame(expectedFailure, expectThrows(RuntimeException.class, future::actionGet));
+        }
+
+        assertNotNull("the rewrite did not reach the sub-search", subSearchRequest.get());
+        assertEquals(1, subSearchRequest.get().requests().size());
+        SearchSourceBuilder source = subSearchRequest.get().requests().getFirst().source();
+
+        // stored fields are disabled, which also suppresses _source on the data node
+        assertNotNull(source.storedFields());
+        assertFalse(source.storedFields().fetchFields());
+        assertNull(source.fetchSource());
+
+        assertEquals(Set.of(new EmbeddingsField("dense_vector_field", VectorType.DENSE_VECTOR)), source.fetchEmbeddingsFields());
+        assertTrue(source.trackScores());
     }
 
     public void testMmrResultDiversification() {
@@ -544,6 +608,10 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
     }
 
     private QueryRewriteContext getQueryRewriteContext() {
+        return getQueryRewriteContext(null);
+    }
+
+    private QueryRewriteContext getQueryRewriteContext(Client client) {
         final String indexName = "test-index";
         final List<String> testDenseVectorFields = List.of("dense_vector_field");
         final ResolvedIndices resolvedIndices = createMockResolvedIndices(Map.of(indexName, testDenseVectorFields));
@@ -561,7 +629,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
 
         return new QueryRewriteContext(
             parserConfig(),
-            null,
+            client,
             null,
             null,
             mappingLookup,

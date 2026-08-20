@@ -632,9 +632,15 @@ public class RetryPolicyTests extends ESTestCase {
             }
         } while (decision.retry());
 
-        // At 16x the first computed delay is already 8000ms (500ms * 16), filling the budget in a few retries.
-        // But we must get more than 2 retries (the pre-fix behavior at 16x).
-        assertThat("16x multiplier must not cause early give-up (pre-fix was 2)", retries, greaterThan(2));
+        // At 16x the first computed delay is 8000ms (500ms * 16); jitter can make the first two delays consume
+        // most of the 30s budget, so the retry count is not deterministic. The invariant is that the budget is
+        // genuinely exhausted: remaining < throttleInitialDelayMs triggers give-up, so elapsed >= 29_500ms.
+        // Before the fix, the clock stopped at ~24_000ms because the inflated delay was refused rather than truncated.
+        assertThat(
+            "16x multiplier must not cause early give-up (pre-fix clock stopped at ~24000ms)",
+            clockNanos.get() / 1_000_000L,
+            greaterThan(29_000L)
+        );
         assertThat("clock must not exceed budget", clockNanos.get() / 1_000_000L, lessThanOrEqualTo(30_000L));
     }
 

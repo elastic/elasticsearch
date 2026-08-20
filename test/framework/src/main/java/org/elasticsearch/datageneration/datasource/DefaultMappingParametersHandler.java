@@ -353,7 +353,6 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             choices.add(Map.of("on_failure", ESTestCase.randomFrom("fail", "ignore")));
             choices.add(Map.of("multi_value", true, "on_failure", ESTestCase.randomFrom("fail", "ignore")));
             choices.add(Map.of("nullability", false, "on_failure", "ignore"));
-            choices.add(Map.of("multi_value", false, "on_failure", "ignore"));
         } else {
             choices.add(Map.of("on_failure", "fail"));
             choices.add(Map.of("multi_value", true, "on_failure", "fail"));

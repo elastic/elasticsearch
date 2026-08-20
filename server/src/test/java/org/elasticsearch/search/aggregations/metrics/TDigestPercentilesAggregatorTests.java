@@ -22,15 +22,21 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
@@ -45,9 +51,12 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
 import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
+
+    private static final double DEFAULT_COMPRESSION = 100.0;
 
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
@@ -251,6 +260,98 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             expectThrows(CircuitBreakingException.class, () -> collectWithBreaker(reader, breakerService, aggBuilder, fieldType));
             assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
         });
+    }
+
+    public void testReduceAfterAggregationContextClosed() throws IOException {
+        HierarchyCircuitBreakerService breakerService = requestBreakerService("100mb");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
+        PercentilesAggregationBuilder aggBuilder = percentilesBuilder(DEFAULT_COMPRESSION);
+
+        // A partial reduce over shard results that collected nothing emits HistogramUnionState.EMPTY, whose compression
+        // is hard-coded to 1.0 and therefore always below the request's. Feeding that partial back in ahead of the
+        // data-bearing shard results is what the coordinator does for shards local to it, and it used to make the
+        // reducer adopt a shard result as its accumulator. Both shard results read the same 1500 document index, which
+        // keeps each below the HybridDigest sorting-to-merging threshold of 20 * 100 = 2000 that their combined 3000
+        // values cross, so the allocating transition happens during reduction, against the already-closed preallocated
+        // breaker of the aggregation context that built the adopted result.
+        withSequentialIndex(1500, reader -> {
+            InternalAggregations emptyPartial = InternalAggregations.topLevelReduce(
+                List.of(InternalAggregations.from(List.of(emptyShardResult())), InternalAggregations.from(List.of(emptyShardResult()))),
+                partialReduceContext(aggBuilder)
+            );
+            assertThat(((InternalTDigestPercentiles) emptyPartial.copyResults().get(0)).state.compression(), equalTo(1.0));
+
+            InternalAggregation first = buildPreallocatedShardResult(reader, breakerService, fieldType, DEFAULT_COMPRESSION);
+            InternalAggregation second = buildPreallocatedShardResult(reader, breakerService, fieldType, DEFAULT_COMPRESSION);
+
+            InternalAggregations reduced = InternalAggregations.topLevelReduce(
+                List.of(emptyPartial, InternalAggregations.from(List.of(first)), InternalAggregations.from(List.of(second))),
+                finalReduceContext(aggBuilder)
+            );
+
+            InternalTDigestPercentiles result = (InternalTDigestPercentiles) reduced.copyResults().get(0);
+            assertThat(result.state.size(), equalTo(3000L));
+            assertThat(result.percentile(50), closeTo(749.5, 30.0));
+        });
+        assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+    }
+
+    private static InternalAggregation emptyShardResult() {
+        return InternalTDigestPercentiles.empty("p", new double[] { 50 }, false, DocValueFormat.RAW, null);
+    }
+
+    private InternalAggregation buildPreallocatedShardResult(
+        DirectoryReader reader,
+        CircuitBreakerService breakerService,
+        MappedFieldType fieldType,
+        double compression
+    ) throws IOException {
+        PercentilesAggregationBuilder aggBuilder = percentilesBuilder(compression);
+        try (
+            AggregationContext context = createAggregationContext(
+                reader,
+                createIndexSettings(),
+                Queries.ALL_DOCS_INSTANCE,
+                breakerService,
+                AggregationBuilder.DEFAULT_PREALLOCATION,
+                DEFAULT_MAX_BUCKETS,
+                false,
+                false,
+                fieldType
+            )
+        ) {
+            Aggregator aggregator = createAggregator(aggBuilder, context);
+            aggregator.preCollection();
+            context.searcher().search(Queries.ALL_DOCS_INSTANCE, aggregator.asCollector());
+            aggregator.postCollection();
+            return aggregator.buildTopLevel();
+        }
+    }
+
+    private static PercentilesAggregationBuilder percentilesBuilder(double compression) {
+        return new PercentilesAggregationBuilder("p").field("number").percentilesConfig(new PercentilesConfig.TDigest(compression));
+    }
+
+    private static AggregationReduceContext finalReduceContext(AggregationBuilder builder) {
+        return new AggregationReduceContext.ForFinal(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            () -> false,
+            new AggregatorFactories.Builder().addAggregator(builder),
+            bucketCount -> {},
+            null
+        );
+    }
+
+    private static AggregationReduceContext partialReduceContext(AggregationBuilder builder) {
+        return new AggregationReduceContext.ForPartial(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            () -> false,
+            new AggregatorFactories.Builder().addAggregator(builder),
+            bucketCount -> {},
+            null
+        );
     }
 
     private static void withSequentialIndex(int docCount, CheckedConsumer<DirectoryReader, IOException> body) throws IOException {

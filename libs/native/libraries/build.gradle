@@ -41,6 +41,19 @@ var zstdVersion = "1.5.7-1"
 var vecVersion = "1.0.139"
 var pqrsVersion = "0.3.0"
 
+// VEC_NATIVE_BUILD controls how the native vec library is obtained.
+// See libs/simdvec/build.gradle for mode documentation.
+var nativeBuildMode = providers.environmentVariable('VEC_NATIVE_BUILD').orElse('artifactory')
+var buildVecFromSource = nativeBuildMode.get() != 'artifactory'
+
+if (buildVecFromSource) {
+  configurations.dependencyScope('vecFromSourceDeps')
+  configurations.resolvable('vecFromSource') {
+    extendsFrom(configurations.vecFromSourceDeps)
+    attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+  }
+}
+
 repositories {
   exclusiveContent {
     forRepository {
@@ -78,10 +91,12 @@ dependencies {
     libs "org.elasticsearch:zstd:${zstdVersion}:linux-x86-64"
     libs "org.elasticsearch:zstd:${zstdVersion}:windows-x86-64"
   }
-  // if testing locally, its assumed that the custom compiled binaries are copied to the correct directory
-  // See `simdvec/native/Makefile` for details on how to compile locally
-  if (System.getenv("LOCAL_VEC_BINARY_OS") == null){
+  // vec is either fetched or built from source, never both: building it locally replaces the
+  // published artifact.
+  if (buildVecFromSource == false) {
     libs "org.elasticsearch:vec:${vecVersion}@zip"
+  } else {
+    vecFromSourceDeps project(path: ':libs:simdvec', configuration: 'nativeVecLibs')
   }
   // See `libs/parquet-rs/native/Makefile` for local builds
   if (System.getenv("LOCAL_PQRS_BINARY") == null){
@@ -92,6 +107,9 @@ dependencies {
 def extractLibs = tasks.register('extractLibs', Copy) {
   into layout.buildDirectory.dir('platform')
   from configurations.libs
+  if (buildVecFromSource) {
+    from configurations.vecFromSource
+  }
   // TODO: fix architecture in uploaded libs
   filesMatching("*-x86-64/*") {
     it.path = it.path.replace("x86-64", "x64")

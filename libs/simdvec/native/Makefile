@@ -84,7 +84,7 @@ SO_X64 = $(OUT_DIR_AMD64)/libvec.so
 # On Linux, overrides CXX_ARM/CXX_X64 to drop the cross-compilation target.
 # Ob both, we use the system strip instead of llvm-strip.
 
-.PHONY: all clean local install
+.PHONY: all clean local local-install
 
 ifeq ($(shell uname -s),Darwin)
   LOCAL_PLATFORM = darwin-aarch64
@@ -110,11 +110,14 @@ else
   local: $(SO_X64)
 endif
 
-# Build and copy to the platform directory used by Gradle tests.
-INSTALL_DIR = ../../native/libraries/build/platform/$(LOCAL_PLATFORM)
-install: local
-	mkdir -p $(INSTALL_DIR)
-	cp $(LOCAL_OUTPUT) $(INSTALL_DIR)/$(notdir $(LOCAL_OUTPUT))
+# Build and copy to a specified destination directory (used by the Gradle task).
+# The Makefile remains the single source of truth for the platform→path mapping.
+local-install: local
+ifndef DEST
+	$(error DEST must be set, e.g. make local-install DEST=/path/to/output)
+endif
+	mkdir -p $(DEST)/$(LOCAL_PLATFORM)
+	cp $(LOCAL_OUTPUT) $(DEST)/$(LOCAL_PLATFORM)/$(notdir $(LOCAL_OUTPUT))
 
 # --- all: cross-compile all three targets (inside Docker) ---
 

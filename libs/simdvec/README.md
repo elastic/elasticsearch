@@ -84,24 +84,39 @@ For local development on the current platform:
 ```bash
 cd native
 make local       # builds for the host platform
-make install     # copies the binary where Gradle tests expect it
 ```
 
-`make install` places the library in
-`libs/native/libraries/build/platform/<os>-<arch>/` so that Gradle tests can
-use it instead of fetching from Artifactory. Set `LOCAL_VEC_BINARY_OS=true` to
-skip the Artifactory download:
+### Gradle integration
+
+The Gradle build can compile libvec from source instead of fetching
+from Artifactory. Set the `VEC_NATIVE_BUILD` environment variable:
 
 ```bash
-make install
-LOCAL_VEC_BINARY_OS=true ./gradlew :libs:simdvec:test
+# Cross-compile all platforms in Docker (CI mode)
+VEC_NATIVE_BUILD=docker ./gradlew :libs:simdvec:buildVecNative
+
+# Build for the host platform only (dev iteration)
+VEC_NATIVE_BUILD=host ./gradlew :libs:simdvec:buildVecNative
 ```
+
+When `VEC_NATIVE_BUILD` is unset (or set to `artifactory`), the binary is
+fetched from Artifactory (no compiler or Docker required).
+
+Building from source **replaces** the published artifact rather than
+complementing it.
+In `host` mode that means `libs/native/libraries/build/platform/` holds libvec
+for your platform only. Anything that needs other platforms (e.g. assembling
+a distribution for a different OS or architecture) needs `docker` mode or the
+published artifact.
 
 ## Testing
 
 ```bash
 # Run simdvec tests (from repo root)
 ./gradlew :libs:simdvec:test
+
+# Run tests against a freshly built native library
+VEC_NATIVE_BUILD=host ./gradlew :libs:simdvec:test
 ```
 
 The Gradle build also runs a `testJava21` task to verify runtime version guards

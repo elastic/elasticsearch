@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 157282
+summary: Cap Parquet LIMIT native hold
+type: enhancement

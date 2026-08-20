@@ -821,7 +821,6 @@ public class InferencePlugin extends Plugin
 
         SystemIndexDescriptor v1 = builder.setMappings(InferenceIndex.mappingsV1()).build();
         SystemIndexDescriptor v2 = builder.setMappings(InferenceIndex.mappingsV2()).build();
-
         SystemIndexDescriptor v3 = builder.setMappings(InferenceIndex.mappingsV3()).build();
         return builder.setMappings(InferenceIndex.mappingsV4()).setPriorSystemIndexDescriptors(List.of(v1, v2, v3)).build();
     }

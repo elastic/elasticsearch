@@ -164,7 +164,7 @@ FROM books
 
 ### Highlight phrases with MATCH_PHRASE
 
-Use a full-text function like `MATCH_PHRASE` to highlight an exact phrase:
+Use a full-text function like `MATCH_PHRASE` to highlight an exact phrase in a single tag pair:
 
 ```esql
 FROM books
@@ -179,13 +179,118 @@ FROM books
 | 2714 | `<em>Return of the</em> King Being the Third Part of The Lord of the Rings` |
 | 7350 | `<em>Return of the</em> Shadow` |
 
+### Highlight with query string syntax (QSTR)
+
+Use [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md) to highlight terms using Lucene query syntax with boolean operators and field qualifiers:
+
+```esql
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT QSTR("title:return AND (king OR shadow)") ON title
+| KEEP book_no, highlight_title
+| SORT book_no
+```
+
+| book_no:keyword | highlight_title:keyword |
+| --- | --- |
+| 2714 | `<em>Return</em> of the <em>King</em> Being the Third Part of The Lord of the Rings` |
+| 7350 | `<em>Return</em> of the <em>Shadow</em>` |
+
+### Highlight with Kibana Query Language (KQL)
+
+Use [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md) to highlight terms using Kibana Query Language syntax with nested grouping:
+
+```esql
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT KQL("title: (\"return of the\" AND (king OR shadow))") ON title
+| KEEP book_no, highlight_title
+| SORT book_no
+```
+
+| book_no:keyword | highlight_title:keyword |
+| --- | --- |
+| 2714 | `<em>Return of the</em> <em>King</em> Being the Third Part of The Lord of the Rings` |
+| 7350 | `<em>Return of the</em> <em>Shadow</em>` |
+
+### Highlight with a language analyzer
+
+Use the `analyzer` option to apply language-specific stemming rules. In this example, the `english` analyzer stems `Rings` to `ring`:
+
+```esql
+ROW title = "The Lord of the Rings"
+| HIGHLIGHT "ring" ON title WITH { "analyzer": "english" }
+| KEEP highlight_title
+```
+
+| highlight_title:keyword |
+| --- |
+| `The Lord of the <em>Rings</em>` |
+
+### Highlight multiple fields
+
+Highlight multiple columns at once by listing them in `ON`:
+
+```esql
+ROW title = "Return of the King", author = "J.R.R. Tolkien"
+| HIGHLIGHT "king tolkien" ON title, author
+| KEEP highlight_title, highlight_author
+```
+
+| highlight_title:keyword | highlight_author:keyword |
+| --- | --- |
+| `Return of the <em>King</em>` | `J.R.R. <em>Tolkien</em>` |
+
+### Highlight an extracted or computed field
+
+`HIGHLIGHT` re-analyzes field values at query time, so it works on columns created earlier in the pipeline:
+
+```esql
+ROW raw = "2024 Sauron Mordor"
+| DISSECT raw "%{yr} %{name} %{place}"
+| HIGHLIGHT "sauron" ON name
+| KEEP name, highlight_name
+```
+
+| name:keyword | highlight_name:keyword |
+| --- | --- |
+| Sauron | `<em>Sauron</em>` |
+
+### HTML-encode text for safe display
+
+Use `"encoder": "html"` to escape HTML tags and special characters in the text while keeping the highlight tags intact:
+
+```esql
+ROW content = "Use <b>bold</b> tags & special chars with the Ring."
+| HIGHLIGHT "ring" ON content WITH { "encoder": "html" }
+| KEEP highlight_content
+```
+
+| highlight_content:keyword |
+| --- |
+| `Use &lt;b&gt;bold&lt;&#x2F;b&gt; tags &amp; special chars with the <em>Ring</em>.` |
+
+### Return the full text without fragmenting
+
+Set `"number_of_fragments": 0` to return the complete text value with matches highlighted rather than returning individual snippets:
+
+```esql
+ROW content = "Elasticsearch is fast. Elasticsearch is scalable. Elasticsearch is open."
+| HIGHLIGHT "elasticsearch" ON content WITH { "number_of_fragments": 0 }
+| KEEP highlight_content
+```
+
+| highlight_content:keyword |
+| --- |
+| `<em>Elasticsearch</em> is fast. <em>Elasticsearch</em> is scalable. <em>Elasticsearch</em> is open.` |
+
 ### Customize highlight tags
 
 Use `pre_tags` and `post_tags` to specify custom wrapping tags:
 
 ```esql
 ROW content = "The quick brown fox jumps over the lazy dog."
-| HIGHLIGHT "fox" ON content WITH { "pre_tags": ["<b>"], "post_tags": ["</b>"] }
+| HIGHLIGHT "fox" ON content WITH { "pre_tags": "<b>", "post_tags": "</b>" }
 | KEEP highlight_content
 ```
 

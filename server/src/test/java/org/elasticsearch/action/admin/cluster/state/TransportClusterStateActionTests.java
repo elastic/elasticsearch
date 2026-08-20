@@ -244,7 +244,7 @@ public class TransportClusterStateActionTests extends ESTestCase {
             transportService,
             null,
             threadPool,
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             indexResolver,
             projectResolver,
             new NoOpClient(threadPool)

@@ -35,8 +35,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.eirf.EirfRowToXContent;
-import org.elasticsearch.eirf.EirfRowXContentParser;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -52,6 +50,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceRow;
+import org.elasticsearch.sourcebatch.SourceRowToXContent;
+import org.elasticsearch.sourcebatch.SourceRowXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -2052,14 +2052,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         /**
          * Decodes this batch back into one {@link Operation} per entry, reconstructing each
-         * indexed source via {@link EirfRowToXContent#writeRowFromSchema} in the original
+         * indexed source via {@link SourceRowToXContent#writeRowFromSchema} in the original
          * {@link XContentType}. {@link NoOpOp} entries decode to {@link NoOp} records.
          */
         public List<Operation> explode() throws IOException {
-            // TODO: Batches may still be encoded as EIRF (row-major) in some tests; pick the reader by magic.
-            // This branch goes away once we fully transition to the column format (ESCF).
             try (SourceBatch sourceBatch = EscfBatch.parse(batchData, () -> {})) {
-                EirfRowXContentParser.SchemaNode schemaTree = EirfRowXContentParser.buildSchemaTree(sourceBatch.schema());
+                SourceRowXContentParser.SchemaNode schemaTree = SourceRowXContentParser.buildSchemaTree(sourceBatch.schema());
                 List<Operation> out = new ArrayList<>(ops.size());
                 for (int i = 0; i < ops.size(); i++) {
                     Op meta = ops.get(i);
@@ -2076,7 +2074,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                         SourceRow row = sourceBatch.row(indexOp.rowIndex());
                         BytesReference source;
                         try (XContentBuilder builder = XContentBuilder.builder(indexOp.xContentType().xContent())) {
-                            EirfRowToXContent.writeRowFromSchema(row, schemaTree, builder);
+                            SourceRowToXContent.writeRowFromSchema(row, schemaTree, builder);
                             source = BytesReference.bytes(builder);
                         }
                         out.add(
@@ -2120,11 +2118,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     );
                 }
 
-                EirfRowXContentParser.SchemaNode schemaTree = EirfRowXContentParser.buildSchemaTree(sourceBatch.schema());
+                SourceRowXContentParser.SchemaNode schemaTree = SourceRowXContentParser.buildSchemaTree(sourceBatch.schema());
                 SourceRow row = sourceBatch.row(indexOp.rowIndex());
                 BytesReference source;
                 try (XContentBuilder builder = XContentBuilder.builder(indexOp.xContentType().xContent())) {
-                    EirfRowToXContent.writeRowFromSchema(row, schemaTree, builder);
+                    SourceRowToXContent.writeRowFromSchema(row, schemaTree, builder);
                     source = BytesReference.bytes(builder);
                 }
 

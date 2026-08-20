@@ -33,7 +33,7 @@ import java.util.concurrent.TimeUnit;
  * — the byte[],byte[] quantization path used during indexing of byte-element BBQ vectors.
  *
  * <p>This exercises the Panama SIMD multi-part widening path in
- * {@code PanamaESVectorUtilSupport.centerAndCalculateOSQStats{Euclidean,Dp}(byte[], byte[], float[], float[])}.
+ * {@code PanamaOptimizedScalarQuantization.centerAndCalculateStats{Euclidean,Dp}(byte[], byte[], float[], float[])}.
  *
  * <pre>
  *   ./gradlew :benchmarks:jmh -Pargs='OptimizedScalarQuantizerByteBenchmark'

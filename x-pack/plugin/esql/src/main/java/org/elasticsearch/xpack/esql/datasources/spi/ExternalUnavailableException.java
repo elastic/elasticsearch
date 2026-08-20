@@ -123,7 +123,11 @@ public final class ExternalUnavailableException extends ExternalException {
         }
         try {
             long seconds = Long.parseLong(headerValue.strip());
-            return seconds > 0 ? seconds * 1000L : 0L;
+            if (seconds <= 0) {
+                return 0L;
+            }
+            // Cap before multiplying to avoid overflow; no real server sends more than a day.
+            return Math.min(seconds, 86_400L) * 1000L;
         } catch (NumberFormatException e) {
             return 0L;
         }

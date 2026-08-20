@@ -665,5 +665,10 @@ public class RetryPolicyTests extends ESTestCase {
         assertEquals(0L, ExternalUnavailableException.parseRetryAfterMs("0"));
         assertEquals(0L, ExternalUnavailableException.parseRetryAfterMs("-1"));
         assertEquals(1_000L, ExternalUnavailableException.parseRetryAfterMs(" 1 "));
+        // Values above 86400s (1 day) are capped to prevent overflow on multiplication.
+        assertEquals(86_400_000L, ExternalUnavailableException.parseRetryAfterMs("99999999999999999"));
+        assertEquals(86_400_000L, ExternalUnavailableException.parseRetryAfterMs("86401"));
+        assertEquals(86_400_000L, ExternalUnavailableException.parseRetryAfterMs("86400"));
+        assertEquals(86_399_000L, ExternalUnavailableException.parseRetryAfterMs("86399"));
     }
 }

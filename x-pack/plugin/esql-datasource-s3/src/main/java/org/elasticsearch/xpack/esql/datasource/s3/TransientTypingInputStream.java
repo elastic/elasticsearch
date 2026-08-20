@@ -64,12 +64,15 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
         // flag throttling for the rare 503/429 surfaced during the body read so it shares the throttle budget.
         long retryAfterMs = 0L;
         boolean throttling = false;
-        if (e instanceof S3Exception s3e) {
-            throttling = ExternalUnavailableException.isThrottlingStatus(s3e.statusCode());
-            if (throttling && s3e.awsErrorDetails() != null && s3e.awsErrorDetails().sdkHttpResponse() != null) {
-                retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(
-                    s3e.awsErrorDetails().sdkHttpResponse().firstMatchingHeader("Retry-After").orElse(null)
-                );
+        for (Throwable current = e; current != null; current = current.getCause()) {
+            if (current instanceof S3Exception s3e) {
+                throttling = ExternalUnavailableException.isThrottlingStatus(s3e.statusCode());
+                if (throttling && s3e.awsErrorDetails() != null && s3e.awsErrorDetails().sdkHttpResponse() != null) {
+                    retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(
+                        s3e.awsErrorDetails().sdkHttpResponse().firstMatchingHeader("Retry-After").orElse(null)
+                    );
+                }
+                break;
             }
         }
         return new ExternalUnavailableException(throttling, retryAfterMs, e, "transient read failure for [{}]", path);

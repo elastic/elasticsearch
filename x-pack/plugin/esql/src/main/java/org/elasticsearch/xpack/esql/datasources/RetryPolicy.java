@@ -306,7 +306,10 @@ class RetryPolicy {
                 if (maxTotalDurationMs > 0) {
                     long remainingMs = maxTotalDurationMs - elapsedMs;
                     if (remainingMs < throttleInitialDelayMs) {
-                        // Remaining budget cannot fit even one minimal retry sleep; budget genuinely spent.
+                        // Remaining budget is less than the minimum meaningful retry sleep. Starting
+                        // another attempt only to truncate the delay to near-zero is wasteful; treat the
+                        // budget as spent. The hint path uses a tighter test (hint > remaining) because
+                        // the server told us exactly how long to wait — a partial hint is useless.
                         return RetryDecision.GIVE_UP;
                     }
                     // Truncate to remaining budget so the sleep never overshoots.

@@ -60,8 +60,7 @@ All option values passed in the `WITH` clause must be constant literals.
 `encoder`
 :   (Optional) Text encoding applied before adding highlight tags. Accepts
     `default` (no encoding) or `html` (HTML-escapes snippet text). Defaults to
-    `default`. Unlike `boundary_scanner` and `order`, this value is
-    case-sensitive, so `html` is valid but `HTML` is rejected.
+    `default`. This value is case-sensitive, so `html` is valid but `HTML` is rejected.
 
 `analyzer`
 :   (Optional) Analyzer used on both the query and field text. Defaults to the
@@ -70,9 +69,7 @@ All option values passed in the `WITH` clause must be constant literals.
     must match the analyzer specified here.
 
 `number_of_fragments`
-:   (Optional) Maximum number of snippets (fragments) to return per field. When a
-    field produces more fragments than this, the highest-scoring ones are kept
-    (in document order), not the first ones. Set to `0` to return the entire
+:   (Optional) Maximum number of snippets (fragments) to return per field. Set to `0` to return the entire
     field value with matching terms highlighted without fragmenting. Must be `>= 0`.
     Defaults to `5`.
 
@@ -81,9 +78,11 @@ All option values passed in the `WITH` clause must be constant literals.
     Defaults to `100`.
 
 `no_match_size`
-:   (Optional) Number of characters to return from the beginning of the field
-    when there are no matching terms. Must be `>= 0`. Defaults to `0` (returns
-    `null`).
+:   (Optional) Approximate number of leading characters to return from the field
+    when there are no matching terms. This is a minimum, not an exact limit: the
+    returned text extends to the next boundary set by `boundary_scanner`, so the
+    result can be longer than the requested size. Must be `>= 0`. Defaults to `0`
+    (returns `null`).
 
 `boundary_scanner`
 :   (Optional) Boundary scanner used to split text into fragments. Accepts
@@ -91,8 +90,7 @@ All option values passed in the `WITH` clause must be constant literals.
 
 `boundary_scanner_locale`
 :   (Optional) BCP 47 language tag (such as `en-US`) used by the boundary scanner.
-    Use hyphens as separators (`en-US`); the underscore form (`en_US`) is rejected.
-    Defaults to the root locale.
+    Use hyphens as separators (`en-US`). Defaults to the root locale.
 
 `order`
 :   (Optional) Sort order of returned fragments. Accepts `none` (preserves document
@@ -102,7 +100,7 @@ All option values passed in the `WITH` clause must be constant literals.
 `max_analyzed_offset`
 :   (Optional) Maximum number of characters to analyze per field value. Accepts
     a positive integer, or `-1` to use the index default. Values are capped at
-    `1000000` (1 million characters). Defaults to `-1`. Text beyond the effective
+    1 million characters. Defaults to `-1`. Text beyond the effective
     offset is ignored during highlighting.
 
 ## Description

@@ -5272,7 +5272,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         startSearchNode(fastConsistency);
         ensureStableCluster(3);
 
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String indexName = randomIndexName();
         createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen(indexName);
         indexDocs(indexName, 100);
@@ -5382,32 +5382,23 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             }
         }
 
-        // Target shard: no orphaned commit blobs. For CLONE_MID_COPY this is the critical
-        // assertion — blobs written by copyShard() bypass ShardCommitState; without explicit
-        // cleanup they would remain until stale-index GC runs (8h, disabled in this test).
-        assertNoOrphanedCommitBlobs(targetShardId);
-
-        // Source shard: no orphaned commit blobs. Cleanup goes through StatelessCommitCleaner's
-        // async consistency check, which fires every 100 ms (set above).
-        assertNoOrphanedCommitBlobs(sourceShardId);
+        // Neither shard should have orphaned commit blobs after the index is deleted.
+        // Both are checked in one assertBusy to avoid two independent retry loops.
+        assertBusy(() -> {
+            for (ShardId shardId : new ShardId[] { targetShardId, sourceShardId }) {
+                Set<PrimaryTermAndGeneration> blobs;
+                try {
+                    blobs = listBlobsTermAndGenerations(shardId);
+                } catch (NoSuchFileException e) {
+                    continue; // shard directory removed — no commit blobs remain
+                }
+                assertTrue("Orphaned commit blobs for shard [" + shardId + "]: " + blobs, blobs.isEmpty());
+            }
+        });
 
         // Re-create with the same name to verify no stale state from the deleted index interferes.
         createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen(indexName);
-    }
-
-    private void assertNoOrphanedCommitBlobs(ShardId shardId) throws Exception {
-        // 3s gives 30 chances at the 100ms consistency interval; also caps the wait on the
-        // expected-failure path (target shard, no fix yet) to 3s instead of the default 10s.
-        assertBusy(() -> {
-            Set<PrimaryTermAndGeneration> blobs;
-            try {
-                blobs = listBlobsTermAndGenerations(shardId);
-            } catch (NoSuchFileException e) {
-                return; // shard directory removed — no commit blobs remain
-            }
-            assertTrue("Orphaned commit blobs for shard [" + shardId + "]: " + blobs, blobs.isEmpty());
-        }, 3, TimeUnit.SECONDS);
     }
 
     private void waitForReshardCompletion(String indexName) {

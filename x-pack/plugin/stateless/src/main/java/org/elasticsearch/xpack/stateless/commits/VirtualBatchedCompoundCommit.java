@@ -367,12 +367,6 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             assert previousOffset == null : internalFile.name();
             fileOffset += fileLength;
         }
-
-        try {
-            Thread.sleep(200);
-        } catch (InterruptedException e) {
-            throw new AssertionError(e);
-        }
         currentOffset.set(fileOffset);
 
         // Extra content files

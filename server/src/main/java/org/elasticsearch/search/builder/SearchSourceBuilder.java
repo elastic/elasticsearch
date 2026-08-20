@@ -19,6 +19,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
@@ -2388,6 +2389,26 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         "[stored_fields] cannot be disabled when using the [fields] option",
                         validationException
                     );
+                }
+            }
+        }
+        if (fetchFields() != null && fetchEmbeddingsFields().isEmpty() == false) {
+            // Both requests are resolved into the same FetchFieldsContext, which is keyed on field name. An overlap means one of them
+            // would silently overwrite the other at fetch time.
+            for (FieldAndFormat fetchField : fetchFields()) {
+                for (String embeddingsField : fetchEmbeddingsFields().keySet()) {
+                    if (Regex.simpleMatch(fetchField.field, embeddingsField)) {
+                        validationException = addValidationError(
+                            "["
+                                + FETCH_FIELDS_FIELD.getPreferredName()
+                                + "] entry ["
+                                + fetchField.field
+                                + "] cannot overlap with the requested embeddings field ["
+                                + embeddingsField
+                                + "]",
+                            validationException
+                        );
+                    }
                 }
             }
         }

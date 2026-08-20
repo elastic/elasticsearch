@@ -2,4 +2,4 @@ area: ES|QL
 issues: []
 pr: 157197
 summary: Validate dataset config values at PUT time
-type: enhancement
+type: bug

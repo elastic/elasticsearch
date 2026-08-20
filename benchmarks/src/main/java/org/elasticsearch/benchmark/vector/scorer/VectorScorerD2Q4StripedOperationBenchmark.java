@@ -95,7 +95,7 @@ public class VectorScorerD2Q4StripedOperationBenchmark {
         private final byte[] packedQuery;
 
         VectorData(int dims, int numVectors, int numVectorsToScore, Random random) {
-            super(numVectors, numVectorsToScore, random);
+            super(numVectors, numVectorsToScore, random, DataAccessPattern.RANDOM);
             packedDocs = new byte[numVectors][];
             byte[] unpackedDoc = new byte[dims];
             for (int v = 0; v < numVectors; v++) {

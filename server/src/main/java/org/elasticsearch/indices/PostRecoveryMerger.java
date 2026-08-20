@@ -14,12 +14,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.IndexShard;
@@ -88,7 +90,7 @@ public class PostRecoveryMerger {
     private final ScheduledExecutorService scheduler;
     private final Function<ShardId, IndexShard> shardFunction;
     private final boolean enabled;
-    private final long delaySeconds;
+    private final Tuple<Long, Long> delayRangeSeconds;
 
     PostRecoveryMerger(
         Settings settings,
@@ -107,7 +109,14 @@ public class PostRecoveryMerger {
                     || DiscoveryNode.hasRole(settings, DATA_CONTENT_NODE_ROLE)
                     || DiscoveryNode.hasRole(settings, DATA_ROLE)
                     || DiscoveryNode.hasRole(settings, INDEX_ROLE));
-        this.delaySeconds = POST_RECOVERY_MERGER_DELAY.exists(settings) ? POST_RECOVERY_MERGER_DELAY.get(settings).seconds() : -1;
+        if (POST_RECOVERY_MERGER_DELAY.exists(settings)) {
+            long delaySeconds = POST_RECOVERY_MERGER_DELAY.get(settings).seconds();
+            long halfDelaySeconds = delaySeconds / 2;
+
+            this.delayRangeSeconds = Tuple.tuple(halfDelaySeconds, delaySeconds + halfDelaySeconds + 1);
+        } else {
+            this.delayRangeSeconds = null;
+        }
     }
 
     RecoveryListener maybeMergeAfterRecovery(IndexMetadata indexMetadata, ShardRouting shardRouting, RecoveryListener recoveryListener) {
@@ -131,10 +140,14 @@ public class PostRecoveryMerger {
                 ShardLongFieldRange timestampMillisFieldRange,
                 ShardLongFieldRange eventIngestedMillisFieldRange
             ) {
-                if (delaySeconds > 0) {
+                if (delayRangeSeconds != null) {
+                    /// We jitter this value to try to space out merges started by this mechanism even more
+                    /// so that they compete less for resources.
+                    /// See comment for [PostRecoveryMerger#POST_RECOVERY_MERGER_DELAY].
+                    long actualDelay = Randomness.get().nextLong(delayRangeSeconds.v1(), delayRangeSeconds.v2());
                     scheduler.schedule(
                         () -> postRecoveryMergeRunner.enqueueTask(new PostRecoveryMerge(shardId)),
-                        delaySeconds,
+                        actualDelay,
                         TimeUnit.SECONDS
                     );
                 } else {

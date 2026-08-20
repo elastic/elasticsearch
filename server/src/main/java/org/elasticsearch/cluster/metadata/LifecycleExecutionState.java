@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -43,7 +45,9 @@ public record LifecycleExecutionState(
     String snapshotIndexName,
     String downsampleIndexName,
     String forceMergeCloneIndexName
-) {
+) implements Accountable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LifecycleExecutionState.class);
 
     public static final String ILM_CUSTOM_METADATA_KEY = "ilm";
     public static final int MAXIMUM_STEP_INFO_STRING_LENGTH = 1024;
@@ -211,6 +215,31 @@ public record LifecycleExecutionState(
             builder.setForceMergeCloneIndexName(forceMergeCloneIndexName);
         }
         return builder.build();
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long size = BASE_RAM_BYTES_USED;
+        size += RamUsageEstimator.sizeOf(phase);
+        size += RamUsageEstimator.sizeOf(action);
+        size += RamUsageEstimator.sizeOf(step);
+        size += RamUsageEstimator.sizeOf(failedStep);
+        size += RamUsageEstimator.shallowSizeOf(isAutoRetryableError);
+        size += RamUsageEstimator.shallowSizeOf(failedStepRetryCount);
+        size += RamUsageEstimator.sizeOf(stepInfo);
+        size += RamUsageEstimator.sizeOf(previousStepInfo);
+        size += RamUsageEstimator.sizeOf(phaseDefinition);
+        size += RamUsageEstimator.shallowSizeOf(lifecycleDate);
+        size += RamUsageEstimator.shallowSizeOf(phaseTime);
+        size += RamUsageEstimator.shallowSizeOf(actionTime);
+        size += RamUsageEstimator.shallowSizeOf(stepTime);
+        size += RamUsageEstimator.sizeOf(snapshotRepository);
+        size += RamUsageEstimator.sizeOf(snapshotName);
+        size += RamUsageEstimator.sizeOf(shrinkIndexName);
+        size += RamUsageEstimator.sizeOf(snapshotIndexName);
+        size += RamUsageEstimator.sizeOf(downsampleIndexName);
+        size += RamUsageEstimator.sizeOf(forceMergeCloneIndexName);
+        return size;
     }
 
     private static boolean parseIsAutoRetryableError(String isAutoRetryableError) {

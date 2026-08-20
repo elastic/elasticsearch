@@ -5,22 +5,17 @@
  * 2.0.
  */
 
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
   javaRestTestImplementation(project(':modules:lang-mustache'))
 }
 
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  numberOfNodes = 3
-  setting 'xpack.security.enabled', 'false'
-  setting 'xpack.monitoring.elasticsearch.collection.enabled', 'false'
-  setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.ml.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'indices.lifecycle.history_index_enabled', 'false'
-  setting 'slm.history_index_enabled', 'false'
+tasks.named("javaRestTest").configure {
+  usesDefaultDistribution("ml basic multi node tests require the ml plugin and the trial license from the default distribution")
+  // Both IT classes share a single 3-node cluster (see Clusters#CLUSTER), mirroring the single cluster the
+  // legacy testClusters setup created for this task. A shared cluster requires serial execution.
+  maxParallelForks = 1
 }
 
 if (buildParams.inFipsJvm){

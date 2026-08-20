@@ -154,6 +154,10 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("search.vectors/41_knn_search_byte_quantized/KNN Vector similarity search only", "min similarity score changed with Lucene 10.4")
   task.skipTest("search.vectors/42_knn_search_int8_flat/KNN Vector similarity search only", "min similarity score changed with Lucene 10.4")
   task.skipTest(
+    "search.vectors/131_knn_query_nested_inner_hits_score/nested kNN inner_hits are scored like the query phase on a quantized field",
+    "confidence_interval handling differs between old/new versions during compat runs"
+  )
+  task.skipTest(
     "search.vectors/180_update_dense_vector_type/Allowed dense vector updates on same type but different other index_options, int8_hnsw",
     "confidence_interval handling differs between old/new versions during compat runs"
   )

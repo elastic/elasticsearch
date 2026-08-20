@@ -2355,6 +2355,27 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertReshardNonstandardIndexFails(columnarLogsdbIndexName, IndexMode.LOGSDB_COLUMNAR);
     }
 
+    public void testReshardWithIndexSettingsFromPlugins() {
+        var indexNode = startMasterAndIndexNode();
+        ensureStableCluster(1);
+
+        // We perform validation of index settings to catch cases like resharding a lookup index.
+        // This validation step should use correct set of supported index settings.
+        // LOOK_BACK_TIME is just an example of such setting.
+        final var indexName = randomIndexName();
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put(DataStreamsPlugin.LOOK_BACK_TIME.getKey(), TimeValue.timeValueMinutes(randomIntBetween(1, 100))).build()
+        );
+        ensureGreen(indexName);
+
+        client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        waitForReshardCompletion(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 2);
+        ensureGreen(indexName);
+    }
+
     public void testReshardTargetWillEqualToPrimaryTermOfSource() throws Exception {
         String indexNode = startMasterAndIndexNode();
         ensureStableCluster(1);

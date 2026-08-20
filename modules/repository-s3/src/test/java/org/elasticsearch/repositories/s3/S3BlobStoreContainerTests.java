@@ -39,8 +39,12 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
 
@@ -62,7 +66,9 @@ import static org.elasticsearch.repositories.s3.S3BlobContainer.ConditionalOpera
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -601,6 +607,102 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         assertEquals(uploadId, abortRequest.uploadId());
 
         closeMockClient(blobStore);
+    }
+
+    public void testWriteMetadataBlobPropagatesErrorWhenAbortFails() {
+        new PropagatesErrorWhenAbortFailsTestCase() {
+            @Override
+            protected void doMultipartUpload() throws IOException {
+                container.writeMetadataBlob(
+                    OperationPurpose.SNAPSHOT_METADATA,
+                    blobName,
+                    false,
+                    false,
+                    out -> out.write(randomByteArrayOfLength(Math.toIntExact(bufferSize)))
+                );
+            }
+        }.run();
+    }
+
+    public void testExecuteMultipartUploadPropagatesErrorWhenAbortFails() {
+        new PropagatesErrorWhenAbortFailsTestCase() {
+            @Override
+            protected void doMultipartUpload() throws IOException {
+                container.executeMultipartUpload(
+                    randomPurpose(),
+                    blobStore,
+                    blobName,
+                    new ByteArrayInputStream(new byte[0]),
+                    blobSize,
+                    randomCondition()
+                );
+            }
+        }.run();
+    }
+
+    public void testWriteBlobAtomicPropagatesErrorWhenAbortFails() {
+        new PropagatesErrorWhenAbortFailsTestCase() {
+            @Override
+            protected void doMultipartUpload() throws IOException {
+                container.writeBlobAtomic(
+                    randomPurpose(),
+                    blobName,
+                    blobSize,
+                    (offset, length) -> new ByteArrayInputStream(new byte[0]),
+                    randomBoolean(),
+                    Runnable::run
+                );
+            }
+        }.run();
+    }
+
+    /**
+     * Verifies that a fatal {@link Error} from the MPU upload path is not masked when best-effort MPU abort fails.
+     */
+    private abstract class PropagatesErrorWhenAbortFailsTestCase {
+
+        protected final long bufferSize = S3Repository.MIN_PART_SIZE_USING_MULTIPART.getBytes();
+        protected final long blobSize = bufferSize + 1;
+
+        protected final String bucketName = randomIdentifier("bucket-");
+        protected final String blobName = randomIdentifier("blob-");
+        protected final String uploadId = randomIdentifier("upload-");
+        protected final Error simulatedError = new Error("simulated error");
+
+        protected final S3BlobStore blobStore = mock(S3BlobStore.class);
+        protected final S3BlobContainer container = new S3BlobContainer(BlobPath.EMPTY, blobStore);
+        protected S3Client client;
+
+        protected abstract void doMultipartUpload() throws IOException;
+
+        final void run() {
+            when(blobStore.bucket()).thenReturn(bucketName);
+            when(blobStore.bufferSizeInBytes()).thenReturn(bufferSize);
+            when(blobStore.bigArrays()).thenReturn(
+                new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService())
+            );
+            when(blobStore.resolveStorageClass(any(OperationPurpose.class))).thenReturn(randomFrom(StorageClass.values()));
+            when(blobStore.serverSideEncryption()).thenReturn(false);
+            when(blobStore.supportsConditionalWrites()).thenReturn(false);
+
+            client = configureMockClient(blobStore);
+            when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(
+                CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
+            );
+            when(client.abortMultipartUpload(any(AbortMultipartUploadRequest.class))).thenThrow(
+                S3Exception.builder().message("abort failed").build()
+            );
+            when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenThrow(simulatedError);
+
+            final Error thrown = expectThrows(Error.class, this::doMultipartUpload);
+            assertSame(simulatedError, thrown);
+            assertEquals(0, simulatedError.getSuppressed().length);
+            verify(client, times(1)).createMultipartUpload(any(CreateMultipartUploadRequest.class));
+            verify(client, atLeastOnce()).uploadPart(any(UploadPartRequest.class), any(RequestBody.class));
+            verify(client, never()).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));
+            verify(client, times(1)).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
+            closeMockClient(blobStore);
+        }
     }
 
     public void testConcurrentWriteBlobAtomicSingleThread() throws Exception {

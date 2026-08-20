@@ -17,8 +17,11 @@ import org.elasticsearch.datageneration.matchers.Matcher;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -29,12 +32,42 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * This test suite asserts that field-level security produces the SAME _source from a standard index and a logsdb index (synthetic source,
  * with _ignored_source stored in binary doc values), across the randomized mappings and documents the challenge framework generates.
  */
 public class StandardVersusLogsdbFieldLevelSecurityChallengeRestIT extends BulkChallengeRestIT {
+
+    /**
+     * Leaf types stored in {@code _source} as a nested object (geo_point as {@code {lat,lon}}/GeoJSON, geo_shape/shape as GeoJSON). A
+     * standard index filters {@code _source} by exact leaf path, so an {@code except:[field]} rule leaves these intact: the value survives
+     * via its ungated {@code field.lat}/{@code field.coordinates} sub-paths. logsdb rebuilds each from a single name-keyed doc-values field
+     * that FLS does hide, so it drops the field and the two sources diverge. This is a standard-index FLS leak, not a logsdb bug, so we
+     * exclude these types from the denied-field candidates rather than assert an equivalence that cannot hold.
+     */
+    private static final Set<String> DENY_INCOMPATIBLE_FIELD_TYPES = Set.of("geo_point", "geo_shape", "shape");
+
+    @ClassRule()
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .module("data-streams")
+        .module("x-pack-stack")
+        .user("test_admin", "x-pack-test-password")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.autoconfiguration.enabled", "false")
+        .setting("xpack.security.http.ssl.enabled", "false")
+        .setting("xpack.security.transport.ssl.enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("cluster.logsdb.enabled", "true")
+        .setting("xpack.ml.enabled", "false")
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     public StandardVersusLogsdbFieldLevelSecurityChallengeRestIT() {}
 
@@ -49,11 +82,13 @@ public class StandardVersusLogsdbFieldLevelSecurityChallengeRestIT extends BulkC
         }
         indexDocuments(() -> documents, () -> documents);
 
-        // Deny one field so that, when it lands inside an _ignored_source capture on the logsdb side, FLS must drop that entry and hand
-        // back the survivors - the multi-value re-encode path the fix guards. Both indices filter identically, so the sources must match.
-        final String deniedField = randomDeniedField();
+        // Target one field so that, when it lands inside an _ignored_source capture on the logsdb side, FLS must drop entries and re-encode
+        // the survivors. Also, randomize the polarity: excluding the field exercises the exclude automaton, while granting only it
+        // exercises the include automaton. Both indices filter identically, so the sources must match either way.
+        final String targetField = randomDeniedField();
+        final boolean grantOnly = randomBoolean();
 
-        final String encoded = createFieldLevelSecurityApiKey(deniedField);
+        final String encoded = createFieldLevelSecurityApiKey(targetField, grantOnly);
 
         final SearchSourceBuilder search = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).size(numberOfDocuments);
 
@@ -63,16 +98,22 @@ public class StandardVersusLogsdbFieldLevelSecurityChallengeRestIT extends BulkC
             .expected(querySourcesAsApiKey(getBaselineDataStreamName(), search, encoded))
             .ignoringSort(true)
             .isEqualTo(querySourcesAsApiKey(getContenderDataStreamName(), search, encoded));
-        assertTrue("denied field [" + deniedField + "]: " + matchResult.getMessage(), matchResult.isMatch());
+        final String policy = grantOnly ? "grant-only" : "except";
+        assertTrue("target field [" + targetField + "] policy [" + policy + "]: " + matchResult.getMessage(), matchResult.isMatch());
     }
 
     /**
-     * Picks a concrete field to deny. Prefers the mapping template's leaf paths (precise, dotted), but the challenge framework sometimes
-     * uses a fully dynamic mapping with no predefined fields, so it falls back to a top-level field read from an indexed document.
+     * Picks a concrete field to deny. Prefers the mapping template's leaf paths (precise, dotted), skipping types whose {@code _source}
+     * form the standard index cannot filter identically to logsdb (see {@link #DENY_INCOMPATIBLE_FIELD_TYPES}), but the challenge
+     * framework sometimes uses a fully dynamic mapping with no predefined fields, so it falls back to a top-level field from a document.
      */
     private String randomDeniedField() throws IOException {
-        final List<String> templateFields = new ArrayList<>(dataGenerationHelper.getTemplateFieldTypes().keySet());
-        templateFields.remove("@timestamp");
+        final List<String> templateFields = new ArrayList<>();
+        for (final Map.Entry<String, String> field : dataGenerationHelper.getTemplateFieldTypes().entrySet()) {
+            if ("@timestamp".equals(field.getKey()) == false && DENY_INCOMPATIBLE_FIELD_TYPES.contains(field.getValue()) == false) {
+                templateFields.add(field.getKey());
+            }
+        }
         if (templateFields.isEmpty() == false) {
             return randomFrom(templateFields);
         }
@@ -94,25 +135,38 @@ public class StandardVersusLogsdbFieldLevelSecurityChallengeRestIT extends BulkC
         return randomFrom(fields);
     }
 
-    private String createFieldLevelSecurityApiKey(final String deniedField) throws IOException {
+    private String createFieldLevelSecurityApiKey(final String targetField, final boolean grantOnly) throws IOException {
+        // grantOnly grants just @timestamp plus the target field (an include filter that drops everything else); otherwise grant all
+        // fields except the target (an exclude filter). @timestamp is always granted so the routing/sort field survives both polarities.
+        final String fieldSecurity = grantOnly
+            ? Strings.format("{ \"grant\": [ \"@timestamp\", \"%s\" ] }", targetField)
+            : Strings.format("{ \"grant\": [ \"*\" ], \"except\": [ \"%s\" ] }", targetField);
+
+        // Build via XContentBuilder so randomized field/index names with control characters are correctly JSON-escaped.
+        final XContentBuilder body = XContentBuilder.builder(XContentType.JSON.xContent())
+            .startObject()
+            .field("name", "fls-challenge")
+            .startObject("role_descriptors")
+            .startObject("role")
+            .startArray("indices")
+            .startObject()
+            .array("names", getBaselineDataStreamName(), getContenderDataStreamName())
+            .array("privileges", "read")
+            .startObject("field_security")
+            .array("grant", "*")
+            .array("except", fieldSecurity)
+            .endObject()
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject();
+
         final Request request = new Request("POST", "/_security/api_key");
-        request.setJsonEntity(Strings.format("""
-            {
-              "name": "fls-challenge",
-              "role_descriptors": {
-                "role": {
-                  "indices": [
-                    {
-                      "names": [ "%s", "%s" ],
-                      "privileges": [ "read" ],
-                      "field_security": { "grant": [ "*" ], "except": [ "%s" ] }
-                    }
-                  ]
-                }
-              }
-            }""", getBaselineDataStreamName(), getContenderDataStreamName(), deniedField));
+        request.setJsonEntity(Strings.toString(body));
         final Response response = client.performRequest(request);
         assertOK(response);
+
         return (String) entityAsMap(response).get("encoded");
     }
 

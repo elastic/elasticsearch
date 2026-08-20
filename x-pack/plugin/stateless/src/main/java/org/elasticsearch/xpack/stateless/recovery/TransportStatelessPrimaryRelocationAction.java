@@ -76,8 +76,8 @@ import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
-import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
 import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
+import org.elasticsearch.xpack.stateless.utils.StatelessPrimaryRelocationMetricsCollectorProvider;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -136,7 +136,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     private final IndexShardCacheWarmer indexShardCacheWarmer;
     private final HollowShardsService hollowShardsService;
     private final HollowShardsMetrics hollowShardsMetrics;
-    private final StatelessRecoveryMetricsCollector recoveryMetricsCollector;
+    private final StatelessPrimaryRelocationMetricsCollectorProvider relocationMetricsCollectorProvider;
 
     @Inject
     public TransportStatelessPrimaryRelocationAction(
@@ -150,7 +150,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         IndexShardCacheWarmer indexShardCacheWarmer,
         HollowShardsService hollowShardsService,
         HollowShardsMetrics hollowShardsMetrics,
-        StatelessRecoveryMetricsCollector recoveryMetricsCollector
+        StatelessPrimaryRelocationMetricsCollectorProvider relocationMetricsCollectorProvider
     ) {
         super(TYPE.name(), actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
@@ -166,7 +166,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         this.recoveryExecutor = threadPool.generic();
         this.threadContext = threadPool.getThreadContext();
         this.hollowShardsMetrics = hollowShardsMetrics;
-        this.recoveryMetricsCollector = recoveryMetricsCollector;
+        this.relocationMetricsCollectorProvider = relocationMetricsCollectorProvider;
 
         clusterService.getClusterSettings()
             .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
@@ -229,7 +229,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                     // the metrics agent stops emitting metrics and we lose all that information
                     RelocationSourceMetrics relocationSourceMetrics = response.getRelocationSourceMetrics();
                     if (relocationSourceMetrics != null) {
-                        recoveryMetricsCollector.recordRelocationSourceMetrics(relocationSourceMetrics);
+                        relocationMetricsCollectorProvider.get().recordRelocationSourceMetrics(relocationSourceMetrics);
                     }
                     return ActionResponse.Empty.INSTANCE;
                 }), StartRelocationResponse::new, recoveryExecutor)
@@ -271,7 +271,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     private void initiatePrewarm(Task task, StatelessPrimaryRelocationAction.Request request) {
         try {
             final ShardId shardId = request.shardId();
-            final StatelessCommitService statelessCommitService = statelessCommitServiceProvider.commitService();
+            final StatelessCommitService statelessCommitService = statelessCommitServiceProvider.get();
             final BatchedCompoundCommit latestBcc = statelessCommitService.getLatestUploadedBcc(shardId);
             if (latestBcc == null) {
                 logger.trace("{} no uploaded BCC found, skipping initiate prewarm", shardId);
@@ -359,7 +359,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         }
 
         indexShard.recoveryStats().sourceRecoveryStarted();
-        recoverySchedulingListeners.onRecoveryStarted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
+        recoverySchedulingListeners.onRecoveryStarted(RecoverySource.Type.PEER, RecoveryRole.SOURCE, null);
 
         // Flushing before blocking operations because we expect this to reduce the amount of work done by the flush that happens while
         // operations are blocked. NB the flush has force=false so may do nothing.
@@ -386,7 +386,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         final RelocationSourceMetrics.Builder relocationSourceMetricsBuilder = new RelocationSourceMetrics.Builder();
         preFlushStep.addListener(ActionListener.runAfter(listener, () -> {
             indexShard.recoveryStats().sourceRecoveryCompleted();
-            recoverySchedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
+            recoverySchedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE, null);
         }).delegateFailureAndWrap((listener0, preFlushResult) -> {
             final var initialFlushDuration = getTimeSince(beforeInitialFlush);
             final long beforeAcquiringPermits = threadPool.relativeTimeInMillis();
@@ -472,7 +472,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 final var latestBccBlobLength = new AtomicLong(-1L);
                 final var otherBlobFilesCount = new AtomicLong(-1L);
                 final var markedShardAsRelocating = new SubscribableListener<Void>();
-                final StatelessCommitService statelessCommitService = statelessCommitServiceProvider.commitService();
+                final StatelessCommitService statelessCommitService = statelessCommitServiceProvider.get();
                 ActionListener<Void> handoffCompleteListener = statelessCommitService.markRelocating(
                     indexShard.shardId(),
                     lastFlushedGeneration,
@@ -640,7 +640,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     private void handlePrimaryContextHandoff(PrimaryContextHandoffRequest request, ActionListener<Void> listener) {
         // executed remotely by `TransportStatelessPrimaryRelocationAction#handleStartRelocation` (i.e. we are on the target node here)
         logger.debug("[{}] received primary context", request.shardId());
-        final var statelessCommitService = statelessCommitServiceProvider.commitService();
+        final var statelessCommitService = statelessCommitServiceProvider.get();
         final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final var indexShard = indexService.getShard(request.shardId().id());
         statelessCommitService.setTrackedSearchNodesPerCommitOnRelocationTarget(request.shardId(), request.searchNodesPerCommit());
@@ -677,7 +677,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             l -> indexShard.preRecovery(l.map(ignored -> {
                 final long preRecoveryEndMillis = threadPool.relativeTimeInMillis();
                 final long preRecoveryDuration = preRecoveryEndMillis - preRecoveryStartMillis;
-                recoveryMetricsCollector.recordRelocationTargetPreRecoveryDuration(preRecoveryDuration);
+                relocationMetricsCollectorProvider.get().recordRelocationTargetPreRecoveryDuration(preRecoveryDuration);
 
                 indexShard.updateRetentionLeasesOnReplica(request.retentionLeases());
                 indexShard.recoveryState().setStage(RecoveryState.Stage.VERIFY_INDEX);
@@ -698,7 +698,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 indexShard.activateWithPrimaryContext(request.primaryContext());
 
                 final long openEngineDuration = threadPool.relativeTimeInMillis() - preRecoveryEndMillis;
-                recoveryMetricsCollector.recordRelocationTargetOpenEngineDuration(openEngineDuration);
+                relocationMetricsCollectorProvider.get().recordRelocationTargetOpenEngineDuration(openEngineDuration);
 
                 threadDumpListener.onResponse(null);
 

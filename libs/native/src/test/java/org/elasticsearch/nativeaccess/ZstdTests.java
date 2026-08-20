@@ -601,6 +601,104 @@ public class ZstdTests extends ESTestCase {
         }
     }
 
+    /**
+     * Gate for the native-footprint accounting: 1000 open/decompress/close cycles must each return
+     * {@link Zstd#NATIVE_BYTES_IN_USE} to the pre-loop baseline, and the live total must never exceed
+     * ~2× a single stream's footprint (only one stream is alive at a time). A per-iteration leak in the
+     * charge/uncharge pair would drift the counter up across iterations and trip the peak assertion.
+     *
+     * <p>The footprint is not a constant: {@code accountedBytes()} reports the pre-window context at
+     * open and the steady-state context (staging buffers + libzstd window, sampled from
+     * {@code ZSTD_sizeof_DStream}) after the first {@code decompress} call allocates the back-reference
+     * window. The test asserts the counter tracks both phases and unwinds them symmetrically on close.
+     */
+    public void testDStreamAccountingReturnsToBaselineUnderLoop() {
+        byte[] data = new byte[64 * 1024];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) (i & 0x0F);
+        }
+        byte[] compressed = compressBytes(data);
+
+        long baseline = Zstd.NATIVE_BYTES_IN_USE.sum();
+        long settled;
+        try (Zstd.DStream probe = zstd.newDStream()) {
+            long floor = probe.accountedBytes();
+            assertThat(floor, Matchers.greaterThan(0L));
+            // Before any decompress, a single live stream lifts the counter by its pre-window footprint.
+            assertThat(Zstd.NATIVE_BYTES_IN_USE.sum() - baseline, equalTo(floor));
+            // Draining allocates the back-reference window; the footprint settles to a value >= floor
+            // and the counter tracks the newly-sampled context size.
+            byte[] decompressed = new byte[data.length];
+            drainFullFrame(probe, compressed, decompressed);
+            assertArrayEquals(data, decompressed);
+            settled = probe.accountedBytes();
+            assertThat(settled, Matchers.greaterThanOrEqualTo(floor));
+            assertThat(Zstd.NATIVE_BYTES_IN_USE.sum() - baseline, equalTo(settled));
+        }
+        // Closing the probe drops the counter back to where we started.
+        assertThat(Zstd.NATIVE_BYTES_IN_USE.sum(), equalTo(baseline));
+
+        long peak = baseline;
+        for (int iter = 0; iter < 1000; iter++) {
+            try (Zstd.DStream dstream = zstd.newDStream()) {
+                byte[] decompressed = new byte[data.length];
+                drainFullFrame(dstream, compressed, decompressed);
+                assertArrayEquals(data, decompressed);
+                // Sample after draining so the peak reflects the settled (post-window) footprint.
+                peak = Math.max(peak, Zstd.NATIVE_BYTES_IN_USE.sum());
+            }
+            assertThat("iteration " + iter, Zstd.NATIVE_BYTES_IN_USE.sum(), equalTo(baseline));
+        }
+        // At most one stream is live at any moment, so the peak lift over baseline is a single
+        // footprint; the 2× bound leaves head-room without masking a real per-iteration leak.
+        assertThat(peak - baseline, Matchers.lessThanOrEqualTo(2 * settled));
+    }
+
+    /**
+     * A stream that is opened but never closed keeps its footprint charged: the accounting counter
+     * only moves on the explicit {@code newDStream()} / {@code close()} pair, encoding a close-or-leak
+     * contract. There is intentionally no {@code System.gc()} here — the shared arena has no
+     * {@code Cleaner}, so a GC cannot reclaim it and the adder would not move regardless; the test
+     * asserts the accounting contract, not native reclamation.
+     */
+    public void testDStreamAbandonedWithoutCloseStaysAccounted() {
+        long baseline = Zstd.NATIVE_BYTES_IN_USE.sum();
+        Zstd.DStream dstream = zstd.newDStream();
+        try {
+            long perStream = dstream.accountedBytes();
+            assertThat(perStream, Matchers.greaterThan(0L));
+            // Deliberately not closed inside the try — the reservation must remain visible.
+            assertThat(Zstd.NATIVE_BYTES_IN_USE.sum() - baseline, equalTo(perStream));
+        } finally {
+            // Always release before leaving so we do not leak native memory into sibling tests.
+            dstream.close();
+        }
+        assertThat(Zstd.NATIVE_BYTES_IN_USE.sum(), equalTo(baseline));
+    }
+
+    /**
+     * Drive {@code dstream} to fully decode {@code compressed} into {@code decompressed}, mirroring the
+     * production wrapper's chunked-refill loop (feed in {@code dStreamInSize} slices, drain the caller's
+     * array across multiple calls). Asserts the frame decodes completely.
+     */
+    private void drainFullFrame(Zstd.DStream dstream, byte[] compressed, byte[] decompressed) {
+        int chunk = zstd.dStreamInSize();
+        int srcConsumed = 0;
+        int dstPos = 0;
+        long hint = 1L;
+        while (srcConsumed < compressed.length || hint != 0L) {
+            int srcChunkLen = Math.min(chunk, compressed.length - srcConsumed);
+            hint = dstream.decompress(decompressed, dstPos, decompressed.length, compressed, srcConsumed, srcConsumed + srcChunkLen);
+            srcConsumed = dstream.lastSrcPos();
+            dstPos = dstream.lastDstPos();
+            if (srcConsumed >= compressed.length && hint == 0L) {
+                break;
+            }
+        }
+        assertThat("frame should be fully decoded", hint, equalTo(0L));
+        assertThat(dstPos, equalTo(decompressed.length));
+    }
+
     // ---------- One-shot heap byte[] overloads (Phase 2) ----------
     // The block API critical(true) downcalls used by PanamaZstd.decompressHeap / compressHeap.
     // Coverage here pins the contract that JdkZstdLibrary's heap overloads accept heap segments

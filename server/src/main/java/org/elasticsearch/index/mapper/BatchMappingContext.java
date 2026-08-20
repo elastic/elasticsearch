@@ -12,6 +12,10 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnData;
+import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.EscfLongColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.sourcebatch.LuceneColumn;
@@ -49,6 +53,7 @@ public final class BatchMappingContext {
     private DeduplicatingStringColumnAccumulator fieldNames;
     /** Accumulates {@code (doc, name)} pairs for {@code _ignored}. */
     private DeduplicatingStringColumnAccumulator ignoredFields;
+    private EscfLongColumn timestampColumn;
 
     /**
      * Primary constructor. Delegates all per-doc data accessors to {@code batch} and records
@@ -139,12 +144,86 @@ public final class BatchMappingContext {
 
     /**
      * Returns the {@code _id} (Uid-encoded) array.
-     *
-     * @throws IllegalStateException if any document in the batch has a null {@code _id} (synthetic
-     *     id is not yet supported in the columnar path)
      */
     public BytesRef[] uids() {
         return batch.uids();
+    }
+
+    /**
+     * Returns the plain-text id for document {@code doc}, or {@code null} if not yet assigned.
+     * For time-series indices the id is derived during mapping and set via {@link #setSyntheticId}.
+     */
+    public String id(int doc) {
+        return batch.id(doc);
+    }
+
+    /**
+     * Sets the synthetic {@code _id} and uid for document {@code doc}. Called by the time-series
+     * columnar {@code _id} mapper during {@code postColumnarParse}.
+     */
+    public void setSyntheticId(int doc, String id, BytesRef uid) {
+        assert frozen == false;
+        batch.setSyntheticId(doc, id, uid);
+    }
+
+    /**
+     * Returns the coordinator-computed tsid array, or {@code null} if no document in the batch
+     * carries a tsid (the common case for non-time-series indices).
+     */
+    public BytesRef[] tsids() {
+        return batch.tsids();
+    }
+
+    /**
+     * Records the mapped {@code @timestamp} ESCF column so that {@code postColumnarParse} hooks
+     * (e.g. {@link DataStreamTimestampFieldMapper} and {@link TimeSeriesIdFieldMapper}) can read
+     * per-document timestamp values without re-scanning the Lucene column list.
+     *
+     * @throws IllegalArgumentException if called more than once or if the column is multi-valued
+     */
+    public void recordTimestampColumn(EscfColumnData timestamps) {
+        if (timestampColumn != null) {
+            throw new IllegalArgumentException(
+                "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] encountered multiple values"
+            );
+        }
+        if (timestamps.kind() == EscfColumnKind.ARRAY) {
+            throw new IllegalArgumentException(
+                "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] encountered multiple values"
+            );
+        }
+        this.timestampColumn = (EscfLongColumn) EscfColumn.from(timestamps);
+    }
+
+    /**
+     * Returns the {@code @timestamp} column for direct access.
+     *
+     * @throws IllegalArgumentException if no timestamp column was recorded (mirrors the row path's
+     *     "data stream timestamp field [@timestamp] is missing" error from
+     *     {@link DataStreamTimestampFieldMapper#extractTimestampValue})
+     */
+    public EscfLongColumn timestampColumn() {
+        if (timestampColumn == null) {
+            throw new IllegalArgumentException(
+                "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is missing"
+            );
+        }
+        return timestampColumn;
+    }
+
+    /**
+     * Whether {@code _data_stream_timestamp} is present and enabled for this index..
+     */
+    public boolean isDataStreamTimestampFieldEnabled() {
+        return mappingLookup.isDataStreamTimestampFieldEnabled();
+    }
+
+    /**
+     * Returns the {@link MappingLookup} for this index. Used by metadata mappers that need to
+     * inspect the mapping during {@code postColumnarParse} (e.g. timestamp resolution detection).
+     */
+    public MappingLookup mappingLookup() {
+        return mappingLookup;
     }
 
     /**
@@ -194,6 +273,13 @@ public final class BatchMappingContext {
             ignoredFields = new DeduplicatingStringColumnAccumulator(batch.docCount());
         }
         ignoredFields.record(doc, new BytesRef(field));
+    }
+
+    /**
+     * Whether {@code _source} is reconstructed from doc values.
+     */
+    public boolean isSourceSynthetic() {
+        return mappingLookup.isSourceSynthetic();
     }
 
     /** The number of documents in this chunk. */

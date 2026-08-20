@@ -191,13 +191,13 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         );
 
         assumeTrue(
-            "Local cluster must not support " + testCase.missingCapabilitiesLocalCluster + " for test " + testName,
-            doesntHaveCapabilities(adminClient(), testCase.missingCapabilitiesLocalCluster)
+            "Local cluster must not support " + testCase.missingCapabilitiesCoordinator + " for test " + testName,
+            doesntHaveCapabilities(adminClient(), testCase.missingCapabilitiesCoordinator)
         );
 
         assumeTrue(
-            "Remote cluster must not support " + testCase.missingCapabilitiesRemoteCluster + " for test " + testName,
-            doesntHaveCapabilities(remoteClusterClient(), testCase.missingCapabilitiesRemoteCluster)
+            "Remote cluster must not support " + testCase.missingCapabilitiesDataNode + " for test " + testName,
+            doesntHaveCapabilities(remoteClusterClient(), testCase.missingCapabilitiesDataNode)
         );
 
         // Filter out capabilities that are required only on the local cluster and then check the remaining on the remote cluster.

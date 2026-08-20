@@ -370,13 +370,10 @@ public class CsvIT extends ESTestCase {
             "CSV tests cannot handle dataset-backed FROM <dataset> sources (requires QA integration tests)",
             testCase.datasetSources.isEmpty() == false
         );
-        assumeTrueLogging(
-            "CSV tests don't support remote cluster capability requirements",
-            testCase.missingCapabilitiesRemoteCluster.isEmpty()
-        );
+        assumeTrueLogging("CSV tests can't run a data node on an older version", testCase.missingCapabilitiesDataNode.isEmpty());
         CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilities);
-        CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilitiesLocalCluster);
-        CsvTestUtils.checkMissingTestCapabilities(ENABLED_CAPS, testCase.missingCapabilitiesLocalCluster);
+        CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilitiesCoordinator);
+        CsvTestUtils.checkMissingTestCapabilities(ENABLED_CAPS, testCase.missingCapabilitiesCoordinator);
         CsvTestUtils.checkPragma(testCase.pragmas);
 
         currentGroupName = groupName;

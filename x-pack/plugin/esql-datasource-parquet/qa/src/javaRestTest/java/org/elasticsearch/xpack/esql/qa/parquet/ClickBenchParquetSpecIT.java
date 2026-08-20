@@ -118,7 +118,8 @@ public class ClickBenchParquetSpecIT extends EsqlSpecTestCase {
     protected void shouldSkipTest(String testName) throws IOException {
         assumeTrue("ClickBench data not reachable", ClickBenchFixture.isDataReachable());
         assumeTrue("ClickBench fixture not ready", clickBenchFixture.fixturesRoot() != null);
-        checkCapabilities(adminClient(), testFeatureService, testName, testCase);
+        checkCapabilities(adminClient(), testFeatureService, testName, testCase.requiredCapabilities);
+        checkCoordinatorCapabilities(testName);
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
     }
 

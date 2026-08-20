@@ -31,6 +31,9 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.coordinatorDoesntHaveCapabilities;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.coordinatorHasCapabilities;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.doesntHaveCapabilities;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
 /**
@@ -51,6 +54,12 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilit
  * generated subclass; test data is ingested exactly once, guarded by the {@code INGEST} lock in
  * {@link EsqlSpecTestCase}. The two suites run under separate Gradle tasks, hence separate JVMs, so each
  * gets its own cluster from this one {@code @ClassRule}.
+ * <p>
+ * Because the coordinator version is pinned, these suites honour the {@code required_capability_coordinator} and
+ * {@code missing_capability_coordinator} directives - which until then only the cross-cluster suite could evaluate -
+ * by asking the coordinator alone via {@code GET /_capabilities?local_only=true}. See
+ * {@link #checkCoordinatorCapabilities} and {@link #shouldSkipTest} for the data-node counterpart, which is weaker
+ * because shard placement is not pinned.
  */
 // Each generated class covers one csv-spec file and should complete in a few minutes at most
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
@@ -147,6 +156,24 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         return super.clusterHasCapability(capability);
     }
 
+    /**
+     * Asks the pinned coordinator alone, rather than the whole cluster, whether it supports the capabilities named by
+     * {@code required_capability_coordinator}. The cluster-wide check the base class uses reports a capability as
+     * absent as soon as the other version lacks it, which would skip every test that pairs
+     * {@code required_capability_coordinator} with {@code missing_capability_data_node} - exactly the combination the
+     * mixed-version suites are here to exercise.
+     * <p>
+     * No fallback to {@code testFeatureService}: that resolves cluster features, which cannot describe a single node,
+     * and {@code required_capability_coordinator} postdates the switch from {@code EsqlFeatures} to capabilities.
+     */
+    @Override
+    protected void checkCoordinatorCapabilities(String testName) {
+        CsvTestUtils.assumeTrueLogging(
+            "Coordinator does not support " + testCase.requiredCapabilitiesCoordinator + " for test " + testName,
+            coordinatorHasCapabilities(adminClient(), testCase.requiredCapabilitiesCoordinator)
+        );
+    }
+
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
@@ -163,18 +190,21 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
             "Old mixed-cluster node does not support required capabilities for " + testName,
             testCase.requiredCapabilities.isEmpty() || hasCapabilities(adminClient(), testCase.requiredCapabilities)
         );
-        // missing_capability_coordinator is deliberately not evaluated, even though pinning the coordinator would
-        // allow it: such a test only runs while a wired BWC version falls between the two capabilities it names, so
-        // the coverage is narrow and lapses without any signal once that version rotates out.
+        // Populated by missing_capability_coordinator. Asked of the coordinator alone, not the cluster: the pinned
+        // coordinator is the only node whose capabilities decide coordinator-side behaviour, and the cluster-wide
+        // answer would report the capability as absent whenever the *other* version lacks it.
         CsvTestUtils.assumeTrueLogging(
-            "Mixed-cluster tests don't support local cluster capability requirements",
-            testCase.missingCapabilitiesLocalCluster.isEmpty()
+            "Coordinator must not support " + testCase.missingCapabilitiesCoordinator + " for test " + testName,
+            coordinatorDoesntHaveCapabilities(adminClient(), testCase.missingCapabilitiesCoordinator)
         );
-        // Populated by missing_capability_data_node. Shard placement across the old and new nodes is not controlled,
-        // so which version serves the data cannot be pinned.
+        // Populated by missing_capability_data_node. Every node in the mixed cluster holds data and shard placement
+        // is not pinned, so the strongest available statement is that the capability is missing from at least one
+        // data node - which is what makes the coordinator fall back to the pre-capability behaviour for anything
+        // gated on the cluster's minimum transport version. Tests whose expectations need *every* shard to be served
+        // by an old node cannot be pinned here and have to stay CCS-only.
         CsvTestUtils.assumeTrueLogging(
-            "Mixed-cluster tests don't support remote cluster capability requirements",
-            testCase.missingCapabilitiesRemoteCluster.isEmpty()
+            "Data nodes must not all support " + testCase.missingCapabilitiesDataNode + " for test " + testName,
+            doesntHaveCapabilities(adminClient(), testCase.missingCapabilitiesDataNode)
         );
         assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, instructions, bwcVersion));
     }

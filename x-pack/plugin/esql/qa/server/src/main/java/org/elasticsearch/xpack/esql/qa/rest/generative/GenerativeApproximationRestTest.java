@@ -147,7 +147,7 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         assumeFalse(
             "No approximation tests",
             testCase.requiredCapabilities.contains(APPROXIMATION_V7.capabilityName())
-                || testCase.requiredCapabilitiesLocalCluster.contains(APPROXIMATION_V7.capabilityName())
+                || testCase.requiredCapabilitiesCoordinator.contains(APPROXIMATION_V7.capabilityName())
         );
         assumeFalse(
             "Approximation casts integer SUM to double, preventing long overflow",

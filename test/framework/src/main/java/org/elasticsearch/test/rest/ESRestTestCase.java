@@ -340,6 +340,33 @@ public abstract class ESRestTestCase extends ESTestCase {
         Collection<String> parameters,
         Collection<String> capabilities
     ) throws IOException {
+        return hasCapability(client, method, path, parameters, capabilities, false);
+    }
+
+    /**
+     * Does the single node that serves the request support the set of capabilities for the specified path and
+     * method. Unlike {@link #clusterHasCapability}, which ANDs the answer across every node, this asks only the
+     * node {@code client} happens to route to, which is the one that would coordinate the request. Meaningful in a
+     * mixed-version cluster, where nodes disagree; elsewhere it is the same answer as the cluster-wide check.
+     */
+    protected static Optional<Boolean> nodeHasCapability(
+        RestClient client,
+        String method,
+        String path,
+        Collection<String> parameters,
+        Collection<String> capabilities
+    ) throws IOException {
+        return hasCapability(client, method, path, parameters, capabilities, true);
+    }
+
+    private static Optional<Boolean> hasCapability(
+        RestClient client,
+        String method,
+        String path,
+        Collection<String> parameters,
+        Collection<String> capabilities,
+        boolean localOnly
+    ) throws IOException {
         Request request = new Request("GET", "_capabilities");
         request.addParameter("method", method);
         request.addParameter("path", path);
@@ -348,6 +375,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
         if (capabilities.isEmpty() == false) {
             request.addParameter("capabilities", String.join(",", capabilities));
+        }
+        if (localOnly) {
+            request.addParameter("local_only", "true");
         }
         try {
             Map<String, Object> response = entityAsMap(client.performRequest(request).getEntity());

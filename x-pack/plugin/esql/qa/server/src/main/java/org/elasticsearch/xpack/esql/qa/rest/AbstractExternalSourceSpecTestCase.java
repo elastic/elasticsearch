@@ -348,7 +348,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
-        checkCapabilities(adminClient(), testFeatureService, testName, testCase);
+        checkCapabilities(adminClient(), testFeatureService, testName, testCase.requiredCapabilities);
+        checkCoordinatorCapabilities(testName);
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
     }
 

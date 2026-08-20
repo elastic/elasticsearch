@@ -284,7 +284,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (requiresInferenceEndpointOnLocalCluster()) {
             assumeTrueLogging("Inference test service needs to be supported", supportsInferenceTestServiceOnLocalCluster());
         }
-        checkCapabilities(adminClient(), testFeatureService, testName, testCase);
+        checkCapabilities(adminClient(), testFeatureService, testName, testCase.requiredCapabilities);
+        checkCoordinatorCapabilities(testName);
         if (testCase.requiredCapabilities.contains(VIEWS_CRUD_AS_INDEX_ACTIONS.capabilityName())) {
             assumeTrueLogging("Cluster does not support views", supportsViews());
         }
@@ -297,14 +298,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
     }
 
-    protected static void checkCapabilities(
-        RestClient client,
-        TestFeatureService testFeatureService,
-        String testName,
-        CsvTestCase testCase
-    ) {
-        checkCapabilities(client, testFeatureService, testName, testCase.requiredCapabilities);
-        checkCapabilities(client, testFeatureService, testName, testCase.requiredCapabilitiesLocalCluster);
+    /**
+     * Enforces {@code required_capability_coordinator}. Every node runs the same code in a single-version cluster, so
+     * the cluster-wide answer describes the coordinator too; a mixed-version suite that pins its coordinator overrides
+     * this to ask that node alone.
+     */
+    protected void checkCoordinatorCapabilities(String testName) {
+        checkCapabilities(adminClient(), testFeatureService, testName, testCase.requiredCapabilitiesCoordinator);
     }
 
     protected static void checkCapabilities(

@@ -184,6 +184,37 @@ It is preferable to use `EsqlCapabilities` for new features, although all existi
 `EsqlFeatures` will continue to work. It is not possible to remove an existing
 `EsqlFeature` without breaking backwards compatibility.
 
+### Asserting old-version behavior
+
+`required_capability` demands the capability everywhere, which is what you want
+for a test of new behavior. The mirror image — asserting what an *old* node does —
+needs three more directives, which split the cluster into the node that
+coordinates the query and the nodes that hold the data:
+
+* `required_capability_coordinator: <cap>` — the coordinator must have `<cap>`.
+* `missing_capability_coordinator: <cap>` — the coordinator must *not* have `<cap>`.
+* `missing_capability_data_node: <cap>` — the data nodes must not all have `<cap>`.
+
+A test using any of these only runs where the two sides can actually differ:
+the cross-cluster suite (`multi-clusters`, where the local cluster coordinates
+and the remote cluster holds the data) and the mixed-version suites
+(`mixed-cluster`, which pin the coordinator to the old or the current version and
+run each in its own Gradle task). Everywhere else a `missing_capability_*`
+directive skips the test, because every node runs the same code.
+
+The usual shape is a pair of tests: one gated on `required_capability` for the
+new behavior, and one that swaps in `required_capability_coordinator` plus
+`missing_capability_data_node` for what an older data node produces.
+
+Two caveats. First, such a test only runs while a wired BWC version sits between
+the capabilities it names, so it stops covering anything — silently — once that
+version rotates out. Second, `mixed-cluster` does not pin shard placement, so
+`missing_capability_data_node` there means "at least one data node is old", which
+is enough for behavior gated on the cluster's minimum transport version but not
+for expectations that need *every* shard served by an old node. Those have to
+stay cross-cluster-only, which is what `required_capability:
+metadata_fields_remote_test` (a permanently disabled capability) is used for.
+
 ### Warnings
 
 Some queries can return warnings, eg. for number overflows or when a multi-value is passed to a function

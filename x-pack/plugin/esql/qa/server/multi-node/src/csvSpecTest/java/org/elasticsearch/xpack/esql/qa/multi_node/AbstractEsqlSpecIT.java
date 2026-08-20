@@ -82,12 +82,12 @@ public abstract class AbstractEsqlSpecIT extends EsqlSpecTestCase {
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
         assumeTrue(
-            "Local cluster must not support " + testCase.missingCapabilitiesLocalCluster + " for test " + testName,
-            doesntHaveCapabilities(adminClient(), testCase.missingCapabilitiesLocalCluster)
+            "Local cluster must not support " + testCase.missingCapabilitiesCoordinator + " for test " + testName,
+            doesntHaveCapabilities(adminClient(), testCase.missingCapabilitiesCoordinator)
         );
         CsvTestUtils.assumeTrueLogging(
-            "Multi-node tests don't support remote cluster capability requirements",
-            testCase.missingCapabilitiesRemoteCluster.isEmpty()
+            "Multi-node tests can't run a data node on an older version",
+            testCase.missingCapabilitiesDataNode.isEmpty()
         );
     }
 }

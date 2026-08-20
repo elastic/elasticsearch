@@ -48,9 +48,9 @@ public final class CsvSpecReader {
         private final StringBuilder query = new StringBuilder();
         private final StringBuilder data = new StringBuilder();
         private final List<String> requiredCapabilities = new ArrayList<>();
-        private final List<String> requiredCapabilitiesLocalCluster = new ArrayList<>();
-        private final List<String> missingCapabilitiesLocalCluster = new ArrayList<>();
-        private final List<String> missingCapabilitiesRemoteCluster = new ArrayList<>();
+        private final List<String> requiredCapabilitiesCoordinator = new ArrayList<>();
+        private final List<String> missingCapabilitiesCoordinator = new ArrayList<>();
+        private final List<String> missingCapabilitiesDataNode = new ArrayList<>();
         private final List<DatasetSource> datasetSources = new ArrayList<>();
         private final List<SpecReader.Parser> optionParsers = new ArrayList<>();
         private final Map<String, String> pragmas = new HashMap<>();
@@ -85,9 +85,9 @@ public final class CsvSpecReader {
                 testCase = new CsvTestCase();
                 testCase.query = query.toString();
                 testCase.requiredCapabilities = List.copyOf(requiredCapabilities);
-                testCase.requiredCapabilitiesLocalCluster = List.copyOf(requiredCapabilitiesLocalCluster);
-                testCase.missingCapabilitiesLocalCluster = List.copyOf(missingCapabilitiesLocalCluster);
-                testCase.missingCapabilitiesRemoteCluster = List.copyOf(missingCapabilitiesRemoteCluster);
+                testCase.requiredCapabilitiesCoordinator = List.copyOf(requiredCapabilitiesCoordinator);
+                testCase.missingCapabilitiesCoordinator = List.copyOf(missingCapabilitiesCoordinator);
+                testCase.missingCapabilitiesDataNode = List.copyOf(missingCapabilitiesDataNode);
                 testCase.datasetSources = List.copyOf(datasetSources);
                 testCase.pragmas = Map.copyOf(pragmas);
                 testCase.requestStored = requestStored;
@@ -95,9 +95,9 @@ public final class CsvSpecReader {
                 testCase.requestTimeRangeLte = requestTimeRangeLte;
                 testCase.skipFlattenedRewrite = skipFlattenedRewrite;
                 requiredCapabilities.clear();
-                requiredCapabilitiesLocalCluster.clear();
-                missingCapabilitiesLocalCluster.clear();
-                missingCapabilitiesRemoteCluster.clear();
+                requiredCapabilitiesCoordinator.clear();
+                missingCapabilitiesCoordinator.clear();
+                missingCapabilitiesDataNode.clear();
                 datasetSources.clear();
                 requestStored = WhenLoadsRequestedToStored.IGNORE_VALUE_ORDER;
                 requestTimeRangeGte = null;
@@ -135,15 +135,15 @@ public final class CsvSpecReader {
                 return Boolean.TRUE;
             }
             if (lower.startsWith("required_capability_coordinator:")) {
-                state.requiredCapabilitiesLocalCluster.add(line.substring("required_capability_coordinator:".length()).trim());
+                state.requiredCapabilitiesCoordinator.add(line.substring("required_capability_coordinator:".length()).trim());
                 return Boolean.TRUE;
             }
             if (lower.startsWith("missing_capability_coordinator:")) {
-                state.missingCapabilitiesLocalCluster.add(line.substring("missing_capability_coordinator:".length()).trim());
+                state.missingCapabilitiesCoordinator.add(line.substring("missing_capability_coordinator:".length()).trim());
                 return Boolean.TRUE;
             }
             if (lower.startsWith("missing_capability_data_node:")) {
-                state.missingCapabilitiesRemoteCluster.add(line.substring("missing_capability_data_node:".length()).trim());
+                state.missingCapabilitiesDataNode.add(line.substring("missing_capability_data_node:".length()).trim());
                 return Boolean.TRUE;
             }
             return null;
@@ -474,24 +474,29 @@ public final class CsvSpecReader {
          */
         public WhenLoadsRequestedToStored requestStored;
         /**
-         * Capabilities that must be present on all clusters.
+         * Capabilities that must be present everywhere the query runs: every node of every cluster involved.
          */
         public List<String> requiredCapabilities = List.of();
         /**
-         * Capabilities that must be present on the local cluster.
-         * (equivalent to {@link CsvTestCase#requiredCapabilities} for single-cluster tests)
+         * Capabilities that must be present on the node coordinating the query, which is the node the test's REST
+         * client talks to. Populated by {@code required_capability_coordinator}.
+         * (equivalent to {@link CsvTestCase#requiredCapabilities} in a single-version cluster)
          */
-        public List<String> requiredCapabilitiesLocalCluster = List.of();
+        public List<String> requiredCapabilitiesCoordinator = List.of();
         /**
-         * Capabilities that must be missing on the local (coordinating) cluster.
-         * (not supported for single-cluster tests)
+         * Capabilities that must be missing on the node coordinating the query. Populated by
+         * {@code missing_capability_coordinator}. Only satisfiable where some node runs older code than the
+         * capability: a cross-cluster setup with an older local cluster, or a mixed-version cluster whose
+         * coordinator is the older node.
          */
-        public List<String> missingCapabilitiesLocalCluster = List.of();
+        public List<String> missingCapabilitiesCoordinator = List.of();
         /**
-         * Capabilities that must be missing on the remote cluster.
-         * (not supported for single-cluster tests)
+         * Capabilities that must be missing on the data nodes serving the query. Populated by
+         * {@code missing_capability_data_node}. Only satisfiable where some node runs older code than the
+         * capability: a cross-cluster setup with an older remote cluster, or a mixed-version cluster where not every
+         * node is on the current version.
          */
-        public List<String> missingCapabilitiesRemoteCluster = List.of();
+        public List<String> missingCapabilitiesDataNode = List.of();
         /**
          * External sources declared via {@code dataset:} preamble directives, in declaration order.
          * Empty for the vast majority of tests. When non-empty the query is expected to read these

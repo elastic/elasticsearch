@@ -1,5 +1,5 @@
 area: Search
 issues: []
 pr: 155908
-summary: Add top-level catch to ensure batched queries always respond
+summary: Ensure batched queries always return a response
 type: bug

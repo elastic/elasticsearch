@@ -1275,6 +1275,23 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    public void testForkInsideNestedInSubqueriesIsAccepted() {
+        // Each IN subquery is its own query scope; a FORK inside one must not be counted against a FORK in another.
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (
+                FROM employees
+                | WHERE salary IN (
+                    FROM employees
+                    | FORK (WHERE emp_no > 1) (WHERE emp_no > 2)
+                    | KEEP salary
+                )
+                | FORK (WHERE emp_no > 1) (WHERE emp_no > 2)
+                | KEEP emp_no
+            )
+            """, STAGES);
+    }
+
     // -- helpers --
 
     /**

@@ -85,10 +85,5 @@ public abstract class AbstractEsqlSpecApproximationIT extends GenerativeApproxim
             "Single-node tests don't support remote cluster capability requirements",
             testCase.missingCapabilitiesRemoteCluster.isEmpty()
         );
-        assumeFalse(
-            "LOAD_ALL doesn't currently support FORK, which is used in the generated queries",
-            testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL.capabilityName())
-                || testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_STATS.capabilityName())
-        );
     }
 }

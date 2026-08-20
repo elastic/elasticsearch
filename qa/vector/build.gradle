@@ -49,7 +49,10 @@ dependencies {
   // compile-classpath ban is relaxed for this module in elasticsearch.forbidden-dependencies; our own code must not
   // use Guava. Keeping it off the compileOnly configuration lets dependencyLicenses still account for its license.
   implementation 'com.google.guava:guava:33.6.0-jre'
-  runtimeOnly 'com.google.guava:failureaccess:1.0.3'
+  // This project is modular, so Guava is resolved on the module path. Its module-info declares
+  // "requires com.google.common.util.concurrent.internal", which failureaccess provides, so
+  // failureaccess must be on the compile classpath too or the module graph fails to resolve.
+  implementation 'com.google.guava:failureaccess:1.0.3'
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}" // 2.0.16 in bom
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}" // 1.18.0 in bom
   implementation 'com.google.api:api-common:2.66.0'

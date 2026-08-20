@@ -702,3 +702,51 @@ setup:
             term:
               labels.status: "passthrough-value"
   - match: { hits.total.value: 2 }
+
+---
+"Unsupported queries on keyed flattened fields are client errors":
+  - do:
+      indices.create:
+        index:  keyed_unsupported
+        body:
+          mappings:
+            properties:
+              flattened:
+                type: flattened
+
+  - do:
+      catch: bad_request
+      search:
+        index: keyed_unsupported
+        body:
+          query:
+            wildcard:
+              flattened.key:
+                value: "foo*"
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "query_shard_exception" }
+  - match: { error.root_cause.0.reason: "failed to create query: [wildcard] queries are not currently supported on keyed [flattened] fields." }
+
+  - do:
+      catch: bad_request
+      search:
+        index: keyed_unsupported
+        body:
+          query:
+            regexp:
+              flattened.key: "foo.*"
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "query_shard_exception" }
+  - match: { error.root_cause.0.reason: "failed to create query: [regexp] queries are not currently supported on keyed [flattened] fields." }
+
+  - do:
+      catch: bad_request
+      search:
+        index: keyed_unsupported
+        body:
+          query:
+            fuzzy:
+              flattened.key: "foo"
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "query_shard_exception" }
+  - match: { error.root_cause.0.reason: "failed to create query: [fuzzy] queries are not currently supported on keyed [flattened] fields." }

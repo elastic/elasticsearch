@@ -45,6 +45,7 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     public static final String RECOVERY_DIRECT_CANCELLATIONS_METRIC = "es.recovery.shard.directcancellations.total";
     public static final String RECOVERY_GATE_BLOCKED_TOTAL_METRIC = "es.recovery.gate.blocked.total";
     public static final String RECOVERY_GATE_BLOCKED_DURATION_METRIC = "es.recovery.gate.blocked.time";
+    public static final String RECOVERY_GATE_NAME_ATTRIBUTE_KEY = "es_recovery_gate_name";
 
     public static final RecoveryMetricsCollector NOOP = new RecoveryMetricsCollector(TelemetryProvider.NOOP);
 
@@ -208,7 +209,7 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
 
     @Override
     public void onRecoveriesBlocked(String gateName) {
-        recoveryGateBlockedMetric.incrementBy(1, Map.of("es_recovery_gate_name", gateName));
+        recoveryGateBlockedMetric.incrementBy(1, Map.of(RECOVERY_GATE_NAME_ATTRIBUTE_KEY, gateName));
     }
 
     @Override

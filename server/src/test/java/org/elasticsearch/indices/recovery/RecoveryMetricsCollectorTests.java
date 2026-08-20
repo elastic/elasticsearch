@@ -17,6 +17,7 @@ import java.util.Map;
 
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_DURATION_METRIC;
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_TOTAL_METRIC;
+import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_NAME_ATTRIBUTE_KEY;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -42,8 +43,8 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
         final var blockedMeasurements = telemetryPlugin.getLongCounterMeasurement(RECOVERY_GATE_BLOCKED_TOTAL_METRIC);
         assertThat(blockedMeasurements, hasSize(2));
         assertThat(blockedMeasurements.stream().mapToLong(measurement -> measurement.getLong()).sum(), equalTo(2L));
-        assertThat(blockedMeasurements.getFirst().attributes(), equalTo(Map.of("es_recovery_gate_name", gateName)));
-        assertThat(blockedMeasurements.getLast().attributes(), equalTo(Map.of("es_recovery_gate_name", secondGateName)));
+        assertThat(blockedMeasurements.getFirst().attributes(), equalTo(Map.of(RECOVERY_GATE_NAME_ATTRIBUTE_KEY, gateName)));
+        assertThat(blockedMeasurements.getLast().attributes(), equalTo(Map.of(RECOVERY_GATE_NAME_ATTRIBUTE_KEY, secondGateName)));
         final var blockedDurationMeasurements = telemetryPlugin.getLongHistogramMeasurement(RECOVERY_GATE_BLOCKED_DURATION_METRIC);
         assertThat(blockedDurationMeasurements, hasSize(2));
         assertThat(blockedDurationMeasurements.getFirst().getLong(), equalTo(blockedTimeMillis));

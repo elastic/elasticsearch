@@ -82,7 +82,10 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
         );
         assertThat(blockCount, hasSize(1));
         assertThat(blockCount.getFirst().getLong(), equalTo(1L));
-        assertThat(blockCount.getFirst().attributes().get("es_recovery_gate_name"), equalTo("estimated_heap"));
+        assertThat(
+            blockCount.getFirst().attributes().get(RecoveryMetricsCollector.RECOVERY_GATE_NAME_ATTRIBUTE_KEY),
+            equalTo("estimated_heap")
+        );
         assertThat(getLastLongGaugeValue(EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_METRIC, telemetry), greaterThan(0L));
         assertThat(getLastLongGaugeValue(EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_METRIC, telemetry), lessThan(0L));
         assertThat(

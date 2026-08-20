@@ -710,12 +710,12 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasourceAcceptsHttpEndpoint() {
-        var result = validator.validateDatasource(Map.of("endpoint", "http://s3-proxy.example.com"));
+        var result = validator.validateDatasource(Map.of("endpoint", "http://s3-proxy.example.com", "auth", "anonymous"));
         assertEquals("http://s3-proxy.example.com", result.get("endpoint").nonSecretValue());
     }
 
     public void testValidateDatasourceAcceptsHttpsEndpoint() {
-        var result = validator.validateDatasource(Map.of("endpoint", "https://s3-proxy.example.com:9000"));
+        var result = validator.validateDatasource(Map.of("endpoint", "https://s3-proxy.example.com:9000", "auth", "anonymous"));
         assertEquals("https://s3-proxy.example.com:9000", result.get("endpoint").nonSecretValue());
     }
 

@@ -9,53 +9,70 @@
 
 package org.elasticsearch.columnar.substrate;
 
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
-
-import java.io.IOException;
-
 /**
  * How a chunk of a column's byte stream is stored. A chunk is a byte-bounded unit of compression: it holds
  * whole values, and a value is located by its offset in the uncompressed stream plus the index that maps
  * such an offset to the chunk holding it.
  *
- * <p>Ids are frozen once shipped. The identity codec stores a chunk verbatim, which lets a reader serve
- * values straight from the mapped input with no chunk buffer at all.
+ * <p>The codec itself is stateless and shared. The buffers a codec needs belong to the compressor and
+ * decompressor it hands out, one per writer and per reader, because a segment is read by many threads at
+ * once and a buffer cannot be shared between them.
  */
-public interface ChunkCodec {
+public enum ChunkCodec {
 
-    /** Chunk bytes are stored verbatim. */
-    byte IDENTITY_ID = 0;
+    /** Chunk bytes are stored verbatim, which lets a reader take values straight from the mapped input. */
+    IDENTITY((byte) 0) {
+        @Override
+        public ChunkCompressor newCompressor() {
+            return IdentityChunkCodec.COMPRESSOR;
+        }
 
-    /** Chunk bytes are Zstd-compressed. */
-    byte ZSTD_ID = 1;
+        @Override
+        public ChunkDecompressor newDecompressor() {
+            return IdentityChunkCodec.DECOMPRESSOR;
+        }
+    },
 
-    /** Frozen identifier persisted in column metadata. Never reuse or repurpose an id. */
-    byte id();
+    /** Chunk bytes are Zstd-compressed through the native binding. */
+    ZSTD((byte) 1) {
+        @Override
+        public ChunkCompressor newCompressor() {
+            return new ZstdChunkCodec.Compressor();
+        }
 
-    /** Whether a chunk is stored uncompressed, so its bytes can be read without decoding the chunk. */
-    default boolean isIdentity() {
-        return false;
+        @Override
+        public ChunkDecompressor newDecompressor() {
+            return new ZstdChunkCodec.Decompressor();
+        }
+    };
+
+    private final byte id;
+
+    ChunkCodec(byte id) {
+        this.id = id;
     }
 
-    /** Writes {@code src[0, length)} as one chunk and returns how many bytes it occupies in {@code out}. */
-    int write(byte[] src, int length, IndexOutput out) throws IOException;
+    /** Frozen identifier persisted in column metadata. Never reuse or repurpose an id. */
+    public byte id() {
+        return id;
+    }
 
-    /**
-     * Reads a chunk written by {@link #write}, given {@code in} positioned at its first byte.
-     *
-     * @param storedLength       bytes the chunk occupies in the file
-     * @param dst                buffer to hold the chunk, at least {@code uncompressedLength} long
-     * @param uncompressedLength bytes the chunk holds once decoded
-     */
-    void read(IndexInput in, int storedLength, byte[] dst, int uncompressedLength) throws IOException;
+    /** Whether a chunk is stored uncompressed, so its bytes can be read without decoding the chunk. */
+    public boolean isIdentity() {
+        return this == IDENTITY;
+    }
 
-    static ChunkCodec forId(byte id) {
-        if (id == IDENTITY_ID) {
-            return IdentityChunkCodec.INSTANCE;
-        }
-        if (id == ZSTD_ID) {
-            return ZstdChunkCodec.INSTANCE;
+    /** A compressor for one writer; not shared between them. */
+    public abstract ChunkCompressor newCompressor();
+
+    /** A decompressor for one reader; not shared between them. */
+    public abstract ChunkDecompressor newDecompressor();
+
+    public static ChunkCodec forId(byte id) {
+        for (ChunkCodec codec : values()) {
+            if (codec.id == id) {
+                return codec;
+            }
         }
         throw new IllegalArgumentException("Unknown chunk codec id: " + id);
     }

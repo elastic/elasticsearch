@@ -27,6 +27,7 @@ public final class ChunkedBytesReader {
 
     private final IndexInput data;
     private final ChunkCodec codec;
+    private final ChunkDecompressor decompressor;
     private final long dataOffset;
     private final LongValues starts;
     private final LongValues fileOffsets;
@@ -45,8 +46,11 @@ public final class ChunkedBytesReader {
         LongValues fileOffsets,
         long numChunks
     ) {
-        this.data = data;
+        // Cloned because reading a chunk seeks: the input this was opened over is shared, and a segment is
+        // read by many threads at once.
+        this.data = data.clone();
         this.codec = codec;
+        this.decompressor = codec.newDecompressor();
         this.dataOffset = dataOffset;
         this.starts = starts;
         this.fileOffsets = fileOffsets;
@@ -63,11 +67,11 @@ public final class ChunkedBytesReader {
             // Every value is empty, so the column holds no bytes and no chunk was ever written.
             return dst;
         }
-        if (dst.length < length) {
-            dst = new byte[ArrayUtil.oversize(length, Byte.BYTES)];
-        }
+        dst = ArrayUtil.growNoCopy(dst, length);
         if (codec.isIdentity()) {
-            // Stored verbatim, so the uncompressed offset is a file offset and no chunk need be decoded.
+            // An optimization rather than a separate layout: the bytes could be read through the chunk
+            // index like any other, but under this codec the uncompressed offset is already a file offset,
+            // so a chunk need never be decoded and no buffer is needed to hold one.
             data.seek(dataOffset + offset);
             data.readBytes(dst, 0, length);
             return dst;
@@ -112,11 +116,9 @@ public final class ChunkedBytesReader {
         final int uncompressed = (int) (starts.get(index + 1) - start);
         final long fileStart = fileOffsets.get(index);
         final int stored = (int) (fileOffsets.get(index + 1) - fileStart);
-        if (chunk.length < uncompressed) {
-            chunk = new byte[ArrayUtil.oversize(uncompressed, Byte.BYTES)];
-        }
+        chunk = ArrayUtil.growNoCopy(chunk, uncompressed);
         data.seek(dataOffset + fileStart);
-        codec.read(data, stored, chunk, uncompressed);
+        decompressor.read(data, stored, chunk, uncompressed);
         cachedChunk = index;
         cachedStart = start;
         cachedLength = uncompressed;

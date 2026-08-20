@@ -33,8 +33,8 @@ public class ChunkedBytesTests extends ESTestCase {
     private static final List<Integer> CHUNK_TARGETS = List.of(1, 64, 1024, 16 * 1024, 1 << 20);
 
     public void testEmptyStream() throws IOException {
-        for (byte codecId : codecIds()) {
-            assertRoundTrip(codecId, randomFrom(CHUNK_TARGETS), List.of());
+        for (ChunkCodec codec : codecs()) {
+            assertRoundTrip(codec, randomFrom(CHUNK_TARGETS), List.of());
         }
     }
 
@@ -44,14 +44,14 @@ public class ChunkedBytesTests extends ESTestCase {
         for (int i = 0; i < between(1, 500); i++) {
             values.add(new byte[0]);
         }
-        for (byte codecId : codecIds()) {
-            assertRoundTrip(codecId, randomFrom(CHUNK_TARGETS), values);
+        for (ChunkCodec codec : codecs()) {
+            assertRoundTrip(codec, randomFrom(CHUNK_TARGETS), values);
         }
     }
 
     public void testSingleValue() throws IOException {
-        for (byte codecId : codecIds()) {
-            assertRoundTrip(codecId, randomFrom(CHUNK_TARGETS), List.of(bytes("only")));
+        for (ChunkCodec codec : codecs()) {
+            assertRoundTrip(codec, randomFrom(CHUNK_TARGETS), List.of(bytes("only")));
         }
     }
 
@@ -62,9 +62,9 @@ public class ChunkedBytesTests extends ESTestCase {
         for (int i = 0; i < 5000; i++) {
             values.add(bytes(distinct[random().nextInt(distinct.length)]));
         }
-        for (byte codecId : codecIds()) {
+        for (ChunkCodec codec : codecs()) {
             for (int target : CHUNK_TARGETS) {
-                assertRoundTrip(codecId, target, values);
+                assertRoundTrip(codec, target, values);
             }
         }
     }
@@ -78,9 +78,9 @@ public class ChunkedBytesTests extends ESTestCase {
             random().nextBytes(value);
             values.add(value);
         }
-        for (byte codecId : codecIds()) {
+        for (ChunkCodec codec : codecs()) {
             for (int target : CHUNK_TARGETS) {
-                assertRoundTrip(codecId, target, values);
+                assertRoundTrip(codec, target, values);
             }
         }
     }
@@ -94,8 +94,8 @@ public class ChunkedBytesTests extends ESTestCase {
             values.add(value);
             values.add(bytes("small-" + i));
         }
-        for (byte codecId : codecIds()) {
-            assertRoundTrip(codecId, 1024, values);
+        for (ChunkCodec codec : codecs()) {
+            assertRoundTrip(codec, 1024, values);
         }
     }
 
@@ -111,7 +111,7 @@ public class ChunkedBytesTests extends ESTestCase {
                 }
                 values.add(value);
             }
-            assertRoundTrip(randomFrom(codecIds()), randomFrom(CHUNK_TARGETS), values);
+            assertRoundTrip(randomFrom(codecs()), randomFrom(CHUNK_TARGETS), values);
         }
     }
 
@@ -121,17 +121,17 @@ public class ChunkedBytesTests extends ESTestCase {
             final int target = randomFrom(0, -1, Integer.MIN_VALUE);
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ChunkedBytesWriter(ChunkCodec.forId(ChunkCodec.IDENTITY_ID), target, dir, IOContext.DEFAULT, "chunks", out)
+                () -> new ChunkedBytesWriter(ChunkCodec.IDENTITY, target, dir, IOContext.DEFAULT, "chunks", out)
             );
         }
     }
 
     /** Ids are persisted in column metadata, so they are frozen; an unknown one must fail loudly. */
     public void testFrozenCodecIds() {
-        assertEquals((byte) 0, ChunkCodec.IDENTITY_ID);
-        assertEquals((byte) 1, ChunkCodec.ZSTD_ID);
-        assertTrue("the identity codec stores chunks verbatim", ChunkCodec.forId(ChunkCodec.IDENTITY_ID).isIdentity());
-        assertFalse("a compressing codec must not claim to be identity", ChunkCodec.forId(ChunkCodec.ZSTD_ID).isIdentity());
+        assertEquals((byte) 0, ChunkCodec.IDENTITY.id());
+        assertEquals((byte) 1, ChunkCodec.ZSTD.id());
+        assertTrue("the identity codec stores chunks verbatim", ChunkCodec.IDENTITY.isIdentity());
+        assertFalse("a compressing codec must not claim to be identity", ChunkCodec.ZSTD.isIdentity());
         expectThrows(IllegalArgumentException.class, () -> ChunkCodec.forId((byte) 42));
     }
 
@@ -141,8 +141,8 @@ public class ChunkedBytesTests extends ESTestCase {
         for (int i = 0; i < 20000; i++) {
             values.add(bytes("host-" + (i % 8) + ".prod.example.com"));
         }
-        final long identity = writeAndMeasure(ChunkCodec.IDENTITY_ID, 64 * 1024, values);
-        final long zstd = writeAndMeasure(ChunkCodec.ZSTD_ID, 64 * 1024, values);
+        final long identity = writeAndMeasure(ChunkCodec.IDENTITY, 64 * 1024, values);
+        final long zstd = writeAndMeasure(ChunkCodec.ZSTD, 64 * 1024, values);
         assertTrue("zstd must compress repetitive values, identity=" + identity + " zstd=" + zstd, zstd * 4 < identity);
     }
 
@@ -152,9 +152,49 @@ public class ChunkedBytesTests extends ESTestCase {
         for (int i = 0; i < 20000; i++) {
             values.add(bytes("host-" + (i % 64) + ".prod.example.com/api/v1/search"));
         }
-        final long small = writeAndMeasure(ChunkCodec.ZSTD_ID, 1024, values);
-        final long large = writeAndMeasure(ChunkCodec.ZSTD_ID, 64 * 1024, values);
+        final long small = writeAndMeasure(ChunkCodec.ZSTD, 1024, values);
+        final long large = writeAndMeasure(ChunkCodec.ZSTD, 64 * 1024, values);
         assertTrue("a 64KB chunk must beat a 1KB chunk, small=" + small + " large=" + large, large < small);
+    }
+
+    /** A stream that holds no bytes writes no chunk index, since there is no chunk for one to locate. */
+    public void testEmptyStreamWritesNoIndex() throws IOException {
+        for (ChunkCodec codec : ChunkCodec.values()) {
+            try (Directory dir = newDirectory()) {
+                final ChunkIndexMetadata index = writeStream(dir, codec, 1024, List.of(), new long[1]);
+                assertEquals("no chunks", 0, index.numChunks());
+                assertEquals("no starts table", 0, index.startsDataLength());
+                assertEquals("no offsets table", 0, index.fileOffsetsDataLength());
+            }
+        }
+    }
+
+    /** Readers seek the input they were given, so each must hold its own and not disturb the others. */
+    public void testReadersDoNotDisturbEachOther() throws IOException {
+        final List<byte[]> values = new ArrayList<>();
+        for (int i = 0; i < 5000; i++) {
+            values.add(bytes("value-" + i + "-" + "x".repeat(i % 40)));
+        }
+        try (Directory dir = newDirectory()) {
+            final long[] offsets = new long[values.size() + 1];
+            final ChunkIndexMetadata index = writeStream(dir, ChunkCodec.ZSTD, 4096, values, offsets);
+            try (IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT)) {
+                final ChunkedBytesReader first = index.open(in);
+                final ChunkedBytesReader second = index.open(in);
+                byte[] a = new byte[0];
+                byte[] b = new byte[0];
+                // Interleaved, and from opposite ends, so one reader's seeks would derail the other's.
+                for (int i = 0; i < values.size(); i++) {
+                    final int j = values.size() - 1 - i;
+                    final int lengthA = (int) (offsets[i + 1] - offsets[i]);
+                    final int lengthB = (int) (offsets[j + 1] - offsets[j]);
+                    a = first.read(offsets[i], lengthA, a);
+                    b = second.read(offsets[j], lengthB, b);
+                    assertArrayEquals("forward " + i, values.get(i), Arrays.copyOf(a, lengthA));
+                    assertArrayEquals("backward " + j, values.get(j), Arrays.copyOf(b, lengthB));
+                }
+            }
+        }
     }
 
     /** The writer stages its chunk index in a temporary file, which must not outlive the write. */
@@ -164,7 +204,7 @@ public class ChunkedBytesTests extends ESTestCase {
             values.add(bytes("value-" + i));
         }
         try (Directory dir = newDirectory()) {
-            writeStream(dir, ChunkCodec.ZSTD_ID, 1024, values, new long[values.size() + 1]);
+            writeStream(dir, ChunkCodec.ZSTD, 1024, values, new long[values.size() + 1]);
             for (String file : dir.listAll()) {
                 assertFalse("a temporary file was left behind: " + file, file.contains("columnar-chunk-index"));
                 assertFalse("a temporary file was left behind: " + file, file.contains("columnar-monotonic"));
@@ -176,16 +216,7 @@ public class ChunkedBytesTests extends ESTestCase {
     public void testTemporaryFilesAreRemovedWhenUnfinished() throws IOException {
         try (Directory dir = newDirectory()) {
             try (IndexOutput out = dir.createOutput("chunks.bin", IOContext.DEFAULT)) {
-                try (
-                    ChunkedBytesWriter writer = new ChunkedBytesWriter(
-                        ChunkCodec.forId(ChunkCodec.ZSTD_ID),
-                        1024,
-                        dir,
-                        IOContext.DEFAULT,
-                        "chunks",
-                        out
-                    )
-                ) {
+                try (ChunkedBytesWriter writer = new ChunkedBytesWriter(ChunkCodec.ZSTD, 1024, dir, IOContext.DEFAULT, "chunks", out)) {
                     writer.append(bytes("written but never finished"), 0, 26);
                 }
             }
@@ -203,7 +234,7 @@ public class ChunkedBytesTests extends ESTestCase {
         }
         try (Directory dir = newDirectory()) {
             final long[] offsets = new long[values.size() + 1];
-            final ChunkIndexMetadata written = writeStream(dir, ChunkCodec.ZSTD_ID, 4096, values, offsets);
+            final ChunkIndexMetadata written = writeStream(dir, ChunkCodec.ZSTD, 4096, values, offsets);
             final byte[] buffer = new byte[1024];
             final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
             written.writeTo(out);
@@ -238,17 +269,17 @@ public class ChunkedBytesTests extends ESTestCase {
         assertArrayEquals("file offsets metadata", expected.fileOffsetsMeta(), actual.fileOffsetsMeta());
     }
 
-    private static List<Byte> codecIds() {
-        return List.of(ChunkCodec.IDENTITY_ID, ChunkCodec.ZSTD_ID);
+    private static List<ChunkCodec> codecs() {
+        return List.of(ChunkCodec.IDENTITY, ChunkCodec.ZSTD);
     }
 
     private static byte[] bytes(String value) {
         return value.getBytes(StandardCharsets.UTF_8);
     }
 
-    private long writeAndMeasure(byte codecId, int target, List<byte[]> values) throws IOException {
+    private long writeAndMeasure(ChunkCodec codec, int target, List<byte[]> values) throws IOException {
         try (Directory dir = newDirectory()) {
-            writeStream(dir, codecId, target, values, new long[values.size() + 1]);
+            writeStream(dir, codec, target, values, new long[values.size() + 1]);
             return dir.fileLength("chunks.bin");
         }
     }
@@ -257,12 +288,10 @@ public class ChunkedBytesTests extends ESTestCase {
      * Writes {@code values} as one chunked stream into {@code chunks.bin}, filling {@code offsets} with each
      * value's offset in the uncompressed stream plus a past-the-end marker.
      */
-    private ChunkIndexMetadata writeStream(Directory dir, byte codecId, int target, List<byte[]> values, long[] offsets)
+    private ChunkIndexMetadata writeStream(Directory dir, ChunkCodec codec, int target, List<byte[]> values, long[] offsets)
         throws IOException {
         try (IndexOutput out = dir.createOutput("chunks.bin", IOContext.DEFAULT)) {
-            try (
-                ChunkedBytesWriter writer = new ChunkedBytesWriter(ChunkCodec.forId(codecId), target, dir, IOContext.DEFAULT, "chunks", out)
-            ) {
+            try (ChunkedBytesWriter writer = new ChunkedBytesWriter(codec, target, dir, IOContext.DEFAULT, "chunks", out)) {
                 for (int i = 0; i < values.size(); i++) {
                     // A value is what this stream addresses, so a chunk may only end between two of them.
                     writer.boundary();
@@ -275,11 +304,11 @@ public class ChunkedBytesTests extends ESTestCase {
         }
     }
 
-    private void assertRoundTrip(byte codecId, int target, List<byte[]> values) throws IOException {
-        final String label = "codec=" + codecId + " chunkTarget=" + target + " values=" + values.size();
+    private void assertRoundTrip(ChunkCodec codec, int target, List<byte[]> values) throws IOException {
+        final String label = "codec=" + codec + " chunkTarget=" + target + " values=" + values.size();
         try (Directory dir = newDirectory()) {
             final long[] offsets = new long[values.size() + 1];
-            final ChunkIndexMetadata index = writeStream(dir, codecId, target, values, offsets);
+            final ChunkIndexMetadata index = writeStream(dir, codec, target, values, offsets);
             assertReads(dir, index, values, offsets, label);
         }
     }

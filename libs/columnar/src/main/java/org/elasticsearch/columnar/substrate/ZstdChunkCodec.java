@@ -23,71 +23,69 @@ import java.lang.foreign.MemorySegment;
 /**
  * Compresses a chunk with Zstd through the native binding.
  *
- * <p>Both directions hand libzstd memory it can address directly. A chunk is compressed out of, and
+ * <p>Both directions hand libzstd memory it addresses directly. A chunk is compressed out of, and
  * decompressed into, a heap {@code byte[]} passed as a {@link MemorySegment} through a critical downcall, so
  * neither direction stages the chunk in an off-heap buffer. On the read side the compressed bytes are taken
  * as a slice of the mapped file where the input can provide one, which leaves the decode with no copy on
  * either end; inputs that cannot (a compound file wrapper, an evicted blob-cache region) fall back to
- * reading the chunk into a reused array.
+ * reading the chunk into a buffer.
+ *
+ * <p>The binding itself is thread-safe for decompression and is shared. The buffers are not, so each
+ * compressor and decompressor holds its own and belongs to a single writer or reader.
  */
-final class ZstdChunkCodec implements ChunkCodec {
-
-    static final ZstdChunkCodec INSTANCE = new ZstdChunkCodec();
+final class ZstdChunkCodec {
 
     private static final int LEVEL = 3;
 
-    // Decompression is thread-safe on this binding, so one instance is shared; the scratch buffers are not,
-    // which is why a codec instance is only ever handed to one reader or writer at a time.
     private static final Zstd ZSTD = NativeAccess.instance().getZstd();
-
-    private byte[] scratch = new byte[0];
 
     private ZstdChunkCodec() {}
 
-    @Override
-    public byte id() {
-        return ZSTD_ID;
+    static final class Compressor implements ChunkCompressor {
+
+        private byte[] scratch = new byte[0];
+
+        @Override
+        public int write(byte[] src, int length, IndexOutput out) throws IOException {
+            final int bound = ZSTD.compressBound(length);
+            scratch = ArrayUtil.growNoCopy(scratch, bound);
+            final int compressed = ZSTD.compress(scratch, 0, scratch.length, src, 0, length, LEVEL);
+            out.writeBytes(scratch, 0, compressed);
+            return compressed;
+        }
     }
 
-    @Override
-    public int write(byte[] src, int length, IndexOutput out) throws IOException {
-        final int bound = ZSTD.compressBound(length);
-        scratch = grow(scratch, bound);
-        final int compressed = ZSTD.compress(scratch, 0, scratch.length, src, 0, length, LEVEL);
-        out.writeBytes(scratch, 0, compressed);
-        return compressed;
-    }
+    static final class Decompressor implements ChunkDecompressor {
 
-    @Override
-    public void read(IndexInput in, int storedLength, byte[] dst, int uncompressedLength) throws IOException {
-        final MemorySegment target = MemorySegment.ofArray(dst).asSlice(0, uncompressedLength);
-        final long start = in.getFilePointer();
-        int decompressed = -1;
-        if (IndexInputUtils.canUseSegmentSlices(in)) {
-            try {
-                decompressed = IndexInputUtils.withSlice(in, storedLength, this::scratch, src -> ZSTD.decompress(target, src));
-            } catch (@SuppressWarnings("unused") AlreadyClosedException e) {
-                // The region backing the slice was evicted mid-read; rewind and take the copying path.
-                in.seek(start);
+        private byte[] scratch = new byte[0];
+
+        @Override
+        public void read(IndexInput in, int storedLength, byte[] dst, int uncompressedLength) throws IOException {
+            final MemorySegment target = MemorySegment.ofArray(dst).asSlice(0, uncompressedLength);
+            final long start = in.getFilePointer();
+            int decompressed = -1;
+            if (IndexInputUtils.canUseSegmentSlices(in)) {
+                try {
+                    decompressed = IndexInputUtils.withSlice(in, storedLength, this::scratch, src -> ZSTD.decompress(target, src));
+                } catch (@SuppressWarnings("unused") AlreadyClosedException e) {
+                    // The region backing the slice was evicted mid-read; rewind and take the copying path.
+                    in.seek(start);
+                }
+            }
+            if (decompressed < 0) {
+                scratch = ArrayUtil.growNoCopy(scratch, storedLength);
+                in.readBytes(scratch, 0, storedLength);
+                decompressed = ZSTD.decompress(target, MemorySegment.ofArray(scratch).asSlice(0, storedLength));
+            }
+            if (decompressed != uncompressedLength) {
+                throw new IOException("chunk decompressed to " + decompressed + " bytes, expected " + uncompressedLength);
             }
         }
-        if (decompressed < 0) {
-            scratch = grow(scratch, storedLength);
-            in.readBytes(scratch, 0, storedLength);
-            decompressed = ZSTD.decompress(target, MemorySegment.ofArray(scratch).asSlice(0, storedLength));
-        }
-        if (decompressed != uncompressedLength) {
-            throw new IOException("chunk decompressed to " + decompressed + " bytes, expected " + uncompressedLength);
-        }
-    }
 
-    /** Backs {@link IndexInputUtils#withSlice}'s copying path with the buffer this codec already holds. */
-    private byte[] scratch(int length) {
-        scratch = grow(scratch, length);
-        return scratch;
-    }
-
-    private static byte[] grow(byte[] buffer, int length) {
-        return buffer.length < length ? new byte[ArrayUtil.oversize(length, Byte.BYTES)] : buffer;
+        /** Backs {@link IndexInputUtils#withSlice}'s copying path with the buffer this decompressor holds. */
+        private byte[] scratch(int length) {
+            scratch = ArrayUtil.growNoCopy(scratch, length);
+            return scratch;
+        }
     }
 }

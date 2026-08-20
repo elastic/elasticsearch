@@ -9,37 +9,18 @@
 
 package org.elasticsearch.columnar.substrate;
 
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
+/** Stores a chunk's bytes verbatim. Holds no buffers, so one instance serves every reader and writer. */
+final class IdentityChunkCodec {
 
-import java.io.IOException;
-
-/** Stores a chunk's bytes verbatim, so a reader can take values straight from the mapped input. */
-final class IdentityChunkCodec implements ChunkCodec {
-
-    static final IdentityChunkCodec INSTANCE = new IdentityChunkCodec();
-
-    private IdentityChunkCodec() {}
-
-    @Override
-    public byte id() {
-        return IDENTITY_ID;
-    }
-
-    @Override
-    public boolean isIdentity() {
-        return true;
-    }
-
-    @Override
-    public int write(byte[] src, int length, IndexOutput out) throws IOException {
+    static final ChunkCompressor COMPRESSOR = (src, length, out) -> {
         out.writeBytes(src, 0, length);
         return length;
-    }
+    };
 
-    @Override
-    public void read(IndexInput in, int storedLength, byte[] dst, int uncompressedLength) throws IOException {
+    static final ChunkDecompressor DECOMPRESSOR = (in, storedLength, dst, uncompressedLength) -> {
         assert storedLength == uncompressedLength : storedLength + " != " + uncompressedLength;
         in.readBytes(dst, 0, uncompressedLength);
-    }
+    };
+
+    private IdentityChunkCodec() {}
 }

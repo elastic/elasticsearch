@@ -29,10 +29,10 @@ import java.util.Arrays;
 public class ChunkCodecTests extends ESTestCase {
 
     public void testRoundTrip() throws IOException {
-        for (byte codecId : new byte[] { ChunkCodec.IDENTITY_ID, ChunkCodec.ZSTD_ID }) {
-            assertRoundTrip(codecId, repetitive(50_000));
-            assertRoundTrip(codecId, incompressible(50_000));
-            assertRoundTrip(codecId, new byte[] { 7 });
+        for (ChunkCodec codec : ChunkCodec.values()) {
+            assertRoundTrip(codec, repetitive(50_000));
+            assertRoundTrip(codec, incompressible(50_000));
+            assertRoundTrip(codec, new byte[] { 7 });
         }
     }
 
@@ -44,11 +44,11 @@ public class ChunkCodecTests extends ESTestCase {
     public void testRoundTripOverMappedInput() throws IOException {
         try (Directory dir = new MMapDirectory(createTempDir())) {
             final byte[] chunk = repetitive(200_000);
-            final int stored = write(dir, ChunkCodec.ZSTD_ID, chunk);
+            final int stored = write(dir, ChunkCodec.ZSTD, chunk);
             try (IndexInput in = dir.openInput("chunk.bin", IOContext.DEFAULT)) {
                 assertTrue("a mapped input must be able to hand out segment slices", IndexInputUtils.canUseSegmentSlices(in));
                 final byte[] read = new byte[chunk.length];
-                ChunkCodec.forId(ChunkCodec.ZSTD_ID).read(in, stored, read, chunk.length);
+                ChunkCodec.ZSTD.newDecompressor().read(in, stored, read, chunk.length);
                 assertArrayEquals(chunk, read);
             }
         }
@@ -58,11 +58,11 @@ public class ChunkCodecTests extends ESTestCase {
     public void testDecodesIntoOversizedBuffer() throws IOException {
         try (Directory dir = newDirectory()) {
             final byte[] chunk = repetitive(20_000);
-            final int stored = write(dir, ChunkCodec.ZSTD_ID, chunk);
+            final int stored = write(dir, ChunkCodec.ZSTD, chunk);
             try (IndexInput in = dir.openInput("chunk.bin", IOContext.DEFAULT)) {
                 final byte[] read = new byte[chunk.length * 3];
                 Arrays.fill(read, (byte) 0x7f);
-                ChunkCodec.forId(ChunkCodec.ZSTD_ID).read(in, stored, read, chunk.length);
+                ChunkCodec.ZSTD.newDecompressor().read(in, stored, read, chunk.length);
                 assertArrayEquals(chunk, Arrays.copyOf(read, chunk.length));
                 assertEquals("decoding must not write past the chunk", (byte) 0x7f, read[chunk.length]);
             }
@@ -73,31 +73,31 @@ public class ChunkCodecTests extends ESTestCase {
     public void testCorruptChunkIsRejected() throws IOException {
         try (Directory dir = newDirectory()) {
             final byte[] chunk = repetitive(10_000);
-            final int stored = write(dir, ChunkCodec.ZSTD_ID, chunk);
+            final int stored = write(dir, ChunkCodec.ZSTD, chunk);
             try (IndexInput in = dir.openInput("chunk.bin", IOContext.DEFAULT)) {
                 final byte[] read = new byte[chunk.length];
                 expectThrows(
                     Exception.class,
-                    () -> ChunkCodec.forId(ChunkCodec.ZSTD_ID).read(in, stored - between(1, stored / 2), read, chunk.length)
+                    () -> ChunkCodec.ZSTD.newDecompressor().read(in, stored - between(1, stored / 2), read, chunk.length)
                 );
             }
         }
     }
 
-    private void assertRoundTrip(byte codecId, byte[] chunk) throws IOException {
+    private void assertRoundTrip(ChunkCodec codec, byte[] chunk) throws IOException {
         try (Directory dir = newDirectory()) {
-            final int stored = write(dir, codecId, chunk);
+            final int stored = write(dir, codec, chunk);
             try (IndexInput in = dir.openInput("chunk.bin", IOContext.DEFAULT)) {
                 final byte[] read = new byte[chunk.length];
-                ChunkCodec.forId(codecId).read(in, stored, read, chunk.length);
-                assertArrayEquals("codec " + codecId + " over " + chunk.length + " bytes", chunk, read);
+                codec.newDecompressor().read(in, stored, read, chunk.length);
+                assertArrayEquals("codec " + codec + " over " + chunk.length + " bytes", chunk, read);
             }
         }
     }
 
-    private static int write(Directory dir, byte codecId, byte[] chunk) throws IOException {
+    private static int write(Directory dir, ChunkCodec codec, byte[] chunk) throws IOException {
         try (IndexOutput out = dir.createOutput("chunk.bin", IOContext.DEFAULT)) {
-            return ChunkCodec.forId(codecId).write(chunk, chunk.length, out);
+            return codec.newCompressor().write(chunk, chunk.length, out);
         }
     }
 

@@ -49,7 +49,7 @@ public record ChunkIndexMetadata(
     }
 
     public static ChunkIndexMetadata empty() {
-        return new ChunkIndexMetadata(ChunkCodec.IDENTITY_ID, 0, 0, 0, 0, 0, NONE, 0, 0, NONE);
+        return new ChunkIndexMetadata(ChunkCodec.IDENTITY.id(), 0, 0, 0, 0, 0, NONE, 0, 0, NONE);
     }
 
     public void writeTo(DataOutput out) throws IOException {

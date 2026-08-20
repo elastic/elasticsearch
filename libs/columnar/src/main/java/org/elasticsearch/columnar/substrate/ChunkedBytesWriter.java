@@ -45,6 +45,7 @@ public final class ChunkedBytesWriter implements Closeable {
     ) {}
 
     private final ChunkCodec codec;
+    private final ChunkCompressor compressor;
     private final int targetChunkBytes;
     private final IndexOutput data;
     private final long dataOffset;
@@ -75,6 +76,7 @@ public final class ChunkedBytesWriter implements Closeable {
             throw new IllegalArgumentException("targetChunkBytes must be positive, got " + targetChunkBytes);
         }
         this.codec = codec;
+        this.compressor = codec.newCompressor();
         this.targetChunkBytes = targetChunkBytes;
         this.directory = directory;
         this.context = context;
@@ -117,10 +119,16 @@ public final class ChunkedBytesWriter implements Closeable {
         if (pendingLength > 0) {
             flushChunk();
         }
-        // Past-the-end markers, so a chunk's extent is the gap to the next entry.
-        record(uncompressedLength, data.getFilePointer() - dataOffset);
+        if (numChunks > 0) {
+            // Past-the-end markers, so a chunk's extent is the gap to the next entry.
+            record(uncompressedLength, data.getFilePointer() - dataOffset);
+        }
         chunkTemp.close();
         tempClosed = true;
+        if (numChunks == 0) {
+            // Nothing was written, so there is no chunk for a table to locate.
+            return new Chunks(codec.id(), 0, 0, dataOffset, MonotonicWriter.Table.NONE, MonotonicWriter.Table.NONE);
+        }
 
         final MonotonicWriter.Table startsTable;
         final MonotonicWriter.Table offsetsTable;
@@ -142,7 +150,7 @@ public final class ChunkedBytesWriter implements Closeable {
 
     private void flushChunk() throws IOException {
         record(uncompressedLength - pendingLength, data.getFilePointer() - dataOffset);
-        codec.write(pending, pendingLength, data);
+        compressor.write(pending, pendingLength, data);
         pendingLength = 0;
         numChunks++;
     }

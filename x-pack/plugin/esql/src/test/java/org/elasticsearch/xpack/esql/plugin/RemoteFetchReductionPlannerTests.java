@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -218,6 +219,8 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
 
         ProjectExec handleProject = as(reductionPlan.nodeReducePlan().child(), ProjectExec.class);
         EvalExec handleEval = as(handleProject.child(), EvalExec.class);
+        TopNExec reductionTopN = handleEval.child().collect(TopNExec.class).getFirst();
+        assertThat(reductionTopN.inputOrdering(), equalTo(TopNOperator.InputOrdering.SORTED));
         Alias handleAlias = handleEval.fields().getFirst();
         Attribute plannedHandle = planned.dataNodePlan().output().getFirst();
         assertTrue(plannedHandle.synthetic());

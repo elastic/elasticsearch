@@ -238,6 +238,7 @@ final class RemoteFetchReductionPlanner {
         // As long as the shard fragment remains Project -> TopN, each data driver emits its pages already sorted. Re-evaluate
         // this check when new fetch plan shapes (e.g. LIMIT) stop guaranteeing sorted shard output.
         boolean fragmentIsSorted = updatedFragmentExec.fragment() instanceof Project p && p.child() instanceof TopN;
+        assert fragmentIsSorted : "expected Project -> TopN fragment shape";
         PhysicalPlan reductionPlan = toPhysicalPlanForReductionSchema(fragmentExec.fragment(), context).transformDown(TopNExec.class, t -> {
             PhysicalPlan exchangeExec = new ExchangeSourceExec(topN.source(), expectedDataOutput, false);
             return fragmentIsSorted ? t.replaceChild(exchangeExec).withSortedInput() : t.replaceChild(exchangeExec);

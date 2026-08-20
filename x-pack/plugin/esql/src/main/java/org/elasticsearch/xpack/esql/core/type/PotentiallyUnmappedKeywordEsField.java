@@ -37,6 +37,12 @@ public class PotentiallyUnmappedKeywordEsField extends KeywordEsField {
         super(in);
     }
 
+    @Override
+    public EsField withProperties(Map<String, EsField> newProperties) {
+        // Preserve the unmapped marker so data nodes still load this field from _source where it is unmapped.
+        return new PotentiallyUnmappedKeywordEsField(getName(), newProperties);
+    }
+
     /**
      * Serializes this field, but writes {@code fullName} (the full dotted path) as the field name for nodes predating
      * {@code esql_unmapped_keyword_leaf_name}: they match unmapped fields by the EsField name in

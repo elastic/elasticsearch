@@ -14,6 +14,7 @@ import org.elasticsearch.compute.aggregation.TDigestStates;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
+import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -23,6 +24,7 @@ import org.elasticsearch.tdigest.TDigest;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.math.Maths;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -33,6 +35,12 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.ToRange;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -51,8 +59,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * The optional {@code decimals} argument defines the number of decimal places to round the result to
  * (with the same semantics as {@code ROUND}); if it is absent, no rounding is performed.
  * The rounding is performed in a way so that rounding errors amortize across adjacent buckets instead of accumulating.
- * Note that this function is currently only intended for internal usage and not available as a user-facing function.
+ * Note that this function is currently only intended for internal usage and not available as a user-facing ES|QL function.
  * Therefore, it is intentionally not registered in {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.
+ * It does however back the PromQL {@code histogram_fraction()} function via {@link #PROMQL_DEFINITION}, which normalizes
+ * the absolute count returned by this function into the fraction of the total observation count that PromQL expects.
  */
 public class HistogramFraction extends EsqlScalarFunction implements OptionalArgument, AnyNullIsNull {
 
@@ -61,6 +71,33 @@ public class HistogramFraction extends EsqlScalarFunction implements OptionalArg
         "HistogramFraction",
         HistogramFraction::new
     );
+
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .histogramTernary(
+            PromqlFunctionDefinition.LOWER_SCALAR,
+            PromqlFunctionDefinition.UPPER_SCALAR,
+            (source, target, ctx, extraParams) -> {
+                Expression lower = new ToDouble(source, extraParams.get(0));
+                Expression upper = new ToDouble(source, extraParams.get(1));
+                Expression fraction = new HistogramFraction(source, target, new ToRange(source, lower, upper), null);
+                Expression count = ExtractHistogramComponent.create(source, target, ExponentialHistogramBlock.Component.COUNT);
+                // The ES|QL function returns the absolute number of observations in the bucket, while PromQL returns
+                // the fraction of the total observation count, so normalize by dividing through the total count.
+                // Guard against empty histograms to return null instead of dividing by zero.
+                return new Case(
+                    source,
+                    new GreaterThan(source, count, Literal.fromDouble(source, 0.0), null),
+                    List.of(new Div(source, fraction, count))
+                );
+            }
+        )
+        .description(
+            "Returns the estimated fraction of observations of a native histogram that fall between the provided lower "
+                + "and upper values."
+        )
+        .example("histogram_fraction(0, 0.2, increase(http_request_duration_seconds[1h]))")
+        .stack(PromqlFunctionDefinition.STACK_GA_9_6)
+        .name("histogram_fraction");
 
     private final Expression histogram;
     private final Expression bucket;

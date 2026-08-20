@@ -78,9 +78,11 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     }
 
     private static CsvTestCase maybeOptionalWarnings(CsvTestCase testCase) {
-        if (bwcVersion.before(Version.V_9_6_0)) {
-            testCase.makeWarningsOptional();
-        }
+        // To make warnings optional for some version, uncomment this. Tests might also
+        // need changing, but that's fine.
+        // if (bwcVersion.before(Version.V_9_6_0)) {
+        // testCase.makeWarningsOptional();
+        // }
         return testCase;
     }
 

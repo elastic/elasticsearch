@@ -955,7 +955,8 @@ class NodeConstruction {
             projectResolver,
             clusterService,
             recoverySchedulingListeners,
-            recoveryGateMonitor
+            recoveryGateMonitor,
+            telemetryProvider.getMeterRegistry()
         );
 
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)

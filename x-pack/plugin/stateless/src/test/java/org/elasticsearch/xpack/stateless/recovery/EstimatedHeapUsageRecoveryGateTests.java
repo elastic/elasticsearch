@@ -13,6 +13,8 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.EstimatedHeapSettings;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider;
@@ -24,6 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.ToLongFunction;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
@@ -210,6 +213,119 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
             throw new RuntimeException("simulated estimate failure");
         });
         assertRuns(gate);
+    }
+
+    public void testRecordsEstimatedHeapMetrics() {
+        final long maxHeap = randomMaxHeapBytes();
+        final int watermarkPercent = between(1, 98);
+        final int usedPercent = between(watermarkPercent + 1, 99);
+        final int raisedWatermarkPercent = between(usedPercent + 1, 100);
+        final long estimate = bytesOf(maxHeap, usedPercent);
+        final long computationTimeMillis = randomLongBetween(1, 1_000);
+        final AtomicLong nowMillis = new AtomicLong();
+        final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        final ClusterSettings clusterSettings = clusterSettings(settings(true, watermarkPercent + "%", randomEnabledMinHeap(maxHeap)));
+        final var gate = new EstimatedHeapUsageRecoveryGate(
+            new EstimatedHeapSettings(clusterSettings),
+            () -> ClusterState.EMPTY_STATE,
+            maxHeap,
+            state -> {
+                nowMillis.addAndGet(computationTimeMillis);
+                return estimate;
+            },
+            nowMillis::get,
+            TimeValue.timeValueSeconds(1),
+            meterRegistry
+        );
+
+        assertBlocks(gate);
+        assertBlocks(gate); // cached evaluation does not record another computation
+        meterRegistry.getRecorder().collect();
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_GAUGE, EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_METRIC),
+            RecordingMeterRegistry.measures(estimate)
+        );
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_GAUGE, EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_METRIC),
+            RecordingMeterRegistry.measures(bytesOf(maxHeap, watermarkPercent) - estimate)
+        );
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(
+                    InstrumentType.LONG_HISTOGRAM,
+                    EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_COMPUTATION_TIME_METRIC_IN_MILLIS
+                ),
+            RecordingMeterRegistry.measures(computationTimeMillis)
+        );
+
+        meterRegistry.getRecorder().resetCalls();
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(
+                    EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK.getKey(),
+                    raisedWatermarkPercent + "%"
+                )
+                .build()
+        );
+        assertRuns(gate);
+        meterRegistry.getRecorder().collect();
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_GAUGE, EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_METRIC),
+            RecordingMeterRegistry.measures(estimate)
+        );
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_GAUGE, EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_METRIC),
+            RecordingMeterRegistry.measures(bytesOf(maxHeap, raisedWatermarkPercent) - estimate)
+        );
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(
+                    InstrumentType.LONG_HISTOGRAM,
+                    EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_COMPUTATION_TIME_METRIC_IN_MILLIS
+                ),
+            empty()
+        );
+    }
+
+    public void testRecordsFailedEstimateComputation() {
+        final long maxHeap = randomMaxHeapBytes();
+        final long computationTimeMillis = randomLongBetween(1, 1_000);
+        final AtomicLong nowMillis = new AtomicLong();
+        final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        final var gate = new EstimatedHeapUsageRecoveryGate(
+            new EstimatedHeapSettings(clusterSettings(settings(true, randomWatermark(), randomEnabledMinHeap(maxHeap)))),
+            () -> ClusterState.EMPTY_STATE,
+            maxHeap,
+            state -> {
+                nowMillis.addAndGet(computationTimeMillis);
+                throw new RuntimeException("simulated estimate failure");
+            },
+            nowMillis::get,
+            TimeValue.timeValueSeconds(1),
+            meterRegistry
+        );
+
+        assertRuns(gate);
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(
+                    InstrumentType.LONG_COUNTER,
+                    EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_COMPUTATION_FAILURE_TOTAL_METRIC
+                ),
+            RecordingMeterRegistry.measures(1)
+        );
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(
+                    InstrumentType.LONG_HISTOGRAM,
+                    EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_COMPUTATION_TIME_METRIC_IN_MILLIS
+                ),
+            RecordingMeterRegistry.measures(computationTimeMillis)
+        );
     }
 
     /// Zero validity: every evaluation recomputes, so these tests observe the live estimator. Caching is covered separately.

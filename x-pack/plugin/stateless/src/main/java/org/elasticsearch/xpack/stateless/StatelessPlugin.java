@@ -999,7 +999,8 @@ public class StatelessPlugin extends Plugin
                     memoryMetricsService,
                     shardsMappingSizeCollector,
                     threadPool,
-                    estimatedHeapSettings.get()
+                    estimatedHeapSettings.get(),
+                    meterRegistry
                 )
             );
             components.add(estimatedHeapUsageRecoveryGate.get());

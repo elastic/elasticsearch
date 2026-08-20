@@ -43,6 +43,8 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -1420,6 +1422,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     public void testGateBlockedTimeIsReported() {
         final var taskQueue = new DeterministicTaskQueue();
+        final var meterRegistry = new RecordingMeterRegistry();
 
         final var blockedGate = new AtomicReference<String>();
         final var blockedCount = new AtomicInteger();
@@ -1451,9 +1454,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             DefaultProjectResolver.INSTANCE,
             newClusterService(Integer.MAX_VALUE), // plenty of slots, so only the gate can hold recoveries back
             listener,
-            recoveryGateMonitor
+            recoveryGateMonitor,
+            meterRegistry
         );
         service.start();
+        assertBlockedCurrentMetric(meterRegistry, 0L);
 
         final long blockedSince = taskQueue.getCurrentTimeMillis();
         final var started = new AtomicInteger();
@@ -1478,6 +1483,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(blockedCount.get(), equalTo(1));
         assertThat(blockedGate.get(), equalTo(gateName));
         assertThat(unblockedCount.get(), equalTo(0));
+        assertBlockedCurrentMetric(meterRegistry, 1L);
 
         // Stay blocked across a few periodic rechecks: nothing new is reported.
         for (int i = between(0, 3); i > 0; i--) {
@@ -1496,7 +1502,18 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(started.get(), equalTo(count));
         assertThat(unblockedCount.get(), equalTo(1));
         assertThat(reportedBlockedMillis.get(), equalTo(taskQueue.getCurrentTimeMillis() - blockedSince));
+        assertBlockedCurrentMetric(meterRegistry, 0L);
         assertFalse("No more scheduled tasks", taskQueue.hasAnyTasks());
+    }
+
+    private static void assertBlockedCurrentMetric(RecordingMeterRegistry meterRegistry, long expected) {
+        meterRegistry.getRecorder().resetCalls();
+        meterRegistry.getRecorder().collect();
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_GAUGE, ThrottlingRecoveryService.RECOVERY_GATE_BLOCKED_CURRENT_METRIC),
+            RecordingMeterRegistry.measures(expected)
+        );
     }
 
     /// The gating escape hatch: dynamically disabling the recovery gates must release recoveries held by a gate that never

@@ -16,6 +16,10 @@ import org.elasticsearch.indices.recovery.RecoveryGate;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.LongGaugeMetric;
+import org.elasticsearch.telemetry.metric.LongHistogram;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.EstimatedHeapSettings;
 import org.elasticsearch.xpack.stateless.memory.ShardsMappingSizeCollector;
@@ -39,6 +43,12 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate {
     private static final Logger logger = LogManager.getLogger(EstimatedHeapUsageRecoveryGate.class);
     static final String NAME = "estimated_heap";
 
+    public static final String ESTIMATED_HEAP_USAGE_METRIC = "es.recovery.gate.estimated_heap.usage.current";
+    public static final String ESTIMATED_HEAP_USAGE_DELTA_METRIC = "es.recovery.gate.estimated_heap.usage_delta.current";
+    public static final String ESTIMATED_HEAP_COMPUTATION_TIME_METRIC_IN_MILLIS = "es.recovery.gate.estimated_heap.computation.time";
+    public static final String ESTIMATED_HEAP_COMPUTATION_FAILURE_TOTAL_METRIC =
+        "es.recovery.gate.estimated_heap.computation.failure.total";
+
     /// How long a computed estimate is cached. The heap estimate needs to loop through every shard on the node, so the result is
     /// cached.
     private static final TimeValue ESTIMATE_VALIDITY = TimeValue.timeValueSeconds(1);
@@ -46,6 +56,10 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate {
     private final long maxHeapBytes;
     private final EstimatedHeapSettings heapSettings;
     private final SingleObjectCache<Long> estimateCache;
+    private final LongGaugeMetric estimatedHeapUsageMetric;
+    private final LongGaugeMetric estimatedHeapUsageDeltaMetric;
+    private final LongHistogram estimatedHeapComputationTimeMetric;
+    private final LongCounter estimatedHeapComputationFailureMetric;
 
     /// Builds a gate wired to the node's real services and JVM max heap: the estimate is computed from the exact shard values the
     /// collector publishes to the master, fed through the master's own summation.
@@ -54,7 +68,8 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate {
         StatelessMemoryMetricsService memoryMetricsService,
         ShardsMappingSizeCollector shardsMappingSizeCollector,
         ThreadPool threadPool,
-        EstimatedHeapSettings heapSettings
+        EstimatedHeapSettings heapSettings,
+        MeterRegistry meterRegistry
     ) {
         return new EstimatedHeapUsageRecoveryGate(
             heapSettings,
@@ -71,7 +86,8 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate {
                 shardsMappingSizeCollector.collectShardMappingSizes()
             ).totalHeapUsage(),
             threadPool::relativeTimeInMillis,
-            ESTIMATE_VALIDITY
+            ESTIMATE_VALIDITY,
+            meterRegistry
         );
     }
 
@@ -84,13 +100,64 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate {
         LongSupplier relativeTimeInMillis,
         TimeValue estimateValidity
     ) {
+        this(
+            heapSettings,
+            clusterStateSupplier,
+            maxHeapBytes,
+            estimatedHeapUsageBytes,
+            relativeTimeInMillis,
+            estimateValidity,
+            MeterRegistry.NOOP
+        );
+    }
+
+    // Visible for testing
+    EstimatedHeapUsageRecoveryGate(
+        EstimatedHeapSettings heapSettings,
+        Supplier<ClusterState> clusterStateSupplier,
+        long maxHeapBytes,
+        ToLongFunction<ClusterState> estimatedHeapUsageBytes,
+        LongSupplier relativeTimeInMillis,
+        TimeValue estimateValidity,
+        MeterRegistry meterRegistry
+    ) {
         assert maxHeapBytes >= 0 : "negative max heap size: " + maxHeapBytes;
         this.maxHeapBytes = maxHeapBytes;
         this.heapSettings = heapSettings;
+        this.estimatedHeapUsageMetric = LongGaugeMetric.create(
+            meterRegistry,
+            ESTIMATED_HEAP_USAGE_METRIC,
+            "Estimated heap usage used by the recovery gate",
+            "bytes"
+        );
+        this.estimatedHeapUsageDeltaMetric = LongGaugeMetric.create(
+            meterRegistry,
+            ESTIMATED_HEAP_USAGE_DELTA_METRIC,
+            "High-watermark limit minus estimated heap usage; positive values indicate recovery dispatch may proceed",
+            "bytes"
+        );
+        this.estimatedHeapComputationTimeMetric = meterRegistry.registerLongHistogram(
+            ESTIMATED_HEAP_COMPUTATION_TIME_METRIC_IN_MILLIS,
+            "Time spent computing the node-local estimated heap usage",
+            "ms"
+        );
+        this.estimatedHeapComputationFailureMetric = meterRegistry.registerLongCounter(
+            ESTIMATED_HEAP_COMPUTATION_FAILURE_TOTAL_METRIC,
+            "Number of failed node-local estimated heap usage computations",
+            "unit"
+        );
         this.estimateCache = new SingleObjectCache<>(estimateValidity, 0L, relativeTimeInMillis) {
             @Override
             protected Long refresh() {
-                return estimatedHeapUsageBytes.applyAsLong(clusterStateSupplier.get());
+                final long startTimeMillis = relativeTimeInMillis.getAsLong();
+                try {
+                    return estimatedHeapUsageBytes.applyAsLong(clusterStateSupplier.get());
+                } catch (RuntimeException e) {
+                    estimatedHeapComputationFailureMetric.increment();
+                    throw e;
+                } finally {
+                    estimatedHeapComputationTimeMetric.record(relativeTimeInMillis.getAsLong() - startTimeMillis);
+                }
             }
         };
     }
@@ -127,6 +194,8 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate {
             return Decision.RUN;
         }
         final double usedPercent = 100.0 * estimatedBytes / maxHeapBytes;
+        estimatedHeapUsageMetric.set(estimatedBytes);
+        estimatedHeapUsageDeltaMetric.set((long) (maxHeapBytes * heapSettings.highWatermarkPercent() / 100.0) - estimatedBytes);
         if (heapSettings.exceedsHighWatermark(usedPercent)) {
             // The block reason (and the eventual resume) is logged by the recovery scheduler on the blocked <-> may-run transitions.
             return Decision.block(

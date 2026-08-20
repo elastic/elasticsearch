@@ -1,11 +1,12 @@
 ```yaml {applies_to}
-stack: preview 9.6
+stack: preview 9.6+
 serverless: preview
 ```
 
-The `HIGHLIGHT` processing command extracts and highlights matching text snippets
-from one or more fields based on a full-text query. Matching terms are wrapped in
-highlight tags, bringing the highlighting features of the Elasticsearch
+The `HIGHLIGHT` [processing command](/reference/query-languages/esql/commands/processing-commands.md)
+extracts and highlights matching text snippets from one or more fields based on a
+full-text query. Matching terms are wrapped in highlight tags, bringing the
+highlighting features of the Elasticsearch
 [`_search` API](/reference/elasticsearch/rest-apis/highlighting.md) to {{esql}}.
 
 ## Syntax
@@ -59,7 +60,8 @@ All option values passed in the `WITH` clause must be constant literals.
 `encoder`
 :   (Optional) Text encoding applied before adding highlight tags. Accepts
     `default` (no encoding) or `html` (HTML-escapes snippet text). Defaults to
-    `default`.
+    `default`. Unlike `boundary_scanner` and `order`, this value is
+    case-sensitive, so `html` is valid but `HTML` is rejected.
 
 `analyzer`
 :   (Optional) Analyzer used on both the query and field text. Defaults to the
@@ -68,16 +70,20 @@ All option values passed in the `WITH` clause must be constant literals.
     must match the analyzer specified here.
 
 `number_of_fragments`
-:   (Optional) Maximum number of snippets (fragments) to return per field. Set
-    to `0` to return the entire field value with matching terms highlighted
-    without fragmenting. Defaults to `5`.
+:   (Optional) Maximum number of snippets (fragments) to return per field. When a
+    field produces more fragments than this, the highest-scoring ones are kept
+    (in document order), not the first ones. Set to `0` to return the entire
+    field value with matching terms highlighted without fragmenting. Must be `>= 0`.
+    Defaults to `5`.
 
 `fragment_size`
-:   (Optional) Approximate character length of each snippet. Defaults to `100`.
+:   (Optional) Approximate character length of each snippet. Must be `>= 0`.
+    Defaults to `100`.
 
 `no_match_size`
 :   (Optional) Number of characters to return from the beginning of the field
-    when there are no matching terms. Defaults to `0` (returns `null`).
+    when there are no matching terms. Must be `>= 0`. Defaults to `0` (returns
+    `null`).
 
 `boundary_scanner`
 :   (Optional) Boundary scanner used to split text into fragments. Accepts
@@ -85,6 +91,7 @@ All option values passed in the `WITH` clause must be constant literals.
 
 `boundary_scanner_locale`
 :   (Optional) BCP 47 language tag (such as `en-US`) used by the boundary scanner.
+    Use hyphens as separators (`en-US`); the underscore form (`en_US`) is rejected.
     Defaults to the root locale.
 
 `order`
@@ -94,8 +101,9 @@ All option values passed in the `WITH` clause must be constant literals.
 
 `max_analyzed_offset`
 :   (Optional) Maximum number of characters to analyze per field value. Accepts
-    a positive integer up to `1000000` (1 million characters). Defaults to
-    `1000000`. Text beyond this offset is ignored during highlighting.
+    a positive integer, or `-1` to use the index default. Values are capped at
+    `1000000` (1 million characters). Defaults to `-1`. Text beyond the effective
+    offset is ignored during highlighting.
 
 ## Description
 
@@ -118,7 +126,7 @@ For multivalued fields, each value is highlighted independently:
 * Multivalued `keyword` fields loaded from doc values are sorted and deduplicated before highlighting, which can result in a different snippet order compared to the `_search` API.
 
 ::::{warning}
-`HIGHLIGHT` is currently in [preview](/reference/query-languages/esql/limitations.md). Note the following limitations:
+`HIGHLIGHT` is currently in preview. Note the following limitations:
 
 * `HIGHLIGHT` re-analyzes text with the `standard` analyzer by default, rather than the analyzer configured in the index mapping. If your field uses a custom or language analyzer, specify it with the `analyzer` option in the `WITH` clause.
 * The `analyzer` option only supports built-in and node-level plugin analyzers. Analyzers configured in index settings are not supported.
@@ -184,17 +192,14 @@ FROM books
 Use [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md) to highlight terms using Lucene query syntax with boolean operators and field qualifiers:
 
 ```esql
-FROM books
-| WHERE MATCH(title, "Return")
-| HIGHLIGHT QSTR("title:return AND (king OR shadow)") ON title
-| KEEP book_no, highlight_title
-| SORT book_no
+ROW title = "The quick fox", body = "A loyal dog"
+| HIGHLIGHT QSTR("title:fox OR body:dog") ON title, body
+| KEEP highlight_title, highlight_body
 ```
 
-| book_no:keyword | highlight_title:keyword |
+| highlight_title:keyword | highlight_body:keyword |
 | --- | --- |
-| 2714 | `<em>Return</em> of the <em>King</em> Being the Third Part of The Lord of the Rings` |
-| 7350 | `<em>Return</em> of the <em>Shadow</em>` |
+| `The quick <em>fox</em>` | `A loyal <em>dog</em>` |
 
 ### Highlight with Kibana Query Language (KQL)
 
@@ -232,14 +237,14 @@ ROW title = "The Lord of the Rings"
 Highlight multiple columns at once by listing them in `ON`:
 
 ```esql
-ROW title = "Return of the King", author = "J.R.R. Tolkien"
-| HIGHLIGHT "king tolkien" ON title, author
-| KEEP highlight_title, highlight_author
+ROW title = "Return of the King", body = "Tolkien wrote the epic saga."
+| HIGHLIGHT "king tolkien" ON title, body
+| KEEP highlight_title, highlight_body
 ```
 
-| highlight_title:keyword | highlight_author:keyword |
+| highlight_title:keyword | highlight_body:keyword |
 | --- | --- |
-| `Return of the <em>King</em>` | `J.R.R. <em>Tolkien</em>` |
+| `Return of the <em>King</em>` | `<em>Tolkien</em> wrote the epic saga.` |
 
 ### Highlight an extracted or computed field
 
@@ -290,7 +295,7 @@ Use `pre_tags` and `post_tags` to specify custom wrapping tags:
 
 ```esql
 ROW content = "The quick brown fox jumps over the lazy dog."
-| HIGHLIGHT "fox" ON content WITH { "pre_tags": "<b>", "post_tags": "</b>" }
+| HIGHLIGHT "fox" ON content WITH { "pre_tags": ["<b>"], "post_tags": ["</b>"] }
 | KEEP highlight_content
 ```
 

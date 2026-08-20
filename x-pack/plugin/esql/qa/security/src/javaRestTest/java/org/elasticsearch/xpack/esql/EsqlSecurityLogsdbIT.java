@@ -95,39 +95,39 @@ public class EsqlSecurityLogsdbIT extends EsqlSecurityIT {
         );
     }
 
-    // FLS drops the keyword synthetic-source delegate so a granted text field reconstructs to null (elastic/security#6714).
+    // FLS drops the keyword synthetic-source delegate so a granted text field reconstructs to null
 
     @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/6714")
+    @AwaitsFix(bugUrl = "TODO")
     public void testFieldLevelSecurityAllow() throws Exception {}
 
     @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/6714")
+    @AwaitsFix(bugUrl = "TODO")
     public void testFieldLevelSecurityAllowPartial() throws Exception {}
 
     @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/6714")
+    @AwaitsFix(bugUrl = "TODO")
     public void testFieldLevelSecurityPartiallyUnmappedLoad() throws Exception {}
 
     @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/6714")
+    @AwaitsFix(bugUrl = "TODO")
     public void testFieldLevelSecurityPartiallyUnmappedNullify() throws Exception {}
 
-    // except:_source fails to strip values reconstructed from _ignored_source (elastic/security#13332).
+    // except:_source fails to strip values reconstructed from _ignored_source
 
     @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/13332")
+    @AwaitsFix(bugUrl = "TODO")
     public void testFieldLevelSecuritySourceDisabledMultiIndex() throws Exception {}
 
     @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/13332")
+    @AwaitsFix(bugUrl = "TODO")
     public void testFieldLevelSecuritySourceDisabledMultiIndexPartialMappingNonKeyword() throws Exception {}
 
     @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/13332")
+    @AwaitsFix(bugUrl = "TODO")
     public void testFieldLevelSecuritySourceDisabledWithUnmappedFieldsLoad() throws Exception {}
 
     @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/13332")
+    @AwaitsFix(bugUrl = "TODO")
     public void testFieldLevelSecuritySourceDisabledWithUnmappedFieldsLoadAndCast() throws Exception {}
 }

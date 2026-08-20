@@ -3,10 +3,10 @@ stack: preview 9.6
 serverless: preview
 ```
 
-The `HIGHLIGHT` command runs a full-text query against one or more fields. For
-each row, it adds a column containing the field text with matching terms wrapped
-in highlight tags. It provides the same kind of highlighting as the
-[`_search` API](/reference/elasticsearch/rest-apis/highlighting.md) in {{esql}}.
+The `HIGHLIGHT` processing command extracts and highlights matching text snippets
+from one or more fields based on a full-text query. Matching terms are wrapped in
+highlight tags, bringing the highlighting features of the Elasticsearch
+[`_search` API](/reference/elasticsearch/rest-apis/highlighting.md) to {{esql}}.
 
 ## Syntax
 
@@ -17,147 +17,123 @@ HIGHLIGHT [prefix = "<prefix>"] query ON field [, field, ...] [WITH { "option": 
 ## Parameters
 
 `prefix`
-:   (Optional) String literal used to name the generated columns. Each highlighted
-    field is written to `<prefix><field>`. Defaults to `highlight_`, so
-    `HIGHLIGHT "fox" ON content` produces `highlight_content`. If a generated name
-    collides with an existing column, the highlight column replaces it. Set an
-    empty prefix (`prefix = ""`) to overwrite the source column in place instead
-    of adding a new one.
+:   (Optional) A string prefix used to name the output columns. Each highlighted
+    field is written to `<prefix><field>`. Defaults to `highlight_` (for example,
+    `HIGHLIGHT "fox" ON content` produces `highlight_content`). If a generated
+    column name matches an existing column, the existing column is replaced. To
+    overwrite the source column in place, specify an empty prefix (`prefix = ""`).
 
 `query`
-:   The full-text query that identifies terms to highlight. Use a string literal,
-    which follows [`query_string`](/reference/query-languages/query-dsl/query-dsl-query-string-query.md)
-    semantics, or a full-text function such as
+:   The query used to find matching terms to highlight. This can be a string
+    literal (which uses [`query_string`](/reference/query-languages/query-dsl/query-dsl-query-string-query.md)
+    syntax) or a full-text search function such as
     [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md),
     [`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md),
     [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md),
-    or [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md),
-    or the [match operator](/reference/query-languages/esql/functions-operators/operators.md#esql-match-operator) `:`.
-    You can combine full-text functions with `AND`, `OR`, and `NOT`. Unqualified
-    string and `QSTR` queries expand over every field listed in `ON`. Any field
-    named by the query, including field-qualified string, `QSTR`, and `KQL`
-    clauses, must also be listed in `ON`. A query with no positive clauses, such
-    as `NOT MATCH(...)`, is accepted but returns `null` because it has no matching
-    terms to wrap.
+    [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md),
+    or the [match operator `:` ](/reference/query-languages/esql/functions-operators/operators.md#esql-match-operator).
+    You can combine full-text functions using `AND`, `OR`, and `NOT`. Unqualified
+    strings and `QSTR` expressions are evaluated against all fields listed in `ON`.
+    Any field referenced inside the query must also be listed in `ON`. Queries
+    without positive match conditions (such as `NOT MATCH(...)`) return `null`.
 
 `field`
-:   One or more columns to highlight. Each field must be `text` or `keyword`.
-    `semantic_text` fields are supported and treated as `text`. Wildcard
-    patterns are not supported. A field gets a highlighted value only when the
-    query matches it. Otherwise, its result is `null`, unless you set
-    `no_match_size`.
+:   One or more comma-separated columns to highlight. Fields must be `text` or
+    `keyword` types (`semantic_text` fields are supported and treated as `text`).
+    Wildcard column names are not supported. If a field has no matching terms,
+    its output is `null` unless you set `no_match_size`.
 
-### `WITH` options
+## WITH options
 
-All `WITH` option values must be constant literals.
+All option values passed in the `WITH` clause must be constant literals.
 
 `pre_tags`
-:   (Optional) Tag inserted before each highlighted term. Accepts a string or a
-    one-element array. Unlike the `_search` API, multiple rotating tags are not
-    supported. Defaults to `<em>`.
+:   (Optional) Opening tag inserted before each highlighted term. Accepts a string
+    or a single-element array of strings. Defaults to `<em>`. Multiple rotating
+    tags are not supported.
 
 `post_tags`
-:   (Optional) Tag inserted after each highlighted term. Like `pre_tags`, accepts
-    a string or a one-element array. Defaults to `</em>`.
+:   (Optional) Closing tag inserted after each highlighted term. Accepts a string
+    or a single-element array of strings. Defaults to `</em>`.
 
 `encoder`
-:   (Optional) How to encode the returned text: `default` (no encoding) or `html`
-    (HTML-escapes the text before inserting tags). Defaults to `default`.
+:   (Optional) Text encoding applied before adding highlight tags. Accepts
+    `default` (no encoding) or `html` (HTML-escapes snippet text). Defaults to
+    `default`.
 
 `analyzer`
-:   (Optional) Analyzer for both the query and field text. By default,
-    `HIGHLIGHT` uses the `standard` analyzer, even when the field mapping uses a
-    different analyzer. If a full-text function specifies its own `analyzer`,
-    it must name the same analyzer selected here. Only built-in and node-level
-    plugin analyzers are supported. For cross-cluster queries, install a plugin
-    analyzer on every remote cluster that plans the query.
+:   (Optional) Analyzer used on both the query and field text. Defaults to the
+    `standard` analyzer. Only built-in and node-level plugin analyzers are
+    supported. If a full-text search function specifies its own `analyzer`, it
+    must match the analyzer specified here.
 
 `number_of_fragments`
-:   (Optional) Maximum number of fragments (snippets) to return per field. `0`
-    disables fragmentation and returns the whole value with matches wrapped.
-    Defaults to `5`.
+:   (Optional) Maximum number of snippets (fragments) to return per field. Set
+    to `0` to return the entire field value with matching terms highlighted
+    without fragmenting. Defaults to `5`.
 
 `fragment_size`
-:   (Optional) Approximate size, in characters, of each fragment. Defaults to `100`.
+:   (Optional) Approximate character length of each snippet. Defaults to `100`.
 
 `no_match_size`
-:   (Optional) When a field has no match, the number of leading characters of the
-    field to return instead of `null`. `0` returns `null`. Defaults to `0`.
+:   (Optional) Number of characters to return from the beginning of the field
+    when there are no matching terms. Defaults to `0` (returns `null`).
 
 `boundary_scanner`
-:   (Optional) How to find fragment boundaries. Valid values are `sentence` and
-    `word`. Defaults to `sentence`.
+:   (Optional) Boundary scanner used to split text into fragments. Accepts
+    `sentence` or `word`. Defaults to `sentence`.
 
 `boundary_scanner_locale`
-:   (Optional) BCP 47 language tag (for example `en-US`) used by the boundary
-    scanner. Defaults to the root locale.
+:   (Optional) BCP 47 language tag (such as `en-US`) used by the boundary scanner.
+    Defaults to the root locale.
 
 `order`
-:   (Optional) Fragment order: `none` keeps document order, `score` orders fragments
-    by descending relevance. Defaults to `none`.
+:   (Optional) Sort order of returned fragments. Accepts `none` (preserves document
+    order) or `score` (orders fragments by descending relevance score). Defaults
+    to `none`.
 
 `max_analyzed_offset`
-:   (Optional) Maximum number of characters to analyze per field. Use a positive
-    integer, or `-1` for the default of `1000000` characters. `1000000` is also
-    the maximum. Larger values are capped, and `HIGHLIGHT` does not use the
-    `index.highlight.max_analyzed_offset` index setting. Text after this offset
-    does not participate in matching or highlighting.
-
-Other `_search` highlight options, such as `require_field_match`,
-`matched_fields`, `tags_schema`, `boundary_chars`, `boundary_max_scan`, or
-`phrase_limit`, are not supported and are rejected as unknown options.
-`HIGHLIGHT` always behaves as if `require_field_match` were `true`: only fields
-the query targets are highlighted.
+:   (Optional) Maximum number of characters to analyze per field value. Accepts
+    a positive integer up to `1000000` (1 million characters). Defaults to
+    `1000000`. Text beyond this offset is ignored during highlighting.
 
 ## Description
 
-The `HIGHLIGHT` command analyzes every field in `ON` for each input row, runs
-the `query`, and wraps matching terms in the configured tags. It adds one keyword
-column per field, named `highlight_<field>` by default. Fields with no match
-return `null`. If `no_match_size` is greater than `0`, they return the beginning
-of the field instead.
+Use `HIGHLIGHT` to find and display matching snippets in text fields, typically
+after filtering rows with a full-text search condition in `WHERE`.
 
-`HIGHLIGHT` re-analyzes the current row values, so it can highlight columns
-produced by earlier commands such as `EVAL`, `DISSECT`, `GROK`, `STATS`, `ENRICH`,
-and `LOOKUP JOIN`.
+`HIGHLIGHT` processes each row, analyzes the specified fields against the
+`query`, and generates new keyword columns containing matching terms wrapped in
+highlight tags. By default, output columns are named `highlight_<field>`. If a
+field contains no matching terms, the result is `null` unless you specify
+`no_match_size`.
 
-A multivalued field is highlighted value by value. Phrase queries do not match
-across value boundaries, and fragments do not cross value boundaries. When a
-field returns more than one fragment, the result is a multivalued column value.
-Multivalued `keyword` fields loaded from doc values are sorted and deduplicated,
-so fragments can differ in order from the `_search` API, which highlights values
-in their original `_source` order.
+Because `HIGHLIGHT` re-analyzes text values at query time, you can highlight
+source fields from an index as well as computed columns created by earlier
+commands like `EVAL`, `DISSECT`, `GROK`, `STATS`, `ENRICH`, or `LOOKUP JOIN`.
 
-Use `HIGHLIGHT` after a full-text `WHERE` filter to show *why* a document
-matched, as you would with post-fetch highlighting in the `_search` API.
+For multivalued fields, each value is highlighted independently:
+* Phrase queries and fragment boundaries do not cross values.
+* When a field produces multiple fragments, the output column contains a multivalued list of snippets.
+* Multivalued `keyword` fields loaded from doc values are sorted and deduplicated before highlighting, which can result in a different snippet order compared to the `_search` API.
 
-:::{warning}
-`HIGHLIGHT` is in [preview](/reference/query-languages/esql/limitations.md), and
-its behavior may change in future releases. Current limitations include:
+::::{warning}
+`HIGHLIGHT` is currently in [preview](/reference/query-languages/esql/limitations.md). Note the following limitations:
 
-* `HIGHLIGHT` does not use the analyzer configured in a field mapping. It
-  re-analyzes field text and the query with the `standard` analyzer unless you set
-  the `analyzer` option. A field mapped with a language or custom analyzer can
-  therefore return a `null` highlight for a row that a pushed-down `MATCH`
-  selected.
-* The `analyzer` option accepts only built-in and node-level plugin analyzers, not
-  analyzers defined in index settings.
-* On `keyword` fields, `HIGHLIGHT` applies text-field match and fragmentation
-  semantics rather than the whole-value semantics of the `_search` API.
-* On `semantic_text` fields, `HIGHLIGHT` matches literal terms in the field
-  text. It does not use the semantic highlighter of the `_search` API, so a row
-  selected by a semantic `MATCH` in `WHERE` can still return a `null`
-  highlight when the query terms don't appear literally in the text.
-* `HIGHLIGHT` analyzes at most 1,000,000 characters per field value. It does not
-  match or highlight terms after that offset. The `_search` API returns an error
-  instead.
-:::
+* `HIGHLIGHT` re-analyzes text with the `standard` analyzer by default, rather than the analyzer configured in the index mapping. If your field uses a custom or language analyzer, specify it with the `analyzer` option in the `WITH` clause.
+* The `analyzer` option only supports built-in and node-level plugin analyzers. Analyzers configured in index settings are not supported.
+* On `keyword` fields, `HIGHLIGHT` tokenizes text and breaks it into snippets like a text field, rather than treating the value as a single term.
+* On `semantic_text` fields, `HIGHLIGHT` performs lexical matching against the underlying text. Semantic vector matches without literal keyword overlap are not highlighted.
+* Fields are analyzed up to a maximum of 1,000,000 characters. Text beyond this limit is not analyzed or highlighted.
+::::
 
 ## Examples
 
+The following examples show common ways to highlight search terms and customize snippet output.
+
 ### Highlight matches in a field
 
-Wrap the matching term in the default `<em>` tags:
+Wrap matching terms in the default `<em>` tags:
 
 ```esql
 ROW content = "The quick brown fox jumps over the lazy dog."
@@ -169,10 +145,9 @@ ROW content = "The quick brown fox jumps over the lazy dog."
 | --- |
 | `The quick brown <em>fox</em> jumps over the lazy dog.` |
 
-### Highlight the results of a full-text search
+### Highlight search results
 
-Use `MATCH` to filter rows, then pass an explicit highlight query for the
-matching field:
+Filter rows with a `WHERE` clause, then highlight the matching terms in the output:
 
 ```esql
 FROM books
@@ -187,10 +162,9 @@ FROM books
 | 2714 | `<em>Return</em> of the King Being the Third Part of The Lord of the Rings` |
 | 7350 | `<em>Return</em> of the Shadow` |
 
-### Use a full-text function as the query
+### Highlight phrases with MATCH_PHRASE
 
-You can also use a full-text function as the query. `MATCH_PHRASE` wraps the
-entire matching phrase in one pair of tags:
+Use a full-text function like `MATCH_PHRASE` to highlight an exact phrase:
 
 ```esql
 FROM books
@@ -205,9 +179,9 @@ FROM books
 | 2714 | `<em>Return of the</em> King Being the Third Part of The Lord of the Rings` |
 | 7350 | `<em>Return of the</em> Shadow` |
 
-### Customize the highlight tags
+### Customize highlight tags
 
-Use `pre_tags` and `post_tags` to change the wrapping tags:
+Use `pre_tags` and `post_tags` to specify custom wrapping tags:
 
 ```esql
 ROW content = "The quick brown fox jumps over the lazy dog."
@@ -219,9 +193,9 @@ ROW content = "The quick brown fox jumps over the lazy dog."
 | --- |
 | `The quick brown <b>fox</b> jumps over the lazy dog.` |
 
-### Name the output column with a prefix
+### Customize output column names
 
-A non-empty `prefix` keeps the source column and adds a `<prefix><field>` column:
+Use `prefix` to change the column name prefix:
 
 ```esql
 ROW content = "The One Ring was forged by Sauron."
@@ -233,10 +207,23 @@ ROW content = "The One Ring was forged by Sauron."
 | --- | --- |
 | The One Ring was forged by Sauron. | `The One <em>Ring</em> was forged by Sauron.` |
 
+### Overwrite the original column
+
+Set an empty prefix (`prefix = ""`) to replace the source column with the highlighted output:
+
+```esql
+ROW content = "The quick brown fox jumps over the lazy dog."
+| HIGHLIGHT prefix = "" "fox" ON content
+| KEEP content
+```
+
+| content:keyword |
+| --- |
+| `The quick brown <em>fox</em> jumps over the lazy dog.` |
+
 ### Return leading text when nothing matches
 
-By default, a field with no match returns `null`. Set `no_match_size` to return
-the beginning of the field instead:
+By default, non-matching fields evaluate to `null`. Set `no_match_size` to return text from the start of the field instead:
 
 ```esql
 ROW content = "Gardens and flowers bloom in spring."
@@ -248,9 +235,9 @@ ROW content = "Gardens and flowers bloom in spring."
 | --- |
 | Gardens and flowers bloom in spring. |
 
-### Order fragments by score
+### Order snippets by relevance score
 
-With `order` set to `score`, the highest-scoring fragments come first:
+Use `"order": "score"` to sort snippets by relevance score rather than document order:
 
 ```esql
 ROW content = ["fast search", "fast and fast results"]

@@ -119,7 +119,7 @@ import static org.elasticsearch.xpack.esql.KeywordToFlattenedTransformer.Flatten
  *       once per distinct {@code (site, field)} pair the rewriter's
  *       {@link AstKeywordFieldRewriter.SkipSite} machinery declined to wrap. Sites cover
  *       grammar slots that accept only an attribute ({@code MV_EXPAND}, {@code ENRICH ON / WITH},
- *       {@code LOOKUP JOIN ... ON ...}) and the LHS of the match operator {@code :}. These
+ *       {@code LOOKUP JOIN ... ON ...}). These
  *       positions are still exercised at the runtime layer (the bare attribute reaches the
  *       engine), but {@code field_extract} itself is not tested there. Tests whose
  *       <em>only</em> in-scope field references are inside {@code LOOKUP JOIN ... ON ...} are
@@ -138,9 +138,10 @@ import static org.elasticsearch.xpack.esql.KeywordToFlattenedTransformer.Flatten
  *       arbitrary expression (e.g. {@code DISSECT &lt;field&gt;}) will fail when the field is wrapped
  *       in a function call. Those failures are the intended output of this test &mdash; the
  *       attribute-only positions the rewriter explicitly carves out
- *       ({@code MV_EXPAND}, {@code ENRICH ON / WITH}, {@code LOOKUP JOIN ... ON ...}, match
- *       operator {@code :} LHS) emit {@code skip-wrap} log lines instead so the inventory remains
- *       complete. See {@link AstKeywordFieldRewriter} for the full list.</li>
+ *       ({@code MV_EXPAND}, {@code ENRICH ON / WITH}, {@code LOOKUP JOIN ... ON ...}) emit
+ *       {@code skip-wrap} log lines instead so the inventory remains
+ *       complete. The match operator {@code :} LHS is a {@code primaryExpression}, so it is
+ *       wrapped in place rather than carved out. See {@link AstKeywordFieldRewriter} for the full list.</li>
  *   <li>Output column types: {@code field_extract} is only injected in expression contexts, so a
  *       converted keyword field that is projected directly (e.g. {@code KEEP first_name},
  *       {@code SORT first_name}, or appearing untouched in the output of a STATS-less query) comes

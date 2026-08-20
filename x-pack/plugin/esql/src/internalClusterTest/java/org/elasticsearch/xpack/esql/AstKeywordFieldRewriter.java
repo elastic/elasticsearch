@@ -864,8 +864,9 @@ public final class AstKeywordFieldRewriter {
 
         /**
          * Recursively wraps in-scope references inside {@code expression}. Stops at attribute leaves
-         * (wrapping in-scope ones), protects the LHS of the match operator {@code :}, and recurses
-         * into {@code IN (subquery)} by wrapping the left-hand side and rewriting the subquery.
+         * (wrapping in-scope ones), wraps the LHS of the match operator {@code :} in place (its
+         * grammar slot is a {@code primaryExpression}), and recurses into {@code IN (subquery)} by
+         * wrapping the left-hand side and rewriting the subquery.
          *
          * @param trackingContext the tracking context for function arguments, or {@code null}
          *                        when the expression is not directly inside a function call

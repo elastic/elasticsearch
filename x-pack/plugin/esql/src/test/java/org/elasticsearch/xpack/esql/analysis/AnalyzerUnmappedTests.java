@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -1513,16 +1512,16 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
-     * {@code TS}'s aggregate is a {@link TimeSeriesAggregate}, i.e. an {@link Aggregate} subclass, so allowing STATS must not let it
-     * through the allow-list. It reports itself as STATS because that is its telemetry label.
+     * The {@code TS} command creates an {@link EsRelation} with {@link IndexMode#TIME_SERIES}, which is rejected by the allow-list.
+     * The error names the source command ({@code TS}), not the internal node type.
      */
-    public void testLoadAllModeRejectsTimeSeriesAggregate() {
+    public void testLoadAllModeRejectsTimeSeriesCommand() {
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
             .statementError(
                 setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
                 containsString(
                     "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT "
-                        + "and STATS commands; [STATS] is not supported yet"
+                        + "and STATS commands; [TS] is not supported yet"
                 )
             );
     }

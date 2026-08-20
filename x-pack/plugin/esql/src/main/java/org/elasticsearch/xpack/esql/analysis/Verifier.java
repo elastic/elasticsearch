@@ -538,7 +538,9 @@ public class Verifier {
                         p,
                         "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT "
                             + "and STATS commands; [{}] is not supported yet",
-                        p instanceof TelemetryAware telemetryAware ? telemetryAware.telemetryLabel() : p.nodeName()
+                        p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
+                            : p instanceof TelemetryAware ta ? ta.telemetryLabel()
+                            : p.nodeName()
                     )
                 );
             }
@@ -547,7 +549,7 @@ public class Verifier {
 
     private static boolean supportedInLoadAllMode(LogicalPlan plan) {
         // Keep/Drop/Rename may still be present, or already resolved to Project, by the time verification runs.
-        return plan instanceof EsRelation
+        return (plan instanceof EsRelation esr && esr.indexMode().isTsdb() == false)
             || plan instanceof Project
             || plan instanceof Keep
             || plan instanceof Drop
@@ -556,8 +558,7 @@ public class Verifier {
             || plan instanceof Filter
             || plan instanceof OrderBy
             || plan instanceof Limit
-            // TS's aggregate is a TimeSeriesAggregate; its interaction with unmapped dimensions is out of scope for the STATS support.
-            || (plan instanceof Aggregate && plan instanceof TimeSeriesAggregate == false);
+            || plan instanceof Aggregate;
     }
 
     /**

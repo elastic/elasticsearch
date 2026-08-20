@@ -548,6 +548,19 @@ c:long
 7
 ;
 
+statsAfterWhereOnUnmappedField
+required_capability: optional_fields_load_all_stats
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE unmapped_message == "Disconnection error"
+| STATS c = COUNT(*)
+;
+
+c:long
+3
+;
+
 ####################################################################
 # Gap coverage: known-failing tests documenting intended behaviour #
 ####################################################################

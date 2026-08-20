@@ -1301,10 +1301,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         Priority.NORMAL,
                         currentState -> validateCreateShardRetry(shardRouting, currentState, new ActionListener<>() {
                             @Override
-                            public void onResponse(Boolean success) {
-                                if (Boolean.TRUE.equals(success)) {
-                                    // Retry with current routing instead of retryRouting to be on the safe side
-                                    createShard(shardRouting, currentState);
+                            public void onResponse(ShardRouting currentRouting) {
+                                if (currentRouting != null) {
+                                    createShard(currentRouting, currentState);
                                 }
                             }
 
@@ -1333,7 +1332,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
-    private void validateCreateShardRetry(ShardRouting retryRouting, ClusterState state, ActionListener<Boolean> listener) {
+    private void validateCreateShardRetry(ShardRouting retryRouting, ClusterState state, ActionListener<ShardRouting> listener) {
         try {
             // Running on cluster state applier thread
             assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
@@ -1352,14 +1351,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     retryRouting,
                     currentRouting
                 );
-                listener.onResponse(false);
+                listener.onResponse(null);
                 return;
             }
 
             // Ignore retry if shard has been marked as failed
             if (failedShardsCache.containsKey(shardId)) {
                 logger.debug("{} gave up while retrying shard creation because shard has already been failed", shardId);
-                listener.onResponse(false);
+                listener.onResponse(null);
                 return;
             }
 
@@ -1384,11 +1383,25 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             // Ignore retry if someone else has already recreated the shard
             if (indexService.getShardOrNull(shardId.id()) != null) {
                 logger.debug("{} gave up while retrying shard creation because shard has been recreated by someone else", shardId);
-                listener.onResponse(false);
+                listener.onResponse(null);
                 return;
             }
 
-            listener.onResponse(true);
+            // The ShardRouting we pass to the listener will be used to createShard again (the retry recovery attempt).
+            // We pass currentRouting (the one present in current cluster state) here rather than retryRouting
+            // (the routing from the recently failed recovery attempt), which might be surprising. This is mostly
+            // a safety measure. If we were to retry the recovery through a full cluster state update, we would use
+            // the currentRouting. So using the currentRouting here is most similar to the "normal" apply cluster state
+            // path.
+            // A concrete example where this is relevant is after a failed replica relocation:
+            // - Shard routing for the replica relocation target is initialized with relocatingNodeId == source node id
+            // The peer recovery will still use the primary as the recovery source, but relocatingNodeId marks it as a relocation
+            // rather than an initialization from unassigned. It's bookkeeping.
+            // - If the source node (the relcating replica) fails, the relocatingNodeId of the target will be cleared, but
+            // shardRouting will keep its allocationId and initializing state.
+            // If we reuse the retryRouting in this case, it will look like we are still relocating the replica, when its in fact failed.
+            // Losing the bookkeeping is not the end of the world, but it highlights that using the currentRouting is safer.
+            listener.onResponse(currentRouting);
         } catch (Exception e) {
             // should not be possible
             final var wrappedException = new IllegalStateException("unexpected failure in validateCreateShardRetry on " + retryRouting, e);

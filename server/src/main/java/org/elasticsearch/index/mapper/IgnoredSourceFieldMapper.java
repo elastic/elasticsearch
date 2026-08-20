@@ -24,7 +24,6 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -72,14 +71,6 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_ignored_source";
 
     public static final TypeParser PARSER = new FixedTypeParser(context -> new IgnoredSourceFieldMapper(context.getIndexSettings()));
-
-    static final NodeFeature DONT_EXPAND_DOTS_IN_IGNORED_SOURCE = new NodeFeature("mapper.ignored_source.dont_expand_dots");
-    static final NodeFeature IGNORED_SOURCE_AS_TOP_LEVEL_METADATA_ARRAY_FIELD = new NodeFeature(
-        "mapper.ignored_source_as_top_level_metadata_array_field"
-    );
-    static final NodeFeature ALWAYS_STORE_OBJECT_ARRAYS_IN_NESTED_OBJECTS = new NodeFeature(
-        "mapper.ignored_source.always_store_object_arrays_in_nested"
-    );
 
     public static final FeatureFlag COALESCE_IGNORED_SOURCE_ENTRIES = new FeatureFlag("ignored_source_fields_per_entry");
 
@@ -290,8 +281,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             return new BytesRef(bytes);
         }
 
-        public static NameValue decode(Object field) {
-            BytesRef ref = (BytesRef) field;
+        public static NameValue decode(BytesRef ref) {
             byte[] bytes = ref.bytes;
             int off = ref.offset;
             int len = ref.length;
@@ -467,7 +457,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 }
                 Map<String, List<NameValue>> objectsWithIgnoredFields = new HashMap<>();
                 for (Object value : ignoredStoredValues) {
-                    NameValue nv = SingularIgnoredSourceEncoding.decode(value);
+                    NameValue nv = SingularIgnoredSourceEncoding.decode((BytesRef) value);
                     if (filter != null && filter.isPathFiltered(nv.name(), XContentDataHelper.isEncodedObject(nv.value()))) {
                         continue;
                     }

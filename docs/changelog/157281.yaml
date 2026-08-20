@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 157281
+summary: Charge Arrow pages against `MaxDirectMemorySize`
+type: enhancement

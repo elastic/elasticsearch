@@ -41,7 +41,6 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
     private static final String REMOTE_INFERENCE_ID = "remote-inference-id";
 
     private static final int DENSE_VECTOR_FIELD_DIMENSIONS = 256;
-    private static final int EMBEDDING_INFERENCE_DIMENSIONS = 256;
 
     private static final Exception GENERIC_QUERY_VECTOR_BUILDER_ERROR = new IllegalArgumentException(
         "Generic query vector builder failure"

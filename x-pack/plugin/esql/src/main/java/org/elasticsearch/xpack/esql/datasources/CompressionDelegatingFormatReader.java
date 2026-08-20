@@ -49,7 +49,7 @@ final class CompressionDelegatingFormatReader implements FormatReader {
 
     @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
-        return inner.read(new DecompressingStorageObject(object, codec), context);
+        return inner.read(new DecompressingStorageObject(object, codec, context.breaker()), context);
     }
 
     @Override

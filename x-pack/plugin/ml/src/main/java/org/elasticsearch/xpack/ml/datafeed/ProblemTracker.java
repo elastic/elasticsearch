@@ -6,11 +6,20 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
+import java.util.ArrayDeque;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.IdentityHashMap;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * <p>
@@ -27,6 +36,8 @@ import java.util.Objects;
 class ProblemTracker {
 
     private static final int EMPTY_DATA_WARN_COUNT = 10;
+
+    private static final String PARENT_CIRCUIT_BREAKER_DEDUP_KEY = "parent_circuit_breaker";
 
     private final AnomalyDetectionAuditor auditor;
     private final String jobId;
@@ -58,7 +69,19 @@ class ProblemTracker {
      * @param error the exception
      */
     public void reportExtractionProblem(DatafeedJob.ExtractionProblemException error) {
-        reportProblem(Messages.JOB_AUDIT_DATAFEED_DATA_EXTRACTION_ERROR, ExceptionsHelper.findSearchExceptionRootCause(error).getMessage());
+        CircuitBreakingException parentCircuitBreaker = findParentCircuitBreaker(error);
+        if (parentCircuitBreaker != null) {
+            String problemMessage = Messages.getMessage(
+                Messages.JOB_AUDIT_DATAFEED_PARENT_CIRCUIT_BREAKER,
+                parentCircuitBreaker.getMessage()
+            );
+            reportProblem(Messages.JOB_AUDIT_DATAFEED_DATA_EXTRACTION_ERROR, problemMessage, PARENT_CIRCUIT_BREAKER_DEDUP_KEY);
+        } else {
+            reportProblem(
+                Messages.JOB_AUDIT_DATAFEED_DATA_EXTRACTION_ERROR,
+                ExceptionsHelper.findSearchExceptionRootCause(error).getMessage()
+            );
+        }
     }
 
     /**
@@ -67,11 +90,46 @@ class ProblemTracker {
      * @param problemMessage the problem message
      */
     private void reportProblem(String template, String problemMessage) {
+        reportProblem(template, problemMessage, problemMessage);
+    }
+
+    private void reportProblem(String template, String problemMessage, String dedupKey) {
         hasProblems = true;
-        if (Objects.equals(previousProblem, problemMessage) == false) {
-            previousProblem = problemMessage;
+        if (Objects.equals(previousProblem, dedupKey) == false) {
+            previousProblem = dedupKey;
             auditor.error(jobId, Messages.getMessage(template, problemMessage));
         }
+    }
+
+    static CircuitBreakingException findParentCircuitBreaker(Throwable error) {
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        Deque<Throwable> queue = new ArrayDeque<>();
+        queue.add(error);
+        while (queue.isEmpty() == false) {
+            Throwable current = queue.removeFirst();
+            if (seen.add(current) == false) {
+                continue;
+            }
+            if (current instanceof CircuitBreakingException circuitBreakingException && isParentCircuitBreaker(circuitBreakingException)) {
+                return circuitBreakingException;
+            }
+            if (current instanceof SearchPhaseExecutionException searchPhaseExecutionException) {
+                for (ShardSearchFailure shardFailure : searchPhaseExecutionException.shardFailures()) {
+                    if (shardFailure.getCause() != null) {
+                        queue.add(shardFailure.getCause());
+                    }
+                }
+            }
+            if (current.getCause() != null) {
+                queue.add(current.getCause());
+            }
+        }
+        return null;
+    }
+
+    private static boolean isParentCircuitBreaker(CircuitBreakingException circuitBreakingException) {
+        String message = circuitBreakingException.getMessage();
+        return message != null && message.startsWith("[" + CircuitBreaker.PARENT + "] ");
     }
 
     /**

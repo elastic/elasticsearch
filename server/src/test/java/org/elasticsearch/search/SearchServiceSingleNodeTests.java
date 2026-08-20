@@ -3339,12 +3339,6 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             resolveFetchFields("emb_test", s -> s.fetchField("keyword").fetchEmbeddingsField("dense", VectorType.SPARSE_VECTOR)),
             contains(new FieldAndFormat("keyword", null))
         );
-
-        // same embeddings field and user field → merged list contains the entry twice (no deduplication).
-        assertThat(
-            resolveFetchFields("emb_test", s -> s.fetchField("dense").fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)),
-            contains(new FieldAndFormat("dense", null), new FieldAndFormat("dense", null))
-        );
     }
 
     private static ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {

@@ -1,5 +1,5 @@
 pr: 132434
-summary: Fix NullPointerException in LongComparator caused by null search_after values
+summary: Fix `NullPointerException` in `LongComparator` caused by null `search_after` values
 area: Search
 type: bug
 issues:

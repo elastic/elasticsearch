@@ -118,18 +118,19 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                 docsPerSegments[segment] = randomIntBetween(1, 100);
                 for (int doc = 0; doc < docsPerSegments[segment]; doc++) {
                     writer.addDocument(
-                        ctx.parser().parse(
-                            new Doc(
-                                randomBoolean()
-                                    ? now.minus(doc, ChronoUnit.MINUTES).toEpochMilli()
-                                    : now.plus(doc, ChronoUnit.MINUTES).toEpochMilli(),
-                                "vm-dev0" + randomInt(9),
-                                "cpu-load",
-                                randomInt(),
-                                1,
-                                routing
+                        ctx.parser()
+                            .parse(
+                                new Doc(
+                                    randomBoolean()
+                                        ? now.minus(doc, ChronoUnit.MINUTES).toEpochMilli()
+                                        : now.plus(doc, ChronoUnit.MINUTES).toEpochMilli(),
+                                    "vm-dev0" + randomInt(9),
+                                    "cpu-load",
+                                    randomInt(),
+                                    1,
+                                    routing
+                                )
                             )
-                        )
                     );
                 }
                 writer.flush();

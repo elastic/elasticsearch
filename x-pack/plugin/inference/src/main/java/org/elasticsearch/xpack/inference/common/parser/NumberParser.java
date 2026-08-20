@@ -56,7 +56,7 @@ public final class NumberParser {
 
         if (value != null && value > maxValue) {
             throw new IllegalArgumentException(
-                mustBeLessThanOrEqualNumberErrorMessage(settingName, ModelConfigurations.SERVICE_SETTINGS, value, maxValue)
+                mustBeLessThanOrEqualNumberErrorMessage(settingName, SettingsScope.SERVICE_SETTINGS.toString(), value, maxValue)
             );
         }
     }

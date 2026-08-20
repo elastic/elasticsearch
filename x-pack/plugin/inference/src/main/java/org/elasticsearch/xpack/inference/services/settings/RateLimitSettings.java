@@ -191,7 +191,7 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
      */
     public static <V> void declareUnsupportedRateLimitField(
         AbstractObjectParser<V, ConfigurationParseContext> parser,
-        String scope,
+        SettingsScope scope,
         String service,
         TaskType taskType,
         ConfigurationParseContext context
@@ -203,7 +203,7 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
         }
     }
 
-    private static String rateLimitNotPermittedError(String scope, String service, TaskType taskType) {
+    private static String rateLimitNotPermittedError(SettingsScope scope, String service, TaskType taskType) {
         return Strings.format(
             "[%s] rate limit settings are not permitted for service [%s] and task type [%s]",
             scope,

@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils;
@@ -85,7 +86,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         parser.declareInt(Builder::setMaxBatchSize, new ParseField(MAX_BATCH_SIZE));
         RateLimitSettings.declareUnsupportedRateLimitField(
             parser,
-            ModelConfigurations.SERVICE_SETTINGS,
+            SettingsScope.SERVICE_SETTINGS,
             ElasticInferenceService.NAME,
             TaskType.SPARSE_EMBEDDING,
             context

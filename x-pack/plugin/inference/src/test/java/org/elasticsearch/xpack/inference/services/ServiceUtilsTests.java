@@ -590,7 +590,7 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(
             validation.validationErrors().get(0),
             is(
-                "[scope] Invalid time value [3abc]. [key] must be a valid time value string: failed to parse setting [key] "
+                "[service_settings] Invalid time value [3abc]. [key] must be a valid time value string: failed to parse setting [key] "
                     + "with value [3abc] as a time value: unit is missing or unrecognized"
             )
         );
@@ -607,7 +607,7 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(
             validation.validationErrors().get(0),
             is(
-                "[scope] Invalid time value [-3d]. [key] must be a valid time value string: failed to parse setting [key] "
+                "[service_settings] Invalid time value [-3d]. [key] must be a valid time value string: failed to parse setting [key] "
                     + "with value [-3d] as a time value: negative durations are not supported"
             )
         );
@@ -616,7 +616,7 @@ public class ServiceUtilsTests extends ESTestCase {
     public void testExtractOptionalDouble_ExtractsAsDoubleInRange() {
         var validationException = new ValidationException();
         Map<String, Object> map = modifiableMap(Map.of("key", 1.01));
-        var result = ServiceUtils.extractOptionalDoubleInRange(map, "key", 0.0, 2.0, "test_scope", validationException);
+        var result = ServiceUtils.extractOptionalDoubleInRange(map, "key", 0.0, 2.0, SERVICE_SETTINGS, validationException);
         assertEquals(Double.valueOf(1.01), result);
         assertTrue(map.isEmpty());
         assertThat(validationException.validationErrors().size(), is(0));
@@ -625,7 +625,7 @@ public class ServiceUtilsTests extends ESTestCase {
     public void testExtractOptionalDouble_InRange_ReturnsNullWhenKeyNotPresent() {
         var validationException = new ValidationException();
         Map<String, Object> map = modifiableMap(Map.of("key", 1.01));
-        var result = ServiceUtils.extractOptionalDoubleInRange(map, "other_key", 0.0, 2.0, "test_scope", validationException);
+        var result = ServiceUtils.extractOptionalDoubleInRange(map, "other_key", 0.0, 2.0, SERVICE_SETTINGS, validationException);
         assertNull(result);
         assertThat(map.size(), is(1));
         assertThat(map.get("key"), is(1.01));
@@ -634,31 +634,31 @@ public class ServiceUtilsTests extends ESTestCase {
     public void testExtractOptionalDouble_InRange_HasErrorWhenBelowMinValue() {
         var validationException = new ValidationException();
         Map<String, Object> map = modifiableMap(Map.of("key", -2.0));
-        var result = ServiceUtils.extractOptionalDoubleInRange(map, "key", 0.0, 2.0, "test_scope", validationException);
+        var result = ServiceUtils.extractOptionalDoubleInRange(map, "key", 0.0, 2.0, SERVICE_SETTINGS, validationException);
         assertNull(result);
         assertThat(validationException.validationErrors().size(), is(1));
         assertThat(
             validationException.validationErrors().get(0),
-            is("[test_scope] Invalid value [-2.0]. [key] must be greater than or equal to [0.0]")
+            is("[service_settings] Invalid value [-2.0]. [key] must be greater than or equal to [0.0]")
         );
     }
 
     public void testExtractOptionalDouble_InRange_HasErrorWhenAboveMaxValue() {
         var validationException = new ValidationException();
         Map<String, Object> map = modifiableMap(Map.of("key", 12.0));
-        var result = ServiceUtils.extractOptionalDoubleInRange(map, "key", 0.0, 2.0, "test_scope", validationException);
+        var result = ServiceUtils.extractOptionalDoubleInRange(map, "key", 0.0, 2.0, SERVICE_SETTINGS, validationException);
         assertNull(result);
         assertThat(validationException.validationErrors().size(), is(1));
         assertThat(
             validationException.validationErrors().get(0),
-            is("[test_scope] Invalid value [12.0]. [key] must be less than or equal to [2.0]")
+            is("[service_settings] Invalid value [12.0]. [key] must be less than or equal to [2.0]")
         );
     }
 
     public void testExtractOptionalDouble_InRange_DoesNotCheckMinWhenNull() {
         var validationException = new ValidationException();
         Map<String, Object> map = modifiableMap(Map.of("key", -2.0));
-        var result = ServiceUtils.extractOptionalDoubleInRange(map, "key", null, 2.0, "test_scope", validationException);
+        var result = ServiceUtils.extractOptionalDoubleInRange(map, "key", null, 2.0, SERVICE_SETTINGS, validationException);
         assertEquals(Double.valueOf(-2.0), result);
         assertTrue(map.isEmpty());
         assertThat(validationException.validationErrors().size(), is(0));
@@ -667,7 +667,7 @@ public class ServiceUtilsTests extends ESTestCase {
     public void testExtractOptionalDouble_InRange_DoesNotCheckMaxWhenNull() {
         var validationException = new ValidationException();
         Map<String, Object> map = modifiableMap(Map.of("key", 12.0));
-        var result = ServiceUtils.extractOptionalDoubleInRange(map, "key", 0.0, null, "test_scope", validationException);
+        var result = ServiceUtils.extractOptionalDoubleInRange(map, "key", 0.0, null, SERVICE_SETTINGS, validationException);
         assertEquals(Double.valueOf(12.0), result);
         assertTrue(map.isEmpty());
         assertThat(validationException.validationErrors().size(), is(0));
@@ -694,7 +694,7 @@ public class ServiceUtilsTests extends ESTestCase {
         var result = ServiceUtils.extractRequiredEnum(
             map,
             "key",
-            "testscope",
+            SERVICE_SETTINGS,
             InputType::fromString,
             EnumSet.allOf(InputType.class),
             validationException
@@ -708,7 +708,7 @@ public class ServiceUtilsTests extends ESTestCase {
         var result = ServiceUtils.extractRequiredEnum(
             map,
             "key",
-            "testscope",
+            SERVICE_SETTINGS,
             InputType::fromString,
             EnumSet.allOf(InputType.class),
             validationException
@@ -724,14 +724,17 @@ public class ServiceUtilsTests extends ESTestCase {
         var result = ServiceUtils.extractRequiredEnum(
             map,
             "missing_key",
-            "testscope",
+            SERVICE_SETTINGS,
             InputType::fromString,
             EnumSet.allOf(InputType.class),
             validationException
         );
         assertNull(result);
         assertThat(validationException.validationErrors().size(), is(1));
-        assertThat(validationException.validationErrors().get(0), is("[testscope] does not contain the required setting [missing_key]"));
+        assertThat(
+            validationException.validationErrors().get(0),
+            is("[service_settings] does not contain the required setting [missing_key]")
+        );
     }
 
     public void testValidateInputType_NoValidationErrorsWhenInternalType() {
@@ -1027,7 +1030,7 @@ public class ServiceUtilsTests extends ESTestCase {
             extractOptionalListOfStringTuples(
                 modifiableMap(Map.of("params", List.of(List.of("key", "value"), List.of("key2", "value2")))),
                 "params",
-                "scope",
+                SERVICE_SETTINGS,
                 validation
             ),
             is(List.of(new Tuple<>("key", "value"), new Tuple<>("key2", "value2")))
@@ -1036,7 +1039,7 @@ public class ServiceUtilsTests extends ESTestCase {
 
     public void testExtractOptionalListOfStringTuples_ReturnsNull_WhenFieldIsNotAList() {
         var validation = new ValidationException();
-        assertNull(extractOptionalListOfStringTuples(modifiableMap(Map.of("params", Map.of())), "params", "scope", validation));
+        assertNull(extractOptionalListOfStringTuples(modifiableMap(Map.of("params", Map.of())), "params", SERVICE_SETTINGS, validation));
 
         assertThat(
             validation.getMessage(),
@@ -1048,13 +1051,18 @@ public class ServiceUtilsTests extends ESTestCase {
         var validation = new ValidationException();
         var exception = expectThrows(
             ValidationException.class,
-            () -> extractOptionalListOfStringTuples(modifiableMap(Map.of("params", List.of("string"))), "params", "scope", validation)
+            () -> extractOptionalListOfStringTuples(
+                modifiableMap(Map.of("params", List.of("string"))),
+                "params",
+                SERVICE_SETTINGS,
+                validation
+            )
         );
 
         assertThat(
             exception.getMessage(),
             is(
-                "Validation Failed: 1: [scope] failed to parse tuple list entry [0] for setting "
+                "Validation Failed: 1: [service_settings] failed to parse tuple list entry [0] for setting "
                     + "[params], expected a list but the entry is [String];"
             )
         );
@@ -1067,7 +1075,7 @@ public class ServiceUtilsTests extends ESTestCase {
             () -> extractOptionalListOfStringTuples(
                 modifiableMap(Map.of("params", List.of(List.of("string")))),
                 "params",
-                "scope",
+                SERVICE_SETTINGS,
                 validation
             )
         );
@@ -1075,7 +1083,7 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(
             exception.getMessage(),
             is(
-                "Validation Failed: 1: [scope] failed to parse tuple list entry "
+                "Validation Failed: 1: [service_settings] failed to parse tuple list entry "
                     + "[0] for setting [params], the tuple list size must be two, but was [1];"
             )
         );
@@ -1088,7 +1096,7 @@ public class ServiceUtilsTests extends ESTestCase {
             () -> extractOptionalListOfStringTuples(
                 modifiableMap(Map.of("params", List.of(List.of(1, "value")))),
                 "params",
-                "scope",
+                SERVICE_SETTINGS,
                 validation
             )
         );
@@ -1096,7 +1104,7 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(
             exception.getMessage(),
             is(
-                "Validation Failed: 1: [scope] failed to parse tuple list entry [0] for setting [params], "
+                "Validation Failed: 1: [service_settings] failed to parse tuple list entry [0] for setting [params], "
                     + "the first element must be a string but was [Integer];"
             )
         );
@@ -1109,7 +1117,7 @@ public class ServiceUtilsTests extends ESTestCase {
             () -> extractOptionalListOfStringTuples(
                 modifiableMap(Map.of("params", List.of(List.of("key", 2)))),
                 "params",
-                "scope",
+                SERVICE_SETTINGS,
                 validation
             )
         );
@@ -1117,7 +1125,7 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(
             exception.getMessage(),
             is(
-                "Validation Failed: 1: [scope] failed to parse tuple list entry [0] for setting [params], "
+                "Validation Failed: 1: [service_settings] failed to parse tuple list entry [0] for setting [params], "
                     + "the second element must be a string but was [Integer];"
             )
         );

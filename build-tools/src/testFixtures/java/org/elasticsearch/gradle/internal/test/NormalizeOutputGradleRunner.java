@@ -10,17 +10,16 @@
 package org.elasticsearch.gradle.internal.test;
 
 import org.gradle.testkit.runner.BuildResult;
-import org.gradle.testkit.runner.BuildTask;
 import org.gradle.testkit.runner.GradleRunner;
 import org.gradle.testkit.runner.InvalidPluginMetadataException;
 import org.gradle.testkit.runner.InvalidRunnerConfigurationException;
-import org.gradle.testkit.runner.TaskOutcome;
 import org.gradle.testkit.runner.UnexpectedBuildFailure;
 import org.gradle.testkit.runner.UnexpectedBuildSuccess;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.Writer;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
@@ -146,58 +145,47 @@ public class NormalizeOutputGradleRunner extends GradleRunner {
 
     @Override
     public BuildResult build() throws InvalidRunnerConfigurationException, UnexpectedBuildFailure {
-        return new NormalizedBuildResult(delegate.build());
+        return normalizedBuildResult(delegate.build());
     }
 
     @Override
     public BuildResult buildAndFail() throws InvalidRunnerConfigurationException, UnexpectedBuildSuccess {
-        return new NormalizedBuildResult(delegate.buildAndFail());
+        return normalizedBuildResult(delegate.buildAndFail());
     }
 
     @Override
     public BuildResult run() throws InvalidRunnerConfigurationException {
-        return new NormalizedBuildResult(delegate.run());
+        return normalizedBuildResult(delegate.run());
     }
 
-    private class NormalizedBuildResult implements BuildResult {
-        private BuildResult delegate;
-        private String normalizedString;
-
-        NormalizedBuildResult(BuildResult delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public String getOutput() {
-            if (normalizedString == null) {
-                normalizedString = normalizeString(delegate.getOutput(), getProjectDir());
+    /**
+     * Decorates a {@link BuildResult} so that {@link BuildResult#getOutput()} returns normalized output.
+     * <p>
+     * A {@link Proxy} is used instead of a class implementing {@link BuildResult} on purpose: Gradle
+     * occasionally adds new abstract methods to the {@code BuildResult} interface (e.g. {@code getOutputReader()}
+     * in Gradle 9.1 and {@code getConfigurationCacheOutcome()} in Gradle 9.8), which breaks compilation of any
+     * static implementation on wrapper upgrades. The proxy implements whatever the interface looks like at
+     * runtime and forwards everything except {@code getOutput()} untouched, so new interface methods keep
+     * working without code changes here.
+     */
+    private BuildResult normalizedBuildResult(BuildResult result) {
+        final String[] normalizedOutput = new String[1];
+        return (BuildResult) Proxy.newProxyInstance(
+            BuildResult.class.getClassLoader(),
+            new Class<?>[] { BuildResult.class },
+            (proxy, method, args) -> {
+                try {
+                    if (method.getName().equals("getOutput") && method.getParameterCount() == 0) {
+                        if (normalizedOutput[0] == null) {
+                            normalizedOutput[0] = normalizeString(result.getOutput(), getProjectDir());
+                        }
+                        return normalizedOutput[0];
+                    }
+                    return method.invoke(result, args);
+                } catch (InvocationTargetException e) {
+                    throw e.getCause();
+                }
             }
-            return normalizedString;
-        }
-
-        @Override
-        public BufferedReader getOutputReader() {
-            return delegate.getOutputReader();
-        }
-
-        @Override
-        public List<BuildTask> getTasks() {
-            return delegate.getTasks();
-        }
-
-        @Override
-        public List<BuildTask> tasks(TaskOutcome taskOutcome) {
-            return delegate.tasks(taskOutcome);
-        }
-
-        @Override
-        public List<String> taskPaths(TaskOutcome taskOutcome) {
-            return delegate.taskPaths(taskOutcome);
-        }
-
-        @Override
-        public BuildTask task(String s) {
-            return delegate.task(s);
-        }
+        );
     }
 }

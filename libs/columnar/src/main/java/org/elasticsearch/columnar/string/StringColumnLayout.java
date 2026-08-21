@@ -14,13 +14,12 @@ package org.elasticsearch.columnar.string;
  * is codec-internal: every layout is served at the same binary surface, so the layer above never sees the
  * choice.
  *
- * <p>Ids are frozen once shipped, and a new layout arrives as a new id leaving already-written segments
- * decoding unchanged. That is the point of recording the id while only one layout exists: an ordinal layout,
- * decided at merge from statistics a flush emits, arrives without a format bump. See {@code docs/PLAN.md}.
+ * <p>Ids are frozen once shipped, so a layout added later arrives as a new id and already-written segments
+ * go on decoding unchanged. That is why the id is recorded while only one layout exists.
  */
 public enum StringColumnLayout {
 
-    /** Values stored directly, {@code [VInt length][bytes]} per value. */
+    /** The values themselves, in written order, in one {@link ValueStream}. */
     PLAIN((byte) 0);
 
     private final byte id;

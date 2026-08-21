@@ -117,11 +117,18 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     @Override
     public void addBinaryField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         ColumnarFieldType type = ColumnarFieldType.fromField(field);
-        if (type.isNumeric()) {
-            writeNumericColumn(field, type, () -> ColumnarNumericBinaryDocValues.decodePayloads(valuesProducer.getBinary(field)));
-        } else {
-            assert type == ColumnarFieldType.STRING : "Unsupported ColumNAR type [" + type + "]";
-            writeStringColumn(field, type, () -> ColumnarStringBinaryDocValues.singleValues(valuesProducer.getBinary(field)));
+        // Exhaustive, so a column type added later is a compile error here rather than a surprise at runtime.
+        switch (type) {
+            case LONG, DOUBLE -> writeNumericColumn(
+                field,
+                type,
+                () -> ColumnarNumericBinaryDocValues.decodePayloads(valuesProducer.getBinary(field))
+            );
+            case STRING -> writeStringColumn(
+                field,
+                type,
+                () -> ColumnarStringBinaryDocValues.singleValues(valuesProducer.getBinary(field))
+            );
         }
     }
 
@@ -134,11 +141,9 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     @Override
     public void mergeBinaryField(FieldInfo field, MergeState mergeState) throws IOException {
         ColumnarFieldType type = ColumnarFieldType.fromField(field);
-        if (type.isNumeric()) {
-            writeNumericColumn(field, type, () -> numericMergeCursor(field, mergeState));
-        } else {
-            assert type == ColumnarFieldType.STRING : "Unsupported ColumNAR type [" + type + "]";
-            writeStringColumn(field, type, () -> stringMergeCursor(field, mergeState));
+        switch (type) {
+            case LONG, DOUBLE -> writeNumericColumn(field, type, () -> numericMergeCursor(field, mergeState));
+            case STRING -> writeStringColumn(field, type, () -> stringMergeCursor(field, mergeState));
         }
     }
 
@@ -225,9 +230,9 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     }
 
     /**
-     * The string counterpart of {@link #numericMergeCursor}: reads each source segment's values in bulk off disk via
-     * {@link ColumnarStringBinaryDocValues#directValues}, in merged doc order. A fresh cursor is built per pass
-     * — count plus cardinality probe, iterator, then values.
+     * The string counterpart of {@link #numericMergeCursor}: reads each source segment's values off disk via
+     * {@link ColumnarStringBinaryDocValues#directValues}, in merged doc order. A fresh cursor is built per
+     * pass — the count, the iterator, then the values.
      */
     private static StringColumnValues stringMergeCursor(FieldInfo field, MergeState mergeState) throws IOException {
         List<ColumnMergeSub<StringColumnValues>> subs = new ArrayList<>();
@@ -334,13 +339,10 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         StringColumnValues counter = cursors.get();
         for (int doc = counter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = counter.nextDoc()) {
             numDocsWithField++;
-            int count = counter.valueCount();
-            if (count != 1) {
-                throw new UnsupportedOperationException(
-                    "ColumNAR string columns are single-valued; document [" + doc + "] of field [" + field.name + "] has " + count
-                );
-            }
-            numValues += count;
+            // One value per document: that is what this surface carries, and what lets the reader take a
+            // document's rank as its value's index rather than keeping an address for every document.
+            assert counter.valueCount() == 1 : "document [" + doc + "] of field [" + field.name + "] has " + counter.valueCount();
+            numValues++;
         }
 
         StringColumnMetadata metadata = StringColumnWriter.write(

@@ -29,13 +29,18 @@ import java.io.Closeable;
 import java.io.IOException;
 
 /**
- * An indexed sequence of byte values: each value is written as {@code [vint length][bytes]} so its length
- * travels with it and compresses alongside it, and one offset is recorded per run of {@link #VALUES_PER_BLOCK}
- * values. Reading value {@code i} reads its run's span and walks the lengths within it, which is what keeps
- * the offset table a fraction of the size a per-value table would be.
+ * An indexed sequence of byte values, addressed in blocks of {@link #VALUES_PER_BLOCK} values and compressed
+ * in chunks of a fixed number of bytes. One offset is recorded per block rather than per value, so reading
+ * value {@code i} reads its block and walks the lengths within it — which keeps the offset table a fraction
+ * of the size a per-value table would be.
  *
- * <p>Used for every byte sequence a string column stores — the plain values, the dictionary, and the
- * exceptions — because all three are the same problem.
+ * <p>A block holds its lengths one of two ways, chosen by how long its values are: beside each value, where
+ * a length and its value compress together as one pattern, or packed at the block's head, where walking past
+ * a long value to reach the next one would cost more than the packing saves.
+ *
+ * <p>Blocks and chunks are separate on purpose. A block of long values and a block of short ones are the same
+ * count of values and nothing like the same number of bytes, so the unit that is addressed cannot also be the
+ * unit that is compressed. A chunk closes only on a block boundary, so no value spans two of them.
  */
 public final class ValueStream {
 
@@ -273,73 +278,6 @@ public final class ValueStream {
             dst.bytes = block.bytes;
             dst.offset = starts[within];
             dst.length = lengths[within];
-        }
-
-        /**
-         * Copies {@code count} values from {@code first} in order into {@code dst}, recording where each
-         * landed. Walking the stream forward costs one length read per value and skips the offset lookup,
-         * the search for the chunk and the index over the block — all of which exist to answer a question a
-         * scan never asks, where a value it has not reached yet begins.
-         *
-         * <p>The values are copied rather than pointed at because a run crosses chunks, and a chunk is
-         * decoded into a buffer that the next one overwrites.
-         *
-         * @return the buffer the values landed in, which is {@code dst} unless it had to grow
-         */
-        public byte[] sequential(long first, int count, byte[] dst, int[] outStarts, int[] outLengths) throws IOException {
-            long index = first;
-            int remaining = count;
-            int at = 0;
-            int written = 0;
-            while (remaining > 0) {
-                final long blockIndex = index / valuesPerBlock;
-                final int within = (int) (index - blockIndex * valuesPerBlock);
-                final int inBlockCount = decodeBlock(blockIndex);
-                cachedBlock = blockIndex;
-                final int take = Math.min(inBlockCount - within, remaining);
-                // The block's values are contiguous, so the run within it is one copy rather than one per
-                // value; only their bounds are recorded individually.
-                int total = 0;
-                for (int i = 0; i < take; i++) {
-                    total += lengths[within + i];
-                }
-                if (dst.length < written + total) {
-                    dst = ArrayUtil.grow(dst, written + total);
-                }
-                // A packed block holds its values back to back and copies in one go; an inline block has a
-                // length between each pair, so its values are copied one at a time.
-                if (contiguous(within, take)) {
-                    System.arraycopy(block.bytes, starts[within], dst, written, total);
-                    for (int i = 0; i < take; i++) {
-                        outStarts[at] = written + (starts[within + i] - starts[within]);
-                        outLengths[at] = lengths[within + i];
-                        at++;
-                    }
-                    written += total;
-                } else {
-                    for (int i = 0; i < take; i++) {
-                        final int length = lengths[within + i];
-                        System.arraycopy(block.bytes, starts[within + i], dst, written, length);
-                        outStarts[at] = written;
-                        outLengths[at] = length;
-                        at++;
-                        written += length;
-                    }
-                }
-                index += take;
-                remaining -= take;
-            }
-            return dst;
-        }
-
-        /** Whether the block's values from {@code from} lie back to back, which only a packed block does. */
-        private boolean contiguous(int from, int take) {
-            for (int i = 1; i < take; i++) {
-                if (starts[from + i] != starts[from + i - 1] + lengths[from + i - 1]) {
-                    return false;
-                }
-            }
-            return true;
         }
 
         private void ensureBlock(long blockIndex) throws IOException {

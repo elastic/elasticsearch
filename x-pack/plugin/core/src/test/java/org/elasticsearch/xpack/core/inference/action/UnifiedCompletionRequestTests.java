@@ -15,6 +15,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.CacheControl;
+import org.elasticsearch.inference.completion.CacheControlTests;
 import org.elasticsearch.inference.completion.Content;
 import org.elasticsearch.inference.completion.ContentObject;
 import org.elasticsearch.inference.completion.ContentObject.ContentObjectFile;
@@ -48,6 +50,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_CACHE_CONTROL_AND_SESSION_ID_ADDED;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_REASONING_SUPPORT_ADDED;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED;
 import static org.hamcrest.Matchers.is;
@@ -146,7 +149,11 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                     "summary": "detailed",
                     "exclude": false,
                     "enabled": false
-                }
+                },
+                "cache_control": {
+                    "type": "ephemeral"
+                },
+                "session_id": "test_session_123"
             }
             """;
 
@@ -212,7 +219,9 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                     )
                 ),
                 0.2F,
-                new Reasoning(Reasoning.ReasoningEffort.MEDIUM, Reasoning.ReasoningSummary.DETAILED, false, false)
+                new Reasoning(Reasoning.ReasoningEffort.MEDIUM, Reasoning.ReasoningSummary.DETAILED, false, false),
+                new CacheControl("ephemeral", null),
+                "test_session_123"
             );
 
             assertThat(request, is(expected));
@@ -543,7 +552,9 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             randomToolChoiceOrNull(),
             randomToolListOrNull(),
             randomFloatOrNull(),
-            randomReasoningOrNull()
+            randomReasoningOrNull(),
+            randomCacheControlOrNull(),
+            randomAlphaOfLengthOrNull(10)
         );
     }
 
@@ -557,7 +568,9 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             randomToolChoiceOrNull(),
             randomToolListOrNull(),
             randomFloatOrNull(),
-            randomReasoningOrNull()
+            randomReasoningOrNull(),
+            randomCacheControlOrNull(),
+            randomAlphaOfLengthOrNull(10)
         );
     }
 
@@ -666,6 +679,10 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         return randomBoolean() ? ReasoningTests.randomReasoning() : null;
     }
 
+    public static CacheControl randomCacheControlOrNull() {
+        return randomBoolean() ? CacheControlTests.randomCacheControl() : null;
+    }
+
     @Override
     protected UnifiedCompletionRequest mutateInstanceForVersion(UnifiedCompletionRequest instance, TransportVersion version) {
         return mutateInstanceForTransportVersion(instance, version);
@@ -689,6 +706,21 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                 instance.toolChoice(),
                 instance.tools(),
                 instance.topP()
+            );
+        }
+        if (version.supports(CHAT_COMPLETION_CACHE_CONTROL_AND_SESSION_ID_ADDED) == false) {
+            instance = new UnifiedCompletionRequest(
+                instance.messages(),
+                instance.model(),
+                instance.maxCompletionTokens(),
+                instance.stop(),
+                instance.temperature(),
+                instance.toolChoice(),
+                instance.tools(),
+                instance.topP(),
+                instance.reasoning(),
+                null,
+                null
             );
         }
         return instance;
@@ -715,7 +747,9 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         List<Tool> tools = instance.tools();
         Float topP = instance.topP();
         Reasoning reasoning = instance.reasoning();
-        switch (between(0, 8)) {
+        CacheControl cacheControl = instance.cacheControl();
+        String sessionId = instance.sessionId();
+        switch (between(0, 10)) {
             case 0 -> messages = randomValueOtherThan(messages, () -> randomList(5, UnifiedCompletionRequestTests::randomMessage));
             case 1 -> model = randomValueOtherThan(model, () -> randomAlphaOfLength(10));
             case 2 -> maxCompletionTokens = randomValueOtherThan(maxCompletionTokens, ESTestCase::randomNonNegativeLongOrNull);
@@ -725,9 +759,23 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             case 6 -> tools = randomValueOtherThan(tools, UnifiedCompletionRequestTests::randomToolListOrNull);
             case 7 -> topP = randomValueOtherThan(topP, ESTestCase::randomFloatOrNull);
             case 8 -> reasoning = randomValueOtherThan(reasoning, UnifiedCompletionRequestTests::randomReasoningOrNull);
+            case 9 -> cacheControl = randomValueOtherThan(cacheControl, UnifiedCompletionRequestTests::randomCacheControlOrNull);
+            case 10 -> sessionId = randomValueOtherThan(sessionId, () -> randomBoolean() ? randomAlphaOfLength(10) : null);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new UnifiedCompletionRequest(messages, model, maxCompletionTokens, stop, temperature, toolChoice, tools, topP, reasoning);
+        return new UnifiedCompletionRequest(
+            messages,
+            model,
+            maxCompletionTokens,
+            stop,
+            temperature,
+            toolChoice,
+            tools,
+            topP,
+            reasoning,
+            cacheControl,
+            sessionId
+        );
     }
 
     @Override

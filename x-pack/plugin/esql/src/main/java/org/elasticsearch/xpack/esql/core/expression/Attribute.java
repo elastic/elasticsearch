@@ -151,7 +151,9 @@ public abstract class Attribute extends NamedExpression {
     }
 
     public Attribute withQualifier(String qualifier) {
-        return Objects.equals(qualifier, qualifier) ? this : clone(source(), qualifier, name(), dataType(), nullable(), id(), synthetic());
+        return Objects.equals(qualifier(), qualifier)
+            ? this
+            : clone(source(), qualifier, name(), dataType(), nullable(), id(), synthetic());
     }
 
     public Attribute withName(String name) {

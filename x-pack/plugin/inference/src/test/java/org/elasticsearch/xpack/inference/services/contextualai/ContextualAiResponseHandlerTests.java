@@ -31,13 +31,9 @@ import static org.mockito.Mockito.when;
 
 public class ContextualAiResponseHandlerTests extends ESTestCase {
 
-    public void testCheckForFailureStatusCode_StatusCode200_DoesNotThrow() {
-        callCheckForFailureStatusCode(200, null);
-    }
-
-    public void testCheckForFailureStatusCode_StatusCode500_ThrowsRetryableServerError() {
+    public void testBuildFailureStatusCodeException_StatusCode500_ReturnsRetryableServerError() {
         var errorBody = "Internal server error: service unavailable";
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(500, errorBody));
+        var exception = callHandleFailureStatusCode(500, errorBody);
         assertTrue(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -52,9 +48,9 @@ public class ContextualAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testCheckForFailureStatusCode_StatusCode503_ThrowsRetryableServerError() {
+    public void testBuildFailureStatusCodeException_StatusCode503_ReturnsRetryableServerError() {
         var errorBody = "Service temporarily unavailable";
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(503, errorBody));
+        var exception = callHandleFailureStatusCode(503, errorBody);
         assertTrue(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -69,9 +65,9 @@ public class ContextualAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testCheckForFailureStatusCode_StatusCode429_ThrowsRetryableRateLimitError() {
+    public void testBuildFailureStatusCodeException_StatusCode429_ReturnsRetryableRateLimitError() {
         var errorBody = "Rate limit exceeded, please retry later";
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(429, errorBody));
+        var exception = callHandleFailureStatusCode(429, errorBody);
         assertTrue(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -86,9 +82,9 @@ public class ContextualAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
     }
 
-    public void testCheckForFailureStatusCode_StatusCode401_ThrowsAuthenticationError() {
+    public void testBuildFailureStatusCodeException_StatusCode401_ReturnsAuthenticationError() {
         var errorBody = "Invalid API key provided";
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(401, errorBody));
+        var exception = callHandleFailureStatusCode(401, errorBody);
         assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -103,9 +99,9 @@ public class ContextualAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.UNAUTHORIZED));
     }
 
-    public void testCheckForFailureStatusCode_StatusCode400_ThrowsUnsuccessfulError() {
+    public void testBuildFailureStatusCodeException_StatusCode400_ReturnsUnsuccessfulError() {
         var errorBody = "Invalid request: missing required field";
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(400, errorBody));
+        var exception = callHandleFailureStatusCode(400, errorBody);
         assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -120,9 +116,9 @@ public class ContextualAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testCheckForFailureStatusCode_StatusCode300_ThrowsRedirectionError() {
+    public void testBuildFailureStatusCodeException_StatusCode300_ReturnsRedirectionError() {
         var errorBody = "Resource has been moved";
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(300, errorBody));
+        var exception = callHandleFailureStatusCode(300, errorBody);
         assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -134,7 +130,7 @@ public class ContextualAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.MULTIPLE_CHOICES));
     }
 
-    private static void callCheckForFailureStatusCode(int statusCode, @Nullable String errorMessage) {
+    private static RetryException callHandleFailureStatusCode(int statusCode, @Nullable String errorMessage) {
         var statusLine = mock(StatusLine.class);
         when(statusLine.getStatusCode()).thenReturn(statusCode);
 
@@ -149,6 +145,6 @@ public class ContextualAiResponseHandlerTests extends ESTestCase {
         var httpResult = new HttpResult(httpResponse, errorMessage == null ? new byte[] {} : errorMessage.getBytes(StandardCharsets.UTF_8));
         var handler = new ContextualAiResponseHandler("", (request, result) -> null, false);
 
-        handler.checkForFailureStatusCode(mockRequest, httpResult);
+        return handler.buildFailureStatusCodeException(mockRequest, httpResult);
     }
 }

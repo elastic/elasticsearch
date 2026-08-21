@@ -2,6 +2,7 @@
 
 ```{applies_to}
 stack: preview 9.6.0
+serverless: preview
 ```
 
 

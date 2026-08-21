@@ -1,0 +1,5 @@
+area: Infra/Metrics
+issues: []
+pr: 156082
+summary: Propagate sample rate information to APM Server
+type: enhancement

@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.indices.ResizeIndexTestUtils;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.cluster.action.shard.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -39,6 +40,7 @@ import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.ShardRecoveryCancellation;
 import org.elasticsearch.indices.recovery.TestRecoverySchedulingListener;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -120,8 +122,9 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
 
         final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().term(),
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
 
         client(node).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
@@ -162,8 +165,9 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
 
         final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().term(),
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
         client(node).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
@@ -205,8 +209,9 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
 
         final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().term(),
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
         client(node).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
@@ -250,8 +255,9 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
 
         final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().term(),
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
         client(node).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
@@ -297,8 +303,9 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
 
         final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().term(),
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
 
         client(node).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
@@ -383,8 +390,9 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
 
         final var clusterService = internalCluster().getInstance(ClusterService.class, targetNode);
         final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().term(),
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
         client(targetNode).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
 
@@ -437,8 +445,9 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
 
         final var clusterService = internalCluster().getInstance(ClusterService.class, searchNode);
         final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().term(),
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
         client(searchNode).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
         proceedWithRegistration.countDown();
@@ -462,7 +471,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         final var shardFailureReceivedLatch = new CountDownLatch(1);
         MockTransportService.getInstance(node)
             .addRequestHandlingBehavior(ShardStateAction.SHARD_FAILED_ACTION_NAME, (handler, request, channel, task) -> {
-                if (request instanceof ShardStateAction.FailedShardEntry failedShard) {
+                if (request instanceof FailedShardEntry failedShard) {
                     if (failedShard.getShardId().equals(shardId)
                         && ExceptionsHelper.unwrap(failedShard.getFailure(), RecoveryCancelledException.class) != null) {
                         shardFailureReceivedLatch.countDown();

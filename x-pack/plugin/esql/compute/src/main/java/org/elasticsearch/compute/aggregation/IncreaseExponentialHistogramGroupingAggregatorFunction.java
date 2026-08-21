@@ -66,7 +66,7 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
             DriverContext driverContext,
             List<Integer> channels
         ) {
-            var warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+            var warnings = driverContext.createWarnings(source);
             return new IncreaseExponentialHistogramGroupingAggregatorFunction(channels, driverContext, warnings);
         }
 
@@ -88,6 +88,7 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
     private final DriverContext driverContext;
     private final BigArrays bigArrays;
     private ObjectArray<ReducedState> reducedStates;
+    private ObjectArray<DeltaState> deltaStates;
     private final IntervalBuffer intervalBuffer;
     private final Warnings warnings;
     private final ExponentialHistogramMerger.Factory mergerFactory;
@@ -109,6 +110,7 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
             intervalBuffer = new IntervalBuffer(driverContext.blockFactory());
             mergerFactory = ExponentialHistogramMerger.createFactory(histoBreaker);
             this.reducedStates = bigArrays.newObjectArray(256);
+            this.deltaStates = bigArrays.newObjectArray(256);
             this.rawBuffer = rawBuffer;
             rawBuffer = null;
             this.intervalBuffer = intervalBuffer;
@@ -201,7 +203,7 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
     ) {
         int lastGroup = -1;
         Temporality temporality = null;
-        ReducedState currentDeltaState = null;
+        DeltaState deltaState = null;
         ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
         int positionCount = groups.getPositionCount();
         for (int p = 0; p < positionCount; p++) {
@@ -231,15 +233,15 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
                         rawBuffer.prepareForAppend(groupId, 1, timestamp);
                         rawBuffer.appendWithoutResize(timestamp, value);
                     } else if (temporality == Temporality.DELTA) {
-                        currentDeltaState = getOrInitializeReducedState(groupId);
-                        currentDeltaState.appendDeltaValue(timestamp, value);
+                        deltaState = getOrInitializeDeltaState(groupId);
+                        deltaState.appendDeltaValue(timestamp, value);
                     }
                     lastGroup = groupId;
                 } else {
                     if (temporality == Temporality.CUMULATIVE) {
                         rawBuffer.maybeResizeAndAppend(timestamp, value);
                     } else if (temporality == Temporality.DELTA) {
-                        currentDeltaState.appendDeltaValue(timestamp, value);
+                        deltaState.appendDeltaValue(timestamp, value);
                     }
                 }
             }
@@ -305,7 +307,7 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
             rawBuffer.prepareForAppend(group, to - from, timestampVector.getLong(from));
             rawBuffer.appendRange(from, to, valueBlock, timestampVector);
         } else {
-            ReducedState state = getOrInitializeReducedState(group);
+            DeltaState state = getOrInitializeDeltaState(group);
             state.appendDeltaSubRange(from, to, timestampVector, valueBlock);
         }
     }
@@ -352,9 +354,19 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
         }
     }
 
+    private DeltaState getOrInitializeDeltaState(int groupId) {
+        deltaStates = bigArrays.grow(deltaStates, groupId + 1);
+        var state = deltaStates.get(groupId);
+        if (state == null) {
+            state = new DeltaState();
+            deltaStates.set(groupId, state);
+        }
+        return state;
+    }
+
     private ReducedState getOrInitializeReducedState(int groupId) {
         reducedStates = bigArrays.grow(reducedStates, groupId + 1);
-        ReducedState state = reducedStates.get(groupId);
+        var state = reducedStates.get(groupId);
         if (state == null) {
             state = new ReducedState();
             reducedStates.set(groupId, state);
@@ -441,10 +453,18 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
         for (int i = 0; i < reducedStates.size(); i++) {
             Releasables.close(reducedStates.get(i));
         }
-        Releasables.close(reducedStates, rawBuffer, intervalBuffer, mergerFactory);
+        for (int i = 0; i < deltaStates.size(); i++) {
+            Releasables.close(deltaStates.get(i));
+        }
+        Releasables.close(reducedStates, rawBuffer, intervalBuffer, mergerFactory, deltaStates);
     }
 
     void flushRawBuffers() {
+        flushCumulativeRawBuffers();
+        flushDeltaStates();
+    }
+
+    void flushCumulativeRawBuffers() {
         if (rawBuffer.minGroupId > rawBuffer.maxGroupId) {
             return;
         }
@@ -462,6 +482,27 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
             }
         }
         rawBuffer.clearBuffers();
+    }
+
+    void flushDeltaStates() {
+        for (long groupId = 0; groupId < deltaStates.size(); groupId++) {
+            DeltaState delta = deltaStates.getAndSet(groupId, null);
+            if (delta == null || delta.samples == 0) {
+                Releasables.close(delta);
+                continue;
+            }
+            try {
+                ReducedState state = getOrInitializeReducedState(Math.toIntExact(groupId));
+                // empty lastValue forces resets to drive the increase; resets already holds the summed deltas
+                state.appendInterval(delta.deltaLastTs, ExponentialHistogram.empty(), delta.deltaFirstTs, delta.deltaFirstValue.accessor());
+                state.samples += delta.samples;
+                if (delta.resets != null) {
+                    state.addToResets(delta.resets.get());
+                }
+            } finally {
+                Releasables.close(delta);
+            }
+        }
     }
 
     static final class ExponentialHistogramRawBuffer extends RawBuffer {
@@ -788,25 +829,7 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
         // first)
         int[] intervals = EMPTY_INTERVALS;
 
-        // Delta tracking fields: in contrast to cumulative intervals, they need to be mutable
-        // We use deltaLastTs >= deltaFirstTs as indicator delta data exists.
-        long deltaFirstTs = Long.MAX_VALUE;
-        CompressedExponentialHistogramHolder deltaFirstValue;
-        long deltaLastTs = Long.MIN_VALUE;
-
-        boolean hasDelta() {
-            return deltaLastTs >= deltaFirstTs;
-        }
-
-        void appendInterval(long lastTs, ExponentialHistogram lastValue, long firstTs, ExponentialHistogram firstValue) {
-            assert hasDelta() == false : "cannot append intervals while delta data is pending";
-            int currentSize = intervals.length;
-            this.intervals = ArrayUtil.growExact(intervals, currentSize + 1);
-            this.intervals[currentSize] = intervalBuffer.appendInterval(lastTs, lastValue, firstTs, firstValue);
-        }
-
         void appendIntervalsFromBlocks(LongBlock ts, ExponentialHistogramBlock vs, int position) {
-            assert hasDelta() == false : "cannot append intervals while delta data is pending";
             int intervalCount = ts.getValueCount(position) / 2;
             int firstIntervalId = intervalBuffer.appendIntervalsFromBlocks(ts, vs, position);
             int currentSize = intervals.length;
@@ -816,6 +839,12 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
             }
         }
 
+        void appendInterval(long lastTs, ExponentialHistogram lastValue, long firstTs, ExponentialHistogram firstValue) {
+            int currentSize = intervals.length;
+            this.intervals = ArrayUtil.growExact(intervals, currentSize + 1);
+            this.intervals[currentSize] = intervalBuffer.appendInterval(lastTs, lastValue, firstTs, firstValue);
+        }
+
         void writeIntervalsToBlocks(
             LongBlock.Builder timestamps,
             ExponentialHistogramBlock.Builder values,
@@ -823,80 +852,28 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
         ) {
             timestamps.beginPositionEntry();
             values.beginPositionEntry();
-            if (hasDelta()) {
-                // delta data gets converted to a single, cumulative interval
-                timestamps.appendLong(lastTs());
-                timestamps.appendLong(firstTs());
-                values.append(lastValue(scratch));
-                values.append(firstValue(scratch));
-            } else {
-                for (int intervalId : intervals) {
-                    timestamps.appendLong(intervalBuffer.lastTs(intervalId));
-                    timestamps.appendLong(intervalBuffer.firstTs(intervalId));
-                    values.append(intervalBuffer.lastValue(intervalId, scratch));
-                    values.append(intervalBuffer.firstValue(intervalId, scratch));
-                }
+            for (int intervalId : intervals) {
+                timestamps.appendLong(intervalBuffer.lastTs(intervalId));
+                timestamps.appendLong(intervalBuffer.firstTs(intervalId));
+                values.append(intervalBuffer.lastValue(intervalId, scratch));
+                values.append(intervalBuffer.firstValue(intervalId, scratch));
             }
             timestamps.endPositionEntry();
             values.endPositionEntry();
         }
 
-        public void appendDeltaValue(long timestamp, ExponentialHistogram value) {
-            assert intervals.length == 0 : "cannot append delta data when intervals already exist";
-            samples++;
-            addToResets(value);
-            deltaLastTs = Math.max(deltaLastTs, timestamp);
-            if (timestamp < deltaFirstTs) {
-                deltaFirstTs = timestamp;
-                if (deltaFirstValue == null) {
-                    deltaFirstValue = CompressedExponentialHistogramHolder.create(histoBreaker);
-                }
-                deltaFirstValue.set(value);
-            }
-        }
-
-        public void appendDeltaSubRange(int from, int to, LongVector timestampVector, ExponentialHistogramBlock valueBlock) {
-            assert intervals.length == 0 : "cannot append delta data when intervals already exist";
-            int minTsPos = -1;
-            long minTs = Long.MAX_VALUE;
-            ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
-            for (int i = from; i < to; i++) {
-                if (valueBlock.isNull(i)) {
-                    continue;
-                }
-                long ts = timestampVector.getLong(i);
-                if (ts < minTs) {
-                    minTs = ts;
-                    minTsPos = i;
-                }
-                samples++;
-                addToResets(valueBlock.getExponentialHistogram(valueBlock.getFirstValueIndex(i), scratch));
-                deltaLastTs = Math.max(deltaLastTs, ts);
-            }
-            if (minTs < deltaFirstTs) {
-                deltaFirstTs = minTs;
-                if (deltaFirstValue == null) {
-                    deltaFirstValue = CompressedExponentialHistogramHolder.create(histoBreaker);
-                }
-                deltaFirstValue.set(valueBlock.getExponentialHistogram(valueBlock.getFirstValueIndex(minTsPos), scratch));
-            }
-        }
-
         void combineIntervals() {
-            // only applies to cumulative metrics, we don't need to do anything for delta
-            if (hasDelta() == false) {
-                // Sort the intervals by the lastTs (most recent first) for the final evaluation
-                sortIntervals();
-                ExponentialHistogramScratch prevScratch = new ExponentialHistogramScratch();
-                ExponentialHistogramScratch nextScratch = new ExponentialHistogramScratch();
-                for (int i = 1; i < intervals.length; i++) {
-                    int nextInterval = intervals[i - 1]; // reversed
-                    int prevInterval = intervals[i];
-                    ExponentialHistogram prevLast = intervalBuffer.lastValue(prevInterval, prevScratch);
-                    ExponentialHistogram nextFirst = intervalBuffer.firstValue(nextInterval, nextScratch);
-                    if (nextFirst.valueCount() < prevLast.valueCount()) {
-                        addToResets(prevLast);
-                    }
+            // Sort the intervals by the lastTs (most recent first) for the final evaluation
+            sortIntervals();
+            ExponentialHistogramScratch prevScratch = new ExponentialHistogramScratch();
+            ExponentialHistogramScratch nextScratch = new ExponentialHistogramScratch();
+            for (int i = 1; i < intervals.length; i++) {
+                int nextInterval = intervals[i - 1]; // reversed
+                int prevInterval = intervals[i];
+                ExponentialHistogram prevLast = intervalBuffer.lastValue(prevInterval, prevScratch);
+                ExponentialHistogram nextFirst = intervalBuffer.firstValue(nextInterval, nextScratch);
+                if (nextFirst.valueCount() < prevLast.valueCount()) {
+                    addToResets(prevLast);
                 }
             }
         }
@@ -933,34 +910,83 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
             }.sort(0, intervals.length);
         }
 
-        // The accessor methods first*/last* must only be called after combineIntervals() for non-delta states!
+        // The accessor methods first*/last* must only be called after combineIntervals().
         long lastTs() {
-            if (hasDelta()) {
-                return deltaLastTs;
-            }
             return intervalBuffer.lastTs(intervals[0]);
         }
 
         ExponentialHistogram lastValue(ExponentialHistogramScratch scratch) {
-            if (hasDelta()) {
-                // We use 0 as lastvalue for delta to force resets, the reset counter already has the real value in it
-                return ExponentialHistogram.empty();
-            }
             return intervalBuffer.lastValue(intervals[0], scratch);
         }
 
         long firstTs() {
-            if (hasDelta()) {
-                return deltaFirstTs;
-            }
             return intervalBuffer.firstTs(intervals[intervals.length - 1]);
         }
 
         ExponentialHistogram firstValue(ExponentialHistogramScratch scratch) {
-            if (hasDelta()) {
-                return deltaFirstValue.accessor();
-            }
             return intervalBuffer.firstValue(intervals[intervals.length - 1], scratch);
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(resets);
+        }
+    }
+
+    final class DeltaState implements Releasable {
+        long samples;
+        ExponentialHistogramMerger resets;
+        long deltaFirstTs = Long.MAX_VALUE;
+        CompressedExponentialHistogramHolder deltaFirstValue;
+        long deltaLastTs = Long.MIN_VALUE;
+
+        void addToResets(ExponentialHistogram value) {
+            if (value.isEmpty()) {
+                return;
+            }
+            if (resets == null) {
+                resets = mergerFactory.createMerger();
+            }
+            resets.add(value);
+        }
+
+        void appendDeltaValue(long timestamp, ExponentialHistogram value) {
+            samples++;
+            addToResets(value);
+            deltaLastTs = Math.max(deltaLastTs, timestamp);
+            if (timestamp < deltaFirstTs) {
+                deltaFirstTs = timestamp;
+                if (deltaFirstValue == null) {
+                    deltaFirstValue = CompressedExponentialHistogramHolder.create(histoBreaker);
+                }
+                deltaFirstValue.set(value);
+            }
+        }
+
+        void appendDeltaSubRange(int from, int to, LongVector timestampVector, ExponentialHistogramBlock valueBlock) {
+            int minTsPos = -1;
+            long minTs = Long.MAX_VALUE;
+            ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
+            for (int i = from; i < to; i++) {
+                if (valueBlock.isNull(i)) {
+                    continue;
+                }
+                long ts = timestampVector.getLong(i);
+                if (ts < minTs) {
+                    minTs = ts;
+                    minTsPos = i;
+                }
+                samples++;
+                addToResets(valueBlock.getExponentialHistogram(valueBlock.getFirstValueIndex(i), scratch));
+                deltaLastTs = Math.max(deltaLastTs, ts);
+            }
+            if (minTs < deltaFirstTs) {
+                deltaFirstTs = minTs;
+                if (deltaFirstValue == null) {
+                    deltaFirstValue = CompressedExponentialHistogramHolder.create(histoBreaker);
+                }
+                deltaFirstValue.set(valueBlock.getExponentialHistogram(valueBlock.getFirstValueIndex(minTsPos), scratch));
+            }
         }
 
         @Override

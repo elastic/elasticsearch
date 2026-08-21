@@ -13,6 +13,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.IntsBlockLoader;
@@ -147,8 +148,13 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
     public static class AvgBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
         NumberFieldMapper.NumberFieldType sumFieldType;
         NumberFieldMapper.NumberFieldType countFieldType;
+        private final Warnings warnings;
 
-        AvgBlockLoader(EnumMap<AggregateMetricDoubleFieldMapper.Metric, NumberFieldMapper.NumberFieldType> availableMetrics) {
+        AvgBlockLoader(
+            EnumMap<AggregateMetricDoubleFieldMapper.Metric, NumberFieldMapper.NumberFieldType> availableMetrics,
+            Warnings warnings
+        ) {
+            this.warnings = warnings;
             if (availableMetrics.containsKey(AggregateMetricDoubleFieldMapper.Metric.sum) == false
                 || availableMetrics.containsKey(AggregateMetricDoubleFieldMapper.Metric.value_count) == false) {
                 sumFieldType = null;
@@ -225,7 +231,17 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
                                 lastDoc = doc;
                                 double sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
                                 long count = valueCountValues.longValue();
-                                builder.appendDouble(sum / count);
+                                if (count <= 0) {
+                                    warnings.registerException(
+                                        IllegalArgumentException.class,
+                                        "[aggregate_metric_double] fields has a non-positive count [value_count="
+                                            + count
+                                            + "], so it cannot fallback to a single average value, treating result as null"
+                                    );
+                                    builder.appendNull();
+                                } else {
+                                    builder.appendDouble(sum / count);
+                                }
                             } else {
                                 builder.appendNull();
                             }

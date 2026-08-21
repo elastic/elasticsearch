@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis.promql;
 
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -33,7 +34,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class PromqlVerifierTests extends ESTestCase {
 
-    private final TestAnalyzer tsdb = analyzer().addIndex("test", "tsdb-mapping.json")
+    private final TestAnalyzer tsdb = analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
         .stripErrorPrefix(true)
         .unmappedResolution(UnmappedResolution.NULLIFY);
 
@@ -199,7 +200,7 @@ public class PromqlVerifierTests extends ESTestCase {
     public void testPromqlBucketsWithTimestampBoundsFromContext() {
         var now = Instant.now();
         var bounds = new TimestampBounds(now.minus(1, ChronoUnit.HOURS), now);
-        var plan = analyzer().addIndex("test", "tsdb-mapping.json")
+        var plan = analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
             .timestampBounds(bounds)
             .query("PROMQL index=test buckets=10 avg(network.bytes_in)");
         assertTrue("Plan should be resolved after timestamp bounds injection", plan.resolved());

@@ -21,7 +21,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -181,8 +180,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 previewDatafeedConfig,
                 crossProjectModeDecider
             );
-            final ThreadContext threadContext = threadPool.getThreadContext();
-            final CloudCredential callerCredential = extractCallerCloudCredential(cloudCredentialManager, threadContext);
+            final CloudCredential callerCredential = cloudCredentialManager.extractCloudManagedCredential(threadPool.getThreadContext());
             final Client previewClient = cloudCredentialManager.wrapClient(
                 new ParentTaskAssigningClient(client, parentTaskId),
                 callerCredential
@@ -231,16 +229,6 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             previewDatafeed.setChunkingConfig(ChunkingConfig.newAuto());
         }
         return previewDatafeed;
-    }
-
-    /**
-     * Visible for testing
-     */
-    static CloudCredential extractCallerCloudCredential(CloudCredentialManager cloudCredentialManager, ThreadContext threadContext) {
-        if (cloudCredentialManager.hasCloudManagedCredential(threadContext)) {
-            return cloudCredentialManager.extractCloudManagedCredential(threadContext);
-        }
-        return null;
     }
 
     private void isDateNanos(Client previewClient, DatafeedConfig datafeed, String timeField, ActionListener<Boolean> listener) {

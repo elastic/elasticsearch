@@ -432,9 +432,9 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             final IndexCommit indexCommit = reader.getIndexCommit();
             final SearchDirectory searchDirectory = SearchDirectory.unwrapDirectory(reader.directory());
 
-            final var luceneCommitPointBlobLocation = searchDirectory.getBlobLocationForFile(indexCommit.getSegmentsFileName());
-            assert luceneCommitPointBlobLocation != null : "commit point [" + indexCommit + "] not found in search directory";
-            final var bccTermAndGen = luceneCommitPointBlobLocation.getBatchedCompoundCommitTermAndGeneration();
+            final var luceneCommitPointMetadata = searchDirectory.getBlobFileRangesForFile(indexCommit.getSegmentsFileName());
+            assert luceneCommitPointMetadata != null : "commit point [" + indexCommit + "] not found in search directory";
+            final var bccTermAndGen = luceneCommitPointMetadata.getBatchedCompoundCommitTermAndGeneration();
             final var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(bccTermAndGen.generation());
             final var metadataFromSearchDirectory = searchDirectory.getBlobFileRangesForFiles(indexCommit.getFileNames());
 
@@ -448,7 +448,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                     final var bccIterator = objectStoreService.readBatchedCompoundCommitFromStoreIncrementally(
                         shardId,
                         bccTermAndGen,
-                        new BlobMetadata(bccBlobName, luceneCommitPointBlobLocation.offset())
+                        new BlobMetadata(bccBlobName, luceneCommitPointMetadata.fileOffset())
                     );
                     Map<String, BlobFileRanges> metadataFromStore = null;
                     while (bccIterator.hasNext()) {

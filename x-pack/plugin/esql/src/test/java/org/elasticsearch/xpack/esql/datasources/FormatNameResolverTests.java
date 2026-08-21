@@ -31,12 +31,29 @@ public class FormatNameResolverTests extends ESTestCase {
         assertEquals(FormatNameResolver.FORMAT_PARQUET_RS, FormatNameResolver.resolve(Map.of("reader", "parquet-rs"), "file.parquet"));
     }
 
-    public void testReaderParquetRsUnreachableWhenDisabled() {
+    public void testReaderParquetRsDisabledWhenFlagOff() {
         assumeFalse("only when the parquet-rs feature flag is off", FormatNameResolver.parquetRsEnabled());
-        // The public reader=parquet-rs selector is removed: the alias falls through to extension-based resolution.
-        assertEquals(FormatNameResolver.FORMAT_PARQUET, FormatNameResolver.resolve(Map.of("reader", "parquet-rs"), "file.parquet"));
         assertNull(FormatNameResolver.readerAliasToFormat(FormatNameResolver.READER_PARQUET_RS));
         assertFalse(FormatNameResolver.supportedReaderAliases().contains(FormatNameResolver.READER_PARQUET_RS));
+        assertTrue(FormatNameResolver.DISABLED_READER_ALIASES.contains(FormatNameResolver.READER_PARQUET_RS));
+        // Both the optimizer path (resolve) and the execution path (resolveReader) must reject the disabled alias
+        // so callers cannot silently proceed with the wrong reader.
+        IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> FormatNameResolver.resolve(Map.of("reader", "parquet-rs"), "file.parquet")
+        );
+        assertThat(e1.getMessage(), containsString("is disabled"));
+    }
+
+    public void testResolveReaderThrowsDisabledForParquetRsWhenFlagOff() {
+        assumeFalse("only when the parquet-rs feature flag is off", FormatNameResolver.parquetRsEnabled());
+        FormatReaderRegistry registry = csvRegistry();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> FormatNameResolver.resolveReader(Map.of("reader", "parquet-rs"), "file.parquet", registry)
+        );
+        assertThat(e.getMessage(), containsString("is disabled"));
+        assertThat(e.getMessage(), containsString("parquet-rs"));
     }
 
     public void testReaderOverridesFormat() {
@@ -127,6 +144,31 @@ public class FormatNameResolverTests extends ESTestCase {
         assertEquals("csv", FormatNameResolver.resolveFormatName(Map.of("format", "csv"), "hits.parquet.gz", registry));
     }
 
+    /**
+     * Regression test for the compressed-read-under-explicit-format fix: an explicit {@code format} override
+     * must still compose with the resource's outer compression suffix — the reader
+     * {@link FormatNameResolver#resolveReader} returns (not just the name
+     * {@link FormatNameResolver#resolveFormatName} reads back) must be wrapped in a
+     * {@link CompressionDelegatingFormatReader} so the returned reader actually decompresses at read time,
+     * rather than resolving the plain reader over compressed bytes.
+     */
+    public void testResolveReaderConfigOverrideComposesWithCompressionSuffix() {
+        FormatReaderRegistry registry = csvRegistry();
+        FormatReader reader = FormatNameResolver.resolveReader(Map.of("format", "csv"), "hits.csv.gz", registry);
+        assertEquals("csv", reader.formatName());
+        assertTrue(
+            "explicit format over a compressed resource must resolve a CompressionDelegatingFormatReader",
+            reader instanceof CompressionDelegatingFormatReader
+        );
+    }
+
+    /** An explicit {@code format} override over an uncompressed resource resolves the plain reader, unwrapped. */
+    public void testResolveReaderConfigOverrideWithoutCompressionSuffixIsUnwrapped() {
+        FormatReaderRegistry registry = csvRegistry();
+        FormatReader reader = FormatNameResolver.resolveReader(Map.of("format", "csv"), "hits.csv", registry);
+        assertFalse(reader instanceof CompressionDelegatingFormatReader);
+    }
+
     /** An extensionless, format-less strict resource fails loud at the registry rather than resolving null. */
     public void testResolveFormatNameThrowsOnExtensionless() {
         FormatReaderRegistry registry = csvRegistry();
@@ -134,7 +176,11 @@ public class FormatNameResolverTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> FormatNameResolver.resolveFormatName(null, "no_extension", registry)
         );
-        assertThat(e.getMessage(), containsString("without extension"));
+        // The extensionless case now shares the one unreadable-object message, so it names the object, the
+        // reason, and the [format] remedy rather than a bare "without extension" phrase.
+        assertThat(e.getMessage(), containsString("Cannot determine how to read"));
+        assertThat(e.getMessage(), containsString("no file extension"));
+        assertThat(e.getMessage(), containsString("[format]"));
     }
 
     /**

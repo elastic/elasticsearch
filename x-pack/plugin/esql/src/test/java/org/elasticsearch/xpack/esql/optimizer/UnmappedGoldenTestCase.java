@@ -13,6 +13,9 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats;
+import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats.Config;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -22,6 +25,18 @@ import java.util.Optional;
 
 /** Base for golden tests that run with both unmapped_fields=nullify and unmapped_fields=load. */
 public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
+    /**
+     * The field name conventionally used across these tests for a field that is absent from every shard's mapping.
+     * {@link #searchStats()} reports it as such, so it stays a {@code PotentiallyUnmappedKeywordEsField} on the data node.
+     */
+    protected static final String FIELD_ABSENT_EVERYWHERE = "does_not_exist";
+
+    protected UnmappedGoldenTestCase() {}
+
+    protected UnmappedGoldenTestCase(String mode) {
+        super(mode);
+    }
+
     @Override
     protected List<String> filteredWarnings() {
         var filtered = new ArrayList<>(super.filteredWarnings());
@@ -29,6 +44,26 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
             "has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices"
         );
         return filtered;
+    }
+
+    /**
+     * Search stats used for the {@link Stage#LOCAL_PHYSICAL_OPTIMIZATION} stage. Two conventions let a single set of stats model both
+     * data-node realities that matter for {@code unmapped_fields="load"}:
+     * <ul>
+     *     <li>{@link #FIELD_ABSENT_EVERYWHERE} is excluded from every config, so it is reported as genuinely unmapped here. It stays a
+     *     {@code PotentiallyUnmappedKeywordEsField}, is loaded from {@code _source}, and is never pushed down.</li>
+     *     <li>Every <em>other</em> field name defaults to mapped, indexed and with doc values -- modelling a data node whose shards do map
+     *     that field. A load-mode field with such a name is potentially unmapped at the coordinator but gets replaced with a plain keyword
+     *     locally, unblocking filter/sort pushdown.</li>
+     * </ul>
+     * So tests pick {@link #FIELD_ABSENT_EVERYWHERE} to exercise the no-pushdown case and any other absent name to exercise the pushdown
+     * case. Subclasses can override to model other shard layouts.
+     */
+    protected SearchStats searchStats() {
+        return new TestConfigurableSearchStats().exclude(Config.EXISTS, FIELD_ABSENT_EVERYWHERE)
+            .exclude(Config.INDEXED, FIELD_ABSENT_EVERYWHERE)
+            .exclude(Config.DOC_VALUES, FIELD_ABSENT_EVERYWHERE)
+            .exclude(Config.EXACT_SUBFIELD, FIELD_ABSENT_EVERYWHERE);
     }
 
     /** Runs the query with both {@code NULLIFY} and {@code LOAD}; throws if either fails. */
@@ -181,7 +216,10 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
         Map<String, String> views,
         String... nestedPaths
     ) {
-        var builder = builder(setUnmappedNullify(query)).views(views).nestedPath(ArrayUtils.prepend("nullify", nestedPaths)).stages(stages);
+        var builder = builder(setUnmappedNullify(query)).views(views)
+            .nestedPath(ArrayUtils.prepend("nullify", nestedPaths))
+            .stages(stages)
+            .searchStats(searchStats());
         if (transportVersion != null) {
             builder.transportVersion(transportVersion);
         }
@@ -196,7 +234,10 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
         Map<String, String> views,
         String... nestedPaths
     ) {
-        var builder = builder(setUnmappedLoad(query)).views(views).nestedPath(ArrayUtils.prepend("load", nestedPaths)).stages(stages);
+        var builder = builder(setUnmappedLoad(query)).views(views)
+            .nestedPath(ArrayUtils.prepend("load", nestedPaths))
+            .stages(stages)
+            .searchStats(searchStats());
         if (transportVersion != null) {
             builder.transportVersion(transportVersion);
         }

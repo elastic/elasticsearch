@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.TimestampBounds;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -280,6 +281,18 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
                     + Instant.ofEpochMilli(endTime)
             );
         }
+    }
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        return true;
+    }
+
+    @Override
+    public void postColumnarParse(BatchMappingContext context) throws IOException {
+        super.postColumnarParse(context);
+        // TODO(columnar): validate timestamp bounds and missing-@timestamp here once
+        // BatchMappingContext exposes the mapped timestamp column.
     }
 
     @Override

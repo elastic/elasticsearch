@@ -242,6 +242,11 @@ public class TextFieldMapperTests extends MapperTestCase {
                     public TokenStream create(TokenStream tokenStream) {
                         return new StopFilter(tokenStream, EnglishAnalyzer.ENGLISH_STOP_WORDS_SET);
                     }
+
+                    @Override
+                    public Object sharingKey() {
+                        return this;
+                    }
                 } }
             )
         );
@@ -2230,7 +2235,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             MappedFieldType ft = mapperService.fieldType("field");
             SourceProvider sourceProvider = mapperService.mappingLookup().isSourceSynthetic() ? (ctx, doc) -> {
                 throw new IllegalArgumentException("Can't load source in scripts in synthetic mode");
-            } : SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics());
+            } : SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics(), null);
             SearchLookup searchLookup = new SearchLookup(null, null, sourceProvider);
             var indexSettings = mapperService.getIndexSettings();
             IndexFieldData<?> sfd = ft.fielddataBuilder(
@@ -2656,8 +2661,8 @@ public class TextFieldMapperTests extends MapperTestCase {
                             StoredFieldsSpec storedFieldsSpec = blockLoader.rowStrideStoredFieldSpec();
                             SourceLoader.Leaf leafSourceLoader = null;
                             if (storedFieldsSpec.requiresSource()) {
-                                var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
-                                leafSourceLoader = sourceLoader.leaf(ctx.reader(), null);
+                                var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
+                                leafSourceLoader = sourceLoader.leaf(ctx, null);
                                 storedFieldsSpec = storedFieldsSpec.merge(
                                     new StoredFieldsSpec(true, storedFieldsSpec.requiresMetadata(), sourceLoader.requiredStoredFields())
                                 );

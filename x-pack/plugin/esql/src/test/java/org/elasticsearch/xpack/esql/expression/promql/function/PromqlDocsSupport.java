@@ -358,7 +358,7 @@ public final class PromqlDocsSupport {
             .map(p -> new ParamDef(p.name(), mapDataType(p.type()), p.optional(), p.description()))
             .toList();
 
-        List<SignatureDef> signatures = List.of(new SignatureDef(params, false, mapDataType(def.functionType().outputType())));
+        List<SignatureDef> signatures = List.of(new SignatureDef(params, false, mapDataType(def.functionType().outputType)));
 
         genKibanaDefinition(
             "definition/functions",
@@ -387,7 +387,7 @@ public final class PromqlDocsSupport {
         if (def.extendedDescription() != null) {
             blocks.add(def.extendedDescription());
         }
-        blocks.add("**Return type**\n\n`" + mapDataType(def.functionType().outputType()) + "`");
+        blocks.add("**Return type**\n\n`" + mapDataType(def.functionType().outputType) + "`");
 
         if (def.params().isEmpty() == false) {
             StringBuilder params = new StringBuilder("**Parameters**\n");
@@ -595,7 +595,7 @@ public final class PromqlDocsSupport {
         }
         return switch (def.functionType()) {
             case WITHIN_SERIES_AGGREGATION -> FunctionDocCategory.RANGE_VECTOR;
-            case ACROSS_SERIES_AGGREGATION -> FunctionDocCategory.AGGREGATION;
+            case ACROSS_SERIES_AGGREGATION, ACROSS_SERIES_REDUCTION -> FunctionDocCategory.AGGREGATION;
             case HISTOGRAM -> FunctionDocCategory.HISTOGRAM;
             case VALUE_TRANSFORMATION -> FunctionDocCategory.MATH;
             case TIME_EXTRACTION -> FunctionDocCategory.DATE_TIME;
@@ -826,6 +826,7 @@ public final class PromqlDocsSupport {
         return switch (type) {
             case WITHIN_SERIES_AGGREGATION -> "within_series";
             case ACROSS_SERIES_AGGREGATION -> "across_series";
+            case ACROSS_SERIES_REDUCTION -> "across_series_reduction";
             case SCALAR -> "scalar";
             case METADATA_MANIPULATION -> "metadata";
             case TIME_EXTRACTION -> "time";

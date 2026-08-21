@@ -9,6 +9,10 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorScorer;
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
@@ -18,6 +22,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractVectorTestCase extends ESTestCase {
 
@@ -108,5 +114,21 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
         byte[] ba = new byte[size];
         Arrays.fill(ba, MIN_INT7_VALUE);
         return ba;
+    }
+
+    static void assertFloatArrayEquals(float[] expected, float[] actual, float delta) {
+        assertThat(actual.length, equalTo(expected.length));
+        for (int i = 0; i < expected.length; i++) {
+            assertEquals("differed at element [" + i + "]", expected[i], actual[i], Math.abs(expected[i]) * delta + delta);
+        }
+    }
+
+    static void assertFloatEquals(float expected, float actual, float delta) {
+        assertEquals(expected, actual, Math.abs(expected) * delta + delta);
+    }
+
+    static RandomVectorScorerSupplier luceneScoreSupplier(QuantizedByteVectorValues values, VectorSimilarityFunction sim)
+        throws IOException {
+        return new Lucene104ScalarQuantizedVectorScorer(null).getRandomVectorScorerSupplier(sim, values);
     }
 }

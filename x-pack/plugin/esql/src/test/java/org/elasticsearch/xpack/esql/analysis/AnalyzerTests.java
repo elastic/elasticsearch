@@ -50,8 +50,12 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
-import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -74,6 +78,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.DeferredRegexExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -87,6 +92,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -97,7 +103,6 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -177,9 +182,9 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -211,7 +216,7 @@ public class AnalyzerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
 
         assertEquals(
-            new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), Map.of(), idx.indexNameWithModes(), NO_FIELDS),
+            new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), Map.of(), idx.indexProperties(), NO_FIELDS),
             limit.child()
         );
     }
@@ -228,7 +233,7 @@ public class AnalyzerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
 
         assertEquals(
-            new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), Map.of(), idx.indexNameWithModes(), NO_FIELDS),
+            new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), Map.of(), idx.indexProperties(), NO_FIELDS),
             limit.child()
         );
     }
@@ -1856,11 +1861,34 @@ public class AnalyzerTests extends ESTestCase {
         }
     }
 
+    /**
+     * A non-string field must be rejected at analysis for a constant-expression pattern exactly as it is
+     * for a literal pattern (see {@link #testRegexOnInt}); the field type is known at analysis even when
+     * the pattern is not yet foldable.
+     */
+    public void testRegexConstantExpressionOnInt() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        for (String op : new String[] { "like", "rlike" }) {
+            basic().error(
+                """
+                    from test
+                    | where emp_no COMPARISON concat("1", "*")
+                    """.replace("COMPARISON", op),
+                containsString(
+                    "argument of [emp_no COMPARISON concat(\"1\", \"*\")] must be [string], found value [emp_no] type [integer]".replace(
+                        "COMPARISON",
+                        op
+                    )
+                )
+            );
+        }
+    }
+
     public void testUnsupportedTypesWithToString() {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
         final String supportedTypes =
             "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or date_range or datetime "
-                + "or dense_vector or exponential_histogram or flattened or geo_point "
+                + "or dense_vector or double_range or exponential_histogram or flattened or geo_point "
                 + "or geo_shape or geohash or geohex or geotile or histogram or ip or numeric or string or version";
         analyzer().error(
             "row period = 1 year | eval to_string(period)",
@@ -2512,6 +2540,33 @@ public class AnalyzerTests extends ESTestCase {
             "from test | eval x = \"2024-01-01\" - 1 day + \"2023-12-31\"",
             containsString("[+] has arguments with incompatible types [datetime] and [datetime]")
         );
+    }
+
+    public void testEvalResolvesForwardReferenceWithImplicitCasting() {
+        analyzer().addIndex("hosts", "mapping-hosts.json").query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 == "127.0.0.1", TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
+            | STATS count = COUNT(*) BY field
+            """);
+    }
+
+    public void testEvalResolvesForwardReferenceWithImplicitCasting2() {
+        analyzer().addIndex("hosts", "mapping-hosts.json").query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 IN ("127.0.0.1", "192.168.1.1"), TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
+            | STATS count = COUNT(*) BY field
+            """);
+    }
+
+    public void testEvalResolvesForwardReferenceWithImplicitCasting3() {
+        analyzer().addIndex("hosts", "mapping-hosts.json").query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 IN ("127.0.0.1", "192.168.1.1"::ip), TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
+            | STATS count = COUNT(*) BY field
+            """);
     }
 
     public void testDenseVectorImplicitCastingKnn() {
@@ -3316,111 +3371,6 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(new Literal(EMPTY, BytesRefs.toBytesRef("minimum_should_match"), DataType.KEYWORD), ee.key());
         assertEquals(new Literal(EMPTY, 3.0, DataType.DOUBLE), ee.value());
         assertEquals(DataType.DOUBLE, ee.dataType());
-    }
-
-    public void testResolveInsist_fieldExists_insistedOutputContainsNoUnmappedFields() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        LogicalPlan plan = basic().query("FROM test | INSIST_🐔 emp_no");
-
-        Attribute last = plan.output().getLast();
-        assertThat(last.name(), is("emp_no"));
-        assertThat(last.dataType(), is(INTEGER));
-        assertThat(
-            plan.output()
-                .stream()
-                .filter(a -> a instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField)
-                .toList(),
-            is(empty())
-        );
-    }
-
-    public void testInsist_afterRowThrowsException() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        basic().error(
-            "ROW x = 1 | INSIST_🐔 x",
-            containsString("[insist] can only be used after [from] or [insist] commands, but was [ROW x = 1]")
-        );
-    }
-
-    public void testResolveInsist_fieldDoesNotExist_createsUnmappedField() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        LogicalPlan plan = basic().query("FROM test | INSIST_🐔 foo");
-
-        var limit = as(plan, Limit.class);
-        var insist = as(limit.child(), Insist.class);
-        assertThat(insist.output(), hasSize(basic().query("FROM test").output().size() + 1));
-        var expectedAttribute = new FieldAttribute(Source.EMPTY, "foo", new PotentiallyUnmappedKeywordEsField("foo"));
-        assertThat(insist.insistedAttributes(), equalToIgnoringIds(List.of(expectedAttribute)));
-        assertThat(insist.output().getLast(), equalToIgnoringIds(expectedAttribute));
-    }
-
-    public void testResolveInsist_multiIndexFieldPartiallyMappedWithSingleKeywordType_createsUnmappedField() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
-            List.of(
-                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "keyword")),
-                fieldCapabilitiesIndexResponse("bar", Map.of())
-            ),
-            List.of()
-        );
-        IndexResolution resolution = mergedResolution("foo,bar", caps, true);
-
-        String query = "FROM foo, bar | INSIST_🐔 message";
-        var plan = analyzer().addIndex(resolution).query(query);
-        var limit = as(plan, Limit.class);
-        var insist = as(limit.child(), Insist.class);
-        var attribute = (FieldAttribute) EsqlTestUtils.singleValue(insist.output());
-        assertThat(attribute.name(), is("message"));
-        assertThat(attribute.field(), is(new PotentiallyUnmappedKeywordEsField("message")));
-    }
-
-    public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesNoKeyword_createsAnInvalidMappedField() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
-            List.of(
-                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
-                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "date")),
-                fieldCapabilitiesIndexResponse("bazz", Map.of())
-            ),
-            List.of()
-        );
-        IndexResolution resolution = mergedResolution("foo,bar", caps, true);
-        var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
-        var limit = as(plan, Limit.class);
-        var insist = as(limit.child(), Insist.class);
-        var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
-
-        String expected = "Cannot use field [message] due to ambiguities being mapped as [3] incompatible types: "
-            + "[keyword] due to loading from _source, [datetime] in [bar], [long] in [foo]";
-        assertThat(attr.unresolvedMessage(), is(expected));
-    }
-
-    public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesWithKeyword_createsAnInvalidMappedField() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
-            List.of(
-                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
-                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "date")),
-                fieldCapabilitiesIndexResponse("bazz", fieldResponseMap("message", "keyword")),
-                fieldCapabilitiesIndexResponse("qux", Map.of())
-            ),
-            List.of()
-        );
-        IndexResolution resolution = mergedResolution("foo,bar", caps, true);
-        var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
-        var limit = as(plan, Limit.class);
-        var insist = as(limit.child(), Insist.class);
-        var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
-
-        String expected = "Cannot use field [message] due to ambiguities being mapped as [3] incompatible types: "
-            + "[datetime] in [bar], [keyword] due to loading from _source and in [bazz], [long] in [foo]";
-        assertThat(attr.unresolvedMessage(), is(expected));
     }
 
     public void testResolveDenseVector() {
@@ -4729,6 +4679,28 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(oneYear, literal);
     }
 
+    public void testBucketInvalidNumberOfArguments() {
+        basic().error("""
+            FROM test | STATS c = COUNT(*) BY b = BUCKET(hire_date, {"include_empty_buckets": true})
+            """, containsString("expects between two and four positional arguments"));
+    }
+
+    public void testBucketInvalidOption() {
+        basic().error("""
+            FROM test | STATS c = COUNT(*) BY b = BUCKET(hire_date, 1 year, {"invalid_option": 42})
+            """, containsString("Invalid option [invalid_option]"));
+        basic().error("""
+            FROM test | STATS c = COUNT(*)
+                        BY b = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", {"invalid_option": 42})
+            """, containsString("Invalid option [invalid_option]"));
+    }
+
+    public void testBucketOptionInsertEmptyBuckets_twoPositionalArgs() {
+        basic().error("""
+            FROM test | STATS c = COUNT(*) BY b = BUCKET(hire_date, 1 year, {"include_empty_buckets": true})
+            """, containsString("with [include_empty_buckets] requires a range, i.e. both a [from] and a [to] argument"));
+    }
+
     public void testProjectionForUnionTypeResolution() {
         LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
         typesToIndices.put("keyword", Set.of("union_index_1"));
@@ -4740,7 +4712,12 @@ public class AnalyzerTests extends ESTestCase {
         EsIndex index = new EsIndex(
             "union_index*",
             Map.of("id", idField, "foo", fooField), // Updated mapping keys
-            Map.of("union_index_1", IndexMode.STANDARD, "union_index_2", IndexMode.STANDARD),
+            Map.of(
+                "union_index_1",
+                new IndexProperties(IndexMode.STANDARD, 0),
+                "union_index_2",
+                new IndexProperties(IndexMode.STANDARD, 0)
+            ),
             Map.of(),
             Map.of()
         );
@@ -4773,6 +4750,203 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(idAttr.name(), equalTo("id"));
     }
 
+    /** Name of the conflicted sub-field under test; must match the key in the parent's properties map. */
+    private static final String CONFLICTED_SUBFIELD = "analyzed";
+
+    public void testTypeConflictedMultifieldIsCleanedAfterAnalysis() {
+        // A conflicted sub-field must be neutralized so its parent FieldAttribute is transportable.
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put(KEYWORD.typeName(), Set.of("conflict-a"));
+        typesToIndices.put(DataType.TEXT.typeName(), Set.of("conflict-b"));
+        assertConflictedMultifieldIsCleaned(new InvalidMappedField(CONFLICTED_SUBFIELD, typesToIndices));
+    }
+
+    public void testTsRoleConflictedMultifieldIsCleanedAfterAnalysis() {
+        // InvalidMappedTsField is not a TypeConflictedField but also throws on transport, so it must be neutralized too.
+        EsField cleanedParent = assertConflictedMultifieldIsCleaned(new InvalidMappedTsField(CONFLICTED_SUBFIELD, "role conflict"));
+        // The rebuilt parent keeps its keyword type so exact-match/sort still work.
+        assertThat(cleanedParent, instanceOf(KeywordEsField.class));
+    }
+
+    private static EsField assertConflictedMultifieldIsCleaned(EsField conflictedMultifield) {
+        EsField parent = new KeywordEsField(
+            "my_field",
+            Map.of(CONFLICTED_SUBFIELD, conflictedMultifield),
+            true,
+            256,
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE
+        );
+        EsIndex index = new EsIndex(
+            "conflict-*",
+            Map.of("my_field", parent),
+            Map.of("conflict-a", new IndexProperties(IndexMode.STANDARD, 0), "conflict-b", new IndexProperties(IndexMode.STANDARD, 0)),
+            Map.of(),
+            Map.of()
+        );
+
+        LogicalPlan plan = analyzer().addIndex(IndexResolution.valid(index)).query("FROM conflict-* | SORT my_field | LIMIT 2");
+
+        List<FieldAttribute> parentAttributes = new ArrayList<>();
+        plan.forEachExpressionDown(FieldAttribute.class, fieldAttribute -> {
+            assertNoConflicts(fieldAttribute.field());
+            if (fieldAttribute.name().equals("my_field")) {
+                parentAttributes.add(fieldAttribute);
+            }
+        });
+        assertFalse(parentAttributes.isEmpty());
+        EsField cleanedParent = null;
+        for (FieldAttribute parentAttribute : parentAttributes) {
+            // The conflict is replaced by a transportable UnsupportedEsField, not dropped: the sub-field key stays.
+            assertThat(parentAttribute.field().getProperties(), hasKey(CONFLICTED_SUBFIELD));
+            assertThat(parentAttribute.field().getProperties().get(CONFLICTED_SUBFIELD), instanceOf(UnsupportedEsField.class));
+            cleanedParent = parentAttribute.field();
+        }
+        return cleanedParent;
+    }
+
+    /** Asserts no coordinator-only conflict field ({@link TypeConflictedField} or {@link InvalidMappedTsField}) survives anywhere. */
+    private static void assertNoConflicts(EsField field) {
+        assertThat(field, not(instanceOf(TypeConflictedField.class)));
+        assertThat(field, not(instanceOf(InvalidMappedTsField.class)));
+        if (field.getProperties() != null) {
+            field.getProperties().values().forEach(AnalyzerTests::assertNoConflicts);
+        }
+    }
+
+    public void testTextFieldKeepsHealthySubfields() {
+        // Healthy sub-fields are kept untouched - including a text field's exact keyword, which pushdown resolves on the data node.
+        EsField exact = new KeywordEsField("keyword", Map.of(), true, 256, false, false, EsField.TimeSeriesFieldType.NONE);
+        EsField normalized = new KeywordEsField("norm", Map.of(), true, 256, true, false, EsField.TimeSeriesFieldType.NONE);
+        EsField message = new TextEsField(
+            "message",
+            new LinkedHashMap<>(Map.of("keyword", exact, "norm", normalized)),
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE
+        );
+
+        EsField parentField = shippedFieldAfterAnalysis("message", message, "FROM idx | SORT message | LIMIT 2");
+        assertThat(parentField, instanceOf(TextEsField.class));
+        assertThat(parentField.getProperties(), hasKey("keyword"));
+        assertThat(parentField.getProperties(), hasKey("norm"));
+        assertThat(parentField.getExactInfo().hasExact(), is(true));
+    }
+
+    public void testTextFieldWithConflictedExactSubfieldIsNeutralized() {
+        // The only keyword sub-field is itself type-conflicted: neutralize it to a transportable UnsupportedEsField (no exact left).
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put(KEYWORD.typeName(), Set.of("idx-a"));
+        typesToIndices.put(DataType.LONG.typeName(), Set.of("idx-b"));
+        EsField message = new TextEsField(
+            "message",
+            new LinkedHashMap<>(Map.of("keyword", new InvalidMappedField("keyword", typesToIndices))),
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE
+        );
+
+        EsField parentField = shippedFieldAfterAnalysis("message", message, "FROM idx | LIMIT 2");
+        assertThat(parentField, instanceOf(TextEsField.class));
+        assertThat(parentField.getProperties().get("keyword"), instanceOf(UnsupportedEsField.class));
+        assertThat(parentField.getExactInfo().hasExact(), is(false));
+    }
+
+    public void testPunkFallbackStripsNestedConflictedSubfield() {
+        // A potentially-unmapped field falls back to its mapped type; that mapped field's conflicted sub-field must be neutralized.
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put(KEYWORD.typeName(), Set.of("idx-a"));
+        typesToIndices.put(DataType.LONG.typeName(), Set.of("idx-b"));
+        EsField mapped = new KeywordEsField(
+            "val",
+            new LinkedHashMap<>(Map.of("sub", new InvalidMappedField("sub", typesToIndices))),
+            true,
+            256,
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE
+        );
+        EsField punk = new PotentiallyUnmappedSingleTypeEsField(mapped, Set.of("idx-a"));
+
+        EsField parentField = shippedFieldAfterAnalysis("val", punk, "FROM idx | LIMIT 2");
+        // The mapped keyword type is kept (not the PUNK marker) and its conflicted sub-field is neutralized to unsupported.
+        assertThat(parentField, instanceOf(KeywordEsField.class));
+        assertThat(parentField.getProperties().get("sub"), instanceOf(UnsupportedEsField.class));
+    }
+
+    public void testConflictedSubfieldNestedTwoLevelsDeepIsCleaned() {
+        // Not a reachable mapping shape today (https://github.com/elastic/elasticsearch/issues/144400 keeps multi-level sub-fields
+        // from resolving under a proper field attribute), but the cleaner already recurses, so guard the >1-level case.
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put(KEYWORD.typeName(), Set.of("idx-a"));
+        typesToIndices.put(DataType.TEXT.typeName(), Set.of("idx-b"));
+        EsField sub = new KeywordEsField(
+            "sub",
+            Map.of(CONFLICTED_SUBFIELD, new InvalidMappedField(CONFLICTED_SUBFIELD, typesToIndices)),
+            true,
+            256,
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE
+        );
+        EsField parent = new KeywordEsField("my_field", Map.of("sub", sub), true, 256, false, false, EsField.TimeSeriesFieldType.NONE);
+
+        EsField parentField = shippedFieldAfterAnalysis("my_field", parent, "FROM idx | SORT my_field | LIMIT 2");
+        EsField cleanedSub = parentField.getProperties().get("sub");
+        assertThat(cleanedSub, instanceOf(KeywordEsField.class));
+        assertThat(cleanedSub.getProperties().get(CONFLICTED_SUBFIELD), instanceOf(UnsupportedEsField.class));
+    }
+
+    public void testUnsupportedParentWithPropagatedSubfieldIsUntouched() {
+        // Regression (FieldExtractorIT): an unsupported parent with a healthy/inherited sub-field must not be downgraded - it must
+        // stay unsupported and keep its original types, otherwise it drops out of the Verifier and loses original_types.
+        EsField raw = new UnsupportedEsField("raw", List.of("ip_range"), "ip_range", Map.of());
+        EsField parent = new UnsupportedEsField("f", List.of("ip_range"), null, Map.of("raw", raw));
+        EsIndex index = new EsIndex(
+            "idx",
+            Map.of("f", parent),
+            Map.of("idx-a", new IndexProperties(IndexMode.STANDARD, 0)),
+            Map.of(),
+            Map.of()
+        );
+
+        LogicalPlan plan = analyzer().addIndex(IndexResolution.valid(index)).query("FROM idx | LIMIT 2");
+
+        List<UnsupportedAttribute> found = new ArrayList<>();
+        plan.forEachExpressionDown(UnsupportedAttribute.class, ua -> {
+            if (ua.name().equals("f")) {
+                found.add(ua);
+            }
+        });
+        assertFalse("expected [f] to remain an UnsupportedAttribute", found.isEmpty());
+        UnsupportedEsField cleaned = found.getLast().field();
+        assertThat(cleaned.getOriginalTypes(), contains("ip_range"));
+        assertThat(cleaned.getProperties(), hasKey("raw"));
+    }
+
+    /** Analyzes {@code query} over a single-field index and returns the last {@code fieldName} attribute's (cleaned) field. */
+    private static EsField shippedFieldAfterAnalysis(String fieldName, EsField field, String query) {
+        EsIndex index = new EsIndex(
+            "idx",
+            Map.of(fieldName, field),
+            Map.of("idx-a", new IndexProperties(IndexMode.STANDARD, 0), "idx-b", new IndexProperties(IndexMode.STANDARD, 0)),
+            Map.of(),
+            Map.of()
+        );
+        LogicalPlan plan = analyzer().addIndex(IndexResolution.valid(index)).query(query);
+
+        List<EsField> found = new ArrayList<>();
+        plan.forEachExpressionDown(FieldAttribute.class, fieldAttribute -> {
+            assertNoConflicts(fieldAttribute.field());
+            if (fieldAttribute.name().equals(fieldName)) {
+                found.add(fieldAttribute.field());
+            }
+        });
+        assertFalse("expected a [" + fieldName + "] field attribute", found.isEmpty());
+        return found.get(found.size() - 1);
+    }
+
     public void testExplicitRetainOriginalFieldWithCast() {
         // Use the existing union index fixture (id has keyword/integer union types)
         LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
@@ -4782,7 +4956,7 @@ public class AnalyzerTests extends ESTestCase {
         EsIndex index = new EsIndex(
             "union_index*",
             Map.of("id", idField),
-            Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
+            Map.of("test1", new IndexProperties(IndexMode.STANDARD, 0), "test2", new IndexProperties(IndexMode.STANDARD, 0)),
             Map.of(),
             Map.of()
         );
@@ -4943,6 +5117,25 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("index*", esRelation.indexPattern());
     }
 
+    /**
+     * Reproducer for #150375.
+     */
+    public void testExplicitCastOfDateAndDateNanosUnionToIncompatibleTypeFails() {
+        IndexResolution index = indexWithDateDateNanosUnionType();
+        analyzer().addIndex(index)
+            .error(
+                "FROM index* | EVAL x = date_and_date_nanos::double",
+                containsString("Mapped types [date_nanos] of [date_and_date_nanos] cannot be accepted in [date_and_date_nanos::double]")
+            );
+        analyzer().addIndex(index)
+            .error(
+                "FROM index* | EVAL x = date_and_date_nanos::ip",
+                containsString(
+                    "Mapped types [date_nanos, datetime] of [date_and_date_nanos] cannot be accepted in [date_and_date_nanos::ip]"
+                )
+            );
+    }
+
     public void testGroupingOverridesInStats() {
         defaultMapping().error("""
             from test
@@ -5054,7 +5247,7 @@ public class AnalyzerTests extends ESTestCase {
         var esIndex = new EsIndex(
             "k8s,k8s-downsampled",
             mapping,
-            Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
+            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES, 0), "k8s-downsampled", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             Map.of(),
             Map.of()
         );
@@ -5103,7 +5296,7 @@ public class AnalyzerTests extends ESTestCase {
         var esIndex = new EsIndex(
             "k8s,k8s-downsampled",
             mapping,
-            Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
+            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES, 0), "k8s-downsampled", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             Map.of(),
             Map.of()
         );
@@ -5261,6 +5454,78 @@ public class AnalyzerTests extends ESTestCase {
             RLikePatternList patternlist = as(rlikelist.pattern(), RLikePatternList.class);
             assertEquals("(\"Anna*\", \"Chris*\")", patternlist.pattern());
         }
+    }
+
+    /**
+     * After analysis (before optimization), a constant-expression LIKE pattern remains as
+     * DeferredRegexExpression. The optimizer's ConstantFolding + ReplaceDeferredRegex rule
+     * converts it to a concrete WildcardLike; see OptimizerVerificationTests.
+     */
+    public void testLikeConstantExpressionRemainsUnresolvedAfterAnalysis() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = basic().query("from test | where first_name like concat(\"Anna\", \"*\")");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        DeferredRegexExpression expr = as(filter.condition(), DeferredRegexExpression.class);
+        assertEquals(DeferredRegexExpression.Variant.LIKE, expr.variant());
+    }
+
+    /**
+     * Same as {@link #testLikeConstantExpressionRemainsUnresolvedAfterAnalysis} for RLIKE.
+     */
+    public void testRLikeConstantExpressionRemainsUnresolvedAfterAnalysis() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = basic().query("from test | where first_name rlike concat(\"Anna\", \".*\")");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        DeferredRegexExpression expr = as(filter.condition(), DeferredRegexExpression.class);
+        assertEquals(DeferredRegexExpression.Variant.RLIKE, expr.variant());
+    }
+
+    /**
+     * A non-foldable pattern (field reference) passes analysis; the "must be a constant" error
+     * is raised by post-optimization verification. See OptimizerVerificationTests.
+     */
+    public void testLikeNonFoldableExpressionPassesAnalysis() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = basic().query("from test | where first_name like last_name");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.condition(), DeferredRegexExpression.class);
+    }
+
+    /**
+     * Same as {@link #testLikeNonFoldableExpressionPassesAnalysis} for RLIKE.
+     */
+    public void testRLikeNonFoldableExpressionPassesAnalysis() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = basic().query("from test | where first_name rlike last_name");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.condition(), DeferredRegexExpression.class);
+    }
+
+    /**
+     * A foldable integer pattern passes analysis; the type error is raised at post-optimization
+     * verification. See OptimizerVerificationTests.
+     */
+    public void testLikeWrongTypeConstantExpressionPassesAnalysis() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = basic().query("from test | where first_name like to_integer(\"42\")");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.condition(), DeferredRegexExpression.class);
+    }
+
+    /**
+     * Same as {@link #testLikeWrongTypeConstantExpressionPassesAnalysis} for RLIKE.
+     */
+    public void testRLikeWrongTypeConstantExpressionPassesAnalysis() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = basic().query("from test | where first_name rlike to_integer(\"42\")");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.condition(), DeferredRegexExpression.class);
     }
 
     public void testConfigurationAwareResolved() {

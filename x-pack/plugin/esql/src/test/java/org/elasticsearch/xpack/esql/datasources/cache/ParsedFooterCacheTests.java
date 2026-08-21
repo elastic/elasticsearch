@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.cache;
 
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,9 +27,8 @@ public class ParsedFooterCacheTests extends ESTestCase {
 
     private ParsedFooterCache<String> cache;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initCache() {
         cache = new ParsedFooterCache<>(8);
     }
 
@@ -42,6 +42,41 @@ public class ParsedFooterCacheTests extends ESTestCase {
         String result = cache.getOrLoad(k, ignore -> expected);
         assertSame(expected, result);
         assertSame(expected, cache.get(k));
+    }
+
+    public void testPutThenGetReturnsSameInstance() {
+        FooterByteCache.Key k = key("file.parquet", 1000);
+        String footer = "seeded";
+        cache.put(k, footer);
+        assertSame(footer, cache.get(k));
+    }
+
+    public void testGetOrLoadAfterPutDoesNotInvokeLoader() throws ExecutionException {
+        FooterByteCache.Key k = key("file.parquet", 1000);
+        String seeded = "seeded";
+        cache.put(k, seeded);
+        AtomicInteger loadCount = new AtomicInteger();
+        String result = cache.getOrLoad(k, ignore -> {
+            loadCount.incrementAndGet();
+            return "loaded";
+        });
+        assertEquals("loader must not run after an explicit seed", 0, loadCount.get());
+        assertSame(seeded, result);
+    }
+
+    public void testPutReplacesPreviousValue() {
+        FooterByteCache.Key k = key("file.parquet", 1000);
+        String first = "first";
+        String second = "second";
+        cache.put(k, first);
+        cache.put(k, second);
+        assertSame(second, cache.get(k));
+    }
+
+    public void testPutRejectsNullValue() {
+        FooterByteCache.Key k = key("file.parquet", 1000);
+        expectThrows(IllegalArgumentException.class, () -> cache.put(k, null));
+        assertNull("a rejected put must not leave a phantom entry", cache.get(k));
     }
 
     public void testGetOrLoadInvokesLoaderOnce() throws ExecutionException {

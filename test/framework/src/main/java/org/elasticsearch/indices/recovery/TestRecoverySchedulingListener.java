@@ -24,27 +24,27 @@ public abstract class TestRecoverySchedulingListener implements RecoveryScheduli
     }
 
     @Override
-    public void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role) {
+    public void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {
         onRecoverySchedulingChange();
     }
 
     @Override
-    public void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {
+    public void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {
         onRecoverySchedulingChange();
     }
 
     @Override
-    public void onQueuedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {
+    public void onQueuedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {
         onRecoverySchedulingChange();
     }
 
     @Override
-    public void onRecoveryStarted(RecoverySource.Type type, RecoveryRole role) {
+    public void onRecoveryStarted(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {
         onRecoverySchedulingChange();
     }
 
     @Override
-    public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {
+    public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {
         onRecoverySchedulingChange();
     }
 
@@ -54,7 +54,17 @@ public abstract class TestRecoverySchedulingListener implements RecoveryScheduli
     }
 
     @Override
-    public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+    public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role, PriorityGroup priorityGroup) {
+        onRecoverySchedulingChange();
+    }
+
+    @Override
+    public void onRecoveriesBlocked(String gateName) {
+        onRecoverySchedulingChange();
+    }
+
+    @Override
+    public void onRecoveriesUnblocked(long blockedTimeMillis) {
         onRecoverySchedulingChange();
     }
 }

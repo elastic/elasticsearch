@@ -19,7 +19,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.action.shard.NoLongerPrimaryShardException;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -438,7 +438,7 @@ public class ReplicationOperation<
                     )
                 );
             } else {
-                assert failure instanceof ShardStateAction.NoLongerPrimaryShardException : failure;
+                assert failure instanceof NoLongerPrimaryShardException : failure;
                 threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
                     @Override
                     protected void doRun() {

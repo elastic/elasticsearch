@@ -291,6 +291,16 @@ public final class SplitDiscoveryPhase {
             result = splitProvider.discoverSplits(context);
         } catch (ElasticsearchException e) {
             throw e;
+        } catch (IllegalArgumentException e) {
+            // Preserve the 400. Everything below is wrapped in a bare ElasticsearchException, which maps to
+            // 500 -- so an invalid setting value reaching here (e.g. target_split_size) was reported as a
+            // server fault even though the parser it came from rejects it as user input. Re-wrap in kind so
+            // the status survives while the path context is still added, mirroring resolveSingleSource's
+            // "Failed to resolve metadata for [path]" wrap, which preserves IllegalArgumentException too.
+            throw new IllegalArgumentException(
+                "failed to discover splits for external source [" + exec.sourcePath() + "] of type [" + exec.sourceType() + "]",
+                e
+            );
         } catch (Exception e) {
             throw new ElasticsearchException(
                 "failed to discover splits for external source [{}] of type [{}]",
@@ -301,6 +311,14 @@ public final class SplitDiscoveryPhase {
         }
         List<ExternalSplit> splits = result.splits();
         if (splits.isEmpty()) {
+            // No splits because every file was eliminated by a row-count-preserving filter contradiction (see
+            // SplitDiscoveryResult#exhaustivelyPruned). Swap in FileList.EMPTY so the read path scans nothing; a row
+            // filter still runs downstream, so the answer is unchanged (0 rows). An empty result that is NOT an
+            // exhaustive prune (unresolved glob, SINGLE source, or a row-count-unsafe no-overlap drop) falls through
+            // to the whole read. Return before the stats increments below to keep honest zero scanned counts.
+            if (result.exhaustivelyPruned()) {
+                return exec.withFileList(FileList.EMPTY);
+            }
             return exec;
         }
         stats.filesScanned += result.filesScanned();

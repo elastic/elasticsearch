@@ -1,0 +1,5 @@
+pr: 156902
+summary: Remove redundant `synchronized` from `ShardCoreKeyMap#getShardId`
+area: Search
+type: enhancement
+issues: []

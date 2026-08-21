@@ -32,12 +32,11 @@ public class RealmConfigTests extends ESTestCase {
     private ThreadContext threadContext;
 
     @Before
-    public void setUp() throws Exception {
+    public void initRealmConfig() throws Exception {
         realmIdentifier = new RealmConfig.RealmIdentifier(randomAlphaOfLengthBetween(4, 12), randomAlphaOfLengthBetween(4, 12));
         environment = Mockito.mock(Environment.class);
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         threadContext = new ThreadContext(globalSettings);
-        super.setUp();
     }
 
     public void testWillPassWhenOrderSettingIsConfigured() {

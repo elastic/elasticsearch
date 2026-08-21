@@ -147,7 +147,10 @@ public class ExtendedDistributionPropertyTests extends ESTestCase {
 
         List<ExternalSplit> result = SplitCoalescer.coalesce(original);
 
-        assertSame("Below threshold, coalescing must return the same list", original, result);
+        assertEquals("Below threshold, coalescing must leave the splits untouched", original, result);
+        // The no-op still hands back a list of the coalescer's own: callers replace the contents of the list they
+        // passed in, and returning that same list would make them clear the list they are copying from.
+        assertNotSame("Coalescing must never hand back the caller's own list", original, result);
     }
 
     public void testCoalescedSplitSizeEqualsChildrenSum() {

@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -35,6 +36,8 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFiel
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
+
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -88,7 +91,8 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
             threadPool,
             client,
             true,
-            xContentRegistry
+            xContentRegistry,
+            new FeatureService(List.of())
         );
 
         registry.clusterChanged(createClusterChangedEvent(nodes));
@@ -119,7 +123,8 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
             threadPool,
             client,
             true,
-            xContentRegistry
+            xContentRegistry,
+            new FeatureService(List.of())
         );
 
         registry.clusterChanged(createClusterChangedEvent(nodes));
@@ -146,7 +151,8 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
             threadPool,
             client,
             false,
-            xContentRegistry
+            xContentRegistry,
+            new FeatureService(List.of())
         );
 
         registry.clusterChanged(createClusterChangedEvent(nodes));

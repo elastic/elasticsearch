@@ -710,4 +710,42 @@ public class CrossClusterSearchStatsTests extends ESTestCase {
         );
         assertThat(e.getMessage(), containsString("stabilizationCycles must be >= 1"));
     }
+
+    public void testHasUnavailableLinkedProjectsBeforeBaseline() {
+        AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
+
+        assertFalse(stats.hasUnavailableLinkedProjects());
+    }
+
+    public void testHasUnavailableLinkedProjectsAfterSkipped() {
+        AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
+
+        stats.update(List.of(available("origin"), available("P1")));
+        stats.update(List.of(available("origin"), skipped("P1")));
+
+        assertTrue(stats.hasUnavailableLinkedProjects());
+    }
+
+    public void testHasUnavailableLinkedProjectsAfterFailedOnly() {
+        AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
+
+        stats.update(List.of(available("origin"), available("P1")));
+        stats.update(List.of(available("origin"), failed("P1")));
+
+        assertTrue(stats.hasUnavailableLinkedProjects());
+        assertThat(stats.getSkippedClusters(), equalTo(0));
+    }
+
+    public void testHasUnavailableLinkedProjectsFalseWhenAllAvailable() {
+        AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
+
+        stats.update(List.of(available("origin"), available("P1")));
+        stats.update(List.of(available("origin"), available("P1")));
+
+        assertFalse(stats.hasUnavailableLinkedProjects());
+    }
 }

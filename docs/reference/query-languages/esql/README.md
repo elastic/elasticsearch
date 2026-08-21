@@ -172,6 +172,9 @@ This metadata accepts a lifecycle and an optional version. The version supports 
 
 Use the `@FunctionAppliesTo` annotation within the `@FunctionInfo` annotation on function and operator classes to specify the lifecycle and version for functions and operators.
 
+> [!NOTE]
+> For functions, this annotation generates the page-level `{applies_to}` badge in the layout snippet. Operator reference pages are hand-written (see [Promote a feature to GA](#promote-a-feature-to-ga)), so an operator's page badge is not generated from this annotation and must be set by hand.
+
 For example, to indicate that a function is in technical preview and applies to version 9.0.0, you would use:
 
 ```java
@@ -309,7 +312,7 @@ A few formatting rules:
 
 #### Promote a feature to GA
 
-**Functions and operators:**
+**Functions:**
 
 1. In the Java class, add a `GA` entry to `appliesTo`, remove (or set to `false`) `preview = true`, and switch the version strings to range operators:
    ```diff
@@ -332,6 +335,22 @@ A few formatting rules:
    - * [`MY_FUNC`](path/to/my-func.md) {applies_to}`stack: preview 9.0` {applies_to}`serverless: preview`
    + * [`MY_FUNC`](path/to/my-func.md) {applies_to}`stack: preview =9.0, ga 9.2+`
    ```
+
+**Operators:**
+
+Operator reference pages in [`_snippets/operators/layout/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/operators/layout) are hand-written and pull in generated snippets (types, examples) with `:::{include}`. The `@FunctionAppliesTo` annotation does not generate the operator page badge, so set the lifecycle by hand.
+
+1. Add or update the `{applies_to}` block directly after the heading in `_snippets/operators/layout/<operator>.md`. Unlike list entries, the page-level badge states `serverless: ga` explicitly:
+
+   ````markdown
+   ### My operator `<op>` [esql-my_operator]
+   ```{applies_to}
+   stack: preview 9.0, ga 9.2
+   serverless: ga
+   ```
+   ````
+
+2. Update the operator's list entry in the relevant [`_snippets/lists/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/lists) file (for example `operators.md`), the same way as for functions.
 
 **Commands:**
 

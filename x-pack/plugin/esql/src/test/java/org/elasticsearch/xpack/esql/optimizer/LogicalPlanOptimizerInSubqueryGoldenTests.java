@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.test.TransportVersionUtils;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
-import org.junit.Before;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 
 import java.util.EnumSet;
 import java.util.Map;
@@ -21,15 +22,21 @@ import java.util.Map;
  */
 public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
 
-    private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION);
+    private static final String PACK_DIMS_AGG = "pack_dims_agg";
 
-    @Before
-    public void checkInSubquerySupport() {
-        assumeTrue("Requires IN_SUBQUERY support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
     }
 
-    private static void requireInSubqueryViewSupport() {
-        assumeTrue("Requires IN subquery with view support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
+    public LogicalPlanOptimizerInSubqueryGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
+
+    private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION);
+
+    private static void requireMultiColumnInSubquerySupport() {
+        assumeTrue("Requires multi-column IN subquery support", EsqlCapabilities.Cap.WHERE_IN_MULTI_COLUMN_SUBQUERY.isEnabled());
     }
 
     public void testDisjunctiveInSubqueryAtTopLevel() {
@@ -102,30 +109,27 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
 
     // The grouping key `cluster` is a time-series dimension, so TranslateTimeSeriesAggregate rewrites it to either
     // DIMENSIONVALUES (when the negotiated cluster version supports `dimension_values`) or VALUES (when it does not).
-    // The default golden-test builder randomizes the minimum transport version, which would make the captured plan
-    // flap between the two forms. Pin a version that supports `dimension_values` so the snapshot stays deterministic.
+    // These tests characterize the DIMENSIONVALUES form, so their builder chains declare the corresponding lower bound.
+    // At `pack_dims_agg` the PackDims node folds into the TimeSeriesAggregate as PACKDIMSAGG, so that older shape lives in
+    // [before_pack_dims_agg].
     public void testTsRateWithInSubquery() {
-        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
-        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
-        runGoldenTest("""
+        builder("""
             TS k8s
             | WHERE cluster IN (TS k8s
                                | STATS m = max(rate(network.total_bytes_in)) BY cluster
                                | KEEP cluster)
             | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
-            """, STAGES, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testTsRateWithNotInSubquery() {
-        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
-        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
-        runGoldenTest("""
+        builder("""
             TS k8s
             | WHERE cluster NOT IN (TS k8s
                                    | STATS m = max(rate(network.total_bytes_in)) BY cluster
                                    | KEEP cluster)
             | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
-            """, STAGES, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     // The outer TS pipeline groups BY WITHOUT(...), so the WITHOUT-bearing TimeSeriesAggregate sits directly
@@ -133,38 +137,31 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     // WITHOUT into a _timeseries metadata attribute by descending into every EsRelation under the aggregate's
     // child, without excluding the right-hand side of the SemiJoin, injecting the lowered _timeseries attribute
     // into the subquery (RHS) relation as well. After the fix only the main (left) relation carries _timeseries;
-    // the subquery relation keeps just its own _tsid. Pinned to TransportVersion.current() (rather than a random
-    // version supporting `dimension_values`) so that the version-gated SUM long-overflow mode stays deterministic.
+    // the subquery relation keeps just its own _tsid. The SUM overflow fix is this query's floor; `pack_dims_agg` is its newer boundary.
     public void testTsWithoutAndRateWithInSubquery() {
-        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
         assumeTrue("Requires WITHOUT grouping support", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
-        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
-        runGoldenTest("""
+        builder("""
             TS k8s
             | WHERE cluster IN (TS k8s
                                | STATS m = max(rate(network.total_bytes_in)) BY cluster
                                | KEEP cluster)
             | STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
-            """, STAGES, TransportVersion.current());
+            """).stages(STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testTsWithoutAndRateWithNotInSubquery() {
-        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
         assumeTrue("Requires WITHOUT grouping support", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
-        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
-        runGoldenTest("""
+        builder("""
             TS k8s
             | WHERE cluster NOT IN (TS k8s
                                    | STATS m = max(rate(network.total_bytes_in)) BY cluster
                                    | KEEP cluster)
             | STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
-            """, STAGES, TransportVersion.current());
+            """).stages(STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testMultipleTsSubqueriesInsideInSubquery() {
-        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
-        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
-        runGoldenTest("""
+        builder("""
             TS k8s
             | WHERE cluster IN (FROM
                                    (TS k8s
@@ -178,14 +175,11 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
                                )
             | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
             | SORT cluster
-            """, STAGES, TransportVersion.current());
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testMultipleTsSubqueriesInsideNotInSubquery() {
-        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
-        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
-
-        runGoldenTest("""
+        builder("""
             TS k8s
             | WHERE cluster NOT IN (FROM
                                        (TS k8s
@@ -199,13 +193,135 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
                                    )
             | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
             | SORT cluster
-            """, STAGES, TransportVersion.current());
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
+    }
+
+    // -- PropagateEmptyRelation through SEMI / ANTI / MARK join tests --
+
+    public void testPropagateEmptyRelationThroughSemiJoin() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | KEEP emp_no) AND false
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughAntiJoin() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM employees | KEEP emp_no) AND false
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughMarkJoin() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE false
+            | WHERE emp_no > 0 OR emp_no IN (FROM employees | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughSemiJoinWithEmptySubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | WHERE false | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughAntiJoinWithEmptySubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM employees | WHERE false | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughMarkJoinWithEmptySubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no > 0 OR emp_no IN (FROM employees | WHERE false | KEEP emp_no)
+            """, STAGES);
+    }
+
+    // Both sides empty: left becomes LocalRelation(EMPTY) via PruneFilters(WHERE false), right via WHERE false in subquery.
+
+    public void testPropagateEmptyRelationThroughSemiJoinBothSidesEmpty() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE false
+            | WHERE emp_no IN (FROM employees | WHERE false | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughAntiJoinBothSidesEmpty() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE false
+            | WHERE emp_no NOT IN (FROM employees | WHERE false | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughMarkJoinBothSidesEmpty() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE false
+            | WHERE emp_no > 0 OR emp_no NOT IN (FROM employees | WHERE false | KEEP emp_no)
+            """, STAGES);
+    }
+
+    // Empty left side cascading through downstream operators
+
+    public void testPropagateEmptyRelationThroughSemiJoinWithKeep() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | KEEP emp_no) AND false
+            | KEEP emp_no, first_name
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughSemiJoinWithStats() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | KEEP emp_no) AND false
+            | STATS cnt = COUNT(*)
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughAntiJoinWithKeep() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM employees | KEEP emp_no) AND false
+            | KEEP emp_no, first_name
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughAntiJoinWithStats() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM employees | KEEP emp_no) AND false
+            | STATS cnt = COUNT(*)
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughMarkJoinWithKeep() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE false
+            | WHERE emp_no > 0 OR emp_no IN (FROM employees | KEEP emp_no)
+            | KEEP emp_no
+            """, STAGES);
+    }
+
+    public void testPropagateEmptyRelationThroughMarkJoinWithStats() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE false
+            | WHERE emp_no > 0 OR emp_no IN (FROM employees | KEEP emp_no)
+            | STATS cnt = COUNT(*)
+            """, STAGES);
     }
 
     // -- IN / NOT IN subqueries referencing views --
 
     public void testInSubqueryReferencingView() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no IN (FROM emps_view)
@@ -214,7 +330,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNotInSubqueryReferencingView() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no NOT IN (FROM emps_view)
@@ -223,7 +338,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testInSubqueryReferencingViewWithInSubqueryInDefinition() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no IN (FROM filtered_emps)
@@ -232,7 +346,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testInSubqueryReferencingViewWithSortLimit() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no IN (FROM sorted_emps)
@@ -241,7 +354,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testDisjunctiveInSubqueryReferencingView() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no IN (FROM emps_view) OR salary > 50000
@@ -250,7 +362,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMainFromAndNotInSubqueryEachReferenceMultipleViewSubqueries() {
-        requireInSubqueryViewSupport();
         runGoldenTest(
             """
                 FROM (FROM main_view_a | KEEP emp_no), (FROM main_view_b | KEEP emp_no)
@@ -268,5 +379,379 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
                 "FROM employees | WHERE salary > 60000 | KEEP emp_no"
             )
         );
+    }
+
+    // -- IN subquery inside CASE, COALESCE, IS [NOT] NULL in WHERE --
+
+    public void testInSubqueryInCaseWhen() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
+            """, STAGES);
+    }
+
+    public void testNotInSubqueryInCaseWhen() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no NOT IN (FROM employees | KEEP emp_no), true, false)
+            """, STAGES);
+    }
+
+    public void testInSubqueryInCoalesce() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE COALESCE(emp_no IN (FROM employees | KEEP emp_no), false)
+            """, STAGES);
+    }
+
+    public void testInSubqueryInIsNotNull() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no IN (FROM employees | KEEP emp_no)) IS NOT NULL
+            """, STAGES);
+    }
+
+    public void testInSubqueryInIsNull() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no IN (FROM employees | KEEP emp_no)) IS NULL
+            """, STAGES);
+    }
+
+    public void testCaseWithConjunctiveInSubqueries() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no) AND languages IN (FROM employees | KEEP languages), true, false)
+            """, STAGES);
+    }
+
+    public void testCaseWithMixedConjunctiveDisjunctiveInSubqueries() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no) AND (salary > 50000 OR languages IN (FROM employees | KEEP languages)),
+                         true, false)
+            """, STAGES);
+    }
+
+    public void testIsNotNullWithDisjunctiveInSubqueries() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no IN (FROM employees | KEEP emp_no) OR languages IN (FROM employees | KEEP languages)) IS NOT NULL
+            """, STAGES);
+    }
+
+    public void testIsNullWithConjunctiveInSubqueries() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no IN (FROM employees | KEEP emp_no) AND languages IN (FROM employees | KEEP languages)) IS NULL
+            """, STAGES);
+    }
+
+    public void testCoalesceWithDisjunctiveInSubqueries() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE COALESCE(emp_no IN (FROM employees | KEEP emp_no) OR languages IN (FROM employees | KEEP languages), false)
+            """, STAGES);
+    }
+
+    public void testCoalesceWithConjunctiveInSubqueries() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE COALESCE(emp_no IN (FROM employees | KEEP emp_no), languages IN (FROM employees | KEEP languages), false)
+            """, STAGES);
+    }
+
+    public void testCoalesceInSubqueryAsSecondArg() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE COALESCE(null, emp_no IN (FROM employees | KEEP emp_no))
+            """, STAGES);
+    }
+
+    public void testCaseMixingCoalesceAndIsNotNull() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(COALESCE(emp_no IN (FROM employees | KEEP emp_no), false)
+                         AND (languages IN (FROM employees | KEEP languages)) IS NOT NULL,
+                         true, false)
+            """, STAGES);
+    }
+
+    public void testDisjunctiveIsNotNullAndCoalesceCase() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no IN (FROM employees | KEEP emp_no) AND languages IN (FROM employees | KEEP languages)) IS NOT NULL
+              OR COALESCE(CASE(salary IN (FROM employees | KEEP salary), true, false), false)
+            """, STAGES);
+    }
+
+    public void testConjunctiveWithCoalesceDisjunctionAndIsNull() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE salary > 50000
+              AND COALESCE(emp_no IN (FROM employees | KEEP emp_no) OR languages IN (FROM employees | KEEP languages), false)
+              AND (salary IN (FROM employees | KEEP salary)) IS NULL
+            """, STAGES);
+    }
+
+    public void testCaseInSubqueryAndBareInSubqueryWithAnd() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
+              AND salary > 50000
+              AND languages IN (FROM employees | KEEP languages)
+            """, STAGES);
+    }
+
+    public void testCaseInSubqueryAndBareInSubqueryWithOr() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
+              OR salary > 50000
+              OR languages IN (FROM employees | KEEP languages)
+            """, STAGES);
+    }
+
+    public void testCaseInSubqueryAndOrWithBareIn() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
+              AND (salary > 50000 OR languages IN (FROM employees | KEEP languages))
+            """, STAGES);
+    }
+
+    public void testInSubqueryNestedInCaseAndEquals() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), "yes", "no") == "yes"
+            """, STAGES);
+    }
+
+    public void testInSubqueryNestedInCaseCoalesceAndNotEquals() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE COALESCE(CASE(emp_no IN (FROM employees | KEEP emp_no), "yes", null), "no") != "yes"
+            """, STAGES);
+    }
+
+    public void testInSubqueryDeeplyNestedInExpressionsWithKeyword() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), "A", "B") == "A"
+              AND COALESCE(CASE(languages IN (FROM employees | KEEP languages), "X", null), "Y") != "Z"
+              AND TO_STRING((salary IN (FROM employees | KEEP salary)) IS NULL) == "false"
+            """, STAGES);
+    }
+
+    public void testInSubqueryDeeplyNestedInExpressionsWithBoolean() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false) == true
+              AND COALESCE(languages IN (FROM employees | KEEP languages), false) != true
+              AND ((salary IN (FROM employees | KEEP salary)) IS NULL) == false
+              AND ((languages IN (FROM employees | KEEP languages)) IS NOT NULL) != false
+            """, STAGES);
+    }
+
+    // -- multi-column IN / NOT IN subqueries: WHERE (field1, field2) IN (subquery) --
+
+    public void testMultiColumnInSubqueryAtTopLevel() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, languages) IN (FROM employees | KEEP emp_no, languages)
+            """, STAGES);
+    }
+
+    public void testMultiColumnNotInSubqueryAtTopLevel() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, languages) NOT IN (FROM employees | KEEP emp_no, languages)
+            """, STAGES);
+    }
+
+    public void testDisjunctiveMultiColumnInSubqueryAtTopLevel() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, languages) IN (FROM employees | KEEP emp_no, languages) OR salary > 50000
+            """, STAGES);
+    }
+
+    public void testDisjunctiveMultiColumnInSubqueryInsideFromSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees,
+                 (FROM employees | WHERE (emp_no, languages) IN (FROM employees | KEEP emp_no, languages) OR salary > 50000 | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testDisjunctiveMultiColumnNotInSubqueryInsideFromSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees,
+                 (FROM employees
+                  | WHERE (emp_no, languages) NOT IN (FROM employees | KEEP emp_no, languages) OR salary > 50000
+                  | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testNestedDisjunctiveMultiColumnInSubqueries() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, languages) IN (
+                FROM employees
+                | WHERE (salary, languages) IN (FROM employees | KEEP salary, languages) OR languages > 2
+                | KEEP emp_no, languages
+              ) OR salary > 50000
+            """, STAGES);
+    }
+
+    public void testDisjunctiveMultiColumnInSubqueryWithFork() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, languages) IN (FROM employees | KEEP emp_no, languages) OR salary > 50000
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no < 10050)
+            """, STAGES);
+    }
+
+    public void testSortWithLimitInMultiColumnInSubqueryIsAllowed() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, languages) IN (FROM employees | SORT emp_no | LIMIT 5 | KEEP emp_no, languages)
+            """, STAGES);
+    }
+
+    public void testStatsWithSortLimitInMultiColumnInSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, languages) IN (FROM employees | STATS m = MAX(emp_no) BY languages | SORT m | LIMIT 3 | KEEP m, languages)
+            """, STAGES);
+    }
+
+    public void testMultipleFiltersInMultiColumnInSubqueryCombined() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, languages) IN (FROM employees | WHERE salary > 50000 | WHERE languages > 2 | KEEP emp_no, languages)
+            """, STAGES);
+    }
+
+    public void testCombineDisjunctionsInsideMultiColumnInSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, languages) IN (FROM employees | WHERE salary == 50000 or salary == 10000 | KEEP emp_no, languages)
+            """, STAGES);
+    }
+
+    // -- IN subquery combined with LOOKUP JOIN --
+
+    public void testInSubqueryWithLimitFollowedByLookupJoin() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | SORT emp_no | LIMIT 3 | KEEP emp_no)
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryReferencingView() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, languages) IN (FROM emps_view)
+            | KEEP emp_no, first_name
+            """, STAGES, Map.of("emps_view", "FROM employees | KEEP emp_no, languages"));
+    }
+
+    public void testMultiColumnNotInSubqueryReferencingView() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, languages) NOT IN (FROM emps_view)
+            | KEEP emp_no
+            """, STAGES, Map.of("emps_view", "FROM employees | WHERE salary > 50000 | KEEP emp_no, languages"));
+    }
+
+    // -- multi-column IN subquery inside CASE, COALESCE, IS [NOT] NULL in WHERE --
+
+    public void testMultiColumnInSubqueryInCase() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), true, false)
+            """, STAGES);
+    }
+
+    public void testMultiColumnNotInSubqueryInCase() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE((emp_no, languages) NOT IN (FROM employees | KEEP emp_no, languages), true, false)
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryInCoalesce() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE COALESCE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), false)
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryInIsNotNull() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NOT NULL
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryInIsNull() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NULL
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryNestedInCaseAndEquals() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), "yes", "no") == "yes"
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryNestedInCoalesceAndNotEquals() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE COALESCE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), false) != false
+            """, STAGES);
+    }
+
+    public void testComplexBooleanWithMultiColumnInSubqueryInExpressions() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (salary > 50000 AND (((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NULL))
+              OR (((salary, languages) IN (FROM employees | KEEP salary, languages)) IS NOT NULL AND languages < 5)
+            """, STAGES);
+    }
+
+    public void testCaseWithSingleColumnInSubqueryEqualsCoalesceWithMultiColumnInSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
+                 == COALESCE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), false)
+            """, STAGES);
     }
 }

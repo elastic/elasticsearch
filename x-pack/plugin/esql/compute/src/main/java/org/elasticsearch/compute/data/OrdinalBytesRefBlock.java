@@ -22,7 +22,7 @@ import java.io.IOException;
  * the additional ordinals block. However, they offer significant speed improvements and reduced memory usage when byte values are
  * frequently repeated
  */
-public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted implements BytesRefBlock {
+public final class OrdinalBytesRefBlock extends AbstractBlockRefCounted implements BytesRefBlock {
     private final IntBlock ordinals;
     private final BytesRefVector bytes;
 
@@ -228,6 +228,7 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         ordinals.allowPassingToDifferentDriver();
         bytes.allowPassingToDifferentDriver();
     }
@@ -264,6 +265,10 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
 
     @Override
     public OrdinalBytesRefBlock expand() {
+        if (mayHaveMultivaluedFields() == false) {
+            incRef();
+            return this;
+        }
         OrdinalBytesRefBlock result = null;
         IntBlock expandedOrdinals = ordinals.expand();
         try {
@@ -298,6 +303,6 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "[ordinals=" + ordinals + ", bytes=" + bytes + "]";
+        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", ordinals=" + ordinals + ", bytes=" + bytes + "]";
     }
 }

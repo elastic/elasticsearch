@@ -20,6 +20,7 @@ import org.apache.parquet.hadoop.example.GroupReadSupport;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -56,9 +57,11 @@ import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -170,9 +173,8 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     private static final String[] CATEGORIES = { "alpha", "beta", "gamma", "delta" };
     private static final String[] URL_HOSTS = { "google.com", "example.org", "elastic.co", "github.com" };
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() throws Exception {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
@@ -395,6 +397,129 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     public void testNotAndOrLikeLikeXTransitiveSilentDrop() throws IOException {
         Expression filter = not(and(or(like(URL, "*google*"), like(URL, "*github*")), lt(ID, (long) (ROW_COUNT / 2), DataType.LONG)));
         runDifferential(filter);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // List-column (multivalue) regression — esql-planning#1070
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * Verifies that value predicates over Parquet optional-list columns correctly exclude MV
+     * and null positions. The late-mat evaluator used to read by position index (== value index
+     * for flat blocks) which produces wrong results for MV blocks produced by list columns.
+     *
+     * <p>Dataset: 4 rows — row0: v=[1,2]/tags=["Senior Dev"], row1: v=[3]/tags=["Architect","Senior X"],
+     * row2: v=null/tags=null, row3: v=[7,5]/tags=["Manager"].
+     * Scalar ESQL semantics: MV position → null → predicate false → excluded.
+     */
+    public void testListColumnPredicates() throws IOException {
+        // 3-level optional list schema (standard Parquet LIST encoding)
+        MessageType mvSchema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .optionalGroup()
+            .as(LogicalTypeAnnotation.listType())
+            .repeatedGroup()
+            .optional(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("element")
+            .named("list")
+            .named("v")
+            .optionalGroup()
+            .as(LogicalTypeAnnotation.listType())
+            .repeatedGroup()
+            .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("element")
+            .named("list")
+            .named("tags")
+            .named("mv_list_schema");
+
+        byte[] bytes = writeMvParquet(mvSchema);
+
+        ReferenceAttribute v = attr("v", DataType.INTEGER);
+        ReferenceAttribute tags = attr("tags", DataType.KEYWORD);
+
+        // v == 3: row1 (single-valued 3); row3 has 7 but is MV → excluded
+        assertMvSurvivors(bytes, eq(v, 3, DataType.INTEGER), Set.of(1L));
+        // v IN (3, 7): row3 is MV → excluded even though 7 matches
+        assertMvSurvivors(bytes, new In(Source.EMPTY, v, List.of(lit(3, DataType.INTEGER), lit(7, DataType.INTEGER))), Set.of(1L));
+        // 2 <= v <= 6: only row1 (value 3 in range)
+        assertMvSurvivors(
+            bytes,
+            new Range(Source.EMPTY, v, lit(2, DataType.INTEGER), true, lit(6, DataType.INTEGER), true, ZoneOffset.UTC),
+            Set.of(1L)
+        );
+        // tags LIKE "Sen*": row0 single-value "Senior Dev" matches; row1 is MV → excluded
+        assertMvSurvivors(bytes, like(tags, "Sen*"), Set.of(0L));
+        // NOT(tags LIKE "Sen*"): row1 MV → excluded by MV semantics in NOT; row3 "Manager" survives
+        assertMvSurvivors(bytes, not(like(tags, "Sen*")), Set.of(3L));
+    }
+
+    private byte[] writeMvParquet(MessageType schema) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile(out))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            // Row 0: id=0, v=[1,2], tags=["Senior Dev"]
+            Group r0 = factory.newGroup();
+            r0.add("id", 0L);
+            Group v0 = r0.addGroup("v");
+            v0.addGroup("list").add("element", 1);
+            v0.addGroup("list").add("element", 2);
+            Group t0 = r0.addGroup("tags");
+            t0.addGroup("list").add("element", Binary.fromString("Senior Dev"));
+            writer.write(r0);
+
+            // Row 1: id=1, v=[3], tags=["Architect","Senior X"]
+            Group r1 = factory.newGroup();
+            r1.add("id", 1L);
+            r1.addGroup("v").addGroup("list").add("element", 3);
+            Group t1 = r1.addGroup("tags");
+            t1.addGroup("list").add("element", Binary.fromString("Architect"));
+            t1.addGroup("list").add("element", Binary.fromString("Senior X"));
+            writer.write(r1);
+
+            // Row 2: id=2, v=null, tags=null (omit both groups)
+            Group r2 = factory.newGroup();
+            r2.add("id", 2L);
+            writer.write(r2);
+
+            // Row 3: id=3, v=[7,5], tags=["Manager"]
+            Group r3 = factory.newGroup();
+            r3.add("id", 3L);
+            Group v3 = r3.addGroup("v");
+            v3.addGroup("list").add("element", 7);
+            v3.addGroup("list").add("element", 5);
+            r3.addGroup("tags").addGroup("list").add("element", Binary.fromString("Manager"));
+            writer.write(r3);
+        }
+        return out.toByteArray();
+    }
+
+    private void assertMvSurvivors(byte[] parquetBytes, Expression filter, Set<Long> expected) throws IOException {
+        Set<Long> actual = new TreeSet<>();
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(splitTopLevelAnd(filter));
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        try (CloseableIterator<Page> iter = reader.read(inMemoryStorageObject(parquetBytes), FormatReadContext.of(null, 1024))) {
+            while (iter.hasNext()) {
+                Page page = iter.next();
+                try {
+                    LongBlock idBlock = (LongBlock) page.getBlock(0);
+                    for (int i = 0; i < page.getPositionCount(); i++) {
+                        actual.add(idBlock.getLong(i));
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        assertEquals("filter: " + filter, expected, actual);
     }
 
     // ---------------------------------------------------------------------------------------

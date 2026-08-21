@@ -31,8 +31,8 @@ unstripped-binary-or-object [usr/share/elasticsearch/jdk/*]
 # the system java version that lintian assumes is far behind what elasticsearch uses
 unknown-java-class-version
 
-# grpc-context is a metadata-only jar (module-info only, no application classes)
-codeless-jar [usr/share/elasticsearch/modules/esql-datasource-grpc/grpc-context-*.jar]
+# server-launcher is a GraalVM native image; GraalVM does not produce PIE binaries by default
+hardening-no-pie [usr/share/elasticsearch/lib/tools/server-launcher/server-launcher]
 
 # There's no `License` field in Debian control files, but earlier versions
 # of `lintian` were more permissive. Override this warning so that we can
@@ -60,6 +60,9 @@ non-standard-dir-perm etc/elasticsearch/jvm.options.d/ 2750 != 0755
 non-standard-file-perm etc/elasticsearch/*
 non-standard-dir-perm var/lib/elasticsearch/ 2750 != 0755
 non-standard-dir-perm var/log/elasticsearch/ 2750 != 0755
+
+# server-launcher is a GraalVM native image; GraalVM does not produce PIE binaries by default
+hardening-no-pie usr/share/elasticsearch/lib/tools/server-launcher/server-launcher
 
 # bundled JDK
 unstripped-binary-or-object usr/share/elasticsearch/jdk/*

@@ -10,6 +10,10 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
@@ -32,12 +36,15 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
+import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -54,6 +61,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -70,6 +78,7 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -81,8 +90,10 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -106,9 +117,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
     }
 
@@ -141,6 +151,90 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertTrue(ExternalSourceResolver.FILE_TYPED_FORMATS.containsAll(ExternalSourceResolver.COERCING_FILE_TYPED_FORMATS));
         assertTrue(ExternalSourceResolver.FILE_TYPED_FORMATS.contains(FormatNameResolver.FORMAT_PARQUET_RS));
         assertFalse(ExternalSourceResolver.COERCING_FILE_TYPED_FORMATS.contains(FormatNameResolver.FORMAT_PARQUET_RS));
+    }
+
+    // ===== Declared date `format` on a columnar column (rejectUncoercibleFileTypedRetypes) =====
+
+    /**
+     * A declared date {@code format} on a NUMERIC physical column is legal: the format is that column's epoch unit /
+     * parse dialect ({@code epoch_second} reads seconds). Covers every numeric physical the coercion admits, in both
+     * the non-strict overlay and the strict path — the two resolution routes funnel through the one reject method, so
+     * a regression in either would surface here. The read-VALUE half lives in {@code DeclaredTypeCoercionsTests} and
+     * {@code FromDatasetIT}; this pins the resolver's admission.
+     */
+    public void testDeclaredDateFormatOnNumericColumnResolves() throws Exception {
+        for (DataType numeric : List.of(DataType.LONG, DataType.INTEGER, DataType.UNSIGNED_LONG, DataType.DOUBLE)) {
+            for (DatasetMapping.Dynamic dynamic : List.of(DatasetMapping.Dynamic.TRUE, DatasetMapping.Dynamic.FALSE)) {
+                Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+                props.put("ts", DatasetFieldMapping.withFormat("date", "event_ts", "epoch_second"));
+                ExternalSourceResolution resolution = resolveWithDeclaredMapping(List.of(attr("event_ts", numeric)), props, dynamic);
+                assertNotNull(
+                    "[format] on a [" + numeric.typeName() + "] physical must resolve (dynamic=" + dynamic + ")",
+                    resolution.resolvedSource(DECLARED_GLOB)
+                );
+            }
+        }
+    }
+
+    /**
+     * A declared date {@code format} is still rejected where it could never apply. An already-temporal physical (an
+     * annotated parquet TIMESTAMP infers as {@code datetime}) passes the preceding TYPE check as an identity coercion,
+     * so it reaches — and must be caught by — the format check. The message names the two places a format does apply.
+     */
+    public void testDeclaredDateFormatOnTemporalColumnRejected() throws Exception {
+        for (DatasetMapping.Dynamic dynamic : List.of(DatasetMapping.Dynamic.TRUE, DatasetMapping.Dynamic.FALSE)) {
+            Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+            props.put("ts", DatasetFieldMapping.withFormat("date", "event_ts", "epoch_second"));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> resolveWithDeclaredMapping(List.of(attr("event_ts", DataType.DATETIME)), props, dynamic)
+            );
+            assertThat(e.getMessage(), containsString("[format] on column [ts]"));
+            assertThat(e.getMessage(), containsString("datetime"));
+            assertThat(e.getMessage(), containsString("epoch unit"));
+        }
+    }
+
+    /**
+     * A boolean physical declared {@code date} never reaches the format check — it dies at the preceding TYPE check,
+     * because no coercion boolean&rarr;date exists at all. Pins WHICH guard rejects it, so the two are not conflated.
+     */
+    public void testDeclaredDateOnBooleanColumnRejectedByTypeCheckNotFormatCheck() throws Exception {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("ts", DatasetFieldMapping.withFormat("date", "event_ts", "epoch_second"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> resolveWithDeclaredMapping(List.of(attr("event_ts", DataType.BOOLEAN)), props, DatasetMapping.Dynamic.TRUE)
+        );
+        assertThat(e.getMessage(), containsString("cannot be read from the file's type [boolean]"));
+        assertThat("the type check fires first, not the format check", e.getMessage(), not(containsString("[format] on column")));
+    }
+
+    private static final String DECLARED_GLOB = "s3://bucket/data/*.parquet";
+
+    /** Resolves a one-file parquet glob under a declared mapping — the harness for the columnar declaration rejects. */
+    private ExternalSourceResolution resolveWithDeclaredMapping(
+        List<Attribute> fileSchema,
+        Map<String, DatasetFieldMapping> properties,
+        DatasetMapping.Dynamic dynamic
+    ) throws Exception {
+        String file = "s3://bucket/data/file1.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(file, fileSchema);
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put(StoragePath.of(DECLARED_GLOB).patternPrefix().toString(), List.of(entry(file, 100)));
+
+        ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(dynamic, properties));
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(
+            List.of(DECLARED_GLOB),
+            Map.of(DECLARED_GLOB, new HashMap<>()),
+            null,
+            Map.of(DECLARED_GLOB, mapping),
+            null,
+            future
+        );
+        return future.actionGet();
     }
 
     // ===== FIRST_FILE_WINS tests (current behavior) =====
@@ -917,9 +1011,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     private static Settings cacheEnabledSettings() {
         return Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
     }
 
@@ -1032,9 +1126,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * The gate resolves the format the way the READ path does, and any resolution failure refuses
-     * rather than throws: the registry throws {@code QlIllegalArgumentException} (not
-     * {@code java.lang.IllegalArgumentException}) on an unregistered extension, and the aggregate is
-     * an optimization that must never turn a resolvable read into a throw.
+     * rather than throws: the registry rejects an unregistered extension with an
+     * {@link IllegalArgumentException}, and the aggregate is an optimization that must never turn a
+     * resolvable read into a throw.
      */
     public void testDatasetAggregateKeyUnregisteredExtensionRefusesWithoutThrowing() {
         ExternalSourceResolver resolver = datasetGateResolver(null);
@@ -1390,9 +1484,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         String failOnPathSuffix = "f1.parquet";
 
         Settings cacheSettings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheSettings)) {
@@ -1449,9 +1543,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         String failOnPathSuffix = "f0.parquet";
 
         Settings cacheSettings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheSettings)) {
@@ -2170,6 +2264,101 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
+    /**
+     * The everyday failure — the object is missing, unreadable, or not the format it claims to be — reaches the
+     * resolver as a checked {@link IOException} from the reader. Whatever wrapping it picks up on the way out, the
+     * message the caller sees must carry the reader's own diagnosis and must not contain a JVM type name.
+     * <p>
+     * Asserted on the uncached path. On the cacheable rail the failure is additionally wrapped by
+     * {@code Cache#computeIfAbsent} in an {@code ExecutionException} whose message is its cause's {@code toString()},
+     * which prefixes a JVM type name onto whatever is inside; removing that wrapper is the subject of a separate
+     * change, and this one is about making the message inside it worth reading. The two compose — with the wrapper
+     * gone, what the client sees is exactly what is asserted here.
+     * <p>
+     * Status is deliberately not asserted: this change is scoped to messages.
+     */
+    public void testMetadataResolutionUnreadableObjectCarriesTheReaderDetail() {
+        String detail = "Object not found: the reader's own words";
+        for (String[] format : BACK_PRESSURE_FORMATS) {
+            String formatName = format[0];
+            String path = "s3://bucket/data/file" + format[1];
+            Map<String, List<Attribute>> schemasByPath = Map.of(path, List.of(attr("x", DataType.INTEGER)));
+            ExternalSourceResolver resolver = createResolverWithFailingMetadata(
+                formatName,
+                format[1],
+                schemasByPath,
+                () -> new IOException(detail),
+                null
+            );
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(path), Map.of(), future);
+
+            String where = "format [" + formatName + "]";
+            Exception e = expectThrows(Exception.class, future::actionGet);
+            assertThat(where + " must name the source", e.getMessage(), containsString(path));
+            assertThat(where + " must carry the reader's diagnosis", e.getMessage(), containsString(detail));
+            assertThat(where + " must not leak a java type name", e.getMessage(), not(containsString("java.")));
+        }
+    }
+
+    /**
+     * The path is context, not the diagnosis, and it is added by exactly one layer. Historically the factory wrapper
+     * and the resolver's fall-through wrapper both stated it, and the message said nothing else. Pins that the
+     * user-visible reason names the path once, on the cached and uncached paths alike.
+     */
+    public void testResolutionFailureNamesThePathOnce() {
+        String path = "s3://bucket/data/file.csv";
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, List.of(attr("x", DataType.INTEGER)));
+        ExternalSourceResolver resolver = createResolverWithFailingMetadata(
+            "csv",
+            ".csv",
+            schemasByPath,
+            () -> new IOException("CSV file has no schema line"),
+            null
+        );
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(path), Map.of(), future);
+
+        String message = expectThrows(Exception.class, future::actionGet).getMessage();
+        assertEquals("the path must appear once in [" + message + "]", 1, occurrences(message, path));
+    }
+
+    /**
+     * Two different unreadable-object conditions must not produce the same sentence: collapsing them onto one message
+     * is what makes an external-source failure unactionable, since the reason is the only part of the response most
+     * clients surface. Runs on the cached path, which is where the collapse happened.
+     */
+    public void testDistinctResolutionFailuresProduceDistinctMessages() {
+        String path = "s3://bucket/data/file.csv";
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, List.of(attr("x", DataType.INTEGER)));
+        List<String> messages = new ArrayList<>();
+        for (String detail : List.of("CSV file has no schema line", "Object not found: " + path)) {
+            try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+                ExternalSourceResolver resolver = createResolverWithFailingMetadata(
+                    "csv",
+                    ".csv",
+                    schemasByPath,
+                    () -> new IOException(detail),
+                    cacheService
+                );
+                PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+                resolver.resolve(List.of(path), Map.of(), future);
+                messages.add(expectThrows(Exception.class, future::actionGet).getMessage());
+            }
+            // Runs on the cacheable rail deliberately: distinctness has to survive the ExecutionException wrapper,
+            // because that is the rail a real single-file resolve takes.
+        }
+        assertThat("distinct conditions must not share a message", messages.get(0), not(equalTo(messages.get(1))));
+    }
+
+    private static int occurrences(String haystack, String needle) {
+        int count = 0;
+        for (int i = haystack.indexOf(needle); i >= 0; i = haystack.indexOf(needle, i + needle.length())) {
+            count++;
+        }
+        return count;
+    }
+
     // ===== Empty resolution =====
 
     public void testEmptyPathListReturnsEmptyResolution() throws Exception {
@@ -2188,6 +2377,248 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertTrue(resolution.isEmpty());
     }
 
+    // ===== Format claiming: unrecognized / absent extensions =====
+
+    /**
+     * An explicit {@code format} names the reader directly, so it must claim files whose extension says nothing —
+     * on the MULTI-FILE path as well as the single-file one. Every glob, prefix and comma-list resolves through
+     * {@code resolveSingleSourceAsync}, which selected factories with the path-only {@code canHandle(path)} and so
+     * discarded the caller's config: {@code format} was honored for one concrete file and silently a no-op for every
+     * glob. A real dataset of {@code .log.gz} objects was therefore unreadable no matter how it was configured.
+     * {@code FileSourceFactoryTests#testCanHandleWithExplicitFormatIsAuthoritativeRegardlessOfObjectName} pins the
+     * factory-level contract; this pins the resolver actually invoking it.
+     */
+    public void testExplicitFormatClaimsUnrecognizedExtensionOnMultiFileGlob() throws Exception {
+        List<Attribute> schema = List.of(attr("srcaddr", DataType.KEYWORD), attr("bytes", DataType.LONG));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/vpcflow/a.log.gz", schema);
+        schemasByPath.put("s3://bucket/vpcflow/b.log.gz", schema);
+
+        List<StorageEntry> listing = List.of(entry("s3://bucket/vpcflow/a.log.gz", 100), entry("s3://bucket/vpcflow/b.log.gz", 200));
+
+        ExternalSourceResolution resolution = resolveMultiFileWithConfig(
+            "s3://bucket/vpcflow/*",
+            schemasByPath,
+            listing,
+            // "parquet" is the format the test plugin registers; the point is that it is named explicitly
+            // rather than inferred, over objects whose own extension resolves to nothing.
+            Map.of("format", "parquet")
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/vpcflow/*");
+        assertNotNull("explicit format must claim unrecognized extensions on the multi-file path", resolved);
+        assertEquals(List.of("srcaddr", "bytes"), resolved.metadata().schema().stream().map(Attribute::name).toList());
+    }
+
+    /**
+     * Without a format to go on, an unreadable extension must say so — and must say it as a client error. The failure
+     * previously blamed a missing plugin (the scheme is already validated by the time we get here, so a plugin is
+     * never the cause) and threw {@code UnsupportedOperationException}, which {@code ExceptionsHelper#status} does not
+     * map and therefore rendered a plain user-input mistake as a 500.
+     */
+    public void testMultiFileGlobWithoutFormatReportsUnreadableExtension() {
+        Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/vpcflow/a.log.gz", List.of(attr("a", DataType.KEYWORD)));
+        List<StorageEntry> listing = List.of(entry("s3://bucket/vpcflow/a.log.gz", 100));
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> resolveMultiFileWithConfig("s3://bucket/vpcflow/*", schemasByPath, listing, Map.of())
+        );
+
+        assertEquals("an unreadable extension is a client error, not a server fault", RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        assertThat(e.getMessage(), containsString("s3://bucket/vpcflow/a.log.gz"));
+        // The compound tail, not the bare ".gz": the outer codec IS supported, so naming it alone contradicts itself.
+        assertThat(e.getMessage(), containsString("[.log.gz]"));
+        assertThat(e.getMessage(), containsString("[format]"));
+        // The remedy is a dataset setting, never a query surface syntax the resolver has no business prescribing.
+        assertThat(e.getMessage(), not(containsString("WITH")));
+        assertThat(e.getMessage(), not(containsString("plugin is installed")));
+    }
+
+    /**
+     * The extensionless branch of the same failure — the shape produced by a non-hidden file that carries no extension
+     * at all (e.g. a bare prefix file). Hidden litter like {@code _SUCCESS} is now filtered before reaching schema
+     * resolution, so this test uses a non-hidden extensionless name to exercise the same error path.
+     */
+    public void testMultiFileGlobWithoutFormatReportsMissingExtension() {
+        Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/vpcflow/bare_prefix", List.of(attr("a", DataType.KEYWORD)));
+        List<StorageEntry> listing = List.of(entry("s3://bucket/vpcflow/bare_prefix", 0));
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> resolveMultiFileWithConfig("s3://bucket/vpcflow/*", schemasByPath, listing, Map.of())
+        );
+
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        assertThat(e.getMessage(), containsString("s3://bucket/vpcflow/bare_prefix"));
+        assertThat(e.getMessage(), containsString("no file extension"));
+        assertThat(e.getMessage(), containsString("[format]"));
+    }
+
+    /**
+     * When the listing contains only non-data objects (e.g. {@code _SUCCESS} markers), the glob expansion filter
+     * removes them all and the resolver reports that no files matched rather than failing on an unreadable extension.
+     */
+    public void testMultiFileGlobWithOnlyLitterReportsNoFiles() {
+        Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/vpcflow/_SUCCESS", List.of(attr("a", DataType.KEYWORD)));
+        List<StorageEntry> listing = List.of(entry("s3://bucket/vpcflow/_SUCCESS", 0));
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> resolveMultiFileWithConfig("s3://bucket/vpcflow/*", schemasByPath, listing, Map.of())
+        );
+
+        assertThat(e.getMessage(), containsString("Glob pattern matched no files"));
+        assertThat(e.getMessage(), containsString("s3://bucket/vpcflow/*"));
+    }
+
+    /**
+     * A client error must keep its status even when something between the throw and the boundary wrapped it.
+     * Resolution on the cacheable rail runs inside {@code Cache#computeIfAbsent}, which reports a loader failure
+     * as an {@code ExecutionException} -- so the same unreadable object answered 400 on one provider and 500 on
+     * another, purely because one was cacheable. Recovering the client error from the cause chain at the boundary
+     * is deliberately general: it holds for any wrapper, including ones introduced after this test was written,
+     * which is what makes it a gate rather than an audit of today's call sites.
+     */
+    public void testAClientErrorKeepsItsStatusThroughAWrapper() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        IllegalArgumentException original = new IllegalArgumentException("Cannot determine how to read [s3://b/x.log.gz]");
+
+        RuntimeException mapped = resolver.mapResolveFailure("s3://b/x.log.gz", new ExecutionException("wrapped", original));
+
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(mapped));
+        assertSame("the original client error must be surfaced, not a re-wrap", original, mapped);
+    }
+
+    /**
+     * A breaker trip keeps its 429 through a wrapper. It carries its own status like the outage and rejection
+     * cases, so recovering only the client error would have left this one masked as a 500 the moment a cache
+     * loader wrapped it.
+     */
+    public void testABreakerTripKeepsIts429ThroughAWrapper() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        CircuitBreakingException original = new CircuitBreakingException("over limit", 100, 50, CircuitBreaker.Durability.TRANSIENT);
+
+        RuntimeException mapped = resolver.mapResolveFailure("s3://b/x.parquet", new ExecutionException("wrapped", original));
+
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(mapped));
+        assertSame(original, mapped);
+    }
+
+    /**
+     * A bare compression suffix is its own diagnosis: {@code .gz} IS a registered codec, so reporting it as an
+     * unmatched format would contradict itself. What is missing is an inner format extension.
+     */
+    public void testBareCompressionSuffixIsDiagnosedAsCodecNotFormat() {
+        Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/dump/archive.gz", List.of(attr("a", DataType.KEYWORD)));
+
+        Exception e = expectThrows(Exception.class, () -> resolveSingleFile("s3://bucket/dump/archive.gz", schemasByPath));
+
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        assertThat(e.getMessage(), containsString("names a compression codec, not a data format"));
+        // It must suggest the shape that WOULD work, built from the codec actually seen.
+        assertThat(e.getMessage(), containsString(".csv.gz"));
+        assertThat(e.getMessage(), not(containsString("does not match any registered format")));
+    }
+
+    /**
+     * A dotted stem must not be dragged into the reported extension: the two-segment form is for a real codec
+     * pair only, so {@code 2026.07.26.data.xyz} reports {@code .xyz}, not {@code .data.xyz}.
+     */
+    public void testDottedStemReportsOnlyTheTrailingExtension() {
+        Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/dump/2026.07.26.data.xyz", List.of(attr("a", DataType.KEYWORD)));
+
+        Exception e = expectThrows(Exception.class, () -> resolveSingleFile("s3://bucket/dump/2026.07.26.data.xyz", schemasByPath));
+
+        assertThat(e.getMessage(), containsString("extension [.xyz]"));
+        // Scoped to the REPORTED extension: the message also quotes the full path back, which legitimately
+        // contains ".data.xyz".
+        assertThat(e.getMessage(), not(containsString("extension [.data.xyz]")));
+    }
+
+    /**
+     * The anchor resolve under FIRST_FILE_WINS is a separate route into the async factory selection from the
+     * per-file fan-out that {@link #testExplicitFormatClaimsUnrecognizedExtensionOnMultiFileGlob} exercises
+     * (it resolves one anchor rather than every file), so it needs its own pin: both must honor an explicit format.
+     */
+    public void testExplicitFormatClaimsUnrecognizedExtensionUnderFirstFileWins() throws Exception {
+        List<Attribute> schema = List.of(attr("srcaddr", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/vpcflow/a.log.gz", schema);
+        schemasByPath.put("s3://bucket/vpcflow/b.log.gz", schema);
+
+        List<StorageEntry> listing = List.of(entry("s3://bucket/vpcflow/a.log.gz", 100), entry("s3://bucket/vpcflow/b.log.gz", 200));
+
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        config.put("format", "parquet");
+
+        ExternalSourceResolution resolution = resolveMultiFileWithConfig("s3://bucket/vpcflow/*", schemasByPath, listing, config);
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/vpcflow/*");
+        assertNotNull("explicit format must claim the FIRST_FILE_WINS anchor too", resolved);
+        assertEquals(List.of("srcaddr"), resolved.metadata().schema().stream().map(Attribute::name).toList());
+    }
+
+    /**
+     * The claim must widen only for an <em>authoritative</em> format. {@code auto} is the "infer from the extension"
+     * sentinel, so it must leave an unreadable extension unreadable — otherwise the config-aware selection would
+     * claim everything and defer the failure to a much deeper, worse error inside the reader.
+     */
+    public void testFormatAutoDoesNotClaimUnrecognizedExtensionOnMultiFileGlob() {
+        Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/vpcflow/a.log.gz", List.of(attr("a", DataType.KEYWORD)));
+        List<StorageEntry> listing = List.of(entry("s3://bucket/vpcflow/a.log.gz", 100));
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> resolveMultiFileWithConfig("s3://bucket/vpcflow/*", schemasByPath, listing, Map.of("format", "auto"))
+        );
+
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        assertThat(e.getMessage(), containsString("[.log.gz]"));
+    }
+
+    /**
+     * An unregistered format name must not claim either — the widened selection keys on the format being registered,
+     * not merely present.
+     */
+    public void testUnregisteredFormatDoesNotClaimUnrecognizedExtensionOnMultiFileGlob() {
+        Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/vpcflow/a.log.gz", List.of(attr("a", DataType.KEYWORD)));
+        List<StorageEntry> listing = List.of(entry("s3://bucket/vpcflow/a.log.gz", 100));
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> resolveMultiFileWithConfig("s3://bucket/vpcflow/*", schemasByPath, listing, Map.of("format", "not-a-real-format"))
+        );
+
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+    }
+
+    /**
+     * The synchronous single-file path throws the same failure from the same builder, so it carries the same message
+     * and the same status — the two throw sites must not drift back apart.
+     */
+    public void testSingleFileWithoutFormatReportsUnreadableExtension() {
+        Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/vpcflow/a.log.gz", List.of(attr("a", DataType.KEYWORD)));
+
+        Exception e = expectThrows(Exception.class, () -> resolveSingleFile("s3://bucket/vpcflow/a.log.gz", schemasByPath));
+
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        assertThat(e.getMessage(), containsString("Cannot determine how to read"));
+        assertThat(e.getMessage(), containsString("[.log.gz]"));
+        assertThat(e.getMessage(), not(containsString("plugin is installed")));
+    }
+
+    /**
+     * A single-segment extension reports itself alone — the two-segment tail is for compound names only, and must not
+     * drag a preceding dotted stem into the message.
+     */
+    public void testUnreadableSingleSegmentExtensionIsReportedAlone() {
+        Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/data/events.avro", List.of(attr("a", DataType.KEYWORD)));
+
+        Exception e = expectThrows(Exception.class, () -> resolveSingleFile("s3://bucket/data/events.avro", schemasByPath));
+
+        assertThat(e.getMessage(), containsString("[.avro]"));
+    }
+
     // ===== Resolver + Cache integration =====
 
     public void testCacheReducesListingAndSchemaLoaderCalls() throws Exception {
@@ -2201,9 +2632,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemasByPath);
 
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         // FFW-specific assertions of listing-cache + anchor-schema-cache reuse.
@@ -2380,9 +2811,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
      */
     public void testMultiFileCacheReducesSchemaLoaderCallsPerStrategy() throws Exception {
         Settings cacheSettings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         for (FormatReader.SchemaResolution strategy : MULTI_FILE_STRATEGIES) {
@@ -2631,9 +3062,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of(), schemasByPath);
 
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
@@ -2676,9 +3107,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of(), schemasByPath);
 
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
@@ -2723,9 +3154,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         // The file-metadata cache is freshness-discovery (like listing) and shares the listing TTL, so a
         // short listing TTL is what expires it and forces the re-probe.
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "500ms")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "500ms")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
@@ -2757,9 +3188,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of(), schemasByPath);
 
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", false)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", false)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
@@ -2795,9 +3226,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of("s3://bucket/d/", listing), schemasByPath);
 
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", false)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", false)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
@@ -2829,9 +3260,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         NullMtimeStorageProvider nullMtimeProvider = new NullMtimeStorageProvider(schemasByPath);
 
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
@@ -3088,6 +3519,33 @@ public class ExternalSourceResolverTests extends ESTestCase {
             public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
                 return Map.of("parquet", (s, bf) -> formatReader);
             }
+
+            /**
+             * A gzip codec, so the fixture models a real cluster (the gzip data-source plugin ships and is
+             * installed by default). Without it {@code .gz} is not a registered compression suffix here, and the
+             * resolver correctly reports {@code .gz} itself as the unknown extension rather than the
+             * {@code .log.gz} pair — a different, equally correct message that would leave the compound-name
+             * diagnosis unexercised.
+             */
+            @Override
+            public List<DecompressionCodec> decompressionCodecs(Settings settings) {
+                return List.of(new DecompressionCodec() {
+                    @Override
+                    public String name() {
+                        return "gzip";
+                    }
+
+                    @Override
+                    public List<String> extensions() {
+                        return List.of(".gz");
+                    }
+
+                    @Override
+                    public InputStream decompress(InputStream raw) {
+                        return raw;
+                    }
+                });
+            }
         };
 
         List<DataSourcePlugin> plugins = List.of(plugin);
@@ -3225,7 +3683,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         String formatName,
         String extension,
         Map<String, List<Attribute>> schemasByPath,
-        Supplier<? extends RuntimeException> failure,
+        Supplier<? extends Exception> failure,
         @Nullable ExternalSourceCacheService cacheService
     ) {
         NoConfigFormatReader formatReader = new NoConfigFormatReader() {
@@ -3234,9 +3692,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 return PassThroughRowPositionStrategy.INSTANCE;
             }
 
+            // Declares IOException so a suite can inject the checked storage/reader failure that the real
+            // readers raise (the shape FileSourceFactory types as client-caused), not only unchecked ones.
             @Override
-            public SourceMetadata metadata(StorageObject object) {
-                throw failure.get();
+            public SourceMetadata metadata(StorageObject object) throws IOException {
+                Exception e = failure.get();
+                if (e instanceof IOException io) {
+                    throw io;
+                }
+                throw (RuntimeException) e;
             }
 
             @Override
@@ -3544,7 +4008,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
             resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), future);
 
             Exception e = expectThrows(Exception.class, () -> future.actionGet(30, TimeUnit.SECONDS));
-            assertThat(e.getMessage(), containsString("Failed to resolve metadata"));
+            // Pins what the caller needs — which file aborted the fan-out and why — rather than the wrapper's
+            // boilerplate. The wrapper now keeps the reader's diagnosis instead of replacing it with a constant.
+            assertThat(e.getMessage(), containsString("simulated read failure"));
+            assertThat(e.getMessage(), containsString(failPath));
         } finally {
             resolverExecutor.shutdownNow();
             readPool.shutdownNow();
@@ -4280,4 +4747,168 @@ public class ExternalSourceResolverTests extends ESTestCase {
             delegate.close();
         }
     }
+
+    /**
+     * {@code mapResolveFailure} is where a resolution failure's status is decided, and it decides by TYPE: an
+     * {@link IllegalArgumentException} (or {@link UnsupportedOperationException}) is returned untouched, and
+     * everything else is re-wrapped in a bare {@link org.elasticsearch.ElasticsearchException} -- a 500. So a glob
+     * that trips the discovery cap, which is the user having asked for too much, came back as a server fault for as
+     * long as the cap threw a {@code QlIllegalArgumentException}: not an {@code IllegalArgumentException}, therefore
+     * the default arm, therefore 500.
+     *
+     * <p>The assertion is at {@code resolve}, not at {@code GlobExpander}: the throw site was already covered by
+     * {@code GlobExpanderTests} while this frame -- the one that actually picks the status -- was not, and a test
+     * that only re-checks the throw site cannot tell the two outcomes apart.
+     */
+    public void testGlobDiscoveryCapEscapesResolutionAsClientError() {
+        String prefix = "s3://bucket/data/";
+        List<StorageEntry> listing = new ArrayList<>();
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        for (int i = 0; i < 5; i++) {
+            String path = prefix + "part-" + i + ".parquet";
+            listing.add(entry(path, 100));
+            schemasByPath.put(path, List.of(attr("x", DataType.INTEGER)));
+        }
+        ExternalSourceResolver resolver = createResolver(
+            schemasByPath,
+            Map.of(prefix, listing),
+            Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 2).build()
+        );
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(prefix + "*.parquet"), Map.of(), future);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertEquals("too wide a glob is the caller's mistake, not a server fault", RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        assertThat(e.getMessage(), containsString("discovered too many files"));
+        assertThat(e.getMessage(), containsString("esql.external.max_discovered_files"));
+    }
+
+    /**
+     * The same {@code mapResolveFailure} contract for the other end of the config surface: a per-query reader
+     * setting the reader itself rejects. {@code FileSourceFactory.validateConfig} runs the reader's own parser
+     * OUTSIDE the factory loop's try (deliberately -- a config error must not be retried against the next factory),
+     * so the reader's exception escapes {@code resolveSingleSource} raw and its type alone decides 400 versus 500.
+     *
+     * <p>Wired with the REAL {@code CsvFormatReader}/{@code NdJsonFormatReader}, not a stub: a stub would accept
+     * whatever the test fed it and prove nothing about the parser that ships. Both readers, because each owns its
+     * own copy of the bound check.
+     */
+    public void testReaderSettingRejectionEscapesResolutionAsClientError() {
+        for (String[] format : List.of(new String[] { "csv", ".csv" }, new String[] { "ndjson", ".ndjson" })) {
+            String path = "s3://bucket/data/file" + format[1];
+            ExternalSourceResolver resolver = createResolverWithRealTextReaders(
+                Map.of(path, List.of(attr("x", DataType.INTEGER))),
+                format[0],
+                format[1]
+            );
+
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(path), Map.of(path, Map.of("schema_sample_size", "0")), future);
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+            assertEquals(
+                "format [" + format[0] + "]: a rejected reader setting is a client error",
+                RestStatus.BAD_REQUEST,
+                ExceptionsHelper.status(e)
+            );
+            assertThat(e.getMessage(), containsString("schema_sample_size must be positive"));
+        }
+    }
+
+    /**
+     * A resolver whose single registered format is one of the real text readers, so a per-query reader setting is
+     * parsed by production code. Storage is still stubbed -- the rejection happens in {@code validateConfig}, before
+     * any byte is read, so no real object is needed.
+     */
+    private ExternalSourceResolver createResolverWithRealTextReaders(
+        Map<String, List<Attribute>> schemasByPath,
+        String formatName,
+        String extension
+    ) {
+        StubStorageProvider storageProvider = new StubStorageProvider(Map.of(), schemasByPath);
+        FormatReaderFactory readerFactory = "csv".equals(formatName)
+            ? (s, bf) -> new CsvFormatReader(bf, "csv", List.of(".csv"))
+            : (s, bf) -> new NdJsonFormatReader(s, bf, null);
+
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of(formatName, extension, Set.of("schema_sample_size")));
+            }
+
+            @Override
+            public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("s3", stubStorageProviderFactory(storageProvider));
+            }
+
+            @Override
+            public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+                return Map.of(formatName, readerFactory);
+            }
+        };
+
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            DataSourceCapabilities.build(plugins),
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
+        );
+        return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
+    }
+
+    private ExternalSourceResolver createResolver(
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, List<StorageEntry>> listingsByPrefix,
+        Settings settings
+    ) {
+        StubFormatReader formatReader = new StubFormatReader(schemasByPath);
+        StubStorageProvider storageProvider = new StubStorageProvider(listingsByPrefix, schemasByPath);
+
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of("parquet", ".parquet"));
+            }
+
+            @Override
+            public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("s3", stubStorageProviderFactory(storageProvider));
+            }
+
+            @Override
+            public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+                return Map.of("parquet", (s, bf) -> formatReader);
+            }
+        };
+
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            capabilities,
+            settings,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
+        );
+
+        return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module, settings);
+    }
+
 }

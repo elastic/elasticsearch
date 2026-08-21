@@ -127,7 +127,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     }
 
     // Visible for testing:
-    LRUQueryCache getCache() {
+    XLRUQueryCache getCache() {
         return cache;
     }
 

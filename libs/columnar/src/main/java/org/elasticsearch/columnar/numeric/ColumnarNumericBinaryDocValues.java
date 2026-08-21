@@ -67,7 +67,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
 
     @Override
     public BytesRef binaryValue() throws IOException {
-        final int rank = iterator.index();
+        final int rank = iterator.rank();
         final long first = reader.firstOrdinal(rank);
         final long count = reader.valueCount(rank);
         if (values.length < count) {
@@ -151,7 +151,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
 
             private int position(int doc) {
                 if (doc != DocIdSetIterator.NO_MORE_DOCS) {
-                    int rank = iterator.index();
+                    int rank = iterator.rank();
                     first = reader.firstOrdinal(rank);
                     count = reader.valueCount(rank);
                     upto = 0;
@@ -234,7 +234,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
     private void maskIntoBitSet(ColumnIterator column, BlockMask mask, int upTo, FixedBitSet bitSet, int offset) throws IOException {
         int doc = column.docID();
         while (doc < upTo) {
-            final int ordinal = column.index();
+            final int ordinal = column.rank();
             final int runEnd = Math.min(column.docIDRunEnd(), upTo);
             if (runEnd - doc == 1) {
                 // A single document: setting the bit directly is cheaper than the block-at-a-time path.
@@ -265,7 +265,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
         return new TwoPhaseIterator(column) {
             @Override
             public boolean matches() throws IOException {
-                final int ordinal = column.index();
+                final int ordinal = column.rank();
                 mask.load(ordinal >>> blockShift);
                 return mask.matches.get(ordinal & blockMask);
             }
@@ -311,7 +311,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
                 if (minVal > upperValue || maxVal < lowerValue) {
                     return false; // no overlap
                 }
-                final int ordinal = column.index();
+                final int ordinal = column.rank();
                 mask.load(ordinal >>> blockShift);
                 return mask.matches.get(ordinal & blockMask);
             }
@@ -409,7 +409,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
      */
     private int matchingRunEnd(ColumnIterator column, BlockMask mask) throws IOException {
         final int doc = column.docID();
-        final int ordinal = column.index();
+        final int ordinal = column.rank();
         final int matchingOrdinals = mask.runEnd(ordinal) - ordinal;
         return Math.min(column.docIDRunEnd(), Math.min(doc + matchingOrdinals, maxDoc));
     }

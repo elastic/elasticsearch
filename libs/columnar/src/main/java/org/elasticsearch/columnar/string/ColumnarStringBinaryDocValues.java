@@ -43,7 +43,7 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
      */
     @Override
     public BytesRef binaryValue() throws IOException {
-        final int index = iterator.index();
+        final int index = iterator.rank();
         assert reader.valueCount(index) == 1
             : "multi-valued string column reached binaryValue with "
                 + reader.valueCount(index)
@@ -123,7 +123,7 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
 
             private int position(int doc) {
                 if (doc != DocIdSetIterator.NO_MORE_DOCS) {
-                    int index = iterator.index();
+                    int index = iterator.rank();
                     first = reader.firstValueAddress(index);
                     count = reader.valueCount(index);
                     upto = 0;

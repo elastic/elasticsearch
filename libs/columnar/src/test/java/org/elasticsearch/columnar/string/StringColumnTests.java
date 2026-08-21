@@ -247,7 +247,7 @@ public class StringColumnTests extends ColumnarStringTestCase {
             int seenDocs = 0;
             ColumnIterator iterator = reader.iterator();
             for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
-                int index = iterator.index();
+                int index = iterator.rank();
                 assertEquals("value count at doc " + doc, 1, reader.valueCount(index));
                 BytesRef actual = reader.valueAt(reader.firstValueAddress(index));
                 assertEquals("doc " + doc, docValues[doc], actual);

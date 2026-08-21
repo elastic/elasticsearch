@@ -77,7 +77,7 @@ public final class NumericColumnReader {
         this.blockBuffer = new long[meta.blockSize()];
     }
 
-    /** A fresh iterator over the documents that have a value; {@link ColumnIterator#index()} is the rank. */
+    /** A fresh iterator over the documents that have a value; {@link ColumnIterator#rank()} is the rank. */
     public ColumnIterator iterator() throws IOException {
         return iteratorReader.iterator();
     }

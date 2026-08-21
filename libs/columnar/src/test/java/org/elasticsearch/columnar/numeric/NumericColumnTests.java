@@ -199,7 +199,7 @@ public class NumericColumnTests extends ESTestCase {
 
                 ColumnIterator iterator = reader.iterator();
                 for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
-                    int rank = iterator.index();
+                    int rank = iterator.rank();
                     long first = reader.firstOrdinal(rank);
                     long count = reader.valueCount(rank);
                     assertEquals("value count at doc " + doc, docValues[doc].length, count);

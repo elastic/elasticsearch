@@ -73,6 +73,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
 import org.junit.Before;
@@ -977,8 +978,35 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
         private final List<LongAccumulator> captured;
 
         AccumulatorCapturingQuery(String field, int k, TestIvfQueryConfigResolver resolver, List<LongAccumulator> captured) {
-            super(field, 0f, k, k, null, resolver);
+            this(field, k, k, null, resolver, false, captured);
+        }
+
+        private AccumulatorCapturingQuery(
+            String field,
+            int k,
+            int numCands,
+            Query filter,
+            IvfQueryConfigResolver resolver,
+            boolean postFilterDelegate,
+            List<LongAccumulator> captured
+        ) {
+            super(field, 0f, k, numCands, filter, resolver, postFilterDelegate);
             this.captured = captured;
+        }
+
+        @Override
+        protected AccumulatorCapturingQuery withParams(Query filter, int k, int numCands, boolean postFilterDelegate) {
+            return new AccumulatorCapturingQuery(field, k, numCands, filter, ivfQueryConfigResolver, postFilterDelegate, captured);
+        }
+
+        /**
+         * Unreachable here: counting needs the field's vector encoding, which this double - shared by the
+         * float and byte test subclasses - does not know. Only the post-filter path calls it, and this query
+         * is never wrapped in a {@link PostFilterKnnQuery}.
+         */
+        @Override
+        public int countTotalVectors(List<LeafReaderContext> leaves) {
+            throw new UnsupportedOperationException("AccumulatorCapturingQuery only exercises rewrite() accumulator wiring");
         }
 
         @Override
@@ -999,7 +1027,7 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
         }
 
         @Override
-        Query getAutoRescoreQuery(IndexSearcher indexSearcher, TopDocs topOversampled, int effectiveK) {
+        Query getAutoRescoreQuery(IndexSearcher indexSearcher, Query approxTopN, int finalK, int rescoreK) {
             return null;
         }
 

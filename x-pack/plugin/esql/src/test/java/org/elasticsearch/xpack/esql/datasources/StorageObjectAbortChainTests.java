@@ -88,12 +88,12 @@ public class StorageObjectAbortChainTests extends ESTestCase {
     }
 
     /**
-     * Regression guard for {@link FileSplitProvider#computeRecordAlignedMacroSplitStarts}: each
-     * macro-split boundary probe opens {@code newStream(pos, remaining)} and reads only a prefix,
-     * so cleanup must abort (not drain) through the same decorator chain used for uncompressed
-     * text files on object storage.
+     * Regression guard for {@link FileSplitProvider#computeRecordAlignedMacroSplitStarts}: each macro-split
+     * boundary probe reads bounded chunks that it consumes in full, so cleanup neither drains a large
+     * remainder nor aborts — through the same decorator chain used for uncompressed text files on object
+     * storage, whose {@code readBytes} delegation is what carries the chunked reads down to the provider.
      */
-    public void testMacroSplitDiscoveryAbortPropagatesThroughDecoratorChainWithoutDrain() throws IOException {
+    public void testMacroSplitDiscoveryProbesFullyConsumeClosedRangesThroughDecoratorChain() throws IOException {
         StringBuilder csv = new StringBuilder("id,name\n");
         for (int i = 0; i < 200_000; i++) {
             csv.append(i).append(",value_").append(i).append('\n');
@@ -123,25 +123,21 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         );
 
         assertThat("expected multiple macro-split boundaries", starts.size(), Matchers.greaterThan(1));
-        assertTrue("each probe must abort the raw stream", tracking.abortCalls.get() >= starts.size() - 1);
+        assertEquals("probes must not abort — an aborted response is not a poolable connection", 0, tracking.abortCalls.get());
+        assertFalse("no probe may reach the abort path", tracking.aborted.get());
         assertThat(
-            "macro-split probes must not drain range streams; consumed "
-                + tracking.bytesConsumed.get()
-                + " of "
-                + fileLength
-                + " bytes across "
-                + tracking.abortCalls.get()
-                + " probes",
+            "macro-split probes must read bounded chunks; consumed " + tracking.bytesConsumed.get() + " of " + fileLength + " bytes",
             tracking.bytesConsumed.get(),
             Matchers.lessThan(fileLength / 2)
         );
     }
 
     /**
-     * Regression guard for {@link ParallelParsingCoordinator#computeSegments}: in-file parallel parsing
-     * probes record boundaries through the same decorator chain used for uncompressed object-store reads.
+     * Regression guard for {@link ParallelParsingCoordinator#computeSegments}: in-file parallel parsing probes
+     * record boundaries in bounded chunks it consumes in full, through the same decorator chain used for
+     * uncompressed object-store reads — so cleanup neither drains a large remainder nor aborts.
      */
-    public void testComputeSegmentsAbortPropagatesThroughDecoratorChainWithoutDrain() throws IOException {
+    public void testComputeSegmentsProbesFullyConsumeClosedRangesThroughDecoratorChain() throws IOException {
         StringBuilder csv = new StringBuilder("id,name\n");
         for (int i = 0; i < 200_000; i++) {
             csv.append(i).append(",value_").append(i).append('\n');
@@ -163,15 +159,10 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         List<long[]> segments = ParallelParsingCoordinator.computeSegments(csvReader, chain, fileLength, 4, csvReader.minimumSegmentSize());
 
         assertThat("expected multiple parse segments", segments.size(), Matchers.greaterThan(1));
-        assertTrue("each probe must abort the raw stream", tracking.abortCalls.get() >= segments.size() - 1);
+        assertEquals("probes must not abort — an aborted response is not a poolable connection", 0, tracking.abortCalls.get());
+        assertFalse("no probe may reach the abort path", tracking.aborted.get());
         assertThat(
-            "segment probes must not drain range streams; consumed "
-                + tracking.bytesConsumed.get()
-                + " of "
-                + fileLength
-                + " bytes across "
-                + tracking.abortCalls.get()
-                + " probes",
+            "segment probes must read bounded chunks; consumed " + tracking.bytesConsumed.get() + " of " + fileLength + " bytes",
             tracking.bytesConsumed.get(),
             Matchers.lessThan(fileLength / 2)
         );

@@ -1313,8 +1313,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
     /**
      * With {@code escape: none} the dialect is {@code quoting=true, escaping=false}. In this mode
-     * {@link CsvFormatReader.CsvBatchIterator#rowHasNoSpecialChars} only checks for the quote char; a
-     * backslash is not a special character and a row containing one is still eligible for the
+     * {@code rowHasNoSpecialChars} only checks for the quote char; a backslash is not a special
+     * character and a row containing one is still eligible for the
      * plain-split fast path. The backslash must survive as a literal character on both arms.
      */
     public void testQuotedDialectEscapeNoneFastPathPreservesBackslash() throws IOException {

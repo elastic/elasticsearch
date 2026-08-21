@@ -611,7 +611,11 @@ public final class RestoreService implements ClusterStateApplier {
      * A retry that supplies the same {@code restoreUUID} as an already-applied guarded restore observes the correlated
      * {@link RestoreInProgress} entry and is a no-op rather than a second initialization.
      *
-     * @param restoreUUID the caller-supplied UUID correlating this restore, matching {@link RestoreInProgress.Entry#uuid()}
+     * @param restoreUUID               the caller-supplied UUID correlating this restore, matching {@link RestoreInProgress.Entry#uuid()}
+     * @param snapshotDataStreamAliases every data-stream alias recorded in the snapshot's global metadata, keyed by alias name; only the
+     *                                  entries that reference a data stream actually being restored are applied. Data-stream deletion
+     *                                  removes the destination from every existing alias that referenced it, so this is the only source
+     *                                  from which a restored data stream's aliases can be repopulated.
      */
     public void restoreOverExistingDataStreams(
         ProjectId projectId,
@@ -620,6 +624,7 @@ public final class RestoreService implements ClusterStateApplier {
         TimeValue masterNodeTimeout,
         String restoreUUID,
         List<DataStreamRestoreTarget> targets,
+        Map<String, DataStreamAlias> snapshotDataStreamAliases,
         ActionListener<RestoreCompletionResponse> listener
     ) {
         final Map<String, IndexId> indicesToRestore = new HashMap<>();
@@ -634,9 +639,17 @@ public final class RestoreService implements ClusterStateApplier {
                 snapshotProjectBuilder.put(entry.getValue().metadata(), false);
             }
         }
+        final Set<String> dataStreamNamesToRestore = dataStreamsToRestore.stream().map(DataStream::getName).collect(Collectors.toSet());
+        final Map<String, DataStreamAlias> restoredDataStreamAliases = new HashMap<>();
+        for (DataStreamAlias alias : snapshotDataStreamAliases.values()) {
+            final DataStreamAlias intersected = alias.intersect(dataStreamNamesToRestore::contains);
+            if (intersected.getDataStreams().isEmpty() == false) {
+                restoredDataStreamAliases.put(alias.getName(), intersected);
+            }
+        }
         snapshotProjectBuilder.dataStreams(
             dataStreamsToRestore.stream().collect(Collectors.toMap(DataStream::getName, Function.identity())),
-            Map.of()
+            restoredDataStreamAliases
         );
         final Metadata snapshotMetadata = Metadata.builder().put(snapshotProjectBuilder).build();
         final RestoreSnapshotRequest request = new RestoreSnapshotRequest(

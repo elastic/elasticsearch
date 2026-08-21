@@ -12,6 +12,8 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -20,11 +22,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.IndexId;
@@ -51,8 +55,10 @@ import java.util.stream.Stream;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -104,6 +110,32 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
         indexDoc();
         refresh(DATA_STREAM_NAME);
         assertHitCount(prepareSearch(DATA_STREAM_NAME).setSize(0), docCount + 1);
+    }
+
+    /**
+     * Deleting the destination data stream strips it from every existing data-stream alias that referenced it, so the synthetic snapshot
+     * metadata built for a guarded restore must carry the snapshot's own data-stream aliases explicitly; there is no other path by which
+     * a restored data stream can regain its aliases.
+     */
+    public void testRestoreOverExistingDataStreamRestoresAliasesFromSnapshot() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        final String aliasName = "test-alias";
+        createRepositoryAndSnapshottedDataStream(aliasName);
+        final RestoreTarget restoreTarget = resolveRestoreTarget();
+        assertThat(
+            "the alias must actually be present in the snapshot's global metadata for this test to be meaningful",
+            restoreTarget.snapshotDataStreamAliases(),
+            hasKey(aliasName)
+        );
+
+        initializeRestoreOverExistingDataStream(restoreTarget);
+        awaitRestoreCompleted();
+
+        final DataStreamAlias restoredAlias = currentDataStreamAliases().get(aliasName);
+        assertThat("the restored data stream must regain the alias it had when snapshotted", restoredAlias, notNullValue());
+        assertThat(restoredAlias.getDataStreams(), contains(DATA_STREAM_NAME));
     }
 
     public void testRestoredDataStreamSurvivesNodeRestart() throws Exception {
@@ -225,6 +257,7 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
             TEST_REQUEST_TIMEOUT,
             restoreUUID,
             List.of(restoreTarget.target()),
+            restoreTarget.snapshotDataStreamAliases(),
             first
         );
         first.actionGet(TEST_REQUEST_TIMEOUT);
@@ -238,6 +271,7 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
             TEST_REQUEST_TIMEOUT,
             restoreUUID,
             List.of(restoreTarget.target()),
+            restoreTarget.snapshotDataStreamAliases(),
             second
         );
         second.actionGet(TEST_REQUEST_TIMEOUT);
@@ -250,6 +284,10 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
     }
 
     private int createRepositoryAndSnapshottedDataStream() throws Exception {
+        return createRepositoryAndSnapshottedDataStream(null);
+    }
+
+    private int createRepositoryAndSnapshottedDataStream(@Nullable String aliasName) throws Exception {
         createRepository(REPOSITORY_NAME, "mock");
         // no replicas: this cluster only ever has one data node, and a default-settings template would leave the backing index yellow
         final ComposableIndexTemplate template = ComposableIndexTemplate.builder()
@@ -269,6 +307,10 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
         ).get();
         assertAcked(response);
 
+        if (aliasName != null) {
+            addAlias(aliasName, DATA_STREAM_NAME);
+        }
+
         final int docCount = randomIntBetween(20, 100);
         for (int i = 0; i < docCount; i++) {
             indexDoc();
@@ -286,17 +328,29 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
             .get();
     }
 
+    private void addAlias(String aliasName, String dataStreamName) {
+        final IndicesAliasesRequest request = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
+        request.addAliasAction(new AliasActions(AliasActions.Type.ADD).alias(aliasName).index(dataStreamName));
+        assertAcked(indicesAdmin().aliases(request).actionGet());
+    }
+
     /**
      * Bundles the identity of the snapshot to restore from with the guarded restore target resolved from it, mirroring the analogous
      * regular-index test's {@code RestoreTarget}. Resolving is separate from publishing the transition so a test can mutate the
      * destination identity (e.g. to simulate a stale caller resolution) before submitting.
      */
-    private record RestoreTarget(Snapshot snapshot, SnapshotInfo snapshotInfo, RestoreService.DataStreamRestoreTarget target) {
+    private record RestoreTarget(
+        Snapshot snapshot,
+        SnapshotInfo snapshotInfo,
+        RestoreService.DataStreamRestoreTarget target,
+        Map<String, DataStreamAlias> snapshotDataStreamAliases
+    ) {
         RestoreTarget withDestination(DataStream destination) {
             return new RestoreTarget(
                 snapshot,
                 snapshotInfo,
-                new RestoreService.DataStreamRestoreTarget(destination, target.snapshotDataStream(), target.indicesToRestore())
+                new RestoreService.DataStreamRestoreTarget(destination, target.snapshotDataStream(), target.indicesToRestore()),
+                snapshotDataStreamAliases
             );
         }
     }
@@ -327,7 +381,7 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
             snapshotDataStream,
             indicesToRestore
         );
-        return new RestoreTarget(snapshot, snapshotInfo, target);
+        return new RestoreTarget(snapshot, snapshotInfo, target, snapshotGlobalMetadata.getProject(ProjectId.DEFAULT).dataStreamAliases());
     }
 
     private void initializeRestoreOverExistingDataStream(RestoreTarget restoreTarget) {
@@ -343,6 +397,7 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
             TEST_REQUEST_TIMEOUT,
             UUIDs.randomBase64UUID(),
             List.of(restoreTarget.target()),
+            restoreTarget.snapshotDataStreamAliases(),
             future
         );
         return future;
@@ -355,6 +410,11 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
     private DataStream currentDataStream() {
         final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         return state.metadata().getProject(ProjectId.DEFAULT).dataStreams().get(DATA_STREAM_NAME);
+    }
+
+    private Map<String, DataStreamAlias> currentDataStreamAliases() {
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        return state.metadata().getProject(ProjectId.DEFAULT).dataStreamAliases();
     }
 
     private void awaitRestoreCompleted() throws Exception {

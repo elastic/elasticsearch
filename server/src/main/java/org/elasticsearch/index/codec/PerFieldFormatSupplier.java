@@ -13,12 +13,14 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatSelector;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
@@ -30,6 +32,7 @@ import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -74,6 +77,7 @@ public class PerFieldFormatSupplier {
     }
 
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
+    private static final DocValuesFormat columnarDocValuesFormatInstance = new ColumNARDocValuesFormat();
     private final KnnVectorsFormat knnVectorsFormat;
     private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
     private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion104");
@@ -86,6 +90,7 @@ public class PerFieldFormatSupplier {
     private final TSDBSyntheticIdPostingsFormat syntheticIdPostingsFormat;
     private final ES94BloomFilterDocValuesFormat idBloomFilterDocValuesFormat;
     private final DocValuesFormat tsdbDocValuesFormat;
+    private final DocValuesFormat columnarDocValuesFormat;
 
     @SuppressWarnings("this-escape")
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
@@ -101,6 +106,8 @@ public class PerFieldFormatSupplier {
         this.tsdbDocValuesFormat = mapperService == null
             ? null
             : TSDBDocValuesFormatSelector.select(mapperService.getIndexSettings(), this::resolveFieldContext);
+        this.columnarDocValuesFormat = mapperService != null
+            && ColumnarDocValuesFormatSelector.useColumnarCodec(mapperService.getIndexSettings()) ? columnarDocValuesFormatInstance : null;
         var bloomFilterSettings = mapperService == null ? null : mapperService.getIndexSettings().syntheticIdBloomFilterSettings();
         this.idBloomFilterDocValuesFormat = bloomFilterSettings == null
             ? new ES94BloomFilterDocValuesFormat(bigArrays, IdFieldMapper.NAME) // fallback to the defaults if no settings are present
@@ -226,11 +233,19 @@ public class PerFieldFormatSupplier {
             return idBloomFilterDocValuesFormat;
         }
 
+        if (columnarDocValuesFormat != null && isKeywordField(field)) {
+            return columnarDocValuesFormat;
+        }
+
         if (useTSDBDocValuesFormat(field)) {
             return tsdbDocValuesFormat;
         }
 
         return docValuesFormat;
+    }
+
+    private boolean isKeywordField(String field) {
+        return mapperService.mappingLookup().getMapper(field) instanceof KeywordFieldMapper;
     }
 
     FieldContext resolveFieldContext(final String fieldName, final int blockSize) {

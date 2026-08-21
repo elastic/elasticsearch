@@ -6,6 +6,8 @@ import {
   removeEntries,
 } from "./muted-tests.ts";
 
+// FILE intentionally mixes quoted and unquoted scalars to prove the
+// line-splice preserves the original style verbatim.
 const FILE = `tests:
 - class: org.elasticsearch.Foo
   method: "testA"
@@ -17,6 +19,8 @@ const FILE = `tests:
   method: testC
   issue: https://github.com/elastic/elasticsearch/issues/3
 `;
+
+// ─── parseMutedTests ─────────────────────────────────────────────────────────
 
 describe("parseMutedTests", () => {
   it("parses class, method, and issue", () => {
@@ -35,6 +39,34 @@ describe("parseMutedTests", () => {
         class: "org.elasticsearch.Baz",
         method: "testC",
         issue: "https://github.com/elastic/elasticsearch/issues/3",
+      },
+    ]);
+  });
+
+  it("expands a methods: entry into one entry per method", () => {
+    const src = `tests:
+- class: org.elasticsearch.CharArraysTests
+  methods:
+    - testCharsBeginsWith
+    - testCharsToBytes
+    - testConstantTimeEquals
+  issue: https://github.com/elastic/elasticsearch/issues/99
+`;
+    expect(parseMutedTests(src)).toEqual([
+      {
+        class: "org.elasticsearch.CharArraysTests",
+        method: "testCharsBeginsWith",
+        issue: "https://github.com/elastic/elasticsearch/issues/99",
+      },
+      {
+        class: "org.elasticsearch.CharArraysTests",
+        method: "testCharsToBytes",
+        issue: "https://github.com/elastic/elasticsearch/issues/99",
+      },
+      {
+        class: "org.elasticsearch.CharArraysTests",
+        method: "testConstantTimeEquals",
+        issue: "https://github.com/elastic/elasticsearch/issues/99",
       },
     ]);
   });
@@ -84,6 +116,8 @@ describe("parseMutedTests", () => {
   });
 });
 
+// ─── diffRemovedEntries ───────────────────────────────────────────────────────
+
 describe("diffRemovedEntries", () => {
   it("returns the removed entry", () => {
     const after = `tests:
@@ -119,6 +153,35 @@ describe("diffRemovedEntries", () => {
         class: "org.elasticsearch.Baz",
         method: "testC",
         issue: "https://github.com/elastic/elasticsearch/issues/3",
+      },
+    ]);
+  });
+
+  it("treats removal of some methods: items as individual removals", () => {
+    const before = `tests:
+- class: org.elasticsearch.CharArraysTests
+  methods:
+    - testCharsBeginsWith
+    - testCharsToBytes
+    - testConstantTimeEquals
+  issue: https://github.com/elastic/elasticsearch/issues/99
+`;
+    const after = `tests:
+- class: org.elasticsearch.CharArraysTests
+  methods:
+    - testCharsToBytes
+  issue: https://github.com/elastic/elasticsearch/issues/99
+`;
+    expect(diffRemovedEntries(before, after)).toEqual([
+      {
+        class: "org.elasticsearch.CharArraysTests",
+        method: "testCharsBeginsWith",
+        issue: "https://github.com/elastic/elasticsearch/issues/99",
+      },
+      {
+        class: "org.elasticsearch.CharArraysTests",
+        method: "testConstantTimeEquals",
+        issue: "https://github.com/elastic/elasticsearch/issues/99",
       },
     ]);
   });
@@ -171,6 +234,8 @@ describe("diffRemovedEntries", () => {
   });
 });
 
+// ─── removeEntries ────────────────────────────────────────────────────────────
+
 describe("removeEntries", () => {
   it("removes a single entry and leaves everything else byte-identical", () => {
     const result = removeEntries(FILE, [
@@ -198,6 +263,49 @@ describe("removeEntries", () => {
 `);
   });
 
+  it("removes all methods from a methods: block, deleting the whole entry", () => {
+    const src = `tests:
+- class: org.elasticsearch.CharArraysTests
+  methods:
+    - testCharsBeginsWith
+    - testCharsToBytes
+  issue: https://github.com/elastic/elasticsearch/issues/99
+- class: org.elasticsearch.Keep
+  method: testKeep
+  issue: https://github.com/elastic/elasticsearch/issues/2
+`;
+    const result = removeEntries(src, [
+      { class: "org.elasticsearch.CharArraysTests", method: "testCharsBeginsWith" },
+      { class: "org.elasticsearch.CharArraysTests", method: "testCharsToBytes" },
+    ]);
+    expect(result).toBe(`tests:
+- class: org.elasticsearch.Keep
+  method: testKeep
+  issue: https://github.com/elastic/elasticsearch/issues/2
+`);
+  });
+
+  it("removes a subset of methods from a methods: block, keeping the rest", () => {
+    const src = `tests:
+- class: org.elasticsearch.CharArraysTests
+  methods:
+    - testCharsBeginsWith
+    - testCharsToBytes
+    - testConstantTimeEquals
+  issue: https://github.com/elastic/elasticsearch/issues/99
+`;
+    const result = removeEntries(src, [
+      { class: "org.elasticsearch.CharArraysTests", method: "testCharsBeginsWith" },
+      { class: "org.elasticsearch.CharArraysTests", method: "testConstantTimeEquals" },
+    ]);
+    expect(result).toBe(`tests:
+- class: org.elasticsearch.CharArraysTests
+  methods:
+    - testCharsToBytes
+  issue: https://github.com/elastic/elasticsearch/issues/99
+`);
+  });
+
   it("throws when the issue link differs between the cherry-pick and target branch", () => {
     const target = FILE.replace("issues/2", "issues/12345");
     expect(() =>
@@ -206,6 +314,25 @@ describe("removeEntries", () => {
           class: "org.elasticsearch.Bar",
           method: "testB",
           issue: "https://github.com/elastic/elasticsearch/issues/2",
+        },
+      ]),
+    ).toThrow(/issue mismatch/);
+  });
+
+  it("throws on issue mismatch for a methods: block", () => {
+    const src = `tests:
+- class: org.elasticsearch.CharArraysTests
+  methods:
+    - testCharsBeginsWith
+    - testCharsToBytes
+  issue: https://github.com/elastic/elasticsearch/issues/99
+`;
+    expect(() =>
+      removeEntries(src, [
+        {
+          class: "org.elasticsearch.CharArraysTests",
+          method: "testCharsBeginsWith",
+          issue: "https://github.com/elastic/elasticsearch/issues/WRONG",
         },
       ]),
     ).toThrow(/issue mismatch/);
@@ -326,36 +453,9 @@ tests:
       removeEntries(src, [{ class: "org.elasticsearch.Foo", method: "testA" }]),
     ).toThrow(/unexpected entry layout/);
   });
-
-  it("removes an individual test from an entry with multiple tests", () => {
-    const src = `
-      tests:
-      - class: org.elasticsearch.Foo
-        method: testA
-        issue: https://github.com/elastic/elasticsearch/issues/1
-      - class: org.elasticsearch.Bar
-        methods:
-          - testB-1
-          - testB-2
-        issue: https://github.com/elastic/elasticsearch/issues/2
-    `;
-
-    expect(
-      removeEntries(src, [
-        {
-          class: "org.elasticsearch.Foo",
-          method: "testA",
-          issue: "https://github.com/elastic/elasticsearch/issues/1",
-        },
-        {
-          class: "org.elasticsearch.Bar",
-          method: "testB-1",
-          issue: "https://github.com/elastic/elasticsearch/issues/2",
-        },
-      ]),
-    ).toBe("");
-  });
 });
+
+// ─── end-to-end ───────────────────────────────────────────────────────────────
 
 describe("end-to-end against the real muted-tests.yml", () => {
   it("removes an entry from the checked-in file, changing only those lines", () => {

@@ -196,13 +196,13 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                             ),
                             true
                         );
-                    schedulingListener.onRecoveryCancelledBeforeQueuing(recoveryType, RecoveryRole.TARGET);
+                    schedulingListener.onRecoveryCancelledBeforeQueuingOnTarget(recoveryType);
                 });
             }
             return;
         }
         logger.trace("enqueued recovery: {}", recoveryState);
-        schedulingListener.onRecoveryQueued(recoveryState.getRecoverySource().getType(), RecoveryRole.TARGET);
+        schedulingListener.onRecoveryQueuedOnTarget(recoveryState.getRecoverySource().getType(), pendingRecovery.priorityGroup());
         fillSlots();
     }
 
@@ -240,7 +240,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             logger.trace("cancelling recovery in queue: {}", state);
             RecoveryListener.wrapPreservingContext(pendingRecovery.listener, pendingRecovery.context)
                 .onRecoveryFailure(new RecoveryCancelledException(state.getShardId(), state.getSourceNode(), state.getTargetNode()), false);
-            schedulingListener.onQueuedRecoveryCancelled(state.getRecoverySource().getType(), RecoveryRole.TARGET);
+            schedulingListener.onQueuedRecoveryCancelledOnTarget(state.getRecoverySource().getType(), pendingRecovery.priorityGroup());
             cancelledInQueue.add(pendingRecovery.allocationId());
         }
         return cancelledInQueue;
@@ -292,7 +292,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                         new RecoveryCancelledException(state.getShardId(), state.getSourceNode(), state.getTargetNode()),
                         false
                     );
-                schedulingListener.onQueuedRecoveryDiscarded(state.getRecoverySource().getType(), RecoveryRole.TARGET);
+                schedulingListener.onQueuedRecoveryDiscardedOnTarget(state.getRecoverySource().getType(), stale.priorityGroup());
             });
         }
     }
@@ -324,7 +324,10 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         for (PendingRecovery pending : recoveriesToAbort) {
             logger.trace("service closing, aborting recovery: {}", pending.recoveryState());
             RecoveryListener.wrapPreservingContext(pending.listener, pending.context).onRecoveryAborted();
-            schedulingListener.onQueuedRecoveryDiscarded(pending.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
+            schedulingListener.onQueuedRecoveryDiscardedOnTarget(
+                pending.recoveryState().getRecoverySource().getType(),
+                pending.priorityGroup()
+            );
         }
         clusterService.removeListener(this);
     }
@@ -340,15 +343,25 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         return lifecycle.stoppedOrClosed();
     }
 
+    private boolean isBlocked() {
+        return blockedState.get() != null;
+    }
+
     /// Evaluates the recovery gates and drains the pending queue up to the max slot capacity, forking to the generic executor so
     /// dispatch is not run on the cluster state applier thread. Called on every enqueue, slot release and recovery gate callback.
     private void fillSlots() {
+        if (isBlocked()) {
+            return;
+        }
         // generic thread pool is unbounded and does not reject
         executor.execute(this::doFillSlots);
     }
 
     private void doFillSlots() {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+        if (isBlocked()) {
+            return;
+        }
         final RecoveryGate.Decision decision = recoveryGateMonitor.evaluate();
         if (decision.mayRun() == false) {
             onRecoveriesBlocked(decision);
@@ -390,7 +403,10 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                 executor.execute(new RecoveryRunnable(recovery, wrapped));
             }
             logger.trace("dispatched recovery: {}", recovery.recoveryState());
-            schedulingListener.onRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
+            schedulingListener.onRecoveryDequeuedAndStartedOnTarget(
+                recovery.recoveryState().getRecoverySource().getType(),
+                recovery.priorityGroup()
+            );
         }
     }
 
@@ -440,7 +456,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
         final RecoveryListener handleCancellation = RecoveryListener.runBeforeFailure(listener, e -> {
             if (ExceptionsHelper.unwrap(e, RecoveryCancelledException.class) != null) {
-                schedulingListener.onStartedRecoveryCancelled(recoveryType, RecoveryRole.TARGET);
+                schedulingListener.onStartedRecoveryCancelledOnTarget(recoveryType);
             }
         });
 
@@ -455,7 +471,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             recovery.stats().targetRecoveryCompleted(source.getType());
         }
         logger.trace("recovery slot released: {}", recovery.recoveryState());
-        schedulingListener.onRecoveryCompleted(source.getType(), RecoveryRole.TARGET);
+        schedulingListener.onRecoveryCompletedOnTarget(source.getType(), recovery.priorityGroup());
         fillSlots();
     }
 
@@ -509,6 +525,12 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                     yield false; // fall back to false, as we treat this as the lowest priority, so it is ordered more like a relocation
                 }
             };
+        }
+
+        RecoverySchedulingListener.PriorityGroup priorityGroup() {
+            return isUnassigned()
+                ? RecoverySchedulingListener.PriorityGroup.UNASSIGNED
+                : RecoverySchedulingListener.PriorityGroup.RELOCATION;
         }
     }
 

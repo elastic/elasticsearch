@@ -21,6 +21,9 @@ module org.elasticsearch.nativeaccess {
         to
             org.elasticsearch.server,
             org.elasticsearch.blobcache,
+            // ColumNAR doc-values format: routes chunk compression through the native Zstd binding
+            // rather than a Java implementation.
+            org.elasticsearch.columnar,
             org.elasticsearch.parquetrs,
             org.elasticsearch.searchablesnapshots,
             org.elasticsearch.simdvec,

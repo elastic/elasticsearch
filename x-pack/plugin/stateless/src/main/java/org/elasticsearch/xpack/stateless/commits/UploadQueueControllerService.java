@@ -45,6 +45,15 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
         Setting.Property.Dynamic
     );
 
+    // Enable the controller by default to get metrics/logs from MonitoringThrottler but don't enable actual throttling by default
+    // to be able to do per-project rollout first.
+    // This is not dynamic to simplify the implementation.
+    public static final Setting<Boolean> STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEXING_THROTTLING_ENABLED = Setting.boolSetting(
+        "stateless.upload.queue_controller.indexing_throttling.enabled",
+        false,
+        Setting.Property.NodeScope
+    );
+
     /**
      * How frequently the upload queue controller should check the commit upload backlog and apply throttling if needed.
      */
@@ -93,16 +102,20 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
         Settings settings,
         ClusterService clusterService,
         StatelessCommitService statelessCommitService,
+        IndicesService indicesService,
         TelemetryProvider telemetryProvider
     ) {
         var initialInterval = STATELESS_UPLOAD_QUEUE_CONTROLLER_INTERVAL.get(settings);
+        var throttlingEnabled = STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEXING_THROTTLING_ENABLED.get(settings);
         this.task = new UploadQueueControllerMonitor(
             threadPool,
             threadPool.generic(),
             initialInterval,
             clusterService,
             statelessCommitService,
-            telemetryProvider
+            indicesService,
+            telemetryProvider,
+            throttlingEnabled
         );
     }
 
@@ -140,17 +153,18 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
             TimeValue interval,
             ClusterService clusterService,
             StatelessCommitService statelessCommitService,
-            TelemetryProvider telemetryProvider
+            IndicesService indicesService,
+            TelemetryProvider telemetryProvider,
+            boolean throttlingEnabled
         ) {
             super(logger, threadPool, executor, interval, true);
 
             this.statelessCommitService = statelessCommitService;
 
+            var indexingThrottler = throttlingEnabled ? new IndexingThrottler(indicesService) : new NoopThrottler();
             this.indexingThrottleCalculator = new ThrottleCalculator(
                 threadPool::relativeTimeInMillis,
-                // TODO
-                // Using noop throttler here during initial roll out.
-                new MonitoringThrottler(new NoopThrottler(), telemetryProvider, "indexing")
+                new MonitoringThrottler(indexingThrottler, telemetryProvider, "indexing")
             );
 
             ClusterSettings clusterSettings = clusterService.getClusterSettings();
@@ -241,7 +255,7 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
                         /// We are currently throttling, and we still see the queue.
                         ///
                         /// Indexing throttling reduces the amount of threads available for indexing to one.
-                        /// See [org.elasticsearch.indices.IndexingMemoryController#PAUSE_INDEXING_ON_THROTTLE].\
+                        /// See [org.elasticsearch.indices.IndexingMemoryController#PAUSE_INDEXING_ON_THROTTLE].
                         /// So if we see that we should throttle we'll keep it applied as long as needed
                         /// since it is not a "full stop" scenario for the customer.
                         /// We do want to understand how often this happens though.
@@ -297,7 +311,8 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
 
         // Throttling methods in `IndexEngine` are not idempotent so we need to make sure
         // we don't remove throttle if it was never applied.
-        // It's possible to end up in this situation since queue stats are keyed only by ShardId.
+        // It's possible to end up in this situation since queue stats are keyed only by ShardId
+        // and there can be weird cases like shard relocating to a different node and then relocating back to the current node.
         private final Set<IndexShard> throttledShards = ConcurrentHashMap.newKeySet();
 
         IndexingThrottler(IndicesService indicesService) {
@@ -364,14 +379,14 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
 
         @Override
         public void activate(ShardId shardId) {
-            logger.info("[Simulated] Activating {} throttling for shard {}", throttlerType, shardId);
+            logger.info("Activating {} throttling for shard {}", throttlerType, shardId);
             delegate.activate(shardId);
             activatedCount.increment();
         }
 
         @Override
         public void deactivate(ShardId shardId) {
-            logger.info("[Simulated] Deactivating {} throttling for shard {}", throttlerType, shardId);
+            logger.info("Deactivating {} throttling for shard {}", throttlerType, shardId);
             delegate.deactivate(shardId);
             deactivatedCount.increment();
         }

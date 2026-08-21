@@ -423,6 +423,75 @@ public class OpenAiUnifiedChatCompletionResponseEntityTests extends ESTestCase {
         assertNull(result.usage().promptTokensDetails());
     }
 
+    public void testFromResponse_EmptyPromptTokensDetails_ParsesToNull() throws IOException {
+        var json = """
+            {
+              "id": "chatcmpl-ptd2",
+              "object": "chat.completion",
+              "model": "gpt-4o",
+              "choices": [
+                {
+                  "index": 0,
+                  "message": {
+                    "role": "assistant",
+                    "content": "Hello"
+                  },
+                  "finish_reason": "stop"
+                }
+              ],
+              "usage": {
+                "prompt_tokens": 5,
+                "completion_tokens": 10,
+                "total_tokens": 15,
+                "prompt_tokens_details": {}
+              }
+            }
+            """;
+
+        var result = OpenAiUnifiedChatCompletionResponseEntity.fromResponse(json.getBytes(StandardCharsets.UTF_8));
+        assertNotNull(result.usage());
+        assertNull(result.usage().promptTokensDetails());
+    }
+
+    public void testFromResponse_ExplicitNullTokenCounts_ParsesToNull() throws IOException {
+        // A provider sending explicit JSON nulls for the count fields should not fail the parse,
+        // and the detail objects should collapse to null (both fields null → ofNullable returns null).
+        var json = """
+            {
+              "id": "chatcmpl-ptd3",
+              "object": "chat.completion",
+              "model": "gpt-4o",
+              "choices": [
+                {
+                  "index": 0,
+                  "message": {
+                    "role": "assistant",
+                    "content": "Hello"
+                  },
+                  "finish_reason": "stop"
+                }
+              ],
+              "usage": {
+                "prompt_tokens": 5,
+                "completion_tokens": 10,
+                "total_tokens": 15,
+                "prompt_tokens_details": {
+                  "cached_tokens": null,
+                  "cache_write_tokens": null
+                },
+                "completion_tokens_details": {
+                  "reasoning_tokens": null
+                }
+              }
+            }
+            """;
+
+        var result = OpenAiUnifiedChatCompletionResponseEntity.fromResponse(json.getBytes(StandardCharsets.UTF_8));
+        assertNotNull(result.usage());
+        assertNull(result.usage().promptTokensDetails());
+        assertNull(result.usage().completionTokenDetails());
+    }
+
     public void testFromResponse_InvalidJson_ThrowsException() {
         var invalidJson = "not valid json".getBytes(StandardCharsets.UTF_8);
         expectThrows(Exception.class, () -> OpenAiUnifiedChatCompletionResponseEntity.fromResponse(invalidJson));

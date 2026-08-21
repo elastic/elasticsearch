@@ -148,11 +148,21 @@ public enum ChunkedToXContentHelper {
      * @param value value for this field, or null if the field should be omitted
      * @return iterator for the given field, or an empty iterator if the value is null
      */
-    public static Iterator<ToXContent> chunkNullable(String name, @Nullable Object value) {
+    public static Iterator<ToXContent> nullableChunk(String name, @Nullable Object value) {
         if (value == null) {
             return Collections.emptyIterator();
         } else {
             return ChunkedToXContentHelper.chunk((b, p) -> b.field(name, value));
         }
+    }
+
+    /**
+     * Serializes a fragment, or nothing at all when it is null.
+     *
+     * @param value the fragment to write if not null
+     * @param params params to propagate for XContent serialization
+     */
+    public static Iterator<? extends ToXContent> nullableFragment(@Nullable ChunkedToXContent value, ToXContent.Params params) {
+        return value == null ? Collections.emptyIterator() : value.toXContentChunked(params);
     }
 }

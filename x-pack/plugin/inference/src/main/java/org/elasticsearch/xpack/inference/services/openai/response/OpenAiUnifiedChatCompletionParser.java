@@ -106,17 +106,32 @@ public final class OpenAiUnifiedChatCompletionParser {
         COMPLETION_TOKENS_DETAILS_PARSER = new ConstructingObjectParser<>(
             COMPLETION_TOKENS_DETAILS_FIELD,
             true,
-            args -> new CompletionTokenDetails((Integer) args[0])
+            args -> CompletionTokenDetails.ofNullable((Integer) args[0])
         );
-        COMPLETION_TOKENS_DETAILS_PARSER.declareInt(optionalConstructorArg(), new ParseField(REASONING_TOKENS_FIELD));
+        COMPLETION_TOKENS_DETAILS_PARSER.declareField(
+            optionalConstructorArg(),
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.intValue(),
+            new ParseField(REASONING_TOKENS_FIELD),
+            ObjectParser.ValueType.INT_OR_NULL
+        );
 
         PROMPT_TOKENS_DETAILS_PARSER = new ConstructingObjectParser<>(
             PROMPT_TOKENS_DETAILS_FIELD,
             true,
-            args -> new PromptTokensDetails((Integer) args[0], (Integer) args[1])
+            args -> PromptTokensDetails.ofNullable((Integer) args[0], (Integer) args[1])
         );
-        PROMPT_TOKENS_DETAILS_PARSER.declareInt(optionalConstructorArg(), new ParseField(CACHED_TOKENS_FIELD));
-        PROMPT_TOKENS_DETAILS_PARSER.declareInt(optionalConstructorArg(), new ParseField(CACHE_WRITE_TOKENS_FIELD));
+        PROMPT_TOKENS_DETAILS_PARSER.declareField(
+            optionalConstructorArg(),
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.intValue(),
+            new ParseField(CACHED_TOKENS_FIELD),
+            ObjectParser.ValueType.INT_OR_NULL
+        );
+        PROMPT_TOKENS_DETAILS_PARSER.declareField(
+            optionalConstructorArg(),
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.intValue(),
+            new ParseField(CACHE_WRITE_TOKENS_FIELD),
+            ObjectParser.ValueType.INT_OR_NULL
+        );
 
         USAGE_PARSER = new ConstructingObjectParser<>(
             USAGE_FIELD,

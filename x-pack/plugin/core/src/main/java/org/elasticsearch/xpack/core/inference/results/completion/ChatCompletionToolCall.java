@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.util.Iterator;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunkNullable;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.nullableChunk;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.FUNCTION_ARGUMENTS_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.FUNCTION_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.FUNCTION_NAME_FIELD;
@@ -54,15 +54,15 @@ public record ChatCompletionToolCall(int index, @Nullable String id, @Nullable F
         var content = Iterators.concat(
             ChunkedToXContentHelper.startObject(),
             chunk((b, p) -> b.field(INDEX_FIELD, index)),
-            chunkNullable(ID_FIELD, id)
+            nullableChunk(ID_FIELD, id)
         );
 
         if (function != null) {
             content = Iterators.concat(
                 content,
                 ChunkedToXContentHelper.startObject(FUNCTION_FIELD),
-                chunkNullable(FUNCTION_ARGUMENTS_FIELD, function.arguments()),
-                chunkNullable(FUNCTION_NAME_FIELD, function.name()),
+                nullableChunk(FUNCTION_ARGUMENTS_FIELD, function.arguments()),
+                nullableChunk(FUNCTION_NAME_FIELD, function.name()),
                 ChunkedToXContentHelper.endObject()
             );
         }

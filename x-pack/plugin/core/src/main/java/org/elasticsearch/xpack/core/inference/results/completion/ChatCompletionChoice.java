@@ -19,7 +19,7 @@ import java.io.IOException;
 import java.util.Iterator;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunkNullable;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.nullableChunk;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.FINISH_REASON_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.INDEX_FIELD;
 
@@ -47,7 +47,7 @@ public record ChatCompletionChoice(ChatCompletionMessage message, @Nullable Stri
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
             message.toXContentChunked(params, messageFieldName),
-            chunkNullable(FINISH_REASON_FIELD, finishReason),
+            nullableChunk(FINISH_REASON_FIELD, finishReason),
             chunk((b, p) -> b.field(INDEX_FIELD, index)),
             ChunkedToXContentHelper.endObject()
         );

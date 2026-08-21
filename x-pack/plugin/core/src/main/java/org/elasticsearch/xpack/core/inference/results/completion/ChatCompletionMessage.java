@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunkNullable;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.nullableChunk;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_REASONING_SUPPORT_ADDED;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CONTENT_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_DETAILS_FIELD;
@@ -83,10 +83,10 @@ public record ChatCompletionMessage(
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params, String messageFieldName) {
         var xContent = Iterators.concat(
             ChunkedToXContentHelper.startObject(messageFieldName),
-            chunkNullable(CONTENT_FIELD, content),
-            chunkNullable(REFUSAL_FIELD, refusal),
-            chunkNullable(ROLE_FIELD, role),
-            chunkNullable(REASONING_FIELD, reasoning)
+            nullableChunk(CONTENT_FIELD, content),
+            nullableChunk(REFUSAL_FIELD, refusal),
+            nullableChunk(ROLE_FIELD, role),
+            nullableChunk(REASONING_FIELD, reasoning)
         );
 
         if (toolCalls != null && toolCalls.isEmpty() == false) {

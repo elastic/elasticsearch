@@ -28,7 +28,9 @@ public class ChatCompletionUsageTests extends AbstractBWCWireSerializationTestCa
             randomInt(100),
             randomInt(100),
             randomInt(100),
-            randomBoolean() ? null : new ChatCompletionUsage.PromptTokensDetails(randomNonNegativeInt(), randomNonNegativeInt()),
+            randomBoolean()
+                ? null
+                : new ChatCompletionUsage.PromptTokensDetails(randomNonNegativeIntOrNull(), randomNonNegativeIntOrNull()),
             randomBoolean() ? null : new ChatCompletionUsage.CompletionTokenDetails(randomNonNegativeIntOrNull())
         );
     }
@@ -163,6 +165,44 @@ public class ChatCompletionUsageTests extends AbstractBWCWireSerializationTestCa
               }
             }
             """)));
+    }
+
+    public void testToXContentChunked_EmptyPromptTokensDetails_OmitsField() throws IOException {
+        // A non-null instance with both fields null must not produce a dangling field name with no value.
+        var usage = new ChatCompletionUsage(5, 3, 8, new ChatCompletionUsage.PromptTokensDetails(null, null), null);
+
+        assertThat(toXContent(usage), is(XContentHelper.stripWhitespace("""
+            {
+              "completion_tokens": 5,
+              "prompt_tokens": 3,
+              "total_tokens": 8
+            }
+            """)));
+    }
+
+    public void testToXContentChunked_EmptyCompletionTokenDetails_OmitsField() throws IOException {
+        // A non-null instance with null reasoning tokens must omit the field entirely.
+        var usage = new ChatCompletionUsage(5, 3, 8, null, new ChatCompletionUsage.CompletionTokenDetails((Integer) null));
+
+        assertThat(toXContent(usage), is(XContentHelper.stripWhitespace("""
+            {
+              "completion_tokens": 5,
+              "prompt_tokens": 3,
+              "total_tokens": 8
+            }
+            """)));
+    }
+
+    public void testOfNullable_BothNull_ReturnsNull() {
+        assertNull(ChatCompletionUsage.PromptTokensDetails.ofNullable(null, null));
+        assertNull(ChatCompletionUsage.CompletionTokenDetails.ofNullable(null));
+    }
+
+    public void testOfNullable_AtLeastOneNonNull_ReturnsInstance() {
+        assertNotNull(ChatCompletionUsage.PromptTokensDetails.ofNullable(5, null));
+        assertNotNull(ChatCompletionUsage.PromptTokensDetails.ofNullable(null, 3));
+        assertNotNull(ChatCompletionUsage.PromptTokensDetails.ofNullable(5, 3));
+        assertNotNull(ChatCompletionUsage.CompletionTokenDetails.ofNullable(7));
     }
 
     static String toXContent(ChatCompletionUsage usage) throws IOException {

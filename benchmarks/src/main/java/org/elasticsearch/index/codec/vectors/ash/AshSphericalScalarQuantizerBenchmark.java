@@ -51,7 +51,8 @@ public class AshSphericalScalarQuantizerBenchmark {
         TIED
     }
 
-    int numVectors = 1000;
+    @Param({ "1000" })
+    int numVectors;
 
     /** Projected dims: originalDim / 2 by default, so these cover 384/768/1024/1536-dim input vectors. */
     @Param({ "192", "384", "512", "768" })

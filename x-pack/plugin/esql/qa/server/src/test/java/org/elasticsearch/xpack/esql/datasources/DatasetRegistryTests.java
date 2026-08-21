@@ -91,7 +91,7 @@ public class DatasetRegistryTests extends ESTestCase {
      * two registrations of one dataset name differing only in their schema must not produce the same body, or a
      * caller keying off the body would silently reuse the first's declaration.
      */
-    public void testSignatureDistinguishesDeclarations() throws IOException {
+    public void testBodyDistinguishesDeclarations() throws IOException {
         String none = DatasetRegistry.datasetRequestBody("ds", "s3://b/k", Map.of(), null);
         String strict = DatasetRegistry.datasetRequestBody("ds", "s3://b/k", Map.of(), declaration("emp_no", "integer"));
         String retyped = DatasetRegistry.datasetRequestBody("ds", "s3://b/k", Map.of(), declaration("emp_no", "long"));

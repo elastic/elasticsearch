@@ -19,6 +19,7 @@ import java.lang.foreign.MemorySegment;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteBuffer;
 import java.util.Objects;
+import java.util.concurrent.atomic.LongAdder;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
@@ -38,6 +39,29 @@ public final class Zstd {
     private static final VarHandle PTR_VH = varHandleWithoutOffset(BUFFER_LAYOUT, PathElement.groupElement("ptr"));
     private static final VarHandle SIZE_VH = varHandleWithoutOffset(BUFFER_LAYOUT, PathElement.groupElement("size"));
     private static final VarHandle POS_VH = varHandleWithoutOffset(BUFFER_LAYOUT, PathElement.groupElement("pos"));
+
+    // The two ZSTD_inBuffer/ZSTD_outBuffer struct holders allocated in the DStream arena.
+    private static final long DSTREAM_STRUCT_HOLDER_BYTES = 2L * BUFFER_LAYOUT.byteSize();
+
+    // ZSTD_d_windowLogMax enum value (ZSTD_dParameter) — the streaming decoder refuses to allocate a
+    // back-reference window larger than (1 << value). Stable API since libzstd 1.4.0.
+    private static final int ZSTD_D_PARAM_WINDOW_LOG_MAX = 100;
+    // Cap the decode window at 8 MiB (windowLog 23). This bounds the worst-case native allocation per
+    // stream against maliciously or accidentally large-window frames. windowLog 23 accepts every frame
+    // produced by standard zstd levels (1-19 top out at a 8 MiB window); it rejects `--ultra` (levels
+    // 20-22) and `--long` frames, which libzstd would otherwise honour up to its 128 MiB default limit.
+    // ClickHouse and DuckDB both default to that 128 MiB limit and expose a knob to raise it; we choose a
+    // tighter default because external data-source files are largely producer-controlled. A frame above
+    // the cap fails fast with libzstd's "Frame requires too much memory for decoding".
+    private static final int DECOMPRESS_WINDOW_LOG_MAX = 23;
+
+    /**
+     * Visible-for-testing running total of native bytes currently reserved by live {@link DStream}s.
+     * A stream's {@link DStream#accountedBytes()} footprint is added once the stream is fully
+     * constructed and subtracted on {@link DStream#close()}. This is an accounting/visibility figure
+     * (staging buffers + struct holders + a libzstd context estimate), not an exact RSS measurement.
+     */
+    static final LongAdder NATIVE_BYTES_IN_USE = new LongAdder();
 
     private final ZstdLibrary zstdLib;
 
@@ -254,6 +278,17 @@ public final class Zstd {
         if (handle == null || handle.equals(MemorySegment.NULL)) {
             throw new IllegalStateException("ZSTD_createDStream returned NULL");
         }
+        // Pin the maximum decode window before any input is fed. This bounds the native context the
+        // decoder may allocate; a frame declaring a larger window is rejected on the first
+        // decompressStream call rather than honoured. Roll back the handle if the parameter is refused
+        // so a failed newDStream() never leaks a native context.
+        long paramRc = zstdLib.dctxSetParameter(handle, ZSTD_D_PARAM_WINDOW_LOG_MAX, DECOMPRESS_WINDOW_LOG_MAX);
+        if (zstdLib.isError(paramRc)) {
+            String err = zstdLib.getErrorName(paramRc);
+            long freeRc = zstdLib.freeDStream(handle);
+            assert freeRc == 0 : "ZSTD_freeDStream returned " + freeRc;
+            throw new IllegalStateException("Failed to set ZSTD_d_windowLogMax=" + DECOMPRESS_WINDOW_LOG_MAX + ": " + err);
+        }
         return new DStream(handle, (int) inSize, (int) outSize);
     }
 
@@ -269,7 +304,11 @@ public final class Zstd {
      * state (the two {@code ZSTD_inBuffer}/{@code ZSTD_outBuffer} struct holders, the native context
      * handle) lives inside the binding — every {@link #decompress} call is allocation-free.
      *
-     * <p>Not thread-safe.
+     * <p>Not thread-safe. A single {@link DStream} is owned by one reader for its whole lifetime;
+     * there is deliberately no locking. Calling {@link #decompress} concurrently with {@link #close()}
+     * (from another thread) is a use-after-free: {@link #close()} releases the shared arena backing the
+     * staging buffers while a racing {@code decompress} may still be reading them. Callers must
+     * establish their own happens-before ordering between the last read and the close.
      */
     public final class DStream implements AutoCloseable {
 
@@ -306,6 +345,14 @@ public final class Zstd {
         private final MemorySegment outBuf;
         private final int inBufSize;
         private final int outBufSize;
+        // Off-heap memory this wrapper allocates itself: the two staging buffers plus the two struct
+        // holders. Known exactly at construction and constant for the stream's lifetime.
+        private final long fixedOverhead;
+        // Live size of the libzstd context, sampled from ZSTD_sizeof_DStream. Small before the frame
+        // header is parsed, then grows once the back-reference window is allocated on the first
+        // decompress call — at which point {@link #settleAccounting} re-samples it exactly once.
+        private long accountedContext;
+        private boolean accountingSettled = false;
         private int lastSrcPosAbsolute = 0;
         private int lastDstPosAbsolute = 0;
         private boolean closed = false;
@@ -314,6 +361,7 @@ public final class Zstd {
             this.handle = handle;
             this.inBufSize = inBufSize;
             this.outBufSize = outBufSize;
+            long overhead;
             try {
                 this.inStruct = arena.allocate(BUFFER_LAYOUT);
                 this.outStruct = arena.allocate(BUFFER_LAYOUT);
@@ -324,13 +372,40 @@ public final class Zstd {
                 // and how much output room they want this round).
                 PTR_VH.set(inStruct, inBuf);
                 PTR_VH.set(outStruct, outBuf);
+                overhead = (long) inBufSize + outBufSize + DSTREAM_STRUCT_HOLDER_BYTES;
             } catch (Throwable t) {
                 // If any of the allocations throws (e.g. OOM mid-arena), drop the libzstd handle
-                // we just got back from ZSTD_createDStream so we don't leak the ~256 KB native
-                // context, then drop whatever the arena managed to allocate so far.
+                // we just got back from ZSTD_createDStream so we don't leak the native context, then
+                // drop whatever the arena managed to allocate so far. We charge the accounting counter
+                // only on the success path below, so a failed construction here leaves
+                // NATIVE_BYTES_IN_USE untouched — nothing to roll back.
                 freeNativeHandle(handle);
                 arena.close();
                 throw t;
+            }
+            this.fixedOverhead = overhead;
+            // Sample the context now (pre-window) so the reservation is non-zero from the start; the
+            // window buffer is allocated lazily on the first decompress and picked up by settleAccounting.
+            this.accountedContext = zstdLib.sizeofDStream(handle);
+            NATIVE_BYTES_IN_USE.add(fixedOverhead + accountedContext);
+        }
+
+        /**
+         * Re-sample the libzstd context size once, after the first {@link #decompress} call has parsed
+         * the frame header and allocated the back-reference window, and fold the delta into
+         * {@link #NATIVE_BYTES_IN_USE}. Runs at most once per stream (guarded by
+         * {@link #accountingSettled}); subsequent calls are no-ops because the window size is fixed for
+         * the frame and libzstd reuses the same context across concatenated frames.
+         */
+        private void settleAccounting() {
+            if (accountingSettled) {
+                return;
+            }
+            accountingSettled = true;
+            long current = zstdLib.sizeofDStream(handle);
+            if (current != accountedContext) {
+                NATIVE_BYTES_IN_USE.add(current - accountedContext);
+                accountedContext = current;
             }
         }
 
@@ -404,6 +479,9 @@ public final class Zstd {
             // the SPI contract identical to zstd-jni's "positions are absolute in your byte[]".
             this.lastSrcPosAbsolute = srcPos + srcConsumed;
             this.lastDstPosAbsolute = dstPos + dstProduced;
+            // The first successful call parses the frame header and allocates the window; fold the now-
+            // real context size into the accounting counter exactly once.
+            settleAccounting();
             return hint;
         }
 
@@ -423,6 +501,21 @@ public final class Zstd {
             return lastSrcPosAbsolute;
         }
 
+        /**
+         * Native footprint of this stream in bytes: the two off-heap staging buffers, the two
+         * {@code ZSTD_inBuffer}/{@code ZSTD_outBuffer} struct holders (24 bytes each), plus the real
+         * libzstd {@code ZSTD_DStream} context size reported by {@code ZSTD_sizeof_DStream}. This is a
+         * visibility/accounting figure meant for a circuit breaker to make the reservation observable.
+         *
+         * <p>Not constant: before the first {@link #decompress} call it reflects the pre-window context
+         * (small); after the first call parses the frame header and allocates the back-reference window,
+         * it reflects the steady-state size. Callers that charge a breaker at construction should
+         * re-read this once after the first read to pick up the window (see {@code PanamaZstdInputStream}).
+         */
+        public long accountedBytes() {
+            return fixedOverhead + accountedContext;
+        }
+
         /** Idempotent — frees the native {@code ZSTD_DStream} and the cached struct holders. */
         @Override
         public void close() {
@@ -431,7 +524,11 @@ public final class Zstd {
                 try {
                     freeNativeHandle(handle);
                 } finally {
+                    // Uncharge symmetrically with the native free: whether or not freeNativeHandle
+                    // throws, the arena is released and the accounting reservation is dropped exactly
+                    // once (guarded by the closed flag above).
                     arena.close();
+                    NATIVE_BYTES_IN_USE.add(-(fixedOverhead + accountedContext));
                 }
             }
         }

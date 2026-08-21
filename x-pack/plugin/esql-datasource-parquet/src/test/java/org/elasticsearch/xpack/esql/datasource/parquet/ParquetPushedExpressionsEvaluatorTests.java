@@ -131,6 +131,65 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         );
     }
 
+    // ---- Test 1b: UNSIGNED_LONG comparisons implement unsigned ordering over the encoded LongBlock ----
+
+    /**
+     * {@code UNSIGNED_LONG} blocks and literals both live in ESQL's canonical sign-flip-encoded domain (see
+     * {@link ParquetColumnDecoding#encodeUnsignedLong}); this dispatch is type-blind on the block's runtime class
+     * (see {@code evaluateComparison}'s {@code instanceof LongBlock} branch above), so ordinary signed
+     * {@link Long#compare} over that encoded form must already implement TRUE unsigned ordering across the 2^63
+     * boundary, with no {@code UNSIGNED_LONG}-specific branch needed.
+     */
+    public void testComparisonOpsWithUnsignedLongBlockAcrossSignBoundary() {
+        // True unsigned magnitudes 2^63-2 .. 2^63+2 sign-flip-encode to -2 .. 2.
+        long[] encoded = {
+            ParquetColumnDecoding.encodeUnsignedLong(Long.MAX_VALUE - 1), // 2^63 - 2 -> -2
+            ParquetColumnDecoding.encodeUnsignedLong(Long.MAX_VALUE),     // 2^63 - 1 -> -1
+            ParquetColumnDecoding.encodeUnsignedLong(Long.MIN_VALUE),     // 2^63 -> 0
+            ParquetColumnDecoding.encodeUnsignedLong(Long.MIN_VALUE + 1), // 2^63 + 1 -> 1
+            ParquetColumnDecoding.encodeUnsignedLong(Long.MIN_VALUE + 2)  // 2^63 + 2 -> 2
+        };
+        Block block = blockFactory.newLongArrayVector(encoded, encoded.length).asBlock();
+        Map<String, Block> blocks = Map.of("u", block);
+        int rowCount = 5;
+        WordMask reusable = new WordMask();
+
+        long boundary = ParquetColumnDecoding.encodeUnsignedLong(Long.MIN_VALUE); // literal 2^63, encodes to 0
+
+        // u > 2^63 -> the two truly-larger unsigned magnitudes, positions [3, 4]
+        assertSurvivors(
+            new ParquetPushedExpressions(
+                List.of(new GreaterThan(Source.EMPTY, attr("u", DataType.UNSIGNED_LONG), lit(boundary, DataType.UNSIGNED_LONG), null))
+            ),
+            blocks,
+            rowCount,
+            reusable,
+            new int[] { 3, 4 }
+        );
+
+        // u < 2^63 -> the two truly-smaller unsigned magnitudes, positions [0, 1]
+        assertSurvivors(
+            new ParquetPushedExpressions(
+                List.of(new LessThan(Source.EMPTY, attr("u", DataType.UNSIGNED_LONG), lit(boundary, DataType.UNSIGNED_LONG), null))
+            ),
+            blocks,
+            rowCount,
+            reusable,
+            new int[] { 0, 1 }
+        );
+
+        // u == 2^63 -> position [2]
+        assertSurvivors(
+            new ParquetPushedExpressions(
+                List.of(new Equals(Source.EMPTY, attr("u", DataType.UNSIGNED_LONG), lit(boundary, DataType.UNSIGNED_LONG), null))
+            ),
+            blocks,
+            rowCount,
+            reusable,
+            new int[] { 2 }
+        );
+    }
+
     // ---- Test 2: Equals across all 5 block types ----
 
     public void testEqualsWithIntBlock() {

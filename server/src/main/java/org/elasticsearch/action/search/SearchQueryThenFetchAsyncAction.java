@@ -352,7 +352,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
      * Request for starting the query phase for multiple shards.
      */
     public static final class NodeQueryRequest extends AbstractTransportRequest implements IndicesRequest {
-        private final List<ShardToQuery> shards;
+        // package-private for testing
+        final List<ShardToQuery> shards;
         private final SearchRequest searchRequest;
         private final Map<String, AliasFilter> aliasFilters;
         private final int totalShards;
@@ -360,7 +361,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         private final String localClusterAlias;
         private final boolean enableShardResultsSkipRequest;
 
-        private NodeQueryRequest(SearchRequest searchRequest, int totalShards, long absoluteStartMillis, String localClusterAlias) {
+        // package-private for testing
+        NodeQueryRequest(SearchRequest searchRequest, int totalShards, long absoluteStartMillis, String localClusterAlias) {
             this.shards = new ArrayList<>();
             this.searchRequest = searchRequest;
             this.aliasFilters = new HashMap<>();
@@ -423,7 +425,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         }
     }
 
-    private record ShardToQuery(
+    // package-private for testing
+    record ShardToQuery(
         float boost,
         String[] originalIndices,
         int shardIndex,
@@ -928,14 +931,28 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             if (countDown.countDown() == false) {
                 return;
             }
-            if (channel.getVersion().supports(BATCHED_RESPONSE_MIGHT_INCLUDE_REDUCTION_FAILURE) == false) {
-                bwcRespond();
+            ChannelActionListener<BytesTransportResponse> channelListener = new ChannelActionListener<>(channel);
+            final BytesTransportResponse response;
+            try {
+                response = buildResponse();
+            } catch (Exception e) {
+                try {
+                    releaseAllResultsContexts();
+                } catch (Exception releaseException) {
+                    logger.trace("failed to release contexts after batched query response failure", releaseException);
+                }
+                channelListener.onFailure(e);
                 return;
             }
-            var channelListener = new ChannelActionListener<>(channel);
+            ActionListener.respondAndRelease(channelListener, response);
+        }
+
+        private BytesTransportResponse buildResponse() throws Exception {
+            if (channel.getVersion().supports(BATCHED_RESPONSE_MIGHT_INCLUDE_REDUCTION_FAILURE) == false) {
+                return bwcBuildResponse();
+            }
             RecyclerBytesStreamOutput out = dependencies.transportService.newNetworkBytesStream(null);
             out.setTransportVersion(channel.getVersion());
-
             boolean success = false;
             try (queryPhaseResultConsumer) {
                 Exception reductionFailure = queryPhaseResultConsumer.failure.get();
@@ -945,20 +962,12 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     writeReductionFailureResponse(out, reductionFailure);
                 }
                 success = true;
-            } catch (IOException e) {
-                releaseAllResultsContexts();
-                channelListener.onFailure(e);
-                return;
             } finally {
                 if (success == false) {
                     out.close();
                 }
             }
-
-            ActionListener.respondAndRelease(
-                channelListener,
-                new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion())
-            );
+            return new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion());
         }
 
         // Writes the "successful" response (see NodeQueryResponse for the corresponding read logic)
@@ -1032,29 +1041,22 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
          * This code is strictly for _snapshot_ backwards compatibility. The feature flag guarding batched execution
          * was not turned on when the transport version
          * {@link SearchQueryThenFetchAsyncAction#BATCHED_RESPONSE_MIGHT_INCLUDE_REDUCTION_FAILURE} was introduced.
+         * <p>
+         * Any exception thrown here propagates to the wrapper in {@link #onShardDone()}, which is
+         * responsible for releasing all result contexts and responding to the channel with an error.
          */
-        void bwcRespond() {
+        private BytesTransportResponse bwcBuildResponse() throws Exception {
             RecyclerBytesStreamOutput out = null;
             boolean success = false;
-            var channelListener = new ChannelActionListener<>(channel);
             try (queryPhaseResultConsumer) {
                 var failure = queryPhaseResultConsumer.failure.get();
                 if (failure != null) {
-                    releaseAllResultsContexts();
-                    channelListener.onFailure(failure);
-                    return;
+                    throw failure;
                 }
-                final QueryPhaseResultConsumer.MergeResult mergeResult;
-                try {
-                    mergeResult = Objects.requireNonNullElse(
-                        queryPhaseResultConsumer.consumePartialMergeResultDataNode(),
-                        EMPTY_PARTIAL_MERGE_RESULT
-                    );
-                } catch (Exception e) {
-                    releaseAllResultsContexts();
-                    channelListener.onFailure(e);
-                    return;
-                }
+                final QueryPhaseResultConsumer.MergeResult mergeResult = Objects.requireNonNullElse(
+                    queryPhaseResultConsumer.consumePartialMergeResultDataNode(),
+                    EMPTY_PARTIAL_MERGE_RESULT
+                );
                 // translate shard indices to those on the coordinator so that it can interpret the merge result without adjustments,
                 // also collect the set of indices that may be part of a subsequent fetch operation here so that we can release all other
                 // indices without a roundtrip to the coordinating node
@@ -1069,34 +1071,25 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 final int resultCount = queryPhaseResultConsumer.getNumShards();
                 out = dependencies.transportService.newNetworkBytesStream(null);
                 out.setTransportVersion(channel.getVersion());
-                try {
-                    out.writeVInt(resultCount);
-                    for (int i = 0; i < resultCount; i++) {
-                        var result = queryPhaseResultConsumer.results.get(i);
-                        if (result == null) {
-                            NodeQueryResponse.writePerShardException(out, failures.remove(i));
-                        } else {
-                            // free context id and remove it from the result right away in case we don't need it anymore
-                            maybeFreeContext(result, relevantShardIndices, namedWriteableRegistry);
-                            NodeQueryResponse.writePerShardResult(out, result);
-                        }
+                out.writeVInt(resultCount);
+                for (int i = 0; i < resultCount; i++) {
+                    var result = queryPhaseResultConsumer.results.get(i);
+                    if (result == null) {
+                        NodeQueryResponse.writePerShardException(out, failures.remove(i));
+                    } else {
+                        // free context id and remove it from the result right away in case we don't need it anymore
+                        maybeFreeContext(result, relevantShardIndices, namedWriteableRegistry);
+                        NodeQueryResponse.writePerShardResult(out, result);
                     }
-                    NodeQueryResponse.writeMergeResult(out, mergeResult, queryPhaseResultConsumer.topDocsStats);
-                    success = true;
-                } catch (IOException e) {
-                    releaseAllResultsContexts();
-                    channelListener.onFailure(e);
-                    return;
                 }
+                NodeQueryResponse.writeMergeResult(out, mergeResult, queryPhaseResultConsumer.topDocsStats);
+                success = true;
             } finally {
                 if (success == false && out != null) {
                     out.close();
                 }
             }
-            ActionListener.respondAndRelease(
-                channelListener,
-                new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion())
-            );
+            return new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion());
         }
 
         private void maybeFreeContext(

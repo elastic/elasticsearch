@@ -80,7 +80,29 @@ public class CredentialTransitionsTests extends ESTestCase {
         boolean envelopeExists,
         boolean affectsCrossProjectSearchSurface
     ) {
-        return new TransitionContext(crossProjectEnabled, callerHasCloudCredential, envelopeExists, affectsCrossProjectSearchSurface);
+        return new TransitionContext(
+            crossProjectEnabled,
+            callerHasCloudCredential,
+            envelopeExists,
+            affectsCrossProjectSearchSurface,
+            false
+        );
+    }
+
+    private static TransitionContext ctxWithForceRekeying(
+        boolean crossProjectEnabled,
+        boolean callerHasCloudCredential,
+        boolean envelopeExists,
+        boolean affectsCrossProjectSearchSurface,
+        boolean forceRekeying
+    ) {
+        return new TransitionContext(
+            crossProjectEnabled,
+            callerHasCloudCredential,
+            envelopeExists,
+            affectsCrossProjectSearchSurface,
+            forceRekeying
+        );
     }
 
     public void testCpsDisabledShouldDecideKeep() {
@@ -105,6 +127,18 @@ public class CredentialTransitionsTests extends ESTestCase {
 
     public void testCloudCallerOnConfigRequiringInternalWithEnvelopeAndSurfaceChangeShouldDecideReplace() {
         assertThat(CredentialTransitions.decideForUpdate(ctx(true, true, true, true)), equalTo(Intent.REPLACE));
+    }
+
+    public void testCloudCallerWithEnvelopeAndForceRekeyingWithoutSurfaceChangeShouldDecideReplace() {
+        assertThat(CredentialTransitions.decideForUpdate(ctxWithForceRekeying(true, true, true, false, true)), equalTo(Intent.REPLACE));
+    }
+
+    public void testForceRekeyingWithoutCloudCallerWithEnvelopeShouldDecideClear() {
+        assertThat(CredentialTransitions.decideForUpdate(ctxWithForceRekeying(true, false, true, false, true)), equalTo(Intent.CLEAR));
+    }
+
+    public void testForceRekeyingWithCpsDisabledShouldDecideKeep() {
+        assertThat(CredentialTransitions.decideForUpdate(ctxWithForceRekeying(false, true, true, false, true)), equalTo(Intent.KEEP));
     }
 
     public void testCreateWithCpsDisabledShouldDecideKeep() {

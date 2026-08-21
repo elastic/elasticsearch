@@ -675,7 +675,7 @@ public class OptimizedParquetReaderTests extends ESTestCase {
         assertThat("explicit no-late-mat returns all rows (no row-level filtering)", rowsNoLateMat, equalTo(totalRows));
     }
 
-    public void testCorruptDataPageOptimizedReaderProducesIllegalArgumentException() throws Exception {
+    public void testCorruptDataPageOptimizedReaderIsClient400() throws Exception {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
         byte[] parquetData = createParquetFile(schema, factory -> {
             List<Group> groups = new ArrayList<>();

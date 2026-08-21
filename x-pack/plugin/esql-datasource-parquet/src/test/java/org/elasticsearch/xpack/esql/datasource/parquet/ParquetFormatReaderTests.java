@@ -3514,7 +3514,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertTrue(ex.getMessage(), ex.getMessage().contains("https://host/obj.parquet"));
     }
 
-    public void testCorruptDataPageProducesIllegalArgumentException() throws Exception {
+    public void testCorruptDataPageIsClient400() throws Exception {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
         byte[] parquetData = createParquetFile(schema, factory -> {
             List<Group> groups = new ArrayList<>();

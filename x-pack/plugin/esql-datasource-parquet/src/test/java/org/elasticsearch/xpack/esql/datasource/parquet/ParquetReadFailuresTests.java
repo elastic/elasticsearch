@@ -23,6 +23,7 @@ import java.io.UncheckedIOException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ParquetReadFailuresTests extends ESTestCase {
@@ -84,10 +85,12 @@ public class ParquetReadFailuresTests extends ESTestCase {
         assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(classified));
     }
 
-    public void testIaeIdentity400() {
+    public void testIaeKeepsContext400() {
         IllegalArgumentException iae = new IllegalArgumentException("bad page");
         RuntimeException wrapped = ParquetReadFailures.wrap(iae, "ctx");
-        assertSame(iae, wrapped);
+        assertThat(wrapped, instanceOf(IllegalArgumentException.class));
+        assertSame(iae, wrapped.getCause());
+        assertThat(wrapped.getMessage(), containsString("ctx"));
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(wrapped)));
     }
 

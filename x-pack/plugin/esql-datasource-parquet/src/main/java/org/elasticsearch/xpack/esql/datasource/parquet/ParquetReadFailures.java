@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 
 import java.io.IOException;
@@ -26,6 +25,11 @@ import java.util.concurrent.ExecutionException;
  * wrap the raw cause in {@link java.util.concurrent.CompletionException}/
  * {@link java.util.concurrent.ExecutionException}; those are peeled here because
  * {@code ExceptionsHelper.unwrapCause} does not.
+ * <p>
+ * {@code context} is applied to I/O and to {@link IllegalArgumentException} (malformed pages)
+ * so call-site column/file strings show up in the 400 message. Other {@link RuntimeException}s
+ * (typed ES failures, {@code ParquetDecodingException}, bug-class ISE) pass through so
+ * {@link ExternalFailures#classify} still sees the original type.
  */
 final class ParquetReadFailures {
 
@@ -36,11 +40,15 @@ final class ParquetReadFailures {
         if (cause instanceof Error error) {
             throw error;
         }
-        if (cause instanceof ElasticsearchException ese) {
-            return ese;
-        }
         if (cause instanceof IOException || cause instanceof UncheckedIOException) {
             return ExternalFailures.surface(cause, context);
+        }
+        if (cause instanceof IllegalArgumentException iae) {
+            String detail = iae.getMessage();
+            if (detail == null || detail.isEmpty()) {
+                detail = iae.getClass().getSimpleName();
+            }
+            return new IllegalArgumentException(context + ": " + detail, iae);
         }
         if (cause instanceof RuntimeException re) {
             return re;

@@ -18,7 +18,6 @@ import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.logging.LogManager;
@@ -33,6 +32,7 @@ import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.Locale;
 import java.util.concurrent.Executor;
 
 /**
@@ -41,6 +41,9 @@ import java.util.concurrent.Executor;
  */
 public final class S3StorageObject extends AbstractMeteredStorageObject {
     private static final Logger logger = LogManager.getLogger(S3StorageObject.class);
+
+    // Real SDK chains here are 2-4 deep; this only stops a pathological one.
+    private static final int MAX_CAUSE_DEPTH = 12;
 
     private final S3Client s3Client;
     private final S3AsyncClient s3AsyncClient;
@@ -137,9 +140,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     /**
      * Maps a failure from the S3 client into the exception to surface to ES|QL. A retryable transport
      * status (5xx/429) becomes an {@link ExternalUnavailableException} (503 — the read may succeed on
-     * retry). An {@link IllegalStateException} in the cause chain (typically Apache
-     * {@code Connection pool shut down} after the SDK client is closed) is the same 503: the client
-     * is gone, not the object. A missing object or any other failure becomes an {@link IOException},
+     * retry). A closed HTTP client ({@code Connection pool shut down} / client-closed
+     * {@link IllegalStateException}) is the same 503: the client is gone, not the object. Other
+     * {@link IllegalStateException}s are returned as-is (HTTP 500 via classify) so a programming
+     * error is not retried and is not disguised as a client 400. A missing object or any other
+     * failure becomes an {@link IOException},
      * which the external source operator classifies as a client-class 400. Returns the exception
      * (never throws) so both the synchronous and async read paths can route it.
      */
@@ -157,7 +162,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         if (cause instanceof NoSuchKeyException) {
             return new IOException("Object not found: " + path, cause);
         }
-        if (ExceptionsHelper.unwrap(cause, IllegalStateException.class) != null) {
+        if (isClosedClient(cause)) {
             return new ExternalUnavailableException(
                 false,
                 cause,
@@ -166,7 +171,31 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 S3FailureDetail.of(cause)
             );
         }
+        if (cause instanceof IllegalStateException ise) {
+            return ise;
+        }
         return new IOException(context + " " + path + ": " + S3FailureDetail.of(cause), cause);
+    }
+
+    private static boolean isClosedClient(Throwable cause) {
+        Throwable current = cause;
+        for (int depth = 0; depth < MAX_CAUSE_DEPTH && current != null; depth++) {
+            if (current instanceof IllegalStateException) {
+                String message = current.getMessage();
+                if (message != null) {
+                    String lower = message.toLowerCase(Locale.ROOT);
+                    if (lower.contains("pool shut down") || lower.contains("client is closed")) {
+                        return true;
+                    }
+                }
+            }
+            Throwable next = current.getCause();
+            if (next == null || next == current) {
+                break;
+            }
+            current = next;
+        }
+        return false;
     }
 
     /**
@@ -309,6 +338,8 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             } else {
                 fetchMetadataViaHead();
             }
+        } catch (Exception e) {
+            throw throwReadFailure("Failed to read object metadata for", e);
         }
     }
 
@@ -326,7 +357,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
                 fetchMetadataViaRangeGet();
             } else {
-                throw new IOException("HeadObject request failed for " + path + ": " + S3FailureDetail.of(e), e);
+                throw throwReadFailure("HeadObject request failed for", e);
             }
         }
     }
@@ -352,10 +383,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             if (e instanceof NoSuchKeyException) {
                 setNotFound();
             } else {
-                throw new IOException(
-                    "Failed to get metadata for " + path + " (HEAD denied, range GET also failed): " + S3FailureDetail.of(e),
-                    e
-                );
+                throw throwReadFailure("Failed to get metadata for", e);
             }
         }
     }

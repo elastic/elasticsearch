@@ -109,6 +109,16 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
             class DownstreamTests extends AbstractFooTests {}
         """)
 
+        // A concrete subclass that is NOT a test: a helper sharing the source set, plus an anonymous subclass
+        // inside it. Both are concrete in bytecode, so expansion finds them, but `--tests <helper>` and
+        // `--tests Foo$1` match nothing. They must be reported, not run.
+        javaTestClass("downstream", "com/downstream/DownstreamHelper", """
+            import com.example.AbstractFooTests;
+            class DownstreamHelper extends AbstractFooTests {
+                static final AbstractFooTests ANON = new AbstractFooTests() {};
+            }
+        """)
+
         // :other has an unrelated concrete test, referenced via a changed-file ref.
         javaTestClass("other", "com/other/OtherTests", "class OtherTests {}")
 
@@ -211,13 +221,21 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         plan.expansions[0].abstractFqcn == "com.example.AbstractFooTests"
         // 3, not 2: com.downstream.DownstreamTests lives in :downstream and was invisible to a subset scan.
         // This count is the regression test for the repo-wide compile + scan.
-        plan.expansions[0].ran == 3
-        plan.expansions[0].total == 3
+        // 5 concrete descendants exist in bytecode (2 in :app, DownstreamTests, DownstreamHelper and the
+        // anonymous DownstreamHelper$1); the cap is 5, so all are expanded and then classified below.
+        plan.expansions[0].total == 5
 
         and: "the two subclasses in the base's own output run under the base target's real tasks"
         def sameProject = plan.entries.findAll { it.expandedFrom == "com.example.AbstractFooTests" && it.gradleProject == ":app" }
         sameProject.collect { it.fqcn } as Set == ["com.example.BarTests", "com.example.BazTests"] as Set
         sameProject.every { it.disposition == "run" && it.runnableTasks == [":app:test"] }
+
+        and: "the non-test subclasses are reported, never run"
+        // A helper and an anonymous class are concrete in bytecode but nothing a Test task can address.
+        def notTests = plan.entries.findAll { it.reason == "not-a-test-class" }
+        notTests.collect { it.fqcn } as Set == ["com.downstream.DownstreamHelper", "com.downstream.DownstreamHelper\$1"] as Set
+        notTests.every { it.disposition == "skip" }
+        plan.commands.every { !it.command.contains("DownstreamHelper") }
 
         and: "the cross-project subclass is RE-HOMED onto its own project's task, not the base's"
         // :app:test does not contain com.downstream.DownstreamTests, so inheriting the base's tasks would emit

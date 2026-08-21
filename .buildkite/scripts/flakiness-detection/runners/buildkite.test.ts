@@ -355,6 +355,28 @@ describe("toResolvePipeline (orchestration + separate generate step)", () => {
     expect(cmd).toContain("timeout --foreground --signal=TERM --kill-after=30s 28m .ci/scripts/run-gradle.sh");
   });
 
+  test("compile phase is skipped entirely when resolve produced no targets", () => {
+    // pr.ts turns EVERY changed file into a ref, not just test files, so the bootstrap's refs.length === 0
+    // short-circuit almost never fires: a docs-only PR still reaches this step. Without the guard it would
+    // pay the whole repo test compile to produce an empty plan.
+    expect(cmd).toContain(`if grep -qs '"refIndex"' build/flakiness/project-targets/*.json; then`);
+    expect(cmd).toContain('echo "resolve produced no runnable targets; skipping the repo-wide test compile."');
+    // scan still runs either way - it is what reports refs no project could claim at all.
+    const afterCompile = cmd.slice(cmd.indexOf("# --- scan"));
+    expect(afterCompile).toContain(".ci/scripts/run-gradle.sh -Pflakiness.resolve flakinessScan");
+  });
+
+  test("a reused agent workspace cannot leak a previous run's plan or markers", () => {
+    expect(cmd).toContain("rm -rf build/flakiness/project-targets");
+    expect(cmd).toContain(
+      "rm -f flakiness-plan.json flakiness-precompile.json flakiness-project-targets.tgz",
+    );
+    // Same hazard on the generate agent, which re-uploads the marker without ever reading it.
+    expect(generate.command).toContain(
+      "rm -f flakiness-plan.json flakiness-precompile.json flakiness-skipped.json",
+    );
+  });
+
   test("compile phase compiles every test source set, unqualified, reading nothing from resolve", () => {
     // A fixed, UNQUALIFIED lifecycle task list: gradle runs each in every project that has the source set,
     // so the whole repo's test code is compiled. That is what lets the scan phase connect an abstract base

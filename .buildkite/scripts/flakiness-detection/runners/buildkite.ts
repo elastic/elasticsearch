@@ -283,9 +283,12 @@ function orchestrationCommand(): string {
     "set +e",
     "",
     "# --- resolve ---",
-    // Drop anything a reused workspace left behind, so the compile phase only ever concatenates this run's
-    // answer (each project overwrites its own files, but a project removed from the build would not).
+    // Drop anything a reused agent workspace left behind, so this run can only ever act on its own answer.
+    // The per-project directory matters most (each project overwrites its own file, but a project removed
+    // from the build would not), and the three run-scoped artifacts matter too: a failure early in THIS run
+    // must not leave the previous run's plan or build-failed marker in place for generate to pick up.
     `rm -rf ${FLAKINESS_TARGETS_DIR}`,
+    `rm -f ${FLAKINESS_PLAN_ARTIFACT} ${FLAKINESS_PRECOMPILE_ARTIFACT} ${FLAKINESS_TARGETS_ARCHIVE}`,
     // UNQUALIFIED task name: Gradle runs `flakinessResolveProject` in every project that registered it, and
     // each project self-selects on whether a ref lands in its own source sets (FlakinessProjectResolve).
     // The configuration cache is deliberately left ON - the per-project topology carries the model through
@@ -302,19 +305,33 @@ function orchestrationCommand(): string {
     "",
     "# --- compile (every test source set in the repo; see COMPILE_TASKS) ---",
     // UNQUALIFIED lifecycle task names, so this compiles the whole repo rather than only the projects that
-    // owned a ref. It reads NOTHING from the resolve phase: there is no task list to concatenate, no
-    // per-project compile-tasks file, and no empty-list special case. Compiling everything is what lets the
-    // scan phase resolve an abstract base against subclasses in other projects.
-    `${innerGradleTimeout(COMPILE_TIMEOUT_MINUTES)} .ci/scripts/run-gradle.sh ${COMPILE_TASKS.join(" ")}`,
-    "rc=$?",
-    `if [ "$$rc" -ne 0 ]; then`,
+    // owned a ref. It reads NOTHING from the resolve phase beyond the "is there anything at all to run?"
+    // guard below. Compiling everything is what lets the scan phase resolve an abstract base against
+    // subclasses in other projects.
+    //
+    // The guard matters because `pr.ts` turns EVERY changed file into a ref, not just test files, so the
+    // bootstrap's `refs.length === 0` short-circuit almost never fires - a docs-only PR still reaches this
+    // step. Without the guard it would pay the whole repo test compile to produce an empty plan.
+    // `"refIndex"` is the marker: it is the one field name that appears in a per-project file exactly when
+    // that project resolved at least one target, so this stays a single-token grep rather than JSON parsing
+    // in shell. Keep in sync with FlakinessJson.RefTarget#refIndex.
+    `if grep -qs '"refIndex"' ${FLAKINESS_TARGETS_DIR}/*.json; then`,
+    `  ${innerGradleTimeout(COMPILE_TIMEOUT_MINUTES)} .ci/scripts/run-gradle.sh ${COMPILE_TASKS.join(" ")}`,
+    "  rc=$?",
+    `  if [ "$$rc" -ne 0 ]; then`,
     // compile is the ONLY build_failed signal. Leave the markers, then propagate the red exit. The separate
     // generate step (depends_on allow_failure) picks up the markers and records the single build_failed.
-    `  printf '{"buildFailed":true,"reason":"precompile","entries":[]}' > ${FLAKINESS_PLAN_ARTIFACT}`,
-    `  printf '{"outcome":"build_failed","reason":"precompile"}' > ${FLAKINESS_PRECOMPILE_ARTIFACT}`,
-    "  exit $$rc",
+    `    printf '{"buildFailed":true,"reason":"precompile","entries":[]}' > ${FLAKINESS_PLAN_ARTIFACT}`,
+    `    printf '{"outcome":"build_failed","reason":"precompile"}' > ${FLAKINESS_PRECOMPILE_ARTIFACT}`,
+    "    exit $$rc",
+    "  fi",
+    "else",
+    `  echo "resolve produced no runnable targets; skipping the repo-wide test compile."`,
     "fi",
     "",
+    // Runs even when the compile above was skipped: with no resolved targets there is nothing to expand, and
+    // the scan is what reports refs that no project could claim at all (a muted-tests entry naming a deleted
+    // class, say). That report is worth ~9s; skipping it would lose the only signal for those refs.
     "# --- scan (reads the now-local compiled output; no cross-agent shipping needed) ---",
     `${innerGradleTimeout(SCAN_TIMEOUT_MINUTES)} .ci/scripts/run-gradle.sh -Pflakiness.resolve flakinessScan`,
     "rc=$?",
@@ -336,6 +353,12 @@ function orchestrationCommand(): string {
  */
 function generateCommand(): string {
   return [
+    // Generate runs on a DIFFERENT agent than orchestration, so anything already in this workspace can only
+    // be left over from a previous build on a reused agent. Both files are re-uploaded from here via
+    // `artifact_paths`, and the precompile marker is never read by generate itself - a stale one would be
+    // passed straight through and recorded as a bogus build_failed. Clear them before downloading this
+    // build's copies. (generate.ts also clears the plan defensively; this covers the marker it only relays.)
+    `rm -f ${FLAKINESS_PLAN_ARTIFACT} ${FLAKINESS_PRECOMPILE_ARTIFACT} ${FLAKINESS_SKIPPED_ARTIFACT}`,
     `buildkite-agent artifact download "${FLAKINESS_PLAN_ARTIFACT}" . || true`,
     `buildkite-agent artifact download "${FLAKINESS_PRECOMPILE_ARTIFACT}" . || true`,
     GENERATE_ENTRYPOINT,

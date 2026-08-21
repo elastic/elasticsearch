@@ -244,10 +244,6 @@ public final class CommandBuilder {
     }
 
     /**
-     * Gradle task-level options ({@code --tests}, {@code --rerun}) bind to the most recently named task on
-     * the command line, so per-task options must follow each {@code :project:taskName} they apply to.
-     */
-    /**
      * The distinct task paths a batch invokes, in first-seen order - the same order and grouping
      * {@link #tasksWithFilters} emits into the command, so the two never disagree.
      */

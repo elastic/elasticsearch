@@ -114,14 +114,20 @@ public final class TestTaskSelector {
 
         // The bare conventional task, when it is enabled, remains the single canonical way to run the target -
         // today's behaviour, but now DERIVED from the model instead of assumed.
+        // Computed before the bare-task check so every path below reports the SAME denominator: the enabled,
+        // non-destructive tasks that run this output. Reporting `candidates.size()` on one path and
+        // `runnableHere.size()` on another made "selected N of M" mean different things depending on which
+        // branch produced it, and made PlanBuilder claim a capped fan-out where the bare task was simply
+        // chosen canonically.
+        List<TestTaskInfo> runnableHere = candidates.stream().filter(t -> isDestructive(t) == false).toList();
+
         for (TestTaskInfo t : candidates) {
             if (t.name().equals(bareTaskName)) {
-                return new Selection(List.of(t.taskPath()), candidates.size(), null);
+                return new Selection(List.of(t.taskPath()), Math.max(runnableHere.size(), 1), null);
             }
         }
 
         // The bare task is disabled (or absent): fall back to the alternatives that really run this output.
-        List<TestTaskInfo> runnableHere = candidates.stream().filter(t -> isDestructive(t) == false).toList();
         if (runnableHere.isEmpty()) {
             return new Selection(List.of(), candidates.size(), REASON_REQUIRES_PACKAGING_HOST);
         }

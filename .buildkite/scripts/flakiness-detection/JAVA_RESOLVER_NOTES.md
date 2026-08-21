@@ -67,6 +67,28 @@ Re-homing works because every project reports a `SourceSetDisposition` per test 
 
 If the owning source set has nothing runnable (bwc-only, packaging host), its own `skipReason` is carried through rather than a new one invented.
 
+### Not every class in a test source set is a test
+
+A test source set holds helpers, fixtures, mock plugins and abstract bases alongside the tests. Two paths turn one of those into a run entry, and both end as a silent zero-test run that `deriveOutcome` scores as `hang` - the failure mode this feature exists to remove:
+
+- a changed non-test file (`TestUtils.java` under `src/test/java`) resolves to a target and emits `--tests TestUtils`;
+- expanding an abstract *helper* yields its inner/anonymous subclasses, which are concrete in bytecode, and emits `--tests Foo$1`.
+
+The TypeScript this replaced had the filter in its path regexes (`/^(.+)\/src\/test\/java\/(.+Tests)\.java$/`, `IT` for the rest), so `TestClassNames` restores a dropped behaviour rather than adding a rule. Suffixes come from `TestingConventionsPrecommitPlugin`, taken as the **union** (`Tests`, `IT`) plus `TestCase`: a handful of concrete runnable tests use that suffix, `RollingUpgradeLuceneIndexCompatibilityTestCase` among them, and abstract classes never reach the check because they are expanded rather than run.
+
+The filter is applied where the plan decides what to **run**, not at ref resolution. Filtering at resolution would drop abstract-base refs whose names do not match a suffix, including `AbstractSnapshotBasedRecoveryRestTestCase` - i.e. it would disable cross-project expansion, the feature above.
+
+A rejection is reported as `skip` / `not-a-test-class`, never dropped, so a mis-named real test stays visible instead of turning into a missing check.
+
+Audited over the whole repo's compiled output (897 class dirs): of the concrete descendants of the 450 top-level abstract bases, the filter rejects 7 classes and all 7 are helpers (`WebProxyServer`, `Otlp*Parser`, `*PauseFieldPlugin`, `LocalStateSecurity`). Without it, 5 top-level bases would expand into `$`-bearing names taking 1 to 5 of the 5 capped slots. Bases that are themselves inner classes (87 of 532) cannot be ref targets at all, since a ref's FQCN comes from a source file path or a `muted-tests.yml` entry.
+
+### Blast radius of the repo-wide phases
+
+Two deliberate widenings worth knowing when triaging, neither of which the cost tables above capture:
+
+- **resolve**: `Test`-task realization now happens in every project with a candidate test source set, so a single project whose realization throws breaks every flakiness run, not just runs whose refs touch it. Previously only ref-owning projects realized anything.
+- **compile**: a PR that breaks compilation of *any* test source set anywhere is reported `build_failed` by this pipeline even when the refs do not touch that project. Regular CI would fail on it too, so this is desirable, but it is a wider trigger than before. The no-targets guard narrows it: a PR that resolves nothing never compiles at all.
+
 ### Why the cheap exit was removed, and what it cost
 
 Re-homing needs the owning source set's `Test`-task model, and the owning project is by definition one no ref pointed at. The old design short-circuited exactly there: a project owning no ref skipped realizing its `Test` tasks. So the shortcut had to go - "owns no ref" does not mean "irrelevant".

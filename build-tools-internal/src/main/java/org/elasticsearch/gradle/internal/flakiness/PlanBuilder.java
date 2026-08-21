@@ -58,8 +58,12 @@ import java.util.function.Function;
  * reports a {@link SourceSetDisposition} per test source set, whether or not it owned a ref.
  *
  * <p>If the owning source set has nothing runnable (bwc-only, packaging host), its own {@code skipReason} is
- * carried through rather than a new one invented. Only a directory no project claimed - which should not happen
- * - falls back to {@value #REASON_SUBCLASS_OUTSIDE_TARGET_OUTPUT}.
+ * carried through rather than a new one invented. A directory no project claimed falls back to
+ * {@value #REASON_SUBCLASS_OUTSIDE_TARGET_OUTPUT}. That is reachable in principle - {@code main} outputs are in
+ * the scan set (abstract bases live there) but get no {@link SourceSetDisposition}, since refs never resolve
+ * into {@code main} - yet not in practice: a {@code main} source set cannot depend on a test source set, so a
+ * concrete subclass of a test-source-set base cannot be compiled into one. Audited over the whole repo: zero
+ * of 532 abstract bases have a descendant in a {@code main} output.
  *
  * <p>The comparison is on the compiled-output directory rather than the Gradle project path on purpose: a base
  * in {@code :p}'s {@code test} source set and a subclass in {@code :p}'s {@code internalClusterTest} source set
@@ -70,11 +74,20 @@ public final class PlanBuilder {
     public static final int DEFAULT_SUBCLASS_CAP = 5;
 
     /**
-     * A compiled-output directory that no project claimed a source set for, so the subclass found in it cannot be
-     * attributed to any {@code Test} task. Should be unreachable now that every project reports its source sets (see
-     * the class javadoc).
+     * A compiled-output directory that no project claimed a source set for, so the subclass found in it cannot
+     * be attributed to any {@code Test} task. Kept as a genuine fallback rather than an assertion: {@code main}
+     * outputs are scanned but carry no disposition. Unreachable in practice because {@code main} cannot depend
+     * on a test source set (see the class javadoc).
      */
     public static final String REASON_SUBCLASS_OUTSIDE_TARGET_OUTPUT = "subclass-outside-target-output";
+
+    /**
+     * The class is not something a {@code Test} task can run - a helper, fixture or mock that happens to live
+     * in a test source set, or an inner/anonymous subclass surfaced by bytecode expansion. See
+     * {@link TestClassNames}. Reported rather than dropped so a mis-named real test is visible instead of
+     * silently missing from the run.
+     */
+    public static final String REASON_NOT_A_TEST_CLASS = "not-a-test-class";
 
     private PlanBuilder() {}
 
@@ -138,11 +151,18 @@ public final class PlanBuilder {
                     continue;
                 }
                 expansions.add(new Expansion(t.fqcn(), ex.toRun().size(), ex.totalConcrete(), subclassCap));
+                // Concrete in bytecode is not the same as runnable by a Test task: expanding an abstract
+                // HELPER yields its inner/anonymous subclasses, and `--tests Foo$1` matches nothing.
+                // Report the rejects rather than dropping them, so a mis-named real test stays visible.
                 // The base's runnableTasks were selected by intersecting each Test task's testClassesDirs with
                 // the base's OWN source-set output, so they only run classes compiled into that same directory.
                 // A subclass from anywhere else is re-homed onto its own source set's tasks.
                 Path baseDir = scanner.originDir(t.fqcn());
                 for (String concrete : ex.toRun()) {
+                    if (TestClassNames.isRunnableTestClass(concrete) == false) {
+                        entries.add(skip(t, concrete, REASON_NOT_A_TEST_CLASS));
+                        continue;
+                    }
                     Path dir = scanner.originDir(concrete);
                     if (baseDir == null || baseDir.equals(dir)) {
                         entries.add(run(t, concrete, t.fqcn()));
@@ -150,6 +170,10 @@ public final class PlanBuilder {
                     }
                     entries.add(foreign(t, concrete, dispositionOfClassDir.apply(dir)));
                 }
+            } else if (TestClassNames.isRunnableTestClass(t.fqcn()) == false) {
+                // A concrete non-test file that happens to live in a test source set. Emitting it would
+                // produce `--tests SomeHelper`, which matches nothing and reads downstream as a hang.
+                entries.add(skip(t, REASON_NOT_A_TEST_CLASS));
             } else {
                 entries.add(run(t, ex.toRun().get(0), null));
             }

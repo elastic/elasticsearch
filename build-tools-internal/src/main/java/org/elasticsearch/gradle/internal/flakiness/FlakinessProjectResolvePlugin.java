@@ -150,7 +150,6 @@ public class FlakinessProjectResolvePlugin implements Plugin<Project> {
         return stripped.isEmpty() ? "root" : stripped;
     }
 
-    // TODO jozala - Gradle Tooling API - check if it can help with gathering data about the test tasks in a project without realizing them.
     /**
      * Snapshot this project's flakiness model, but only in full if this project actually owns one of the refs
      * (see the class javadoc). Invoked from the provider above, i.e. at configuration-cache store time, which

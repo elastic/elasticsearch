@@ -1,5 +1,5 @@
 import { execSync } from "child_process";
-import { existsSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { resolve } from "path";
 
 import { planCommandsToRunnable, planEntryToSkippedTest } from "../commands.ts";
@@ -33,12 +33,22 @@ export interface GenerateIO {
 }
 
 /**
- * Read the plan: prefer the LOCAL file; if absent AND in CI, download it from the orchestration step's
- * artifacts and read that. Returns `undefined` when no plan exists even after the download attempt.
+ * Read the plan.
+ *
+ * In CI the authoritative copy is always the orchestration step's artifact: generate runs on a DIFFERENT
+ * agent, so any local `flakiness-plan.json` in its workspace can only be left over from a previous build on
+ * a reused agent. Preferring the local file there would silently act on a stale plan, so the local file is
+ * removed first and the artifact is downloaded unconditionally.
+ *
+ * Locally (no CI) there is no artifact to fetch and the local file written by the scan step IS the plan.
+ *
+ * Returns `undefined` when no plan exists even after the download attempt - which is the legitimate
+ * "upstream produced nothing" case, not an error.
  */
 function readPlanFromDisk(root: string): FlakinessPlan | undefined {
   const planPath = resolve(root, PLAN_FILE);
-  if (existsSync(planPath) === false && process.env.CI) {
+  if (process.env.CI) {
+    rmSync(planPath, { force: true });
     try {
       execSync(`buildkite-agent artifact download "${PLAN_FILE}" .`, {
         cwd: root,

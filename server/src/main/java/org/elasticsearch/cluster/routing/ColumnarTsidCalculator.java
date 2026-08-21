@@ -25,67 +25,41 @@ import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Predicate;
 
 /**
- * Computes time series identifiers (TSIDs) for a batch of documents in one column-major pass,
- * reading dimension values directly from an {@link EscfBatch} without parsing JSON source.
+ * Computes TSIDs for a batch of documents in one column-major pass, reading dimension values
+ * directly from an {@link EscfBatch} without parsing JSON source.
  *
- * <p>Three wins over the per-document {@link XContentParserTsidFunnel} path:
- * <ol>
- *   <li>No XContent parse — dimension values are read from typed columns.</li>
- *   <li>Path hash computed once per column, not once per (row, column) pair.</li>
- *   <li>Columns visited in path-sorted order, so each row's dimension list is already in the
- *       order that {@link TsidBuilder#buildTsid} needs, turning its {@code Collections.sort} into
- *       an O(n) already-sorted scan.</li>
- * </ol>
+ * <p>Compared to {@link XContentParserTsidFunnel}: no XContent parse, path hashes computed once per
+ * column, and columns visited in path-sorted order so each row's dimensions arrive already sorted.
+ * Each value is folded straight into its row's {@link ColumnarTsidAccumulator} state, so nothing is
+ * buffered between the scan and the finished tsids.
  *
- * <p><b>Value hash parity with {@link XContentParserTsidFunnel}:</b> each column kind maps to the
- * same {@link TsidBuilder} call the funnel would have made for the equivalent JSON token:
- * <ul>
- *   <li>{@link EscfColumnKind#LONG} → {@code Hash128(1, v)} (int and long both use tag 1)</li>
- *   <li>{@link EscfColumnKind#DOUBLE} → {@code Hash128(2, Double.doubleToLongBits(v))}</li>
- *   <li>{@link EscfColumnKind#BOOL} → {@code Hash128(3, v ? 1 : 0)}</li>
- *   <li>{@link EscfColumnKind#STRING} → murmur3-128 of the UTF-8 bytes</li>
- *   <li>{@link EscfColumnKind#ARRAY} → element-granular dispatch on the above rules</li>
- *   <li>{@link EscfColumnKind#UNION} → per-row type dispatch on the above rules;
- *       {@code NULL} rows contribute no entry</li>
- *   <li>{@link EscfColumnKind#BINARY} → throws {@link IllegalArgumentException}
- *       (JSON dimensions cannot produce binary values)</li>
- * </ul>
- *
- * <p><b>Known edge case:</b> {@link org.elasticsearch.escf.EscfEncoder} does not merge dotted and
- * nested spellings — {@code {"a.b":1}} and {@code {"a":{"b":1}}} produce two distinct leaf columns
- * that both report {@link SourceSchema#getFullPath(int) full path} {@code "a.b"}. Column-major
- * ordering tie-breaks such a collision on leaf index (first-encoded column wins), whereas the
- * source-parser funnel would order by per-document source order. This is a pre-existing encoder
- * quirk and is not fixed here.
- *
- * <p><b>Rows with no dimension values</b> cause {@link TsidBuilder#buildTsid} to throw
- * {@link IllegalArgumentException}("Dimensions are empty"), identical to the per-document path.
- * Attribution of that failure to a specific row (so the rest of the bulk survives) is left to the
- * integration caller.
+ * <p>Value hash parity with the funnel: LONG → tag 1, DOUBLE → tag 2, BOOL → tag 3, STRING →
+ * murmur3-128 of UTF-8 bytes, ARRAY/UNION → element-granular dispatch on the above, BINARY →
+ * throws. NULL entries in UNION columns are skipped, identical to the per-document path.
  */
 public final class ColumnarTsidCalculator {
 
     private ColumnarTsidCalculator() {}
 
-    /** Resolved dimension column: leaf schema index, full dotted path, and precomputed path hash. */
-    private record DimColumn(int leafIdx, String path, long pathH1, long pathH2) {}
+    /**
+     * Resolved dimension column: leaf schema index, full dotted path, precomputed path hash, and the
+     * path's {@link TsidBuilder#prefixByteRank} (order-independent, so it is resolved up front).
+     */
+    private record DimColumn(int leafIdx, String path, long pathH1, long pathH2, int prefixRank) {}
 
     /**
-     * Computes one tsid per row of {@code batch}.
-     *
      * @param batch           column-major document batch; must be an {@link EscfBatch}
      * @param isDimension     returns {@code true} for dimension field full paths
-     * @param creationVersion index creation version, forwarded to {@link TsidBuilder#buildTsid}
-     * @return one {@link BytesRef} per row
+     * @param creationVersion selects the tsid layout
+     * @return one {@link BytesRef} tsid per row
      * @throws UnsupportedOperationException if {@code batch} is not an {@link EscfBatch}
-     * @throws IllegalArgumentException      if a dimension column has kind {@code BINARY}, or if a
-     *                                       row has no dimension values
+     * @throws IllegalArgumentException      if a dimension column has kind {@code BINARY}, or a row
+     *                                       has no dimension values
      */
     public static BytesRef[] computeTsids(SourceBatch batch, Predicate<String> isDimension, IndexVersion creationVersion) {
         if (batch instanceof EscfBatch == false) {
@@ -94,286 +68,192 @@ public final class ColumnarTsidCalculator {
             );
         }
         EscfBatch escfBatch = (EscfBatch) batch;
-        int docCount = batch.docCount();
 
-        // Phase A: discover dimension columns, sort by path, precompute path hashes.
-        List<DimColumn> dimColumns = resolveDimColumns(escfBatch.schema(), isDimension);
+        List<DimColumn> dimColumns = resolveDimColumns(escfBatch, isDimension);
+        // Hoisted out of the scan: the layout is a property of the index, not of a row.
+        ColumnarTsidAccumulator accumulator = new ColumnarTsidAccumulator(
+            batch.docCount(),
+            TsidBuilder.useSingleBytePrefixLayout(creationVersion)
+        );
 
-        // Phase B: two-pass CSR build.
-        // Pass 1 — count how many dimension entries each row contributes (scalars: 1, arrays: N).
-        int[] rowCounts = countEntriesPerRow(escfBatch, dimColumns);
-        // Prefix sum → per-row start positions in the CSR arrays.
-        int[] rowStarts = prefixSum(rowCounts, docCount);
-        int totalEntries = rowStarts[docCount];
-        // Pass 2 — fill CSR arrays, columns visited in path-sorted (ordinal) order.
-        int[] csrColOrd = new int[totalEntries];
-        long[] csrH1 = new long[totalEntries];
-        long[] csrH2 = new long[totalEntries];
-        // Write cursors start at each row's beginning; they advance as entries are placed.
-        int[] writeCursors = Arrays.copyOf(rowStarts, docCount);
-        BufferedMurmur3Hasher hasher = new BufferedMurmur3Hasher(0L);
-        fillEntries(escfBatch, dimColumns, hasher, writeCursors, csrColOrd, csrH1, csrH2);
-
-        // Phase C: build one tsid per row by replaying each row's CSR slice.
-        BytesRef[] tsids = new BytesRef[docCount];
-        TsidBuilder builder = new TsidBuilder();
-        for (int r = 0; r < docCount; r++) {
-            builder.reset();
-            for (int e = rowStarts[r]; e < rowStarts[r + 1]; e++) {
-                DimColumn dc = dimColumns.get(csrColOrd[e]);
-                builder.addPrehashedDimension(dc.path(), dc.pathH1(), dc.pathH2(), csrH1[e], csrH2[e]);
+        MurmurHash3.Hash128 valueHash = new MurmurHash3.Hash128();
+        // Path groups are keyed on path equality, not column index: EscfEncoder does not merge dotted
+        // and nested spellings, so two leaf columns can report the same full path and must dedup as
+        // one path for the value-similarity bytes.
+        int pathGroup = TsidBuilder.NO_PATH_GROUP;
+        String previousPath = null;
+        for (DimColumn dc : dimColumns) {
+            if (dc.path().equals(previousPath) == false) {
+                previousPath = dc.path();
+                pathGroup++;
             }
-            // Throws IllegalArgumentException("Dimensions are empty") if no entries for this row.
-            tsids[r] = builder.buildTsid(creationVersion);
+            scanColumn(escfBatch.column(dc.leafIdx()), dc, pathGroup, accumulator, valueHash);
         }
-        return tsids;
+        return accumulator.build();
     }
 
-    // ── Phase A ─────────────────────────────────────────────────────────────
-
-    private static List<DimColumn> resolveDimColumns(SourceSchema schema, Predicate<String> isDimension) {
+    private static List<DimColumn> resolveDimColumns(EscfBatch batch, Predicate<String> isDimension) {
+        SourceSchema schema = batch.schema();
         int leafCount = schema.leafCount();
         List<DimColumn> result = new ArrayList<>();
         BufferedMurmur3Hasher hasher = new BufferedMurmur3Hasher(0L);
         for (int leafIdx = 0; leafIdx < leafCount; leafIdx++) {
             String path = schema.getFullPath(leafIdx);
             if (isDimension.test(path)) {
+                // Rejected up front rather than on first present row, so the failure cannot arrive
+                // after some rows have already produced a tsid.
+                if (batch.column(leafIdx).kind() == EscfColumnKind.BINARY) {
+                    throw new IllegalArgumentException(
+                        "Dimension column [" + path + "] has kind BINARY; JSON dimensions cannot produce binary values"
+                    );
+                }
                 MurmurHash3.Hash128 pathHash = TsidBuilder.hashPath(hasher, path);
-                result.add(new DimColumn(leafIdx, path, pathHash.h1, pathHash.h2));
+                result.add(new DimColumn(leafIdx, path, pathHash.h1, pathHash.h2, TsidBuilder.prefixByteRank(path)));
             }
         }
-        // Sort by path, tie-break by leafIdx so the order is deterministic and matches
-        // Dimension.compareTo in TsidBuilder (which sorts by path then insertionOrder).
+        // Sort by path, tie-break by leafIdx, so each row's dimensions reach the accumulator in the
+        // (path, insertion order) order that both tsid layouts assume.
         result.sort(Comparator.comparing(DimColumn::path).thenComparingInt(DimColumn::leafIdx));
         return result;
     }
 
-    // ── Phase B — count ─────────────────────────────────────────────────────
-
-    private static int[] countEntriesPerRow(EscfBatch batch, List<DimColumn> dimColumns) {
-        int docCount = batch.docCount();
-        int[] rowCounts = new int[docCount];
-        for (DimColumn dc : dimColumns) {
-            addCountsForColumn(batch.column(dc.leafIdx()), rowCounts);
-        }
-        return rowCounts;
-    }
-
-    private static void addCountsForColumn(EscfColumn col, int[] rowCounts) {
-        byte kind = col.kind();
-        if (kind == EscfColumnKind.BINARY) {
-            throw new IllegalArgumentException("A dimension column has kind BINARY; JSON dimensions cannot produce binary values");
-        }
-        PresentDocIterator it = col.presentDocs();
-        int r;
-        while ((r = it.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-            if (kind == EscfColumnKind.ARRAY) {
-                rowCounts[r] += countNonNullElements(col.getArrayValue(r));
-            } else if (kind == EscfColumnKind.UNION) {
-                byte typeByte = col.getTypeByte(r);
-                if (typeByte == SourceValueType.NULL) continue;
-                if (typeByte == SourceValueType.FIXED_ARRAY || typeByte == SourceValueType.UNION_ARRAY) {
-                    rowCounts[r] += countNonNullElements(col.getArrayValue(r));
-                } else {
-                    rowCounts[r]++;
-                }
-            } else {
-                rowCounts[r]++;
-            }
-        }
-    }
-
-    private static int countNonNullElements(ArrayReader ar) {
-        int count = 0;
-        while (ar.next()) {
-            if (ar.isNull() == false) count++;
-        }
-        return count;
-    }
-
-    private static int[] prefixSum(int[] rowCounts, int docCount) {
-        int[] rowStarts = new int[docCount + 1];
-        for (int r = 0; r < docCount; r++) {
-            rowStarts[r + 1] = rowStarts[r] + rowCounts[r];
-        }
-        return rowStarts;
-    }
-
-    // ── Phase B — fill ──────────────────────────────────────────────────────
-
-    private static void fillEntries(
-        EscfBatch batch,
-        List<DimColumn> dimColumns,
-        BufferedMurmur3Hasher hasher,
-        int[] writeCursors,
-        int[] csrColOrd,
-        long[] csrH1,
-        long[] csrH2
-    ) {
-        for (int ord = 0; ord < dimColumns.size(); ord++) {
-            DimColumn dc = dimColumns.get(ord);
-            fillColumn(batch.column(dc.leafIdx()), ord, hasher, writeCursors, csrColOrd, csrH1, csrH2);
-        }
-    }
-
-    private static void fillColumn(
+    private static void scanColumn(
         EscfColumn col,
-        int colOrd,
-        BufferedMurmur3Hasher hasher,
-        int[] writeCursors,
-        int[] csrColOrd,
-        long[] csrH1,
-        long[] csrH2
+        DimColumn dc,
+        int pathGroup,
+        ColumnarTsidAccumulator accumulator,
+        MurmurHash3.Hash128 valueHash
     ) {
-        byte kind = col.kind();
-        PresentDocIterator it = col.presentDocs();
+        final byte kind = col.kind();
+        final PresentDocIterator it = col.presentDocs();
         int r;
-        while ((r = it.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-            switch (kind) {
-                case EscfColumnKind.LONG -> fillScalar(r, colOrd, 1L, col.getLongValue(r), writeCursors, csrColOrd, csrH1, csrH2);
-                case EscfColumnKind.DOUBLE -> fillScalar(
-                    r,
-                    colOrd,
-                    2L,
-                    Double.doubleToLongBits(col.getDoubleValue(r)),
-                    writeCursors,
-                    csrColOrd,
-                    csrH1,
-                    csrH2
-                );
-                case EscfColumnKind.BOOL -> fillScalar(
-                    r,
-                    colOrd,
-                    3L,
-                    col.getBooleanValue(r) ? 1L : 0L,
-                    writeCursors,
-                    csrColOrd,
-                    csrH1,
-                    csrH2
-                );
-                case EscfColumnKind.STRING -> {
-                    // getBinaryValue gives the raw UTF-8 bytes of the string without allocating a Text wrapper.
-                    BytesRef bytes = col.getBinaryValue(r);
-                    hasher.reset();
-                    hasher.update(bytes.bytes, bytes.offset, bytes.length);
-                    MurmurHash3.Hash128 vh = hasher.digestHash();
-                    fillScalar(r, colOrd, vh.h1, vh.h2, writeCursors, csrColOrd, csrH1, csrH2);
+        switch (kind) {
+            case EscfColumnKind.LONG -> {
+                while ((r = it.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    add(accumulator, r, dc, pathGroup, TsidBuilder.LONG_VALUE_TAG, col.getLongValue(r));
                 }
-                case EscfColumnKind.ARRAY -> fillArrayElements(
-                    col.getArrayValue(r),
-                    r,
-                    colOrd,
-                    hasher,
-                    writeCursors,
-                    csrColOrd,
-                    csrH1,
-                    csrH2
-                );
-                case EscfColumnKind.UNION -> fillUnionRow(col, r, colOrd, hasher, writeCursors, csrColOrd, csrH1, csrH2);
-                // BINARY: already rejected in the count pass; unreachable here.
-                default -> throw new IllegalArgumentException("Unexpected column kind for tsid dimension: " + EscfColumnKind.name(kind));
             }
+            case EscfColumnKind.DOUBLE -> {
+                while ((r = it.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    add(accumulator, r, dc, pathGroup, TsidBuilder.DOUBLE_VALUE_TAG, Double.doubleToLongBits(col.getDoubleValue(r)));
+                }
+            }
+            case EscfColumnKind.BOOL -> {
+                while ((r = it.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    add(accumulator, r, dc, pathGroup, TsidBuilder.BOOLEAN_VALUE_TAG, col.getBooleanValue(r) ? 1L : 0L);
+                }
+            }
+            case EscfColumnKind.STRING -> {
+                while ((r = it.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    // Raw UTF-8 bytes, no Text wrapper.
+                    BytesRef bytes = col.getBinaryValue(r);
+                    TsidBuilder.hashStringValue(bytes.bytes, bytes.offset, bytes.length, valueHash);
+                    add(accumulator, r, dc, pathGroup, valueHash.h1, valueHash.h2);
+                }
+            }
+            case EscfColumnKind.ARRAY -> {
+                while ((r = it.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    addArrayElements(col.getArrayValue(r), r, dc, pathGroup, accumulator, valueHash);
+                }
+            }
+            case EscfColumnKind.UNION -> {
+                while ((r = it.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    addUnionRow(col, r, dc, pathGroup, accumulator, valueHash);
+                }
+            }
+            // BINARY is rejected in resolveDimColumns, so it cannot reach here.
+            default -> throw new IllegalArgumentException("Unexpected column kind for tsid dimension: " + EscfColumnKind.name(kind));
         }
     }
 
-    private static void fillScalar(int row, int colOrd, long h1, long h2, int[] writeCursors, int[] csrColOrd, long[] csrH1, long[] csrH2) {
-        int pos = writeCursors[row]++;
-        csrColOrd[pos] = colOrd;
-        csrH1[pos] = h1;
-        csrH2[pos] = h2;
+    private static void add(ColumnarTsidAccumulator accumulator, int row, DimColumn dc, int pathGroup, long valueH1, long valueH2) {
+        accumulator.add(row, dc.pathH1(), dc.pathH2(), valueH1, valueH2, pathGroup, dc.prefixRank());
     }
 
-    private static void fillArrayElements(
+    private static void addArrayElements(
         ArrayReader ar,
         int row,
-        int colOrd,
-        BufferedMurmur3Hasher hasher,
-        int[] writeCursors,
-        int[] csrColOrd,
-        long[] csrH1,
-        long[] csrH2
+        DimColumn dc,
+        int pathGroup,
+        ColumnarTsidAccumulator accumulator,
+        MurmurHash3.Hash128 valueHash
     ) {
         while (ar.next()) {
-            if (ar.isNull()) continue;
+            if (ar.isNull()) {
+                continue;
+            }
             byte elemType = ar.type();
             long h1;
             long h2;
             if (elemType == SourceValueType.INT || elemType == SourceValueType.LONG) {
-                h1 = 1L;
+                h1 = TsidBuilder.LONG_VALUE_TAG;
                 h2 = elemType == SourceValueType.INT ? ar.intValue() : ar.longValue();
             } else if (elemType == SourceValueType.FLOAT || elemType == SourceValueType.DOUBLE) {
-                h1 = 2L;
-                double d = elemType == SourceValueType.FLOAT ? (double) ar.floatValue() : ar.doubleValue();
-                h2 = Double.doubleToLongBits(d);
+                h1 = TsidBuilder.DOUBLE_VALUE_TAG;
+                h2 = Double.doubleToLongBits(elemType == SourceValueType.FLOAT ? ar.floatValue() : ar.doubleValue());
             } else if (elemType == SourceValueType.TRUE) {
-                h1 = 3L;
+                h1 = TsidBuilder.BOOLEAN_VALUE_TAG;
                 h2 = 1L;
             } else if (elemType == SourceValueType.FALSE) {
-                h1 = 3L;
+                h1 = TsidBuilder.BOOLEAN_VALUE_TAG;
                 h2 = 0L;
             } else if (elemType == SourceValueType.STRING) {
                 XContentString.UTF8Bytes utf8 = ar.textValue().bytes();
-                hasher.reset();
-                hasher.update(utf8.bytes(), utf8.offset(), utf8.length());
-                MurmurHash3.Hash128 vh = hasher.digestHash();
-                h1 = vh.h1;
-                h2 = vh.h2;
+                TsidBuilder.hashStringValue(utf8.bytes(), utf8.offset(), utf8.length(), valueHash);
+                h1 = valueHash.h1;
+                h2 = valueHash.h2;
             } else {
                 throw new IllegalArgumentException(
                     "Unexpected element type " + SourceValueType.name(elemType) + " in tsid dimension array"
                 );
             }
-            fillScalar(row, colOrd, h1, h2, writeCursors, csrColOrd, csrH1, csrH2);
+            add(accumulator, row, dc, pathGroup, h1, h2);
         }
     }
 
-    private static void fillUnionRow(
+    private static void addUnionRow(
         EscfColumn col,
         int row,
-        int colOrd,
-        BufferedMurmur3Hasher hasher,
-        int[] writeCursors,
-        int[] csrColOrd,
-        long[] csrH1,
-        long[] csrH2
+        DimColumn dc,
+        int pathGroup,
+        ColumnarTsidAccumulator accumulator,
+        MurmurHash3.Hash128 valueHash
     ) {
         byte typeByte = col.getTypeByte(row);
         if (typeByte == SourceValueType.NULL) {
-            // Explicit null: funnel skips VALUE_NULL; so do we.
+            // Explicit null: the funnel skips VALUE_NULL, so do we.
             return;
         }
         if (typeByte == SourceValueType.FIXED_ARRAY || typeByte == SourceValueType.UNION_ARRAY) {
-            fillArrayElements(col.getArrayValue(row), row, colOrd, hasher, writeCursors, csrColOrd, csrH1, csrH2);
+            addArrayElements(col.getArrayValue(row), row, dc, pathGroup, accumulator, valueHash);
             return;
         }
         long h1;
         long h2;
         if (typeByte == SourceValueType.INT) {
-            h1 = 1L;
+            h1 = TsidBuilder.LONG_VALUE_TAG;
             h2 = col.getIntValue(row);
         } else if (typeByte == SourceValueType.LONG) {
-            h1 = 1L;
+            h1 = TsidBuilder.LONG_VALUE_TAG;
             h2 = col.getLongValue(row);
         } else if (typeByte == SourceValueType.FLOAT) {
-            h1 = 2L;
-            h2 = Double.doubleToLongBits((double) col.getFloatValue(row));
+            h1 = TsidBuilder.DOUBLE_VALUE_TAG;
+            h2 = Double.doubleToLongBits(col.getFloatValue(row));
         } else if (typeByte == SourceValueType.DOUBLE) {
-            h1 = 2L;
+            h1 = TsidBuilder.DOUBLE_VALUE_TAG;
             h2 = Double.doubleToLongBits(col.getDoubleValue(row));
         } else if (typeByte == SourceValueType.TRUE) {
-            h1 = 3L;
+            h1 = TsidBuilder.BOOLEAN_VALUE_TAG;
             h2 = 1L;
         } else if (typeByte == SourceValueType.FALSE) {
-            h1 = 3L;
+            h1 = TsidBuilder.BOOLEAN_VALUE_TAG;
             h2 = 0L;
         } else if (typeByte == SourceValueType.STRING) {
-            // getBinaryValue on a UNION column returns the raw UTF-8 bytes without allocating a Text wrapper.
+            // Raw UTF-8 bytes, no Text wrapper.
             BytesRef bytes = col.getBinaryValue(row);
-            hasher.reset();
-            hasher.update(bytes.bytes, bytes.offset, bytes.length);
-            MurmurHash3.Hash128 vh = hasher.digestHash();
-            h1 = vh.h1;
-            h2 = vh.h2;
+            TsidBuilder.hashStringValue(bytes.bytes, bytes.offset, bytes.length, valueHash);
+            h1 = valueHash.h1;
+            h2 = valueHash.h2;
         } else if (typeByte == SourceValueType.BINARY) {
             throw new IllegalArgumentException("A BINARY value in a UNION dimension column cannot contribute to a tsid");
         } else {
@@ -381,6 +261,6 @@ public final class ColumnarTsidCalculator {
                 "Unexpected type byte " + SourceValueType.name(typeByte) + " in UNION dimension column at row " + row
             );
         }
-        fillScalar(row, colOrd, h1, h2, writeCursors, csrColOrd, csrH1, csrH2);
+        add(accumulator, row, dc, pathGroup, h1, h2);
     }
 }

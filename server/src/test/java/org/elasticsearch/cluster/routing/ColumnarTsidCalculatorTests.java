@@ -19,8 +19,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.sourcebatch.SourceBatch;
-import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -330,5 +328,139 @@ public class ColumnarTsidCalculatorTests extends ESTestCase {
             }
         }
         assertColumnarMatchesSourceParser(sources, strategy);
+    }
+
+    private static IndexRouting.ExtractFromSource.ForIndexDimensions forIndexDimensions(IndexVersion version, String... dimensionPaths) {
+        Settings settings = Settings.builder()
+            .put(SETTING_INDEX_VERSION_CREATED.getKey(), version)
+            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), dimensionPaths)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .build();
+        IndexMetadata md = IndexMetadata.builder("test").settings(settings).numberOfShards(8).numberOfReplicas(0).build();
+        return (IndexRouting.ExtractFromSource.ForIndexDimensions) IndexRouting.fromIndexMetadata(md);
+    }
+
+    /**
+     * Asserts columnar/source-parser parity under both tsid layouts. The multi-byte version is drawn
+     * from the window where {@code ForIndexDimensions} is already available but the single prefix byte
+     * is not, so neither layout is ever silently skipped.
+     */
+    private static void assertParityForBothLayouts(List<BytesReference> sources, String... dimensionPaths) throws IOException {
+        List<IndexVersion> versions = List.of(
+            IndexVersionUtils.randomVersionBetween(
+                IndexVersions.TSID_CREATED_DURING_ROUTING,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)
+            ),
+            IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE)
+        );
+        boolean sawSingleByte = false;
+        boolean sawMultiByte = false;
+        for (IndexVersion version : versions) {
+            boolean singleByte = TsidBuilder.useSingleBytePrefixLayout(version);
+            sawSingleByte |= singleByte;
+            sawMultiByte |= singleByte == false;
+            assertColumnarMatchesSourceParser(sources, forIndexDimensions(version, dimensionPaths));
+        }
+        assertTrue("expected to cover the single-byte-prefix layout", sawSingleByte);
+        assertTrue("expected to cover the multi-byte-prefix layout", sawMultiByte);
+    }
+
+    /**
+     * The name-similarity stream carries 8 bytes per dimension, so it is block aligned only for even
+     * dimension counts. Every count in the range is covered because a mishandled tail parity is
+     * correct for exactly half of them.
+     */
+    public void testDimensionCountParity() throws IOException {
+        for (int dims = 1; dims <= 7; dims++) {
+            List<BytesReference> sources = new ArrayList<>();
+            for (int row = 0; row < 3; row++) {
+                try (XContentBuilder b = XContentFactory.jsonBuilder()) {
+                    b.startObject();
+                    for (int d = 0; d < dims; d++) {
+                        b.field("dim.f" + d, "r" + row + "v" + d);
+                    }
+                    b.endObject();
+                    sources.add(BytesReference.bytes(b));
+                }
+            }
+            assertParityForBothLayouts(sources, "dim.*");
+        }
+    }
+
+    /** An array longer than the value-similarity cap: all values fold, but only the first emits a byte. */
+    public void testArrayLongerThanValueSimilarityCap() throws IOException {
+        List<BytesReference> sources = new ArrayList<>();
+        for (int row = 0; row < 2; row++) {
+            try (XContentBuilder b = XContentFactory.jsonBuilder()) {
+                b.startObject();
+                b.startArray("dim.tags");
+                for (int i = 0; i < 6; i++) {
+                    b.value("r" + row + "t" + i);
+                }
+                b.endArray();
+                b.field("dim.host", "n" + row);
+                b.endObject();
+                sources.add(BytesReference.bytes(b));
+            }
+        }
+        assertParityForBothLayouts(sources, "dim.*");
+    }
+
+    public void testOtelMetricNamesHashParity() throws IOException {
+        List<BytesReference> sources = List.of(
+            toJson(Map.of(TsidBuilder.OTEL_METRIC_FIELD, "abc", "dim.host", "n1")),
+            toJson(Map.of(TsidBuilder.OTEL_METRIC_FIELD, "def", "dim.host", "n2"))
+        );
+        assertParityForBothLayouts(sources, TsidBuilder.OTEL_METRIC_FIELD, "dim.*");
+    }
+
+    public void testPrometheusLabelParity() throws IOException {
+        List<BytesReference> sources = List.of(
+            toJson(Map.of("labels.__name__", "up", "dim.host", "n1")),
+            toJson(Map.of("labels.__name__", "down", "dim.host", "n2"))
+        );
+        assertParityForBothLayouts(sources, "labels.*", "dim.*");
+    }
+
+    /** Both special fields present: OTel must win, and the losing rank must not leak into the prefix. */
+    public void testOtelTakesPrecedenceOverPrometheusParity() throws IOException {
+        List<BytesReference> sources = List.of(
+            toJson(Map.of(TsidBuilder.OTEL_METRIC_FIELD, "abc", "labels.__name__", "up", "dim.host", "n1"))
+        );
+        assertParityForBothLayouts(sources, TsidBuilder.OTEL_METRIC_FIELD, "labels.*", "dim.*");
+    }
+
+    /**
+     * A batch where only some rows carry a special dimension. Rows with one take the value-hash
+     * prefix; rows without fall back to the name-similarity stream, which must still have been
+     * accumulated for them.
+     */
+    public void testSpecialDimensionOnSomeRowsParity() throws IOException {
+        List<BytesReference> sources = List.of(
+            toJson(Map.of(TsidBuilder.OTEL_METRIC_FIELD, "abc", "dim.host", "n1")),
+            toJson(Map.of("dim.host", "n2", "dim.region", "us")),
+            toJson(Map.of("labels.__name__", "up", "dim.host", "n3")),
+            toJson(Map.of("dim.host", "n4"))
+        );
+        assertParityForBothLayouts(sources, TsidBuilder.OTEL_METRIC_FIELD, "labels.*", "dim.*");
+    }
+
+    /** Every column kind in one batch, under both layouts, so kind dispatch is covered per layout. */
+    public void testMixedValueTypesParity() throws IOException {
+        List<BytesReference> sources = new ArrayList<>();
+        for (int row = 0; row < 3; row++) {
+            try (XContentBuilder b = XContentFactory.jsonBuilder()) {
+                b.startObject();
+                b.field("dim.str", "v" + row);
+                b.field("dim.long", 1_000_000_000L + row);
+                b.field("dim.int", row);
+                b.field("dim.dbl", 0.1 + row);
+                b.field("dim.bool", row % 2 == 0);
+                b.array("dim.arr", "a" + row, "b" + row);
+                b.endObject();
+                sources.add(BytesReference.bytes(b));
+            }
+        }
+        assertParityForBothLayouts(sources, "dim.*");
     }
 }

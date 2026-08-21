@@ -85,6 +85,11 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
         queryProfiler.addVectorOpsCount(vectorOpsCount);
     }
 
+    /**
+     * {@code excludedDocs} becomes an {@link ExcludeDocsQuery} filter (which Lucene's
+     * {@code AbstractKnnVectorQuery#rewrite} converts into {@code AcceptDocs}), and {@code seedDocsPerLeaf}
+     * (filter-passing docs only) feed the {@code SeededRetryCollectorManager} as graph entry points.
+     */
     @Override
     public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[][] seedDocsPerLeaf, int remainingK) {
         Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
@@ -101,8 +106,8 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     }
 
     @Override
-    public Query createPostFilterDelegate(float filterSelectivity, int targetPool) {
-        int scaledK = PostFilterableKnnQuery.computeScaledK(targetPool, filterSelectivity);
+    public Query createPostFilterDelegate(float filterSelectivity) {
+        int scaledK = PostFilterableKnnQuery.computeScaledK(kParam, filterSelectivity);
         int scaledNumCands = PostFilterableKnnQuery.beamWidthFor(numCandsParam, scaledK);
         return new ESKnnFloatVectorQuery(field, getTargetCopy(), scaledK, scaledNumCands, null, searchStrategy, earlyTermination, null);
     }
@@ -133,7 +138,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
 
     @Override
     public int k() {
-        return kParam;
+        return kParam();
     }
 
     @Override

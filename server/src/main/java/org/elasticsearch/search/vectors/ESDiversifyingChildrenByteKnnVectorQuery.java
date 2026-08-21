@@ -119,8 +119,8 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
     }
 
     @Override
-    public Query createPostFilterDelegate(float filterSelectivity, int targetPool) {
-        int scaledK = PostFilterableKnnQuery.computeScaledK(targetPool, filterSelectivity);
+    public Query createPostFilterDelegate(float filterSelectivity) {
+        int scaledK = PostFilterableKnnQuery.computeScaledK(kParam, filterSelectivity);
         int scaledNumCands = PostFilterableKnnQuery.beamWidthFor(numCandsParam, scaledK);
         return new ESDiversifyingChildrenByteKnnVectorQuery(
             field,

@@ -10,6 +10,7 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -21,14 +22,16 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
+import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -51,15 +54,13 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
     private static final BytesRef SLICE_ID = new BytesRef("s1");
     // parentsFilter is only stored (never invoked) by these factory paths.
     private static final BitSetProducer PARENTS = context -> null;
-    // Non-calibrating resolver, mapping oversample 1.0 -> candidatePoolSize() == k, so the delegate's k is the
-    // binomial target itself. testDelegateUndoesInternalOversampleExpansion covers oversample > 1.
     private static final IvfQueryConfigResolver RESOLVER = IvfQueryConfigResolver.from(false, false, 4, 1.0f, null);
 
-    // Derivation for selectivity=0.5, k=10, numCands=20, oversample=1.0:
-    // candidatePoolSize = shardMergeBudget(10, 1.0) = 10
+    // Derivation for selectivity=0.5, k=10, numCands=20. The rescore oversample plays no part - the delegate's
+    // k is the filter oversample applied to the query's own k, and testDelegateKIgnoresTheRescoreOversample
+    // pins exactly that.
     // zMargin = 2.5 * sqrt(10 * (1-0.5)/0.5) = 7.905
-    // targetPool = clamp(ceil((10 + 7.905)/0.5)=36, ceil(10*1.2)=12, NUM_CANDS_LIMIT) = 36
-    // delegateK = ceil(36 / 1.0) = 36
+    // delegateK = clamp(ceil((10 + 7.905)/0.5)=36, ceil(10*1.2)=12, NUM_CANDS_LIMIT) = 36
     // scaledNumCands = clamp(ceil(20 * 36/10)=72, 36, NUM_CANDS_LIMIT) = 72
     private static final float SELECTIVITY = 0.5f;
     private static final int EXPECTED_SCALED_K = 36;
@@ -139,12 +140,8 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
         return new TermQuery(new Term("tag", "pass"));
     }
 
-    /**
-     * Sizes the delegate the way {@link PostFilterKnnQuery} does for a flat field: the target pool is the
-     * query's own {@link AbstractIVFKnnVectorQuery#candidatePoolSize()}, with no nested fanout applied.
-     */
     private static Query delegateOf(AbstractIVFKnnVectorQuery original, float selectivity) {
-        return original.createPostFilterDelegate(selectivity, original.candidatePoolSize());
+        return original.createPostFilterDelegate(selectivity);
     }
 
     public void testCreatePostFilterDelegateIsFilterlessAndScaled() {
@@ -175,15 +172,17 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
     }
 
     /**
-     * {@code candidatePoolSize} reports the pool the query expands to internally, so the orchestrator can
-     * target it instead of guessing from {@code k}.
+     * With no leaf to resolve, {@code candidatePoolSize} falls back to what configuration declares - the
+     * query-time override if there is one, otherwise the mapping default. Unreachable in production (a query
+     * with no segments carrying the field never gets this far), but it is the value the whole precedence chain
+     * rests on, so it is pinned here rather than behind an index.
      */
-    public void testCandidatePoolKReflectsDeclaredOversample() {
-        assertEquals("oversample 1.0 -> pool is k", K, plain().candidatePoolSize());
+    public void testCandidatePoolSizeFallsBackToDeclaredOversample() throws IOException {
+        assertEquals("oversample 1.0 -> pool is k", K, plain().candidatePoolSize(List.of()));
 
         IvfQueryConfigResolver oversampling = IvfQueryConfigResolver.from(false, false, 1, 3.0f, null);
         IVFKnnFloatVectorQuery q = new IVFKnnFloatVectorQuery(FIELD, QUERY.clone(), K, NUM_CANDS, filter(), VISIT_RATIO, oversampling);
-        assertEquals("oversample 3.0 -> pool is ceil(k*3)", 30, q.candidatePoolSize());
+        assertEquals("oversample 3.0 -> pool is ceil(k*3)", 30, q.candidatePoolSize(List.of()));
 
         IvfQueryConfigResolver queryOverride = IvfQueryConfigResolver.from(false, false, 1, 3.0f, 2.0f);
         IVFKnnFloatVectorQuery overridden = new IVFKnnFloatVectorQuery(
@@ -195,46 +194,75 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
             VISIT_RATIO,
             queryOverride
         );
-        assertEquals("query-time oversample wins", 20, overridden.candidatePoolSize());
+        assertEquals("query-time oversample wins", 20, overridden.candidatePoolSize(List.of()));
     }
 
     /**
-     * The delegate's ctor {@code k} must undo the oversample expansion {@code rewrite} will re-apply,
-     * otherwise the binomial target is multiplied twice and the per-leaf collector blows up.
+     * A calibrated segment persists its own rescore oversample, and {@code candidatePoolSize} must report
+     * <em>that</em> rather than the mapping default: the pool it returns becomes the orchestrator's cut, and
+     * the cut is what {@code finalizeTopK} exact-rescores. Sizing it from the declared value makes a filtered
+     * query rescore {@code k * declared} deep while the same query without a filter rescores
+     * {@code k * calibrated} - and calibration deliberately picks the cheapest depth that meets target recall,
+     * so declared is usually the larger of the two.
      * <p>
-     * k=10, numCands=20, oversample=3, selectivity=0.9: pool=30, zMargin=2.5*sqrt(30*0.1/0.9)=4.564,
-     * targetPool=ceil(34.564/0.9)=39, delegateK=ceil(39/3)=13, numCands=ceil(20*13/10)=26.
-     * leafCollectorBudget(13,3)=78 - not the 234 that passing 39 straight through would produce.
+     * declared 3.0, segment 1.5, k=10: the pool is ceil(10*1.5)=15, not ceil(10*3.0)=30.
      */
-    public void testDelegateUndoesInternalOversampleExpansion() {
-        IvfQueryConfigResolver oversampling = IvfQueryConfigResolver.from(false, false, 1, 3.0f, null);
-        IVFKnnFloatVectorQuery original = new IVFKnnFloatVectorQuery(
-            FIELD,
-            QUERY.clone(),
-            K,
-            NUM_CANDS,
-            filter(),
-            VISIT_RATIO,
-            oversampling
+    public void testCandidatePoolSizePrefersTheSegmentOversample() throws IOException {
+        IvfQueryConfigResolver diverging = new TestIvfQueryConfigResolver(
+            CentroidIndexFormat.FLAT,
+            QuantEncoding.fromBits((byte) 1),
+            false,
+            3.0f,
+            1.5f,
+            true
         );
-        AbstractIVFKnnVectorQuery delegate = (AbstractIVFKnnVectorQuery) delegateOf(original, 0.9f);
-        assertEquals(13, delegate.k());
-        assertEquals(26, delegate.numCands());
+        IVFKnnFloatVectorQuery query = new IVFKnnFloatVectorQuery(FIELD, QUERY.clone(), K, NUM_CANDS, filter(), VISIT_RATIO, diverging);
+
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            Document doc = new Document();
+            doc.add(new KnnFloatVectorField(FIELD, QUERY.clone()));
+            writer.addDocument(doc);
+            writer.commit();
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                assertEquals("the segment's own oversample wins", 15, query.candidatePoolSize(reader.leaves()));
+            }
+        }
+        assertEquals("with nothing to resolve, configuration is all there is", 30, query.candidatePoolSize(List.of()));
     }
 
     /**
-     * On a nested field the orchestrator inflates the target pool by the children-per-parent fanout, because
-     * candidates are children but results are counted per parent. The delegate must honour the number it is
-     * given rather than recomputing one from its own k.
+     * The delegate's {@code k} is the filter oversample applied to the query's own {@code k}, and nothing
+     * else: the rescore oversample must not enter into it. The query already expands a {@code k} into per-leaf
+     * collector budgets and a shard merge by itself ({@code IvfSegmentConfig}), and it does that off whatever
+     * {@code k} it is handed - so the post-filter layer neither multiplies by the oversample nor divides it
+     * back out. Two resolvers that differ only in oversample must therefore produce identical delegates.
      * <p>
-     * targetPool=30 (pool 10 x fanout 3), selectivity=0.5, oversample=1.0:
-     * zMargin = 2.5*sqrt(30*0.5/0.5) = 13.69 -> ceil(43.69/0.5) = 88, and with oversample 1 the ctor k is 88.
+     * k=10, numCands=20, selectivity=0.9: zMargin=2.5*sqrt(10*0.1/0.9)=2.635,
+     * delegateK=clamp(ceil(12.635/0.9)=15, 12, LIMIT)=15, numCands=ceil(20*15/10)=30.
      */
-    public void testDelegateHonoursAnInflatedTargetPool() {
-        IVFKnnFloatVectorQuery original = plain();
-        AbstractIVFKnnVectorQuery delegate = (AbstractIVFKnnVectorQuery) original.createPostFilterDelegate(SELECTIVITY, 30);
-        assertEquals(88, delegate.k());
-        assertThat(delegate.k(), greaterThan(EXPECTED_SCALED_K));
+    public void testDelegateKIgnoresTheRescoreOversample() {
+        int[] kPerOversample = new int[2];
+        int[] numCandsPerOversample = new int[2];
+        float[] oversamples = { 1.0f, 3.0f };
+        for (int i = 0; i < oversamples.length; i++) {
+            IvfQueryConfigResolver resolver = IvfQueryConfigResolver.from(false, false, 1, oversamples[i], null);
+            IVFKnnFloatVectorQuery original = new IVFKnnFloatVectorQuery(
+                FIELD,
+                QUERY.clone(),
+                K,
+                NUM_CANDS,
+                filter(),
+                VISIT_RATIO,
+                resolver
+            );
+            AbstractIVFKnnVectorQuery delegate = (AbstractIVFKnnVectorQuery) delegateOf(original, 0.9f);
+            kPerOversample[i] = delegate.k();
+            numCandsPerOversample[i] = delegate.numCands();
+        }
+        assertEquals("delegate k must not depend on the rescore oversample", kPerOversample[0], kPerOversample[1]);
+        assertEquals("delegate numCands must not depend on the rescore oversample", numCandsPerOversample[0], numCandsPerOversample[1]);
+        assertEquals(15, kPerOversample[0]);
+        assertEquals(30, numCandsPerOversample[0]);
     }
 
     public void testCreatePostFilterDelegatePreservesSliceRange() {
@@ -286,10 +314,6 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
     public void testGetPostFilterCandidatesBeforeRewriteIsEmpty() {
         ScoreDoc[][] candidates = plain().getPostFilterCandidates();
         assertEquals(0, candidates.length);
-    }
-
-    public void testIvfDoesNotUseRetrySeeds() {
-        assertFalse("IVF has no graph to seed", plain().usesRetrySeeds());
     }
 
     /**

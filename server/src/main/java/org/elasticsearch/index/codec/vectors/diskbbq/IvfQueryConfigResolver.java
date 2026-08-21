@@ -65,9 +65,10 @@ public class IvfQueryConfigResolver {
      * the mapping default.
      * <p>
      * "Declared" contrasts with the effective value {@link #resolve} produces, which slots a calibrated
-     * segment's own persisted factor in ahead of the mapping default. Callers use this to size a candidate
-     * pool before any segment has been read, so under {@link #isAutoCalibrate()} an individual leaf can still
-     * end up applying something different - treat it as an estimate, not a guarantee.
+     * segment's own persisted factor in ahead of the mapping default. The two agree only when a query-time
+     * override is set, or when nothing persisted a factor - always the case with {@link #isAutoCalibrate()}
+     * off. Anything sizing work per segment must go through {@link #resolve}; this is for the case where there
+     * is no segment to resolve at all.
      */
     public float declaredRescoreOversample() {
         return queryOversample != null ? queryOversample : mappingRescoreOversample;

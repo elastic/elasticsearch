@@ -30,7 +30,7 @@ import static org.elasticsearch.search.vectors.KnnSearchBuilder.NUM_CANDS_LIMIT;
  * {@link AbstractIVFKnnVectorQuery} (and its float/byte/sliced/diversifying subtypes).
  * <p>
  * Implementations differ in what {@link #k()} means, so the orchestrator never infers the candidate
- * pool from it: see {@link #candidatePoolSize()} for the pool the orchestrator must fill and
+ * pool from it: see {@link #candidatePoolSize(List)} for the pool the orchestrator must fill and
  * {@link #finalizeTopK} for who owns the final (exact) scoring pass.
  */
 public interface PostFilterableKnnQuery {
@@ -125,13 +125,6 @@ public interface PostFilterableKnnQuery {
      * Creates a new query for the next retry round. Always called on a delegate returned by
      * {@link #createPostFilterDelegate}, never on the user's own query, so the retry inherits how that
      * delegate collects.
-     * <p>
-     * For HNSW: {@code excludedDocs} becomes an {@link ExcludeDocsQuery} filter (which Lucene's
-     * {@code AbstractKnnVectorQuery#rewrite} converts into {@code AcceptDocs}), and {@code seedDocsPerLeaf}
-     * (filter-passing docs only) feed the {@code SeededRetryCollectorManager} as graph entry points.
-     * <p>
-     * For IVF: {@code excludedDocs} are composed into {@code AcceptDocs} so the codec skips them
-     * during posting-list iteration; {@code seedDocsPerLeaf} are ignored.
      *
      * @param reader           the index reader
      * @param excludedDocs     all docs returned across previous rounds, flat and sorted (skip from results)
@@ -160,21 +153,14 @@ public interface PostFilterableKnnQuery {
     /**
      * Creates a filter-less delegate query for post-filtering: the round-1 search whose raw candidates the
      * orchestrator filters.
-     * <p>
-     * {@code targetPool} is how many filter-<em>passing</em> candidates the orchestrator wants to be left
-     * holding, in the doc space the candidates live in. The implementation grows it into a request: up by
-     * {@link #computeScaledK} to survive the filter, and - for engines that oversample internally - back down
-     * so their own expansion lands on that number rather than multiplying it again. It already accounts for
-     * the parent collapse on nested fields, so implementations must not re-derive it from {@link #k()} or
-     * {@link #candidatePoolSize()}.
-     * <p>
-     * A delegate over a nested field must <b>not</b> diversify by parent. Diversification keeps only the
-     * best-scoring child per parent, and doing that before the filter runs discards a parent whose best child
-     * fails the filter even when a lower-scoring sibling would have passed - a hit the pre-filtered path
-     * returns, and one the reference docs promise ("only considers vectors that have ... set"). The
-     * orchestrator collapses to one child per parent after filtering instead.
+     *
+     * <p>The contract is deliberately narrow: collect {@link #computeScaledK}{@code (k(), filterSelectivity)}
+     * instead of {@link #k()}, so that {@code k()} of them are still standing once the filter has run, and
+     * change nothing else. What an implementation does with a {@code k} - a beam width, a rescore oversample,
+     * per-segment collector budgets - is its own business and scales off the inflated {@code k} on its own.
+     * This layer must not reach into any of it.
      */
-    Query createPostFilterDelegate(float filterSelectivity, int targetPool);
+    Query createPostFilterDelegate(float filterSelectivity);
 
     int countTotalVectors(List<LeafReaderContext> leaves) throws IOException;
 
@@ -212,11 +198,11 @@ public interface PostFilterableKnnQuery {
      * HNSW returns {@link #k()}: the caller already multiplied {@code k} by the oversample before
      * constructing the query, so {@code k()} <em>is</em> the pool. IVF returns a larger value, because an
      * IVF query is constructed with the final {@code k} and expands the pool itself from its per-segment
-     * oversample. Under auto-calibration that oversample is persisted per segment and unknown until
-     * {@code rewrite} resolves each leaf, so the IVF value is a <em>target</em>, not a guarantee; it sizes
-     * retention and the rescore input only, never correctness.
+     * oversample - which is why {@code leaves} is a parameter. Under auto-calibration that oversample is
+     * persisted per segment, so it can only be had by resolving the segments that will actually be searched;
+     * configuration alone does not know it.
      */
-    default int candidatePoolSize() {
+    default int candidatePoolSize(List<LeafReaderContext> leaves) throws IOException {
         return k();
     }
 
@@ -236,15 +222,6 @@ public interface PostFilterableKnnQuery {
      */
     default ScoreDoc[] finalizeTopK(IndexSearcher searcher, ScoreDoc[] candidatePool, int finalK) throws IOException {
         return candidatePool;
-    }
-
-    /**
-     * @return whether {@link #createRetryQuery}'s {@code seedDocsPerLeaf} is used by this implementation.
-     * HNSW seeds its graph traversal from them; IVF ignores them, so the orchestrator can skip selecting
-     * seeds entirely.
-     */
-    default boolean usesRetrySeeds() {
-        return true;
     }
 
     /**

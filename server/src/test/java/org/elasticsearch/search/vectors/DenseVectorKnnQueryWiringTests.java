@@ -21,7 +21,9 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RescoreVect
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -91,7 +93,7 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
      * Unfiltered default {@code bbq_disk}: an outer rescore over an IVF query that still carries the user's
      * {@code k}. {@code numCands} is widened to at least the rescore pool so the pool is reachable.
      */
-    public void testBbqIvfKeepsFinalKUnderMappingOversample() {
+    public void testBbqIvfKeepsFinalKUnderMappingOversample() throws IOException {
         Query query = knnQuery(bbqIvfField(false, 1.0f), null, null);
 
         assertThat(query, instanceOf(RescoreKnnVectorQuery.class));
@@ -102,18 +104,22 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
         IVFKnnFloatVectorQuery ivf = (IVFKnnFloatVectorQuery) rescore.innerQuery();
         assertEquals("IVF must receive the final k, not k*oversample", K, ivf.k());
         assertEquals(Math.max((int) Math.ceil(K * OVERSAMPLE), NUM_CANDS), ivf.numCands());
-        assertEquals("the pool IVF expands to is what the rescore consumes", (int) Math.ceil(K * OVERSAMPLE), ivf.candidatePoolSize());
+        assertEquals(
+            "the pool IVF expands to is what the rescore consumes",
+            (int) Math.ceil(K * OVERSAMPLE),
+            ivf.candidatePoolSize(List.of())
+        );
     }
 
     /** A query-time oversample overrides the mapping's, and still must not reach IVF's {@code k}. */
-    public void testBbqIvfKeepsFinalKUnderQueryOversample() {
+    public void testBbqIvfKeepsFinalKUnderQueryOversample() throws IOException {
         Query query = knnQuery(bbqIvfField(false, 1.0f), null, 5.0f);
 
         RescoreKnnVectorQuery rescore = (RescoreKnnVectorQuery) query;
         IVFKnnFloatVectorQuery ivf = (IVFKnnFloatVectorQuery) rescore.innerQuery();
         assertEquals(K, ivf.k());
         assertEquals(Math.max((int) Math.ceil(K * 5.0f), NUM_CANDS), ivf.numCands());
-        assertEquals(50, ivf.candidatePoolSize());
+        assertEquals(50, ivf.candidatePoolSize(List.of()));
     }
 
     /**
@@ -132,7 +138,7 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
 
     /**
      * The post-filter wrapper targets the FINAL {@code k}; the larger pool it retries towards comes from
-     * {@link PostFilterableKnnQuery#candidatePoolSize()}. Giving the wrapper the oversampled count instead
+     * {@link PostFilterableKnnQuery#candidatePoolSize(List)}. Giving the wrapper the oversampled count instead
      * would make it demand that many filter survivors before accepting the post-filtered result, sending
      * most queries down the fallback path.
      */

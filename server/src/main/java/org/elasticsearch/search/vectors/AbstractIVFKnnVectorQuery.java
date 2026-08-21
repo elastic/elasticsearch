@@ -49,7 +49,7 @@ import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAS
  * Base class for IVF kNN vector queries. {@link #k} is the final result size (after any outer rescore) - callers
  * must pass the user's {@code k}, never a pre-oversampled one, because this class expands the candidate pool
  * itself from the per-segment oversample resolved by {@link IvfQueryConfigResolver#resolve}. The pool that
- * expansion produces is reported by {@link #candidatePoolSize()}.
+ * expansion produces is reported by {@link #candidatePoolSize(List)}.
  */
 abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider, PostFilterableKnnQuery {
 
@@ -312,24 +312,39 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected abstract AbstractIVFKnnVectorQuery withParams(Query filter, int k, int numCands, boolean postFilterDelegate);
 
     @Override
-    public int candidatePoolSize() {
-        return IvfSegmentConfig.shardMergeBudget(k, ivfQueryConfigResolver.declaredRescoreOversample());
+    public int candidatePoolSize(List<LeafReaderContext> leaves) throws IOException {
+        // The same value rewrite() will use for mergeK: the largest oversample any leaf resolves to. It has to
+        // be resolved rather than read off declaredRescoreOversample(), because under auto_calibrate a
+        // calibrated segment substitutes its own persisted factor - usually a smaller one, since calibration
+        // takes the cheapest depth that meets target recall - for the mapping default. Sizing the pool from
+        // the declared value makes the exact pass in finalizeTopK run deeper than calibration decided was
+        // needed, and deeper than the very same query without a filter.
+        float maxOversample = Float.NaN;
+        for (LeafReaderContext context : leaves) {
+            FieldInfo fieldInfo = context.reader().getFieldInfos().fieldInfo(field);
+            if (fieldInfo != null) {
+                float segmentOversample = ivfQueryConfigResolver.resolve(fieldInfo, context.reader()).rescoreOversample();
+                maxOversample = Float.isNaN(maxOversample) ? segmentOversample : Math.max(maxOversample, segmentOversample);
+            }
+        }
+        // No leaf carries the field, so there is nothing to resolve and nothing to search either; fall back to
+        // what configuration declares rather than silently collapsing the pool to k.
+        float oversample = Float.isNaN(maxOversample) ? ivfQueryConfigResolver.declaredRescoreOversample() : maxOversample;
+        return IvfSegmentConfig.shardMergeBudget(k, oversample);
     }
 
-    @Override
-    public boolean usesRetrySeeds() {
-        // IVF has no graph to seed; the codec walks centroid posting lists.
-        return false;
-    }
-
+    /**
+     * {@code excludedDocs} are composed into {@code AcceptDocs} so the codec skips them
+     *  during posting-list iteration; {@code seedDocsPerLeaf} are ignored.
+     */
+    /**
+     * {@code excludedDocs} are composed into {@code AcceptDocs} so the codec skips them during posting-list
+     * iteration, which is what gives cross-round dedup. {@code seedDocsPerLeaf} are ignored: there is no graph
+     * to enter, only centroid posting lists to walk.
+     */
     @Override
     public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[][] seedDocsPerLeaf, int remainingK) {
-        // A retry is itself a delegate, and inherits how the delegate that spawned it collects - which is why
-        // the orchestrator only ever calls this on a delegate, never on the user's own query.
         assert postFilterDelegate : "createRetryQuery expects a post-filter delegate, not the user's own query";
-        // seedDocsPerLeaf are ignored for IVF (see PostFilterableKnnQuery#createRetryQuery). Excluded docs
-        // become an ExcludeDocsQuery -> AcceptDocs so previously returned docs are skipped, giving
-        // cross-round dedup
         Query retryFilter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
         // numCands scales down with k: for IVF the numCands/k ratio is the codec's visit-ratio signal, so
         // carrying the full numCands into a small retry would make the retry explore harder than round 0.
@@ -337,18 +352,13 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     }
 
     @Override
-    public Query createPostFilterDelegate(float filterSelectivity, int targetPool) {
-        // How many candidates to collect so that targetPool of them survive the filter.
-        int poolToCollect = PostFilterableKnnQuery.computeScaledK(targetPool, filterSelectivity);
-        // Then back to a k. rewrite() does not collect k candidates: it expands k by the segment's rescore
-        // oversample first (IvfSegmentConfig#shardMergeBudget), because an IVF query is built with the user's
-        // final k and grows its own pool. So passing poolToCollect as k would apply the oversample a second
-        // time; dividing it out here makes that expansion land on poolToCollect. The oversample is floored at
-        // 1 exactly as shardMergeBudget floors it, so the two stay inverses of each other, and the result at
-        // 1 because the constructor rejects k < 1.
-        float oversample = Math.max(1f, ivfQueryConfigResolver.declaredRescoreOversample());
-        int delegateK = Math.max(1, (int) Math.ceil(poolToCollect / oversample));
-        return withParams(null, delegateK, PostFilterableKnnQuery.numCandsPreservingRatio(numCands, k, delegateK), true);
+    public Query createPostFilterDelegate(float filterSelectivity) {
+        // Collect k/selectivity instead of k, so that k of them are still standing once the filter has run.
+        // Everything this query does with a k - the per-segment rescore oversample, the leaf collector
+        // budgets, the shard merge - scales off the inflated k on its own, so nothing here needs to know
+        // about any of it.
+        int scaledK = PostFilterableKnnQuery.computeScaledK(k, filterSelectivity);
+        return withParams(null, scaledK, PostFilterableKnnQuery.numCandsPreservingRatio(numCands, k, scaledK), true);
     }
 
     @Override

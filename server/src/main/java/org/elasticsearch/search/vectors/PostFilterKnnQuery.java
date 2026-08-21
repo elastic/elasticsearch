@@ -45,7 +45,7 @@ import static org.elasticsearch.search.vectors.KnnQueryUtils.mergeScoreDocArrays
  * See {@link PostFilterableKnnQuery#createRetryQuery}.
  * <p>
  * Two sizes matter here and must not be conflated. {@link #k} is the <em>final</em> result count the user
- * asked for. {@link PostFilterableKnnQuery#candidatePoolSize()} is the larger pool that the final scoring pass
+ * asked for. {@link PostFilterableKnnQuery#candidatePoolSize(List)} is the larger pool that the final scoring pass
  * consumes - an outer {@code RescoreKnnVectorQuery}, or
  * {@link PostFilterableKnnQuery#finalizeTopK} for auto-calibrated IVF. Rounds are sized and retried against
  * the pool; the decision to give up is made against {@code k}, because returning {@code k} exactly-scored
@@ -63,10 +63,8 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
     // be meaningful (e.g. k=3, selectivity=0.7 → expected=2.1, threshold=1.05, a single passer
     // would block recovery rounds for no real reason).
     private static final int EARLY_EXIT_MIN_K = 5;
-    // Upper bound on retry seed entry points per graph (leaf). HNSW converges fastest from entry points
-    // near the query, and each extra seed adds per-entry-point traversal overhead with diminishing recall
-    // benefit, so we keep at most this many of the nearest (highest-scoring) round-0 matches per leaf.
-    private static final int MAX_SEEDS_PER_GRAPH = 4;
+    // Upper bound on retry seed entry points per leaf
+    private static final int MAX_SEEDS_PER_LEAF = 4;
     private static final Logger logger = LogManager.getLogger(PostFilterKnnQuery.class);
 
     private final PostFilterableKnnQuery innerQuery;
@@ -176,8 +174,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             int[] excluded = KnnQueryUtils.sortedMerge(flattenPerLeafDocIds(filteredOut), matchingIds);
             // Seeds are the nearest (highest-scoring) round-0 matches per leaf, selected here while the
             // scores are still available on `matching`; excluded still needs the full matching set above.
-            // Implementations with no graph to seed (IVF) skip the selection entirely.
-            int[][] seedDocsPerLeaf = postFilterQuery.usesRetrySeeds() ? nearestSeedsPerLeaf(matching, MAX_SEEDS_PER_GRAPH) : null;
+            int[][] seedDocsPerLeaf = nearestSeedsPerLeaf(matching, MAX_SEEDS_PER_LEAF);
             int remaining = poolSize - scoreDocs.length;
             Query retry = postFilterQuery.createRetryQuery(searcher.getIndexReader(), excluded, seedDocsPerLeaf, remaining);
             TopDocs retryDocs = searcher.search(retry, remaining);
@@ -426,10 +423,11 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             return null;
         }
         if (selectivity >= postFilterSelectivityThreshold) {
-            // Read the pool off the ORIGINAL query: the delegate's own is already scaled up, so using it
-            // would have the orchestrator chasing a target nobody asked for.
-            int candidatePoolSize = Math.max(k, innerQuery.candidatePoolSize());
-            Query delegate = innerQuery.createPostFilterDelegate(selectivity, candidatePoolSize);
+            // How many docs to be left holding: what the inner query would have yielded unfiltered. Read off
+            // the ORIGINAL query - the delegate's own is already scaled up by the filter oversample, so using
+            // it would have the orchestrator chasing a target nobody asked for.
+            int candidatePoolSize = Math.max(k, innerQuery.candidatePoolSize(leaves));
+            Query delegate = innerQuery.createPostFilterDelegate(selectivity);
             return new PostFilterRewriteMeta(delegate, selectivity, candidatePoolSize);
         }
         return null;

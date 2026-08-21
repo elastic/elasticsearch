@@ -34,8 +34,7 @@ public class AdaptiveReplicaSelectionMetricsTests extends ESTestCase {
     private ResponseCollectorService collector;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void setUpTest() {
         threadPool = new TestThreadPool("adaptive_replica_selection_metrics_tests");
         ClusterService clusterService = new ClusterService(
             Settings.EMPTY,
@@ -47,8 +46,7 @@ public class AdaptiveReplicaSelectionMetricsTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void tearDownTest() {
         threadPool.shutdownNow();
     }
 

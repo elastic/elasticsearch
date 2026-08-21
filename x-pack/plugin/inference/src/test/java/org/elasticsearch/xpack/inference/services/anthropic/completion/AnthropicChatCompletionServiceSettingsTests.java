@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
 
@@ -128,6 +130,31 @@ public class AnthropicChatCompletionServiceSettingsTests extends AbstractBWCWire
         }
     }
 
+    public void testUpdateServiceSettings_IgnoresApiKey() {
+        // The api_key arrives in the same JSON block as the service settings and is consumed separately by DefaultSecretSettings,
+        // so the strict update parser must tolerate (and ignore) it rather than reject it as an unknown field.
+        var originalServiceSettings = new AnthropicChatCompletionServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            new HashMap<>(
+                Map.of(
+                    DefaultSecretSettings.API_KEY,
+                    "some-api-key",
+                    RateLimitSettings.FIELD_NAME,
+                    Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT)
+                )
+            )
+        );
+
+        assertThat(
+            updatedServiceSettings,
+            is(new AnthropicChatCompletionServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)))
+        );
+    }
+
     public void testFromMap_AllFields_Success() {
         var map = getServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT);
         map.put(ServiceFields.URL, TEST_URL);
@@ -171,6 +198,96 @@ public class AnthropicChatCompletionServiceSettingsTests extends AbstractBWCWire
                 )
             )
         );
+    }
+
+    public void testFromMap_RequestContext_IgnoresApiKey() {
+        // The api_key arrives in the same JSON block as the service settings and is consumed separately by DefaultSecretSettings,
+        // so the strict request parser must tolerate (and ignore) it rather than reject it as an unknown field.
+        var map = getServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT);
+        map.put(DefaultSecretSettings.API_KEY, "some-api-key");
+
+        var serviceSettings = AnthropicChatCompletionServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST);
+
+        assertThat(serviceSettings, is(new AnthropicChatCompletionServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))));
+    }
+
+    public void testFromMap_RequestContext_UnknownField_Failure() {
+        var map = getServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT);
+        map.put("extra_key", "value");
+
+        var thrownException = expectThrows(
+            XContentParseException.class,
+            () -> AnthropicChatCompletionServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            endsWith(Strings.format("[%s] unknown field [extra_key]", ModelConfigurations.SERVICE_SETTINGS))
+        );
+    }
+
+    public void testFromMap_PersistentContext_IgnoresUnknownField() {
+        var map = getServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT);
+        map.put("extra_key", "value");
+
+        var serviceSettings = AnthropicChatCompletionServiceSettings.fromMap(map, ConfigurationParseContext.PERSISTENT);
+
+        assertThat(serviceSettings, is(new AnthropicChatCompletionServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))));
+    }
+
+    public void testFromMap_EmptyModelId_Failure() {
+        var thrownException = expectThrows(
+            IllegalArgumentException.class,
+            () -> AnthropicChatCompletionServiceSettings.fromMap(
+                getServiceSettingsMap("", TEST_RATE_LIMIT),
+                ConfigurationParseContext.REQUEST
+            )
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            is(
+                Strings.format(
+                    "[%s] Invalid value empty string. [%s] must be a non-empty string",
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    ServiceFields.MODEL_ID
+                )
+            )
+        );
+    }
+
+    public void testFromMap_EmptyUrl_Failure() {
+        var thrownException = expectThrows(
+            IllegalArgumentException.class,
+            () -> AnthropicChatCompletionServiceSettings.fromMap(
+                getServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT, ""),
+                ConfigurationParseContext.REQUEST
+            )
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            is(
+                Strings.format(
+                    "[%s] Invalid value empty string. [%s] must be a non-empty string",
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    ServiceFields.URL
+                )
+            )
+        );
+    }
+
+    public void testFromMap_InvalidUrl_Failure() {
+        var invalidUrl = "^invalid-url";
+        var thrownException = expectThrows(
+            IllegalArgumentException.class,
+            () -> AnthropicChatCompletionServiceSettings.fromMap(
+                getServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT, invalidUrl),
+                ConfigurationParseContext.REQUEST
+            )
+        );
+
+        assertThat(thrownException.getMessage(), containsString(Strings.format("unable to parse url [%s]", invalidUrl)));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {

@@ -50,6 +50,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
 
     private static final String SML_USER = "kibana_sml_user";
     private static final String SML_USER_PASSWORD = "kibana-sml-password";
+    private static final String AI_INDEX_READER_ROLE = "ai_marketing_reader";
 
     private static final String KIBANA_APPLICATION = "kibana-.kibana";
     private static final String DASHBOARDS_PRIVILEGE = "feature_dashboards.read";
@@ -102,16 +103,16 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
 
         // 2. A role holding ONLY those application privileges, scoped to two different spaces with
         // different actions in each — no explicit index privileges.
-        putAiIndexReaderRole("ai_marketing_reader");
+        putAiIndexReaderRole(AI_INDEX_READER_ROLE);
 
         // 3. A user that holds the role.
-        putUser(SML_USER, SML_USER_PASSWORD, "ai_marketing_reader");
+        putUser(SML_USER, SML_USER_PASSWORD, AI_INDEX_READER_ROLE);
 
         // 4. As admin, create the Elastic AI Index with explicit nested mappings and index the fixtures.
         createAiIndexWithDocs();
 
         // 5. The implicit grant surfaces through the get-role API, carrying the nested DLS query.
-        assertImplicitGrantSurfaced("ai_marketing_reader");
+        assertImplicitGrantSurfaced(AI_INDEX_READER_ROLE);
 
         // 6. The user can read the Elastic AI Index without any explicit index privilege, and DLS restricts the
         // visible documents to exactly those that satisfy a whole nested element — through both

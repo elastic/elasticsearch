@@ -92,8 +92,10 @@ public enum FeatureMetric {
     SORT(OrderBy.class::isInstance),
     // the STATS is checked in Analyzer.gatherPreAnalysisMetrics, because it can also be part of an INLINE STATS command
     STATS(plan -> false),
-    // SemiJoin/AntiJoin only originate from `WHERE x IN (sub)` (rewritten by InSubqueryResolver),
+    // SemiJoin and AntiJoin only originate from `WHERE x IN (sub)` at the top of an AND-conjunct (rewritten by InSubqueryResolver),
     // so seeing one in the plan implies the user wrote a WHERE clause — count it for WHERE.
+    // MarkJoin is never counted here, because it originates from several different commands: `EVAL`, a non-conjunctive `WHERE`,
+    // `STATS`/`INLINE STATS` per-aggregate `WHERE` filter so it must not be counted for WHERE.
     WHERE(plan -> plan instanceof Filter || plan instanceof SemiJoin || plan instanceof AntiJoin),
     ENRICH(Enrich.class::isInstance),
     EXPLAIN(Explain.class::isInstance),
@@ -153,7 +155,7 @@ public enum FeatureMetric {
         TimeSeriesCollapse.class, // TS_COLLAPSE is rolled into the PROMQL counter via the wrapped PromqlCommand below it
         TopNBy.class, // produced by PROMQL `or` (union) translation for left-preferring dedup; otherwise only appears post-analysis
         InsertEmptyBuckets.class, // not a user command; produced by setting BUCKET(..., {"include_empty_buckets": true})
-        MarkJoin.class // MarkJoin's enclosing command(filter, eval) already records the telemetry.
+        MarkJoin.class // MarkJoin's enclosing command already records the telemetry.
     );
 
     private Predicate<LogicalPlan> planCheck;

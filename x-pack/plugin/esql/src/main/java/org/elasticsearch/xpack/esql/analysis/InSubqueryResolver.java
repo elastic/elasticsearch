@@ -51,23 +51,10 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /**
- * Resolves {@link InSubquery} expressions in {@link Filter} conditions and {@link Eval} field definitions
- * by rewriting them into {@link SemiJoin}, {@link AntiJoin}, or {@link MarkJoin} nodes:
+ * Resolves {@link InSubquery} expressions in {@link Filter} conditions, {@link Eval} field definitions, and
+ * {@code STATS} / {@code INLINE STATS} per-aggregate {@code WHERE} filters by rewriting them into
+ * {@link SemiJoin}, {@link AntiJoin}, or {@link MarkJoin} nodes:
  * <ul>
- *   <li>An {@code InSubquery} (optionally wrapped in {@link Not}) at the top of an AND-conjunct
- *       becomes a row-filtering {@link SemiJoin} / {@link AntiJoin} stacked on top of the
- *       remaining filter — the most efficient shape, used for the common conjunctive case.</li>
- *   <li>An {@code InSubquery} that appears as a child of {@link Or} (or of {@link Not} below an
- *       {@link Or}) is replaced with a synthetic boolean attribute and a {@link MarkJoin}
- *       is stacked below the rewritten {@link Filter}; the mark attribute carries the
- *       three-valued {@code IN} result up into normal boolean evaluation.</li>
- *   <li>An {@code InSubquery} inside a {@link IsNull}/{@link IsNotNull} operand, or inside any
- *       argument of a {@code CASE} or {@code COALESCE} call, is replaced with a synthetic boolean
- *       attribute and a {@link MarkJoin} is stacked below the rewritten {@link Filter} —
- *       identical to the {@link Or} case above.</li>
- *   <li>An {@code InSubquery} wrapped in any other expression (a comparison operator, an
- *       arithmetic operator, a lambda, etc.) is left in place; the post-resolution
- *       {@link #verify} step rejects the query with a {@link VerificationException}.</li>
  *   <li>In a {@link Filter}: an {@code InSubquery} (optionally wrapped in {@link Not}) at the top of an
  *       AND-conjunct becomes a row-filtering {@link SemiJoin} / {@link AntiJoin} stacked on top of the
  *       remaining filter — the most efficient shape, used for the common conjunctive case. An
@@ -103,10 +90,11 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 public class InSubqueryResolver {
 
     /**
-     * Resolves all {@link InSubquery} expressions in {@link Filter} conditions and {@link Eval} field
-     * definitions and {@code STATS} or {@code InlineStats} per-aggregate {@code WHERE} filters, and
+     * Resolves all {@link InSubquery} expressions in {@link Filter} conditions, {@link Eval} field
+     * definitions, and {@code STATS} / {@code INLINE STATS} per-aggregate {@code WHERE} filters, and
      * validates the result. Throws a {@link VerificationException} when an {@link InSubquery} survived
-     * rewriting (e.g. inside a SORT, LIMIT BY clause, or wrapped in a non-supported expression).
+     * rewriting (e.g. inside a SORT, a {@code STATS BY} or {@code LIMIT BY} clause, or wrapped in a
+     * non-supported expression).
      * <p>
      * Synchronous — does no I/O. Async callers should invoke this inside an
      * {@link org.elasticsearch.action.ActionListener#delegateFailureAndWrap delegateFailureAndWrap}
@@ -127,8 +115,8 @@ public class InSubqueryResolver {
 
     /**
      * Apply {@link #resolveInSubqueryInFilter} to every {@link Filter}, {@link #resolveInSubqueryInEval} to every {@link Eval},
-     * and {@link #resolveInSubqueryInAggregate} to every {@link Aggregate} except the one owned by an {@link InlineStats}
-     * (INLINE STATS will be supported in a follow-up PR).
+     * and {@link #resolveInSubqueryInAggregate} to every {@link Aggregate} — including the one owned by an
+     * {@link InlineStats}, whose per-aggregate {@code WHERE} filters are resolved the same way.
      */
     private static LogicalPlan resolveInSubqueries(LogicalPlan plan) {
         // Note: rewriting an Aggregate must always yield an Aggregate (resolveInSubqueryInAggregate uses Aggregate#with) — an

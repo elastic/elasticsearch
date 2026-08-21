@@ -14,7 +14,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
@@ -65,7 +64,7 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
     );
 
     /**
-     * Size of the commit upload backlog when index throttling is applied.
+     * Age of the oldest commit in the upload queue when index throttling is applied.
      */
     public static final Setting<TimeValue> STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD = Setting.positiveTimeSetting(
         "stateless.upload.queue_controller.index_throttle.threshold",
@@ -75,7 +74,7 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
     );
 
     /**
-     * Size of the commit upload backlog when index throttling is removed.
+     * Age of the oldest commit in the upload queue when index throttling is removed.
      */
     public static final Setting<TimeValue> STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_REMOVAL_THRESHOLD = Setting.positiveTimeSetting(
         "stateless.upload.queue_controller.index_throttle.removal_threshold",
@@ -174,14 +173,14 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
             });
             clusterSettings.addSettingsUpdateConsumer(STATELESS_UPLOAD_QUEUE_CONTROLLER_INTERVAL, this::setInterval);
             this.indexingThrottleSettings = new ThrottleSettings(
-                clusterSettings.get(STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD).seconds(),
-                clusterSettings.get(STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_REMOVAL_THRESHOLD).seconds(),
+                clusterSettings.get(STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD),
+                clusterSettings.get(STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_REMOVAL_THRESHOLD),
                 clusterSettings.get(STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN).millis()
             );
             clusterSettings.addSettingsUpdateConsumer(
                 settings -> this.indexingThrottleSettings = new ThrottleSettings(
-                    STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD.get(settings).seconds(),
-                    STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_REMOVAL_THRESHOLD.get(settings).seconds(),
+                    STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD.get(settings),
+                    STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_REMOVAL_THRESHOLD.get(settings),
                     STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN.get(settings).millis()
                 ),
                 List.of(
@@ -203,13 +202,12 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
             indexingThrottleState = indexingThrottleCalculator.newState(
                 currentState,
                 statelessCommitService.getShardCommitStats(),
-                indexingThrottleSettings,
-                statelessCommitService.getAverageCommitUploadThroughputMiBSec()
+                indexingThrottleSettings
             );
         }
     }
 
-    record ThrottleSettings(long activationThresholdSeconds, long deactivationThresholdSeconds, long cooldownPeriodMs) {}
+    record ThrottleSettings(TimeValue activationThreshold, TimeValue deactivationThreshold, long cooldownPeriodMs) {}
 
     static class ThrottleCalculator {
         public final int MAXIMUM_CONSECUTIVE_THROTTLING_PERIODS_LOGGING_THRESHOLD = 3;
@@ -227,8 +225,7 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
         Map<ShardId, ThrottleState> newState(
             Map<ShardId, ThrottleState> currentState,
             Stream<? extends ShardCommitUploadStats> commitStats,
-            ThrottleSettings settings,
-            double uploadThroughputMiBSec
+            ThrottleSettings settings
         ) {
             // Rebuilding a map allows us to drop entries for all shards that were closed.
             // The value stored in the map is small as well.
@@ -245,11 +242,13 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
                 }
 
                 // Otherwise we can make a new decision.
-
-                long queueInMiB = ByteSizeUnit.BYTES.toMB(stats.pendingUploadBytes());
-                long queueInSeconds = Math.round(queueInMiB / uploadThroughputMiBSec);
-
-                if (queueInSeconds > settings.activationThresholdSeconds) {
+                Long oldestCommitUploadStartTime = stats.oldestCommitUploadStartTimeRelativeMillis();
+                // When `oldestCommitUploadStartTime` is null it means that there are commits pending upload
+                // and as such we can remove throttling (TimeValue.ZERO should always be smaller than `settings.deactivationThreshold`).
+                var ageOfTheOldestCommitPendingUpload = oldestCommitUploadStartTime == null
+                    ? TimeValue.ZERO
+                    : TimeValue.timeValueMillis(relativeTimeMillis.get() - stats.oldestCommitUploadStartTimeRelativeMillis());
+                if (ageOfTheOldestCommitPendingUpload.compareTo(settings.activationThreshold) > 0) {
                     // This is a throttle condition.
                     if (shardState != null && shardState.latestDecision() == Type.THROTTLED) {
                         /// We are currently throttling, and we still see the queue.
@@ -277,7 +276,7 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
                         throttler.activate(shardId);
                         newState.put(shardId, ThrottleState.throttled(relativeTimeMillis.get(), 1));
                     }
-                } else if (queueInSeconds < settings.deactivationThresholdSeconds) {
+                } else if (ageOfTheOldestCommitPendingUpload.compareTo(settings.deactivationThreshold) < 0) {
                     // This is a "stop throttle" condition.
                     if (shardState != null && shardState.latestDecision == Type.THROTTLED) {
                         // We are currently throttling, and we know that the throttling period has passed, stop it.

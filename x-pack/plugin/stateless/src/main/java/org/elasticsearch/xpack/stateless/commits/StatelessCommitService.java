@@ -210,8 +210,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
-    /// We use an optimistic default value of 1 Gb/sec to run unrestricted on a fresh node.
-    /// This is loosely based on the fact that a node provides at least 15 Gigabit max network throughput (which is about ~1.7 GiB).
+    // Unused.
     public static final Setting<ByteSizeValue> STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE = Setting.byteSizeSetting(
         "stateless.upload.average_throughput_initial_value",
         ByteSizeValue.ofGb(1),
@@ -335,7 +334,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             useInternalFilesReplicatedContent ? "enabled" : "disabled",
             estimatedMaxHeaderSizeInBytes
         );
-        this.metrics = new BccUploadMetrics(telemetryProvider, STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE.get(settings));
+        this.metrics = new BccUploadMetrics(telemetryProvider);
     }
 
     public boolean useReplicatedRanges() {
@@ -470,10 +469,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public void markCommitDeleted(ShardId shardId, long generation) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         commitState.markCommitDeleted(generation);
-    }
-
-    public double getAverageCommitUploadThroughputMiBSec() {
-        return metrics.getAverageUploadThroughputMiBSec();
     }
 
     public Stream<? extends ShardCommitUploadStats> getShardCommitStats() {
@@ -855,8 +850,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             @Override
             public void onResponse(BccUploadResult uploadResult) {
                 maybeLogSlowBccUpload(virtualBcc, uploadResult);
-                metrics.recordUploadThroughput(uploadResult.uploadThroughputMiBPerSec());
-                commitState.pendingUploadBytes.addAndGet(-1 * virtualBcc.getTotalSizeInBytes());
                 final BatchedCompoundCommit uploadedBcc = uploadResult.batchedCompoundCommit();
                 try {
                     // Use the largest translog release file from all CCs to release translog files for cleaning.
@@ -1332,8 +1325,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // 3. latestUploadedBcc - This field tracks highest generation BCC ever uploaded. It is updated with the VBCC that just gets
         // uploaded which is then removed from pendingUploadBccGenerations.
         private volatile VirtualBatchedCompoundCommit currentVirtualBcc = null;
-        private final Map<Long, VirtualBatchedCompoundCommit> pendingUploadBccGenerations = new ConcurrentHashMap<>();
-        private AtomicLong pendingUploadBytes = new AtomicLong(0);
+        private final Map<Long, PendingUploadVirtualBatchCompoundCommit> pendingUploadBccGenerations = new ConcurrentHashMap<>();
+        // Tracks the time when the oldest pending upload commit was submitted for upload.
+        // We use this to apply backpressure when there is too much upload work.
+        private volatile Long oldestCommitUploadStartTime = null;
         private volatile BatchedCompoundCommit latestUploadedBcc = null;
         // NOTE When moving a VBCC through its lifecycle, we must update it first in the new state before remove it from the old state.
         // That is, we must first add it to the `pendingUploadBccGenerations` before un-assigning it from `currentVirtualBcc`,
@@ -1698,8 +1693,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
             var pendingUploadVirtualBcc = pendingUploadBccGenerations.get(primaryTermAndGeneration.generation());
             if (pendingUploadVirtualBcc != null) {
-                assert pendingUploadVirtualBcc.getPrimaryTermAndGeneration().equals(primaryTermAndGeneration);
-                return pendingUploadVirtualBcc;
+                assert pendingUploadVirtualBcc.commit().getPrimaryTermAndGeneration().equals(primaryTermAndGeneration);
+                return pendingUploadVirtualBcc.commit();
             }
 
             // We did not find the generation, so it should be already uploaded.
@@ -1746,21 +1741,23 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         @Override
-        public long pendingUploadBytes() {
-            return pendingUploadBytes.get();
+        public Long oldestCommitUploadStartTimeRelativeMillis() {
+            return oldestCommitUploadStartTime;
         }
 
         private Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBcc() {
             return pendingUploadBccGenerations.values()
                 .stream()
-                .max(Comparator.comparing(VirtualBatchedCompoundCommit::getPrimaryTermAndGeneration));
+                .max(Comparator.comparing(PendingUploadVirtualBatchCompoundCommit::getPrimaryTermAndGeneration))
+                .map(PendingUploadVirtualBatchCompoundCommit::commit);
         }
 
         private Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBccBeforeGeneration(long generation) {
             return pendingUploadBccGenerations.values()
                 .stream()
-                .filter(vbcc -> vbcc.getPrimaryTermAndGeneration().generation() < generation)
-                .max(Comparator.comparingLong(vbcc -> vbcc.getPrimaryTermAndGeneration().generation()));
+                .filter(pendingVbcc -> pendingVbcc.commit().getPrimaryTermAndGeneration().generation() < generation)
+                .max(Comparator.comparingLong(pendingVbcc -> pendingVbcc.getPrimaryTermAndGeneration().generation()))
+                .map(PendingUploadVirtualBatchCompoundCommit::commit);
         }
 
         /**
@@ -1938,12 +1935,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
                 final var previous = pendingUploadBccGenerations.put(
                     expectedVirtualBcc.getPrimaryTermAndGeneration().generation(),
-                    expectedVirtualBcc
+                    new PendingUploadVirtualBatchCompoundCommit(expectedVirtualBcc, threadPool.relativeTimeInMillis())
                 );
-                pendingUploadBytes.addAndGet(expectedVirtualBcc.getTotalSizeInBytes());
                 assert previous == null : "expected null, but got " + previous;
                 // reset after add to pending list so that vbcc is always visible as either pending or current
                 currentVirtualBcc = null;
+                // If there are no pending upload commits, this commit becomes the oldest since it's the only one.
+                if (oldestCommitUploadStartTime == null) {
+                    oldestCommitUploadStartTime = threadPool.relativeTimeInMillis();
+                }
                 logger.trace(
                     () -> Strings.format(
                         "%s reset current VBCC generation [%s] after freeze",
@@ -2193,6 +2193,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     // Remove the BCC from the pending list *after* upload consumers but *before* generation listeners are fired
                     var removed = pendingUploadBccGenerations.remove(newBccGeneration);
                     assert removed != null : newBccGeneration + "not found";
+
+                    var nextPendingUploadVbcc = pendingUploadBccGenerations.get(newBccGeneration + 1);
+                    if (nextPendingUploadVbcc != null) {
+                        oldestCommitUploadStartTime = nextPendingUploadVbcc.submittedForUploadRelativeMillis();
+                    } else {
+                        // Reset so that we don't track this uploaded commit as pending upload.
+                        oldestCommitUploadStartTime = null;
+                    }
                 }
                 if (localUploadedGenerationListeners != null) {
                     List<Tuple<Long, ActionListener<Void>>> listenersToReregister = null;
@@ -2912,7 +2920,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // means it is not yet considered uploaded here.
             Optional<VirtualBatchedCompoundCommit> latestUploading = pendingUploadBccGenerations.values()
                 .stream()
-                .min(Comparator.comparing(VirtualBatchedCompoundCommit::getPrimaryTermAndGeneration));
+                .min(Comparator.comparing(PendingUploadVirtualBatchCompoundCommit::getPrimaryTermAndGeneration))
+                .map(PendingUploadVirtualBatchCompoundCommit::commit);
             var latestUploaded = this.latestUploadedBcc;
             if (latestUploaded == null) {
                 throw new NoShardAvailableActionException(shardId, "indexing shard is initializing");
@@ -3507,6 +3516,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             boolean referencesBCC(PrimaryTermAndGeneration bcc) {
                 return referencedBCCs.contains(bcc);
             }
+        }
+    }
+
+    private record PendingUploadVirtualBatchCompoundCommit(VirtualBatchedCompoundCommit commit, long submittedForUploadRelativeMillis) {
+        public PrimaryTermAndGeneration getPrimaryTermAndGeneration() {
+            return commit.getPrimaryTermAndGeneration();
         }
     }
 

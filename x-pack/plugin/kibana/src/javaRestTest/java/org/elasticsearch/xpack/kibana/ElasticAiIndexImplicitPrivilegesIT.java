@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.ClassRule;
 
 import java.nio.charset.StandardCharsets;
@@ -65,6 +66,16 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
     private static final String ELASTIC_AI_INDEX_ALIAS = "ai-index-idx-sml-data";
     private static final String ELASTIC_AI_INDEX_BACKING = ELASTIC_AI_INDEX_ALIAS + "-000001";
 
+    // Shared between the _search and ES|QL assertions: both engines must resolve the DLS filter to
+    // exactly this set.
+    private static final List<String> EXPECTED_VISIBLE_DOC_IDS = List.of(
+        "all-spaces-dashboard",
+        "global-no-perms",
+        "marketing-dashboard",
+        "mixed-counts",
+        "shared-dashboard"
+    );
+
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -103,7 +114,8 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
         assertImplicitGrantSurfaced("ai_marketing_reader");
 
         // 6. The user can read the Elastic AI Index without any explicit index privilege, and DLS restricts the
-        // visible documents to exactly those that satisfy a whole nested element.
+        // visible documents to exactly those that satisfy a whole nested element — through both
+        // the _search path and ES|QL, which executes on its own engine.
         assertUserSeesOnlyAuthorizedDocs();
     }
 
@@ -358,26 +370,40 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
         assertThat(query, not(containsString(SAVED_OBJECT_GET_ACTION)));
     }
 
-    @SuppressWarnings("unchecked")
+    /**
+     * Asserts the DLS-visible set through both query engines — _search endpoint and ES|QL
+     * Pinning the identical positive set catches DLS regressions where the two engines drift apart.
+     */
     private void assertUserSeesOnlyAuthorizedDocs() throws Exception {
-        final Request search = new Request("GET", "/" + ELASTIC_AI_INDEX_ALIAS + "/_search");
-        search.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuth(SML_USER, SML_USER_PASSWORD)));
-        final Response response = client().performRequest(search);
-        assertOK(response);
+        final RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
+            .addHeader("Authorization", basicAuth(SML_USER, SML_USER_PASSWORD))
+            .build();
 
-        final Map<String, Object> body = entityAsMap(response);
-        final Map<String, Object> hits = (Map<String, Object>) body.get("hits");
-        final List<Map<String, Object>> hitList = (List<Map<String, Object>>) hits.get("hits");
-        final List<String> visibleIds = hitList.stream().map(h -> (String) h.get("_id")).sorted().toList();
+        final Request searchRequest = new Request("GET", "/" + ELASTIC_AI_INDEX_ALIAS + "/_search");
+        searchRequest.setOptions(requestOptions);
 
-        // A zero-hit result is a FAILURE signal, not a pass: if the mapping and the query disagree
-        // about whether the field is nested, nothing matches and over-restriction masquerades as
-        // correct DLS. The positive expectations below are what catch that.
-        assertThat("expected five visible docs, got " + hitList, visibleIds, hasSize(5));
-        assertThat(
-            visibleIds,
-            equalTo(List.of("all-spaces-dashboard", "global-no-perms", "marketing-dashboard", "mixed-counts", "shared-dashboard"))
-        );
+        final Request esqlRequest = new Request("POST", "/_query");
+        esqlRequest.setOptions(requestOptions);
+        // The explicit LIMIT avoids the "no limit defined" warning header, which the test REST client treats as a failure.
+        esqlRequest.setJsonEntity(Strings.format("{ \"query\": \"FROM %s METADATA _id | KEEP _id | LIMIT 100\" }", ELASTIC_AI_INDEX_ALIAS));
+
+        final Response searchResponse = client().performRequest(searchRequest);
+        final Response esqlResponse = client().performRequest(esqlRequest);
+
+        // Assert: both engines must resolve the DLS filter to the same visible set.
+        assertOK(searchResponse);
+        final List<Map<String, Object>> searchHits = ObjectPath.createFromResponse(searchResponse).evaluate("hits.hits");
+        assertVisibleIds("_search", searchHits.stream().map(hit -> (String) hit.get("_id")).toList());
+
+        assertOK(esqlResponse);
+        final List<List<Object>> esqlRows = ObjectPath.createFromResponse(esqlResponse).evaluate("values");
+        assertVisibleIds("ES|QL", esqlRows.stream().map(row -> (String) row.get(0)).toList());
+    }
+
+    private static void assertVisibleIds(String engine, List<String> ids) {
+        final List<String> visibleIds = ids.stream().sorted().toList();
+        assertThat("expected five visible docs via " + engine, visibleIds, hasSize(EXPECTED_VISIBLE_DOC_IDS.size()));
+        assertThat("via " + engine, visibleIds, equalTo(EXPECTED_VISIBLE_DOC_IDS));
     }
 
     private static String basicAuth(String username, String password) {

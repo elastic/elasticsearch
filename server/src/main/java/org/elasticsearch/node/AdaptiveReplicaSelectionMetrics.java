@@ -22,9 +22,9 @@ import java.util.Map;
  */
 public class AdaptiveReplicaSelectionMetrics {
 
-    public static final String AVG_QUEUE_SIZE_METRIC_NAME = "es.adaptive_replica_selection.avg_queue_size.gauge";
-    public static final String AVG_SERVICE_TIME_NS_METRIC_NAME = "es.adaptive_replica_selection.avg_service_time_ns.gauge";
-    public static final String AVG_RESPONSE_TIME_NS_METRIC_NAME = "es.adaptive_replica_selection.avg_response_time_ns.gauge";
+    public static final String AVG_QUEUE_SIZE_METRIC_NAME = "es.adaptive_replica_selection.avg_queue_size.current";
+    public static final String AVG_SERVICE_TIME_NS_METRIC_NAME = "es.adaptive_replica_selection.avg_service_time_ns.current";
+    public static final String AVG_RESPONSE_TIME_NS_METRIC_NAME = "es.adaptive_replica_selection.avg_response_time_ns.current";
 
     static final String NODE_ID_ATTRIBUTE = "node_id";
 

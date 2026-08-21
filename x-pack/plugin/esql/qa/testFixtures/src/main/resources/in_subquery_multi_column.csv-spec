@@ -1148,6 +1148,325 @@ FROM employees
 first_name:keyword
 ;
 
+// ======== multi-column IN subquery with CASE, COALESCE, IS NULL patterns ========
+
+multiColumnInSubqueryInCase
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| WHERE CASE((emp_no, salary) IN (FROM employees | WHERE emp_no == 10001 | KEEP emp_no, salary), true, false)
+| SORT emp_no
+| KEEP emp_no, salary
+;
+
+emp_no:integer | salary:integer
+10001          | 57305
+;
+
+multiColumnInSubqueryInCoalesce
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| WHERE COALESCE((emp_no, salary) IN (FROM employees | WHERE emp_no == 10001 | KEEP emp_no, salary), false)
+| SORT emp_no
+| KEEP emp_no, salary
+;
+
+emp_no:integer | salary:integer
+10001          | 57305
+;
+
+multiColumnInSubqueryWithIsNull
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NULL
+| KEEP emp_no, languages
+| SORT emp_no
+;
+
+emp_no:integer | languages:integer
+10020          | null
+10021          | null
+10022          | null
+10023          | null
+10024          | null
+10025          | null
+10026          | null
+10027          | null
+10028          | null
+10029          | null
+;
+
+multiColumnInSubqueryWithIsNotNull
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NOT NULL
+| KEEP emp_no, languages
+| SORT emp_no
+| LIMIT 5
+;
+
+emp_no:integer | languages:integer
+10001          | 2
+10002          | 5
+10003          | 4
+10004          | 5
+10005          | 1
+;
+
+// ======== deeply nested multi-column IN subquery tests ========
+
+multiColumnInSubqueryDeeplyNestedInExpressionsBoolean
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+required_capability: where_in_subquery_with_case_coalesce_is_null_deeply_nested
+
+FROM employees
+| WHERE CASE((emp_no, languages) IN (FROM employees | SORT emp_no ASC | LIMIT 10 | KEEP emp_no, languages), true, false) == true
+    AND COALESCE((emp_no, languages) IN (FROM employees | SORT emp_no ASC | LIMIT 8 | KEEP emp_no, languages), false) != false
+    AND (((emp_no, languages) IN (FROM employees | SORT emp_no ASC | LIMIT 6 | KEEP emp_no, languages)) IS NULL) == false
+    AND (((emp_no, languages) IN (FROM employees | SORT emp_no ASC | LIMIT 4 | KEEP emp_no, languages)) IS NOT NULL) != false
+| STATS c = COUNT(*)
+;
+
+c:long
+8
+;
+
+multiColumnInSubqueryNestedInCaseReturningLongAndArithmeticAddEquals
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+required_capability: where_in_subquery_with_case_coalesce_is_null_deeply_nested
+
+FROM employees
+| WHERE (CASE((emp_no, languages) IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no, languages), 1, 0) + 1) == 2
+| STATS c = COUNT(*)
+;
+
+c:long
+3
+;
+
+multiColumnInSubqueryNestedInCoalesceCaseLike
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+required_capability: where_in_subquery_with_case_coalesce_is_null_deeply_nested
+
+FROM employees
+| WHERE COALESCE(CASE((emp_no, languages) IN (FROM employees | SORT emp_no ASC | LIMIT 2 | KEEP emp_no, languages), "MATCH", null), "NO MATCH") LIKE "M*"
+| STATS c = COUNT(*)
+;
+
+c:long
+2
+;
+
+multiColumnInSubqueryNestedInCaseSubEquals
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+required_capability: where_in_subquery_with_case_coalesce_is_null_deeply_nested
+
+FROM employees
+| WHERE (10 - CASE((emp_no, languages) IN (FROM employees | SORT emp_no ASC | LIMIT 1 | KEEP emp_no, languages), 1, 0)) == 9
+| STATS c = COUNT(*)
+;
+
+c:long
+1
+;
+
+multiColumnInSubqueryDeeplyNestedArithmetic
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+required_capability: where_in_subquery_with_case_coalesce_is_null_deeply_nested
+
+FROM employees
+| WHERE (ABS(10 - (CASE((emp_no, languages) IN (FROM employees | SORT emp_no ASC | LIMIT 1 | KEEP emp_no, languages), 1, 0) * 5 + 3)) + 1) == 3
+| STATS c = COUNT(*)
+;
+
+c:long
+1
+;
+
+multiColumnInSubqueryDeeplyNestedString
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+required_capability: where_in_subquery_with_case_coalesce_is_null_deeply_nested
+
+FROM employees
+| WHERE LEFT(TO_UPPER(COALESCE(CASE((emp_no, languages) IN (FROM employees | SORT emp_no ASC | LIMIT 2 | KEEP emp_no, languages), "yes", null), "no")), 1) == "Y"
+| STATS c = COUNT(*)
+;
+
+c:long
+2
+;
+
+// ======== multi-valued field in CASE/COALESCE/IS NULL ========
+
+multiColumnInSubqueryWithMultiValuedFieldInCase
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| MV_EXPAND job_positions
+| WHERE CASE((emp_no, job_positions) IN (FROM employees
+                                         | MV_EXPAND job_positions
+                                         | KEEP emp_no, job_positions), true, false)
+| KEEP emp_no, job_positions
+| SORT emp_no, job_positions
+| LIMIT 3
+;
+
+emp_no:integer | job_positions:keyword
+10001          | Accountant
+10001          | Senior Python Developer
+10002          | Senior Team Lead
+;
+
+multiColumnInSubqueryWithMultiValuedFieldInCoalesce
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| MV_EXPAND job_positions
+| WHERE COALESCE((emp_no, job_positions) IN (FROM employees
+                                             | MV_EXPAND job_positions
+                                             | KEEP emp_no, job_positions), false)
+| KEEP emp_no, job_positions
+| SORT emp_no, job_positions
+| LIMIT 3
+;
+
+emp_no:integer | job_positions:keyword
+10001          | Accountant
+10001          | Senior Python Developer
+10002          | Senior Team Lead
+;
+
+multiColumnInSubqueryWithMultiValuedFieldInIsNotNull
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| MV_EXPAND job_positions
+| WHERE ((emp_no, job_positions) IN (FROM employees
+                                     | MV_EXPAND job_positions
+                                     | KEEP emp_no, job_positions)) IS NOT NULL
+| KEEP emp_no, job_positions
+| SORT emp_no, job_positions
+| LIMIT 3
+;
+
+emp_no:integer | job_positions:keyword
+10001          | Accountant
+10001          | Senior Python Developer
+10002          | Senior Team Lead
+;
+
+multiColumnInSubqueryWithMultiValuedFieldWithoutMvExpandInCase
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| WHERE CASE((emp_no, job_positions) IN (FROM employees | KEEP emp_no, job_positions), true, false)
+| KEEP emp_no, job_positions
+| SORT emp_no
+| LIMIT 3
+;
+
+warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword
+10002          | Senior Team Lead
+10013          | Reporting Analyst
+10018          | Junior Developer
+;
+
+multiColumnInSubqueryWithMultiValuedFieldWithoutMvExpandInIsNull
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| WHERE ((emp_no, job_positions) IN (FROM employees | KEEP emp_no, job_positions)) IS NULL
+| KEEP emp_no, job_positions
+| SORT emp_no
+| LIMIT 3
+;
+
+warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword
+10001          | [Accountant, Senior Python Developer]
+10003          | null
+10004          | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]
+;
+
+// CASE is true for emp_nos 10001-10005; COALESCE is true for (emp_no,languages) pairs 10001-10003.
+// Employees 10004 and 10005 have CASE=true but COALESCE=false, so they are excluded.
+// All other employees have CASE=false and COALESCE=false, so they pass.
+// Result: 3 (both true) + 95 (both false) = 98.
+caseWithSingleColumnInSubqueryEqualsCoalesceWithMultiColumnInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+required_capability: where_in_subquery_with_case_coalesce_is_null_deeply_nested
+
+FROM employees
+| WHERE CASE(emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 5 | KEEP emp_no), true, false)
+     == COALESCE((emp_no, languages) IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no, languages), false)
+| STATS c = COUNT(*)
+;
+
+c:long
+98
+;
+
+// Without SORT/LIMIT, the single-column subquery covers all emp_nos (CASE=true for every row).
+// The multi-column subquery covers all (emp_no, languages) pairs, but for the 10 employees
+// where languages IS NULL, (emp_no, null) IN (...) yields null, so COALESCE(null, false)=false.
+// Those 10 employees have CASE=true but COALESCE=false and are excluded.
+// The remaining 90 employees have CASE=true and COALESCE=true, so they pass.
+caseWithSingleColumnInSubqueryEqualsCoalesceWithMultiColumnInSubqueryWithNulls
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+required_capability: where_in_subquery_with_case_coalesce_is_null_deeply_nested
+
+FROM employees
+| WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
+     == COALESCE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), false)
+| STATS c = COUNT(*)
+;
+
+c:long
+90
+;
+
 multiColumnInSubqueryInStatsWhereRowSource
 required_capability: where_in_subquery_without_view
 required_capability: where_in_multi_column_subquery

@@ -532,6 +532,39 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    public void testInSubqueryNestedInCaseAndEquals() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), "yes", "no") == "yes"
+            """, STAGES);
+    }
+
+    public void testInSubqueryNestedInCaseCoalesceAndNotEquals() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE COALESCE(CASE(emp_no IN (FROM employees | KEEP emp_no), "yes", null), "no") != "yes"
+            """, STAGES);
+    }
+
+    public void testInSubqueryDeeplyNestedInExpressionsWithKeyword() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), "A", "B") == "A"
+              AND COALESCE(CASE(languages IN (FROM employees | KEEP languages), "X", null), "Y") != "Z"
+              AND TO_STRING((salary IN (FROM employees | KEEP salary)) IS NULL) == "false"
+            """, STAGES);
+    }
+
+    public void testInSubqueryDeeplyNestedInExpressionsWithBoolean() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false) == true
+              AND COALESCE(languages IN (FROM employees | KEEP languages), false) != true
+              AND ((salary IN (FROM employees | KEEP salary)) IS NULL) == false
+              AND ((languages IN (FROM employees | KEEP languages)) IS NOT NULL) != false
+            """, STAGES);
+    }
+
     // -- multi-column IN / NOT IN subqueries: WHERE (field1, field2) IN (subquery) --
 
     public void testMultiColumnInSubqueryAtTopLevel() {
@@ -645,6 +678,82 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             | WHERE (emp_no, languages) NOT IN (FROM emps_view)
             | KEEP emp_no
             """, STAGES, Map.of("emps_view", "FROM employees | WHERE salary > 50000 | KEEP emp_no, languages"));
+    }
+
+    // -- multi-column IN subquery inside CASE, COALESCE, IS [NOT] NULL in WHERE --
+
+    public void testMultiColumnInSubqueryInCase() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), true, false)
+            """, STAGES);
+    }
+
+    public void testMultiColumnNotInSubqueryInCase() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE((emp_no, languages) NOT IN (FROM employees | KEEP emp_no, languages), true, false)
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryInCoalesce() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE COALESCE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), false)
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryInIsNotNull() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NOT NULL
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryInIsNull() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NULL
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryNestedInCaseAndEquals() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), "yes", "no") == "yes"
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryNestedInCoalesceAndNotEquals() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE COALESCE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), false) != false
+            """, STAGES);
+    }
+
+    public void testComplexBooleanWithMultiColumnInSubqueryInExpressions() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE (salary > 50000 AND (((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NULL))
+              OR (((salary, languages) IN (FROM employees | KEEP salary, languages)) IS NOT NULL AND languages < 5)
+            """, STAGES);
+    }
+
+    public void testCaseWithSingleColumnInSubqueryEqualsCoalesceWithMultiColumnInSubquery() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
+                 == COALESCE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), false)
+            """, STAGES);
     }
 
     // -- IN subquery in STATS WHERE (per-aggregate) filters --

@@ -157,7 +157,6 @@ public class StringColumnTests extends ColumnarStringTestCase {
         assertColumn(docs);
     }
 
-    /** Writes {@code docValues} as a string column, reads it back, and asserts every value round-trips in order. */
     /**
      * A value larger than the bytes a chunk is meant to hold. A chunk closes only on a block boundary, so it
      * has to grow past its target rather than split the value across two chunks.
@@ -229,6 +228,7 @@ public class StringColumnTests extends ColumnarStringTestCase {
         assertColumn(mixed);
     }
 
+    /** Writes {@code docValues} as a string column, reads it back, and asserts every value round-trips in order. */
     private void assertColumn(BytesRef[] docValues) throws IOException {
         assertColumn(docValues, randomValidBlockSize());
     }

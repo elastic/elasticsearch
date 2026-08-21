@@ -34,6 +34,7 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SchemaAdaptingIteratorTests extends ESTestCase {
@@ -653,10 +654,6 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
         assertThat(warnings.get(1), containsString("[salary]"));
     }
 
-    /**
-     * When no warning sink is supplied (null), absent columns must be null-filled silently
-     * with no NullPointerException.
-     */
     public void testNullUnsupportedAbsentColumnsDoNotWarn() {
         // NULL and UNSUPPORTED typed absent columns must not emit a warning — they are already
         // semantically null and do not represent a user-visible declared column.
@@ -685,9 +682,13 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
         ) {
             iter.next(); // consume
         }
-        assertThat("NULL/UNSUPPORTED absent columns must not produce a warning", emitted, org.hamcrest.Matchers.empty());
+        assertThat("NULL/UNSUPPORTED absent columns must not produce a warning", emitted, empty());
     }
 
+    /**
+     * When no warning sink is supplied (null), absent columns must be null-filled silently
+     * with no NullPointerException.
+     */
     public void testNoWarningWhenSinkIsNull() {
         List<Attribute> schema = List.of(attr("a", DataType.INTEGER), attr("absent", DataType.KEYWORD));
         ColumnMapping mapping = new ColumnMapping(new int[] { 0, -1 }, null);
@@ -695,7 +696,7 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
         IntBlock aBlock = blockFactory.newConstantIntBlockWith(5, 2);
         Page inputPage = new Page(2, new Block[] { aBlock });
 
-        // 5-arg constructor passes null as warningSink implicitly via the 6-arg chain
+        // 4-arg constructor passes null as warningSink implicitly via the 7-arg chain
         try (SchemaAdaptingIterator iter = new SchemaAdaptingIterator(singlePageIterator(inputPage), schema, mapping, blockFactory)) {
             Page result = iter.next(); // must not throw
             assertTrue(result.getBlock(1).isNull(0));

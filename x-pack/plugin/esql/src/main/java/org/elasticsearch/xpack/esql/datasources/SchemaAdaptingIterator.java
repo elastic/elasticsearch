@@ -290,6 +290,9 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
                 if (e instanceof RuntimeException r) {
                     throw r;
                 }
+                if (e instanceof Error err) {
+                    throw err;
+                }
                 throw new RuntimeException("Failed to adapt page", e);
             }
         } finally {

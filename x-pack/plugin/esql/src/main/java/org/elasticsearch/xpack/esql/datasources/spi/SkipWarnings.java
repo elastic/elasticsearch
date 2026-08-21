@@ -48,9 +48,10 @@ public class SkipWarnings {
 
     /**
      * Formats the standard absent-declared-column informational warning for {@code columnName}.
-     * Used when a declared column is entirely absent from a source file (Parquet, CSV).
-     * SchemaAdaptingIterator and ParquetFormatReader use this method so that
-     * InformationalWarningBudget's exact-string deduplication stays reliable across formats.
+     * Used when a declared column is entirely absent from a source file (Parquet, ORC, CSV).
+     * SchemaAdaptingIterator, ParquetFormatReader, OrcFormatReader, and CsvFormatReader use this
+     * method so that InformationalWarningBudget's exact-string deduplication stays reliable across
+     * formats.
      */
     public static String absentDeclaredColumnMessage(String columnName) {
         return "declared column [" + columnName + "] is not present in some source files and reads null there";

@@ -1317,6 +1317,13 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     if (col == rowPositionColumnIndex) {
                         continue;
                     }
+                    // DataType.NULL is resolveProjection's sentinel for "column absent from ORC file"
+                    // (convertOrcSchemaToAttributes never produces DataType.NULL from real ORC types).
+                    // Note: unlike Parquet's buildAbsentColumnWarnings, we cannot filter out columns
+                    // whose declared type was DataType.UNSUPPORTED because resolveProjection replaces
+                    // the original declared type with DataType.NULL for absent columns — the original
+                    // type is no longer available here. In practice, UNSUPPORTED-declared columns are
+                    // not projected into the ORC reader, so this edge case is not expected to surface.
                     if (attributes.get(col).dataType() == DataType.NULL) {
                         if (absent == null) {
                             absent = new ArrayList<>();

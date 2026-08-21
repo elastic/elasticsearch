@@ -37,6 +37,7 @@ import org.apache.parquet.schema.Types;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
@@ -2109,17 +2110,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
-     * Maps each projected attribute to its {@link ColumnInfo}. Resolution is path-aware:
-     * <ol>
-     *   <li>Exact match against a top-level field name in {@code projectedSchema} (preserves
-     *       files whose top-level fields literally contain a dot).</li>
-     *   <li>Otherwise, the attribute name is interpreted as a dotted path and looked up against
-     *       the full leaf paths of {@code projectedSchema}.</li>
-     * </ol>
-     * Top-level fields are recognised via {@link MessageType#containsField}; leaf paths are
-     * joined with {@code "."} (mirroring {@link ColumnChunkPrefetcher}'s prefetch key).
-     */
-    /**
      * Returns the names of declared columns that are absent from the file (null columnInfo) and
      * warrant an informational warning. Empty array when there is nothing to warn about.
      * Used by {@link DeferredWarnProducer} and {@link ParquetColumnIterator} to defer the warning
@@ -2141,10 +2131,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 }
             }
         }
-        return names != null ? names.toArray(String[]::new) : EMPTY_STRING_ARRAY;
+        return names != null ? names.toArray(String[]::new) : Strings.EMPTY_ARRAY;
     }
-
-    private static final String[] EMPTY_STRING_ARRAY = new String[0];
 
     /**
      * Wraps {@link OptimizedParquetColumnIterator} (which implements both
@@ -2195,14 +2183,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
         @Override
         public Page next() {
-            // Use finally so the absent-column warning is delivered even when delegate throws:
-            // the column-absence context is useful alongside a fatal read error (e.g. corrupt
-            // chunk, network failure) and must not be silently dropped on the first failed page.
-            try {
-                return delegate.next();
-            } finally {
-                emitOnce();
-            }
+            // Build the page first: if delegate.next() throws (e.g. corrupt data, network
+            // failure), no data was produced so the absent-column warning would be misleading.
+            // Emit only after the page is confirmed — mirrors ParquetColumnIterator's contract.
+            Page page = delegate.next();
+            emitOnce();
+            return page;
         }
 
         @Override

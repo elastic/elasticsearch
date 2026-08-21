@@ -61,6 +61,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
@@ -2659,6 +2660,48 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    /**
+     * Executes the given ES|QL query and returns the response {@code Warning} headers whose text
+     * contains {@code substring}. Waits up to 30 seconds and rethrows any query-level failure.
+     * <p>
+     * Do NOT close the {@link EsqlQueryResponse} inside the listener: the transport framework's
+     * {@code respondAndRelease} wrapper calls {@code decRef()} after {@code onResponse} returns,
+     * and a manual close causes a double-release error.
+     */
+    private List<String> collectWarningsContaining(String query, String substring) throws Exception {
+        List<String> warnings = new CopyOnWriteArrayList<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> queryFailure = new AtomicReference<>();
+        client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query), new ActionListener<>() {
+            @Override
+            public void onResponse(EsqlQueryResponse r) {
+                try {
+                    internalCluster().getInstance(TransportService.class)
+                        .getThreadPool()
+                        .getThreadContext()
+                        .getResponseHeaders()
+                        .getOrDefault("Warning", List.of())
+                        .stream()
+                        .filter(w -> w.contains(substring))
+                        .forEach(warnings::add);
+                } finally {
+                    latch.countDown();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                queryFailure.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("query did not complete within timeout", latch.await(30, SECONDS));
+        if (queryFailure.get() != null) {
+            throw queryFailure.get();
+        }
+        return warnings;
+    }
+
     /** End-to-end: the absent-declared-column warning reaches the client as a response Warning header. */
     public void testAbsentDeclaredColumnEmitsResponseWarning() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
@@ -2683,28 +2726,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             )
         );
 
-        // Read the coordinator's accumulated response Warning headers at completion (same probe as the coercion tests).
-        List<String> warnings = new CopyOnWriteArrayList<>();
-        CountDownLatch latch = new CountDownLatch(1);
-        client().execute(
-            EsqlQueryAction.INSTANCE,
-            syncEsqlQueryRequest("FROM employees_absent_warn | SORT emp_no | LIMIT 5"),
-            ActionListener.running(() -> {
-                try {
-                    internalCluster().getInstance(TransportService.class)
-                        .getThreadPool()
-                        .getThreadContext()
-                        .getResponseHeaders()
-                        .getOrDefault("Warning", List.of())
-                        .stream()
-                        .filter(w -> w.contains("declared column [department] is not present"))
-                        .forEach(warnings::add);
-                } finally {
-                    latch.countDown();
-                }
-            })
+        List<String> warnings = collectWarningsContaining(
+            "FROM employees_absent_warn | SORT emp_no | LIMIT 5",
+            "declared column [department] is not present"
         );
-        assertTrue("query did not complete within timeout", latch.await(30, java.util.concurrent.TimeUnit.SECONDS));
         assertThat("the absent declared column must emit a response Warning header", warnings, not(empty()));
     }
 
@@ -2733,43 +2758,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             )
         );
 
-        List<String> warnings = new CopyOnWriteArrayList<>();
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Exception> queryFailure = new AtomicReference<>();
-        client().execute(
-            EsqlQueryAction.INSTANCE,
-            syncEsqlQueryRequest("FROM employees_parquet_absent_warn | SORT emp_no | LIMIT 5"),
-            new ActionListener<>() {
-                @Override
-                public void onResponse(EsqlQueryResponse r) {
-                    // Do NOT close r here: the transport framework's respondAndRelease wrapper
-                    // calls r.decRef() after onResponse returns; closing manually causes a
-                    // double-release AssertionError.
-                    try {
-                        internalCluster().getInstance(TransportService.class)
-                            .getThreadPool()
-                            .getThreadContext()
-                            .getResponseHeaders()
-                            .getOrDefault("Warning", List.of())
-                            .stream()
-                            .filter(w -> w.contains("declared column [department] is not present"))
-                            .forEach(warnings::add);
-                    } finally {
-                        latch.countDown();
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    queryFailure.set(e);
-                    latch.countDown();
-                }
-            }
+        List<String> warnings = collectWarningsContaining(
+            "FROM employees_parquet_absent_warn | SORT emp_no | LIMIT 5",
+            "declared column [department] is not present"
         );
-        assertTrue("query did not complete within timeout", latch.await(30, java.util.concurrent.TimeUnit.SECONDS));
-        if (queryFailure.get() != null) {
-            throw queryFailure.get();
-        }
         assertThat("the absent declared column must emit a response Warning header on Parquet", warnings, not(empty()));
     }
 
@@ -2801,48 +2793,14 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             )
         );
 
-        List<String> warnings = new CopyOnWriteArrayList<>();
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Exception> queryFailure = new AtomicReference<>();
-        client().execute(
-            EsqlQueryAction.INSTANCE,
-            syncEsqlQueryRequest("FROM employees_ndjson_absent_warn | SORT emp_no | LIMIT 5"),
-            new ActionListener<>() {
-                @Override
-                public void onResponse(EsqlQueryResponse r) {
-                    // Do NOT close r here: the transport framework's respondAndRelease wrapper
-                    // calls r.decRef() after onResponse returns; closing manually causes a
-                    // double-release AssertionError.
-                    try {
-                        // For NdJson with Dynamic.FALSE the reader receives the full declared
-                        // schema (all 3 columns). `department` is absent from every record, so
-                        // NdJsonPageDecoder emits absentDeclaredColumnMessage ("is not present")
-                        // at close() — a column absent from all records is effectively absent
-                        // from the file, so the file-level message is the accurate one.
-                        internalCluster().getInstance(TransportService.class)
-                            .getThreadPool()
-                            .getThreadContext()
-                            .getResponseHeaders()
-                            .getOrDefault("Warning", List.of())
-                            .stream()
-                            .filter(w -> w.contains("declared column [department] is not present"))
-                            .forEach(warnings::add);
-                    } finally {
-                        latch.countDown();
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    queryFailure.set(e);
-                    latch.countDown();
-                }
-            }
+        // For NdJson with Dynamic.FALSE the reader receives the full declared schema (all 3
+        // columns). `department` is absent from every record, so NdJsonPageDecoder emits
+        // absentDeclaredColumnMessage ("is not present") at close() — a column absent from all
+        // records is effectively absent from the file, so the file-level message is accurate.
+        List<String> warnings = collectWarningsContaining(
+            "FROM employees_ndjson_absent_warn | SORT emp_no | LIMIT 5",
+            "declared column [department] is not present"
         );
-        assertTrue("query did not complete within timeout", latch.await(30, java.util.concurrent.TimeUnit.SECONDS));
-        if (queryFailure.get() != null) {
-            throw queryFailure.get();
-        }
         assertThat("the absent declared column must emit an absentDeclaredColumnMessage Warning header on NDJSON", warnings, not(empty()));
     }
 

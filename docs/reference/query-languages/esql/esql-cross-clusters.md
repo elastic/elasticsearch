@@ -522,7 +522,7 @@ Full-text scores are computed per shard, from that shard's own term statistics. 
 
 Scores from different clusters are therefore not directly comparable, and the effect grows as the corpora diverge in size or vocabulary. A term that is rare on one cluster and common on another produces systematically higher scores on the first, regardless of how relevant its documents actually are. This affects `SORT _score`, any `WHERE` clause comparing `_score` against a fixed threshold, and the set of candidates that reaches a later `RERANK`.
 
-Only lexical scoring is affected. `KNN` and dense `semantic_text` fields score on vector similarity, and sparse `semantic_text` fields score on stored per-token weights; neither depends on corpus statistics, so both are comparable across clusters.
+Only lexical scoring is affected. `KNN` and dense `semantic_text` fields score on vector similarity, and sparse `semantic_text` fields on stored per-token weights, so neither varies with corpus statistics. That makes them comparable across clusters that map the field the same way.
 
 This carries into [`FUSE`](/reference/query-languages/esql/commands/fuse.md). The default `RRF` method compares ranks rather than score magnitudes, so it is less exposed to the difference, though not immune: those ranks are themselves produced by the scores above. `LINEAR` combines the score values directly, and rescales them only if you set its `normalizer` option, which defaults to `none`. Prefer `RRF` in cross-cluster queries.
 
@@ -534,7 +534,7 @@ A query that uses `KNN`, `TO_DENSE_VECTOR` or one of the `V_*` similarity functi
 
 ### `LOOKUP JOIN` after other commands [ccq-lookup-join-limits]
 
-A cross-cluster `LOOKUP JOIN` cannot follow a command that runs on the querying cluster. In addition to `STATS`, `SORT`, `LIMIT` and coordinator-side `ENRICH`, this includes `INLINE STATS`, `CHANGE_POINT`, `FORK`, `FUSE`, `RERANK`, `COMPLETION` and `MMR`. Refer to [`LOOKUP JOIN` coordinator mode](/reference/query-languages/esql/esql-lookup-join.md#coordinator-mode) for the workaround and its own constraints.
+A cross-cluster `LOOKUP JOIN` cannot follow a command that runs on the querying cluster. That is any pipeline-breaking command - `STATS`, `INLINE STATS`, `SORT`, `LIMIT`, `TS_INFO` and `METRICS_INFO` among them - and any command that only ever runs there, such as `CHANGE_POINT`, `FORK`, `FUSE`, `RERANK`, `COMPLETION`, `MMR` and coordinator-side `ENRICH`. Refer to [`LOOKUP JOIN` coordinator mode](/reference/query-languages/esql/esql-lookup-join.md#coordinator-mode) for the workaround and its own constraints.
 
 ### Views across clusters
 

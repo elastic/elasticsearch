@@ -301,11 +301,119 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
         final RestoreTarget restoreTarget = resolveRestoreTarget();
 
         final DataStream mismatchedDestination = restoreTarget.target().destinationDataStream().copy().setName("other-ds").build();
-        final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = restoreOverExistingDataStreamFuture(
-            restoreTarget.withDestination(mismatchedDestination)
+        // the mismatch is a well-formedness check on the arguments, unrelated to cluster state, so it is rejected synchronously rather
+        // than via the returned future
+        final SnapshotRestoreException e = expectThrows(
+            SnapshotRestoreException.class,
+            () -> restoreOverExistingDataStreamFuture(restoreTarget.withDestination(mismatchedDestination))
         );
-        final SnapshotRestoreException e = expectThrows(SnapshotRestoreException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
         assertThat(e.getMessage(), containsString("guarded restore only supports restoring a data stream over one of the same name"));
+
+        assertThat("a rejected guarded restore must leave the destination unchanged", currentDataStream(), notNullValue());
+    }
+
+    /**
+     * Two targets in the same restore call must not share a destination data-stream name: {@code guardedDataStreamTargets} is a
+     * {@code Map} keyed by destination name, so a duplicate would silently overwrite the earlier target there while its snapshot data
+     * stream and indices still get restored for real via the plain (non-deduplicating) collections built alongside it, letting a
+     * malformed earlier target escape all identity/template/conflict validation entirely.
+     */
+    public void testGuardedDataStreamRestoreRejectsDuplicateDestination() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        createRepositoryAndSnapshottedDataStream();
+        final RestoreTarget restoreTarget = resolveRestoreTarget();
+        final String restoreUUID = UUIDs.randomBase64UUID();
+
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+        final SnapshotRestoreException e = expectThrows(
+            SnapshotRestoreException.class,
+            () -> restoreService().restoreOverExistingDataStreams(
+                ProjectId.DEFAULT,
+                restoreTarget.snapshot(),
+                restoreTarget.snapshotInfo(),
+                TEST_REQUEST_TIMEOUT,
+                restoreUUID,
+                List.of(restoreTarget.target(), restoreTarget.target()),
+                restoreTarget.snapshotDataStreamAliases(),
+                future
+            )
+        );
+        assertThat(e.getMessage(), containsString("targeted by more than one restore target"));
+
+        assertThat("a rejected guarded restore must leave the destination unchanged", currentDataStream(), notNullValue());
+    }
+
+    /**
+     * {@code indicesToRestore} must exactly match the backing/failure-store indices that the target's own snapshot data stream
+     * references: a caller that resolved too few (or too many) index entries has made a mistake that must be rejected up front, rather
+     * than silently restoring an incomplete data stream or leaving orphaned indices behind.
+     */
+    public void testGuardedDataStreamRestoreRejectsIndexSetMismatch() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        createRepositoryAndSnapshottedDataStream();
+        final RestoreTarget restoreTarget = resolveRestoreTarget();
+
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+        final SnapshotRestoreException e = expectThrows(
+            SnapshotRestoreException.class,
+            () -> restoreService().restoreOverExistingDataStreams(
+                ProjectId.DEFAULT,
+                restoreTarget.snapshot(),
+                restoreTarget.snapshotInfo(),
+                TEST_REQUEST_TIMEOUT,
+                UUIDs.randomBase64UUID(),
+                List.of(restoreTarget.withIndicesToRestore(Map.of()).target()),
+                restoreTarget.snapshotDataStreamAliases(),
+                future
+            )
+        );
+        assertThat(e.getMessage(), containsString("do not exactly match its backing and failure-store indices"));
+
+        assertThat("a rejected guarded restore must leave the destination unchanged", currentDataStream(), notNullValue());
+    }
+
+    /**
+     * Every {@code indicesToRestore} entry's key must match the name carried by its own {@link IndexId} and {@link IndexMetadata}: a
+     * mismatch means the caller mixed up which repository identity and metadata belong to which index name, which must be rejected
+     * rather than silently restoring the wrong index content under a given name.
+     */
+    public void testGuardedDataStreamRestoreRejectsIndexNameMismatch() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        createRepositoryAndSnapshottedDataStream();
+        final RestoreTarget restoreTarget = resolveRestoreTarget();
+
+        final Map.Entry<String, RestoreService.DataStreamRestoreTarget.SnapshotIndex> onlyEntry = restoreTarget.target()
+            .indicesToRestore()
+            .entrySet()
+            .iterator()
+            .next();
+        final RestoreService.DataStreamRestoreTarget.SnapshotIndex mismatchedValue =
+            new RestoreService.DataStreamRestoreTarget.SnapshotIndex(
+                new IndexId("some-other-name", onlyEntry.getValue().indexId().getId()),
+                onlyEntry.getValue().metadata()
+            );
+
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+        final SnapshotRestoreException e = expectThrows(
+            SnapshotRestoreException.class,
+            () -> restoreService().restoreOverExistingDataStreams(
+                ProjectId.DEFAULT,
+                restoreTarget.snapshot(),
+                restoreTarget.snapshotInfo(),
+                TEST_REQUEST_TIMEOUT,
+                UUIDs.randomBase64UUID(),
+                List.of(restoreTarget.withIndicesToRestore(Map.of(onlyEntry.getKey(), mismatchedValue)).target()),
+                restoreTarget.snapshotDataStreamAliases(),
+                future
+            )
+        );
+        assertThat(e.getMessage(), containsString("does not match the name of its supplied IndexId or IndexMetadata"));
 
         assertThat("a rejected guarded restore must leave the destination unchanged", currentDataStream(), notNullValue());
     }
@@ -423,6 +531,15 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
                 snapshot,
                 snapshotInfo,
                 new RestoreService.DataStreamRestoreTarget(destination, target.snapshotDataStream(), target.indicesToRestore()),
+                snapshotDataStreamAliases
+            );
+        }
+
+        RestoreTarget withIndicesToRestore(Map<String, RestoreService.DataStreamRestoreTarget.SnapshotIndex> indicesToRestore) {
+            return new RestoreTarget(
+                snapshot,
+                snapshotInfo,
+                new RestoreService.DataStreamRestoreTarget(target.destinationDataStream(), target.snapshotDataStream(), indicesToRestore),
                 snapshotDataStreamAliases
             );
         }

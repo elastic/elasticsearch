@@ -48,7 +48,7 @@ dependencies {
   compileOnly project(path: xpackModule('mapper-version'))
   implementation project(xpackModule('kql'))
   // The EQL source command delegates execution to the EQL engine: it parses the EQL query at plan
-  // time (mode + stage count) and issues EqlSearchAction at execution time. Declared compileOnly (not
+  // time (result mode) and issues EqlSearchAction at execution time. Declared compileOnly (not
   // bundled) because x-pack-eql is an extendedPlugin — esql shares eql's classloader at runtime, so
   // action/request/response classes keep a single class identity across the transport boundary.
   compileOnly project(xpackModule('eql'))

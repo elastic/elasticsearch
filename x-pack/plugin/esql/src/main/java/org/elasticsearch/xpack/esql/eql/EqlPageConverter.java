@@ -159,9 +159,9 @@ public final class EqlPageConverter {
     private static Object valueFor(Attribute attr, Row row) {
         if (attr instanceof ReferenceAttribute) {
             return switch (attr.name()) {
-                case "_sequence" -> row.sequenceOrdinal();
-                case "_sequence_stage" -> row.stage();
-                case "join_keys" -> joinKeysValue(row.joinKeys());
+                case EqlRelation.SEQUENCE_COLUMN -> row.sequenceOrdinal();
+                case EqlRelation.SEQUENCE_STAGE_COLUMN -> row.stage();
+                case EqlRelation.JOIN_KEYS_COLUMN -> joinKeysValue(row.joinKeys());
                 default -> throw new EsqlIllegalArgumentException("unexpected EQL synthetic column [{}]", attr.name());
             };
         }

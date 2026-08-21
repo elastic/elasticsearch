@@ -207,7 +207,25 @@ public class EqlRequestsTests extends ESTestCase {
         // A numeric value above Integer.MAX_VALUE would wrap on intValue() (e.g. size 4294967296 -> 0), presenting an
         // empty result as complete. It must fail at parse time, not truncate silently.
         ParsingException e = expectThrows(ParsingException.class, () -> EqlRequests.validateOptions(EMPTY, Map.of("size", 4294967296L)));
-        assertThat(e.getMessage(), allOf(containsString("[size]"), containsString("too large")));
+        assertThat(e.getMessage(), allOf(containsString("[size]"), containsString("non-negative integer")));
+    }
+
+    public void testRejectsNegativeNumericOptionThatWrapsToNonNegativeInt() {
+        // A negative long whose low 32 bits are non-negative also wraps on intValue() (e.g. -4294967296 -> 0),
+        // slipping past a one-sided upper-bound check and presenting an empty result as complete.
+        ParsingException e = expectThrows(ParsingException.class, () -> EqlRequests.validateOptions(EMPTY, Map.of("size", -4294967296L)));
+        assertThat(e.getMessage(), allOf(containsString("[size]"), containsString("non-negative integer")));
+    }
+
+    public void testRejectsNegativeNumericOption() {
+        ParsingException e = expectThrows(ParsingException.class, () -> EqlRequests.validateOptions(EMPTY, Map.of("size", -1)));
+        assertThat(e.getMessage(), allOf(containsString("[size]"), containsString("non-negative integer")));
+    }
+
+    public void testRejectsFractionalNumericOption() {
+        // A fractional value passes the Number check but would silently truncate on intValue() (3.9 -> 3).
+        ParsingException e = expectThrows(ParsingException.class, () -> EqlRequests.validateOptions(EMPTY, Map.of("size", 3.9)));
+        assertThat(e.getMessage(), allOf(containsString("[size]"), containsString("non-negative integer")));
     }
 
     public void testUnknownOptionMessageListsSupportedKeys() {

@@ -183,8 +183,12 @@ public class EqlSourceOperator extends SourceOperator {
 
     /**
      * Emits a warning on the driver thread when the EQL response was partial (a shard failed or timed out), so an
-     * incomplete result is never presented as complete. This only happens when the enclosing ES|QL query allows
-     * partial results; when it does not, the delegate fails the query outright and no page is emitted.
+     * incomplete result is surfaced to the user. This only happens when the enclosing ES|QL query allows partial
+     * results; when it does not, the delegate fails the query outright and no page is emitted.
+     *
+     * <p>Known boundary: this surfaces the partial state as a warning only. It does not yet flip the ES|QL response's
+     * {@code is_partial} flag, because a source operator has no handle on the query-level {@code EsqlExecutionInfo};
+     * wiring that through is a follow-up (a client keying off {@code is_partial} alone would not see the shard failure).
      */
     private void maybeWarnPartial() {
         if (partial) {

@@ -2108,6 +2108,9 @@ public class EsqlSession {
             executionInfo.queryProfile().incFieldCapsCalls();
             // Retain the merged field-caps only for a local, unfiltered, full-mapping EQL pattern, so the EQL delegate
             // reuses it instead of re-resolving. Any other case (non-EQL, filtered, remote, narrowed) falls back.
+            // Known boundary: ES|QL resolves with a "-nested" filter, so a reused response omits nested fields — an EQL
+            // query referencing a nested field resolves it as absent under reuse where self-resolution would reject it.
+            // Nested fields are not a supported EQL target, so this is a documented limitation, not a wrong answer.
             Consumer<FieldCapabilitiesResponse> mergedCapsSink = shouldRetainEqlFieldCaps(indexPattern, preAnalysis, requestFilter, result)
                 ? caps -> result.eqlFieldCaps().put(indexPattern, caps)
                 : null;

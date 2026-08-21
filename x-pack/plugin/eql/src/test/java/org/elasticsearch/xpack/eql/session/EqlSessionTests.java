@@ -37,8 +37,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 public class EqlSessionTests extends ESTestCase {
 
@@ -52,11 +52,12 @@ public class EqlSessionTests extends ESTestCase {
             LogicalPlan plan = new EqlParser().createStatement("process where true");
             FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(new String[] { "idx" }, Map.of());
 
-            // caps + no runtime mappings -> reuse: the mapping is built from the response via the static merge handler,
-            // so the resolver instance (which would issue _field_caps) is never touched at all.
+            // caps + no runtime mappings -> reuse: the mapping is built from the response via the resolver's local
+            // merge overload (a pure merge, no _field_caps), never the network resolveAsMergedMapping path.
             IndexResolver reuseResolver = mock(IndexResolver.class);
             session(threadPool, reuseResolver, configuration(caps, emptyMap())).analyzedPlan(plan, ActionListener.noop());
-            verifyNoInteractions(reuseResolver);
+            verify(reuseResolver).mergedMappings(anyString(), any());
+            verify(reuseResolver, never()).resolveAsMergedMapping(anyString(), any(), any(), any(), anyBoolean(), any(), any());
 
             // caps + runtime mappings -> the engine self-defends and self-resolves through the resolver instead.
             IndexResolver selfResolver = mock(IndexResolver.class);

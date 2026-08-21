@@ -12,8 +12,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 
 import java.util.List;
@@ -52,6 +54,26 @@ public class EqlRelation extends LeafPlan {
         EVENT,
         SEQUENCE,
         SAMPLE
+    }
+
+    public static final String SEQUENCE_COLUMN = "_sequence";
+    public static final String SEQUENCE_STAGE_COLUMN = "_sequence_stage";
+    public static final String JOIN_KEYS_COLUMN = "join_keys";
+
+    /**
+     * The synthetic columns a sequence/sample result prepends, in schema order: {@code _sequence} (long, which
+     * match a row belongs to), {@code _sequence_stage} (integer, stage index) and {@code join_keys} (keyword,
+     * the match's join keys). Empty for {@link Mode#EVENT}. This is the single definition of the synthetic
+     * schema — {@code EqlPageConverter} dispatches on the same name constants, so the two cannot drift.
+     */
+    public static List<Attribute> syntheticColumns(Source source, Mode mode) {
+        return mode == Mode.EVENT
+            ? List.of()
+            : List.of(
+                new ReferenceAttribute(source, SEQUENCE_COLUMN, DataType.LONG),
+                new ReferenceAttribute(source, SEQUENCE_STAGE_COLUMN, DataType.INTEGER),
+                new ReferenceAttribute(source, JOIN_KEYS_COLUMN, DataType.KEYWORD)
+            );
     }
 
     private final IndexPattern indexPattern;

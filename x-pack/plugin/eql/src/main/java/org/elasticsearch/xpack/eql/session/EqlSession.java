@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -148,11 +147,11 @@ public class EqlSession {
         Map<String, Object> runtimeMappings = configuration.runtimeMappings();
         if (preResolvedFieldCaps != null && (runtimeMappings == null || runtimeMappings.isEmpty())) {
             // Build the mapping directly from the coordinator-supplied response via the existing merge handler — no
-            // second _field_caps. The resolver is wired with DefaultDataTypeRegistry.INSTANCE (see EqlPlugin), so this
-            // reaches the identical code the instance path would.
+            // second _field_caps. The instance overload uses this resolver's own type registry, so the reuse path
+            // plans against the identical type system as the self-resolution path below.
             ActionListener.completeWith(
                 map(listener, r -> preAnalyzer.preAnalyze(parsed, r)),
-                () -> IndexResolver.mergedMappings(DefaultDataTypeRegistry.INSTANCE, indexWildcard, preResolvedFieldCaps)
+                () -> indexResolver.mergedMappings(indexWildcard, preResolvedFieldCaps)
             );
             return;
         }

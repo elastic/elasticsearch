@@ -78,9 +78,9 @@ public class FieldNameUtils {
 
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
 
-        // TODO(eql-narrow-fieldnames): the EQL command's output is the whole mapping (its query references
-        // fields the ES|QL field-name walk cannot see, and a narrow set risks a zero-column schema for
-        // `EQL x "q" | STATS COUNT(*)`); resolve all fields for now. The dedup increment can narrow this.
+        // The EQL command's output is the whole mapping: its query references fields the ES|QL field-name walk
+        // cannot see, and a narrow set risks a zero-column schema for `EQL x "q" | STATS COUNT(*)`, so resolve all
+        // fields. A future field-name-narrowing pass could tighten this once the walk understands EQL queries.
         if (parsed.anyMatch(UnresolvedEqlRelation.class::isInstance)) {
             return new PreAnalysisResult(IndexResolver.ALL_FIELDS, Set.of());
         }

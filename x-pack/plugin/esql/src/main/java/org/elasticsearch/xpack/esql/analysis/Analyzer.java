@@ -907,11 +907,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             List<Attribute> mapped = mappingAsAttributes(plan.source(), resolution.get().mapping());
             List<Attribute> output = new ArrayList<>(mapped.size() + 3 + plan.metadataFields().size());
-            if (mode != EqlRelation.Mode.EVENT) {
-                output.add(new ReferenceAttribute(plan.source(), "_sequence", LONG));
-                output.add(new ReferenceAttribute(plan.source(), "_sequence_stage", INTEGER));
-                output.add(new ReferenceAttribute(plan.source(), "join_keys", KEYWORD));
-            }
+            output.addAll(EqlRelation.syntheticColumns(plan.source(), mode));
             for (Attribute attr : mapped) {
                 output.add(gateUnconvertibleType(plan.source(), attr));
             }

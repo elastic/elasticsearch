@@ -381,18 +381,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         IndexPattern table = new IndexPattern(source, visitIndexPattern(indexPatternsCtx));
         List<Subquery> subqueries = visitSubqueriesInFromCommand(subqueriesCtx);
-        Map<String, NamedExpression> metadataMap = new LinkedHashMap<>();
-        if (ctx.metadata() != null) {
-            for (var c : ctx.metadata().UNQUOTED_SOURCE()) {
-                String id = c.getText();
-                Source src = source(c);
-                NamedExpression a = metadataMap.put(id, MetadataAttribute.create(src, id));
-                if (a != null) {
-                    throw new ParsingException(src, "metadata field [" + id + "] already declared [" + a.source().source() + "]");
-                }
-            }
-        }
-        List<NamedExpression> metadataFields = List.of(metadataMap.values().toArray(NamedExpression[]::new));
+        List<NamedExpression> metadataFields = visitMetadataFields(ctx.metadata());
         UnresolvedRelation unresolvedRelation = new UnresolvedRelation(source, table, false, metadataFields, null, command);
         if (subqueries.isEmpty()) {
             return unresolvedRelation;
@@ -1059,10 +1048,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         EqlRequests.validateOptions(source, config);
         // Metadata columns (e.g. _index, _id, _source) are declared exactly as in FROM; the analyzer validates which
-        // ones the EQL delegate can populate and appends them to the output. Same duplicate-declaration guard as FROM.
+        // ones the EQL delegate can populate and appends them to the output.
+        List<NamedExpression> metadataFields = visitMetadataFields(ctx.metadata());
+        return new UnresolvedEqlRelation(source, indexPattern, query, config, metadataFields);
+    }
+
+    /**
+     * Parses a {@code METADATA} clause into its declared fields, rejecting a duplicate declaration at the offending
+     * field's source. Shared by {@code FROM} and the {@code EQL} source command, which declare metadata identically.
+     */
+    private List<NamedExpression> visitMetadataFields(EsqlBaseParser.MetadataContext metadataCtx) {
         Map<String, NamedExpression> metadataMap = new LinkedHashMap<>();
-        if (ctx.metadata() != null) {
-            for (var c : ctx.metadata().UNQUOTED_SOURCE()) {
+        if (metadataCtx != null) {
+            for (var c : metadataCtx.UNQUOTED_SOURCE()) {
                 String id = c.getText();
                 Source src = source(c);
                 NamedExpression a = metadataMap.put(id, MetadataAttribute.create(src, id));
@@ -1071,8 +1069,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             }
         }
-        List<NamedExpression> metadataFields = List.of(metadataMap.values().toArray(NamedExpression[]::new));
-        return new UnresolvedEqlRelation(source, indexPattern, query, config, metadataFields);
+        return List.of(metadataMap.values().toArray(NamedExpression[]::new));
     }
 
     /**

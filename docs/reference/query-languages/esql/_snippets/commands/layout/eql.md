@@ -227,8 +227,9 @@ EQL my_remote:logs-endpoint "process where process.name == \"regsvr32.exe\""
 * **No runtime fields in the EQL predicate.** The EQL query can reference only fields present in the index
   mapping. Compute derived columns *after* the command with [`EVAL`](/reference/query-languages/esql/commands/eval.md)
   rather than inside the EQL predicate.
-* **The request `filter` is not applied.** An enclosing {{esql}} request `filter` is not yet bridged into
-  the EQL source. Narrow the events with the EQL predicate itself, or filter the rows with a downstream `WHERE`.
+* **The request `filter` is rejected.** A query that combines an enclosing {{esql}} request `filter` with an
+  EQL source is rejected rather than silently ignoring the filter, because it is not yet bridged into the EQL
+  source. Narrow the events with the EQL predicate itself, or filter the rows with a downstream `WHERE`.
 * **A view is not a valid EQL target.** The leading pattern must be indices, data streams or aliases. A
   view whose *body* is an EQL command is supported and read with `FROM <view>`, but a view name in the
   leading pattern is not expanded.

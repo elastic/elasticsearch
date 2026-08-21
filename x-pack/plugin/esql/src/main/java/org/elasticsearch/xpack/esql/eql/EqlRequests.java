@@ -111,18 +111,22 @@ public final class EqlRequests {
                     "EQL command option [" + entry.getKey() + "] requires a " + option.typeName() + " value"
                 );
             }
-            // Every numeric option applies as an int; reject a value that would silently wrap on intValue()
-            // (e.g. size 4294967296 -> 0, presenting an empty result as complete) rather than truncate it.
-            if (entry.getValue() instanceof Number number && number.longValue() > Integer.MAX_VALUE) {
-                throw new ParsingException(
-                    source,
-                    "EQL command option ["
-                        + entry.getKey()
-                        + "] value ["
-                        + number.longValue()
-                        + "] is too large; must be at most "
-                        + Integer.MAX_VALUE
-                );
+            // Every numeric option applies as a non-negative int. Reject a value that is fractional, negative, or
+            // outside int range rather than letting intValue() silently truncate or wrap it: size 4294967296 and
+            // -4294967296 both collapse to 0 (an empty result presented as complete), and size 3.9 would become 3.
+            if (entry.getValue() instanceof Number number) {
+                long asLong = number.longValue();
+                if (number.doubleValue() != asLong || asLong < 0 || asLong > Integer.MAX_VALUE) {
+                    throw new ParsingException(
+                        source,
+                        "EQL command option ["
+                            + entry.getKey()
+                            + "] value ["
+                            + entry.getValue()
+                            + "] must be a non-negative integer at most "
+                            + Integer.MAX_VALUE
+                    );
+                }
             }
         }
     }
@@ -130,9 +134,10 @@ public final class EqlRequests {
     /**
      * The settings an EQL source inherits from the ES|QL query that hosts it — bridged from the query, not from the
      * command's own {@code WITH} options, so an EQL source honors the same contract as a {@code FROM} source in the
-     * same query: the result-truncation cap (the {@code size} fallback), the partial-results contract, cross-project
-     * routing, and the out-of-band request {@code filter} (which the EQL engine applies to the events it matches over,
-     * not as a post-hoc row filter).
+     * same query: the result-truncation cap (the {@code size} fallback), the partial-results contract, and cross-project
+     * routing. The out-of-band request {@code filter} is reserved for a future bridge and is always null today —
+     * {@code EsqlSession} rejects a query that combines a request filter with an EQL source rather than applying it
+     * post-hoc, which would strip events out of sequence matches.
      */
     public record EnclosingQuery(
         int truncationCap,

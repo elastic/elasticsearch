@@ -459,3 +459,26 @@ _sequence:long |id:long
 0        |18
 0        |37
 ;
+
+// Boundary cases: LIMIT bounds rows and the pushed size cannot drop rows the kept LIMIT still needs.
+// result_position: head + the tiebreaker pin row identity deterministically. The full query has 3 matches
+// (event pairs 1-2, 2-3, 3-4) = 6 rows; a smaller LIMIT trims the prefix.
+sequenceLimitTrimsRowsAcrossMatches
+required_capability: eql_command
+EQL endgame-140 "sequence [process where serial_event_id < 5] [process where serial_event_id < 5]" WITH {"tiebreaker_field": "serial_event_id", "result_position": "head"} | LIMIT 4 | KEEP _sequence, serial_event_id;
+
+_sequence:long |serial_event_id:long
+0              |1
+0              |2
+1              |2
+1              |3
+;
+
+sequenceLimitTrimsWithinFirstMatch
+required_capability: eql_command
+EQL endgame-140 "sequence [process where serial_event_id < 5] [process where serial_event_id < 5]" WITH {"tiebreaker_field": "serial_event_id", "result_position": "head"} | LIMIT 2 | KEEP _sequence, serial_event_id;
+
+_sequence:long |serial_event_id:long
+0              |1
+0              |2
+;

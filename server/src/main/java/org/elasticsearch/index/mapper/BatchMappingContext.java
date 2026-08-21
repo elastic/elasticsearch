@@ -12,9 +12,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.escf.EscfColumn;
-import org.elasticsearch.escf.EscfColumnData;
-import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.escf.EscfLongColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.IndexOperationBatch;
@@ -88,25 +85,17 @@ public final class BatchMappingContext {
      * (e.g. {@link DataStreamTimestampFieldMapper} and {@link TimeSeriesIdFieldMapper}) can read
      * per-document timestamp values via {@link #timestamps()} without re-scanning
      * the Lucene column list. Mirrors the row-path side channel
-     * ({@code DataStreamTimestampFieldMapper.storeTimestampValueForReuse}). The data is the same
-     * {@link EscfColumnData} that {@code DateFieldMapper.mapColumnBatch} already built; no copy
-     * is made. Multivalued (array) timestamp columns are rejected the same way the row path
-     * rejects multiple values for the same document.
+     * ({@code DataStreamTimestampFieldMapper.storeTimestampValueForReuse}).
      *
-     * @throws IllegalArgumentException if called more than once or if the column is multivalued
+     * @throws IllegalArgumentException if called more than once
      */
-    public void setTimestamps(EscfColumnData timestamps) {
+    public void setTimestamps(EscfLongColumn timestamps) {
         if (this.timestamps != null) {
             throw new IllegalArgumentException(
                 "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] encountered multiple values"
             );
         }
-        if (timestamps.kind() == EscfColumnKind.ARRAY) {
-            throw new IllegalArgumentException(
-                "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] encountered multiple values"
-            );
-        }
-        this.timestamps = (EscfLongColumn) EscfColumn.from(timestamps);
+        this.timestamps = timestamps;
     }
 
     /**

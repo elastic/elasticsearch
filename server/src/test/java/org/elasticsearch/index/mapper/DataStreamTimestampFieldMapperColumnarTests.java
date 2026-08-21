@@ -12,8 +12,9 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnBuilder;
-import org.elasticsearch.escf.EscfColumnData;
+import org.elasticsearch.escf.EscfLongColumn;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -74,16 +75,16 @@ public class DataStreamTimestampFieldMapperColumnarTests extends MapperServiceTe
     }
 
     /** Dense column: every document is present, with the given sequential timestamp values. */
-    private static EscfColumnData denseTimestampData(long... timestamps) {
+    private static EscfLongColumn denseTimestampData(long... timestamps) {
         var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         for (long ts : timestamps) {
             b.addLong(ts);
         }
-        return b.finish(timestamps.length);
+        return (EscfLongColumn) EscfColumn.from(b.finish(timestamps.length));
     }
 
     /** Sparse column: only the docs at {@code presentDocs} positions are present. */
-    private static EscfColumnData sparseTimestampData(int docCount, long timestamp, int... presentDocs) {
+    private static EscfLongColumn sparseTimestampData(int docCount, long timestamp, int... presentDocs) {
         Set<Integer> present = new HashSet<>();
         for (int doc : presentDocs) {
             present.add(doc);
@@ -96,7 +97,7 @@ public class DataStreamTimestampFieldMapperColumnarTests extends MapperServiceTe
                 b.addAbsent();
             }
         }
-        return b.finish(docCount);
+        return (EscfLongColumn) EscfColumn.from(b.finish(docCount));
     }
 
     // ---- tests ---------------------------------------------------------------------------------

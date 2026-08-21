@@ -124,6 +124,8 @@ public final class DateFieldMapper extends FieldMapper {
     private static final IndexableFieldType SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE = SortedNumericDocValuesField.indexedField("_sentinel", 0L)
         .fieldType();
     private static final IndexableFieldType LONG_FIELD_TYPE = new LongField("_sentinel", 0L, Field.Store.NO).fieldType();
+    // Stored-only variant: matches the separate StoredField(name, timestamp) emitted by the row path.
+    private static final IndexableFieldType LONG_STORED_ONLY_FIELD_TYPE = new StoredField("_sentinel", 0L).fieldType();
 
     public enum Resolution {
         MILLISECONDS(CONTENT_TYPE, NumericType.DATE, DateMillisDocValuesField::new) {
@@ -1267,7 +1269,6 @@ public final class DateFieldMapper extends FieldMapper {
         // time instead.
         return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
             && docValuesParameters.enabled()
-            && stored == false
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
             && multiFields().iterator().hasNext() == false
@@ -1296,6 +1297,9 @@ public final class DateFieldMapper extends FieldMapper {
             columnFieldType = SORTED_NUMERIC_DV_FIELD_TYPE;
         }
         ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), columnFieldType, LongColumn.NumericKind.LONG));
+        if (stored) {
+            ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), LONG_STORED_ONLY_FIELD_TYPE, LongColumn.NumericKind.LONG));
+        }
         // Publish the timestamp ESCF column on the context so that postColumnarParse hooks
         // (DataStreamTimestampFieldMapper, TsidExtractingIdFieldMapper) can read per-document
         // values without re-scanning the Lucene column list. Mirrors DateFieldMapper.indexValue's

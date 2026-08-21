@@ -592,16 +592,21 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static volatile Boolean declaredSchemaSupported;
 
     protected static boolean clusterSupportsDeclaredSchema() throws IOException {
-        if (declaredSchemaSupported == null) {
-            declaredSchemaSupported = clusterHasCapability(
+        // Racy single-check: read the volatile field ONCE into a local. Reading it twice would let the
+        // @AfterClass reset land between the assignment and the return and unbox null. A duplicate probe is
+        // harmless -- the capability is immutable for a cluster's lifetime.
+        Boolean supported = declaredSchemaSupported;
+        if (supported == null) {
+            supported = clusterHasCapability(
                 client(),
                 "PUT",
                 "/_query/dataset/{name}",
                 List.of(),
                 List.of(EsqlDataSourcesCapabilities.DATASET_DECLARED_SCHEMA)
             ).orElse(false);
+            declaredSchemaSupported = supported;
         }
-        return declaredSchemaSupported;
+        return supported;
     }
 
     /**

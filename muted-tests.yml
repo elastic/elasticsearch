@@ -755,9 +755,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecKnnFunctionIT
   method: test {csv-spec:knn-function.knnAfterEvalAndRename}
   issue: https://github.com/elastic/elasticsearch/issues/157039
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=snapshot.restore/10_basic/Create a snapshot and then restore single index from it}
-  issue: https://github.com/elastic/elasticsearch/issues/157065
+#- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+#  method: test {p0=snapshot.restore/10_basic/Create a snapshot and then restore single index from it}
+#  issue: https://github.com/elastic/elasticsearch/issues/157065
 - class: org.elasticsearch.xpack.stateless.engine.IndexEngineTests
   method: testHollowEngineWithConcurrentNonHollowFlush
   issue: https://github.com/elastic/elasticsearch/issues/157095

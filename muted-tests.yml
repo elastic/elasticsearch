@@ -146,6 +146,9 @@ tests:
 - class: org.elasticsearch.search.aggregations.metrics.TDigestPercentilesIT
   method: testSingleValuedFieldGetProperty
   issue: https://github.com/elastic/elasticsearch/issues/157330
+- class: org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceTests
+  method: testUnifiedCompletionError
+  issue: https://github.com/elastic/elasticsearch/issues/157332
 
 # Examples:
 #

@@ -28,6 +28,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -780,13 +781,13 @@ public class BooleanFieldMapper extends FieldMapper {
     public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         switch (source.kind()) {
             case EscfColumnKind.BOOL, EscfColumnKind.STRING -> {
-            }
+            } // handled below
             default -> throw new UnsupportedOperationException(
-                "mapColumnBatch: ESCF column kind ["
-                    + EscfColumnKind.name(source.kind())
-                    + "] is not yet supported for boolean field ["
-                    + fullPath()
-                    + "]"
+                Strings.format(
+                    "mapColumnBatch: ESCF column kind [%s] is not yet supported for boolean field [%s]",
+                    EscfColumnKind.name(source.kind()),
+                    fullPath()
+                )
             );
         }
         EscfColumnData longData = booleansToLongs(source);

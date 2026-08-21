@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 /**
  * The registration-time bound on {@code schema_sample_size} must admit the value the readers use by default.
@@ -61,5 +62,87 @@ public class FileDataSourceValidatorSampleSizeBoundTests extends ESTestCase {
             () -> validator().validateDataset(Map.of(), "file:///data/events.ndjson", Map.of("schema_sample_size", "0"))
         );
         assertThat(e.getMessage(), containsString("schema_sample_size"));
+    }
+
+    // ---- Format-scoped rejection / acceptance (resolver-aware tests) ----
+
+    /** Resolver: parquet has no schema_sample_size; csv and ndjson do. */
+    private static FileDataSourceValidator.FormatConfigKeyResolver formatResolver() {
+        return FileDataSourceValidator.FormatConfigKeyResolver.of(
+            Map.of(
+                "parquet",
+                Set.of("optimized_reader", "late_materialization"),
+                "csv",
+                Set.of("schema_sample_size", "delimiter"),
+                "ndjson",
+                Set.of("schema_sample_size", "segment_size")
+            ),
+            Map.of(".parquet", "parquet", ".csv", "csv", ".ndjson", "ndjson")
+        );
+    }
+
+    private static FileDataSourceValidator validatorWithResolver() {
+        return new FileDataSourceValidator("file", (raw, consumed) -> null, Set.of("file")).withFormatConfigKeyResolver(
+            formatResolver(),
+            Set.of()
+        );
+    }
+
+    public void testSchemaSampleSizeIsRejectedForParquetWhenInferredFromExtension() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validatorWithResolver().validateDataset(Map.of(), "file:///data/events.parquet", Map.of("schema_sample_size", "100"))
+        );
+        assertThat(e.getMessage(), containsString("schema_sample_size"));
+    }
+
+    public void testSchemaSampleSizeIsRejectedForParquetWhenFormatExplicit() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validatorWithResolver().validateDataset(
+                Map.of(),
+                "file:///data/events",
+                Map.of("format", "parquet", "schema_sample_size", "100")
+            )
+        );
+        assertThat(e.getMessage(), containsString("schema_sample_size"));
+    }
+
+    public void testSchemaSampleSizeIsAcceptedForCsvWhenInferredFromExtension() {
+        Map<String, Object> result = validatorWithResolver().validateDataset(
+            Map.of(),
+            "file:///data/events.csv",
+            Map.of("schema_sample_size", "100")
+        );
+        assertEquals(100, result.get("schema_sample_size"));
+    }
+
+    public void testSchemaSampleSizeIsAcceptedForNdjsonWhenInferredFromExtension() {
+        Map<String, Object> result = validatorWithResolver().validateDataset(
+            Map.of(),
+            "file:///data/events.ndjson",
+            Map.of("schema_sample_size", "100")
+        );
+        assertEquals(100, result.get("schema_sample_size"));
+    }
+
+    public void testSchemaSampleSizeIsAcceptedForExtensionlessResource() {
+        // Format unknown at PUT time — stored tentatively so it can reach a text reader at query time.
+        Map<String, Object> result = validatorWithResolver().validateDataset(
+            Map.of(),
+            "file:///data/events",
+            Map.of("schema_sample_size", "100")
+        );
+        assertEquals(100, result.get("schema_sample_size"));
+    }
+
+    public void testParquetRejectionErrorNamesTheSettingNotTheFormat() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validatorWithResolver().validateDataset(Map.of(), "file:///data/events.parquet", Map.of("schema_sample_size", "50"))
+        );
+        assertThat(e.getMessage(), containsString("schema_sample_size"));
+        // Not an unknown-format error (those carry a "set \"format\"" hint).
+        assertThat(e.getMessage(), not(containsString("set \"format\"")));
     }
 }

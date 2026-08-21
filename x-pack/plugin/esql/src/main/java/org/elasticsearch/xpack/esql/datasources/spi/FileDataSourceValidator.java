@@ -93,24 +93,32 @@ public class FileDataSourceValidator implements DataSourceValidator {
     }
 
     /**
-     * Full set of base dataset fields accepted by every file-based source, independent of file format:
-     * the {@link #COORDINATOR_DATASET_KEYS} (which includes the {@code format} selector) plus the
-     * format-agnostic {@code schema_sample_size} sampling bound (which is consumed by the format
-     * readers, not the coordinator). Format-specific fields are unioned on per-resource against the
-     * resolved format in {@link #validateDataset}.
+     * Format-specific dataset keys accepted even when the format is unknown at PUT time (extensionless
+     * resource or {@code format=auto}), so they can be stored and forwarded to the reader at query time.
+     * The query path includes this set in its claimed-key check so a reader that does not consume the
+     * key (e.g. {@code schema_sample_size} for Parquet) does not produce a spurious "unknown option"
+     * failure. When the format IS determinable at PUT time, {@link #acceptStrict} only admits these keys
+     * if the format's config-key set includes them, rejecting them for non-sampling formats like Parquet.
+     */
+    public static final Set<String> FORMAT_SPECIFIC_VOCABULARY_KEYS = Set.of(SCHEMA_SAMPLE_SIZE);
+
+    /**
+     * Fields accepted when the format is unknown: {@link #COORDINATOR_DATASET_KEYS} plus
+     * {@link #FORMAT_SPECIFIC_VOCABULARY_KEYS}. When the format is known, {@link #acceptStrict} is
+     * used instead and only admits format-specific keys the resolved format actually claims.
      */
     private static final Set<String> DATASET_FIELDS;
     static {
         Set<String> fields = new HashSet<>(COORDINATOR_DATASET_KEYS);
-        fields.add(SCHEMA_SAMPLE_SIZE);
+        fields.addAll(FORMAT_SPECIFIC_VOCABULARY_KEYS);
         DATASET_FIELDS = Set.copyOf(fields);
     }
 
     /**
-     * Base dataset fields excluding the {@code format} selector, used by the no-resolver path: without a
-     * {@link FormatConfigKeyResolver} the validator cannot validate a {@code format} value, so it rejects
-     * {@code format} (and every format-specific key) just as it did before {@code format} became a
-     * first-class setting.
+     * {@link #DATASET_FIELDS} minus the {@code format} selector, used by the no-resolver path: without a
+     * {@link FormatConfigKeyResolver} the validator cannot validate a {@code format} value or any format-specific
+     * key set, so it rejects {@code format} but accepts {@link #FORMAT_SPECIFIC_VOCABULARY_KEYS} (e.g.
+     * {@code schema_sample_size}) because those are format-agnostic at the no-resolver layer.
      */
     private static final Set<String> DATASET_FIELDS_WITHOUT_FORMAT;
     static {
@@ -263,8 +271,10 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
         Map<String, Object> result = new HashMap<>();
 
-        // schema_sample_size keeps its dedicated bounded-int validation, which also stores the parsed int.
-        validateInt(settings, result, SCHEMA_SAMPLE_SIZE, 1, SCHEMA_SAMPLE_SIZE_MAX, errors);
+        // Only validate schema_sample_size when the resolved format claims it (CSV/NDJSON do; Parquet does not).
+        if (acceptedFields.contains(SCHEMA_SAMPLE_SIZE)) {
+            validateInt(settings, result, SCHEMA_SAMPLE_SIZE, 1, SCHEMA_SAMPLE_SIZE_MAX, errors);
+        }
 
         // Strictly validate the data-shape coordinator keys by delegating to the very parsers the
         // query path uses, so a malformed setting is rejected at PUT time with the same message it
@@ -439,9 +449,13 @@ public class FileDataSourceValidator implements DataSourceValidator {
         return "cannot determine format for [" + resource + "]; set \"format\" to use settings like " + new TreeSet<>(formatSpecificKeys);
     }
 
-    /** Accepts the base dataset fields unioned with {@code formatKeys}, rejecting anything else. */
+    /**
+     * Accepts {@link #COORDINATOR_DATASET_KEYS} unioned with {@code formatKeys}, rejecting anything else.
+     * Starts from {@code COORDINATOR_DATASET_KEYS} (not {@code DATASET_FIELDS}) so format-specific keys
+     * like {@code schema_sample_size} are only admitted when the format's own key set includes them.
+     */
     private static Set<String> acceptStrict(Map<String, Object> settings, Set<String> formatKeys, ValidationException errors) {
-        Set<String> accepted = new HashSet<>(DATASET_FIELDS);
+        Set<String> accepted = new HashSet<>(COORDINATOR_DATASET_KEYS);
         accepted.addAll(formatKeys);
         rejectUnknownFields(settings, accepted, errors);
         return accepted;

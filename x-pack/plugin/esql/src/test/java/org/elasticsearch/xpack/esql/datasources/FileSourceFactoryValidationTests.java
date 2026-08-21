@@ -9,11 +9,14 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -62,7 +65,7 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
     public void testFrameworkKeysAreSubsetOfCoordinatorKeys() {
         Set<String> missing = new TreeSet<>(StorageProviderRegistry.FRAMEWORK_KEYS);
         missing.removeAll(FileSourceFactory.COORDINATOR_KEYS);
-        assertTrue("FRAMEWORK_KEYS not in COORDINATOR_KEYS: " + missing, missing.isEmpty());
+        assertTrue("FRAMEWORK_KEYS not in FileSourceFactory.COORDINATOR_KEYS: " + missing, missing.isEmpty());
     }
 
     public void testCoordinatorKeysIncludesAllErrorPolicyKeys() {
@@ -97,7 +100,7 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
 
     /**
      * Pins the dataset CRUD vocabulary against the query path: the coordinator-level data-shape keys a
-     * dataset accepts must be exactly {@code COORDINATOR_KEYS} minus the EXTERNAL-only allowlist
+     * dataset accepts must be exactly {@code FileSourceFactory.COORDINATOR_KEYS} minus the EXTERNAL-only allowlist
      * ({@code reader}) and the internal {@code _datasource} envelope. {@code format} is a first-class
      * dataset setting and so must be present in {@code COORDINATOR_DATASET_KEYS}. If a future change
      * adds a coordinator key without either exposing it on the dataset or allowlisting it as
@@ -108,7 +111,8 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
         expected.removeAll(FileSourceFactory.EXTERNAL_ONLY_KEYS);
         expected.remove(ExternalSourceResolver.DATASOURCE_CONFIG_KEY);
         assertEquals(
-            "dataset coordinator keys must equal COORDINATOR_KEYS minus the EXTERNAL-only allowlist and the internal " + "_datasource key",
+            "dataset coordinator keys must equal FileSourceFactory.COORDINATOR_KEYS minus the EXTERNAL-only allowlist and the internal "
+                + "_datasource key",
             expected,
             new TreeSet<>(FileDataSourceValidator.COORDINATOR_DATASET_KEYS)
         );
@@ -116,6 +120,35 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
 
     public void testExternalOnlyKeysIsExactlyReader() {
         assertEquals(Set.of(FormatNameResolver.CONFIG_READER), FileSourceFactory.EXTERNAL_ONLY_KEYS);
+    }
+
+    /**
+     * Pins the dataset-query bypass: schema_sample_size stored at PUT time must not cause "unknown option"
+     * at query time when the Parquet reader doesn't claim it. The bypass is only active for dataset-originated
+     * queries (config contains {@code _datasource}); inline queries without that key still reject it.
+     * Production wiring: FileSourceFactory.validateConfig conditionally includes FORMAT_SPECIFIC_VOCABULARY_KEYS.
+     */
+    public void testFormatSpecificVocabularyKeysBypassRequiresDatasourceKey() {
+        Set<String> parquetReaderKeys = Set.of("optimized_reader", "late_materialization");
+        Map<String, Object> datasetConfig = Map.of("schema_sample_size", "50", "_datasource", Map.of());
+        Map<String, Object> inlineConfig = Map.of("schema_sample_size", "50");
+
+        // Dataset path: bypass active — no exception.
+        ConfigKeyValidator.check(
+            datasetConfig,
+            List.of(parquetReaderKeys, FileSourceFactory.COORDINATOR_KEYS, FileDataSourceValidator.FORMAT_SPECIFIC_VOCABULARY_KEYS)
+        );
+
+        // Inline path: bypass absent — schema_sample_size must be rejected.
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> ConfigKeyValidator.check(inlineConfig, List.of(parquetReaderKeys, FileSourceFactory.COORDINATOR_KEYS))
+        );
+    }
+
+    /** Pins the membership of FORMAT_SPECIFIC_VOCABULARY_KEYS so drift is caught at compile time. */
+    public void testFormatSpecificVocabularyKeysContainsSchemaSampleSize() {
+        assertTrue(FileDataSourceValidator.FORMAT_SPECIFIC_VOCABULARY_KEYS.contains("schema_sample_size"));
     }
 
     public void testFormatIsAFirstClassDatasetKey() {
@@ -132,7 +165,7 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
     public void testExternalOnlyKeysAreCoordinatorKeys() {
         Set<String> missing = new TreeSet<>(FileSourceFactory.EXTERNAL_ONLY_KEYS);
         missing.removeAll(FileSourceFactory.COORDINATOR_KEYS);
-        assertTrue("EXTERNAL_ONLY_KEYS not in COORDINATOR_KEYS: " + missing, missing.isEmpty());
+        assertTrue("EXTERNAL_ONLY_KEYS not in FileSourceFactory.COORDINATOR_KEYS: " + missing, missing.isEmpty());
     }
 
     /**

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -289,7 +290,19 @@ final class FileSourceFactory implements ExternalSourceFactory {
         Configured<FormatReader> resolvedReader = resolveFormatReader(storagePath.objectName(), config).withConfigTrackingConsumedKeys(
             config
         );
-        ConfigKeyValidator.check(config, List.of(resolvedStorage.consumedKeys(), resolvedReader.consumedKeys(), COORDINATOR_KEYS));
+        // For dataset-originated queries (_datasource key present), include FORMAT_SPECIFIC_VOCABULARY_KEYS
+        // so that schema_sample_size stored when the format was unknown at PUT does not fail as "unknown option"
+        // against a Parquet reader. Inline queries (no _datasource) have no PUT-time ambiguity and should still
+        // reject schema_sample_size for Parquet formats.
+        List<Set<String>> claimedSets = config.containsKey(ExternalSourceResolver.DATASOURCE_CONFIG_KEY)
+            ? List.of(
+                resolvedStorage.consumedKeys(),
+                resolvedReader.consumedKeys(),
+                COORDINATOR_KEYS,
+                FileDataSourceValidator.FORMAT_SPECIFIC_VOCABULARY_KEYS
+            )
+            : List.of(resolvedStorage.consumedKeys(), resolvedReader.consumedKeys(), COORDINATOR_KEYS);
+        ConfigKeyValidator.check(config, claimedSets);
     }
 
     @Override

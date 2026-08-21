@@ -290,7 +290,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         Failures failures
     ) {
         super.fieldVerifier(plan, function, field, analysisRegistry, failures);
-        if (isRuntimeSearch() == false) {
+        if (false == isRuntimeSearch()) {
             return;
         }
 
@@ -298,7 +298,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
             failures.add(
                 Failure.fail(
                     query(),
-                    "[KNN] cannot operate on [{}] of type [{}]; a non-index-mapped field must be a dense_vector expression",
+                    "[KNN] cannot operate on [{}] of type [{}]; a non-index-mapped field/expression must resolve to dense_vector type",
                     field.sourceText(),
                     field.dataType().typeName()
                 )
@@ -349,7 +349,13 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         ExpressionEvaluator.Factory fieldFactory = toEvaluator.apply(field());
         float[] queryVector = queryAsFloats();
         Float similarityThreshold = similarityThresholdOption();
-        return new RuntimeKnnFilterEvaluatorFactory(source(), fieldFactory, queryVector, CosineSimilarity.SIMILARITY_FUNCTION, similarityThreshold);
+        return new RuntimeKnnFilterEvaluatorFactory(
+            source(),
+            fieldFactory,
+            queryVector,
+            CosineSimilarity.SIMILARITY_FUNCTION,
+            similarityThreshold
+        );
     }
 
     @Override
@@ -619,9 +625,12 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
                         float[] fieldVector = readVector(fieldBlock, p);
                         if (fieldVector.length != queryVector.length) {
                             warnings().registerException(new IllegalArgumentException("dense_vector dimensions do not match"));
+                            builder.appendNull();
+                            continue;
                         }
-                        if (similarityFunction == null) {
+                        if (similarityThreshold == null) {
                             builder.appendBoolean(true);
+                            continue;
                         }
                         builder.appendBoolean(similarityFunction.calculateSimilarity(fieldVector, queryVector) >= similarityThreshold);
                     }

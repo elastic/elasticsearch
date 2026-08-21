@@ -237,7 +237,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             assertEquals(expected, fieldType.embeddingsFieldAndFormat(vectorType));
         }
 
-        // With model_settings, only the matching vector type is accepted.
+        // With model_settings, only the matching vector type is accepted; a mismatch throws.
         for (TaskType taskType : supportedTaskTypes()) {
             String inferenceId = randomAlphaOfLength(8);
             EndpointClusterState modelSettings = createRandomModelSettings(taskType);
@@ -249,7 +249,22 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             assertEquals(expected, ftWithSettings.embeddingsFieldAndFormat(null));
             for (VectorType vectorType : VectorType.values()) {
                 if (vectorType != producedType) {
-                    assertNull(ftWithSettings.embeddingsFieldAndFormat(vectorType));
+                    IllegalArgumentException e = expectThrows(
+                        IllegalArgumentException.class,
+                        () -> ftWithSettings.embeddingsFieldAndFormat(vectorType)
+                    );
+                    assertThat(
+                        e.getMessage(),
+                        equalTo(
+                            "Field [field] of type ["
+                                + ftWithSettings.typeName()
+                                + "] produces incompatible embeddings (requested: ["
+                                + vectorType
+                                + "], produced: ["
+                                + producedType
+                                + "])"
+                        )
+                    );
                 } else {
                     assertEquals(expected, ftWithSettings.embeddingsFieldAndFormat(vectorType));
                 }

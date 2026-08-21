@@ -45,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -199,17 +200,36 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
-     * Most field types expose no embeddings, so they must return {@code null} for every requested vector type. Field types that can
-     * produce embeddings override this test.
+     * Most field types expose no embeddings, so they must throw for every requested vector type. Field types that can produce
+     * embeddings override this test.
      */
     public void testEmbeddingsFieldAndFormat() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         MappedFieldType fieldType = mapperService.fieldType("field");
-        assertNull(fieldType.embeddingsFieldAndFormat(null));
+        assertUnsupportedEmbeddings(fieldType, null);
         for (VectorType vectorType : VectorType.values()) {
-            assertNull(fieldType.embeddingsFieldAndFormat(vectorType));
+            assertUnsupportedEmbeddings(fieldType, vectorType);
         }
         assertParseMinimalWarnings();
+    }
+
+    /**
+     * Asserts that the field type cannot produce embeddings of the requested type, failing with the message that
+     * {@link MappedFieldType#unsupportedEmbeddings} builds.
+     */
+    protected static void assertUnsupportedEmbeddings(MappedFieldType fieldType, @Nullable VectorType vectorType) {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fieldType.embeddingsFieldAndFormat(vectorType));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Field ["
+                    + fieldType.name()
+                    + "] of type ["
+                    + fieldType.typeName()
+                    + "] does not support "
+                    + (vectorType == null ? "embeddings" : "[" + vectorType + "] embeddings")
+            )
+        );
     }
 
     // TODO make this final once we've worked out what is happening with DenseVector

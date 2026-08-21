@@ -1523,6 +1523,13 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_WITH_CASE_COALESCE_IS_NULL,
 
         /**
+         * Support IN subquery inside {@code CASE}, {@code COALESCE}, and {@code IS [NOT] NULL} expressions in the {@code WHERE} command,
+         * even if the {@code CASE}, {@code COALESCE}, and {@code IS [NOT] NULL} expressions are nested inside another expression, where an
+         * IN subquery is not directly supported there.
+         */
+        WHERE_IN_SUBQUERY_WITH_CASE_COALESCE_IS_NULL_DEEPLY_NESTED,
+
+        /**
          * Support multi-column IN subqueries in WHERE: WHERE (field1, field2) IN (FROM index | KEEP field1, field2).
          */
         WHERE_IN_MULTI_COLUMN_SUBQUERY(Build.current().isSnapshot()),
@@ -3360,6 +3367,12 @@ public class EsqlCapabilities {
          * count. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
          */
         OPTIONAL_FIELDS_LOAD_ALL_NET_ZERO_PROJECTION(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
+
+        /**
+         * Support for {@code STATS} under {@code unmapped_fields="LOAD_ALL"}.
+         * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_STATS(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
 
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.

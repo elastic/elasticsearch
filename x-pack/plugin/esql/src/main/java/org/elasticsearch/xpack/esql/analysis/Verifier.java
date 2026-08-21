@@ -539,9 +539,8 @@ public class Verifier {
     }
 
     /**
-     * Temporary MVP guardrail for {@code unmapped_fields="LOAD_ALL"}: only FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT and LIMIT
-     * are supported. Any other command (STATS, JOIN, FORK, ENRICH, views, ...) is rejected until its interaction with the
-     * expanded {@code _unmapped_fields} column is designed and implemented.
+     * Temporary MVP guardrail for {@code unmapped_fields="LOAD_ALL"} until the interaction of all commands with
+     * {@code _unmapped_fields} is designed and implemented.
      */
     private static void checkLoadAllModeSupportedCommands(LogicalPlan plan, Failures failures) {
         plan.forEachDown(p -> {
@@ -549,9 +548,11 @@ public class Verifier {
                 failures.add(
                     fail(
                         p,
-                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT and LIMIT "
-                            + "commands; [{}] is not supported yet",
-                        p instanceof TelemetryAware telemetryAware ? telemetryAware.telemetryLabel() : p.nodeName()
+                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT "
+                            + "and STATS commands; [{}] is not supported yet",
+                        p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
+                            : p instanceof TelemetryAware ta ? ta.telemetryLabel()
+                            : p.nodeName()
                     )
                 );
             }
@@ -560,7 +561,7 @@ public class Verifier {
 
     private static boolean supportedInLoadAllMode(LogicalPlan plan) {
         // Keep/Drop/Rename may still be present, or already resolved to Project, by the time verification runs.
-        return plan instanceof EsRelation
+        return (plan instanceof EsRelation esr && esr.indexMode().isTsdb() == false)
             || plan instanceof Project
             || plan instanceof Keep
             || plan instanceof Drop
@@ -568,7 +569,8 @@ public class Verifier {
             || plan instanceof Eval
             || plan instanceof Filter
             || plan instanceof OrderBy
-            || plan instanceof Limit;
+            || plan instanceof Limit
+            || plan instanceof Aggregate;
     }
 
     /**

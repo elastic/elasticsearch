@@ -11,6 +11,7 @@ package org.elasticsearch.columnar.substrate;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
 
 import java.io.IOException;
@@ -34,6 +35,8 @@ public final class ChunkedBytesReader {
     private final long numChunks;
 
     private byte[] chunk = new byte[0];
+    // Holds a span read from a verbatim chunk, where there is no decoded chunk to point into.
+    private byte[] verbatim = new byte[0];
     private long cachedChunk = -1;
     private long cachedStart = 0;
     private int cachedLength = 0;
@@ -88,6 +91,37 @@ public final class ChunkedBytesReader {
                 + "; chunks must close on the boundaries the caller addresses";
         System.arraycopy(chunk, (int) (offset - cachedStart), dst, 0, length);
         return dst;
+    }
+
+    /**
+     * Points {@code dst} at {@code length} bytes at {@code offset} rather than copying them. The bytes are
+     * the decoded chunk's own, or the file's under the identity codec, and stay valid only until the next
+     * call on this reader. A caller that decodes a block and then hands out the values inside it saves a
+     * copy of the whole block this way; one that keeps the bytes must copy them.
+     */
+    public void span(long offset, int length, BytesRef dst) throws IOException {
+        if (length == 0) {
+            dst.bytes = chunk;
+            dst.offset = 0;
+            dst.length = 0;
+            return;
+        }
+        if (codec.isIdentity()) {
+            // Stored verbatim in the file, so there is no decoded chunk to point into.
+            verbatim = ArrayUtil.growNoCopy(verbatim, length);
+            data.seek(dataOffset + offset);
+            data.readBytes(verbatim, 0, length);
+            dst.bytes = verbatim;
+            dst.offset = 0;
+            dst.length = length;
+            return;
+        }
+        final long index = chunkContaining(offset);
+        ensureChunk(index);
+        assert offset - cachedStart + length <= cachedLength : "span of " + length + " at " + offset + " leaves chunk " + index;
+        dst.bytes = chunk;
+        dst.offset = (int) (offset - cachedStart);
+        dst.length = length;
     }
 
     /** The chunk holding {@code offset}, by binary search over the chunk starts. */

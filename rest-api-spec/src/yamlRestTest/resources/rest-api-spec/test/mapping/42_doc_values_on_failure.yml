@@ -846,3 +846,516 @@
 
   - match: { test_on_failure_mapping_roundtrip_columnar.mappings.properties.kw.doc_values.multi_value: false }
   - match: { test_on_failure_mapping_roundtrip_columnar.mappings.properties.kw.doc_values.on_failure: "ignore" }
+
+---
+"nullability=false with on_failure=ignore accepts a missing field (logsdb_columnar)":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.doc_values.on_failure"]
+      reason: "._on_failure sidecar wired into synthetic source reconstruction"
+
+  - do:
+      indices.create:
+        index: test_on_failure_nullability_missing
+        body:
+          settings:
+            index.mode: logsdb_columnar
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  nullability: false
+                  on_failure: ignore
+
+  # A document that omits the field is accepted instead of rejected: the field is marked ignored.
+  - do:
+      index:
+        index: test_on_failure_nullability_missing
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+
+  - do:
+      indices.refresh:
+        index: test_on_failure_nullability_missing
+
+  - do:
+      get:
+        index: test_on_failure_nullability_missing
+        id: "1"
+        stored_fields: [ _ignored ]
+  - match: { _ignored: [ "kw" ] }
+
+  - do:
+      get:
+        index: test_on_failure_nullability_missing
+        id: "1"
+  - is_false: _source.kw
+
+  # Negative control: a document that provides the field is accepted without any _ignored entry.
+  - do:
+      index:
+        index: test_on_failure_nullability_missing
+        id: "2"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: "val"
+
+  - do:
+      indices.refresh:
+        index: test_on_failure_nullability_missing
+
+  - do:
+      get:
+        index: test_on_failure_nullability_missing
+        id: "2"
+        stored_fields: [ _ignored ]
+  - is_false: _ignored
+
+  - do:
+      get:
+        index: test_on_failure_nullability_missing
+        id: "2"
+  - match: { _source.kw: "val" }
+
+---
+"nullability=false with on_failure=ignore accepts a missing field (columnar)":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.doc_values.on_failure"]
+      reason: "._on_failure sidecar wired into synthetic source reconstruction"
+
+  - do:
+      indices.create:
+        index: test_on_failure_nullability_missing_columnar
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  nullability: false
+                  on_failure: ignore
+
+  # A document that omits the field is accepted instead of rejected: the field is marked ignored.
+  - do:
+      index:
+        index: test_on_failure_nullability_missing_columnar
+        id: "1"
+        body: {}
+
+  - do:
+      indices.refresh:
+        index: test_on_failure_nullability_missing_columnar
+
+  - do:
+      get:
+        index: test_on_failure_nullability_missing_columnar
+        id: "1"
+        stored_fields: [ _ignored ]
+  - match: { _ignored: [ "kw" ] }
+
+  - do:
+      get:
+        index: test_on_failure_nullability_missing_columnar
+        id: "1"
+  - is_false: _source.kw
+
+  # Negative control: a document that provides the field is accepted without any _ignored entry.
+  - do:
+      index:
+        index: test_on_failure_nullability_missing_columnar
+        id: "2"
+        body:
+          kw: "val"
+
+  - do:
+      indices.refresh:
+        index: test_on_failure_nullability_missing_columnar
+
+  - do:
+      get:
+        index: test_on_failure_nullability_missing_columnar
+        id: "2"
+        stored_fields: [ _ignored ]
+  - is_false: _ignored
+
+  - do:
+      get:
+        index: test_on_failure_nullability_missing_columnar
+        id: "2"
+  - match: { _source.kw: "val" }
+
+---
+"nullability=false with on_failure=ignore accepts null and empty arrays (logsdb_columnar)":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.doc_values.on_failure"]
+      reason: "._on_failure sidecar wired into synthetic source reconstruction"
+
+  - do:
+      indices.create:
+        index: test_on_failure_nullability_null
+        body:
+          settings:
+            index.mode: logsdb_columnar
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  nullability: false
+                  on_failure: ignore
+
+  # An explicit null is treated as absent: the field is marked ignored.
+  - do:
+      index:
+        index: test_on_failure_nullability_null
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: null
+
+  # An empty array is treated as absent: the field is marked ignored.
+  - do:
+      index:
+        index: test_on_failure_nullability_null
+        id: "2"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: []
+
+  # An all-null array is treated as absent: the field is marked ignored.
+  - do:
+      index:
+        index: test_on_failure_nullability_null
+        id: "3"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: [null, null]
+
+  # A mixed array with at least one real value satisfies the requirement — the null is discarded
+  # by nullIsAbsent, so the field is not marked ignored.
+  - do:
+      index:
+        index: test_on_failure_nullability_null
+        id: "4"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: [null, "val"]
+
+  - do:
+      indices.refresh:
+        index: test_on_failure_nullability_null
+
+  - do:
+      get:
+        index: test_on_failure_nullability_null
+        id: "1"
+        stored_fields: [ _ignored ]
+  - match: { _ignored: [ "kw" ] }
+
+  - do:
+      get:
+        index: test_on_failure_nullability_null
+        id: "2"
+        stored_fields: [ _ignored ]
+  - match: { _ignored: [ "kw" ] }
+
+  - do:
+      get:
+        index: test_on_failure_nullability_null
+        id: "3"
+        stored_fields: [ _ignored ]
+  - match: { _ignored: [ "kw" ] }
+
+  # The mixed-array document must not have triggered the nullability violation.
+  # Note: synthetic source preserves the original array including the leading null, so
+  # _source.kw is [null, "val"] — we assert the field is present and the violation was not triggered.
+  - do:
+      get:
+        index: test_on_failure_nullability_null
+        id: "4"
+        stored_fields: [ _ignored ]
+  - is_false: _ignored
+
+  - do:
+      get:
+        index: test_on_failure_nullability_null
+        id: "4"
+  - is_true: _source.kw
+
+---
+"nullability=false with on_failure=ignore accepts null and empty arrays (columnar)":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.doc_values.on_failure"]
+      reason: "._on_failure sidecar wired into synthetic source reconstruction"
+
+  - do:
+      indices.create:
+        index: test_on_failure_nullability_null_columnar
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  nullability: false
+                  on_failure: ignore
+
+  # An explicit null is treated as absent: the field is marked ignored.
+  - do:
+      index:
+        index: test_on_failure_nullability_null_columnar
+        id: "1"
+        body:
+          kw: null
+
+  # An empty array is treated as absent: the field is marked ignored.
+  - do:
+      index:
+        index: test_on_failure_nullability_null_columnar
+        id: "2"
+        body:
+          kw: []
+
+  # An all-null array is treated as absent: the field is marked ignored.
+  - do:
+      index:
+        index: test_on_failure_nullability_null_columnar
+        id: "3"
+        body:
+          kw: [null, null]
+
+  # A mixed array with at least one real value satisfies the requirement — the null is discarded
+  # by nullIsAbsent, so the field is not marked ignored.
+  - do:
+      index:
+        index: test_on_failure_nullability_null_columnar
+        id: "4"
+        body:
+          kw: [null, "val"]
+
+  - do:
+      indices.refresh:
+        index: test_on_failure_nullability_null_columnar
+
+  - do:
+      get:
+        index: test_on_failure_nullability_null_columnar
+        id: "1"
+        stored_fields: [ _ignored ]
+  - match: { _ignored: [ "kw" ] }
+
+  - do:
+      get:
+        index: test_on_failure_nullability_null_columnar
+        id: "2"
+        stored_fields: [ _ignored ]
+  - match: { _ignored: [ "kw" ] }
+
+  - do:
+      get:
+        index: test_on_failure_nullability_null_columnar
+        id: "3"
+        stored_fields: [ _ignored ]
+  - match: { _ignored: [ "kw" ] }
+
+  # The mixed-array document must not have triggered the nullability violation.
+  # Note: synthetic source preserves the original array including the leading null, so
+  # _source.kw is [null, "val"] — we assert the field is present and the violation was not triggered.
+  - do:
+      get:
+        index: test_on_failure_nullability_null_columnar
+        id: "4"
+        stored_fields: [ _ignored ]
+  - is_false: _ignored
+
+  - do:
+      get:
+        index: test_on_failure_nullability_null_columnar
+        id: "4"
+  - is_true: _source.kw
+
+---
+# on_failure is resolved per required field: a field configured with on_failure=ignore is silently
+# marked _ignored, while a field configured with the default on_failure=fail aborts the document.
+# The index.mode axis does not affect this behaviour (no value is redirected to a sidecar column for
+# nullability violations), so this scenario is only exercised for logsdb_columnar.
+"on_failure is resolved per field for nullability violations (logsdb_columnar)":
+  - requires:
+      test_runner_features: [ capabilities, contains ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.doc_values.on_failure"]
+      reason: "._on_failure sidecar wired into synthetic source reconstruction"
+
+  - do:
+      indices.create:
+        index: test_on_failure_nullability_per_field
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              kw_ignore:
+                type: keyword
+                doc_values:
+                  nullability: false
+                  on_failure: ignore
+              kw_fail:
+                type: keyword
+                doc_values:
+                  nullability: false
+
+  # Both fields missing: the fail field aborts the document; kw_ignore is excluded from the error.
+  - do:
+      catch: bad_request
+      index:
+        index: test_on_failure_nullability_per_field
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+  - match: { error.type: "document_parsing_exception" }
+  - contains: { error.reason: "Field(s) [kw_fail]" }
+
+  # Only the fail field supplied: the document is accepted and kw_ignore is marked ignored.
+  - do:
+      index:
+        index: test_on_failure_nullability_per_field
+        id: "2"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw_fail: "provided"
+
+  - do:
+      indices.refresh:
+        index: test_on_failure_nullability_per_field
+
+  - do:
+      get:
+        index: test_on_failure_nullability_per_field
+        id: "2"
+        stored_fields: [ _ignored ]
+  - match: { _ignored: [ "kw_ignore" ] }
+
+---
+# The index-level on_failure setting applies to all fields that inherit it (i.e. have not overridden
+# it at the field level) and that also have nullability=false. A field that overrides on_failure=fail
+# at the field level still fails the document even if the index-level setting is ignore.
+"index.mapping.doc_values.on_failure=ignore applies to nullability violations (logsdb_columnar)":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.doc_values.on_failure"]
+      reason: "._on_failure sidecar wired into synthetic source reconstruction"
+
+  - do:
+      indices.create:
+        index: test_on_failure_nullability_index_setting
+        body:
+          settings:
+            index.mode: logsdb_columnar
+            index.mapping.doc_values.on_failure: ignore
+            index.mapping.doc_values.nullability: false
+          mappings:
+            properties:
+              kw:
+                type: keyword
+              kw_override:
+                type: keyword
+                doc_values:
+                  on_failure: fail
+
+  # Only kw missing: accepted (index-level on_failure=ignore); kw is marked ignored.
+  - do:
+      index:
+        index: test_on_failure_nullability_index_setting
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw_override: "provided"
+
+  - do:
+      indices.refresh:
+        index: test_on_failure_nullability_index_setting
+
+  - do:
+      get:
+        index: test_on_failure_nullability_index_setting
+        id: "1"
+        stored_fields: [ _ignored ]
+  - match: { _ignored: [ "kw" ] }
+
+  # Only kw_override missing: rejected because its field-level on_failure=fail overrides the index default.
+  - do:
+      catch: /configured with \[nullability=false\] but no value was provided/
+      index:
+        index: test_on_failure_nullability_index_setting
+        id: "2"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: "provided"
+
+---
+"nullability=false with on_failure=ignore mapping serialization roundtrip (logsdb_columnar)":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.doc_values.on_failure"]
+      reason: "._on_failure sidecar wired into synthetic source reconstruction"
+
+  - do:
+      indices.create:
+        index: test_on_failure_nullability_roundtrip
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  nullability: false
+                  on_failure: ignore
+
+  - do:
+      indices.get_mapping:
+        index: test_on_failure_nullability_roundtrip
+
+  - match: { test_on_failure_nullability_roundtrip.mappings.properties.kw.doc_values.nullability: false }
+  - match: { test_on_failure_nullability_roundtrip.mappings.properties.kw.doc_values.on_failure: "ignore" }

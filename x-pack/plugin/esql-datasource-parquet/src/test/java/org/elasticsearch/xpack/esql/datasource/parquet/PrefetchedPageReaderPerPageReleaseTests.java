@@ -21,6 +21,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.Matchers.greaterThan;
@@ -29,22 +30,20 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * Pins the per-(column, reader) decompressed working-set bound on {@link PrefetchedPageReader}:
- * live native memory stays O(one page), not O(uncompressed column chunk). The reader reuses one
- * decompress buffer across pages (grown only when a later page needs more capacity) and releases
- * it on {@link PrefetchedPageReader#close()}.
+ * Pins two contracts on {@link PrefetchedPageReader}: live native memory stays O(high-water-mark
+ * page), not O(uncompressed column chunk); and equal-sized direct pages malloc the decompress
+ * buffer once, not once per page. The reader reuses one buffer (grown only when a later page
+ * needs more capacity) and releases it on {@link PrefetchedPageReader#close()}.
  *
  * <p>Before per-page bounding, every {@code decompressToDirectBuffer} output was parked until
- * {@link PrefetchedPageReader#close()} at row-group rollover — the whole column chunk's
- * decompressed bytes were held live simultaneously and, multiplied across projected columns and
- * concurrent read streams, climbed until the OS OOM-killer took the node (invisible to every
- * heap-only circuit breaker). These tests FAIL on that accumulation: the allocator balance grows
- * by one page per {@code readPage()}. They PASS when live memory stays bounded by one page.
+ * {@link PrefetchedPageReader#close()} at row-group rollover. The live-bound tests FAIL on that
+ * accumulation. Reuse failures (malloc per page with live still O(one page)) still pass those
+ * tests — {@link #testBufferReuseReducesAllocationCount} is the malloc pin.
  *
  * <p>Both a zstd {@link DataPageV2} (the canonical bench case, direct-to-direct JNI fast path) and
  * a gzip {@link DataPageV1} (the codec-uniformity twin, heap-staged, no native-library dependency)
- * are covered — the direct decompress-output buffer is allocated by {@code decompressToDirectBuffer}
- * identically for every codec, so the fix must bound the working set uniformly.
+ * are covered for the live bound. Allocation-count tests use direct compressed input so the
+ * heap-to-direct scratch path cannot hide output-buffer reuse.
  */
 public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
 
@@ -76,26 +75,38 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
      * not used here: that path allocates a scratch buffer per page and would hide reuse.
      */
     public void testBufferReuseReducesAllocationCount() throws IOException {
+        int[] sizes = new int[PAGES];
+        Arrays.fill(sizes, PAGE_PAYLOAD_BYTES);
         CountingListener listener = new CountingListener();
-        PagesFixture fixture = buildDirectZstdV2Pages(PAGE_PAYLOAD_BYTES, PAGE_PAYLOAD_BYTES, PAGE_PAYLOAD_BYTES, PAGE_PAYLOAD_BYTES);
+        DirectPagesFixture fixture = buildDirectZstdV2Pages(sizes);
         try (RootAllocator allocator = new RootAllocator(listener, Long.MAX_VALUE)) {
             PrefetchedPageReader reader = new PrefetchedPageReader(
-                fixture.codecFactory.getDecompressor(fixture.codec),
+                fixture.codecFactory.getDecompressor(CompressionCodecName.ZSTD),
                 allocator,
                 fixture.pages,
                 null,
-                (long) PAGE_PAYLOAD_BYTES * PAGES
+                valueCount(sizes)
             );
             try {
                 int baseline = listener.allocations;
-                for (int p = 0; p < PAGES; p++) {
-                    assertNotNull(reader.readPage());
+                DataPageV2 first = (DataPageV2) reader.readPage();
+                assertNotNull(first);
+                BytesInput firstData = first.getData();
+                assertArrayEquals(fixture.payloads.get(0), firstData.toByteArray());
+
+                DataPageV2 second = (DataPageV2) reader.readPage();
+                assertNotNull(second);
+                assertArrayEquals(fixture.payloads.get(1), second.getData().toByteArray());
+                // Stale alias of page 1 now sees page 2 — reuse overwrites in place.
+                assertArrayEquals(fixture.payloads.get(1), firstData.toByteArray());
+
+                for (int p = 2; p < PAGES; p++) {
+                    DataPageV2 page = (DataPageV2) reader.readPage();
+                    assertNotNull(page);
+                    assertArrayEquals(fixture.payloads.get(p), page.getData().toByteArray());
                 }
                 assertNull(reader.readPage());
-                int allocated = listener.allocations - baseline;
-                assertThat("must allocate the decompress buffer at least once", allocated, greaterThanOrEqualTo(1));
-                assertThat("equal-sized pages must reuse one decompress buffer, not malloc per page", allocated, lessThanOrEqualTo(2));
-                assertThat(allocated, lessThan(PAGES));
+                assertEquals("equal-sized direct pages must malloc the decompress buffer once", 1, listener.allocations - baseline);
             } finally {
                 reader.close();
             }
@@ -106,77 +117,49 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
     }
 
     /**
-     * Reused buffer stays live after the queue is drained and is released only on {@code close()}.
-     */
-    public void testReusedBufferReleasedOnClose() throws IOException {
-        PagesFixture fixture = buildZstdV2Pages();
-        try (RootAllocator allocator = new RootAllocator(Long.MAX_VALUE)) {
-            PrefetchedPageReader reader = new PrefetchedPageReader(
-                fixture.codecFactory.getDecompressor(fixture.codec),
-                allocator,
-                fixture.pages,
-                null,
-                (long) PAGE_PAYLOAD_BYTES * PAGES
-            );
-            try {
-                for (int p = 0; p < PAGES; p++) {
-                    assertNotNull(reader.readPage());
-                }
-                assertNull(reader.readPage());
-                assertThat(
-                    "reusable decompress buffer must stay live after the last readPage()",
-                    allocator.getAllocatedMemory(),
-                    greaterThan(0L)
-                );
-            } finally {
-                reader.close();
-            }
-            assertEquals("close() must return the reused buffer to the allocator", 0L, allocator.getAllocatedMemory());
-        } finally {
-            fixture.codecFactory.release();
-        }
-    }
-
-    /**
-     * Growing pages realloc; a later smaller page reuses the large buffer. Live memory never
-     * accumulates across pages.
+     * Growing pages realloc and free the previous buffer; a later smaller page reuses the large
+     * buffer. Live memory never becomes the sum of grown sizes.
      */
     public void testBufferReuseHandlesVaryingPageSizes() throws IOException {
         int[] sizes = { 32 * 1024, 64 * 1024, 128 * 1024, 64 * 1024 };
         CountingListener listener = new CountingListener();
-        PagesFixture fixture = buildDirectZstdV2Pages(sizes);
-        long totalValues = 0;
-        for (int size : sizes) {
-            totalValues += size / 4;
-        }
+        DirectPagesFixture fixture = buildDirectZstdV2Pages(sizes);
         try (RootAllocator allocator = new RootAllocator(listener, Long.MAX_VALUE)) {
             PrefetchedPageReader reader = new PrefetchedPageReader(
-                fixture.codecFactory.getDecompressor(fixture.codec),
+                fixture.codecFactory.getDecompressor(CompressionCodecName.ZSTD),
                 allocator,
                 fixture.pages,
                 null,
-                totalValues
+                valueCount(sizes)
             );
             try {
+                long cap = 0L;
                 long peakLive = 0L;
                 for (int i = 0; i < sizes.length; i++) {
                     long liveBefore = allocator.getAllocatedMemory();
                     int allocationsBefore = listener.allocations;
-                    assertNotNull(reader.readPage());
-                    if (sizes[i] > liveBefore) {
+                    DataPageV2 page = (DataPageV2) reader.readPage();
+                    assertNotNull(page);
+                    assertArrayEquals(fixture.payloads.get(i), page.getData().toByteArray());
+                    long live = allocator.getAllocatedMemory();
+                    if (sizes[i] > cap) {
                         assertThat(
                             "page larger than the reusable buffer must allocate",
                             listener.allocations,
                             greaterThan(allocationsBefore)
                         );
+                        if (liveBefore > 0L) {
+                            // Leak-on-grow would keep the old buf: live ≈ liveBefore + sizes[i].
+                            assertThat("grow must free the previous decompress buffer", live, lessThan(liveBefore + sizes[i]));
+                        }
+                        cap = sizes[i];
                     } else {
                         assertEquals("page that fits in the reusable buffer must not allocate", allocationsBefore, listener.allocations);
+                        assertEquals("smaller page must keep the high-water buffer", peakLive, live);
                     }
-                    long live = allocator.getAllocatedMemory();
                     peakLive = Math.max(peakLive, live);
-                    assertEquals("live memory must not accumulate across pages", peakLive, live);
                 }
-                assertThat("must not malloc once per page", listener.allocations, lessThan(sizes.length));
+                assertEquals("three grows, then one reuse", 3, listener.allocations);
                 assertThat(allocator.getAllocatedMemory(), greaterThan(0L));
             } finally {
                 reader.close();
@@ -218,6 +201,7 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
                 }
                 // Reader drained: the tail page stays live until close().
                 assertNull(reader.readPage());
+                assertThat("decompress buffer must stay live after the last readPage()", allocator.getAllocatedMemory(), greaterThan(0L));
             } finally {
                 reader.close();
             }
@@ -278,12 +262,14 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
      * Zstd V2 pages whose compressed bytes are already direct, matching the production S3 path
      * so {@code decompressToDirectBuffer} skips the heap-to-direct scratch allocation.
      */
-    private PagesFixture buildDirectZstdV2Pages(int... payloadBytes) throws IOException {
+    private DirectPagesFixture buildDirectZstdV2Pages(int... payloadBytes) throws IOException {
         PlainCompressionCodecFactory codecFactory = new PlainCompressionCodecFactory();
         BytesInputCompressor compressor = codecFactory.getCompressor(CompressionCodecName.ZSTD);
         List<PrefetchedPageReader.CompressedPage> pages = new ArrayList<>(payloadBytes.length);
+        List<byte[]> payloads = new ArrayList<>(payloadBytes.length);
         for (int payloadSize : payloadBytes) {
             byte[] data = randomByteArrayOfLength(payloadSize);
+            payloads.add(data);
             byte[] compressedData = compressor.compress(BytesInput.from(data)).toByteArray();
             ByteBuffer direct = ByteBuffer.allocateDirect(compressedData.length);
             direct.put(compressedData).flip();
@@ -301,13 +287,27 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
             );
             pages.add(new PrefetchedPageReader.CompressedPage(v2, -1L));
         }
-        return new PagesFixture(codecFactory, CompressionCodecName.ZSTD, pages);
+        return new DirectPagesFixture(codecFactory, pages, payloads);
+    }
+
+    private static long valueCount(int[] payloadBytes) {
+        long values = 0;
+        for (int size : payloadBytes) {
+            values += size / 4;
+        }
+        return values;
     }
 
     private record PagesFixture(
         PlainCompressionCodecFactory codecFactory,
         CompressionCodecName codec,
         List<PrefetchedPageReader.CompressedPage> pages
+    ) {}
+
+    private record DirectPagesFixture(
+        PlainCompressionCodecFactory codecFactory,
+        List<PrefetchedPageReader.CompressedPage> pages,
+        List<byte[]> payloads
     ) {}
 
     private static final class CountingListener implements AllocationListener {

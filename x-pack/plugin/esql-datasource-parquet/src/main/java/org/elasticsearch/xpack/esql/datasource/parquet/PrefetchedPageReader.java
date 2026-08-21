@@ -38,15 +38,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * original page type ({@link DataPageV1} stays V1, {@link DataPageV2} stays V2 with only the
  * data portion decompressed). Encryption and CRC verification are not supported.
  *
- * <p>Decompression buffers are allocated as {@link ArrowBuf}s from the supplied
- * {@link BufferAllocator}, exposed to the codec via {@link ArrowBuf#nioBuffer(long, int)} to
- * preserve the direct-to-direct JNI fast path. The reader owns one reusable decompress buffer:
- * {@link #readPage()} overwrites it instead of malloc/free per page (glibc otherwise retains
- * the freed arenas and RSS climbs across queries). Live decompressed bytes stay O(one page)
- * per (column, reader); the buffer grows only when a later page needs more capacity, and
- * {@link #close()} releases it. The {@link DataPage}s and {@link BytesInput}s returned from
- * {@link #readPage()} alias the current page's buffer and must not be used after the next
- * {@link #readPage()} call or after the reader is closed.
+ * <p>Decompression uses one reusable {@link ArrowBuf} from the supplied {@link BufferAllocator},
+ * exposed via {@link ArrowBuf#nioBuffer(long, int)} for the direct-to-direct JNI fast path.
+ * {@link #readPage()} overwrites that buffer. It grows only when a later page needs more
+ * capacity — breaker residency is the high-water-mark page, not the current page — and is
+ * released on {@link #close()}. Heap-backed compressed input still copies through a per-page
+ * scratch buffer; production prefetch already yields direct slices, so that path is idle.
+ * Returned {@link DataPage}s and {@link BytesInput}s alias the current buffer and must not be
+ * used after the next {@link #readPage()} or {@link #close()}. Equal-size reuse overwrites in
+ * place (no poison); a stale alias sees the new page, not a crash.
  */
 final class PrefetchedPageReader implements PageReader, Releasable {
 
@@ -306,11 +306,6 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         }
     }
 
-    /**
-     * Direct {@link ByteBuffer} of {@code size} bytes, backed by this reader's reusable
-     * {@link ArrowBuf}. Reuses the existing buffer when it is large enough; otherwise closes it
-     * and allocates a larger one. Released on {@link #close()}.
-     */
     private ByteBuffer allocateDirect(int size) {
         if (reusableDecompBuf == null || reusableDecompBuf.capacity() < size) {
             closeReusableDecompBuf();

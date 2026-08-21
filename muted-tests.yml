@@ -450,9 +450,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/156861
 - class: org.elasticsearch.xpack.sql.qa.security.JdbcSecurityIT
   issue: https://github.com/elastic/elasticsearch/issues/156863
-- class: org.elasticsearch.xpack.security.authc.ReservedRealmAuthIT
-  method: testAuthenticationUsingReservedRealm
-  issue: https://github.com/elastic/elasticsearch/issues/156884
 - class: org.elasticsearch.search.aggregations.metrics.TDigestPercentilesIT
   method: testMultiValuedField
   issue: https://github.com/elastic/elasticsearch/issues/157040

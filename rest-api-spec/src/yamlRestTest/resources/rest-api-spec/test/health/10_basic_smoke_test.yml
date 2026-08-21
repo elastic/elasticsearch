@@ -1,15 +1,8 @@
 ---
 "stateful cluster health smoke test":
   - requires:
-      test_runner_features: capabilities
       cluster_features: "gte_v8.13.0"
       reason: "data stream lifecycle indicator was added in 8.13.0"
-  - skip:
-      capabilities:
-        - method: GET
-          path: /_health_report
-          capabilities: [ stateless ]
-      reason: "stateless health API is covered by health/20_stateless_smoke_test.yml"
 
   - do:
       health_report: { }

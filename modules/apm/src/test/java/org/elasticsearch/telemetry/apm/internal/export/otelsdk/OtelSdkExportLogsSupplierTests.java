@@ -21,6 +21,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Path;
@@ -175,19 +176,16 @@ public class OtelSdkExportLogsSupplierTests extends ESTestCase {
     }
 
     public void testLogDeliveryResourceContainsOnlyServiceNameAndType() {
-        Resource resource = OtelSdkExportLogsSupplier.logDeliveryResource(Settings.EMPTY);
+        Resource resource = OtelSdkExportLogsSupplier.logDeliveryResource(TelemetryLogResourceProvider.DEFAULT_SERVICE_NAME);
         assertThat(resource.getAttributes().size(), equalTo(2));
-        assertThat(resource.getAttribute(AttributeKey.stringKey("service.name")), equalTo("self-managed-elasticsearch"));
+        assertThat(resource.getAttribute(AttributeKey.stringKey("service.name")), equalTo("elasticsearch"));
         assertThat(resource.getAttribute(AttributeKey.stringKey("service.type")), equalTo("elasticsearch"));
     }
 
-    public void testLogDeliveryResourceServiceNameIsSettable() {
-        Settings settings = Settings.builder()
-            .put(OtelSdkSettings.TELEMETRY_LOGS_RESOURCE_SERVICE_NAME.getKey(), "serverless-elasticsearch")
-            .build();
-        Resource resource = OtelSdkExportLogsSupplier.logDeliveryResource(settings);
+    public void testLogDeliveryResourceUsesProvidedServiceName() {
+        Resource resource = OtelSdkExportLogsSupplier.logDeliveryResource("elasticsearch-serverless");
         assertThat(resource.getAttributes().size(), equalTo(2));
-        assertThat(resource.getAttribute(AttributeKey.stringKey("service.name")), equalTo("serverless-elasticsearch"));
+        assertThat(resource.getAttribute(AttributeKey.stringKey("service.name")), equalTo("elasticsearch-serverless"));
         assertThat(resource.getAttribute(AttributeKey.stringKey("service.type")), equalTo("elasticsearch"));
     }
 

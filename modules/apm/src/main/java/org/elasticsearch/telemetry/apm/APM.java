@@ -18,6 +18,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
+import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
 import org.elasticsearch.telemetry.TelemetryLoggingFilterProvider;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
@@ -61,13 +62,18 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
     }
 
     @Override
-    public TelemetryProvider getTelemetryProvider(Environment environment, List<TelemetryLoggingFilterProvider> filterProviders) {
+    public TelemetryProvider getTelemetryProvider(
+        Environment environment,
+        List<TelemetryLoggingFilterProvider> filterProviders,
+        TelemetryLogResourceProvider logResourceProvider
+    ) {
         Path diskBufferPath = environment.dataDirs()[0].resolve("telemetry-buffer");
         final APMTelemetryProvider apmTelemetryProvider = new APMTelemetryProvider(
             environment.settings(),
             diskBufferPath,
             environment.configDir(),
-            filterProviders
+            filterProviders,
+            logResourceProvider
         );
         telemetryProvider.set(apmTelemetryProvider);
         return apmTelemetryProvider;
@@ -128,7 +134,6 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS,
             // Logs
             OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT,
-            OtelSdkSettings.TELEMETRY_LOGS_RESOURCE_SERVICE_NAME,
             OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED,
             OtelSdkSettings.TELEMETRY_LOGS_QUERYLOG_ENABLED,
             OtelSdkSettings.TELEMETRY_LOGS_MAX_QUEUE_SIZE,

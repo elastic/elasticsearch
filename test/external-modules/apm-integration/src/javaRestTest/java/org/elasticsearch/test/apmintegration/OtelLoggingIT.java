@@ -69,7 +69,6 @@ public class OtelLoggingIT extends AbstractTelemetryIT {
         .setting("xpack.security.audit.logfile.emit_cluster_uuid", "false")
         .setting("telemetry.logs.audit.enabled", "true")
         .setting("telemetry.logs.querylog.enabled", "true")
-        .setting("telemetry.logs.resource.service.name", "serverless-elasticsearch")
         // OTLP/gRPC endpoint: scheme https for mTLS, no path (different shape than HTTP-protobuf endpoint).
         .setting("telemetry.logs.endpoint", () -> recordingApmServer.getGrpcEndpoint())
         // mTLS: ES node verifies the recording server's cert and presents a client cert.
@@ -158,14 +157,13 @@ public class OtelLoggingIT extends AbstractTelemetryIT {
         assertThat(log.traceId().get(), equalTo(randomId));
         var indices = (ArrayValue) log.attributes().get(QueryLogging.QUERY_FIELD_INDICES);
         assertThat(indices.getValuesList().getFirst().getStringValue(), equalTo("test_index"));
-        // Query logs ship over the same provider as audit logs and share the log-delivery resource contract.
         assertLogDeliveryResource();
     }
 
     private void assertLogDeliveryResource() {
         ReceivedTelemetry.ReceivedResource resource = apmServer().resource();
         assertNotNull("log export should carry a resource", resource);
-        assertThat(resource.attributes(), equalTo(Map.of("service.name", "serverless-elasticsearch", "service.type", "elasticsearch")));
+        assertThat(resource.attributes(), equalTo(Map.of("service.name", "elasticsearch", "service.type", "elasticsearch")));
     }
 
     /**

@@ -211,15 +211,6 @@ public final class OtelSdkSettings {
     /** OTLP/gRPC endpoint URL where the SDK exports audit log records. Required when {@link #TELEMETRY_LOGS_AUDIT_ENABLED} is true. */
     public static final Setting<String> TELEMETRY_LOGS_ENDPOINT = Setting.simpleString("telemetry.logs.endpoint", "", NodeScope);
 
-    /**
-     * Value of the {@code service.name} resource attribute on exported log records.
-     */
-    public static final Setting<String> TELEMETRY_LOGS_RESOURCE_SERVICE_NAME = Setting.simpleString(
-        "telemetry.logs.resource.service.name",
-        "self-managed-elasticsearch",
-        NodeScope
-    );
-
     /** Whether the OTel SDK audit-log export path is active. When false, {@link OtelSdkExportLogsSupplier} installs nothing. */
     public static final Setting<Boolean> TELEMETRY_LOGS_AUDIT_ENABLED = Setting.boolSetting(
         "telemetry.logs.audit.enabled",

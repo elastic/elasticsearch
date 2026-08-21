@@ -10,11 +10,21 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
 import org.elasticsearch.telemetry.TelemetryLoggingFilterProvider;
 import org.elasticsearch.telemetry.TelemetryProvider;
 
 import java.util.List;
 
 public interface TelemetryPlugin {
-    TelemetryProvider getTelemetryProvider(Environment environment, List<TelemetryLoggingFilterProvider> filterProviders);
+
+    default TelemetryProvider getTelemetryProvider(Environment environment, List<TelemetryLoggingFilterProvider> filterProviders) {
+        return getTelemetryProvider(environment, filterProviders, new TelemetryLogResourceProvider.Default());
+    }
+
+    TelemetryProvider getTelemetryProvider(
+        Environment environment,
+        List<TelemetryLoggingFilterProvider> filterProviders,
+        TelemetryLogResourceProvider logResourceProvider
+    );
 }

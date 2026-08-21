@@ -59,6 +59,84 @@ public class CsvSchemaInferrer {
     private CsvSchemaInferrer() {}
 
     /**
+     * Widens an already-inferred schema against additional rows that were not part of the initial
+     * sample. Uses the same {@link #narrowCandidate} logic as {@link #inferSchema}, starting from
+     * the already-confirmed candidate types (every column is treated as confirmed, since the initial
+     * sample already committed to its type). Any column whose inferred type cannot parse a value in
+     * {@code additionalRows} is advanced through {@link #TYPE_CANDIDATES} toward KEYWORD.
+     * <p>
+     * Returns the same {@code schema} reference when no widening is needed (including when
+     * {@code additionalRows} is empty), and a new list otherwise.
+     *
+     * @param schema         the schema returned by a prior {@link #inferSchema} call
+     * @param additionalRows rows that were not included in the initial sample
+     * @param datetimeFormatter the same formatter used for the initial inference
+     */
+    static List<Attribute> widenSchema(List<Attribute> schema, List<String[]> additionalRows, @Nullable DateFormatter datetimeFormatter) {
+        if (additionalRows.isEmpty()) {
+            return schema;
+        }
+        int numCols = schema.size();
+        int[] candidateIdx = new int[numCols];
+        for (int col = 0; col < numCols; col++) {
+            DataType type = schema.get(col).dataType();
+            candidateIdx[col] = TYPE_CANDIDATES.length - 1; // default: KEYWORD
+            for (int i = 0; i < TYPE_CANDIDATES.length - 1; i++) {
+                if (TYPE_CANDIDATES[i] == type) {
+                    candidateIdx[col] = i;
+                    break;
+                }
+            }
+        }
+        boolean anyWidened = false;
+        outer: for (String[] row : additionalRows) {
+            for (int col = 0; col < numCols; col++) {
+                if (candidateIdx[col] >= TYPE_CANDIDATES.length - 1) {
+                    continue;
+                }
+                String value = col < row.length ? row[col] : null;
+                if (value != null) {
+                    value = value.trim();
+                }
+                if (value == null || value.isEmpty() || value.equalsIgnoreCase("null")) {
+                    continue;
+                }
+                // All columns are confirmed by the initial sample (confirmed=true).
+                int newIdx = narrowCandidate(candidateIdx[col], true, value, datetimeFormatter);
+                if (newIdx != candidateIdx[col]) {
+                    candidateIdx[col] = newIdx;
+                    anyWidened = true;
+                }
+            }
+            // Early exit if all columns have reached KEYWORD
+            boolean allKeyword = true;
+            for (int col = 0; col < numCols; col++) {
+                if (candidateIdx[col] < TYPE_CANDIDATES.length - 1) {
+                    allKeyword = false;
+                    break;
+                }
+            }
+            if (allKeyword) {
+                break outer;
+            }
+        }
+        if (anyWidened == false) {
+            return schema;
+        }
+        List<Attribute> widened = new ArrayList<>(numCols);
+        for (int col = 0; col < numCols; col++) {
+            Attribute original = schema.get(col);
+            DataType newType = TYPE_CANDIDATES[candidateIdx[col]];
+            if (newType != original.dataType()) {
+                widened.add(new ReferenceAttribute(Source.EMPTY, null, original.name(), newType, Nullability.TRUE, null, false));
+            } else {
+                widened.add(original);
+            }
+        }
+        return widened;
+    }
+
+    /**
      * Infers schema from column names and sample data rows.
      *
      * @param columnNames       header names (plain, without type annotations)

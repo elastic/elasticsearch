@@ -615,7 +615,9 @@ public final class RestoreService implements ClusterStateApplier {
      * restore, and partial restore are not supported here.
      * <p>
      * A retry that supplies the same {@code restoreUUID} as an already-applied guarded restore observes the correlated
-     * {@link RestoreInProgress} entry and is a no-op rather than a second initialization.
+     * {@link RestoreInProgress} entry and is a no-op rather than a second initialization while that first entry still exists. If that
+     * first entry no longer exists, the retry will fail because the check now sees the restored backing/failure indices' new UUIDs and
+     * rejects the stale identity the retry still carries.
      *
      * @param restoreUUID               the caller-supplied UUID correlating this restore, matching {@link RestoreInProgress.Entry#uuid()}
      * @param snapshotDataStreamAliases every data-stream alias recorded in the snapshot's global metadata, keyed by alias name; only the

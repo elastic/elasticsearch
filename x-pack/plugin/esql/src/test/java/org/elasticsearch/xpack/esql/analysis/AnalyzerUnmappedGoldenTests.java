@@ -42,6 +42,35 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             """);
     }
 
+    public void testLoadAllPatternLessKeep() throws Exception {
+        loadAll("""
+            FROM employees
+            | KEEP emp_no, first_name
+            """).run();
+    }
+
+    public void testLoadAllKeepThenDrop() throws Exception {
+        loadAll("""
+            FROM employees
+            | KEEP emp_no
+            | DROP emp_no
+            """).run();
+    }
+
+    public void testLoadAllPatternLessKeepUnmappedName() throws Exception {
+        loadAll("""
+            FROM employees
+            | KEEP emp_no, does_not_exist_field
+            """).run();
+    }
+
+    public void testLoadAllKeepWildcard() throws Exception {
+        loadAll("""
+            FROM employees
+            | KEEP emp_no*
+            """).run();
+    }
+
     public void testKeepRepeated() throws Exception {
         runInNullifyAndLoadModes("""
             FROM employees

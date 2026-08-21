@@ -11,6 +11,7 @@ package org.elasticsearch.columnar.substrate;
 
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
+import org.elasticsearch.columnar.FormatVersion;
 
 import java.io.IOException;
 
@@ -21,7 +22,7 @@ import java.io.IOException;
  * <ul>
  *   <li>{@link #OFFSET_EMPTY} — no document has a value; nothing is written to the data file.</li>
  *   <li>{@link #OFFSET_DENSE} — every document has a value; nothing is written to the data file
- *       because the document id is its own value ordinal.</li>
+ *       because the document id is its own rank.</li>
  *   <li>a non-negative offset — a sparse structure written at {@code [offset, offset + length)}.</li>
  * </ul>
  *
@@ -69,7 +70,13 @@ public record ColumnIteratorMetadata(
         out.writeVInt(numDocsWithField);
     }
 
-    public static ColumnIteratorMetadata readFrom(DataInput in, int maxDoc) throws IOException {
+    /**
+     * Reads a {@link ColumnIteratorMetadata} record previously written by {@link #writeTo}.
+     * {@code formatVersion} is the on-disk version from the segment header; future layout changes
+     * gate their reads on {@link org.elasticsearch.columnar.FormatVersion#version()} compared
+     * against a {@code VERSION_*} constant.
+     */
+    public static ColumnIteratorMetadata readFrom(DataInput in, int maxDoc, final FormatVersion formatVersion) throws IOException {
         long offset = in.readLong();
         long length = in.readLong();
         short jumpTableEntryCount = in.readShort();

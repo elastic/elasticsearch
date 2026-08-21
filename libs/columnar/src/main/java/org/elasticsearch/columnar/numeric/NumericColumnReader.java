@@ -9,19 +9,15 @@
 
 package org.elasticsearch.columnar.numeric;
 
-import org.apache.lucene.store.ByteBuffersDataInput;
-import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.LongValues;
-import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
+import org.elasticsearch.columnar.substrate.MonotonicReader;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.List;
 
 /**
  * Reads a numeric column written by {@link NumericColumnWriter}, single- or multi-valued.
@@ -44,7 +40,7 @@ public final class NumericColumnReader {
     private final NumericBlockEncoder encoder;
     private final long[] blockBuffer;
 
-    private int cachedBlock = -1;
+    private long cachedBlock = -1;
 
     public NumericColumnReader(NumericColumnMetadata meta, IndexInput data) throws IOException {
         this.meta = meta;
@@ -59,7 +55,7 @@ public final class NumericColumnReader {
             this.blockBuffer = new long[0];
             return;
         }
-        this.blockOffsets = monotonic(
+        this.blockOffsets = MonotonicReader.open(
             data,
             meta.blockOffsetsMeta(),
             meta.numBlocks() + 1L,
@@ -67,7 +63,7 @@ public final class NumericColumnReader {
             meta.blockOffsetsDataLength()
         );
         this.valueAddresses = meta.multiValued()
-            ? monotonic(
+            ? MonotonicReader.open(
                 data,
                 meta.valueAddressesMeta(),
                 meta.numDocsWithField() + 1L,
@@ -86,21 +82,29 @@ public final class NumericColumnReader {
         return iteratorReader.iterator();
     }
 
+    /**
+     * Whether any document holds more than one value. A single-valued column maps a rank straight to an
+     * ordinal.
+     */
+    public boolean multiValued() {
+        return valueAddresses != null;
+    }
+
     /** The ordinal of a document's first value, given its rank. */
-    public int firstOrdinal(int rank) {
-        return valueAddresses == null ? rank : (int) valueAddresses.get(rank);
+    public long firstOrdinal(int rank) {
+        return valueAddresses == null ? rank : valueAddresses.get(rank);
     }
 
     /** The number of values a document has, given its rank. */
-    public int valueCount(int rank) {
-        return valueAddresses == null ? 1 : (int) (valueAddresses.get(rank + 1) - valueAddresses.get(rank));
+    public long valueCount(int rank) {
+        return valueAddresses == null ? 1 : valueAddresses.get(rank + 1) - valueAddresses.get(rank);
     }
 
     /** The value at {@code ordinal} in {@code [0, numValues)}. */
-    public long valueForOrdinal(int ordinal) throws IOException {
-        int block = ordinal / meta.blockSize();
+    public long valueForOrdinal(long ordinal) throws IOException {
+        long block = ordinal / meta.blockSize();
         ensureBlock(block);
-        return blockBuffer[ordinal - block * meta.blockSize()];
+        return blockBuffer[(int) (ordinal - block * meta.blockSize())];
     }
 
     /** Values per encoding block. */
@@ -109,7 +113,7 @@ public final class NumericColumnReader {
     }
 
     /** Total number of values across all documents. */
-    public int numValues() {
+    public long numValues() {
         return meta.numValues();
     }
 
@@ -117,12 +121,12 @@ public final class NumericColumnReader {
      * Decodes the block at {@code blockIndex} (single-block cache) and returns the shared buffer, valid
      * until the next call that touches a different block.
      */
-    public long[] block(int blockIndex) throws IOException {
+    public long[] block(long blockIndex) throws IOException {
         ensureBlock(blockIndex);
         return blockBuffer;
     }
 
-    private void ensureBlock(int block) throws IOException {
+    private void ensureBlock(long block) throws IOException {
         if (block == cachedBlock) {
             return;
         }
@@ -132,22 +136,9 @@ public final class NumericColumnReader {
         int length = (int) (blockEnd - blockStart);
         DataInput blockData = blockBytesCodec.read(data, length);
         // Full blocks hold blockSize values; the last block holds the remainder.
-        int valueCount = Math.min(meta.blockSize(), meta.numValues() - block * meta.blockSize());
+        int valueCount = (int) Math.min(meta.blockSize(), meta.numValues() - block * meta.blockSize());
         encoder.decode(blockData, valueCount, blockBuffer);
         cachedBlock = block;
     }
 
-    private static LongValues monotonic(IndexInput data, byte[] metaBytes, long numEntries, long dataOffset, long dataLength)
-        throws IOException {
-        DirectMonotonicReader.Meta tableMeta;
-        try (
-            IndexInput metaInput = new ByteBuffersIndexInput(
-                new ByteBuffersDataInput(List.of(ByteBuffer.wrap(metaBytes))),
-                "monotonic-meta"
-            )
-        ) {
-            tableMeta = DirectMonotonicReader.loadMeta(metaInput, numEntries, NumericColumnWriter.DIRECT_MONOTONIC_BLOCK_SHIFT);
-        }
-        return DirectMonotonicReader.getInstance(tableMeta, data.randomAccessSlice(dataOffset, dataLength));
-    }
 }

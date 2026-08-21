@@ -96,6 +96,25 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | Disconnected from 10.1.0.1
 ;
 
+keepMixtureOfPatternedAndNonPatternedUnmappedFields
+required_capability: optional_fields_load_all
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, unmapped_message, unmapped_event*
+| SORT @timestamp
+;
+
+@timestamp:datetime      | unmapped_message:keyword   | unmapped_event_duration:keyword
+2024-10-23T12:15:03.360Z | Disconnected from 10.1.0.3 | 3450234
+2024-10-23T12:27:28.948Z | Disconnected from 10.1.0.2 | 2764890
+2024-10-23T13:33:34.937Z | 43                         | 1232383
+2024-10-23T13:51:54.732Z | Disconnection error        | 725449
+2024-10-23T13:52:55.015Z | Disconnection error        | 8268154
+2024-10-23T13:53:55.832Z | Disconnection error        | 5033756
+2024-10-23T13:55:01.543Z | Disconnected from 10.1.0.1 | 1756468
+;
+
 keepFieldAbsentFromSource
 required_capability: optional_fields_load_all
 
@@ -464,6 +483,82 @@ n:integer
 1
 1
 1
+;
+
+#########
+# STATS #
+#########
+
+statsCountStar
+required_capability: optional_fields_load_all_stats
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| STATS c = COUNT(*)
+;
+
+c:long
+7
+;
+
+statsByMappedField
+required_capability: optional_fields_load_all_stats
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| STATS c = COUNT(*) BY message
+| SORT message
+;
+
+c:long | message:keyword
+1      | 42
+1      | Connected to 10.1.0.1!
+1      | Connected to 10.1.0.2!
+1      | Connected to 10.1.0.3!
+3      | Connection error?
+;
+
+statsByUnmappedField
+required_capability: optional_fields_load_all_stats
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| STATS s = SUM(event_duration), c = COUNT(*) BY unmapped_message
+| SORT unmapped_message
+;
+
+s:long       | c:long | unmapped_message:keyword
+1232381      | 1      | 43
+1756466      | 1      | Disconnected from 10.1.0.1
+2764888      | 1      | Disconnected from 10.1.0.2
+3450232      | 1      | Disconnected from 10.1.0.3
+14027353     | 3      | Disconnection error
+;
+
+statsAfterKeepWildcard
+required_capability: optional_fields_load_all_stats
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| KEEP unmapped*
+| STATS c = COUNT(*)
+;
+
+c:long
+7
+;
+
+statsAfterWhereOnUnmappedField
+required_capability: optional_fields_load_all_stats
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE unmapped_message == "Disconnection error"
+| STATS c = COUNT(*)
+;
+
+c:long
+3
 ;
 
 ####################################################################

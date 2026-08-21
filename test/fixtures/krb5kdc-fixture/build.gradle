@@ -29,7 +29,7 @@ configurations {
 
 dependencies {
   testImplementation project(':test:framework')
-  api "junit:junit:${versions.junit}"
+  api "junit:junit:${versions.junit4}"
   api project(':test:fixtures:testcontainer-utils')
   implementation("commons-io:commons-io:2.15.1")
 

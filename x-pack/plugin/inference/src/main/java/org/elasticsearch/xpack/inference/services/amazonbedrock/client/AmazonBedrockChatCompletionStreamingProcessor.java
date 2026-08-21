@@ -18,10 +18,10 @@ import software.amazon.awssdk.services.bedrockruntime.model.MessageStartEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.MessageStopEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.StopReason;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage.PromptTokensDetails;
@@ -60,9 +60,10 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
         try {
             processItem(item);
         } catch (Exception e) {
-            logger.atWarn()
-                .withThrowable(e)
-                .log("Failed to process item from Amazon Bedrock provider, event type: {}", item.sdkEventType());
+            logger.warn(
+                () -> Strings.format("Failed to process item from Amazon Bedrock provider, event type: %s", item.sdkEventType()),
+                e
+            );
 
             handleError(e);
         }
@@ -149,9 +150,13 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
             try {
                 runnable.run();
             } catch (Exception e) {
-                logger.atWarn()
-                    .withThrowable(e)
-                    .log("Error occurred while processing streaming response from Amazon Bedrock provider, event type: {}", eventType);
+                logger.warn(
+                    () -> Strings.format(
+                        "Error occurred while processing streaming response from Amazon Bedrock provider, event type: %s",
+                        eventType
+                    ),
+                    e
+                );
 
                 handleError(e);
             }

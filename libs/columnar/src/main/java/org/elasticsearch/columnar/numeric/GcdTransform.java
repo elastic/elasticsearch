@@ -9,8 +9,6 @@
 
 package org.elasticsearch.columnar.numeric;
 
-import org.apache.lucene.store.DataInput;
-import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.MathUtil;
 
 import java.io.IOException;
@@ -29,7 +27,7 @@ public final class GcdTransform implements BlockTransform {
     }
 
     @Override
-    public boolean tryEncode(long[] block, int valueCount, DataOutput params) throws IOException {
+    public boolean tryEncode(long[] block, int valueCount, MetadataWriter params) throws IOException {
         long gcd = 0;
         for (int i = 0; i < valueCount; ++i) {
             gcd = MathUtil.gcd(gcd, block[i]);
@@ -56,7 +54,7 @@ public final class GcdTransform implements BlockTransform {
     }
 
     @Override
-    public void decode(long[] block, int valueCount, DataInput params) throws IOException {
+    public void decode(long[] block, int valueCount, MetadataReader params) throws IOException {
         long gcd = 2 + params.readVLong();
         if ((gcd & (gcd - 1)) == 0) {
             // Power-of-two divisor: shift instead of multiply.

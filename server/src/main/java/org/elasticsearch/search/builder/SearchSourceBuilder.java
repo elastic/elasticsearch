@@ -1035,11 +1035,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Embeddings fields cannot overlap with fields fetched via {@link fetchFields}. Any overlaps will be reported as errors in
      * {@link validate(ActionRequestValidationException, boolean, boolean)}.
      * </p>
+     * <p>
+     * NOTE: This functionality is intended for internal usage only. It should not be exposed to users.
+     * </p>
      *
      * @param field the embeddings field name
      * @param vectorType the vector type the field is expected to produce, or {@code null} to accept whichever type it produces
-     *
-     * @apiNote This method is intended for internal usage only. It should not be exposed to users.
      */
     public SearchSourceBuilder fetchEmbeddingsField(String field, @Nullable VectorType vectorType) {
         fetchEmbeddingsFields.put(field, vectorType);

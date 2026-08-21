@@ -1937,6 +1937,7 @@ null                     | null                             | null              
 
 # With an explicit query and no ON clause, HIGHLIGHT falls back to every text/keyword field.
 explicitQueryNoOnFallsBackToAllFields
+skip_flattened_rewrite: highlight_implicit_fields_exclude_flattened
 required_capability: highlight_implicit_query_and_fields
 
 FROM books

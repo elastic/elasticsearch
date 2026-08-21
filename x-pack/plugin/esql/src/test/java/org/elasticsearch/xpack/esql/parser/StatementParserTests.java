@@ -120,6 +120,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assertEqualsIgnoringIds;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
@@ -1431,13 +1432,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             ParsingException.class,
             containsString("mismatched input 'HIGHLIGHT'"),
             () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title")
-        );
-    }
-
-    private static void assumeHighlightImplicitQueryAndFieldsEnabled() {
-        assumeTrue(
-            "requires HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS capability",
-            EsqlCapabilities.Cap.HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS.isEnabled()
         );
     }
 

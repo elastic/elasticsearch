@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
@@ -4667,13 +4668,6 @@ public class VerifierTests extends ESTestCase {
             containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
         );
         fullText().query("FROM test | WHERE MATCH(title, \"x\") | HIGHLIGHT ON body");
-    }
-
-    private static void assumeHighlightImplicitQueryAndFieldsEnabled() {
-        assumeTrue(
-            "requires HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS capability",
-            EsqlCapabilities.Cap.HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS.isEnabled()
-        );
     }
 
     public void testHighlightRejectsInvalidOptionEnums() {

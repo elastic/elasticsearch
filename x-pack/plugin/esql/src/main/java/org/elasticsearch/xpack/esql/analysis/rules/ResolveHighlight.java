@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders;
+import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -61,8 +61,8 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
         boolean star = fields.size() == 1 && fields.getFirst() instanceof UnresolvedStar;
         if (star || (fields.isEmpty() && query != null && query.resolved())) {
             List<NamedExpression> derived = star
-                ? HighlightQueryBuilders.allHighlightableFields(childOutput)
-                : HighlightQueryBuilders.deriveFields(query, childOutput);
+                ? HighlightSupport.allHighlightableFields(childOutput)
+                : HighlightSupport.deriveFields(query, childOutput);
             if (derived.isEmpty() == false) {
                 fields = derived;
                 // Mints fresh NameIds, so it has to stay inside this branch; calling it on every pass would never reach a fixpoint.
@@ -74,6 +74,9 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
             }
         }
 
+        // These identity checks look like the termination guard, but `fields` is re-read from `highlight` at line 59,
+        // so they trivially hold unless the branch above reassigned it. The real guard is `star || fields.isEmpty()`
+        // clearing itself once fields are derived (or replaced with `List.of()`), so the next pass takes this path.
         if (query == highlight.query() && fields == highlight.fields()) {
             return highlight;
         }
@@ -90,6 +93,12 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
      * renamed translates against a context that only knows the ON fields, so it becomes a match-none query and the column comes out
      * null. That is the documented behavior. An {@code AttributeSet} liveness guard would be worse than useless here, since membership
      * is {@code NameId}-based and RENAME or MV_EXPAND mint fresh ids, silently dropping predicates.
+     * <p>
+     * Successive {@code WHERE}s narrow rows conjunctively, but their full-text conjuncts are OR-ed here for
+     * highlighting, deliberately: the highlight query is "what might be relevant to show", not "what selected these
+     * rows". By the time a row reaches {@code HIGHLIGHT} it already satisfied every {@code WHERE}, so per-field term
+     * extraction produces the same snippets either way; OR is chosen because it is the more useful contract if the
+     * highlight query itself ever becomes user-visible (e.g. via {@code EXPLAIN}).
      */
     private static Expression collectImplicitQuery(LogicalPlan child) {
         List<Expression> predicates = new ArrayList<>();
@@ -97,7 +106,7 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
         while (current instanceof DocPreserving && current instanceof UnaryPlan unary) {
             if (current instanceof Filter filter) {
                 for (Expression conjunct : Predicates.splitAnd(filter.condition())) {
-                    if (HighlightQueryBuilders.isSupportedImplicitPredicate(conjunct)) {
+                    if (HighlightSupport.isSupportedImplicitPredicate(conjunct)) {
                         predicates.add(conjunct);
                     }
                 }

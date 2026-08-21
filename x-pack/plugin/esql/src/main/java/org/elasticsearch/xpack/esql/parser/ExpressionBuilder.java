@@ -408,6 +408,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (patterns.size() == 1) {
             var idCtx = patterns.get(0);
             boolean unresolvedStar = false;
+            // Checking the whole pattern's text, not just an ID_PATTERN token, because after ON (e.g. HIGHLIGHT ON *)
+            // the parser stays in EXPRESSION_MODE, where a bare `*` arrives as an identifier/ASTERISK token via
+            // expressionModeIdentifierPattern rather than ID_PATTERN. Quoted identifiers keep their quote characters
+            // in getText(), and parameters render as `?`/`??`-prefixed text, so neither can equal WILDCARD here.
             if (idCtx.getText().equals(WILDCARD)) {
                 unresolvedStar = true;
             }

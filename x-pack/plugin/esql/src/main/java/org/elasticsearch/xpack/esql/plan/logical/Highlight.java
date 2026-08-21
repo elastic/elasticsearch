@@ -189,11 +189,27 @@ public class Highlight extends UnaryPlan
             .toList();
     }
 
+    /**
+     * Canonical copy helper: every field but {@code prefix} and {@code derivedFields} can vary across a copy site, so
+     * those two are captured here rather than threaded through every caller. No copy site ever varies them - both are
+     * set once at parse time and passed through verbatim for the lifetime of the node.
+     */
+    private Highlight copy(
+        LogicalPlan child,
+        Expression query,
+        boolean implicitQuery,
+        List<NamedExpression> fields,
+        MapExpression options,
+        List<Attribute> generatedFields
+    ) {
+        return new Highlight(source(), child, prefix, query, implicitQuery, derivedFields, fields, options, generatedFields);
+    }
+
     public Highlight withOptions(MapExpression newOptions) {
         if (Objects.equals(options, newOptions)) {
             return this;
         }
-        return new Highlight(source(), child(), prefix, query, implicitQuery, derivedFields, fields, newOptions, generatedFields);
+        return copy(child(), query, implicitQuery, fields, newOptions, generatedFields);
     }
 
     /** Returns a copy with the analyzer-derived query and fields. */
@@ -203,12 +219,12 @@ public class Highlight extends UnaryPlan
         List<NamedExpression> newFields,
         List<Attribute> newGeneratedFields
     ) {
-        return new Highlight(source(), child(), prefix, newQuery, newImplicitQuery, derivedFields, newFields, options, newGeneratedFields);
+        return copy(child(), newQuery, newImplicitQuery, newFields, options, newGeneratedFields);
     }
 
     @Override
     public Highlight replaceChild(LogicalPlan newChild) {
-        return new Highlight(source(), newChild, prefix, query, implicitQuery, derivedFields, fields, options, generatedFields);
+        return copy(newChild, query, implicitQuery, fields, options, generatedFields);
     }
 
     @Override
@@ -246,7 +262,7 @@ public class Highlight extends UnaryPlan
             String newName = newNames.get(i);
             renamed.add(newName.equals(attr.name()) ? attr : attr.withName(newName).withId(new NameId()));
         }
-        return new Highlight(source(), child(), prefix, query, implicitQuery, derivedFields, fields, options, renamed);
+        return copy(child(), query, implicitQuery, fields, options, renamed);
     }
 
     @Override
@@ -331,13 +347,24 @@ public class Highlight extends UnaryPlan
         }
         List<String> fieldNames = fields.stream().map(NamedExpression::name).toList();
         try {
-            boolean enforceOnFields = implicitQuery == false && derivedFields == false;
-            HighlightQueryBuilders.verify(query, fieldNames, analyzer, enforceOnFields);
+            if (enforcesOnFields()) {
+                HighlightQueryBuilders.verifyExplicit(query, fieldNames, analyzer);
+            } else {
+                HighlightQueryBuilders.verifyDerived(query, fieldNames, analyzer);
+            }
         } catch (IllegalArgumentException e) {
             // Attach to the query node, not this Highlight node: failures dedupe by node, so pinning it here would let a
             // co-located option/analyzer failure on this node swallow the query error (see VerifierTests#testHighlightAnalyzerOption).
             failures.add(fail(query, "{}", e.getMessage()));
         }
+    }
+
+    /**
+     * The ON list is only binding when the user wrote both the query and the list. A derived query may name fields the
+     * user never listed, and a derived list is built <em>from</em> the query, so in both cases membership is vacuous.
+     */
+    private boolean enforcesOnFields() {
+        return implicitQuery == false && derivedFields == false;
     }
 
     private void verifyFieldTypes(Failures failures) {

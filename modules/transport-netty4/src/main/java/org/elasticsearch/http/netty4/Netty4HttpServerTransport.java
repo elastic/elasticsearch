@@ -521,6 +521,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         }
 
         @Override
+        public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
+            delegate.handlerAdded(ctx);
+        }
+
+        @Override
         protected Result beginEncode(HttpResponse httpResponse, String acceptEncoding) throws Exception {
             if (ChunkedZipResponse.ZIP_CONTENT_TYPE.equals(httpResponse.headers().get("content-type"))) {
                 return null;

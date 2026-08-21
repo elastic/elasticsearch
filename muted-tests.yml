@@ -794,3 +794,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbIT
   method: testPutDatasetAllowedWithCreateDatasetPrivilege
   issue: https://github.com/elastic/elasticsearch/issues/157336
+- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbIT
+  method: testGetDatasetAllowedWithReadDatasetMetadataPrivilege
+  issue: https://github.com/elastic/elasticsearch/issues/157337

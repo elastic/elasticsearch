@@ -133,8 +133,13 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
     private Exception mapReadFailure(String context, Throwable cause) {
         if (cause instanceof BlobStorageException bse && ExternalUnavailableException.isRetryableStatus(bse.getStatusCode())) {
             boolean throttling = ExternalUnavailableException.isThrottlingStatus(bse.getStatusCode());
+            long retryAfterMs = 0L;
+            if (throttling && bse.getResponse() != null) {
+                retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(bse.getResponse().getHeaderValue("Retry-After"));
+            }
             return new ExternalUnavailableException(
                 throttling,
+                retryAfterMs,
                 cause,
                 "Azure store unavailable reading [{}] (HTTP {})",
                 path,

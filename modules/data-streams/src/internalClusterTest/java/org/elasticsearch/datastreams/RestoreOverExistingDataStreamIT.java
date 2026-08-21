@@ -24,12 +24,14 @@ import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.IndexId;
@@ -37,6 +39,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
@@ -54,6 +57,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.index.IndexSettings.INDEX_SEARCH_IDLE_AFTER;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.contains;
@@ -80,7 +84,7 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(MockRepository.Plugin.class, DataStreamsPlugin.class);
+        return List.of(MockRepository.Plugin.class, DataStreamsPlugin.class, IndexMetadataRestoreTransformerTestPlugin.class);
     }
 
     public void testRestoreOverExistingDataStreamReplacesBackingIndices() throws Exception {
@@ -137,6 +141,47 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
         final DataStreamAlias restoredAlias = currentDataStreamAliases().get(aliasName);
         assertThat("the restored data stream must regain the alias it had when snapshotted", restoredAlias, notNullValue());
         assertThat(restoredAlias.getDataStreams(), contains(DATA_STREAM_NAME));
+    }
+
+    /**
+     * The ordinary restore path passes every repository {@link IndexMetadata} through the configured
+     * {@link IndexMetadataRestoreTransformer} before it is applied; the guarded restore must do the same rather than inserting the raw
+     * snapshot metadata directly, since a caller resolving a {@link RestoreService.DataStreamRestoreTarget} has no way to apply that
+     * transformer itself.
+     */
+    public void testRestoreOverExistingDataStreamAppliesIndexMetadataRestoreTransformer() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        createRepositoryAndSnapshottedDataStream();
+        final RestoreTarget restoreTarget = resolveRestoreTarget();
+        final String preRestoreBackingIndex = currentDataStream().getIndices().get(0).getName();
+        assertThat(
+            "the pre-restore backing index must not already have the transformer's setting, or this test proves nothing",
+            INDEX_SEARCH_IDLE_AFTER.get(
+                indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+                    .setIndices(preRestoreBackingIndex)
+                    .get()
+                    .getSettings()
+                    .get(preRestoreBackingIndex)
+            ),
+            not(equalTo(TimeValue.timeValueMinutes(2)))
+        );
+
+        initializeRestoreOverExistingDataStream(restoreTarget);
+        awaitRestoreCompleted();
+
+        final String restoredBackingIndex = currentDataStream().getIndices().get(0).getName();
+        final Settings restoredSettings = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .setIndices(restoredBackingIndex)
+            .get()
+            .getSettings()
+            .get(restoredBackingIndex);
+        assertThat(
+            "the guarded restore must apply the configured IndexMetadataRestoreTransformer, the same as an ordinary restore does",
+            INDEX_SEARCH_IDLE_AFTER.get(restoredSettings),
+            equalTo(TimeValue.timeValueMinutes(2))
+        );
     }
 
     public void testRestoredDataStreamSurvivesNodeRestart() throws Exception {
@@ -453,5 +498,23 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
             )
         );
         ensureGreen(DATA_STREAM_NAME);
+    }
+
+    /**
+     * Dummy plugin to load the {@link IndexMetadataRestoreTransformer} SPI provider from, mirroring
+     * {@code RemediateSnapshotIT.RemediateSnapshotTestPlugin}.
+     */
+    public static class IndexMetadataRestoreTransformerTestPlugin extends Plugin {}
+
+    public static class TestIndexMetadataRestoreTransformer implements IndexMetadataRestoreTransformer {
+        @Override
+        public IndexMetadata updateIndexMetadata(IndexMetadata original) {
+            return IndexMetadata.builder(original)
+                .settings(
+                    Settings.builder().put(original.getSettings()).put(INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMinutes(2))
+                )
+                .settingsVersion(original.getSettingsVersion() + 1)
+                .build();
+        }
     }
 }

@@ -592,6 +592,12 @@ public final class RestoreService implements ClusterStateApplier {
          * The repository-side identity and metadata of a single index within a snapshot, neither of which is derivable from the
          * {@link DataStream}'s own {@link Index} references: {@link IndexId} is a repository-generated identifier distinct from the
          * index's cluster-side UUID, and {@link IndexMetadata} (settings, mappings, aliases) isn't part of {@link DataStream} at all.
+         *
+         * @param metadata the {@link IndexMetadata} exactly as recorded in the snapshot, e.g. from {@link
+         *                 Repository#getSnapshotIndexMetaData}; the caller is not responsible for applying
+         *                 {@link RestoreService#indexMetadataRestoreTransformer}, {@link RestoreService#restoreOverExistingDataStreams}
+         *                 applies it internally, the same as {@link RestoreService#restoreSnapshot} does for every other index restored
+         *                 from a snapshot
          */
         public record SnapshotIndex(IndexId indexId, IndexMetadata metadata) {}
     }
@@ -636,7 +642,8 @@ public final class RestoreService implements ClusterStateApplier {
             dataStreamsToRestore.add(target.snapshotDataStream());
             for (Map.Entry<String, DataStreamRestoreTarget.SnapshotIndex> entry : target.indicesToRestore().entrySet()) {
                 indicesToRestore.put(entry.getKey(), entry.getValue().indexId());
-                snapshotProjectBuilder.put(entry.getValue().metadata(), false);
+                // mirrors the equivalent step in #restoreSnapshot, right after reading each IndexMetadata from the repository
+                snapshotProjectBuilder.put(indexMetadataRestoreTransformer.updateIndexMetadata(entry.getValue().metadata()), false);
             }
         }
         final Set<String> dataStreamNamesToRestore = dataStreamsToRestore.stream().map(DataStream::getName).collect(Collectors.toSet());

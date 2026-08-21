@@ -379,6 +379,11 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
         for (int x = minXTile; x <= maxXTile; x++) {
             for (int y = minYTile; y <= maxYTile; y++) {
                 if (geotileCellIntersectsShape(shape, x, y, precision, predicate)) {
+                    if (cells.size() >= SpatialGridFunction.MAX_GRID_CELLS) {
+                        throw new IllegalArgumentException(
+                            "ST_GEOTILE generated more than " + SpatialGridFunction.MAX_GRID_CELLS + " grid cells"
+                        );
+                    }
                     cells.add(GeoTileUtils.longEncodeTiles(precision, x, y));
                 }
             }
@@ -405,6 +410,11 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
                 final int nextY = 2 * yTile + j;
                 if (geotileCellIntersectsShape(shape, nextX, nextY, zTile, predicate)) {
                     if (zTile == precision) {
+                        if (cells.size() >= SpatialGridFunction.MAX_GRID_CELLS) {
+                            throw new IllegalArgumentException(
+                                "ST_GEOTILE generated more than " + SpatialGridFunction.MAX_GRID_CELLS + " grid cells"
+                            );
+                        }
                         cells.add(GeoTileUtils.longEncodeTiles(zTile, nextX, nextY));
                     } else {
                         rasterizeGeotile(shape, nextX, nextY, zTile, precision, predicate, cells);

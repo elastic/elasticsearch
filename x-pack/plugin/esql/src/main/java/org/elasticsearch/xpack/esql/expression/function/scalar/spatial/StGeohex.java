@@ -395,6 +395,11 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
             }
             if (predicate == null || predicate.validHex(h3)) {
                 if (h3CellIntersectsShape(shape, h3)) {
+                    if (cells.size() >= SpatialGridFunction.MAX_GRID_CELLS) {
+                        throw new IllegalArgumentException(
+                            "ST_GEOHEX generated more than " + SpatialGridFunction.MAX_GRID_CELLS + " grid cells"
+                        );
+                    }
                     cells.add(h3);
                 }
             }

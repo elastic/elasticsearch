@@ -93,12 +93,29 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
                         precisionData = precisionData.forceLiteral();
                         evaluatorName = "FromFieldAndLiteralEvaluator[wkbBlock=Attribute[channel=0], precision=" + precision + "]";
                     }
-                    return new TestCaseSupplier.TestCase(
+                    Object expected;
+                    IllegalArgumentException tooManyCellsEx = null;
+                    try {
+                        expected = expectedValue.apply(geometry, precision);
+                    } catch (IllegalArgumentException e) {
+                        // geo_shape intersects more than MAX_GRID_CELLS cells: evaluator returns null + warning
+                        expected = null;
+                        tooManyCellsEx = e;
+                    }
+                    TestCaseSupplier.TestCase tc = new TestCaseSupplier.TestCase(
                         List.of(geoTypedData, precisionData),
                         getFunctionClassName() + evaluatorName,
                         gridType,
-                        equalTo(expectedValue.apply(geometry, precision))
+                        equalTo(expected)
                     );
+                    if (tooManyCellsEx != null) {
+                        tc = tc.withWarning(
+                            "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+                        )
+                            .withWarning("Line 1:1: java.lang.IllegalArgumentException: " + tooManyCellsEx.getMessage())
+                            .withFoldingException(IllegalArgumentException.class, tooManyCellsEx.getMessage());
+                    }
+                    return tc;
                 }));
                 // Test with bounds
                 String boundsTestName = testName + " and bounds";
@@ -113,12 +130,28 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
                         evaluatorName = "FromFieldAndLiteralAndLiteralEvaluator[in=Attribute[channel=0]";
                     }
                     var boundsData = randomBoundsData();
-                    return new TestCaseSupplier.TestCase(
+                    Object boundedExpected;
+                    IllegalArgumentException boundedTooManyCellsEx = null;
+                    try {
+                        boundedExpected = expectedValueWithBounds.apply(geometry, precision, boundsData.geoBoundingBox());
+                    } catch (IllegalArgumentException e) {
+                        boundedExpected = null;
+                        boundedTooManyCellsEx = e;
+                    }
+                    TestCaseSupplier.TestCase tc = new TestCaseSupplier.TestCase(
                         List.of(geoTypedData, precisionData, boundsData.typedData),
                         startsWith(getFunctionClassName() + evaluatorName),
                         gridType,
-                        equalTo(expectedValueWithBounds.apply(geometry, precision, boundsData.geoBoundingBox()))
+                        equalTo(boundedExpected)
                     );
+                    if (boundedTooManyCellsEx != null) {
+                        tc = tc.withWarning(
+                            "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+                        )
+                            .withWarning("Line 1:1: java.lang.IllegalArgumentException: " + boundedTooManyCellsEx.getMessage())
+                            .withFoldingException(IllegalArgumentException.class, boundedTooManyCellsEx.getMessage());
+                    }
+                    return tc;
                 }));
             }
         }

@@ -46,6 +46,31 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
  * Obvious choices are: StGeohash, StGeotile and StGeohex.
  */
 public abstract class SpatialGridFunction extends SpatialDocValuesFunction implements OptionalArgument, LicenseAware {
+    /**
+     * Maximum number of grid cells that a single geo_shape value may intersect. If a shape would produce more
+     * cells than this limit the function returns {@code null} and registers an ES|QL warning. Mirrors the
+     * 10 000-document convention used elsewhere in Elasticsearch to give operators a familiar threshold.
+     * <p>
+     * TODO: returning the truncated partial list would be better UX than null. Implementing this cleanly
+     *       requires a small architecture change: either extend {@link GeoShapeCellsComputer} to convey a
+     *       truncation flag alongside the cells so the call-site in {@code fromFieldAndLiteral} can emit
+     *       the warning before writing results, or modify the {@code EvaluatorImplementer} code-generator
+     *       to support a "truncate-not-nullify" exception handling mode.
+     * </p>
+     * <p>
+     * TODO: for the common pattern {@code BY ST_GEOHEX(shape, precision)} the query planner could rewrite
+     *       the scalar function to a dedicated geo-grid aggregator (like the spatial plugin's
+     *       {@code GeoHexGridAggregationBuilder}) that processes one document at a time and accumulates
+     *       per-bucket counters rather than materialising all cells for an entire page at once.
+     *       This would eliminate the per-page memory explosion without needing a hard cell limit.
+     * </p>
+     * <p>
+     * TODO: for {@code WHERE ST_GEOHEX(shape, precision) == cell_id} the predicate could be pushed down
+     *       to Lucene as a geo-grid query (analogous to the Query DSL {@code geo_grid} query), avoiding
+     *       the need to enumerate cells at all and dramatically reducing both CPU and memory usage.
+     * </p>
+     */
+    public static final int MAX_GRID_CELLS = 10_000;
     protected final Expression spatialField;
     protected final Expression parameter;
     protected final Expression bounds;

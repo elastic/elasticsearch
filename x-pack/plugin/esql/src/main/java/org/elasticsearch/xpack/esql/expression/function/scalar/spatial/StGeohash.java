@@ -357,6 +357,11 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
                     current = Geohash.getNeighbor(current, precision, 1, 0);
                 }
                 if (geohashCellIntersectsShape(shape, current, predicate)) {
+                    if (cells.size() >= SpatialGridFunction.MAX_GRID_CELLS) {
+                        throw new IllegalArgumentException(
+                            "ST_GEOHASH generated more than " + SpatialGridFunction.MAX_GRID_CELLS + " grid cells"
+                        );
+                    }
                     cells.add(Geohash.longEncode(current));
                 }
             } while (current.equals(lastInRow) == false);
@@ -378,6 +383,11 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
         for (String sub : Geohash.getSubGeohashes(hash)) {
             if (geohashCellIntersectsShape(shape, sub, predicate)) {
                 if (sub.length() == precision) {
+                    if (cells.size() >= SpatialGridFunction.MAX_GRID_CELLS) {
+                        throw new IllegalArgumentException(
+                            "ST_GEOHASH generated more than " + SpatialGridFunction.MAX_GRID_CELLS + " grid cells"
+                        );
+                    }
                     cells.add(Geohash.longEncode(sub));
                 } else {
                     rasterizeGeohash(shape, sub, precision, predicate, cells);

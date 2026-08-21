@@ -86,11 +86,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -738,9 +740,8 @@ public class FileSplitProviderTests extends ESTestCase {
             return -1L;
         });
 
-        // A window-sized stride, with the payload several strides long plus slack past the last offset so the
-        // final split is not a runt.
-        long stride = RecordBoundaryProbe.PROBE_WINDOW_BYTES;
+        // The payload runs several strides long, plus slack past the last offset so the final split is not a runt.
+        long stride = 256 * 1024;
         StringBuilder sb = new StringBuilder();
         while (sb.length() < 4 * stride + stride / 2) {
             sb.append(lineContent);
@@ -795,6 +796,12 @@ public class FileSplitProviderTests extends ESTestCase {
     // CSV's minimum segment size is a fixed 1 MiB, so files must clear ~2 MiB before macro-splitting engages.
     // Both tests use a payload above that floor so a single split proves the quoting gate, not mere smallness.
     private static final long CSV_MIN_SEGMENT_BYTES = 1024 * 1024L;
+
+    /**
+     * A probe window twice the drain threshold, which is the width at which the drain-versus-abort rule is
+     * observable in both directions: a probe that scans none of it aborts, one that scans half of it drains.
+     */
+    private static final long FULL_WIDTH_WINDOW_BYTES = 2 * RecordBoundaryProbe.MAX_DRAIN_BYTES;
 
     public void testQuotedCsvMacroSplits() {
         // Default CSV is mode=quoted: a quoted field may embed newlines, so it cannot be probed at arbitrary
@@ -1034,16 +1041,13 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
-     * A file whose every record spans the probe window offers no boundary at any offset, so it is read whole. The
-     * price of an offset that finds nothing is one read: it says nothing about the offsets after it, so none of
-     * their reads may be skipped on the strength of it.
+     * A file with no record terminator until its very last byte offers no boundary at any offset, so it is read
+     * whole. The price of an offset that finds nothing is one read: it says nothing about the offsets after it,
+     * so none of their reads may be skipped on the strength of it.
      */
     public void testAFileWithNoBoundaryInAnyProbeWindowIsReadWhole() throws Exception {
-        int window = Math.toIntExact(RecordBoundaryProbe.PROBE_WINDOW_BYTES);
-        long stride = 2L * window;
-        // Records of four windows against a stride of two windows: each record terminator lands an odd number of
-        // windows into the file while every probe covers an even one, so no probe window holds a terminator.
-        byte[] payload = ("y".repeat(4 * window - 1) + "\n").repeat(4).getBytes(StandardCharsets.UTF_8);
+        long stride = 2 * CSV_MIN_SEGMENT_BYTES;
+        byte[] payload = oneRecordSpanning(8 * stride);
         StreamTracking tracking = new StreamTracking(1);
 
         ExecutorService executor = Executors.newFixedThreadPool(4);
@@ -1053,7 +1057,7 @@ public class FileSplitProviderTests extends ESTestCase {
         } finally {
             executor.shutdown();
         }
-        assertWarnings(true, List.of(containsString("no record boundary found in 1 file(s)")));
+        assertWarnings(true, List.of(containsString("1 file(s) were cut into fewer splits")));
 
         assertEquals("a file with no usable boundary is read whole", 1, splits.size());
         int probes = RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size();
@@ -1067,9 +1071,8 @@ public class FileSplitProviderTests extends ESTestCase {
      * an example, rather than once per file, which for a scan of many files would bury its response in warnings.
      */
     public void testUnsplittableFilesAreWarnedAboutOncePerQuery() {
-        int window = Math.toIntExact(RecordBoundaryProbe.PROBE_WINDOW_BYTES);
-        long stride = 2L * window;
-        byte[] payload = ("y".repeat(4 * window - 1) + "\n").repeat(4).getBytes(StandardCharsets.UTF_8);
+        long stride = 2 * CSV_MIN_SEGMENT_BYTES;
+        byte[] payload = oneRecordSpanning(8 * stride);
         Map<String, byte[]> payloads = new HashMap<>();
         for (int i = 0; i < 3; i++) {
             payloads.put("long-lines-" + i + ".csv", payload);
@@ -1080,7 +1083,89 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals("each file with no usable boundary is read whole", payloads.size(), splits.size());
         // assertWarnings fails on any warning left without a matcher, so one matcher is also the assertion that
         // three unsplittable files raised one warning rather than three.
-        assertWarnings(true, List.of(containsString("no record boundary found in 3 file(s)")));
+        assertWarnings(true, List.of(containsString("3 file(s) were cut into fewer splits")));
+    }
+
+    /**
+     * A partial shortfall, which is the case the count in the warning exists for: most offsets resolve and some do
+     * not, so the file is cut into fewer pieces than asked for while still being cut. Nothing about the splits
+     * says so, which is why it is reported rather than left for the reader of a slow query to infer.
+     */
+    public void testAPartialShortfallIsWarnedAboutEvenThoughTheFileStillSplits() {
+        long stride = 2 * CSV_MIN_SEGMENT_BYTES;
+        // One record longer than a probe window, so the offset inside it finds nothing while the offsets over the
+        // short rows either side of it resolve normally.
+        StringBuilder csv = new StringBuilder();
+        while (csv.length() < 2 * stride) {
+            csv.append("a,b,c\n");
+        }
+        csv.append("z".repeat(Math.toIntExact(2 * stride))).append('\n');
+        while (csv.length() < 8 * stride) {
+            csv.append("a,b,c\n");
+        }
+        byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
+
+        List<ExternalSplit> splits = discoverPlainCsvSplits(Map.of("one-long-row.csv", payload), stride, null, null);
+
+        assertThat("the file must still be cut at the offsets that did resolve", splits.size(), greaterThan(1));
+        assertWarnings(
+            true,
+            List.of(
+                allOf(
+                    containsString("1 file(s) were cut into fewer splits"),
+                    containsString("0 of them are read as a single whole-file split"),
+                    containsString("probe offsets found no record boundary")
+                )
+            )
+        );
+    }
+
+    /**
+     * A quoted CSV whose sequential walk gives up with file left to cut. The walk cannot skip the record it
+     * cannot get past, so everything after it goes uncut, and the splits themselves say no more about that than
+     * they do about a strided file that lost offsets. A walked file probes no offsets, so the warning it raises
+     * leaves the offset tally out rather than reporting none of none.
+     */
+    public void testASequentialWalkThatGivesUpIsWarnedAbout() {
+        long stride = 2 * CSV_MIN_SEGMENT_BYTES;
+        // Quoted rows, an embedded newline in each so the file can only be walked, for the first stride. Then a
+        // run with no terminator at all: past the offset that lands in it there is no record start left to prove.
+        StringBuilder csv = new StringBuilder();
+        while (csv.length() < stride) {
+            csv.append("a,\"b\nb\",c\n");
+        }
+        csv.append("z".repeat(Math.toIntExact(3 * stride)));
+        byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
+
+        List<ExternalSplit> splits = discoverCsvSplits(
+            Map.of("unterminated-tail.csv", payload),
+            stride,
+            null,
+            null,
+            Settings.EMPTY,
+            () -> false,
+            Map.of()
+        );
+
+        assertThat("the file must still be cut where the walk did reach", splits.size(), greaterThan(1));
+        assertWarnings(
+            true,
+            List.of(
+                allOf(
+                    containsString("1 file(s) were cut into fewer splits"),
+                    containsString("0 of them are read as a single whole-file split"),
+                    not(containsString("probe offsets"))
+                )
+            )
+        );
+    }
+
+    /** A payload of {@code length} bytes that is one record from end to end: no terminator until the final byte. */
+    private static byte[] oneRecordSpanning(long length) {
+        byte[] payload = new byte[Math.toIntExact(length)];
+        Arrays.fill(payload, (byte) 'y');
+        payload[payload.length - 1] = '\n';
+        return payload;
     }
 
     /**
@@ -1109,23 +1194,23 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
-     * A target split size below the probe window splits at its own offsets: the probe window is capped at the
-     * stride, which is what keeps one probe's window from reaching into the next offset. A caller asking for
-     * splits smaller than the window gets them, with correspondingly smaller probes.
+     * A small target split size splits at its own offsets. The probe window is capped at the stride, which is
+     * what keeps one probe's window from reaching into the next offset, so a caller asking for small splits gets
+     * them with correspondingly small probes rather than being rounded up to some fixed read size.
      */
-    public void testTargetStrideBelowTheProbeWindowIsHonoured() {
+    public void testASmallTargetStrideIsHonoured() {
         long stride = 64 * 1024;
-        assertThat("the stride under test must be below the probe window", stride, lessThan(RecordBoundaryProbe.PROBE_WINDOW_BYTES));
+        long widerStride = 256 * 1024;
         Map<String, byte[]> payloads = Map.of("tiny-stride.csv", delimitedPayload("a,b,c\n"));
         byte[] payload = payloads.get("tiny-stride.csv");
 
         List<ExternalSplit> splits = discoverPlainCsvSplits(payloads, stride, null, null);
-        List<ExternalSplit> atWindow = discoverPlainCsvSplits(payloads, RecordBoundaryProbe.PROBE_WINDOW_BYTES, null, null);
+        List<ExternalSplit> atWiderStride = discoverPlainCsvSplits(payloads, widerStride, null, null);
 
         // Every offset resolves, so the split count is the offset count plus the file start.
         int probes = RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size();
-        assertEquals("a sub-window stride must split at its own offsets", probes + 1, splits.size());
-        assertThat("and into more splits than the probe window would give", splits.size(), greaterThan(atWindow.size()));
+        assertEquals("a small stride must split at its own offsets", probes + 1, splits.size());
+        assertThat("and into more splits than a wider stride would give", splits.size(), greaterThan(atWiderStride.size()));
         for (int i = 0; i < splits.size() - 1; i++) {
             FileSplit split = (FileSplit) splits.get(i);
             // A boundary sits at most one record past its offset, so every split but the last is one stride long
@@ -1321,16 +1406,17 @@ public class FileSplitProviderTests extends ESTestCase {
      * outcome depends on nothing but its own read.
      */
     public void testARecordExceedingTheWindowMidFileCostsOnlyItsOwnSplit() throws Exception {
-        int window = Math.toIntExact(RecordBoundaryProbe.PROBE_WINDOW_BYTES);
-        long stride = 2L * window;
+        // The window is the stride here, the default max record size being far above it.
+        long stride = 512 * 1024;
+        long longRowBytes = 3 * stride / 2;
         StringBuilder csv = new StringBuilder();
-        // Normal rows up to just short of the second stride offset, so the probe there falls inside the long row
-        // that follows and finds no boundary within its window.
-        while (csv.length() < 2 * stride - window) {
+        // Normal rows up to half a stride short of the second stride offset, so the probe there falls inside the
+        // long row that follows and finds no boundary within its window.
+        while (csv.length() < 2 * stride - stride / 2) {
             csv.append("a,b,c\n");
         }
         long longRowStart = csv.length();
-        csv.append("z".repeat(3 * window)).append('\n');
+        csv.append("z".repeat(Math.toIntExact(longRowBytes))).append('\n');
         while (csv.length() < 8 * stride) {
             csv.append("a,b,c\n");
         }
@@ -1353,7 +1439,8 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals("only the offset inside the long record loses its split", probes, serial.size());
         FileSplit spanning = (FileSplit) serial.get(1);
         assertThat("one split must span the record no probe could split", spanning.offset(), lessThan(longRowStart));
-        assertThat(spanning.offset() + spanning.length(), greaterThan(longRowStart + 3L * window));
+        assertThat(spanning.offset() + spanning.length(), greaterThan(longRowStart + longRowBytes));
+        assertWarnings(true, List.of(containsString("1 file(s) were cut into fewer splits")));
     }
 
     /**
@@ -1634,6 +1721,22 @@ public class FileSplitProviderTests extends ESTestCase {
         Settings settings,
         BooleanSupplier isCancelled
     ) {
+        return discoverCsvSplits(payloads, targetStrideBytes, executor, tracking, settings, isCancelled, Map.of("mode", "plain"));
+    }
+
+    /**
+     * As {@link #discoverPlainCsvSplits}, but with the CSV mode left to the caller: {@code mode=plain} takes the
+     * strided probe path and the default (quoted) mode takes the sequential proven walk.
+     */
+    private static List<ExternalSplit> discoverCsvSplits(
+        Map<String, byte[]> payloads,
+        long targetStrideBytes,
+        @Nullable Executor executor,
+        @Nullable StreamTracking tracking,
+        Settings settings,
+        BooleanSupplier isCancelled,
+        Map<String, Object> csvConfig
+    ) {
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
         formatRegistry.registerLazy(
             "csv",
@@ -1662,7 +1765,7 @@ public class FileSplitProviderTests extends ESTestCase {
             null,
             fileList,
             Map.of(),
-            Map.of("mode", "plain"),
+            csvConfig,
             PartitionMetadata.EMPTY,
             List.of(),
             ExternalSchema.EMPTY,
@@ -1889,7 +1992,7 @@ public class FileSplitProviderTests extends ESTestCase {
         Set<Long> trueStarts = trueRecordStarts(csvReader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES), payload);
 
         long stride = fileLength / 4;
-        List<Long> starts = RecordBoundaryProbe.provenBoundaries(
+        RecordBoundaryProbe.ProvenWalk walk = RecordBoundaryProbe.provenBoundaries(
             csvReader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES),
             obj,
             fileLength,
@@ -1898,6 +2001,8 @@ public class FileSplitProviderTests extends ESTestCase {
             () -> false
         );
 
+        List<Long> starts = walk.boundaries();
+        assertFalse("every record here is one the walk can get past", walk.stoppedBeforeEndOfFile());
         assertThat("expected multiple proven macro-split boundaries", starts.size(), greaterThan(1));
         assertEquals("first boundary is always the file start", 0L, (long) starts.get(0));
         long prev = -1;
@@ -1980,8 +2085,8 @@ public class FileSplitProviderTests extends ESTestCase {
     public void testStridedProbesAbortRatherThanDrainWhenTooMuchOfTheWindowIsLeft() throws IOException {
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
 
-        // A stride at the window ceiling leaves every window at its full width, twice the drain threshold.
-        long stride = RecordBoundaryProbe.PROBE_WINDOW_BYTES;
+        // The window is the stride, so a stride at twice the drain threshold leaves every probe above it.
+        long stride = FULL_WIDTH_WINDOW_BYTES;
         byte[] payload = stridesOfRows(stride, 8);
         long fileLength = payload.length;
 
@@ -2010,7 +2115,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * its boundary immediately aborts.
      */
     public void testTheReleaseRuleTurnsOnTheBytesLeftToTransfer() throws IOException {
-        long window = RecordBoundaryProbe.PROBE_WINDOW_BYTES;
+        long window = FULL_WIDTH_WINDOW_BYTES;
 
         DrainSimulatingStorageObject.Tracking drainedIt = probeWindowWhoseRecordRunsFor(window - RecordBoundaryProbe.MAX_DRAIN_BYTES);
         assertEquals("a probe with only the threshold left drains its window", 0, drainedIt.abortCalls.get());
@@ -2027,7 +2132,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * the probe is left to transfer are the only thing that varies.
      */
     private static DrainSimulatingStorageObject.Tracking probeWindowWhoseRecordRunsFor(long recordBytes) throws IOException {
-        int window = Math.toIntExact(RecordBoundaryProbe.PROBE_WINDOW_BYTES);
+        int window = Math.toIntExact(FULL_WIDTH_WINDOW_BYTES);
         byte[] payload = new byte[3 * window];
         Arrays.fill(payload, (byte) 'x');
         // A newline just before the probe offset, so the offset itself starts a record, and the one that ends it.
@@ -2037,7 +2142,16 @@ public class FileSplitProviderTests extends ESTestCase {
 
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         StorageObject object = DrainSimulatingStorageObject.create(payload, tracking);
-        RecordBoundaryProbe.probeAt(stridedSplitter(), object, window, payload.length, 1, window, () -> false);
+        RecordBoundaryProbe.probeAt(
+            stridedSplitter(),
+            object,
+            window,
+            payload.length,
+            1,
+            window,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false
+        );
         return tracking;
     }
 
@@ -2103,14 +2217,6 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(List.of(0L, 120L, 360L), boundaries);
     }
 
-    public void testAnyWithoutBoundaryIsOnlyTheMissingTerminator() {
-        assertFalse(RecordBoundaryProbe.anyWithoutBoundary(List.of(RecordBoundaryProbe.Outcome.TAIL_TOO_SHORT)));
-        assertFalse(RecordBoundaryProbe.anyWithoutBoundary(List.of(RecordBoundaryProbe.Outcome.at(120))));
-        assertTrue(
-            RecordBoundaryProbe.anyWithoutBoundary(List.of(RecordBoundaryProbe.Outcome.TAIL_TOO_SHORT, RecordBoundaryProbe.Outcome.NONE))
-        );
-    }
-
     /** Two stride offsets landing inside one record resolve to the same boundary; only one split starts there. */
     public void testReduceProbeOutcomesDropsBoundariesThatDoNotAdvance() {
         List<Long> boundaries = RecordBoundaryProbe.reduce(
@@ -2124,7 +2230,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * reading on to end-of-file. Bounding the read is what keeps a probe a small, predictable ranged GET.
      */
     public void testProbeStridedBoundaryYieldsNoBoundaryWhenNoneInWindow() throws IOException {
-        int window = Math.toIntExact(RecordBoundaryProbe.PROBE_WINDOW_BYTES);
+        int window = 64 * 1024;
         byte[] payload = new byte[4 * window];
         Arrays.fill(payload, (byte) 'x');
         payload[payload.length - 1] = '\n';
@@ -2137,6 +2243,7 @@ public class FileSplitProviderTests extends ESTestCase {
             payload.length,
             1,
             window,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false
         );
 
@@ -2149,14 +2256,15 @@ public class FileSplitProviderTests extends ESTestCase {
         StorageObject object = createInMemoryStorageObject(payload, StoragePath.of("mem://short.ndjson"));
         RecordSplitter splitter = stridedSplitter();
 
+        int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
         assertEquals(
             RecordBoundaryProbe.Outcome.at(10),
-            RecordBoundaryProbe.probeAt(splitter, object, 5, payload.length, 5, payload.length, () -> false)
+            RecordBoundaryProbe.probeAt(splitter, object, 5, payload.length, 5, payload.length, maxRecordBytes, () -> false)
         );
         // With a 6-byte minimum segment, the same boundary leaves only 5 of the 15 bytes behind it.
         assertEquals(
             RecordBoundaryProbe.Outcome.TAIL_TOO_SHORT,
-            RecordBoundaryProbe.probeAt(splitter, object, 5, payload.length, 6, payload.length, () -> false)
+            RecordBoundaryProbe.probeAt(splitter, object, 5, payload.length, 6, payload.length, maxRecordBytes, () -> false)
         );
     }
 
@@ -2210,18 +2318,29 @@ public class FileSplitProviderTests extends ESTestCase {
             }
         };
 
-        expectThrows(IOException.class, () -> RecordBoundaryProbe.probeAt(stridedSplitter(), failing, 1024, 4096, 1, 1024, () -> false));
+        expectThrows(
+            IOException.class,
+            () -> RecordBoundaryProbe.probeAt(
+                stridedSplitter(),
+                failing,
+                1024,
+                4096,
+                1,
+                1024,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                () -> false
+            )
+        );
         assertEquals("a failed probe must abort, not drain", 1, abortCalls.get());
     }
 
     /**
      * A CRLF straddling the probe window's edge. The CR is the window's last byte, so the scan looking for the LF
-     * behind it sees the window end and reports a clean terminator at the CR. The boundary therefore lands on the
-     * orphaned LF, and the next split opens with a stray newline. This is benign, because line-oriented readers
-     * skip the empty leading record it makes, but it exists only because the window is bounded: a probe reading to
-     * end-of-file would always have found the LF.
+     * behind it sees the window end and reports a clean terminator at the CR. Cutting there would start the next
+     * split on the orphaned LF, which is not a record start, so the offset yields nothing instead and the span
+     * open across it runs on to the next offset that does resolve.
      */
-    public void testCarriageReturnAtTheWindowEdgeCutsBeforeItsLineFeed() throws IOException {
+    public void testABoundaryAtTheEdgeOfATruncatedWindowIsRejected() throws IOException {
         int window = 4096;
         // The probe at `window` reads [window, 2 * window). Fill that range with non-terminator bytes up to a CR on
         // its very last byte, whose LF is the first byte the probe cannot see.
@@ -2240,11 +2359,36 @@ public class FileSplitProviderTests extends ESTestCase {
             payload.length,
             1,
             window,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false
         );
 
-        assertEquals("the CR at the window edge terminates the record", RecordBoundaryProbe.Outcome.at(2L * window), outcome);
-        assertEquals("so the next split starts on the orphaned line feed", '\n', payload[Math.toIntExact(outcome.boundary())]);
+        assertEquals(
+            "a terminator found against the window's edge is not one the file agrees to",
+            RecordBoundaryProbe.Outcome.NONE,
+            outcome
+        );
+        // A byte earlier and the LF is inside the window, which is the same file cut the way it should be.
+        byte[] insideTheWindow = payload.clone();
+        insideTheWindow[2 * window - 1] = 'x';
+        insideTheWindow[2 * window - 3] = '\r';
+        insideTheWindow[2 * window - 2] = '\n';
+        StorageObject shifted = createInMemoryStorageObject(insideTheWindow, StoragePath.of("mem://crlf-inside.csv"));
+
+        assertEquals(
+            "the same terminator one byte further in is complete, and is cut at",
+            RecordBoundaryProbe.Outcome.at(2L * window - 1),
+            RecordBoundaryProbe.probeAt(
+                stridedSplitter(),
+                shifted,
+                window,
+                insideTheWindow.length,
+                1,
+                window,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                () -> false
+            )
+        );
     }
 
     /**
@@ -2265,7 +2409,16 @@ public class FileSplitProviderTests extends ESTestCase {
 
         expectThrows(
             TaskCancelledException.class,
-            () -> RecordBoundaryProbe.probeAt(stridedSplitter(), object, stride, payload.length, 1, stride, cancelAfterTheScan)
+            () -> RecordBoundaryProbe.probeAt(
+                stridedSplitter(),
+                object,
+                stride,
+                payload.length,
+                1,
+                stride,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                cancelAfterTheScan
+            )
         );
 
         assertEquals("a cancelled probe aborts its stream", 1, tracking.abortCalls.get());
@@ -2312,7 +2465,16 @@ public class FileSplitProviderTests extends ESTestCase {
 
         expectThrows(
             TaskCancelledException.class,
-            () -> RecordBoundaryProbe.probeAt(stridedSplitter(), counting, 5, payload.length, 1, payload.length, () -> true)
+            () -> RecordBoundaryProbe.probeAt(
+                stridedSplitter(),
+                counting,
+                5,
+                payload.length,
+                1,
+                payload.length,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                () -> true
+            )
         );
         assertEquals("a cancelled probe must not read", 0, streamsOpened.get());
     }
@@ -2379,14 +2541,17 @@ public class FileSplitProviderTests extends ESTestCase {
         int maxRecordBytes
     ) throws IOException {
         long minSegment = reader.minimumSegmentSize();
-        return RecordBoundaryProbe.probeStridedSerially(
-            reader.recordSplitter(maxRecordBytes),
-            object,
-            fileLength,
-            RecordBoundaryProbe.stridedPositions(fileLength, targetStrideBytes, minSegment),
-            minSegment,
-            targetStrideBytes,
-            () -> false
+        return RecordBoundaryProbe.reduce(
+            RecordBoundaryProbe.stridedOutcomes(
+                reader.recordSplitter(maxRecordBytes),
+                object,
+                fileLength,
+                RecordBoundaryProbe.stridedPositions(fileLength, targetStrideBytes, minSegment),
+                minSegment,
+                targetStrideBytes,
+                maxRecordBytes,
+                () -> false
+            )
         );
     }
 

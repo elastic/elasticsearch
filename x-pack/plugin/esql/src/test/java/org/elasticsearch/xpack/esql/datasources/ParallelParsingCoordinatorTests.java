@@ -125,12 +125,13 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         String row = "0123456789,0123456789,012345678\n";
         long minSegment = 512 * 1024;
         // Parallelism high enough that fileLength / parallelism falls under minSegment, which pins the stride to
-        // minSegment and so the probe window to the full PROBE_WINDOW_BYTES ceiling rather than a stride-capped one.
+        // minSegment. The probe window is the stride here, since the default max record size is far above it.
         int parallelism = 64;
         // Place the long record at exactly two strides in so the probe at that offset lands on the record start
-        // and cannot find a boundary within its window; the probe at three strides (after the record ends) can.
+        // and cannot find a boundary within its window; the probe at three strides (inside the record but within
+        // a window of its end) can.
         long longRecordStart = 2 * minSegment;
-        int longRecordBytes = Math.toIntExact(RecordBoundaryProbe.PROBE_WINDOW_BYTES + 128 * 1024);
+        int longRecordBytes = Math.toIntExact(minSegment + 128 * 1024);
 
         StringBuilder text = new StringBuilder();
         while (text.length() < longRecordStart) {
@@ -270,7 +271,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         long stride = Math.max(fileLength / 4, csvReader.minimumSegmentSize());
         assertThat(
             "a probe here must be left with more than the drain threshold to transfer, or it is no longer testing the abort path",
-            RecordBoundaryProbe.probeWindow(stride, fileLength, stride),
+            RecordBoundaryProbe.probeWindow(stride, fileLength, stride, SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES),
             Matchers.greaterThan(RecordBoundaryProbe.MAX_DRAIN_BYTES)
         );
         assertThat("expected multiple parse segments", segments.size(), Matchers.greaterThan(1));

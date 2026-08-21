@@ -598,16 +598,28 @@ public final class ParallelParsingCoordinator {
             // Fixed offsets, like planning's newline macro-splits: a probe that yields no boundary merges the
             // spans either side of it rather than stopping the walk, so a record longer than the probe window
             // mid-file costs one segment rather than all remaining in-node parallelism after it.
-            // probeAt is called directly (not via probeStridedSerially) so as not to overwrite the ambient
+            // probeAt is called directly (not via stridedOutcomes) so as not to overwrite the ambient
             // StorageRetryCancellation scope the read installed, which is what lets backoff sleeps abort on cancel.
             List<Long> positions = RecordBoundaryProbe.stridedPositions(fileLength, nominalSize, minSegment);
             List<RecordBoundaryProbe.Outcome> outcomes = new ArrayList<>(positions.size());
             for (long pos : positions) {
-                outcomes.add(RecordBoundaryProbe.probeAt(splitter, storageObject, pos, fileLength, minSegment, nominalSize, () -> false));
+                outcomes.add(
+                    RecordBoundaryProbe.probeAt(
+                        splitter,
+                        storageObject,
+                        pos,
+                        fileLength,
+                        minSegment,
+                        nominalSize,
+                        maxRecordBytes,
+                        () -> false
+                    )
+                );
             }
             boundaries = RecordBoundaryProbe.reduce(outcomes);
         } else {
-            boundaries = RecordBoundaryProbe.provenBoundaries(splitter, storageObject, fileLength, nominalSize, minSegment, () -> false);
+            boundaries = RecordBoundaryProbe.provenBoundaries(splitter, storageObject, fileLength, nominalSize, minSegment, () -> false)
+                .boundaries();
         }
 
         List<long[]> segments = new ArrayList<>(boundaries.size());

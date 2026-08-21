@@ -31,7 +31,7 @@ import java.util.function.BooleanSupplier;
  * <p>
  * Which of the two walks applies is a property of the splitter. {@link RecordSplitter#supportsStridedProbing()}
  * means any offset can be probed independently of any other, which is what
- * {@link #probeAt} and {@link #probeStridedSerially} assume. A splitter that instead only supports
+ * {@link #probeAt} and {@link #stridedOutcomes} assume. A splitter that instead only supports
  * {@link RecordSplitter#supportsProvenProbing()} (quoted or escaped CSV/TSV) must use {@link #provenBoundaries},
  * whose every step depends on the boundary the previous one found.
  */
@@ -43,25 +43,6 @@ final class RecordBoundaryProbe {
     static final String CANCELLED_MESSAGE = "ES|QL external split discovery cancelled";
 
     /**
-     * How many bytes a probe reads at its offset before giving up on finding a record boundary there.
-     * <p>
-     * A row-oriented record (an NDJSON line, a CSV row) is far smaller than this, so its terminating newline
-     * is found well within the window and the probe is a small, predictable ranged GET rather than a range
-     * opened to end-of-file. A record that does span the whole window yields no boundary rather than reading
-     * further; {@link #reduce} explains what that costs.
-     * <p>
-     * This is a ceiling, not a fixed size: {@link #probeWindow} also caps the window at the stride, so a caller
-     * asking for splits smaller than this gets them, with correspondingly smaller probes. Capping at the stride
-     * is also what keeps one probe's window from reaching into the next probe's offset, so the boundaries a set
-     * of offsets produces stay in the same order as the offsets themselves.
-     * <p>
-     * A window this wide sits above {@link #MAX_DRAIN_BYTES}, so a probe that finds its boundary early in a full
-     * window releases the stream by aborting it. Draining is for the probes that leave less behind: one whose
-     * window the stride or end-of-file cut to the threshold or below, and one that scanned most of a full window.
-     */
-    static final long PROBE_WINDOW_BYTES = 256 * 1024;
-
-    /**
      * With more than this many bytes of a probe's window left to transfer, reconnecting on the next probe is
      * cheaper than draining this one.
      * <p>
@@ -70,6 +51,13 @@ final class RecordBoundaryProbe {
      * between them is how many bytes the link moves while a handshake completes, and the bandwidth to compare
      * against is not the whole link: it is the link divided by the probes in flight. We chose the numbers below
      * based on empirical testing.
+     * <p>
+     * Which of the two a probe takes follows from its window, and on a file cut at a stride wider than this the
+     * answer is always abort: the splitters scan through an 8kb buffer, so a probe that finds its boundary in the
+     * first record leaves nearly the whole window behind. Draining is for the narrow windows: a stride at or
+     * below this threshold, the last offset of a file where end-of-file cut the window short, and a scan that ran
+     * most of the way through a wider one. So the connection reuse this buys is real but confined to those, and
+     * a query cut at a wide stride should not be expected to see it.
      */
     static final long MAX_DRAIN_BYTES = 128 * 1024;
 
@@ -103,15 +91,38 @@ final class RecordBoundaryProbe {
     }
 
     /**
-     * The window a probe at {@code pos} reads: the {@link #PROBE_WINDOW_BYTES} ceiling, capped at the stride so
-     * one probe cannot read into the next offset, and at what is left of the file.
+     * The window a probe at {@code pos} reads: the longest record the splitter would accept, capped at the
+     * stride and at what is left of the file.
+     * <p>
+     * {@code maxRecordBytes} is the ceiling because it is already the point past which the splitter reports
+     * {@link RecordSplitter#RECORD_TOO_LARGE}, so a window wider than it could only read bytes the splitter
+     * would refuse to use. It also leaves the longest record a probe will resolve under the query's own
+     * control, through {@code max_record_size} and {@code target_split_size}, rather than under a size nothing
+     * in a query can reach. The two are not interchangeable: where the stride is the smaller of them it is the
+     * stride that binds, so a record longer than one split yields no boundary even though the streamed path
+     * would accept it.
+     * <p>
+     * Capping at the stride is what keeps one probe's window from reaching into the next probe's offset, so the
+     * boundaries a set of offsets produces stay in the same order as the offsets themselves. It is also what
+     * makes a caller asking for splits smaller than a record's worth of bytes get correspondingly smaller
+     * probes.
+     * <p>
+     * A wide window is not a wide read. The splitters scan through an 8kb buffer and stop at the first
+     * terminator, and {@link ProbeStream} then aborts the stream rather than transferring the rest, so on a
+     * file of ordinary rows the bytes moved are set by the record length and not by this at all. What the
+     * window bounds is the worst case: how far a probe will go before giving up on the offset.
      */
-    static long probeWindow(long pos, long fileLength, long strideBytes) {
-        return Math.min(Math.min(PROBE_WINDOW_BYTES, strideBytes), fileLength - pos);
+    static long probeWindow(long pos, long fileLength, long strideBytes, int maxRecordBytes) {
+        return Math.min(Math.min(maxRecordBytes, strideBytes), fileLength - pos);
     }
 
     /**
      * Finds the first record boundary at or after {@code pos} by reading a bounded window there.
+     * <p>
+     * The result depends on {@code pos} and on the file, and on nothing any other probe did. That is what lets a
+     * caller spread a file's offsets across threads and get the boundaries it would have got walking them one at
+     * a time: probing concurrently and probing serially agree, so whether a node has an executor changes how
+     * long discovery takes and not how the file is cut.
      * <p>
      * The stream is released either by draining the rest of the window and closing it, or by aborting it,
      * according to how much of the window the splitter left unread; see {@link #MAX_DRAIN_BYTES}. A probe that
@@ -126,6 +137,7 @@ final class RecordBoundaryProbe {
      * read unable to observe a cancel at all.
      *
      * @param strideBytes the distance between the offsets the caller is probing, which bounds the window
+     * @param maxRecordBytes the longest record the splitter will accept, which also bounds the window
      */
     static Outcome probeAt(
         RecordSplitter splitter,
@@ -134,12 +146,13 @@ final class RecordBoundaryProbe {
         long fileLength,
         long minSegment,
         long strideBytes,
+        int maxRecordBytes,
         BooleanSupplier isCancelled
     ) throws IOException {
         if (isCancelled.getAsBoolean()) {
             throw new TaskCancelledException(CANCELLED_MESSAGE);
         }
-        long window = probeWindow(pos, fileLength, strideBytes);
+        long window = probeWindow(pos, fileLength, strideBytes, maxRecordBytes);
         long skipped;
         InputStream stream = storageObject.newStream(pos, window);
         try (ProbeStream probe = new ProbeStream(storageObject, stream, window)) {
@@ -157,6 +170,14 @@ final class RecordBoundaryProbe {
         // Either way this offset yields no boundary, and the span before it runs on through the record that
         // swallowed the window until the next offset that does find one.
         if (skipped == RecordSplitter.RECORD_TOO_LARGE || skipped < 0) {
+            return Outcome.NONE;
+        }
+        // A boundary at the very end of a window that stopped short of end-of-file was found against the
+        // window's edge rather than against the file, and a terminator the splitter read as complete there may
+        // be the first byte of one that is not: a CR whose LF is the byte the window excluded reads as a clean
+        // terminator, and cutting on it would start the next split on the orphaned LF, which is not a record
+        // start. The offset yields nothing instead, so every split this produces begins where a record does.
+        if (pos + window < fileLength && skipped == window) {
             return Outcome.NONE;
         }
         long boundary = pos + skipped;
@@ -236,6 +257,9 @@ final class RecordBoundaryProbe {
      * caller can compute a file's probe offsets before deciding how, or where, to run the probes.
      */
     static List<Long> stridedPositions(long fileLength, long strideBytes, long minSegment) {
+        // Callers must resolve the stride to a positive value before laying out offsets at it: a zero stride
+        // would leave pos where it started and grow the list until the heap went.
+        assert strideBytes > 0 : "stride must be positive, was " + strideBytes;
         List<Long> positions = new ArrayList<>();
         for (long pos = strideBytes; pos < fileLength; pos += strideBytes) {
             if (fileLength - pos < minSegment) {
@@ -258,7 +282,8 @@ final class RecordBoundaryProbe {
      * consecutive boundaries sit {@code stride ± record length} apart, bounded below by {@code stride - window}
      * because {@link #probeWindow} caps the window at the stride. Holding out for spans of at least a stride
      * would mean dropping every second boundary whenever the stride is within a window of the reader's minimum
-     * segment size, which costs more parallelism than the short span does.
+     * segment size, which costs more parallelism than the short span does. So a span can come out under the
+     * reader's minimum segment size, and readers must not treat that minimum as a floor they are handed.
      */
     static List<Long> reduce(List<Outcome> outcomes) {
         List<Long> boundaries = new ArrayList<>();
@@ -269,19 +294,6 @@ final class RecordBoundaryProbe {
             }
         }
         return boundaries;
-    }
-
-    /**
-     * Whether any offset found no terminator in its window. Distinct from {@link Outcome#TAIL_TOO_SHORT}: a
-     * short leftover after a found boundary is not a missing boundary.
-     */
-    static boolean anyWithoutBoundary(List<Outcome> outcomes) {
-        for (Outcome outcome : outcomes) {
-            if (outcome.kind() == Outcome.Kind.NONE) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
@@ -298,34 +310,28 @@ final class RecordBoundaryProbe {
         List<Long> positions,
         long minSegment,
         long strideBytes,
+        int maxRecordBytes,
         BooleanSupplier isCancelled
     ) throws IOException {
         return StorageRetryCancellation.callWithCancellation(isCancelled, () -> {
             List<Outcome> outcomes = new ArrayList<>(positions.size());
             for (long pos : positions) {
-                outcomes.add(probeAt(splitter, storageObject, pos, fileLength, minSegment, strideBytes, isCancelled));
+                outcomes.add(probeAt(splitter, storageObject, pos, fileLength, minSegment, strideBytes, maxRecordBytes, isCancelled));
             }
             return outcomes;
         });
     }
 
     /**
-     * Probes each offset on the calling thread and reduces the outcomes to split starts. Every probe is
-     * independent of every other, so this produces the same boundaries as gathering the same offsets
-     * concurrently and reducing the results, which is what lets a node without an executor fall back to this
-     * walk without changing how a file is cut.
+     * What a proven walk found: its boundaries, and whether it gave up with file left to cut.
+     * <p>
+     * It gives up on the record it cannot get past, which is either one longer than the splitter will read or one
+     * that runs to end-of-file without a terminator. Both leave the rest of the file on the span that was open,
+     * and the boundaries alone cannot tell either from a walk that simply reached the end: all three come back as
+     * a list. Only a walk that stopped means the file is cut into fewer pieces than the stride asked for, which
+     * is the case worth telling the user about.
      */
-    static List<Long> probeStridedSerially(
-        RecordSplitter splitter,
-        StorageObject storageObject,
-        long fileLength,
-        List<Long> positions,
-        long minSegment,
-        long strideBytes,
-        BooleanSupplier isCancelled
-    ) throws IOException {
-        return reduce(stridedOutcomes(splitter, storageObject, fileLength, positions, minSegment, strideBytes, isCancelled));
-    }
+    record ProvenWalk(List<Long> boundaries, boolean stoppedBeforeEndOfFile) {}
 
     /**
      * Boundaries for a splitter that cannot be probed at a fixed offset (quoted or escaped CSV/TSV) but can prove
@@ -333,7 +339,7 @@ final class RecordBoundaryProbe {
      * boundary the previous one found, and an {@code AMBIGUOUS} probe walks forward from the last proven record
      * start, so this walk is inherently sequential and cannot be spread across threads like the strided one.
      */
-    static List<Long> provenBoundaries(
+    static ProvenWalk provenBoundaries(
         RecordSplitter splitter,
         StorageObject storageObject,
         long fileLength,
@@ -370,13 +376,17 @@ final class RecordBoundaryProbe {
                     start = splitter.findRecordStartAtOrAfter(walkStream, pos - exactCursor, isCancelled);
                 }
                 if (start == RecordSplitter.RECORD_TOO_LARGE || start < 0) {
-                    break;
+                    // Either a record longer than the splitter will read, or no record start left before
+                    // end-of-file. The rest of the file cannot be cut, so it rides on the span open here.
+                    return new ProvenWalk(boundaries, true);
                 }
                 boundary = exactCursor + start;
             } else {
-                // findProvenRecordBoundary only ever returns a boundary (>= 0) or AMBIGUOUS.
+                // findProvenRecordBoundary only ever returns a boundary (>= 0) or AMBIGUOUS. With assertions
+                // off, a splitter that breaks that contract leaves the rest of the file uncut, which is the
+                // same shortfall as a record the walk cannot get past and is reported as one.
                 assert false : "findProvenRecordBoundary returned an unexpected sentinel: " + probed;
-                break;
+                return new ProvenWalk(boundaries, true);
             }
             if (boundary >= fileLength) {
                 break;
@@ -393,6 +403,6 @@ final class RecordBoundaryProbe {
                 throw new TaskCancelledException(CANCELLED_MESSAGE);
             }
         }
-        return boundaries;
+        return new ProvenWalk(boundaries, false);
     }
 }

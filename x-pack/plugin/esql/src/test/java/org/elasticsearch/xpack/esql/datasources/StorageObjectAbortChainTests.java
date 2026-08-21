@@ -114,14 +114,17 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         SegmentableFormatReader csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
 
         long minSegment = csvReader.minimumSegmentSize();
-        List<Long> starts = RecordBoundaryProbe.probeStridedSerially(
-            csvReader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES),
-            chain,
-            fileLength,
-            RecordBoundaryProbe.stridedPositions(fileLength, stride, minSegment),
-            minSegment,
-            stride,
-            () -> false
+        List<Long> starts = RecordBoundaryProbe.reduce(
+            RecordBoundaryProbe.stridedOutcomes(
+                csvReader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES),
+                chain,
+                fileLength,
+                RecordBoundaryProbe.stridedPositions(fileLength, stride, minSegment),
+                minSegment,
+                stride,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                () -> false
+            )
         );
 
         assertThat("expected multiple macro-split boundaries", starts.size(), Matchers.greaterThan(1));
@@ -168,7 +171,7 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         long stride = Math.max(fileLength / 4, csvReader.minimumSegmentSize());
         assertThat(
             "a probe here must be left with more than the drain threshold to transfer, or it is no longer testing the abort path",
-            RecordBoundaryProbe.probeWindow(stride, fileLength, stride),
+            RecordBoundaryProbe.probeWindow(stride, fileLength, stride, SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES),
             Matchers.greaterThan(RecordBoundaryProbe.MAX_DRAIN_BYTES)
         );
         assertThat("expected multiple parse segments", segments.size(), Matchers.greaterThan(1));

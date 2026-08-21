@@ -30,7 +30,7 @@ public interface RecoverySchedulingListener {
     /// Listener that ignores every lifecycle event.
     RecoverySchedulingListener NOOP = new RecoverySchedulingListener() {};
 
-    /// Called when an incoming recovery is directly canceled on the target by the master node, before it even reached the queue.
+    /// Called when an incoming recovery is directly cancelled on the target by the master node, before it even reached the queue.
     default void onRecoveryCancelledBeforeQueuingOnTarget(RecoverySource.Type type) {}
 
     /// Called when an incoming recovery is queued on the target.
@@ -45,7 +45,7 @@ public interface RecoverySchedulingListener {
     /// Called when a queued outgoing peer recovery is discarded on the source without having ever run.
     default void onQueuedPeerRecoveryDiscardedOnSource() {}
 
-    /// Called when a queued incoming recovery is directly canceled on the target by the master node, before it started running.
+    /// Called when a queued incoming recovery is directly cancelled on the target by the master node, before it started running.
     default void onQueuedRecoveryCancelledOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {}
 
     /// Called when an outgoing peer recovery has been dispatched for execution on the source.
@@ -57,7 +57,7 @@ public interface RecoverySchedulingListener {
     /// Called when a previously queued outgoing peer recovery is dequeued and dispatched for execution on the source.
     default void onPeerRecoveryDequeuedAndStartedOnSource() {}
 
-    /// Called when started incoming recovery is directly canceled on the target by the master node.
+    /// Called when started incoming recovery is directly cancelled on the target by the master node.
     default void onStartedRecoveryCancelledOnTarget(RecoverySource.Type type) {}
 
     /// Called when a running incoming recovery finishes (success, failure or aborted) on the target.

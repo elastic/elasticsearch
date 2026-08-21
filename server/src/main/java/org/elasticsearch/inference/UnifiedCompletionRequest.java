@@ -317,6 +317,14 @@ public record UnifiedCompletionRequest(
         return reasoning() != null || messages().stream().anyMatch(m -> m.reasoning() != null || m.reasoningDetails() != null);
     }
 
+    /**
+     * Whether the caller asked for reasoning to be omitted from the response. An absent reasoning
+     * configuration, or an absent {@code exclude} flag, means reasoning is included.
+     */
+    public boolean excludeReasoning() {
+        return reasoning() != null && Boolean.TRUE.equals(reasoning().exclude());
+    }
+
     public boolean containsChatCompletionCacheControl() {
         return cacheControl() != null;
     }
@@ -349,9 +357,11 @@ public record UnifiedCompletionRequest(
                     * RamUsageEstimator.NUM_BYTES_OBJECT_REF
             ) + tools().stream().mapToLong(Tool::ramBytesUsed).sum();
         var reasoningRamBytesUsed = reasoning() == null ? 0L : reasoning().ramBytesUsed();
+        var cacheControlRamBytesUsed = containsChatCompletionCacheControl() ? cacheControl().ramBytesUsed() : 0L;
+        var sessionIdRamBytesUsed = RamUsageEstimator.sizeOf(sessionId());
 
         return SHALLOW_SIZE + messagesRamBytesUsed + modelRamBytesUsed + toolChoicesRamBytesUsed + stopRamBytesUsed + toolsRamBytesUsed
-            + reasoningRamBytesUsed;
+            + reasoningRamBytesUsed + cacheControlRamBytesUsed + sessionIdRamBytesUsed;
     }
 
     private static ToolChoice parseToolChoice(XContentParser parser) throws IOException {

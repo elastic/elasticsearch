@@ -270,7 +270,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     }
 
     private static IndexMode resolveIndexMode(final String mode) {
-        return mode != null ? Enum.valueOf(IndexMode.class, mode.toUpperCase(Locale.ROOT)) : null;
+        return mode != null ? IndexMode.fromString(mode) : null;
     }
 
     MappingHints getMappingHints(

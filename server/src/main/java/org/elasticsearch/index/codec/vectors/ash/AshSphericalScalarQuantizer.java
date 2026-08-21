@@ -95,20 +95,18 @@ final class AshSphericalScalarQuantizer {
         int numAbsLevels = 1 << (bitsPerDim - 1);
         int nSteps = numAbsLevels - 1;
 
-        if (nSteps == 0) {
-            return quantizeExact1Bit(z, zOffset, out, outOffset, d);
-        }
-        if (nSteps == 1) {
-            return quantizeExact2Bit(z, zOffset, out, outOffset, d);
-        }
-        return quantizeExactGeneral(z, zOffset, out, outOffset, d, numAbsLevels, nSteps);
+        return switch (nSteps) {
+            case 0 -> quantizeExact1Bit(z, zOffset, out, outOffset, d);
+            case 1 -> quantizeExact2Bit(z, zOffset, out, outOffset, d);
+            default -> quantizeExactGeneral(z, zOffset, out, outOffset, d, numAbsLevels, nSteps);
+        };
     }
 
     /**
      * 1-bit quantization: each dimension is assigned magnitude 0.5 with the sign of the input.
      * The norm is always sqrt(0.25 * d) = 0.5 * sqrt(d).
      */
-    private static float quantizeExact1Bit(float[] z, int zOffset, float[] out, int outOffset, int d) {
+    static float quantizeExact1Bit(float[] z, int zOffset, float[] out, int outOffset, int d) {
         for (int j = 0; j < d; j++) {
             out[outOffset + j] = Math.copySign(0.5f, z[zOffset + j]);
         }
@@ -118,64 +116,70 @@ final class AshSphericalScalarQuantizer {
     /**
      * Specialized fast path for 2-bit quantization (nSteps=1).
      * <p>
-     * Each dimension is either at level 0.5 or 1.5. The optimal assignment sorts dimensions
-     * by |z_j| descending and sweeps to find the cutoff that maximizes
+     * Each dimension is either at level 0.5 or 1.5. The optimal assignment sorts magnitude values
+     * ascending, then iterates in descending order to find the cutoff that maximises
      * cumDot / sqrt(cumNormSq), where upgrading dimension j adds |z_j| to cumDot and 2.0 to cumNormSq.
+     * The selected set is recovered via a threshold on |z_j| rather than by tracking indices.
      */
-    private static float quantizeExact2Bit(float[] z, int zOffset, float[] out, int outOffset, int d) {
-        int[] order = new int[d];
-        float[] absZ = new float[d];
-        for (int j = 0; j < d; j++) {
-            order[j] = j;
-            absZ[j] = Math.abs(z[zOffset + j]);
-        }
-        IndirectSorter.sortDescendingByFloat(order, absZ, d);
-
+    static float quantizeExact2Bit(float[] z, int zOffset, float[] out, int outOffset, int d) {
         // Base level: all dims at 0.5 -> cumDot = sum(0.5 * |z_j|), cumNormSq = 0.25 * d
-        double cumDot = 0;
+        float[] absZ = new float[d];
+        double dot = 0;
         for (int j = 0; j < d; j++) {
-            cumDot = Math.fma(0.5, absZ[j], cumDot);
+            absZ[j] = Math.abs(z[zOffset + j]);
+            dot = Math.fma(0.5, absZ[j], dot);
         }
-        double cumNormSq = 0.25 * d;
-        double bestValue = cumDot / Math.sqrt(cumNormSq);
-        int bestK = 0; // number of dimensions to upgrade to level 1.5
 
-        // Sweep: upgrade dims in descending |z| order
-        double sweepDot = cumDot;
-        double sweepNormSq = cumNormSq;
+        // Sorted ascending; the iteration is then done backwards
+        Arrays.sort(absZ);
+
+        double normSq = 0.25 * d;
+        double bestValue = dot / Math.sqrt(normSq);
+
+        // iterate dims in |z| descending order
+        int bestK = 0; // number of dimensions to upgrade to level 1.5
         for (int k = 0; k < d; k++) {
-            int dim = order[k];
-            sweepDot += absZ[dim];     // upgrading from 0.5 to 1.5 adds 1.0 * |z_dim|
-            sweepNormSq += 2.0;        // 1.5^2 - 0.5^2 = 2.0
+            int i = d - 1 - k;
+            dot += absZ[i];  // upgrading from 0.5 to 1.5 adds 1.0 * |z_dim|
+            normSq += 2.0;   // 1.5^2 - 0.5^2 = 2.0
 
             // Handle ties: skip evaluation if next dim has the same |z|
-            if (k + 1 < d && absZ[order[k]] == absZ[order[k + 1]]) {
+            if (i > 0 && absZ[i] == absZ[i - 1]) {
                 continue;
             }
 
-            double value = sweepDot / Math.sqrt(sweepNormSq);
+            double value = dot / Math.sqrt(normSq);
             if (value > bestValue) {
                 bestValue = value;
                 bestK = k + 1;
             }
         }
 
-        // Write output: upgraded dims get magnitude 1.5, others stay at 0.5
-        for (int j = 0; j < d; j++) {
-            out[outOffset + j] = Math.copySign(0.5f, z[zOffset + j]);
+        if (bestK == 0) {
+            // every dim is 0.5
+            for (int j = 0; j < d; j++) {
+                out[outOffset + j] = Math.copySign(0.5f, z[zOffset + j]);
+            }
+        } else {
+            float threshold = absZ[d - bestK];
+            for (int j = 0; j < d; j++) {
+                // The tie rule above only ever sets bestK at the end of a run of equal magnitudes, so
+                // selecting every dimension at or above the smallest upgraded magnitude picks out exactly
+                // bestK of them
+                // need to recalculate abs(z[..]) here, as the absZ array order has changed
+                float v = z[zOffset + j];
+                out[outOffset + j] = Math.copySign(Math.abs(v) >= threshold ? 1.5f : 0.5f, v);
+            }
         }
-        for (int k = 0; k < bestK; k++) {
-            int dim = order[k];
-            out[outOffset + dim] = Math.copySign(1.5f, z[zOffset + dim]);
-        }
-        float norm = ESVectorUtil.dotProduct(out, outOffset, out, outOffset, d);
-        return (float) Math.sqrt(norm);
+
+        // vector is now (d - bestK) x 0.5, and bestK x 1.5 (squares = 0.25, 2.25)
+        return (float) Math.sqrt(0.25 * (d - bestK) + 2.25 * bestK);
     }
 
     /**
      * General quantization path for bitsPerDim > 2 (nSteps > 1).
      */
-    private float quantizeExactGeneral(float[] z, int zOffset, float[] out, int outOffset, int d, int numAbsLevels, int nSteps) {
+    static float quantizeExactGeneral(float[] z, int zOffset, float[] out, int outOffset, int d, int numAbsLevels, int nSteps) {
 
         // Extract signs and absolute values
         float[] signs = new float[d];
@@ -222,21 +226,16 @@ final class AshSphericalScalarQuantizer {
             IndirectSorter.sortAscendingByDouble(order, eventTimes, eventCount);
 
             // Sweep through events, tracking cumulative dot product and norm
-            double cumDot = currentDot;
-            double cumNormSq = currentNormSq;
-            double bestValue = cumDot / Math.sqrt(cumNormSq);
+            double dot = currentDot;
+            double normSq = currentNormSq;
+            double bestValue = dot / Math.sqrt(normSq);
             int bestStopIdx = -1; // -1 means stop at base
-
-            int[] dimLevelCount = new int[d]; // track how many levels each dim has been incremented
 
             for (int idx = 0; idx < eventCount; idx++) {
                 int oi = order[idx];
-                int dim = eventDims[oi];
-                int level = eventLevels[oi];
 
-                cumDot += absZ[dim];
-                cumNormSq = Math.fma(2f, level, cumNormSq);
-                dimLevelCount[dim]++;
+                dot += absZ[eventDims[oi]];
+                normSq = Math.fma(2f, eventLevels[oi], normSq);
 
                 // Handle ties: skip if next event has same time
                 if (idx + 1 < eventCount) {
@@ -246,7 +245,7 @@ final class AshSphericalScalarQuantizer {
                     }
                 }
 
-                double value = cumDot / Math.sqrt(cumNormSq);
+                double value = dot / Math.sqrt(normSq);
                 if (value > bestValue) {
                     bestValue = value;
                     bestStopIdx = idx;
@@ -255,12 +254,11 @@ final class AshSphericalScalarQuantizer {
 
             // Reconstruct bestIdx from the events up to bestStopIdx
             if (bestStopIdx >= 0) {
-                Arrays.fill(dimLevelCount, 0);
+                Arrays.fill(bestIdx, 0);
                 for (int idx = 0; idx <= bestStopIdx; idx++) {
                     int oi = order[idx];
-                    dimLevelCount[eventDims[oi]]++;
+                    bestIdx[eventDims[oi]]++;
                 }
-                System.arraycopy(dimLevelCount, 0, bestIdx, 0, d);
             }
         }
 

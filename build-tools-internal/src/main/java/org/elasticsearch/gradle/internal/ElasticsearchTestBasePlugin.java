@@ -54,12 +54,6 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
     public static final Set<String> TEST_TASKS_WITH_ENTITLEMENTS = Set.of("test", "internalClusterTest");
 
-    /**
-     * On JDK 27, where compact object headers became the default, C2 can miscompile conversions that
-     * read freshly allocated arrays, zeroing the leading bytes/chars of UTF-8 round-trips.
-     */
-    private static final List<String> JDK27_C2_BUG_WORKAROUND = List.of("-XX:+UnlockDiagnosticVMOptions", "-XX:-SpecialEncodeISOArray");
-
     @Inject
     protected abstract ProviderFactory getProviderFactory();
 
@@ -151,8 +145,6 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             test.getJvmArgumentProviders().add(new SimpleCommandLineArgumentProvider("-XX:HeapDumpPath=" + heapdumpDir));
             test.getJvmArgumentProviders()
                 .add(() -> List.of("-Dorg.apache.lucene.vectorization.upperJavaFeatureVersion=" + test.getJavaVersion().getMajorVersion()));
-            test.getJvmArgumentProviders()
-                .add(() -> test.getJavaVersion().getMajorVersion().equals("27") ? JDK27_C2_BUG_WORKAROUND : List.of());
 
             String argline = System.getProperty("tests.jvm.argline");
             if (argline != null) {

@@ -279,13 +279,13 @@ public class EsqlDataTypeConverter {
             if (to == DataType.DATETIME) {
                 return l -> EsqlDataTypeConverter.dateTimeToLong(
                     BytesRefs.toString(l),
-                    DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
+                    DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.setting(QuerySettings.TIME_ZONE))
                 );
             }
             if (to == DATE_NANOS) {
                 return l -> EsqlDataTypeConverter.dateNanosToLong(
                     BytesRefs.toString(l),
-                    DEFAULT_DATE_NANOS_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
+                    DEFAULT_DATE_NANOS_FORMATTER.withZone(configuration.setting(QuerySettings.TIME_ZONE))
                 );
             }
             if (to == DataType.IP) {

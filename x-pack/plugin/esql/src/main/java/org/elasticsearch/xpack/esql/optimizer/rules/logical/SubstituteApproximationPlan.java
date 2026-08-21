@@ -22,7 +22,7 @@ public final class SubstituteApproximationPlan extends ParameterizedRule<Logical
 
     @Override
     public LogicalPlan apply(LogicalPlan logicalPlan, LogicalOptimizerContext context) {
-        if (QuerySettings.APPROXIMATION.get(context.configuration().resolvedSettings()) == null) {
+        if (context.configuration().setting(QuerySettings.APPROXIMATION) == null) {
             // Approximation is not enabled
             return logicalPlan;
         } else {
@@ -33,11 +33,7 @@ public final class SubstituteApproximationPlan extends ParameterizedRule<Logical
             } else {
                 // Returns an approximation plan with placeholders for the sample probabilities.
                 // This placeholder will be replaced after executing the corresponding subplans.
-                return ApproximationPlan.get(
-                    logicalPlan,
-                    queryProperties,
-                    QuerySettings.APPROXIMATION.get(context.configuration().resolvedSettings())
-                );
+                return ApproximationPlan.get(logicalPlan, queryProperties, context.configuration().setting(QuerySettings.APPROXIMATION));
             }
         }
     }

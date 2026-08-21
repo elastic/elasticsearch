@@ -616,7 +616,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 asyncExecutionId,
                 false,
                 request.async(),
-                QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings()),
+                result.configuration().setting(QuerySettings.TIME_ZONE),
                 task.getStartTime(),
                 ((EsqlQueryTask) task).getExpirationTimeMillis(),
                 result.executionInfo()
@@ -636,7 +636,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             null,
             false,
             request.async(),
-            QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings()),
+            result.configuration().setting(QuerySettings.TIME_ZONE),
             task.getStartTime(),
             threadPool.absoluteTimeInMillis() + request.keepAlive().millis(),
             result.executionInfo()

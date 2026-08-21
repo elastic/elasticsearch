@@ -195,7 +195,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                         (source, fieldEval) -> new ToStringFromDatetimeEvaluator.Factory(
                             source,
                             fieldEval,
-                            DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
+                            DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.setting(QuerySettings.TIME_ZONE))
                         )
                     ),
                     Map.entry(
@@ -203,7 +203,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                         (source, fieldEval) -> new ToStringFromDateNanosEvaluator.Factory(
                             source,
                             fieldEval,
-                            DEFAULT_DATE_NANOS_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
+                            DEFAULT_DATE_NANOS_FORMATTER.withZone(configuration.setting(QuerySettings.TIME_ZONE))
                         )
                     ),
                     Map.entry(
@@ -211,7 +211,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                         (source, fieldEval) -> new ToStringFromDateRangeEvaluator.Factory(
                             source,
                             fieldEval,
-                            DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
+                            DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.setting(QuerySettings.TIME_ZONE))
                         )
                     )
                 )

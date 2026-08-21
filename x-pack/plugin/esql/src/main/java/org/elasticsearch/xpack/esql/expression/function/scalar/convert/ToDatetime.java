@@ -139,7 +139,7 @@ public class ToDatetime extends AbstractConvertFunction implements Configuration
                         (source, fieldEval) -> new ToDatetimeFromStringEvaluator.Factory(
                             source,
                             fieldEval,
-                            DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
+                            DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.setting(QuerySettings.TIME_ZONE))
                         )
                     ),
                     Map.entry(
@@ -147,7 +147,7 @@ public class ToDatetime extends AbstractConvertFunction implements Configuration
                         (source, fieldEval) -> new ToDatetimeFromStringEvaluator.Factory(
                             source,
                             fieldEval,
-                            DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
+                            DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.setting(QuerySettings.TIME_ZONE))
                         )
                     )
                 )

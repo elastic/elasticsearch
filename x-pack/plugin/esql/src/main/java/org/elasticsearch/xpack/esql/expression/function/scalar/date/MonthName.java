@@ -126,14 +126,14 @@ public class MonthName extends EsqlConfigurationFunction implements AnyNullIsNul
             return new MonthNameNanosEvaluator.Factory(
                 source(),
                 fieldEvaluator,
-                QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()),
+                configuration().setting(QuerySettings.TIME_ZONE),
                 configuration().locale()
             );
         }
         return new MonthNameMillisEvaluator.Factory(
             source(),
             fieldEvaluator,
-            QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()),
+            configuration().setting(QuerySettings.TIME_ZONE),
             configuration().locale()
         );
     }

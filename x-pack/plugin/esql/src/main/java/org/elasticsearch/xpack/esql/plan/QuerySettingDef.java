@@ -116,8 +116,12 @@ import java.util.function.UnaryOperator;
  * <h2>Reading</h2>
  *
  * <pre>{@code
- *   ZoneId tz = QuerySettings.TIME_ZONE.get(resolved);
+ *   ZoneId tz = configuration.setting(QuerySettings.TIME_ZONE);
  * }</pre>
+ *
+ * {@link #get(ResolvedSettings)} is the low-level accessor used by {@code Configuration.setting}; call
+ * it directly only where a {@code Configuration} does not yet exist, e.g. resolving settings up front
+ * in {@code EsqlSession} before the {@code Configuration} that needs them is constructed.
  *
  * <h2>Reconciliation</h2>
  *
@@ -282,6 +286,10 @@ public final class QuerySettingDef<T> {
         return reconciler;
     }
 
+    /**
+     * Reads this setting's resolved value directly. Prefer {@code Configuration.setting(this)} — call
+     * this only where a {@code Configuration} isn't available yet (see class javadoc).
+     */
     public T get(ResolvedSettings settings) {
         return settings.get(this);
     }

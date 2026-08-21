@@ -136,7 +136,7 @@ public class DateTrunc extends EsqlConfigurationFunction implements AnyNullIsNul
     }
 
     public ZoneId zoneId() {
-        return QuerySettings.TIME_ZONE.get(configuration().resolvedSettings());
+        return configuration().setting(QuerySettings.TIME_ZONE);
     }
 
     @Override

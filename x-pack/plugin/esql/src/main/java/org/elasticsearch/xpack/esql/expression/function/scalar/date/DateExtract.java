@@ -151,14 +151,14 @@ public class DateExtract extends EsqlConfigurationFunction implements AnyNullIsN
                     source(),
                     fieldEvaluator,
                     chrono,
-                    QuerySettings.TIME_ZONE.get(configuration().resolvedSettings())
+                    configuration().setting(QuerySettings.TIME_ZONE)
                 );
             } else {
                 return new DateExtractConstantMillisEvaluator.Factory(
                     source(),
                     fieldEvaluator,
                     chrono,
-                    QuerySettings.TIME_ZONE.get(configuration().resolvedSettings())
+                    configuration().setting(QuerySettings.TIME_ZONE)
                 );
             }
         }
@@ -170,14 +170,14 @@ public class DateExtract extends EsqlConfigurationFunction implements AnyNullIsN
                 source(),
                 fieldEvaluator,
                 chronoEvaluator,
-                QuerySettings.TIME_ZONE.get(configuration().resolvedSettings())
+                configuration().setting(QuerySettings.TIME_ZONE)
             );
         } else {
             return new DateExtractMillisEvaluator.Factory(
                 source(),
                 fieldEvaluator,
                 chronoEvaluator,
-                QuerySettings.TIME_ZONE.get(configuration().resolvedSettings())
+                configuration().setting(QuerySettings.TIME_ZONE)
             );
         }
 

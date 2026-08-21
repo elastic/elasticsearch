@@ -283,7 +283,7 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
         Locale locale = localeAsString == null ? Locale.ROOT : LocaleUtils.parse(localeAsString);
 
         String timezoneAsString = (String) parsedOptions.get(TIME_ZONE_PARAM_NAME);
-        ZoneId timezone = QuerySettings.TIME_ZONE.get(configuration().resolvedSettings());
+        ZoneId timezone = configuration().setting(QuerySettings.TIME_ZONE);
         try {
             if (timezoneAsString != null) {
                 timezone = ZoneId.of(timezoneAsString);

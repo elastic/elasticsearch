@@ -198,7 +198,7 @@ public class Kql extends FullTextFunction implements OptionalArgument, Configura
     }
 
     private Map<String, Object> kqlQueryOptions() throws InvalidArgumentException {
-        if (options() == null && QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()).equals(ZoneOffset.UTC)) {
+        if (options() == null && configuration.setting(QuerySettings.TIME_ZONE).equals(ZoneOffset.UTC)) {
             return null;
         }
 
@@ -206,7 +206,7 @@ public class Kql extends FullTextFunction implements OptionalArgument, Configura
         if (options() != null) {
             Options.populateMap((MapExpression) options(), kqlOptions, source(), SECOND, ALLOWED_OPTIONS);
         }
-        kqlOptions.putIfAbsent(TIME_ZONE_FIELD.getPreferredName(), QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()).getId());
+        kqlOptions.putIfAbsent(TIME_ZONE_FIELD.getPreferredName(), configuration.setting(QuerySettings.TIME_ZONE).getId());
         return kqlOptions;
     }
 

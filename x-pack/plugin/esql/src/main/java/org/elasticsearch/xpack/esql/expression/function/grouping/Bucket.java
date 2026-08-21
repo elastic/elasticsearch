@@ -674,7 +674,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             long b = ((Number) buckets.fold(foldContext)).longValue();
             long f = foldToLong(foldContext, from);
             long t = foldToLong(foldContext, to);
-            var rounding = new DateRoundingPicker(b, f, t, QuerySettings.TIME_ZONE.get(configuration.resolvedSettings())).pickRounding();
+            var rounding = new DateRoundingPicker(b, f, t, configuration.setting(QuerySettings.TIME_ZONE)).pickRounding();
             if (UP.equals(roundingConvention)) {
                 rounding = Rounding.ToUpperRounding.createRounding(rounding);
             }
@@ -688,7 +688,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             assert DataType.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
             prepared = DateTrunc.createRounding(
                 buckets.fold(foldContext),
-                QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()),
+                configuration.setting(QuerySettings.TIME_ZONE),
                 min,
                 max,
                 offset,

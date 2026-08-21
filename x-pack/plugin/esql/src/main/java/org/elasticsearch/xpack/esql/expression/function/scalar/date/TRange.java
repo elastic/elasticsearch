@@ -287,7 +287,7 @@ public class TRange extends EsqlConfigurationFunction
 
     private Instant timeWithOffset(Object offset, Instant base) {
         if (offset instanceof TemporalAmount amount) {
-            var zonedDateTime = ZonedDateTime.ofInstant(base, QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()));
+            var zonedDateTime = ZonedDateTime.ofInstant(base, configuration().setting(QuerySettings.TIME_ZONE));
             return zonedDateTime.minus(amount).toInstant();
         }
         throw new InvalidArgumentException("Unsupported offset type [{}]", offset.getClass().getSimpleName());
@@ -302,7 +302,7 @@ public class TRange extends EsqlConfigurationFunction
             try {
                 long millis = dateTimeToLong(
                     bytesRef.utf8ToString(),
-                    DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()))
+                    DEFAULT_DATE_TIME_FORMATTER.withZone(configuration().setting(QuerySettings.TIME_ZONE))
                 );
                 return Instant.ofEpochMilli(millis);
             } catch (Exception e) {

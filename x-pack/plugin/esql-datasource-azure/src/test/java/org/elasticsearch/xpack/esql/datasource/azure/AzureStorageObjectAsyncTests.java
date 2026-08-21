@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
+import reactor.core.publisher.Hooks;
+
 import com.azure.storage.blob.BlobAsyncClient;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
@@ -22,8 +24,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
@@ -153,6 +158,53 @@ public class AzureStorageObjectAsyncTests extends ESTestCase {
         try (AzureStorageProvider provider = new AzureStorageProvider(azureConfig, null, null)) {
             var obj = provider.newObject(PATH);
             assertTrue("Provider-created objects should support native async", obj.supportsNativeAsync());
+        }
+    }
+
+    /**
+     * Verifies that a synchronous throw during reactive chain construction (simulated here via a
+     * Reactor assembly hook — the realistic trigger is Reactor scheduler rejection on shutdown) closes
+     * the allocated buffer and fails the listener rather than leaking the buffer and stranding the
+     * caller.
+     */
+    public void testReadBytesAsyncSynchronousThrowClosesBufferAndFailsListener() throws Exception {
+        String hookKey = "azure-sync-throw-" + Thread.currentThread().getId();
+        Thread testThread = Thread.currentThread();
+        Hooks.onEachOperator(hookKey, publisher -> {
+            if (Thread.currentThread() == testThread) {
+                throw new RejectedExecutionException("simulated Reactor scheduler rejection");
+            }
+            return publisher;
+        });
+
+        try {
+            AtomicBoolean bufferClosed = new AtomicBoolean(false);
+            // Plain direct buffer — no Arrow lifecycle, just track whether close() is called.
+            DirectBufferFactory trackingFactory = len -> new DirectReadBuffer(ByteBuffer.allocateDirect(len), () -> bufferClosed.set(true));
+
+            AzureStorageObject obj = new AzureStorageObject(blobClient(), blobAsyncClient(), "container", "blob.parquet", PATH);
+
+            CountDownLatch latch = new CountDownLatch(1);
+            AtomicReference<Exception> error = new AtomicReference<>();
+
+            obj.readBytesAsync(0, 100, trackingFactory, Runnable::run, new ActionListener<>() {
+                @Override
+                public void onResponse(DirectReadBuffer buffer) {
+                    fail("expected failure, not success");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    error.set(e);
+                    latch.countDown();
+                }
+            });
+
+            assertTrue("listener must be completed (synchronously)", latch.await(0, TimeUnit.MILLISECONDS));
+            assertThat(error.get(), instanceOf(RejectedExecutionException.class));
+            assertTrue("buffer must be closed when chain throws synchronously", bufferClosed.get());
+        } finally {
+            Hooks.resetOnEachOperator(hookKey);
         }
     }
 }

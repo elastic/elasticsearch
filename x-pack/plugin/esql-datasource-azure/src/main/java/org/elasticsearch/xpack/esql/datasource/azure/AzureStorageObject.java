@@ -305,34 +305,42 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
 
         BlobRange range = new BlobRange(position, length);
         long startNanos = System.nanoTime();
-        onReadComplete(
-            blobAsyncClient.downloadWithResponse(range, null, null, false)
-                .flatMapMany(response -> response.getValue())
-                .reduce(drb.buffer(), (acc, chunk) -> {
-                    if (chunk.remaining() > acc.remaining()) {
-                        throw new IllegalStateException("Server returned more bytes than requested (" + length + ")");
+        try {
+            onReadComplete(
+                blobAsyncClient.downloadWithResponse(range, null, null, false)
+                    .flatMapMany(response -> response.getValue())
+                    .reduce(drb.buffer(), (acc, chunk) -> {
+                        if (chunk.remaining() > acc.remaining()) {
+                            throw new IllegalStateException("Server returned more bytes than requested (" + length + ")");
+                        }
+                        acc.put(chunk);
+                        return acc;
+                    })
+                    .map(buffer -> {
+                        buffer.flip();
+                        return buffer;
+                    })
+                    .toFuture(),
+                (buffer, error) -> {
+                    if (error != null) {
+                        counters.addRequest(System.nanoTime() - startNanos, 0L);
+                        // Release eagerly on the failure path so the breaker charge does not outlive
+                        // the failed request.
+                        drb.close();
+                        Throwable cause = error.getCause() != null ? error.getCause() : error;
+                        listener.onFailure(mapReadFailure("Failed to read bytes from", cause));
+                    } else {
+                        deliverRead(listener, drb, startNanos);
                     }
-                    acc.put(chunk);
-                    return acc;
-                })
-                .map(buffer -> {
-                    buffer.flip();
-                    return buffer;
-                })
-                .toFuture(),
-            (buffer, error) -> {
-                if (error != null) {
-                    counters.addRequest(System.nanoTime() - startNanos, 0L);
-                    // Release eagerly on the failure path so the breaker charge does not outlive
-                    // the failed request.
-                    drb.close();
-                    Throwable cause = error.getCause() != null ? error.getCause() : error;
-                    listener.onFailure(mapReadFailure("Failed to read bytes from", cause));
-                } else {
-                    deliverRead(listener, drb, startNanos);
                 }
-            }
-        );
+            );
+        } catch (Exception e) {
+            // Executor rejection (saturated queue, shutdown) — release the buffer eagerly so the
+            // charge does not stay against the allocator for the lifetime of the JVM.
+            // Mirror the GCS guard.
+            drb.close();
+            listener.onFailure(e);
+        }
     }
 
     @Override

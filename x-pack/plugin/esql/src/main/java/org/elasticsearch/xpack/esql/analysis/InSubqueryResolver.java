@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Lambda;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -58,9 +59,10 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  *   <li>An {@code InSubquery} inside a {@link IsNull}/{@link IsNotNull} operand, or inside any
  *       argument of a {@code CASE} or {@code COALESCE} call, is replaced with a synthetic boolean
  *       attribute and a {@link MarkJoin} is stacked below the rewritten {@link Filter} —
- *       identical to the {@link Or} case above.</li>
- *   <li>An {@code InSubquery} wrapped in any other expression (a comparison operator, an
- *       arithmetic operator, a lambda, etc.) is left in place; the post-resolution
+ *       identical to the {@link Or} case above. These eligible expressions may themselves be
+ *       nested inside comparisons, arithmetic operators, or other ordinary expressions.</li>
+ *   <li>An {@code InSubquery} directly wrapped in any other expression, or nested inside a
+ *       scope-bearing expression such as a lambda, is left in place; the post-resolution
  *       {@link #verify} step rejects the query with a {@link VerificationException}.</li>
  * </ul>
  * <p>
@@ -158,9 +160,9 @@ public class InSubqueryResolver {
                 continue;
             }
             // Either no InSubquery in the conjunct (passes through unchanged), or InSubquery is
-            // nested inside OR (rewritten with MarkJoin), or InSubquery sits under a
-            // non-boolean wrapper (left as-is for {@link #verify} to reject).
-            Expression rewritten = rewriteOrContextInSubqueries(conjunct, markJoins, syntheticEvals);
+            // nested inside a supported boolean expression (rewritten with MarkJoin), or
+            // InSubquery sits directly under an unsupported wrapper (left for {@link #verify}).
+            Expression rewritten = rewriteInSubqueries(conjunct, true, markJoins, syntheticEvals);
             remaining.add(rewritten);
         }
 
@@ -242,54 +244,81 @@ public class InSubqueryResolver {
     }
 
     /**
-     * Walks the boolean expression replacing every {@link InSubquery} reachable through boolean-composing nodes with a fresh synthetic
-     * mark attribute, recording a {@link MarkJoinSpec} per replacement. The boolean-composing nodes are:
+     * Walks the expression replacing every {@link InSubquery} whose position in the tree is eligible for join-hoisting with a fresh
+     * synthetic mark attribute, recording a {@link MarkJoinSpec} per replacement.
+     * <p>
+     * An {@link InSubquery} is eligible if its direct parent is one of the "eligible boolean-composing nodes":
      * <ul>
      *   <li>{@link And}, {@link Or}, {@link Not} — standard boolean connectives.</li>
-     *   <li>{@link IsNull}, {@link IsNotNull} — {@code (x IN (sub)) IS [NOT] NULL}; the operand is a {@code valueExpression} in the
-     *       grammar so it must be parenthesized, but the  resulting {@link IsNull}/{@link IsNotNull} node wraps the {@link InSubquery}
-     *       directly.</li>
-     *   <li>An {@link UnresolvedFunction} whose name is {@code CASE} or {@code COALESCE} (case-insensitive): every argument position may
-     *       contain an {@link InSubquery} because all {@code functionParam} grammar alternatives accept a full {@code booleanExpression}.
-     *       Note: at this stage the plan is pre-analysis, so these appear as {@link UnresolvedFunction}, not as the resolved
-     *       {@code Case}/{@code Coalesce} classes.</li>
+     *   <li>{@link IsNull}, {@link IsNotNull} — e.g. {@code (x IN (sub)) IS [NOT] NULL}.</li>
+     *   <li>An {@link UnresolvedFunction} whose name is {@code CASE} or {@code COALESCE} (case-insensitive).</li>
      * </ul>
-     * {@link InSubquery} occurrences under any other wrapper (arithmetic, comparison, lambda, etc.) are left in place for {@link #verify}
-     * to reject. Any expression with no eligible {@link InSubquery} below it is returned unchanged.
+     * <p>
+     * The resolver uses a recursive traversal to find these nodes. When it encounters an eligible wrapper, it re-enables rewriting for
+     * all its children. This allows subqueries to be resolved even when deeply nested, provided they are directly inside an eligible node.
+     * <p>
+     * For example, in {@code (CASE(x IN (sub), true, false) + 1) == 2}:
+     * <ol>
+     *   <li>The {@code ==} operator is an "ordinary" expression. It does not allow an immediate {@code InSubquery} child, but it is
+     *       transparent to traversal, so it calls into its children with {@code rewriteCurrentInSubquery = false}.</li>
+     *   <li>The {@code +} operator is also transparent and continues the traversal.</li>
+     *   <li>The {@code CASE} function is an eligible wrapper. It calls into its arguments with {@code rewriteCurrentInSubquery = true}.
+     *       </li>
+     *   <li>The {@code InSubquery} is now eligible because its direct parent (the {@code CASE}) is an eligible wrapper. It is replaced
+     *       with a mark attribute and a {@link MarkJoin} is recorded.</li>
+     * </ol>
+     * Conversely, in {@code (x IN (sub)) == true}, the {@code ==} operator does not enable rewriting for its children, so the subquery
+     * remains unresolved and is later caught by {@link #verify}.
+     * <p>
+     * Scope-bearing expressions such as {@link Lambda} act as a rewrite boundary and stop the traversal entirely.
      */
-    private static Expression rewriteOrContextInSubqueries(Expression expr, List<MarkJoinSpec> joins, List<Alias> syntheticEvals) {
-        if (expr instanceof And and) {
-            Expression left = rewriteOrContextInSubqueries(and.left(), joins, syntheticEvals);
-            Expression right = rewriteOrContextInSubqueries(and.right(), joins, syntheticEvals);
-            return left == and.left() && right == and.right() ? and : new And(and.source(), left, right);
-        }
-        if (expr instanceof Or or) {
-            Expression left = rewriteOrContextInSubqueries(or.left(), joins, syntheticEvals);
-            Expression right = rewriteOrContextInSubqueries(or.right(), joins, syntheticEvals);
-            return left == or.left() && right == or.right() ? or : new Or(or.source(), left, right);
-        }
-        if (expr instanceof Not not) {
-            Expression child = rewriteOrContextInSubqueries(not.field(), joins, syntheticEvals);
-            return child == not.field() ? not : new Not(not.source(), child);
-        }
+    private static Expression rewriteInSubqueries(
+        Expression expr,
+        boolean rewriteCurrentInSubquery,
+        List<MarkJoinSpec> joins,
+        List<Alias> syntheticEvals
+    ) {
         if (expr instanceof InSubquery inSubquery) {
-            return rewriteAsMarkJoin(inSubquery, joins, syntheticEvals);
+            return rewriteCurrentInSubquery ? rewriteAsMarkJoin(inSubquery, joins, syntheticEvals) : inSubquery;
         }
-        if (expr instanceof MultiColumnInSubquery mcs) {
-            return rewriteAsMarkJoin(mcs, joins, syntheticEvals);
+        if (expr instanceof MultiColumnInSubquery inSubquery) {
+            return rewriteCurrentInSubquery ? rewriteAsMarkJoin(inSubquery, joins, syntheticEvals) : inSubquery;
         }
-        if (isEligibleFunctionForInSubqueryRewrite(expr)) {
-            List<Expression> children = expr.children();
-            List<Expression> rewritten = new ArrayList<>(children.size());
-            boolean changed = false;
-            for (Expression child : children) {
-                Expression r = rewriteOrContextInSubqueries(child, joins, syntheticEvals);
+        if (isInSubqueryRewriteBoundary(expr)) {
+            return expr;
+        }
+
+        boolean rewriteChildren = canRewriteInSubqueryChildren(expr);
+        List<Expression> children = expr.children();
+        List<Expression> rewritten = null;
+        for (int i = 0; i < children.size(); i++) {
+            Expression child = children.get(i);
+            Expression r = rewriteInSubqueries(child, rewriteChildren, joins, syntheticEvals);
+            if (rewritten != null) {
                 rewritten.add(r);
-                changed |= r != child;
+            } else if (r != child) {
+                rewritten = new ArrayList<>(children.size());
+                for (int j = 0; j < i; j++) {
+                    rewritten.add(children.get(j));
+                }
+                rewritten.add(r);
             }
-            return changed ? expr.replaceChildren(rewritten) : expr;
         }
-        return expr;
+        return rewritten != null ? expr.replaceChildren(rewritten) : expr;
+    }
+
+    /**
+     * Returns whether an {@link InSubquery} directly below {@code expr} can be replaced with a mark attribute.
+     */
+    private static boolean canRewriteInSubqueryChildren(Expression expr) {
+        return expr instanceof And || expr instanceof Or || expr instanceof Not || isEligibleFunctionForInSubqueryRewrite(expr);
+    }
+
+    /**
+     * Returns whether traversal must stop at {@code expr} because descendants may reference names scoped by the expression.
+     */
+    private static boolean isInSubqueryRewriteBoundary(Expression expr) {
+        return expr instanceof Lambda;
     }
 
     /**
@@ -455,7 +484,7 @@ public class InSubqueryResolver {
     private static void checkInSubqueryUsage(LogicalPlan plan, Failures failures) {
         plan.forEachDown(p -> {
             if (p instanceof Filter filter) {
-                checkInFilterCondition(filter, filter.condition(), null, failures);
+                checkInFilterCondition(filter, filter.condition(), true, false, null, failures);
             } else {
                 p.forEachExpression(
                     InSubquery.class,
@@ -473,38 +502,43 @@ public class InSubqueryResolver {
      * Walks the {@code WHERE} condition tree to validate IN subquery usage that the
      * {@link InSubqueryResolver} could not rewrite into a {@link SemiJoin}/{@link AntiJoin}/{@link MarkJoin}.
      * <p>
-     * If the IN subquery sits at the top of the boolean condition (i.e. only {@link And} /
-     * {@link Or} / {@link Not} / {@link IsNull} / {@link IsNotNull} / {@code CASE} /
-     * {@code COALESCE} above it) the resolver normally rewrites it; if one survives here it means
-     * the LHS of the subquery is not yet supported (e.g. a non-attribute, non-foldable expression
-     * like {@code abs(x)}). In that case we report the whole filter source (the entire
-     * {@code WHERE} clause).
+     * If the IN subquery is directly below an eligible boolean-composing expression, the resolver normally rewrites it; if one survives
+     * here it means the LHS of the subquery is not yet supported (e.g. a non-attribute, non-foldable expression like {@code abs(x)}). In
+     * that case we report the whole filter source (the entire {@code WHERE} clause).
      * <p>
-     * Otherwise (the IN subquery is nested inside an expression that is not in the supported
-     * allowlist), we report the immediately enclosing expression.
+     * Otherwise (the IN subquery is nested inside an expression that is not in the supported allowlist), we report the immediately
+     * enclosing expression.
      */
-    private static void checkInFilterCondition(Filter filter, Expression expr, Expression outerExpr, Failures failures) {
+    private static void checkInFilterCondition(
+        Filter filter,
+        Expression expr,
+        boolean rewriteCurrentInSubquery,
+        boolean insideRewriteBoundary,
+        Expression outerExpr,
+        Failures failures
+    ) {
         if (expr instanceof InSubquery in) {
-            if (outerExpr == null) {
+            if (rewriteCurrentInSubquery && insideRewriteBoundary == false) {
                 failures.add(fail(in, "Complicated IN subquery is not yet supported in the WHERE command [{}]", filter.sourceText()));
             } else {
                 failures.add(fail(in, "IN subquery is not supported within other expressions [{}]", outerExpr.sourceText()));
             }
+            return;
         }
         if (expr instanceof MultiColumnInSubquery mcs) {
-            if (outerExpr == null) {
+            if (rewriteCurrentInSubquery && insideRewriteBoundary == false) {
                 failures.add(fail(mcs, "Complicated IN subquery is not yet supported in the WHERE command [{}]", filter.sourceText()));
             } else {
                 failures.add(fail(mcs, "IN subquery is not supported within other expressions [{}]", outerExpr.sourceText()));
             }
+            return;
         }
-        Expression newOuterExpr = outerExpr == null
-            && expr instanceof And == false
-            && expr instanceof Or == false
-            && expr instanceof Not == false
-            && isEligibleFunctionForInSubqueryRewrite(expr) == false ? expr : outerExpr;
+
+        boolean newInsideRewriteBoundary = insideRewriteBoundary || isInSubqueryRewriteBoundary(expr);
+        boolean rewriteChildren = newInsideRewriteBoundary == false && canRewriteInSubqueryChildren(expr);
+        Expression newOuterExpr = rewriteChildren ? null : newInsideRewriteBoundary && outerExpr != null ? outerExpr : expr;
         for (Expression child : expr.children()) {
-            checkInFilterCondition(filter, child, newOuterExpr, failures);
+            checkInFilterCondition(filter, child, rewriteChildren, newInsideRewriteBoundary, newOuterExpr, failures);
         }
     }
 }

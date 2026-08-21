@@ -45,8 +45,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * released on {@link #close()}. Heap-backed compressed input still copies through a per-page
  * scratch buffer; production prefetch already yields direct slices, so that path is idle.
  * Returned {@link DataPage}s and {@link BytesInput}s alias the current buffer and must not be
- * used after the next {@link #readPage()} or {@link #close()}. Equal-size reuse overwrites in
- * place (no poison); a stale alias sees the new page, not a crash.
+ * used after the next {@link #readPage()} or {@link #close()}.
  */
 final class PrefetchedPageReader implements PageReader, Releasable {
 

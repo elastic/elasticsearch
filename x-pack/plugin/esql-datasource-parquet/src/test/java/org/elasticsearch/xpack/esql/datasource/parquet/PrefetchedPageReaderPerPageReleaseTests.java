@@ -89,18 +89,7 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
             );
             try {
                 int baseline = listener.allocations;
-                DataPageV2 first = (DataPageV2) reader.readPage();
-                assertNotNull(first);
-                BytesInput firstData = first.getData();
-                assertArrayEquals(fixture.payloads.get(0), firstData.toByteArray());
-
-                DataPageV2 second = (DataPageV2) reader.readPage();
-                assertNotNull(second);
-                assertArrayEquals(fixture.payloads.get(1), second.getData().toByteArray());
-                // Stale alias of page 1 now sees page 2 — reuse overwrites in place.
-                assertArrayEquals(fixture.payloads.get(1), firstData.toByteArray());
-
-                for (int p = 2; p < PAGES; p++) {
+                for (int p = 0; p < PAGES; p++) {
                     DataPageV2 page = (DataPageV2) reader.readPage();
                     assertNotNull(page);
                     assertArrayEquals(fixture.payloads.get(p), page.getData().toByteArray());
